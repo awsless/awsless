@@ -1,6 +1,5 @@
 
 import { createFilter } from 'rollup-pluginutils'
-import objectAssign from 'object-assign'
 import { dirname, extname, basename } from 'path'
 import stylus from 'stylus'
 import CleanCSS from 'clean-css'
@@ -12,14 +11,14 @@ export interface Options {
 }
 
 export default (options: Options = {}) => {
-	options = objectAssign({
+	options = {
 		extensions: [ '.styl' ],
-	}, options || {})
+	}
 
 	const filter = createFilter(options.include, options.exclude)
 
 	return {
-		async transform(code, id) {
+		async transform(code:string, id:string) {
 			if (!filter(id)) return
 			if (options.extensions?.indexOf(extname(id)) === -1) return
 

@@ -1,5 +1,5 @@
 
-import { describe, it } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { WeakCache } from '../src'
 // @ts-ignore
 import gc from 'expose-gc'

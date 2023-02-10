@@ -6,7 +6,6 @@ import typescript from '@rollup/plugin-typescript'
 import commonjs from '@rollup/plugin-commonjs'
 // import { terser } from '@wwa/rollup-plugin-terser'
 import terser from '@rollup/plugin-terser'
-// import { uglify } from 'rollup-plugin-uglify'
 // import uglify from '@lopatnov/rollup-plugin-uglify'
 import babel from '@rollup/plugin-babel'
 import json from '@rollup/plugin-json'
@@ -21,13 +20,15 @@ export const extensions = [
 	'json', 'js', 'jsx', 'tsx', 'coffee', 'ts', 'lua', 'md', 'html'
 ]
 
+type TranspilersOptions = {
+	typescript?: boolean
+	coffeescript?: boolean
+}
+
 export interface PluginOptions {
 	sourceMap?: boolean
 	minimize?: boolean
-	transpilers?: {
-		typescript?: boolean
-		coffeescript?: boolean
-	}
+	transpilers?: TranspilersOptions
 }
 
 export const plugins = ({ minimize = false, sourceMap = true, transpilers }:PluginOptions = {}) => {
@@ -77,7 +78,7 @@ export const plugins = ({ minimize = false, sourceMap = true, transpilers }:Plug
 export interface RollupOptions {
 	format?: 'cjs' | 'esm'
 	sourceMap?: boolean
-	external?: (importee) => boolean
+	external?: (importee:string) => boolean
 	minimize?: boolean
 	moduleSideEffects?: boolean | string[] | 'no-external' | ((id: string, external: boolean) => boolean)
 	exports?: 'auto' | 'default' | 'named' | 'none'
@@ -88,7 +89,7 @@ export interface RollupOptions {
 	}
 }
 
-const shouldIncludeTypescript = async (transpilers) => {
+const shouldIncludeTypescript = async (transpilers:TranspilersOptions) => {
 	if(transpilers.typescript) {
 		const path = join(process.cwd(), 'tsconfig.json')
 
@@ -103,7 +104,7 @@ const shouldIncludeTypescript = async (transpilers) => {
 	return transpilers
 }
 
-export const rollup = async (input, options:RollupOptions = {}) => {
+export const rollup = async (input:string, options:RollupOptions = {}) => {
 
 	const {
 		minimize = false,

@@ -1,6 +1,5 @@
 
 import { createFilter } from 'rollup-pluginutils'
-import objectAssign from 'object-assign'
 import { extname } from 'path'
 import crypto from 'crypto'
 
@@ -11,14 +10,15 @@ export interface LuaOptions {
 }
 
 export default (options:LuaOptions = {}) => {
-	options = objectAssign({
+	options = {
 		extensions: ['.lua'],
-	}, options || {})
+		...options
+	}
 
 	const filter = createFilter(options.include, options.exclude)
 
 	return {
-		transform(source, id) {
+		transform(source:string, id:string) {
 			if (!filter(id)) return
 			if (options.extensions?.indexOf(extname(id)) === -1) return
 
