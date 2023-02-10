@@ -7,7 +7,7 @@ const buildFile = async (input:string, options:RollupOptions = {}) => {
 	const params = {
 		minimize: false,
 		sourceMap: false,
-		external: (importee) => {
+		external: (importee:string) => {
 			if(importee === input) {
 				return false
 			}

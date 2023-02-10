@@ -1,6 +1,5 @@
 
 import { createFilter } from 'rollup-pluginutils'
-import objectAssign from 'object-assign'
 import { extname } from 'path'
 
 export interface RawOptions {
@@ -10,14 +9,15 @@ export interface RawOptions {
 }
 
 export default (options: RawOptions = {}) => {
-	options = objectAssign({
+	options = {
 		extensions: [],
-	}, options || {})
+		...options
+	}
 
 	const filter = createFilter(options.include, options.exclude)
 
 	return {
-		transform(code, id) {
+		transform(code:string, id:string) {
 			if (!filter(id)) return
 			if (options.extensions?.indexOf(extname(id)) === -1) return
 
