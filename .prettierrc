@@ -1,0 +1,14 @@
+{
+	"prettier.eslintIntegration": true,
+	"printWidth": 100,
+	"trailingComma": "es5",
+	"arrowParens": "avoid",
+	"bracketSpacing": true,
+	"tabWidth": 4,
+	"useTabs": true,
+	"semi": false,
+	"singleQuote": true,
+	"singleAttributePerLine": false,
+	"bracketSameLine": true,
+	"jsxSingleQuote": true
+}
