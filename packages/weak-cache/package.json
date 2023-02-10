@@ -32,9 +32,9 @@
 		}
 	},
 	"scripts": {
-		"test": "yarn run code test",
-		"build": "yarn tsup src/index.ts --format cjs,esm --dts --clean",
-		"publish": "yarn build; yarn npm publish --access=public"
+		"test": "pnpm exec code test",
+		"build": "pnpm exec tsup src/index.ts --format cjs,esm --dts --clean",
+		"publish": "pnpm run build; pnpm publish --access=public"
 	},
 	"devDependencies": {
 		"expose-gc": "^1.0.0"

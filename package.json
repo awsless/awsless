@@ -1,11 +1,12 @@
 {
-  "name": "@awsless/repo",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "devDependencies": {
+	"name": "@awsless/repo",
+	"version": "1.0.0",
+	"private": true,
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"devDependencies": {
+		"@awsless/code": "workspace:^0.0.44",
 		"@types/node": "^18.11.9",
 		"tsup": "^6.5.0",
 		"typescript": "^4.9.4"
