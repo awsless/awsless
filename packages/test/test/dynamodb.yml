@@ -1,0 +1,7 @@
+
+TestTable:
+  Type: Awsless::DynamoDB::Table
+  Properties:
+    Name: test
+    Schema:
+      Hash: { N: id }

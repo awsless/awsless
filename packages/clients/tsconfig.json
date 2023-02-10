@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"target": "ESNext",
+		"types": ["node", "vitest/globals"],
+		"lib": ["es2022"],
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"moduleResolution": "Node",
+		"declaration": true,
+		"outDir": "dist",
+	},
+	"include": [ "src" ]
+}

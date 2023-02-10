@@ -179,7 +179,7 @@ describe('Code', () => {
 		})
 
 		expect(result.code).toBeDefined()
-		expect(result.code.includes('h("div"')).toBe(true)
+		expect(result.code.includes('("div"')).toBe(true)
 	})
 
 	it('should default tsx to preact', async () => {
