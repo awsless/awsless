@@ -30,9 +30,9 @@
 		"sleep-await": "^1.0.2"
 	},
 	"devDependencies": {
-		"@awsless/clients": "workspaces:*"
+		"@awsless/clients": "workspace:^0.0.1"
 	},
 	"peerDependencies": {
-		"@awsless/clients": "workspaces:*"
+		"@awsless/clients": "workspace:^0.0.1"
 	}
 }

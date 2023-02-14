@@ -1,4 +1,3 @@
-
 import { SESv2Client } from '@aws-sdk/client-sesv2'
 import { globalClient } from '../helper.js'
 
