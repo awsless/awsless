@@ -1,6 +1,0 @@
-{
-	"name": "@awsless/old",
-	"dependencies": {
-		"aws-cdk": "^2.64.0"
-	}
-}

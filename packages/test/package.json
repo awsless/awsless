@@ -1,6 +1,6 @@
 {
-	"name": "@heat/aws-test",
-	"version": "0.0.34",
+	"name": "@awsless/test",
+	"version": "0.0.1",
 	"license": "MIT",
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
@@ -10,15 +10,15 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/heat-js/aws-test.git"
+		"url": "https://github.com/awsless/awsless.git"
 	},
 	"bugs": {
-		"url": "https://github.com/heat-js/aws-test/issues"
+		"url": "https://github.com/awsless/awsless/issues"
 	},
 	"scripts": {
-		"test": "yarn run code test",
-		"build": "yarn tsup src/index.ts --format cjs,esm --dts --clean --external vitest",
-		"publish": "yarn build; yarn pnpm publish --access=public"
+		"test": "pnpm code test",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean --external vitest",
+		"publish": "pnpm build; pnpm publish --access=public"
 	},
 	"dependencies": {
 		"@heat/awsless": "^0.1.217",
@@ -30,9 +30,9 @@
 		"sleep-await": "^1.0.2"
 	},
 	"devDependencies": {
-		"@awsless/clients": "workspace:^0.0.1"
+		"@awsless/clients": "workspace:*"
 	},
 	"peerDependencies": {
-		"@awsless/clients": "workspace:^0.0.1"
+		"@awsless/clients": "workspace:*"
 	}
 }

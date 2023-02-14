@@ -122,9 +122,39 @@ importers:
       ts-jest: 29.0.5_zgilbyuumz7xbrerspmrtjuxsi
       uuid: 9.0.0
 
+  packages/dynamodb:
+    specifiers:
+      '@aws-sdk/client-dynamodb': ^3.226.0
+      '@aws-sdk/lib-dynamodb': ^3.226.0
+      '@aws-sdk/util-dynamodb': ^3.226.0
+      '@aws-sdk/util-utf8-node': ^3.208.0
+      '@types/chunk': ^0.0.0
+      chunk: ^0.0.3
+    dependencies:
+      '@aws-sdk/client-dynamodb': 3.267.0
+      '@aws-sdk/lib-dynamodb': 3.267.0_wu4yd5uqtafp4uia3szpckfgni
+      '@aws-sdk/util-dynamodb': 3.267.0
+      '@aws-sdk/util-utf8-node': 3.259.0
+      chunk: 0.0.3
+    devDependencies:
+      '@types/chunk': 0.0.0
+
+  packages/ssm:
+    specifiers:
+      '@awsless/code': workspace:*
+      '@awsless/test': workspace:*
+      '@types/chunk': ^0.0.0
+      chunk: ^0.0.3
+    dependencies:
+      chunk: 0.0.3
+    devDependencies:
+      '@awsless/code': link:../code
+      '@awsless/test': link:../test
+      '@types/chunk': 0.0.0
+
   packages/test:
     specifiers:
-      '@awsless/clients': workspace:^0.0.1
+      '@awsless/clients': workspace:*
       '@heat/awsless': ^0.1.217
       aws-sdk-client-mock: ^2.0.1
       dynamo-db-local: ^4.1.3
@@ -1290,6 +1320,14 @@ packages:
   /@aws-sdk/util-utf8-browser/3.259.0:
     resolution: {integrity: sha512-UvFa/vR+e19XookZF8RzFZBrw2EUkQWxiBW0yYQAhvk3C+QVGl0H3ouca8LDBlBfQKXwmW3huo/59H8rwb1wJw==}
     dependencies:
+      tslib: 2.5.0
+    dev: false
+
+  /@aws-sdk/util-utf8-node/3.259.0:
+    resolution: {integrity: sha512-2sbGdmrkODKeJb6kbEOKpX8cYtS9IO16XRAtINcN7sInWfspAITDofrabf0i0tFQF0hsJtbC5dyJRn87w0gYIQ==}
+    engines: {node: '>=14.0.0'}
+    dependencies:
+      '@aws-sdk/util-buffer-from': 3.208.0
       tslib: 2.5.0
     dev: false
 
@@ -3568,6 +3606,10 @@ packages:
   /@types/chai/4.3.4:
     resolution: {integrity: sha512-KnRanxnpfpjUTqTCXslZSEdLfXExwgNxYPdiO2WGUj8+HDjFi8R3k5RVKPeSCzLjCcshCAtVO2QBbVuAV4kTnw==}
 
+  /@types/chunk/0.0.0:
+    resolution: {integrity: sha512-8z7Z9E1UoxUfwb4SUuWZZCAa5T+vi2daACygqUed7NpPnq04CJo0L3l0heHh3R9fLi/pOUbfR/ZwHd2+YEQIxg==}
+    dev: true
+
   /@types/clean-css/4.2.6:
     resolution: {integrity: sha512-Ze1tf+LnGPmG6hBFMi0B4TEB0mhF7EiMM5oyjLDNPE9hxrPU0W+5+bHvO+eFPA+bt0iC1zkQMoU/iGdRVjcRbw==}
     dependencies:
@@ -4788,6 +4830,10 @@ packages:
   /chrome-trace-event/1.0.3:
     resolution: {integrity: sha512-p3KULyQg4S7NIHixdwbGX+nFHkoBiA4YQmyWtjb8XngSKV124nJmRysgAeujbUVb15vh+RvFUfCPqU7rXk+hZg==}
     engines: {node: '>=6.0'}
+    dev: false
+
+  /chunk/0.0.3:
+    resolution: {integrity: sha512-oGfwvhjGRW3Ks4GTdGoJhZWKEO1eomjOC26001R+5H0TIlP7vBCO+/XcNcPCA6ayYC7RQSq1/NsN4679Odcm5A==}
     dev: false
 
   /ci-info/3.7.1:
