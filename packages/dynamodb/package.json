@@ -1,7 +1,8 @@
 {
-	"name": "@awsless/cdk",
+	"name": "@awsless/dynamodb",
 	"version": "0.0.1",
 	"license": "MIT",
+	"type": "module",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/awsless/awsless.git"
@@ -23,18 +24,23 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm exec code test",
-		"synth-old": "pnpm exec cdk synthesize --app=ts-node --prefer-ts-exts examples/index.ts",
-		"synth": "pnpm exec cdk synthesize",
-		"build": "pnpm exec tsup src/index.ts --format cjs,esm --dts --clean",
-		"publish": "pnpm run build; pnpm publish --access=public"
+		"test": "pnpm run code test",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+		"publish": "pnpm build; pnpm publish --access=public"
+	},
+	"vitest": {
+		"exclude": [
+			"test/aws/**/*"
+		]
 	},
 	"dependencies": {
-		"aws-cdk-lib": "^2.64.0",
-		"constructs": "^10.1.246"
+		"@aws-sdk/client-dynamodb": "^3.226.0",
+		"@aws-sdk/lib-dynamodb": "^3.226.0",
+		"@aws-sdk/util-dynamodb": "^3.226.0",
+		"@aws-sdk/util-utf8-node": "^3.208.0",
+		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
-		"aws-cdk": "^2.64.0",
-		"ts-node": "^10.9.1"
+		"@types/chunk": "^0.0.0"
 	}
 }

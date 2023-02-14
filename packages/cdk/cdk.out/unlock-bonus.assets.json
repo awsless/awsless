@@ -1,0 +1,19 @@
+{
+  "version": "29.0.0",
+  "files": {
+    "82e07343d8a76e5c1761ce904e32fb82d19278e3b4ffbe6c1122f65db1b63125": {
+      "source": {
+        "path": "unlock-bonus.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "82e07343d8a76e5c1761ce904e32fb82d19278e3b4ffbe6c1122f65db1b63125.json",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

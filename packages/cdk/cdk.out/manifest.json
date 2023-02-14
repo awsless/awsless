@@ -1,0 +1,132 @@
+{
+  "version": "29.0.0",
+  "artifacts": {
+    "unlock-bonus.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "unlock-bonus.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "unlock-bonus": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://unknown-account/unknown-region",
+      "properties": {
+        "templateFile": "unlock-bonus.template.json",
+        "tags": {
+          "Stack": "unlock-bonus"
+        },
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-deploy-role-${AWS::AccountId}-${AWS::Region}",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-${AWS::AccountId}-${AWS::Region}",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/82e07343d8a76e5c1761ce904e32fb82d19278e3b4ffbe6c1122f65db1b63125.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "unlock-bonus.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-lookup-role-${AWS::AccountId}-${AWS::Region}",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "unlock-bonus.assets"
+      ],
+      "metadata": {
+        "/unlock-bonus": [
+          {
+            "type": "aws:cdk:stack-tags",
+            "data": [
+              {
+                "Key": "Stack",
+                "Value": "unlock-bonus"
+              }
+            ]
+          }
+        ],
+        "/unlock-bonus/Topic/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TopicBFC7AF6E"
+          }
+        ],
+        "/unlock-bonus/Queue/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Queue4A7E3555"
+          }
+        ],
+        "/unlock-bonus/Function1/ServiceRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Function1ServiceRole16CD7E62"
+          }
+        ],
+        "/unlock-bonus/Function1/ServiceRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Function1ServiceRoleDefaultPolicyE89885AD"
+          }
+        ],
+        "/unlock-bonus/Function1/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Function1904AA941"
+          }
+        ],
+        "/unlock-bonus/Function1/AllowInvoke:unlockbonusTopicB539990A": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Function1AllowInvokeunlockbonusTopicB539990A63D44010"
+          }
+        ],
+        "/unlock-bonus/Function1/Topic/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Function1Topic83725071"
+          }
+        ],
+        "/unlock-bonus/Function1/SqsEventSource:unlockbonusQueue76C25AFA/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "Function1SqsEventSourceunlockbonusQueue76C25AFA92877AD6"
+          }
+        ],
+        "/unlock-bonus/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/unlock-bonus/CDKMetadata/Condition": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadataAvailable"
+          }
+        ],
+        "/unlock-bonus/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/unlock-bonus/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "unlock-bonus"
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  }
+}
