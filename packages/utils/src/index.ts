@@ -1,0 +1,2 @@
+
+export { globalClient } from './client'
