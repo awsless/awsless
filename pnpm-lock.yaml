@@ -139,6 +139,14 @@ importers:
     devDependencies:
       '@types/chunk': 0.0.0
 
+  packages/sns:
+    specifiers:
+      '@aws-sdk/client-sns': ^3.204.0
+      '@heat/env': ^0.0.1
+    dependencies:
+      '@aws-sdk/client-sns': 3.267.0
+      '@heat/env': 0.0.1
+
   packages/ssm:
     specifiers:
       '@awsless/code': workspace:*
@@ -2996,6 +3004,10 @@ packages:
       - sugarss
       - supports-color
       - terser
+    dev: false
+
+  /@heat/env/0.0.1:
+    resolution: {integrity: sha512-KVx1eXbeHgn/mTOwVWut2z7XXoBzu3YC0s2HKmQ/k5OermETRKSjFIumkJyV61G9+5SvvcSFSLrUfsPUBBjCog==}
     dev: false
 
   /@heat/s3-sync/0.0.14:
