@@ -17,7 +17,7 @@
 	},
 	"scripts": {
 		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean --external vitest",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --no-bundle --clean",
 		"publish": "pnpm build; pnpm publish --access=public"
 	},
 	"dependencies": {

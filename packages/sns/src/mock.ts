@@ -1,5 +1,5 @@
 import { PublishCommand, PublishCommandInput, SNSClient } from '@aws-sdk/client-sns'
-import { mockObjectKeys } from '@awsless/utils'
+import { mockObjectValues } from '@awsless/test'
 import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
 
@@ -8,12 +8,12 @@ type Topics = {
 }
 
 export const mockSNS = <T extends Topics>(topics: T) => {
-	const list = mockObjectKeys(topics)
+	const list = mockObjectValues(topics)
 
 	mockClient(SNSClient)
 		.on(PublishCommand)
 		.callsFake(async (input: PublishCommandInput) => {
-			const parts = input.TopicArn.split(':')
+			const parts = input.TopicArn?.split(':') || ''
 			const topic = parts[parts.length - 1]
 			const callback = list[topic]
 

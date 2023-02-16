@@ -12,6 +12,8 @@
 		"moduleResolution": "Node",
 		"skipLibCheck": true,
 		"declaration": true,
+
 		"outDir": "dist"
-	}
+	},
+	"exclude": ["packages/**/dist"]
 }

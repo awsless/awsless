@@ -144,25 +144,40 @@ importers:
       '@aws-sdk/client-sns': ^3.204.0
       '@awsless/test': workspace:^0.0.1
       '@awsless/utils': workspace:^0.0.1
-      '@heat/env': ^0.0.1
       aws-sdk-client-mock: ^2.0.1
     dependencies:
       '@aws-sdk/client-sns': 3.267.0
       '@awsless/test': link:../test
       '@awsless/utils': link:../utils
-      '@heat/env': 0.0.1
       aws-sdk-client-mock: 2.0.1
+
+  packages/sqs:
+    specifiers:
+      '@aws-sdk/client-sqs': ^3.204.0
+      '@awsless/test': workspace:^0.0.1
+      '@awsless/utils': workspace:^0.0.1
+      '@types/chunk': ^0.0.0
+      aws-sdk-client-mock: ^2.0.1
+      chunk: ^0.0.3
+    dependencies:
+      '@aws-sdk/client-sqs': 3.267.0
+      '@awsless/test': link:../test
+      '@awsless/utils': link:../utils
+      aws-sdk-client-mock: 2.0.1
+      chunk: 0.0.3
+    devDependencies:
+      '@types/chunk': 0.0.0
 
   packages/ssm:
     specifiers:
-      '@awsless/code': workspace:*
       '@awsless/test': workspace:*
       '@types/chunk': ^0.0.0
+      aws-sdk-client-mock: ^2.0.1
       chunk: ^0.0.3
     dependencies:
+      aws-sdk-client-mock: 2.0.1
       chunk: 0.0.3
     devDependencies:
-      '@awsless/code': link:../code
       '@awsless/test': link:../test
       '@types/chunk': 0.0.0
 
@@ -2807,10 +2822,6 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
-
-  /@heat/env/0.0.1:
-    resolution: {integrity: sha512-KVx1eXbeHgn/mTOwVWut2z7XXoBzu3YC0s2HKmQ/k5OermETRKSjFIumkJyV61G9+5SvvcSFSLrUfsPUBBjCog==}
-    dev: false
 
   /@istanbuljs/load-nyc-config/1.1.0:
     resolution: {integrity: sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ==}

@@ -1,5 +1,5 @@
 {
-	"name": "@awsless/ssm",
+	"name": "@awsless/sqs",
 	"version": "0.0.1",
 	"license": "MIT",
 	"type": "module",
@@ -28,15 +28,14 @@
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"publish": "pnpm build; pnpm publish --access=public"
 	},
-	"peerDependencies": {
-		"@awsless/clients": "^0.0.1"
-	},
 	"dependencies": {
+		"@aws-sdk/client-sqs": "^3.204.0",
+		"@awsless/test": "workspace:^0.0.1",
+		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1",
 		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
-		"@awsless/test": "workspace:*",
 		"@types/chunk": "^0.0.0"
 	}
 }

@@ -32,7 +32,6 @@
 		"@aws-sdk/client-sns": "^3.204.0",
 		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
-		"@heat/env": "^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1"
 	}
 }

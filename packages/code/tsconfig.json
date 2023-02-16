@@ -4,6 +4,5 @@
 		"types": ["node", "preact"],
 		"jsx": "react-jsx",
 		"jsxImportSource": "preact"
-	},
-	"include": ["src"]
+	}
 }
