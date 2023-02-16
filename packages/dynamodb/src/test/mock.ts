@@ -2,13 +2,50 @@
 import { BatchGetItemCommand, BatchWriteItemCommand, CreateTableCommand, DeleteItemCommand, DynamoDBClient, GetItemCommand, ListTablesCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { BatchWriteCommand, DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, TransactGetCommand, TransactWriteCommand, UpdateCommand, QueryCommand as Query, ScanCommand as Scan, BatchGetCommand} from '@aws-sdk/lib-dynamodb'
 import { mockClient } from 'aws-sdk-client-mock'
-import { startDynamoDB, StartDynamoDBOptions } from '../services/dynamodb'
-import { DynamoDBServer } from '../services/dynamodb/server'
+import { DynamoDBServer } from '@awsless/dynamodb-server'
+import { requestPort } from '@awsless/test'
+import { SeedData, seed } from './seed'
+import { migrate } from './migrate'
+
+export interface StartDynamoDBOptions {
+	schema: string | string[]
+	timeout?: number
+	seed?: SeedData
+}
 
 export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServer) => {
-	const dynamo = configOrServer instanceof DynamoDBServer ? configOrServer : startDynamoDB(configOrServer)
-	const client = dynamo.getClient()
-	const documentClient = dynamo.getDocumentClient()
+
+	let server:DynamoDBServer;
+
+	if(configOrServer instanceof DynamoDBServer) {
+		server = configOrServer
+	} else {
+		server = new DynamoDBServer()
+		let releasePort: () => Promise<void>
+
+		beforeAll && beforeAll(async () => {
+			const [ port, release ] = await requestPort()
+			releasePort = release
+
+			await server.listen(port)
+			await server.wait()
+
+			if(configOrServer.schema) {
+				await migrate(server.getClient(), configOrServer.schema)
+				if(configOrServer.seed) {
+					await seed(server.getDocumentClient(), configOrServer.seed)
+				}
+			}
+		}, configOrServer.timeout)
+
+		afterAll && afterAll(async () => {
+			await server.kill()
+			await releasePort()
+		}, configOrServer.timeout)
+	}
+
+	const client = server.getClient()
+	const documentClient = server.getDocumentClient()
 
 	const clientSend = (command:any) => {
 		// @ts-ignore
@@ -47,5 +84,5 @@ export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServe
 		.on(TransactGetCommand).callsFake((input) => documentClientSend(new TransactGetCommand(input)))
 		.on(TransactWriteCommand).callsFake((input) => documentClientSend(new TransactWriteCommand(input)))
 
-	return dynamo
+	return server
 }

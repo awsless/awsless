@@ -1,11 +1,12 @@
 
 import { BatchGetCommand, BatchGetCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { Expression, Item, Options } from '../types.js'
+import { ExpressionBuilder, Item, Options } from '../types.js'
 import { send } from '../helper/send.js'
 import { Table } from '../table.js'
+import { generator } from '../helper/expression.js'
 
 export interface BatchGetOptions<F extends boolean> extends Options {
-	projection?: Expression
+	projection?: ExpressionBuilder
 	consistentRead?: boolean
 	filterNonExistentItems?: F
 }
@@ -32,14 +33,16 @@ export const batchGetItem:BatchGetItem = async <T extends Table<Item, keyof Item
 	let response: (T['model'] | undefined)[] = []
 	let unprocessedKeys: T['key'][] = keys
 
+	const projection = options.projection && options.projection(generator(), table)
+
 	while(unprocessedKeys.length) {
 		const command = new BatchGetCommand({
 			RequestItems: {
 				[ table.name ]: {
 					Keys: unprocessedKeys,
 					ConsistentRead: options.consistentRead,
-					ExpressionAttributeNames: options.projection?.names,
-					ProjectionExpression: options.projection?.expression,
+					ExpressionAttributeNames: projection?.names,
+					ProjectionExpression: projection?.query,
 				}
 			}
 		})

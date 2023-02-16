@@ -1,10 +1,10 @@
 type GlobalClient = {
     <Client>(factory: () => Client): {
-        get(): Client;
+        (): Client;
         set(client: Client): void;
     };
     <Client>(factory: () => Promise<Client>): {
-        get(): Promise<Client>;
+        (): Promise<Client>;
         set(client: Client): void;
     };
 };
