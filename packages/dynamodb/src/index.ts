@@ -1,5 +1,5 @@
 
-export { ql, joinExpression, setExpression } from './ql.js'
+export { ql } from './ql.js'
 export { Expression, ExpressionNames, ExpressionValues, Value, Item } from './types.js'
 
 export { Table } from './table.js'
@@ -19,3 +19,7 @@ export { transactWrite, transactUpdate, transactPut, transactDelete, transactCon
 export { migrate } from './operations/migrate.js'
 
 export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb'
+
+export { mockDynamoDB } from './test/mock.js'
+
+export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'

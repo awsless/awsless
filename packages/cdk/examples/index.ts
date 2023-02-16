@@ -9,6 +9,8 @@ class UnlockBonusStack extends Stack {
 	constructor(scope: Construct, id: string, props?: StackProps) {
 		super(scope, id, props)
 
+		const table = new
+
 		// Topic.fromTopicArn(scope, '', '')
 
 		const topic = new Topic(this, 'Topic', {
@@ -51,15 +53,13 @@ new UnlockBonusStack(new App(), 'unlock-bonus')
 
 // const app = new App()
 
-<<<<<<< HEAD
-new UnlockBonusStack(app, 'unlock-bonus', {
-	stackName: 'unlock-bonus',
-	// env: {
-	// 	account: process.env.CDK_DEFAULT_ACCOUNT,
-	// 	region: process.env.CDK_DEFAULT_REGION,
-	// },
-})
-=======
+// new UnlockBonusStack(app, 'unlock-bonus', {
+// 	stackName: 'unlock-bonus',
+// 	// env: {
+// 	// 	account: process.env.CDK_DEFAULT_ACCOUNT,
+// 	// 	region: process.env.CDK_DEFAULT_REGION,
+// 	// },
+// })
 
 // new UnlockBonusStack(app, 'unlock-bonus', {
 // 	stackName: 'unlock-bonus',
@@ -76,4 +76,3 @@ new UnlockBonusStack(app, 'unlock-bonus', {
 // app.synth({
 
 // })
->>>>>>> 14e43f0d333713377be86e65b974055896ce016f

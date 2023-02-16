@@ -1,7 +1,7 @@
 
 import { TransactWriteCommand, TransactWriteCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { Expression, Item, Options, Value } from '../types.js'
-import { addExpression } from '../helper/expression.js'
+import { ExpressionBuilder, Item, Options, Value } from '../types.js'
+import { addConditionExpression, addExpression, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
 import { Table } from '../table.js'
 
@@ -55,19 +55,21 @@ export const transactWrite = async (options:TransactWriteOptions): Promise<void>
 }
 
 interface ConditionCheckOptions {
-	condition: Expression
+	condition: ExpressionBuilder
 }
 
 export const transactConditionCheck = <T extends Table<Item, keyof Item>>(
 	table: T,
 	key: T['key'],
-	{ condition }: ConditionCheckOptions
+	options: ConditionCheckOptions
 ) => {
+	const gen = generator()
+	const condition = options.condition(gen, table)
 	const command: ConditionCheck<T> = {
 		ConditionCheck: {
 			TableName: table.toString(),
 			Key: key,
-			ConditionExpression: condition.expression
+			ConditionExpression: condition.query
 		}
 	}
 
@@ -76,13 +78,13 @@ export const transactConditionCheck = <T extends Table<Item, keyof Item>>(
 }
 
 interface PutOptions {
-	condition?: Expression
+	condition?: ExpressionBuilder
 }
 
 export const transactPut = <T extends Table<Item, keyof Item>>(
 	table: T,
 	item: T['model'],
-	{ condition }: PutOptions = {}
+	options: PutOptions = {}
 ) => {
 	const command: Put<T> = {
 		Put: {
@@ -91,50 +93,45 @@ export const transactPut = <T extends Table<Item, keyof Item>>(
 		}
 	}
 
-	if(condition) {
-		command.Put.ConditionExpression = condition.expression
-		addExpression(command.Put, condition)
-	}
+	addConditionExpression(command.Put, options, generator(), table)
 
 	return command
 }
 
 interface UpdateOptions {
-	update: Expression
-	condition?: Expression
+	update: ExpressionBuilder
+	condition?: ExpressionBuilder
 }
 
 export const transactUpdate = <T extends Table<Item, keyof Item>>(
 	table: T,
 	key: T['key'],
-	{ update, condition }: UpdateOptions
+	options: UpdateOptions
 ) => {
+	const gen = generator()
+	const update = options.update(gen, table)
 	const command: Update<T> = {
 		Update: {
 			TableName: table.toString(),
 			Key: key,
-			UpdateExpression: update.expression,
+			UpdateExpression: update.query,
 		}
 	}
 
 	addExpression(command.Update, update)
-
-	if(condition) {
-		command.Update.ConditionExpression = condition.expression
-		addExpression(command.Update, condition)
-	}
+	addConditionExpression(command.Update, options, gen, table)
 
 	return command
 }
 
 interface DeleteOptions {
-	condition?: Expression
+	condition?: ExpressionBuilder
 }
 
 export const transactDelete = <T extends Table<Item, keyof Item>>(
 	table: T,
 	key: T['key'],
-	{ condition }: DeleteOptions = {}
+	options: DeleteOptions = {}
 ) => {
 	const command: Delete<T> = {
 		Delete: {
@@ -143,10 +140,7 @@ export const transactDelete = <T extends Table<Item, keyof Item>>(
 		}
 	}
 
-	if(condition) {
-		command.Delete.ConditionExpression = condition.expression
-		addExpression(command.Delete, condition)
-	}
+	addConditionExpression(command.Delete, options, generator(), table)
 
 	return command
 }

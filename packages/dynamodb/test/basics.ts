@@ -1,12 +1,11 @@
 
 import { describe, it, expect } from 'vitest'
-import { mockDynamoDB } from '@awsless/test'
-import { getItem, putItem, query, ql, updateItem, pagination, deleteItem, scan, batchGetItem, Table } from '../src/index'
+import { getItem, putItem, query, ql, updateItem, pagination, deleteItem, scan, batchGetItem, Table, mockDynamoDB } from '../src/index'
 
 describe('DynamoDB Basic OPS', () => {
 
 	mockDynamoDB({
-		path: './test/aws/dynamodb.yml'
+		schema: './test/aws/dynamodb.yml'
 	})
 
 	type User = {
@@ -21,7 +20,7 @@ describe('DynamoDB Basic OPS', () => {
 		content?: string
 	}
 
-	const posts = new Table<Post, 'userId' | 'id'>('posts')
+	const posts = new Table<Post, 'userId', 'id'>('posts')
 	const users = new Table<User, 'id'>('users')
 
 	describe('putItem', () => {

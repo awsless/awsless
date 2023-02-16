@@ -1,13 +1,12 @@
 
 import { UpdateCommand, UpdateCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { Expression, Item, MutateOptions } from '../types.js'
-import { extendMutateCommand } from '../helper/mutate.js'
-import { addExpression } from '../helper/expression.js'
+import { ExpressionBuilder, Item, MutateOptions } from '../types.js'
+import { addConditionExpression, addExpression, addReturnValues, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
 import { Table } from '../table.js'
 
 export interface UpdateOptions extends MutateOptions {
-	update: Expression
+	update: ExpressionBuilder
 }
 
 export const updateItem = async <T extends Table<Item, keyof Item>>(
@@ -15,14 +14,17 @@ export const updateItem = async <T extends Table<Item, keyof Item>>(
 	key: T['key'],
 	options:UpdateOptions
 ): Promise<T['model'] | undefined> => {
+	const gen = generator()
+	const update = options.update(gen, table)
 	const command = new UpdateCommand({
-		TableName: table.toString(),
+		TableName: table.name,
 		Key: key,
-		UpdateExpression: options.update.expression,
+		UpdateExpression: update.query,
 	})
 
-	addExpression(command.input, options.update)
-	extendMutateCommand(command, options)
+	addExpression(command.input, update)
+	addReturnValues(command.input, options)
+	addConditionExpression(command.input, options, gen, table)
 
 	const result = await send(command, options) as UpdateCommandOutput
 

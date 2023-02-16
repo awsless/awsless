@@ -1,13 +1,13 @@
 
 import { QueryCommand, QueryCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { addExpression } from '../helper/expression.js'
+import { addExpression, addProjectionExpression, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
 import { Table } from '../table.js'
-import { Expression, Item, Options } from '../types.js'
+import { ExpressionBuilder, Item, Options } from '../types.js'
 
 export interface QueryOptions<T extends Table<Item, keyof Item>> extends Options {
-	keyCondition: Expression
-	projection?: Expression
+	keyCondition: ExpressionBuilder
+	projection?: ExpressionBuilder
 	index?: string
 	consistentRead?: boolean
 	limit?: number
@@ -26,22 +26,21 @@ export const query = async <T extends Table<Item, keyof Item>>(
 	options:QueryOptions<T>
 ): Promise<QueryResponse<T>> => {
 	const { forward = true } = options
+	const gen = generator()
+	const keyCondition = options.keyCondition(gen, table)
+
 	const command = new QueryCommand({
 		TableName: table.name,
 		IndexName: options.index,
-		KeyConditionExpression: options.keyCondition.expression,
+		KeyConditionExpression: keyCondition.query,
 		ConsistentRead: options.consistentRead,
 		ScanIndexForward: forward,
 		Limit: options.limit || 10,
 		ExclusiveStartKey: options.cursor,
 	})
 
-	addExpression(command.input, options.keyCondition)
-
-	if(options.projection) {
-		command.input.ProjectionExpression = options.projection.expression
-		addExpression(command.input, options.projection)
-	}
+	addExpression(command.input, keyCondition)
+	addProjectionExpression(command.input, options, gen, table)
 
 	const result = await send(command, options) as QueryCommandOutput
 

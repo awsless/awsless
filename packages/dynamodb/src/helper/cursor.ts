@@ -1,6 +1,6 @@
 
-export const fromCursor = (cursor:string) => {
-	return JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8')) as object
+export const fromCursor = <Key>(cursor:string) => {
+	return JSON.parse(Buffer.from(cursor, 'base64').toString('utf-8')) as Key
 }
 
 export const toCursor = (value:object) => {

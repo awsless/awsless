@@ -1,12 +1,12 @@
 
 import { fromCursor, toCursor } from '../helper/cursor.js'
 import { Table } from '../table.js'
-import { Expression, Item, Options } from '../types.js'
+import { ExpressionBuilder, Item, Options } from '../types.js'
 import { query } from './query.js'
 
 export interface PaginationOptions extends Options {
-	keyCondition: Expression
-	projection?: Expression
+	keyCondition: ExpressionBuilder
+	projection?: ExpressionBuilder
 	index?: string
 	consistentRead?: boolean
 	limit?: number
@@ -26,7 +26,7 @@ export const pagination = async <T extends Table<Item, keyof Item>>(
 ): Promise<PaginationResponse<T>> => {
 	const result = await query(table, {
 		...options,
-		cursor: options.cursor ? fromCursor(options.cursor) : undefined
+		cursor: options.cursor ? fromCursor<T['key']>(options.cursor) : undefined
 	})
 
 	// FIX the problem where DynamoDB will return a cursor

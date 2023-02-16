@@ -1,12 +1,12 @@
 
 import { ScanCommand, ScanCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { addExpression } from '../helper/expression.js'
+import { addProjectionExpression, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
 import { Table } from '../table.js'
-import { Expression, Item, Options } from '../types.js'
+import { ExpressionBuilder, Item, Options } from '../types.js'
 
 export interface ScanOptions<T extends Table<Item, keyof Item>> extends Options {
-	projection?: Expression
+	projection?: ExpressionBuilder
 	index?: string
 	consistentRead?: boolean
 	limit?: number
@@ -31,10 +31,7 @@ export const scan = async <T extends Table<Item, keyof Item>>(
 		ExclusiveStartKey: options.cursor,
 	})
 
-	if(options.projection) {
-		command.input.ProjectionExpression = options.projection.expression
-		addExpression(command.input, options.projection)
-	}
+	addProjectionExpression(command.input, options, generator(), table)
 
 	const result = await send(command, options) as ScanCommandOutput
 

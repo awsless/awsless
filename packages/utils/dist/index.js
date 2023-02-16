@@ -1,17 +1,16 @@
 // src/client.ts
 var globalClient = (factory) => {
   let singleton;
-  return {
-    get() {
-      if (!singleton) {
-        singleton = factory();
-      }
-      return singleton;
-    },
-    set(client) {
-      singleton = client;
+  const getter = () => {
+    if (!singleton) {
+      singleton = factory();
     }
+    return singleton;
   };
+  getter.set = (client) => {
+    singleton = client;
+  };
+  return getter;
 };
 export {
   globalClient

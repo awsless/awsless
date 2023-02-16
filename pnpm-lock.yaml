@@ -126,18 +126,44 @@ importers:
     specifiers:
       '@aws-sdk/client-dynamodb': ^3.226.0
       '@aws-sdk/lib-dynamodb': ^3.226.0
+      '@aws-sdk/smithy-client': ^3.267.0
       '@aws-sdk/util-dynamodb': ^3.226.0
       '@aws-sdk/util-utf8-node': ^3.208.0
+      '@awsless/dynamodb-server': workspace:^0.0.1
+      '@awsless/test': workspace:^0.0.1
+      '@awsless/utils': workspace:^0.0.1
       '@types/chunk': ^0.0.0
+      aws-sdk-client-mock: ^2.0.1
       chunk: ^0.0.3
     dependencies:
       '@aws-sdk/client-dynamodb': 3.267.0
-      '@aws-sdk/lib-dynamodb': 3.267.0_wu4yd5uqtafp4uia3szpckfgni
+      '@aws-sdk/lib-dynamodb': 3.267.0_q5snmr3mr2aourifmsh44xkml4
+      '@aws-sdk/smithy-client': 3.267.0
       '@aws-sdk/util-dynamodb': 3.267.0
       '@aws-sdk/util-utf8-node': 3.259.0
+      '@awsless/dynamodb-server': link:../dynamodb-server
+      '@awsless/test': link:../test
+      '@awsless/utils': link:../utils
+      aws-sdk-client-mock: 2.0.1
       chunk: 0.0.3
     devDependencies:
       '@types/chunk': 0.0.0
+
+  packages/dynamodb-server:
+    specifiers:
+      '@aws-sdk/client-dynamodb': ^3.226.0
+      '@aws-sdk/lib-dynamodb': ^3.226.0
+      '@aws-sdk/smithy-client': ^3.267.0
+      '@aws-sdk/url-parser': ^3.267.0
+      dynamo-db-local: ^4.1.3
+      sleep-await: ^1.0.2
+    dependencies:
+      '@aws-sdk/client-dynamodb': 3.267.0
+      '@aws-sdk/lib-dynamodb': 3.267.0_q5snmr3mr2aourifmsh44xkml4
+      '@aws-sdk/smithy-client': 3.267.0
+      '@aws-sdk/url-parser': 3.267.0
+      dynamo-db-local: 4.2.1
+      sleep-await: 1.0.2
 
   packages/sns:
     specifiers:
@@ -933,6 +959,21 @@ packages:
     resolution: {integrity: sha512-UPez5qLh3dNgt0DYnPD/q0mVJY84rA17QE26hVNOW3fAji8W2wrwrxdacWOxyXvlxWsVRcKmr+lay1MDqpAMfg==}
     engines: {node: '>=14.0.0'}
     dependencies:
+      tslib: 2.5.0
+    dev: false
+
+  /@aws-sdk/lib-dynamodb/3.267.0_q5snmr3mr2aourifmsh44xkml4:
+    resolution: {integrity: sha512-WAXLGqTFTL4Jpw3ld7ZzA0pP24J1EvIMeVUrZe993HENlRtO3DEWQuiNM8gHQA1P3FIE5zqrh14ZEDro8PojCQ==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@aws-sdk/client-dynamodb': ^3.0.0
+      '@aws-sdk/smithy-client': ^3.0.0
+      '@aws-sdk/types': ^3.0.0
+    dependencies:
+      '@aws-sdk/client-dynamodb': 3.267.0
+      '@aws-sdk/smithy-client': 3.267.0
+      '@aws-sdk/types': 3.267.0
+      '@aws-sdk/util-dynamodb': 3.267.0
       tslib: 2.5.0
     dev: false
 
@@ -3981,6 +4022,11 @@ packages:
     dependencies:
       path-type: 4.0.0
     dev: true
+
+  /dynamo-db-local/4.2.1:
+    resolution: {integrity: sha512-YzGd75oVsD7QFMZ1MHdHC+svAzTW2bRviTtNcH/4Fdxp0YYqT0KdeWtGAZVTbGf1cSUsVq/oDWBSJX6/pcnAMg==}
+    engines: {node: '>=12.20.1'}
+    dev: false
 
   /electron-to-chromium/1.4.294:
     resolution: {integrity: sha512-PuHZB3jEN7D8WPPjLmBQAsqQz8tWHlkkB4n0E2OYw8RwVdmBYV0Wn+rUFH8JqYyIRb4HQhhedgxlZL163wqLrQ==}
