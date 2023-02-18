@@ -1,8 +1,7 @@
 
 import { BatchGetCommand, BatchGetCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { ExpressionBuilder, Item, Options } from '../types.js'
+import { BaseTable, ExpressionBuilder, Options } from '../types.js'
 import { send } from '../helper/send.js'
-import { Table } from '../table.js'
 import { generator } from '../helper/expression.js'
 
 export interface BatchGetOptions<F extends boolean> extends Options {
@@ -12,20 +11,20 @@ export interface BatchGetOptions<F extends boolean> extends Options {
 }
 
 type BatchGetItem = {
-	<T extends Table<Item, keyof Item>>(
+	<T extends BaseTable>(
 		table:T,
 		keys: T['key'][],
 		options?:BatchGetOptions<false>
 	): Promise<(T['model'] | undefined)[]>
 
-	<T extends Table<Item, keyof Item>>(
+	<T extends BaseTable>(
 		table:T,
 		keys: T['key'][],
 		options?:BatchGetOptions<true>
 	): Promise<T['model'][]>
 }
 
-export const batchGetItem:BatchGetItem = async <T extends Table<Item, keyof Item>>(
+export const batchGetItem:BatchGetItem = async <T extends BaseTable>(
 	table:T,
 	keys: T['key'][],
 	options:BatchGetOptions<boolean> = { filterNonExistentItems: false }

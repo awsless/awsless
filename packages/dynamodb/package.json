@@ -43,7 +43,8 @@
 		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1",
-		"chunk": "^0.0.3"
+		"chunk": "^0.0.3",
+		"ts-toolbelt": "^9.6.0"
 	},
 	"devDependencies": {
 		"@types/chunk": "^0.0.0"

@@ -1,10 +1,11 @@
 
-import { mockDynamoDB } from '@awsless/test'
-import { migrate, scan, Table } from '../src/index'
+import { migrate, mockDynamoDB, scan, Table } from '../src/index'
+import { tables } from './aws/tables'
 
 describe('Migrate', () => {
+
 	mockDynamoDB({
-		path: './test/aws/dynamodb.yml',
+		tables,
 		seed: {
 			posts: [
 				{ userId: 1, id: 1, title: 'one' },
@@ -25,8 +26,8 @@ describe('Migrate', () => {
 		createdAt: string
 	}
 
-	const posts1 = new Table<PostV1, 'userId' | 'id'>('posts')
-	const posts2 = new Table<PostV2, 'userId' | 'id'>('posts')
+	const posts1 = new Table<PostV1, 'userId', 'id'>('posts')
+	const posts2 = new Table<PostV2, 'userId', 'id'>('posts')
 
 	it('should migrate the table', async () => {
 

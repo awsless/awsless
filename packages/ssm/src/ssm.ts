@@ -1,7 +1,7 @@
 
 import { GetParametersCommand } from '@aws-sdk/client-ssm'
 import chunk from 'chunk'
-import { ssmClient } from '@awsless/clients'
+import { ssmClient } from './client'
 import { Options, Output, Paths } from './types'
 
 const formatPath = (path:string) => {
@@ -11,7 +11,7 @@ const formatPath = (path:string) => {
 const cache:Record<string, { value:string, ttl: number }> = {}
 
 /** Fetch the provided ssm paths */
-export const ssm = async <T extends Paths>(paths:T, { client = ssmClient.get(), ttl = 0 }: Options = {}): Promise<Output<T>> => {
+export const ssm = async <T extends Paths>(paths:T, { client = ssmClient(), ttl = 0 }: Options = {}): Promise<Output<T>> => {
 	const now = Math.floor(Date.now() / 1000)
 	const values: Record<string, unknown> = {}
 

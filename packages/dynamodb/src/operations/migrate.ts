@@ -1,6 +1,5 @@
 
-import { Table } from '../table.js'
-import { Item, Options } from '../types.js'
+import { BaseTable, Item, Options } from '../types.js'
 import { putItem } from './put-item.js'
 import { scan, ScanResponse } from './scan.js'
 
@@ -18,7 +17,11 @@ export interface MigrateResponse {
 	itemsProcessed: number
 }
 
-export const migrate = async <From extends Table<Item, keyof Item>, To extends Table<Item, keyof Item>>(from:From, to:To, options:MigrateOptions<From['model'], To['model']>): Promise<MigrateResponse> => {
+export const migrate = async <From extends BaseTable, To extends BaseTable>(
+	from:From,
+	to:To,
+	options:MigrateOptions<From['model'], To['model']>
+): Promise<MigrateResponse> => {
 
 	let cursor: From['key'] | undefined = undefined
 	let itemsProcessed = 0

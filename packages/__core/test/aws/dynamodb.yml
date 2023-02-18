@@ -1,0 +1,8 @@
+
+PostTable:
+  Type: Awsless::DynamoDB::Table
+  Properties:
+    Name: posts
+    Schema:
+      Hash: { N: userId }
+      Sort: { N: id }

@@ -1,13 +1,10 @@
 
-import { describe, it, expect } from 'vitest'
-import { mockDynamoDB } from '@awsless/test'
-import { putItem, ql, Table, ConditionalCheckFailedException, transactWrite, transactPut, TransactionCanceledException } from '../src/index'
+import { mockDynamoDB, putItem, ql, Table, ConditionalCheckFailedException, transactWrite, transactPut, TransactionCanceledException } from '../src/index'
+import { tables } from './aws/tables'
 
 describe('Condition Exeption', () => {
 
-	mockDynamoDB({
-		path: './test/aws/dynamodb.yml'
-	})
+	mockDynamoDB({ tables })
 
 	type User = {
 		id: number

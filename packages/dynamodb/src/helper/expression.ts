@@ -26,11 +26,11 @@ export const addReturnValues = (input:{ ReturnValues?:string }, options:{ return
 	}
 }
 
-export const addConditionExpression = (
+export const addConditionExpression = <E extends ExpressionBuilder, T extends Table<Item, keyof Item, keyof Item>>(
 	input:ExpressionAttributes & { ConditionExpression?:string },
-	options:{ condition?: ExpressionBuilder },
+	options:{ condition?: E },
 	gen:IDGenerator,
-	table:Table<Item, keyof Item>
+	table:T
 ) => {
 	if(options.condition) {
 		const exp = options.condition(gen, table)
@@ -43,7 +43,7 @@ export const addProjectionExpression = (
 	input:ExpressionAttributes & { ProjectionExpression?:string },
 	options:{ projection?: ExpressionBuilder },
 	gen:IDGenerator,
-	table:Table<Item, keyof Item>
+	table:Table<Item, keyof Item, keyof Item>
 ) => {
 	if(options.projection) {
 		const exp = options.projection(gen, table)
@@ -73,8 +73,11 @@ export const addProjectionExpression = (
 // }
 
 export const fn = <T extends ExpressionBuilder>(name:ConditionFunctionName, exp:T) => {
-	return (gen:IDGenerator): Expression<ReturnType<T>['paths'], ReturnType<T>['names'], ReturnType<T>['values']> => {
-		const expression = exp(gen)
+	return (gen:IDGenerator, table:Table<Item, keyof Item>): Expression<
+		ReturnType<T>['names'],
+		ReturnType<T>['values']
+	> => {
+		const expression = exp(gen, table)
 
 		return {
 			...expression,
@@ -83,20 +86,22 @@ export const fn = <T extends ExpressionBuilder>(name:ConditionFunctionName, exp:
 	}
 }
 
+export const merge = <L, R>(left:L, right:R) => {
+	return { ...left, ...right }
+}
+
 export const combine = <L extends ExpressionBuilder, R extends ExpressionBuilder>(left:L, separator:string, right:R) => {
-	return (gen:IDGenerator): Expression<
-		[ ...(ReturnType<L>['paths']), ...(ReturnType<R>['paths']) ],
+	return <T extends Table<Item, keyof Item, keyof Item>>(gen:IDGenerator, table:T): Expression<
 		ReturnType<L>['names'] & ReturnType<R>['names'],
 		ReturnType<L>['values'] & ReturnType<R>['values']
 	> => {
-		const l = left(gen)
-		const r = right(gen)
+		const l = left(gen, table)
+		const r = right(gen, table)
 
 		return {
 			query: `${l.query} ${separator} ${r.query}`,
-			paths: [ ...l.paths, ...r.paths ],
-			names: { ...l.names, ...r.names },
-			values: { ...l.values, ...r.values },
+			names: merge(l.names, r.names),
+			values: merge(l.values, r.values),
 		}
 	}
 }

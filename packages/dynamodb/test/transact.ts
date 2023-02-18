@@ -1,12 +1,11 @@
 
-import { describe, it, expect } from 'vitest'
-import { mockDynamoDB } from '@awsless/test'
-import { ql, scan, transactWrite, transactPut, transactConditionCheck, Table } from '../src/index'
+import { ql, scan, transactWrite, transactPut, transactConditionCheck, Table, mockDynamoDB } from '../src/index'
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb'
+import { tables } from './aws/tables'
 
 describe('DynamoDB Transact', () => {
 
-	mockDynamoDB({ path: './test/aws/dynamodb.yml' })
+	mockDynamoDB({ tables })
 
 	type Post = {
 		userId: number
@@ -14,7 +13,7 @@ describe('DynamoDB Transact', () => {
 		title: string
 	}
 
-	const posts = new Table<Post, 'userId' | 'id'>('posts')
+	const posts = new Table<Post, 'userId', 'id'>('posts')
 
 	it('should transact', async () => {
 		await transactWrite({

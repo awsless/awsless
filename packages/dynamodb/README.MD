@@ -27,7 +27,7 @@ type Post = {
 	title: string
 }
 
-const posts = new Table<Post, 'userId' | 'id'>('posts')
+const posts = new Table<Post, 'userId', 'id'>('posts')
 
 // Insert a post into the posts table
 await putItem(posts, {

@@ -1,13 +1,12 @@
 
 import { PutCommand, PutCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { Item, MutateOptions } from '../types.js'
+import { BaseTable, MutateOptions } from '../types.js'
 import { send } from '../helper/send.js'
-import { Table } from '../table.js'
 import { addConditionExpression, addReturnValues, generator } from '../helper/expression.js'
 
 export type PutOptions = MutateOptions
 
-export const putItem = async <T extends Table<Item, keyof Item>>(
+export const putItem = async <T extends BaseTable>(
 	table: T,
 	item: T['model'],
 	options:PutOptions = {}

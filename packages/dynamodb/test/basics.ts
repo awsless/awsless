@@ -1,12 +1,10 @@
 
-import { describe, it, expect } from 'vitest'
 import { getItem, putItem, query, ql, updateItem, pagination, deleteItem, scan, batchGetItem, Table, mockDynamoDB } from '../src/index'
+import { tables } from './aws/tables'
 
 describe('DynamoDB Basic OPS', () => {
 
-	mockDynamoDB({
-		schema: './test/aws/dynamodb.yml'
-	})
+	mockDynamoDB({ tables })
 
 	type User = {
 		id: number

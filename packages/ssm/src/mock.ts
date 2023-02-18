@@ -6,7 +6,7 @@ export const mockSSM = (values: Record<string, string>) => {
 		.on(GetParametersCommand)
 		.callsFake((input: GetParametersCommandInput) => {
 			return {
-				Parameters: input.Names.map(name => {
+				Parameters: input.Names?.map(name => {
 					return {
 						Name: name,
 						Value: values[name] || '',

@@ -8,7 +8,7 @@ export const dynamoDBClient = globalClient(() => {
 })
 
 export const dynamoDBDocumentClient = globalClient(() => {
-	return DynamoDBDocumentClient.from(dynamoDBClient.get(), {
+	return DynamoDBDocumentClient.from(dynamoDBClient(), {
 		marshallOptions: {
 			removeUndefinedValues: true
 		}

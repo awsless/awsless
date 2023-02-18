@@ -1,4 +1,4 @@
-import { json, array, type, string, record, Struct } from '@heat/validate'
+import { json, array, type, string, record, Struct } from '@awsless/validate'
 
 type Input<T> = {
 	Records: {
@@ -28,7 +28,7 @@ export const sqsStruct = <A, B>(body: Struct<A, B>) => {
 	})
 }
 
-export const toSqsStruct = (records: unknown[]) => {
+export const sqsInput = (records: unknown[]) => {
 	return {
 		Records: records.map((body, i) => ({
 			messageId: i,

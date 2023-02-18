@@ -21,6 +21,7 @@ import { name, value } from './node.js'
 
 type Post = {
 	id: string
+	userId: string
 	title: string
 	array: {
 		item: string
@@ -28,21 +29,43 @@ type Post = {
 }
 
 const table = new Table<Post, 'id'>('lol')
+
 // table.paths[1] === ['dsad', 'sadas']
 const gen = generator()
 
+// and(
+// 	eq(name('userId'), value(1)),
+// 	eq(name('id'), value(3))
+// )(gen)
+
+const n1 = name('userId')(gen, table)
+const n2 = name('userIds')(gen, table)
+
+n1.type
+
+n2.type
+
+and(
+	eq(name('userId'), value(1)),
+	eq(name('userId'), value(1))
+)
 
 updateItem(table, { id: '1' }, {
-	// update: ql`#userId = ${'1'} AND #id = ${3}`,
+	update: ql`#userId = ${'1'} AND #id = ${3}`,
 	// update: set({ 'userId': 1 }),
-	update: update(
-		set(name('title'), value(1)),
-		set(name('id'), value(3))
-	),
-	// condition: and(
-	// 	eq(name('userId'), value(1)),
-	// 	eq(name('id'), value(3))
-	// )(gen)
+	// update: update(
+	// 	set(name('title'), value(1)),
+	// 	set(name('id'), value(3))
+	// ),
+
+	// condition: (builder) => {
+	// 	builder.eq()
+	// }
+
+	condition: and(
+		eq(name('userIds'), value(1)),
+		eq(name('id'), value(3))
+	)
 
 	// ql`#userId = ${'1'} AND #${('id')} = ${3}`,
 	// condition: and(
@@ -57,10 +80,10 @@ updateItem(table, { id: '1' }, {
 
 const path = name('foo', 'bar')
 
-const com = combine(path, '=', name('other'))(gen).paths[0][0] === 'foo'
+// const com = combine(path, '=', name('other'))(gen).paths[0][0] === 'foo'
 
-path(gen).paths
-const expression = eq(name('foo', 'bar'), value('hello'))(gen)
-const paths = expression.paths[0][0]
+// path(gen).paths
+const expression = eq(name('foo', 'bar'), value('hello'))(gen, table)
+// const paths = expression.paths[0][0]
 const names = expression.names['lol'] === 'bars'
 const values = expression.values['d'] === 'hello'

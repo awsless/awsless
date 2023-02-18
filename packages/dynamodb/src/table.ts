@@ -30,8 +30,8 @@ export class Table<Model extends Item, HashKey extends keyof Model, SortKey exte
 // }
 
 // type PathOf<T> =
-//   T extends Record<PropertyKey, unknown> ? readonly [keyof T] | readonly [keyof T, ...PathOf<T[keyof T]>]
-//   : T extends readonly unknown[] ? readonly [keyof T, ...PathOf<T[keyof T]>]
+//   T extends Record<PropertyKey, unknown> ? readonly [ keyof T ] | readonly [ keyof T, ...PathOf<T[keyof T]> ]
+//   : T extends readonly unknown[] ? readonly [ keyof T, ...PathOf<T[keyof T]> ]
 //   : readonly []
 
 // type Paths = PathOf<Test>

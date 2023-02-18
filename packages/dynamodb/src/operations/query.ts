@@ -2,10 +2,9 @@
 import { QueryCommand, QueryCommandOutput } from '@aws-sdk/lib-dynamodb'
 import { addExpression, addProjectionExpression, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
-import { Table } from '../table.js'
-import { ExpressionBuilder, Item, Options } from '../types.js'
+import { BaseTable, ExpressionBuilder, Options } from '../types.js'
 
-export interface QueryOptions<T extends Table<Item, keyof Item>> extends Options {
+export interface QueryOptions<T extends BaseTable> extends Options {
 	keyCondition: ExpressionBuilder
 	projection?: ExpressionBuilder
 	index?: string
@@ -15,13 +14,13 @@ export interface QueryOptions<T extends Table<Item, keyof Item>> extends Options
 	cursor?: T['key']
 }
 
-export interface QueryResponse<T extends Table<Item, keyof Item>> {
+export interface QueryResponse<T extends BaseTable> {
 	count: number
 	items: T['model'][]
 	cursor?: T['key']
 }
 
-export const query = async <T extends Table<Item, keyof Item>>(
+export const query = async <T extends BaseTable>(
 	table: T,
 	options:QueryOptions<T>
 ): Promise<QueryResponse<T>> => {

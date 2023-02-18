@@ -9,7 +9,6 @@ export const or = <L extends ExpressionBuilder, R extends ExpressionBuilder>(lef
 	return combine(left, 'OR', right)
 }
 
-
 export const eq = <L extends ExpressionBuilder, R extends ExpressionBuilder>(left:L, right:R) => {
 	return combine(left, '=', right)
 }
@@ -33,6 +32,10 @@ export const lt = <L extends ExpressionBuilder, R extends ExpressionBuilder>(lef
 export const lte = <L extends ExpressionBuilder, R extends ExpressionBuilder>(left:L, right:R) => {
 	return combine(left, '<=', right)
 }
+
+// export const in = () => {
+
+// }
 
 // export const not = <T extends ExpressionBuilder>(exp:T) => {
 // 	return combine('NOT', 'BETWEEN', combine(from, 'AND', to))

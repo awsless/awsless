@@ -28,10 +28,9 @@
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"publish": "pnpm build; pnpm publish --access=public"
 	},
-	"peerDependencies": {
-		"@awsless/clients": "^0.0.1"
-	},
 	"dependencies": {
+		"@aws-sdk/client-ssm": "^3.204.0",
+		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1",
 		"chunk": "^0.0.3"
 	},

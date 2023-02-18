@@ -6,13 +6,16 @@ export const ql = (literals:TemplateStringsArray, ...raw:Value[]): ExpressionBui
 		const names:ExpressionNames = {}
 		const values:ExpressionValues = {}
 		const string:string[] = []
+		const nameKeys = new Map<string, string>()
+		const valueKeys = new Map<Value, string>()
 
 		literals.forEach((literal, i) => {
 			string.push(literal)
 
 			if(i in raw) {
-				const key = `:v${gen()}`
 				const value = raw[i]
+				const key = valueKeys.get(value) || `:v${gen()}`
+				valueKeys.set(value, key)
 				string.push(key)
 				values[key] = value
 			}
@@ -22,7 +25,8 @@ export const ql = (literals:TemplateStringsArray, ...raw:Value[]): ExpressionBui
 			.join('')
 			.replace(/[\r\n]/gm, '')
 			.replace(/#([a-z0-9]+)/ig, (_, name:string) => {
-				const key = `#n${gen()}`
+				const key = nameKeys.get(name) || `#n${gen()}`
+				nameKeys.set(name, key)
 				names[key] = name
 				return key
 			})

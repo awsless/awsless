@@ -1,7 +1,6 @@
 
 import { fromCursor, toCursor } from '../helper/cursor.js'
-import { Table } from '../table.js'
-import { ExpressionBuilder, Item, Options } from '../types.js'
+import { BaseTable, ExpressionBuilder, Options } from '../types.js'
 import { query } from './query.js'
 
 export interface PaginationOptions extends Options {
@@ -14,13 +13,13 @@ export interface PaginationOptions extends Options {
 	cursor?: string
 }
 
-interface PaginationResponse<T extends Table<Item, keyof Item>> {
+interface PaginationResponse<T extends BaseTable> {
 	count: number
 	items: T['model'][]
 	cursor?: string
 }
 
-export const pagination = async <T extends Table<Item, keyof Item>>(
+export const pagination = async <T extends BaseTable>(
 	table: T,
 	options:PaginationOptions
 ): Promise<PaginationResponse<T>> => {

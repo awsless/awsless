@@ -1,5 +1,5 @@
 import { sqsRecords, sqsStruct } from '../src'
-import { number, type, create } from 'superstruct'
+import { number, type, create } from '@awsless/validate'
 
 describe('Struct', () => {
 	it('sqsStruct', () => {

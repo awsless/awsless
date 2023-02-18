@@ -5,7 +5,7 @@ import { send } from '../helper/send.js'
 import { Table } from '../table.js'
 import { ExpressionBuilder, Item, Options } from '../types.js'
 
-export interface ScanOptions<T extends Table<Item, keyof Item>> extends Options {
+export interface ScanOptions<T extends Table<Item, keyof Item, keyof Item>> extends Options {
 	projection?: ExpressionBuilder
 	index?: string
 	consistentRead?: boolean
@@ -13,13 +13,13 @@ export interface ScanOptions<T extends Table<Item, keyof Item>> extends Options 
 	cursor?: T['key']
 }
 
-export interface ScanResponse<T extends Table<Item, keyof Item>> {
+export interface ScanResponse<T extends Table<Item, keyof Item, keyof Item>> {
 	count: number
 	items: T['model'][]
 	cursor?: T['key']
 }
 
-export const scan = async <T extends Table<Item, keyof Item>>(
+export const scan = async <T extends Table<Item, keyof Item, keyof Item>>(
 	table: T,
 	options:ScanOptions<T> = {}
 ): Promise<ScanResponse<T>> => {

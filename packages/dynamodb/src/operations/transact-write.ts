@@ -1,16 +1,15 @@
 
 import { TransactWriteCommand, TransactWriteCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { ExpressionBuilder, Item, Options, Value } from '../types.js'
+import { BaseTable, ExpressionBuilder, Options, Value } from '../types.js'
 import { addConditionExpression, addExpression, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
-import { Table } from '../table.js'
 
 interface TransactWriteOptions extends Options {
 	idempotantKey?: string
-	items: Transactable<Table<Item, keyof Item>>[]
+	items: Transactable<BaseTable>[]
 }
 
-type Transactable<T extends Table<Item, keyof Item>> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
+type Transactable<T extends BaseTable> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
 
 interface Command {
 	TableName: string
@@ -19,27 +18,27 @@ interface Command {
 	ExpressionAttributeValues?: { [key: string]: Value }
 }
 
-interface ConditionCheck<T extends Table<Item, keyof Item>> {
+interface ConditionCheck<T extends BaseTable> {
 	ConditionCheck: Command & {
 		Key: T['key']
 		ConditionExpression: string
 	}
 }
 
-interface Put<T extends Table<Item, keyof Item>> {
+interface Put<T extends BaseTable> {
 	Put: Command & {
 		Item: T['model']
 	}
 }
 
-interface Update<T extends Table<Item, keyof Item>> {
+interface Update<T extends BaseTable> {
 	Update: Command & {
 		Key: T['key']
 		UpdateExpression: string
 	}
 }
 
-interface Delete<T extends Table<Item, keyof Item>> {
+interface Delete<T extends BaseTable> {
 	Delete: Command & {
 		Key: T['key']
 	}
@@ -58,7 +57,7 @@ interface ConditionCheckOptions {
 	condition: ExpressionBuilder
 }
 
-export const transactConditionCheck = <T extends Table<Item, keyof Item>>(
+export const transactConditionCheck = <T extends BaseTable>(
 	table: T,
 	key: T['key'],
 	options: ConditionCheckOptions
@@ -81,7 +80,7 @@ interface PutOptions {
 	condition?: ExpressionBuilder
 }
 
-export const transactPut = <T extends Table<Item, keyof Item>>(
+export const transactPut = <T extends BaseTable>(
 	table: T,
 	item: T['model'],
 	options: PutOptions = {}
@@ -103,7 +102,7 @@ interface UpdateOptions {
 	condition?: ExpressionBuilder
 }
 
-export const transactUpdate = <T extends Table<Item, keyof Item>>(
+export const transactUpdate = <T extends BaseTable>(
 	table: T,
 	key: T['key'],
 	options: UpdateOptions
@@ -128,7 +127,7 @@ interface DeleteOptions {
 	condition?: ExpressionBuilder
 }
 
-export const transactDelete = <T extends Table<Item, keyof Item>>(
+export const transactDelete = <T extends BaseTable>(
 	table: T,
 	key: T['key'],
 	options: DeleteOptions = {}

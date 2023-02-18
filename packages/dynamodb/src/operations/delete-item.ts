@@ -1,13 +1,12 @@
 
 import { DeleteCommand, DeleteCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { Item, MutateOptions } from '../types.js'
+import { BaseTable, MutateOptions } from '../types.js'
 import { send } from '../helper/send.js'
-import { Table } from '../table.js'
 import { addConditionExpression, addReturnValues, generator } from '../helper/expression.js'
 
 export type DeleteOptions = MutateOptions
 
-export const deleteItem = async <T extends Table<Item, keyof Item>>(
+export const deleteItem = async <T extends BaseTable>(
 	table: T,
 	key: T['key'],
 	options:DeleteOptions = {}

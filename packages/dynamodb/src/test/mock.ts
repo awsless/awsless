@@ -1,5 +1,5 @@
 
-import { BatchGetItemCommand, BatchWriteItemCommand, CreateTableCommand, DeleteItemCommand, DynamoDBClient, GetItemCommand, ListTablesCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
+import { BatchGetItemCommand, BatchWriteItemCommand, CreateTableCommand, CreateTableCommandInput, DeleteItemCommand, DynamoDBClient, GetItemCommand, ListTablesCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { BatchWriteCommand, DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, TransactGetCommand, TransactWriteCommand, UpdateCommand, QueryCommand as Query, ScanCommand as Scan, BatchGetCommand} from '@aws-sdk/lib-dynamodb'
 import { mockClient } from 'aws-sdk-client-mock'
 import { DynamoDBServer } from '@awsless/dynamodb-server'
@@ -8,7 +8,7 @@ import { SeedData, seed } from './seed'
 import { migrate } from './migrate'
 
 export interface StartDynamoDBOptions {
-	schema: string | string[]
+	tables: CreateTableCommandInput | CreateTableCommandInput[],
 	timeout?: number
 	seed?: SeedData
 }
@@ -30,8 +30,8 @@ export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServe
 			await server.listen(port)
 			await server.wait()
 
-			if(configOrServer.schema) {
-				await migrate(server.getClient(), configOrServer.schema)
+			if(configOrServer.tables) {
+				await migrate(server.getClient(), configOrServer.tables)
 				if(configOrServer.seed) {
 					await seed(server.getDocumentClient(), configOrServer.seed)
 				}

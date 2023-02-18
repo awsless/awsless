@@ -1,15 +1,14 @@
 
 import { UpdateCommand, UpdateCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { ExpressionBuilder, Item, MutateOptions } from '../types.js'
+import { BaseTable, ExpressionBuilder, MutateOptions } from '../types.js'
 import { addConditionExpression, addExpression, addReturnValues, generator } from '../helper/expression.js'
 import { send } from '../helper/send.js'
-import { Table } from '../table.js'
 
 export interface UpdateOptions extends MutateOptions {
 	update: ExpressionBuilder
 }
 
-export const updateItem = async <T extends Table<Item, keyof Item>>(
+export const updateItem = async <T extends BaseTable>(
 	table: T,
 	key: T['key'],
 	options:UpdateOptions

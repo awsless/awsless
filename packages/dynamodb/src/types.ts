@@ -1,6 +1,8 @@
 
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
+import { NativeAttributeValue } from '@aws-sdk/util-dynamodb'
 import { Table } from './table'
+// import { Object } from 'ts-toolbelt'
 
 // import { Table } from './table'
 // import { Object } from 'ts-toolbelt'
@@ -31,12 +33,13 @@ export interface MutateOptions extends Options {
 // export type Key = { [ key: string ]: string | number }
 export type Name = string
 export type Path = string | number
-export type Value = string | number | boolean | null | undefined | Value[] | { [key:string]:Value }
-export type Item = { [ key: string ]: Value | Item | [ Value | Item ] }
+export type Value = NativeAttributeValue
+export type Item = Record<Name, Value>
 export type Node = Name | Value
 
 export type IDGenerator = () => number
 
+export type BaseTable = Table<Item, keyof Item, keyof Item>
 
 // export type ReturnModelType<I, T> = T extends Table<never, never> ? T extends Table<infer X extends Item> ? X : I : I
 // export type ReturnKeyType<T> = T extends Table<never, never> ? T['key'] : Key
@@ -53,30 +56,42 @@ export type ConditionFunctionName =
 // export type ExpressionPaths = Path[][]
 export type ExpressionNames = Record<string, Name>
 export type ExpressionValues = Record<string, Value>
-export type ExpressionBuilder = (gen:IDGenerator, table:Table<Item, keyof Item>) => Expression
+export type ExpressionBuilder = (gen:IDGenerator, table:Table<Item, keyof Item, keyof Item>) => Expression
 
-export type Expression = {
-	query: string
-	names: ExpressionNames
-	values: ExpressionValues
+// export type Expression = {
+// 	query: string
+// 	names: ExpressionNames
+// 	values: ExpressionValues
+// }
+
+export type Expression<
+	Names extends ExpressionNames = ExpressionNames,
+	Values extends ExpressionValues = ExpressionValues
+> = {
+	readonly query: string
+	readonly names: Names
+	readonly values: Values
 }
 
-// export type Expression<
-// 	Names extends ExpressionNames = ExpressionNames,
-// 	Values extends ExpressionValues = ExpressionValues
-// > = {
-// 	query: string
-// 	// paths: Paths
-// 	names: Names
-// 	values: Values
+// export type NameExpression<I extends Item, P extends Path[]> = {
+// 	readonly query: string
+// 	readonly names: ExpressionNames
+// 	readonly values: {}
+// 	readonly valid: Object.HasPath<I, P, NativeAttributeValue>
 // }
 
-// export type NameExpression<
-// 	Names extends ExpressionNames = ExpressionNames,
-// 	Values extends ExpressionValues = ExpressionValues
-// > = Expression<Names, Values> & {
-// 	path: Path[]
-// }
+export type NameExpression = {
+	readonly query: string
+	readonly names: ExpressionNames
+	readonly values: {}
+	readonly type: Value
+}
+
+export type ValueExpression<V extends Value> = {
+	readonly query: string
+	readonly names: {}
+	readonly values: { [key: string]: V }
+}
 
 // export type ValueExpression<
 // 	Names extends ExpressionNames = ExpressionNames,
