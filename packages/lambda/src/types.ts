@@ -1,5 +1,5 @@
 
-import { Struct, Infer } from '@heat/validate'
+import { Struct, Infer } from '@awsless/validate'
 import { Context as LambdaContext } from 'aws-lambda'
 
 export type OptStruct = Struct<any, unknown> | undefined

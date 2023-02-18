@@ -1,7 +1,7 @@
 
 import { Context } from 'aws-lambda'
 import { transformValidationErrors } from './errors/validation.js'
-import { create } from '@heat/validate'
+import { create } from '@awsless/validate'
 import { Input, Logger, Loggers, OptStruct, Output, Context as ExtendedContext, Handler } from './types.js'
 import { createTimeout } from './errors/timeout.js'
 import { isViewableError } from './errors/viewable.js'
