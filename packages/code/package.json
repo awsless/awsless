@@ -24,7 +24,7 @@
 	"scripts": {
 		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
 		"build": "pnpm tsup src/index.ts src/bin.ts --format cjs,esm --dts --clean",
-		"publish": "pnpm build; pnpm npm publish --access=public"
+		"prepublish": "pnpm build"
 	},
 	"vitest": {
 		"exclude": "./test/data/**"

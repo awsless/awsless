@@ -34,7 +34,7 @@
 	"scripts": {
 		"test": "pnpm exec code test",
 		"build": "pnpm exec tsup src/index.ts --format cjs,esm --dts --clean",
-		"publish": "pnpm run build; pnpm publish --access=public"
+		"prepublish": "pnpm build"
 	},
 	"devDependencies": {
 		"expose-gc": "^1.0.0"

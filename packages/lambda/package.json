@@ -26,7 +26,7 @@
 	"scripts": {
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"publish": "pnpm build; pnpm publish --access=public"
+		"prepublish": "pnpm build"
 	},
 	"peerDependencies": {
 		"@awsless/validate": "workspace:^0.0.1"
