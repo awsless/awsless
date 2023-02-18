@@ -5,11 +5,11 @@ importers:
   .:
     specifiers:
       '@aws-sdk/types': ^3.226.0
-      '@awsless/code': workspace:^0.0.44
+      '@awsless/code': workspace:^0.0.1
       '@types/node': ^18.13.0
       tsup: ^6.6.0
       typescript: ^4.9.5
-      vitest: ^0.25.1
+      vitest: ^0.25.8
     devDependencies:
       '@aws-sdk/types': 3.267.0
       '@awsless/code': link:packages/code
@@ -245,9 +245,12 @@ importers:
 
   packages/validate:
     specifiers:
+      '@awsless/big-float': workspace:^0.0.1
       superstruct: ^1.0.3
     dependencies:
       superstruct: 1.0.3
+    devDependencies:
+      '@awsless/big-float': link:../big-float
 
   packages/weak-cache:
     specifiers:

@@ -1,7 +1,6 @@
 
-import { describe, it, expect } from 'vitest'
 import { bigfloat, date, uuid, positive, precision, lowercase, uppercase, string, StructError, create, json, object, array, unique, number } from '../src/index'
-import { BigFloat } from '@heat/big-float'
+import { BigFloat } from '@awsless/big-float'
 
 describe('Validate Types', () => {
 

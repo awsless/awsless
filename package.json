@@ -6,11 +6,11 @@
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"devDependencies": {
-		"@awsless/code": "workspace:^0.0.44",
 		"@aws-sdk/types": "^3.226.0",
+		"@awsless/code": "workspace:^0.0.1",
 		"@types/node": "^18.13.0",
 		"tsup": "^6.6.0",
 		"typescript": "^4.9.5",
-		"vitest": "^0.25.1"
+		"vitest": "^0.25.8"
 	}
 }

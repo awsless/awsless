@@ -31,6 +31,9 @@
 	"peerDependencies": {
 		"@awsless/big-float": "workspace:^0.0.1"
 	},
+	"devDependencies": {
+		"@awsless/big-float": "workspace:^0.0.1"
+	},
 	"dependencies": {
 		"superstruct": "^1.0.3"
 	}

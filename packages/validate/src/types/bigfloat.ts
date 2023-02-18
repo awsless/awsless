@@ -1,6 +1,6 @@
 
 import { coerce, define, number, string, union, refine, Struct } from 'superstruct'
-import { BigFloat, gt } from '@heat/big-float'
+import { BigFloat, gt } from '@awsless/big-float'
 
 export const bigfloat = ():Struct<BigFloat, null> => {
 	const base = define<BigFloat>('bigfloat', (value) => {
