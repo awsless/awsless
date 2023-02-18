@@ -4,13 +4,6 @@ export type Attributes = {
 	[key: string]: string
 }
 
-export type FormattedAttributes = {
-	[key: string]: {
-		DataType: 'String'
-		StringValue: string
-	}
-}
-
 export interface SendMessage {
 	client?: SQSClient
 	queue: string

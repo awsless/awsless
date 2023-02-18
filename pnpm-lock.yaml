@@ -182,17 +182,23 @@ importers:
       '@aws-sdk/client-sqs': ^3.204.0
       '@awsless/test': workspace:^0.0.1
       '@awsless/utils': workspace:^0.0.1
+      '@heat/big-float': ^0.0.4
+      '@heat/validate': ^0.0.9
       '@types/chunk': ^0.0.0
       aws-sdk-client-mock: ^2.0.1
       chunk: ^0.0.3
+      superstruct: ^1.0.3
     dependencies:
       '@aws-sdk/client-sqs': 3.267.0
       '@awsless/test': link:../test
       '@awsless/utils': link:../utils
+      '@heat/big-float': 0.0.4
+      '@heat/validate': 0.0.9_@heat+big-float@0.0.4
       aws-sdk-client-mock: 2.0.1
       chunk: 0.0.3
     devDependencies:
       '@types/chunk': 0.0.0
+      superstruct: 1.0.3
 
   packages/ssm:
     specifiers:
@@ -2864,6 +2870,21 @@ packages:
     dev: true
     optional: true
 
+  /@heat/big-float/0.0.4:
+    resolution: {integrity: sha512-h+n9lVhHkYSCE/Wf4PX3vlo2iKZmQpreIaJ5G71roksSxoGeNU+QxRF4iF+tOl0lpWkXnCpnQ+1nlocZJgleQQ==}
+    dependencies:
+      bigfloat-esnext: 3.0.1
+    dev: false
+
+  /@heat/validate/0.0.9_@heat+big-float@0.0.4:
+    resolution: {integrity: sha512-nxA8MbHDafOkRjYAiCtpnsk1KxAKH64gLRP8o8ju1q3Qi6SFoTrqfRgkaTfku8unLfMiTf3BypdaI+j1GiRIsQ==}
+    peerDependencies:
+      '@heat/big-float': ^0.0.2
+    dependencies:
+      '@heat/big-float': 0.0.4
+      superstruct: 1.0.3
+    dev: false
+
   /@istanbuljs/load-nyc-config/1.1.0:
     resolution: {integrity: sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ==}
     engines: {node: '>=8'}
@@ -3702,6 +3723,10 @@ packages:
 
   /balanced-match/1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
+
+  /bigfloat-esnext/3.0.1:
+    resolution: {integrity: sha512-+L6LRIuW3y7BTy0WRC2G2w4w2TPtC88h3GLPhEJ6tH4tTE1m5otWXk4rOhEwfwiXxyPcRzqx6YHQ637rpKJvKA==}
+    dev: false
 
   /binary-extensions/2.2.0:
     resolution: {integrity: sha512-jDctJ/IVQbZoJykoeHbhXpOlNBqGNcwXJKJog42E5HDPUwQTSdjCHdihjj0DlnheQ7blbT6dHOafNAiS8ooQKA==}
@@ -5769,6 +5794,10 @@ packages:
       pirates: 4.0.5
       ts-interface-checker: 0.1.13
     dev: true
+
+  /superstruct/1.0.3:
+    resolution: {integrity: sha512-8iTn3oSS8nRGn+C2pgXSKPI3jmpm6FExNazNpjvqS6ZUJQCej3PUXEKM8NjHBOs54ExM+LPW/FBRhymrdcCiSg==}
+    engines: {node: '>=14.0.0'}
 
   /supports-color/5.5.0:
     resolution: {integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==}

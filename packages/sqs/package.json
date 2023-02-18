@@ -32,10 +32,13 @@
 		"@aws-sdk/client-sqs": "^3.204.0",
 		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
+		"@heat/big-float": "^0.0.4",
+		"@heat/validate": "^0.0.9",
 		"aws-sdk-client-mock": "^2.0.1",
 		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
-		"@types/chunk": "^0.0.0"
+		"@types/chunk": "^0.0.0",
+		"superstruct": "^1.0.3"
 	}
 }

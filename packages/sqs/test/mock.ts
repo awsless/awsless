@@ -1,12 +1,12 @@
 import { GetQueueUrlCommand, SendMessageBatchCommand, SendMessageCommand } from '@aws-sdk/client-sqs'
-import { mockSQS } from '../src'
+import { mockSQS, sqsClient } from '../src'
 
 describe('Mock', () => {
 	const sqs = mockSQS({
 		service__echo: () => {},
 	})
 
-	const client = new sqsClient({})
+	const client = sqsClient()
 
 	it('should get queue url', async () => {
 		const result = await client.send(

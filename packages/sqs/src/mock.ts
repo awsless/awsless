@@ -48,12 +48,14 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 		.on(SendMessageCommand)
 		.callsFake(async (input: SendMessageCommandInput) => {
 			const callback = get(input)
+			console.log(input)
+
 			await callback({
 				Records: [
 					{
 						body: input.MessageBody,
 						messageId: randomUUID(),
-						messageAttributes: formatAttributes(input.MessageAttributes),
+						messageAttributes: input.MessageAttributes,
 					},
 				],
 			})

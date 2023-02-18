@@ -3,13 +3,14 @@ import {
 	SendMessageCommand,
 	GetQueueUrlCommand,
 	SendMessageBatchCommand,
+	MessageAttributeValue,
 } from '@aws-sdk/client-sqs'
-import { SendMessage, SendMessageBatch, Attributes, FormattedAttributes } from './types'
+import { SendMessage, SendMessageBatch, Attributes } from './types'
 import { sqsClient } from './client'
 import chunk from 'chunk'
 
 const formatAttributes = (attributes: Attributes) => {
-	const list: FormattedAttributes = {}
+	const list: Record<string, MessageAttributeValue> = {}
 	for (let key in attributes) {
 		list[key] = {
 			DataType: 'String',
@@ -38,7 +39,7 @@ export const getCachedQueueUrl = (client: SQSClient, queue: string) => {
 }
 
 export const sendMessage = async ({
-	client = sqsClient.get(),
+	client = sqsClient(),
 	queue,
 	payload,
 	delay = 0,
@@ -57,7 +58,7 @@ export const sendMessage = async ({
 }
 
 /** Add batch of messages to a SQS queue */
-export const sendMessageBatch = async ({ client = sqsClient.get(), queue, items }: SendMessageBatch) => {
+export const sendMessageBatch = async ({ client = sqsClient(), queue, items }: SendMessageBatch) => {
 	const url = await getCachedQueueUrl(client, queue)
 
 	await Promise.all(
