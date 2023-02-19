@@ -11,5 +11,6 @@ type Result<T extends string | number | symbol> = Record<T, Mock<any, Func>>;
 declare const mockObjectValues: <T extends Record<string, Func>>(object: T) => Result<keyof T>;
 declare const mockFn: <T extends Func>(fn: T) => Mock<any, any>;
 declare const nextTick: (fn: Func, ...args: unknown[]) => Promise<unknown>;
+declare const asyncCall: (fn: Func, ...args: unknown[]) => Promise<unknown>;
 
-export { mockFn, mockObjectValues, nextTick, requestPort };
+export { asyncCall, mockFn, mockObjectValues, nextTick, requestPort };

@@ -88,7 +88,15 @@ var nextTick = (fn, ...args) => {
     }, 0);
   });
 };
+var asyncCall = (fn, ...args) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(fn(...args));
+    }, 0);
+  });
+};
 export {
+  asyncCall,
   mockFn,
   mockObjectValues,
   nextTick,

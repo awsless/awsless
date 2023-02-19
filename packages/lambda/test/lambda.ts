@@ -1,6 +1,5 @@
 
-import { string, StructError } from '@heat/validate'
-import { describe, it, expect, vi } from 'vitest'
+import { string, StructError } from '@awsless/validate'
 import { lambda, ValidationError, ViewableError } from '../src'
 
 describe('Lambda', () => {

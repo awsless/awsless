@@ -24,3 +24,11 @@ export const nextTick = (fn: Func, ...args: unknown[]) => {
 		}, 0)
 	})
 }
+
+export const asyncCall = (fn:Func, ...args:unknown[]) => {
+	return new Promise(resolve => {
+		setTimeout(() => {
+			resolve(fn(...args))
+		}, 0)
+	})
+}

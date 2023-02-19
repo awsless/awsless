@@ -35,7 +35,7 @@ __export(src_exports, {
 module.exports = __toCommonJS(src_exports);
 
 // src/errors/validation.ts
-var import_validate = require("@heat/validate");
+var import_validate = require("@awsless/validate");
 
 // src/errors/viewable.ts
 var prefix = "[viewable]";
@@ -94,7 +94,7 @@ var transformValidationErrors = async (callback) => {
 };
 
 // src/lambda.ts
-var import_validate2 = require("@heat/validate");
+var import_validate2 = require("@awsless/validate");
 
 // src/errors/timeout.ts
 var TimeoutError = class extends Error {
@@ -299,7 +299,7 @@ var mockLambda = (lambdas) => {
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
-    const result = await callback(payload);
+    const result = await (0, import_test.asyncCall)(callback, payload);
     if (type === "RequestResponse" && result) {
       return {
         Payload: (0, import_util_utf8_node2.fromUtf8)(JSON.stringify(result))

@@ -1,5 +1,5 @@
 
-import { Failure, StructError } from '@heat/validate'
+import { Failure, StructError } from '@awsless/validate'
 import { ViewableError } from './viewable.js'
 
 export class ValidationError extends ViewableError {

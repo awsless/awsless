@@ -1,7 +1,6 @@
 
-import { describe, it } from 'vitest'
 import { lambda, invoke, mockLambda } from '../src'
-import { string } from '@heat/validate'
+import { string } from '@awsless/validate'
 
 describe('Lambda', () => {
 

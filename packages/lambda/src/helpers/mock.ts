@@ -1,5 +1,5 @@
 
-import { mockObjectValues } from '@awsless/test'
+import { asyncCall, mockObjectValues } from '@awsless/test'
 import { InvokeCommand, InvokeCommandInput, LambdaClient } from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { mockClient } from 'aws-sdk-client-mock'
@@ -23,8 +23,7 @@ export const mockLambda = <T extends Lambdas>(lambdas:T) => {
 				throw new TypeError(`Lambda mock function not defined for: ${ name }`)
 			}
 
-			// const result = await asyncCall(callback, payload)
-			const result = await callback(payload)
+			const result = await asyncCall(callback, payload)
 
 			if(type === 'RequestResponse' && result) {
 				return {

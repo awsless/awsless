@@ -1,5 +1,4 @@
 
-import { describe, it, expect } from 'vitest'
 import { getViewableErrorData, isViewableError, ViewableError } from '../src'
 
 describe('ViewableError', () => {

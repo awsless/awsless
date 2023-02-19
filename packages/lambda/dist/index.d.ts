@@ -1,5 +1,5 @@
 import { Context as Context$1 } from 'aws-lambda';
-import { Infer, Struct, Failure } from '@heat/validate';
+import { Infer, Struct, Failure } from '@awsless/validate';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { Jsonify, AsyncReturnType } from 'type-fest';
 import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
@@ -36,7 +36,6 @@ type LambdaFactory = {
     <H extends Handler<undefined, O>, O extends OptStruct>(options: Options<H, undefined, O>): (event?: unknown, context?: Context$1) => Promise<Output<O>>;
     <H extends Handler<I, O>, I extends OptStruct, O extends OptStruct>(options: Options<H, I, O>): (event: Input<I>, context?: Context$1) => Promise<Output<O>>;
 };
-type LambdaFunction<I extends OptStruct = undefined, O extends OptStruct = undefined> = (event: Input<I>, context?: Context$1) => Promise<Output<O>>;
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
@@ -73,12 +72,13 @@ interface InvokeOptions {
 interface UnknownInvokeOptions extends InvokeOptions {
     payload?: unknown;
 }
-interface KnownInvokeOptions<Lambda extends LambdaFunction<OptStruct, OptStruct>> extends InvokeOptions {
+interface KnownInvokeOptions<Lambda extends LambdaFunction> extends InvokeOptions {
     payload: Parameters<Lambda>[0];
 }
+type LambdaFunction = (event: any, context?: Context$1) => Promise<unknown>;
 type Invoke = {
     ({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>;
-    <Lambda extends LambdaFunction<OptStruct, OptStruct>>({ client, name, qualifier, type, payload, reflectViewableErrors }: KnownInvokeOptions<Lambda>): Promise<Jsonify<AsyncReturnType<Lambda>>>;
+    <Lambda extends LambdaFunction>({ client, name, qualifier, type, payload, reflectViewableErrors }: KnownInvokeOptions<Lambda>): Promise<Jsonify<AsyncReturnType<Lambda>>>;
 };
 
 /** Invoke lambda function */

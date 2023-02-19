@@ -1,2 +1,2 @@
-export { requestPort } from './port'
-export { mockObjectValues, mockFn, nextTick } from './mock'
+
+export { mockObjectValues, mockFn, nextTick, asyncCall } from './mock'

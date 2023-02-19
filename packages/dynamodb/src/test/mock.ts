@@ -3,7 +3,7 @@ import { BatchGetItemCommand, BatchWriteItemCommand, CreateTableCommand, CreateT
 import { BatchWriteCommand, DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, TransactGetCommand, TransactWriteCommand, UpdateCommand, QueryCommand as Query, ScanCommand as Scan, BatchGetCommand} from '@aws-sdk/lib-dynamodb'
 import { mockClient } from 'aws-sdk-client-mock'
 import { DynamoDBServer } from '@awsless/dynamodb-server'
-import { requestPort } from '@awsless/test'
+import { requestPort } from '@heat/request-port'
 import { SeedData, seed } from './seed'
 import { migrate } from './migrate'
 

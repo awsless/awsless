@@ -83,7 +83,7 @@ module.exports = __toCommonJS(src_exports);
 
 // src/types/bigfloat.ts
 var import_superstruct = require("superstruct");
-var import_big_float = require("@heat/big-float");
+var import_big_float = require("@awsless/big-float");
 var bigfloat = () => {
   const base = (0, import_superstruct.define)("bigfloat", (value) => {
     return value instanceof import_big_float.BigFloat || "Invalid number";

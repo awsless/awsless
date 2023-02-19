@@ -1,5 +1,5 @@
 // src/errors/validation.ts
-import { StructError } from "@heat/validate";
+import { StructError } from "@awsless/validate";
 
 // src/errors/viewable.ts
 var prefix = "[viewable]";
@@ -58,7 +58,7 @@ var transformValidationErrors = async (callback) => {
 };
 
 // src/lambda.ts
-import { create } from "@heat/validate";
+import { create } from "@awsless/validate";
 
 // src/errors/timeout.ts
 var TimeoutError = class extends Error {
@@ -249,7 +249,7 @@ var lambda = (options) => {
 };
 
 // src/helpers/mock.ts
-import { mockObjectValues } from "@awsless/test";
+import { asyncCall, mockObjectValues } from "@awsless/test";
 import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2 } from "@aws-sdk/client-lambda";
 import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
 import { mockClient } from "aws-sdk-client-mock";
@@ -263,7 +263,7 @@ var mockLambda = (lambdas) => {
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
-    const result = await callback(payload);
+    const result = await asyncCall(callback, payload);
     if (type === "RequestResponse" && result) {
       return {
         Payload: fromUtf82(JSON.stringify(result))

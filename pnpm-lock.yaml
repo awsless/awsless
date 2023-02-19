@@ -126,6 +126,7 @@ importers:
       '@awsless/dynamodb-server': workspace:^0.0.1
       '@awsless/test': workspace:^0.0.1
       '@awsless/utils': workspace:^0.0.1
+      '@heat/request-port': ^0.0.1
       '@types/chunk': ^0.0.0
       aws-sdk-client-mock: ^2.0.1
       chunk: ^0.0.3
@@ -139,6 +140,7 @@ importers:
       '@awsless/dynamodb-server': link:../dynamodb-server
       '@awsless/test': link:../test
       '@awsless/utils': link:../utils
+      '@heat/request-port': 0.0.1
       aws-sdk-client-mock: 2.0.1
       chunk: 0.0.3
       ts-toolbelt: 9.6.0
@@ -2709,6 +2711,12 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@heat/request-port/0.0.1:
+    resolution: {integrity: sha512-hzVymaPEVAk3H4rJUubqcXSGhq4EdaCXJcaJn1BG3yx6srMBH23D3/+RaByDJ6uwWu9egdHIMkM4lwSSFk00CA==}
+    dependencies:
+      proper-lockfile: 4.1.2
+    dev: false
 
   /@istanbuljs/load-nyc-config/1.1.0:
     resolution: {integrity: sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ==}

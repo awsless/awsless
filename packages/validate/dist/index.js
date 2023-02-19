@@ -1,6 +1,6 @@
 // src/types/bigfloat.ts
 import { coerce, define, number, string, union, refine } from "superstruct";
-import { BigFloat, gt } from "@heat/big-float";
+import { BigFloat, gt } from "@awsless/big-float";
 var bigfloat = () => {
   const base = define("bigfloat", (value) => {
     return value instanceof BigFloat || "Invalid number";

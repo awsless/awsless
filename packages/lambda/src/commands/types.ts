@@ -32,7 +32,7 @@ export interface ErrorResponse {
 	errorMessage: string
 }
 
-type LambdaFunction = (event:unknown, context?:Context) => Promise<unknown>
+type LambdaFunction = (event:any, context?:Context) => Promise<unknown>
 
 export type Invoke = {
 	({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>
