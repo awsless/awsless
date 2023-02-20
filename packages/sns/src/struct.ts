@@ -1,4 +1,4 @@
-import { json, array, type, string, date, Struct } from '@heat/validate'
+import { json, array, type, string, date, Struct } from '@awsless/validate'
 
 type Input<T> = {
 	Records: {

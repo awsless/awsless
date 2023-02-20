@@ -28,12 +28,8 @@
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "pnpm build"
 	},
-	"peerDependencies": {
-		"@awsless/validate": "workspace:^0.0.1"
-	},
 	"dependencies": {
 		"@aws-sdk/client-sqs": "^3.204.0",
-		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1",
 		"chunk": "^0.0.3"
@@ -42,5 +38,8 @@
 		"@awsless/validate": "workspace:^0.0.1",
 		"@types/chunk": "^0.0.0",
 		"superstruct": "^1.0.3"
+	},
+	"peerDependencies": {
+		"@awsless/validate": "workspace:^0.0.1"
 	}
 }

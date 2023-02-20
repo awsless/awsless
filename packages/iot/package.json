@@ -26,12 +26,11 @@
 	"scripts": {
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"publish": "pnpm build; pnpm publish --access=public"
+		"prepublish": "pnpm build"
 	},
 	"dependencies": {
 		"@aws-sdk/client-iot": "^3.204.0",
-		"@aws-sdk/client-iot-data-plane": "^3.267.0",
-		"@awsless/test": "workspace:^0.0.1",
+		"@aws-sdk/client-iot-data-plane": "^3.204.0",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1"
 	}

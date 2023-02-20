@@ -30,7 +30,6 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-sesv2": "^3.245.0",
-		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1"
 	}

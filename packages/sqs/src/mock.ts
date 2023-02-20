@@ -7,7 +7,7 @@ import {
 	SendMessageCommandInput,
 	SendMessageBatchCommandInput,
 } from '@aws-sdk/client-sqs'
-import { mockObjectValues, nextTick } from '@awsless/test'
+import { mockObjectValues, nextTick } from '@awsless/utils'
 import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
 

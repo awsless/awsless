@@ -4,7 +4,7 @@ import {
 	CreateScheduleCommandInput,
 	DeleteScheduleCommand,
 } from '@aws-sdk/client-scheduler'
-import { mockObjectValues, nextTick } from '@awsless/test'
+import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
 
 type Lambdas = {

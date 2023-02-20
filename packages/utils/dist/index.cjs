@@ -20,7 +20,10 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  globalClient: () => globalClient
+  globalClient: () => globalClient,
+  mockFn: () => mockFn,
+  mockObjectValues: () => mockObjectValues,
+  nextTick: () => nextTick
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -38,7 +41,29 @@ var globalClient = (factory) => {
   };
   return getter;
 };
+
+// src/mock.ts
+var mockObjectValues = (object) => {
+  const list = {};
+  Object.entries(object).forEach(([key, value]) => {
+    list[key] = mockFn(value);
+  });
+  return Object.freeze(list);
+};
+var mockFn = (fn) => {
+  return vi ? vi.fn(fn) : fn;
+};
+var nextTick = (fn, ...args) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(fn(...args));
+    }, 0);
+  });
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  globalClient
+  globalClient,
+  mockFn,
+  mockObjectValues,
+  nextTick
 });

@@ -26,11 +26,10 @@
 	"scripts": {
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"publish": "pnpm build; pnpm publish --access=public"
+		"prepublish": "pnpm build"
 	},
 	"dependencies": {
 		"@aws-sdk/client-scheduler": "^3.254.0",
-		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1"
 	}

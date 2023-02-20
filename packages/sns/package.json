@@ -30,10 +30,14 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-sns": "^3.204.0",
-		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
-		"@heat/validate": "^0.0.9",
-		"aws-sdk-client-mock": "^2.0.1",
+		"aws-sdk-client-mock": "^2.0.1"
+	},
+	"devDependencies": {
+		"@awsless/validate": "workspace:^0.0.1",
 		"superstruct": "^1.0.3"
+	},
+	"peerDependencies": {
+		"@awsless/validate": "workspace:^0.0.1"
 	}
 }

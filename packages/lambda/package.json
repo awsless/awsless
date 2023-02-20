@@ -37,7 +37,6 @@
 	"dependencies": {
 		"@aws-sdk/client-lambda": "^3.267.0",
 		"@aws-sdk/util-utf8-node": "^3.208.0",
-		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
 		"@types/aws-lambda": "^8.10.110",
 		"aws-sdk-client-mock": "^2.0.1",
