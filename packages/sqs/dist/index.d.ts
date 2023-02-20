@@ -4,6 +4,11 @@ import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
 import * as superstruct_dist_utils from 'superstruct/dist/utils';
 import { Struct } from '@awsless/validate';
 
+declare const sqsClient: {
+    (): SQSClient;
+    set(client: SQSClient): void;
+};
+
 type Attributes = {
     [key: string]: string;
 };
@@ -33,11 +38,6 @@ type Queues = {
     [key: string]: (payload: unknown) => unknown;
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: unknown[]) => unknown>; };
-
-declare const sqsClient: {
-    (): SQSClient;
-    set(client: SQSClient): void;
-};
 
 type Input<T> = {
     Records: {

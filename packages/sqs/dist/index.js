@@ -1,10 +1,3 @@
-// src/commands.ts
-import {
-  SendMessageCommand,
-  GetQueueUrlCommand,
-  SendMessageBatchCommand
-} from "@aws-sdk/client-sqs";
-
 // src/client.ts
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { globalClient } from "@awsless/utils";
@@ -13,6 +6,11 @@ var sqsClient = globalClient(() => {
 });
 
 // src/commands.ts
+import {
+  SendMessageCommand,
+  GetQueueUrlCommand,
+  SendMessageBatchCommand
+} from "@aws-sdk/client-sqs";
 import chunk from "chunk";
 var formatAttributes = (attributes) => {
   const list = {};

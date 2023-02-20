@@ -1,9 +1,7 @@
-
 import { getItem, putItem, query, ql, updateItem, pagination, deleteItem, scan, batchGetItem, Table, mockDynamoDB } from '../src/index'
 import { tables } from './aws/tables'
 
 describe('DynamoDB Basic OPS', () => {
-
 	mockDynamoDB({ tables })
 
 	type User = {
@@ -25,14 +23,14 @@ describe('DynamoDB Basic OPS', () => {
 		it('should put item', async () => {
 			await putItem(users, {
 				id: 1,
-				name: 'John'
+				name: 'John',
 			})
 
 			await putItem(posts, {
 				userId: 1,
 				id: 1,
 				title: 'First',
-				content: 'Welcome'
+				content: 'Welcome',
 			})
 
 			await putItem(posts, {
@@ -43,23 +41,31 @@ describe('DynamoDB Basic OPS', () => {
 		})
 
 		it('should put item with valid condition', async () => {
-			await putItem(posts, {
-				userId: 1,
-				id: 3,
-				title: 'Third',
-			}, {
-				condition: ql`attribute_not_exists(#id)`
-			})
+			await putItem(
+				posts,
+				{
+					userId: 1,
+					id: 3,
+					title: 'Third',
+				},
+				{
+					condition: ql`attribute_not_exists(#id)`,
+				}
+			)
 		})
 
 		it('should not put item with invalid condition', async () => {
-			const promise = putItem(posts, {
-				userId: 1,
-				id: 3,
-				title: 'Third Again',
-			}, {
-				condition: ql`attribute_not_exists(#id)`
-			})
+			const promise = putItem(
+				posts,
+				{
+					userId: 1,
+					id: 3,
+					title: 'Third Again',
+				},
+				{
+					condition: ql`attribute_not_exists(#id)`,
+				}
+			)
 
 			await expect(promise).rejects.toThrow(Error)
 		})
@@ -78,7 +84,7 @@ describe('DynamoDB Basic OPS', () => {
 				userId: 1,
 				id: 1,
 				title: 'First',
-				content: 'Welcome'
+				content: 'Welcome',
 			})
 		})
 
@@ -90,14 +96,22 @@ describe('DynamoDB Basic OPS', () => {
 
 	describe('updateItem', () => {
 		it('should update item', async () => {
-			await updateItem(users, { id: 1 }, {
-				update: ql`SET #name = ${'Jessy'}`
-			})
+			await updateItem(
+				users,
+				{ id: 1 },
+				{
+					update: ql`SET #name = ${'Jessy'}`,
+				}
+			)
 
 			const content = 'updated 1'
-			const result = await updateItem(posts, { userId: 1, id: 1 }, {
-				update: ql`SET #content = ${content}`
-			})
+			const result = await updateItem(
+				posts,
+				{ userId: 1, id: 1 },
+				{
+					update: ql`SET #content = ${content}`,
+				}
+			)
 			expect(result).toBeUndefined()
 
 			const result2 = await getItem(posts, { userId: 1, id: 1 })
@@ -105,39 +119,47 @@ describe('DynamoDB Basic OPS', () => {
 				userId: 1,
 				id: 1,
 				title: 'First',
-				content
+				content,
 			})
 		})
 
 		it('should return updated item', async () => {
 			const content = 'updated 2'
-			const result = await updateItem(posts, { userId: 1, id: 1 }, {
-				update: ql`SET #content = ${content}`,
-				return: 'ALL_NEW'
-			})
+			const result = await updateItem(
+				posts,
+				{ userId: 1, id: 1 },
+				{
+					update: ql`SET #content = ${content}`,
+					return: 'ALL_NEW',
+				}
+			)
 
 			expect(result).toStrictEqual({
 				userId: 1,
 				id: 1,
 				title: 'First',
-				content
+				content,
 			})
 		})
 
 		it('should update with condition', async () => {
 			const title = 'First'
 			const content = 'updated 3'
-			const result = await updateItem(posts, { userId: 1, id: 1 }, {
-				update: ql`SET #content = ${content}`,
-				condition: ql`#title = ${title}`,
-				return: 'ALL_NEW'
-			})
+			const result = await updateItem(
+				posts,
+				{ userId: 1, id: 1 },
+				{
+					update: ql`SET #content = ${content}`,
+					condition: ql`#title = ${title}`,
+					return: 'ALL_NEW',
+				}
+			)
 
 			expect(result).toStrictEqual({
 				userId: 1,
 				id: 1,
 				title: 'First',
-				content
+				content,
 			})
 		})
 	})
@@ -146,7 +168,7 @@ describe('DynamoDB Basic OPS', () => {
 		it('should delete item', async () => {
 			await putItem(users, {
 				id: 2,
-				name: 'Temp'
+				name: 'Temp',
 			})
 
 			await deleteItem(users, { id: 2 })
@@ -154,7 +176,7 @@ describe('DynamoDB Basic OPS', () => {
 			await putItem(posts, {
 				userId: 2,
 				id: 1,
-				title: 'Temp'
+				title: 'Temp',
 			})
 
 			const result = await deleteItem(posts, { userId: 2, id: 1 })
@@ -168,17 +190,21 @@ describe('DynamoDB Basic OPS', () => {
 			await putItem(posts, {
 				userId: 2,
 				id: 1,
-				title: 'Temp'
+				title: 'Temp',
 			})
 
-			const result = await deleteItem(posts, { userId: 2, id: 1 }, {
-				return: 'ALL_OLD'
-			})
+			const result = await deleteItem(
+				posts,
+				{ userId: 2, id: 1 },
+				{
+					return: 'ALL_OLD',
+				}
+			)
 
 			expect(result).toStrictEqual({
 				userId: 2,
 				id: 1,
-				title: 'Temp'
+				title: 'Temp',
 			})
 		})
 
@@ -186,12 +212,16 @@ describe('DynamoDB Basic OPS', () => {
 			await putItem(posts, {
 				userId: 2,
 				id: 1,
-				title: 'Temp'
+				title: 'Temp',
 			})
 
-			await deleteItem(posts, { userId: 2, id: 1 }, {
-				condition: ql`#id = ${1}`,
-			})
+			await deleteItem(
+				posts,
+				{ userId: 2, id: 1 },
+				{
+					condition: ql`#id = ${1}`,
+				}
+			)
 
 			const result = await getItem(posts, { userId: 2, id: 1 })
 			expect(result).toBeUndefined()
@@ -211,8 +241,8 @@ describe('DynamoDB Basic OPS', () => {
 					{
 						id: 1,
 						name: 'Jessy',
-					}
-				]
+					},
+				],
 			})
 
 			const result2 = await query(posts, {
@@ -227,7 +257,7 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 1,
 						title: 'First',
-						content: 'updated 3'
+						content: 'updated 3',
 					},
 					{
 						userId: 1,
@@ -238,8 +268,8 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 3,
 						title: 'Third',
-					}
-				]
+					},
+				],
 			})
 		})
 
@@ -247,13 +277,13 @@ describe('DynamoDB Basic OPS', () => {
 			const result1 = await query(posts, {
 				keyCondition: ql`#userId = ${1}`,
 				forward: false,
-				limit: 1
+				limit: 1,
 			})
 
 			expect(result1).toStrictEqual({
 				cursor: {
 					userId: 1,
-					id: 3
+					id: 3,
 				},
 				count: 1,
 				items: [
@@ -261,21 +291,21 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 3,
 						title: 'Third',
-					}
-				]
+					},
+				],
 			})
 
 			const result2 = await query(posts, {
 				keyCondition: ql`#userId = ${1}`,
 				forward: false,
 				limit: 1,
-				cursor: result1.cursor
+				cursor: result1.cursor,
 			})
 
 			expect(result2).toStrictEqual({
 				cursor: {
 					userId: 1,
-					id: 2
+					id: 2,
 				},
 				count: 1,
 				items: [
@@ -283,15 +313,15 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 2,
 						title: 'Second',
-					}
-				]
+					},
+				],
 			})
 		})
 
 		it('should support limit & cursor', async () => {
 			const result1 = await query(posts, {
 				keyCondition: ql`#userId = ${1}`,
-				limit: 1
+				limit: 1,
 			})
 
 			expect(result1).toStrictEqual({
@@ -302,15 +332,15 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 1,
 						title: 'First',
-						content: 'updated 3'
-					}
-				]
+						content: 'updated 3',
+					},
+				],
 			})
 
 			const result2 = await query(posts, {
 				keyCondition: ql`#userId = ${1}`,
 				limit: 1,
-				cursor: result1.cursor
+				cursor: result1.cursor,
 			})
 
 			expect(result2).toStrictEqual({
@@ -321,8 +351,8 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 2,
 						title: 'Second',
-					}
-				]
+					},
+				],
 			})
 		})
 	})
@@ -340,8 +370,8 @@ describe('DynamoDB Basic OPS', () => {
 					{
 						id: 1,
 						name: 'Jessy',
-					}
-				]
+					},
+				],
 			})
 
 			const result2 = await pagination(posts, {
@@ -356,7 +386,7 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 1,
 						title: 'First',
-						content: 'updated 3'
+						content: 'updated 3',
 					},
 					{
 						userId: 1,
@@ -367,15 +397,15 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 3,
 						title: 'Third',
-					}
-				]
+					},
+				],
 			})
 		})
 
 		it('should support limit & cursor', async () => {
 			const result1 = await pagination(posts, {
 				keyCondition: ql`#userId = ${1}`,
-				limit: 1
+				limit: 1,
 			})
 
 			expect(result1).toStrictEqual({
@@ -386,15 +416,15 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 1,
 						title: 'First',
-						content: 'updated 3'
-					}
-				]
+						content: 'updated 3',
+					},
+				],
 			})
 
 			const result2 = await pagination(posts, {
 				keyCondition: ql`#userId = ${1}`,
 				limit: 1,
-				cursor: result1.cursor
+				cursor: result1.cursor,
 			})
 
 			expect(result2).toStrictEqual({
@@ -405,15 +435,15 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 2,
 						title: 'Second',
-					}
-				]
+					},
+				],
 			})
 		})
 
 		it('should not return cursor when no more items are available', async () => {
 			const result = await pagination(posts, {
 				keyCondition: ql`#userId = ${1}`,
-				limit: 3
+				limit: 3,
 			})
 
 			expect(result.items.length).toBe(3)
@@ -432,8 +462,8 @@ describe('DynamoDB Basic OPS', () => {
 					{
 						id: 1,
 						name: 'Jessy',
-					}
-				]
+					},
+				],
 			})
 
 			const result2 = await scan(posts)
@@ -446,7 +476,7 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 1,
 						title: 'First',
-						content: 'updated 3'
+						content: 'updated 3',
 					},
 					{
 						userId: 1,
@@ -457,14 +487,14 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 3,
 						title: 'Third',
-					}
-				]
+					},
+				],
 			})
 		})
 
 		it('should support limit & cursor', async () => {
 			const result1 = await scan(posts, {
-				limit: 1
+				limit: 1,
 			})
 
 			expect(result1).toStrictEqual({
@@ -475,14 +505,14 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 1,
 						title: 'First',
-						content: 'updated 3'
-					}
-				]
+						content: 'updated 3',
+					},
+				],
 			})
 
 			const result2 = await scan(posts, {
 				limit: 1,
-				cursor: result1.cursor
+				cursor: result1.cursor,
 			})
 
 			expect(result2).toStrictEqual({
@@ -493,17 +523,15 @@ describe('DynamoDB Basic OPS', () => {
 						userId: 1,
 						id: 2,
 						title: 'Second',
-					}
-				]
+					},
+				],
 			})
 		})
 	})
 
 	describe('batchGetItem', () => {
 		it('should batch get items', async () => {
-			const result1 = await batchGetItem(users, [
-				{ id: 1 },
-			])
+			const result1 = await batchGetItem(users, [{ id: 1 }])
 
 			expect(result1).toStrictEqual([
 				{
@@ -524,7 +552,7 @@ describe('DynamoDB Basic OPS', () => {
 					userId: 1,
 					id: 1,
 					title: 'First',
-					content: 'updated 3'
+					content: 'updated 3',
 				},
 				{
 					userId: 1,
@@ -536,26 +564,30 @@ describe('DynamoDB Basic OPS', () => {
 					id: 3,
 					title: 'Third',
 				},
-				undefined
+				undefined,
 			])
 		})
 
 		it('should filter non existent items', async () => {
-			const result = await batchGetItem(posts, [
-				{ userId: 1, id: 1 },
-				{ userId: 1, id: 2 },
-				{ userId: 1, id: 3 },
-				{ userId: 1, id: 1000 },
-			], {
-				filterNonExistentItems: true
-			})
+			const result = await batchGetItem(
+				posts,
+				[
+					{ userId: 1, id: 1 },
+					{ userId: 1, id: 2 },
+					{ userId: 1, id: 3 },
+					{ userId: 1, id: 1000 },
+				],
+				{
+					filterNonExistentItems: true,
+				}
+			)
 
 			expect(result).toStrictEqual([
 				{
 					userId: 1,
 					id: 1,
 					title: 'First',
-					content: 'updated 3'
+					content: 'updated 3',
 				},
 				{
 					userId: 1,
@@ -571,27 +603,31 @@ describe('DynamoDB Basic OPS', () => {
 		})
 
 		it('should batch get with big data', async () => {
-			const content = Array
-				.from({ length: 100000 })
+			const content = Array.from({ length: 100000 })
 				.map(() => 'xxx')
 				.join(' ')
 
 			const limit = 100
 			const ids = Array.from({ length: limit }).map((_, id) => id + 1)
 
-			await Promise.all(ids.map(id => {
-				return putItem(posts, {
-					userId: 1,
-					title: 'Title',
-					id,
-					content,
+			await Promise.all(
+				ids.map(id => {
+					return putItem(posts, {
+						userId: 1,
+						title: 'Title',
+						id,
+						content,
+					})
 				})
-			}))
+			)
 
-			const result = await batchGetItem(posts, ids.map(id => ({
-				userId: 1,
-				id
-			})))
+			const result = await batchGetItem(
+				posts,
+				ids.map(id => ({
+					userId: 1,
+					id,
+				}))
+			)
 
 			expect(result.length).toBe(limit)
 		})

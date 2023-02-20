@@ -1,8 +1,6 @@
-
 import { DynamoDBServer } from '../src/index'
 
 describe('DynamoDB Server', () => {
-
 	const server = new DynamoDBServer()
 
 	afterAll(async () => {

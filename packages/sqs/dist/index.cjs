@@ -40,9 +40,6 @@ __export(src_exports, {
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/commands.ts
-var import_client_sqs2 = require("@aws-sdk/client-sqs");
-
 // src/client.ts
 var import_client_sqs = require("@aws-sdk/client-sqs");
 var import_utils = require("@awsless/utils");
@@ -51,6 +48,7 @@ var sqsClient = (0, import_utils.globalClient)(() => {
 });
 
 // src/commands.ts
+var import_client_sqs2 = require("@aws-sdk/client-sqs");
 var import_chunk = __toESM(require("chunk"), 1);
 var formatAttributes = (attributes) => {
   const list = {};
