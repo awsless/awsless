@@ -417,10 +417,16 @@ var mockDynamoDB = (configOrServer) => {
   const client = server.getClient();
   const documentClient = server.getDocumentClient();
   const clientSend = (command) => {
-    return client.__proto__.send.wrappedMethod.call(client, command);
+    if (client.__proto__.send.wrappedMethod) {
+      return client.__proto__.send.wrappedMethod.call(client, command);
+    }
+    return client.send(command);
   };
   const documentClientSend = (command) => {
-    return documentClient.__proto__.send.wrappedMethod.call(documentClient, command);
+    if (documentClient.__proto__.send.wrappedMethod) {
+      return documentClient.__proto__.send.wrappedMethod.call(documentClient, command);
+    }
+    return documentClient.send(command);
   };
   mockClient(DynamoDBClient3).on(CreateTableCommand2).callsFake((input) => clientSend(new CreateTableCommand2(input))).on(ListTablesCommand).callsFake((input) => clientSend(new ListTablesCommand(input))).on(GetItemCommand).callsFake((input) => clientSend(new GetItemCommand(input))).on(PutItemCommand).callsFake((input) => clientSend(new PutItemCommand(input))).on(DeleteItemCommand).callsFake((input) => clientSend(new DeleteItemCommand(input))).on(UpdateItemCommand).callsFake((input) => clientSend(new UpdateItemCommand(input))).on(QueryCommand2).callsFake((input) => clientSend(new QueryCommand2(input))).on(ScanCommand2).callsFake((input) => clientSend(new ScanCommand2(input))).on(BatchGetItemCommand).callsFake((input) => clientSend(new BatchGetItemCommand(input))).on(BatchWriteItemCommand).callsFake((input) => clientSend(new BatchWriteItemCommand(input))).on(TransactGetItemsCommand).callsFake((input) => clientSend(new TransactGetItemsCommand(input))).on(TransactWriteItemsCommand).callsFake((input) => clientSend(new TransactWriteItemsCommand(input)));
   mockClient(DynamoDBDocumentClient3).on(GetCommand2).callsFake((input) => documentClientSend(new GetCommand2(input))).on(PutCommand3).callsFake((input) => documentClientSend(new PutCommand3(input))).on(DeleteCommand2).callsFake((input) => documentClientSend(new DeleteCommand2(input))).on(UpdateCommand2).callsFake((input) => documentClientSend(new UpdateCommand2(input))).on(Query).callsFake((input) => documentClientSend(new Query(input))).on(Scan).callsFake((input) => documentClientSend(new Scan(input))).on(BatchGetCommand2).callsFake((input) => documentClientSend(new BatchGetCommand2(input))).on(BatchWriteCommand).callsFake((input) => documentClientSend(new BatchWriteCommand(input))).on(TransactGetCommand).callsFake((input) => documentClientSend(new TransactGetCommand(input))).on(TransactWriteCommand2).callsFake((input) => documentClientSend(new TransactWriteCommand2(input)));
