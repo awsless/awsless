@@ -6,7 +6,7 @@
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"devDependencies": {
-		"@aws-sdk/types": "^3.272.0",
+		"@aws-sdk/types": "3.49.0",
 		"@awsless/code": "workspace:^0.0.1",
 		"@types/node": "^18.13.0",
 		"tsup": "^6.6.0",

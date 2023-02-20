@@ -30,7 +30,7 @@
 		"test1": "if pnpm test; then pnpm build; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-sqs": "^3.204.0",
+		"@aws-sdk/client-sqs": "3.49.0",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1",
 		"chunk": "^0.0.3",

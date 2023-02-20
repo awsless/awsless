@@ -29,7 +29,7 @@
 		"prepublish": "pnpm build"
 	},
 	"dependencies": {
-		"@aws-sdk/client-sns": "^3.204.0",
+		"@aws-sdk/client-sns": "3.49.0",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1"
 	},
