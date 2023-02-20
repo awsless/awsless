@@ -7,7 +7,7 @@ import {
 	SendMessageCommandInput,
 	SendMessageBatchCommandInput,
 } from '@aws-sdk/client-sqs'
-import { mockObjectValues } from '@awsless/test'
+import { mockObjectValues, nextTick } from '@awsless/test'
 import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
 
@@ -48,9 +48,8 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 		.on(SendMessageCommand)
 		.callsFake(async (input: SendMessageCommandInput) => {
 			const callback = get(input)
-			console.log(input)
 
-			await callback({
+			await nextTick(callback, {
 				Records: [
 					{
 						body: input.MessageBody,
@@ -64,7 +63,7 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 		.on(SendMessageBatchCommand)
 		.callsFake(async (input: SendMessageBatchCommandInput) => {
 			const callback = get(input)
-			await callback({
+			await nextTick(callback, {
 				Records: input.Entries?.map(entry => ({
 					body: entry.MessageBody,
 					messageId: entry.Id || randomUUID(),

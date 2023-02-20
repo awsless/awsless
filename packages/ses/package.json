@@ -1,5 +1,5 @@
 {
-	"name": "@awsless/sns",
+	"name": "@awsless/ses",
 	"version": "0.0.1",
 	"license": "MIT",
 	"type": "module",
@@ -26,14 +26,12 @@
 	"scripts": {
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"prepublish": "pnpm build"
+		"publish": "pnpm build; pnpm publish --access=public"
 	},
 	"dependencies": {
-		"@aws-sdk/client-sns": "^3.204.0",
+		"@aws-sdk/client-sesv2": "^3.245.0",
 		"@awsless/test": "workspace:^0.0.1",
 		"@awsless/utils": "workspace:^0.0.1",
-		"@heat/validate": "^0.0.9",
-		"aws-sdk-client-mock": "^2.0.1",
-		"superstruct": "^1.0.3"
+		"aws-sdk-client-mock": "^2.0.1"
 	}
 }

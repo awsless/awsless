@@ -1,6 +1,5 @@
 import { PublishCommand } from '@aws-sdk/client-sns'
 import { snsClient } from './client'
-
 import { Attributes, FormattedAttributes, Publish } from './types'
 
 const formatAttributes = (attributes: Attributes) => {
@@ -16,7 +15,7 @@ const formatAttributes = (attributes: Attributes) => {
 }
 
 export const publish = ({
-	client = snsClient.get(),
+	client = snsClient(),
 	topic,
 	subject,
 	payload,

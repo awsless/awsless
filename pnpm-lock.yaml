@@ -163,6 +163,7 @@ importers:
       dynamo-db-local: 4.2.1
       sleep-await: 1.0.2
 
+<<<<<<< HEAD
   packages/lambda:
     specifiers:
       '@aws-sdk/client-lambda': ^3.267.0
@@ -171,6 +172,30 @@ importers:
       '@awsless/utils': workspace:^0.0.1
       '@awsless/validate': workspace:^0.0.1
       '@types/aws-lambda': ^8.10.110
+=======
+  packages/iot:
+    specifiers:
+      '@aws-sdk/client-iot': ^3.204.0
+      '@aws-sdk/client-iot-data-plane': ^3.267.0
+      '@awsless/test': workspace:^0.0.1
+      '@awsless/utils': workspace:^0.0.1
+      aws-sdk-client-mock: ^2.0.1
+    dependencies:
+      '@aws-sdk/client-iot': 3.267.0
+      '@aws-sdk/client-iot-data-plane': 3.267.0
+      '@awsless/test': link:../test
+      '@awsless/utils': link:../utils
+      aws-sdk-client-mock: 2.0.1
+
+  packages/lambda:
+    specifiers:
+      '@aws-sdk/client-lambda': ^3.202.0
+      '@aws-sdk/util-utf8-node': ^3.208.0
+      '@awsless/test': workspace:^0.0.1
+      '@awsless/utils': workspace:^0.0.1
+      '@heat/big-float': ^0.0.4
+      '@heat/validate': ^0.0.9
+>>>>>>> edfffa9 (changes)
       aws-sdk-client-mock: ^2.0.1
       type-fest: ^3.6.0
     dependencies:
@@ -178,23 +203,59 @@ importers:
       '@aws-sdk/util-utf8-node': 3.259.0
       '@awsless/test': link:../test
       '@awsless/utils': link:../utils
+<<<<<<< HEAD
       '@types/aws-lambda': 8.10.110
       aws-sdk-client-mock: 2.0.1
       type-fest: 3.6.0
     devDependencies:
       '@awsless/validate': link:../validate
+=======
+      aws-sdk-client-mock: 2.0.1
+      type-fest: 3.6.0
+    devDependencies:
+      '@heat/big-float': 0.0.4
+      '@heat/validate': 0.0.9_@heat+big-float@0.0.4
+
+  packages/scheduler:
+    specifiers:
+      '@aws-sdk/client-scheduler': ^3.254.0
+      '@awsless/test': workspace:^0.0.1
+      '@awsless/utils': workspace:^0.0.1
+      aws-sdk-client-mock: ^2.0.1
+    dependencies:
+      '@aws-sdk/client-scheduler': 3.267.0
+      '@awsless/test': link:../test
+      '@awsless/utils': link:../utils
+      aws-sdk-client-mock: 2.0.1
+
+  packages/ses:
+    specifiers:
+      '@aws-sdk/client-sesv2': ^3.245.0
+      '@awsless/test': workspace:^0.0.1
+      '@awsless/utils': workspace:^0.0.1
+      aws-sdk-client-mock: ^2.0.1
+    dependencies:
+      '@aws-sdk/client-sesv2': 3.267.0
+      '@awsless/test': link:../test
+      '@awsless/utils': link:../utils
+      aws-sdk-client-mock: 2.0.1
+>>>>>>> edfffa9 (changes)
 
   packages/sns:
     specifiers:
       '@aws-sdk/client-sns': ^3.204.0
       '@awsless/test': workspace:^0.0.1
       '@awsless/utils': workspace:^0.0.1
+      '@heat/validate': ^0.0.9
       aws-sdk-client-mock: ^2.0.1
+      superstruct: ^1.0.3
     dependencies:
       '@aws-sdk/client-sns': 3.267.0
       '@awsless/test': link:../test
       '@awsless/utils': link:../utils
+      '@heat/validate': 0.0.9
       aws-sdk-client-mock: 2.0.1
+      superstruct: 1.0.3
 
   packages/sqs:
     specifiers:
@@ -220,18 +281,23 @@ importers:
   packages/ssm:
     specifiers:
       '@aws-sdk/client-ssm': ^3.204.0
+<<<<<<< HEAD
       '@awsless/test': workspace:*
       '@awsless/utils': workspace:^0.0.1
+=======
+>>>>>>> edfffa9 (changes)
       '@types/chunk': ^0.0.0
       aws-sdk-client-mock: ^2.0.1
       chunk: ^0.0.3
     dependencies:
       '@aws-sdk/client-ssm': 3.267.0
+<<<<<<< HEAD
       '@awsless/utils': link:../utils
+=======
+>>>>>>> edfffa9 (changes)
       aws-sdk-client-mock: 2.0.1
       chunk: 0.0.3
     devDependencies:
-      '@awsless/test': link:../test
       '@types/chunk': 0.0.0
 
   packages/test:
@@ -2715,8 +2781,28 @@ packages:
   /@heat/request-port/0.0.1:
     resolution: {integrity: sha512-hzVymaPEVAk3H4rJUubqcXSGhq4EdaCXJcaJn1BG3yx6srMBH23D3/+RaByDJ6uwWu9egdHIMkM4lwSSFk00CA==}
     dependencies:
+<<<<<<< HEAD
       proper-lockfile: 4.1.2
     dev: false
+=======
+      bigfloat-esnext: 3.0.1
+
+  /@heat/validate/0.0.9:
+    resolution: {integrity: sha512-nxA8MbHDafOkRjYAiCtpnsk1KxAKH64gLRP8o8ju1q3Qi6SFoTrqfRgkaTfku8unLfMiTf3BypdaI+j1GiRIsQ==}
+    peerDependencies:
+      '@heat/big-float': ^0.0.2
+    dependencies:
+      superstruct: 1.0.3
+    dev: false
+
+  /@heat/validate/0.0.9_@heat+big-float@0.0.4:
+    resolution: {integrity: sha512-nxA8MbHDafOkRjYAiCtpnsk1KxAKH64gLRP8o8ju1q3Qi6SFoTrqfRgkaTfku8unLfMiTf3BypdaI+j1GiRIsQ==}
+    peerDependencies:
+      '@heat/big-float': ^0.0.2
+    dependencies:
+      '@heat/big-float': 0.0.4
+      superstruct: 1.0.3
+>>>>>>> edfffa9 (changes)
 
   /@istanbuljs/load-nyc-config/1.1.0:
     resolution: {integrity: sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ==}
@@ -3563,7 +3649,6 @@ packages:
 
   /bigfloat-esnext/3.0.1:
     resolution: {integrity: sha512-+L6LRIuW3y7BTy0WRC2G2w4w2TPtC88h3GLPhEJ6tH4tTE1m5otWXk4rOhEwfwiXxyPcRzqx6YHQ637rpKJvKA==}
-    dev: false
 
   /binary-extensions/2.2.0:
     resolution: {integrity: sha512-jDctJ/IVQbZoJykoeHbhXpOlNBqGNcwXJKJog42E5HDPUwQTSdjCHdihjj0DlnheQ7blbT6dHOafNAiS8ooQKA==}

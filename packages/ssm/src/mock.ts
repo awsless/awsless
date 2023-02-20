@@ -9,7 +9,7 @@ export const mockSSM = (values: Record<string, string>) => {
 				Parameters: input.Names?.map(name => {
 					return {
 						Name: name,
-						Value: values[name] || '',
+						Value: values[name],
 					}
 				}),
 			}

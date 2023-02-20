@@ -35,7 +35,6 @@
 		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
-		"@awsless/test": "workspace:*",
 		"@types/chunk": "^0.0.0"
 	}
 }

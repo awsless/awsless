@@ -1,5 +1,5 @@
 import { PublishCommand, PublishCommandInput, SNSClient } from '@aws-sdk/client-sns'
-import { mockObjectValues } from '@awsless/test'
+import { mockObjectValues, nextTick } from '@awsless/test'
 import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
 
@@ -21,7 +21,7 @@ export const mockSNS = <T extends Topics>(topics: T) => {
 				throw new TypeError(`Sns mock function not defined for: ${topic}`)
 			}
 
-			await callback({
+			await nextTick(callback, {
 				Records: [
 					{
 						Sns: {
