@@ -5,15 +5,11 @@ import { mockClient } from 'aws-sdk-client-mock'
 export const mockIoT = () => {
 	const fn = vi.fn()
 
-	// @ts-ignore
 	mockClient(IoTClient).on(DescribeEndpointCommand).resolves({
-		// @ts-ignore
 		endpointAddress: 'endpoint',
 	})
 
-	// @ts-ignore
 	mockClient(IoTDataPlaneClient)
-		// @ts-ignore
 		.on(PublishCommand)
 		.callsFake(() => {
 			fn()

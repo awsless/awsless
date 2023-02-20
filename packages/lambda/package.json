@@ -35,7 +35,7 @@
 		"@awsless/validate": "workspace:^0.0.1"
 	},
 	"dependencies": {
-		"@aws-sdk/client-lambda": "^3.267.0",
+		"@aws-sdk/client-lambda": "3.49.0",
 		"@aws-sdk/util-utf8-node": "^3.208.0",
 		"@awsless/utils": "workspace:^0.0.1",
 		"@types/aws-lambda": "^8.10.110",
