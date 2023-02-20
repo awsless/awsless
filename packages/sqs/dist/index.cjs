@@ -163,6 +163,7 @@ var mockSQS = (queues) => {
 };
 
 // src/struct.ts
+var import_superstruct = require("superstruct");
 var import_validate = require("@awsless/validate");
 var sqsRecords = (input) => {
   return input.Records.map((item) => item.body);
