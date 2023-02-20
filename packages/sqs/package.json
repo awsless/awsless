@@ -27,7 +27,9 @@
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; fi",
-		"test1": "if pnpm test; then pnpm build; fi"
+		"lol": "if pnpm test; then pnpm echo1; else pnpm echo1; fi",
+		"echo1": "echo 1",
+		"echo2": "echo 2"
 	},
 	"dependencies": {
 		"@aws-sdk/client-sqs": "3.49.0",

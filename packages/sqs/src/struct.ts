@@ -1,5 +1,5 @@
-import 'superstruct'
 import { json, array, type, string, record, Struct } from '@awsless/validate'
+import 'superstruct'
 
 type Input<T> = {
 	Records: {
