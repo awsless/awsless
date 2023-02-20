@@ -106,6 +106,7 @@ var mockSNS = (topics) => {
 };
 
 // src/struct.ts
+var import_superstruct = require("superstruct");
 var import_validate = require("@awsless/validate");
 var snsRecords = (input) => {
   return input.Records.map(({ Sns: item }) => item.Message);

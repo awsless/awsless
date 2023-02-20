@@ -1,3 +1,4 @@
+import 'superstruct'
 import { json, array, type, string, date, Struct } from '@awsless/validate'
 
 type Input<T> = {

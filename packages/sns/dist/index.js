@@ -76,6 +76,7 @@ var mockSNS = (topics) => {
 };
 
 // src/struct.ts
+import "superstruct";
 import { json, array, type, string, date } from "@awsless/validate";
 var snsRecords = (input) => {
   return input.Records.map(({ Sns: item }) => item.Message);
