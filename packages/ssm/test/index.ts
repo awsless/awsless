@@ -1,7 +1,5 @@
 
-import { describe, it } from 'vitest'
-import { float, integer, string, ssm, array, json } from '../src/index'
-import { mockSSM } from '@awsless/test'
+import { float, integer, string, ssm, array, json, mockSSM } from '../src/index'
 
 describe('SSM', () => {
 

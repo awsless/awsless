@@ -29,8 +29,8 @@
 		"prepublish": "pnpm build"
 	},
 	"dependencies": {
-		"@aws-sdk/client-iot": "^3.204.0",
-		"@aws-sdk/client-iot-data-plane": "^3.204.0",
+		"@aws-sdk/client-iot": "^3.272.0",
+		"@aws-sdk/client-iot-data-plane": "^3.272.0",
 		"@awsless/utils": "workspace:^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1"
 	}

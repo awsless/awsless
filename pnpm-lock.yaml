@@ -4,7 +4,7 @@ importers:
 
   .:
     specifiers:
-      '@aws-sdk/types': ^3.226.0
+      '@aws-sdk/types': ^3.267.0
       '@awsless/code': workspace:^0.0.1
       '@types/node': ^18.13.0
       tsup: ^6.6.0
@@ -163,8 +163,8 @@ importers:
 
   packages/iot:
     specifiers:
-      '@aws-sdk/client-iot': ^3.204.0
-      '@aws-sdk/client-iot-data-plane': ^3.204.0
+      '@aws-sdk/client-iot': ^3.272.0
+      '@aws-sdk/client-iot-data-plane': ^3.272.0
       '@awsless/utils': workspace:^0.0.1
       aws-sdk-client-mock: ^2.0.1
     dependencies:
@@ -241,10 +241,10 @@ importers:
       '@awsless/utils': link:../utils
       aws-sdk-client-mock: 2.0.1
       chunk: 0.0.3
+      superstruct: 1.0.3
     devDependencies:
       '@awsless/validate': link:../validate
       '@types/chunk': 0.0.0
-      superstruct: 1.0.3
 
   packages/ssm:
     specifiers:

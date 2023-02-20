@@ -48,15 +48,6 @@ var DynamoDBServer = class {
     }
     throw new Error("DynamoDB server is unavailable");
   }
-  // /** Migrate table's from a awsless dynamodb resource file. */
-  // async migrate(path: string) {
-  // 	const definitions = await loadDefinitions(path)
-  // 	await migrate(this.getClient(), definitions)
-  // }
-  // /** Seed data. */
-  // async seed(data:SeedData) {
-  // 	await seed(this.getDocumentClient(), data)
-  // }
   /** Get DynamoDBClient connected to dynamodb local. */
   getClient() {
     if (!this.client) {
