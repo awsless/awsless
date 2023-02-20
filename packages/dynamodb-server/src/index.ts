@@ -1,4 +1,3 @@
-
 import { DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import { parseUrl } from '@aws-sdk/url-parser'
@@ -19,8 +18,8 @@ export class DynamoDBServer {
 		this.endpoint = parseUrl(`http://localhost`)
 	}
 
-	async listen(port:number) {
-		if(this.process) {
+	async listen(port: number) {
+		if (this.process) {
 			throw new Error(`DynamoDB server is already listening on port: ${this.endpoint.port}`)
 		}
 
@@ -30,7 +29,7 @@ export class DynamoDBServer {
 
 	/** Kill the DynamoDB server. */
 	async kill() {
-		if(this.process) {
+		if (this.process) {
 			await this.process.kill()
 			this.process = undefined
 		}
@@ -45,10 +44,10 @@ export class DynamoDBServer {
 	}
 
 	/** Ping the DynamoDB server untill its ready. */
-	async wait(times:number = 10) {
-		while(times--) {
+	async wait(times: number = 10) {
+		while (times--) {
 			try {
-				if(await this.ping()) {
+				if (await this.ping()) {
 					return
 				}
 			} catch (error) {
@@ -62,7 +61,7 @@ export class DynamoDBServer {
 
 	/** Get DynamoDBClient connected to dynamodb local. */
 	getClient() {
-		if(!this.client) {
+		if (!this.client) {
 			this.client = new DynamoDBClient({
 				maxAttempts: 10,
 				endpoint: this.endpoint,
@@ -71,7 +70,7 @@ export class DynamoDBServer {
 				credentials: {
 					accessKeyId: 'fake',
 					secretAccessKey: 'fake',
-				}
+				},
 			})
 		}
 
@@ -80,11 +79,11 @@ export class DynamoDBServer {
 
 	/** Get DynamoDBDocumentClient connected to dynamodb local. */
 	getDocumentClient() {
-		if(!this.documentClient) {
+		if (!this.documentClient) {
 			this.documentClient = DynamoDBDocumentClient.from(this.getClient(), {
 				marshallOptions: {
-					removeUndefinedValues: true
-				}
+					removeUndefinedValues: true,
+				},
 			})
 		}
 
