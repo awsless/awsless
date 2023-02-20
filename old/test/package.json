@@ -18,7 +18,7 @@
 	"scripts": {
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"prepublish": "pnpm build"
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
 		"proper-lockfile": "^4.1.1",

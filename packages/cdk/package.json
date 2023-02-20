@@ -26,8 +26,8 @@
 		"test": "pnpm exec code test",
 		"synth-old": "pnpm exec cdk synthesize --app=ts-node --prefer-ts-exts examples/index.ts",
 		"synth": "pnpm exec cdk synthesize",
-		"build": "pnpm exec tsup src/index.ts --format cjs,esm --dts --clean",
-		"prepublish": "pnpm build"
+		"__build": "pnpm exec tsup src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
 		"aws-cdk-lib": "^2.64.0",

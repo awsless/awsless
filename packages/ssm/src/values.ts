@@ -21,20 +21,20 @@ export const integer = (path: string, radix = 10) => {
 	}
 }
 
+export const array = (path: string, seperator = ',') => {
+	return {
+		path,
+		transform(value: string) {
+			return value.split(seperator).map(v => v.trim())
+		}
+	}
+}
+
 export const json = <T = unknown>(path: string) => {
 	return {
 		path,
 		transform(value: string): T {
 			return JSON.parse(value) as T
-		}
-	}
-}
-
-export const array = <T = string>(path: string, seperator = ',') => {
-	return {
-		path,
-		transform(value: string) {
-			return value.split(seperator).map(v => v.trim()) as T[]
 		}
 	}
 }

@@ -285,12 +285,12 @@ var lambda = (options) => {
 };
 
 // src/helpers/mock.ts
-var import_test = require("@awsless/test");
+var import_utils2 = require("@awsless/utils");
 var import_client_lambda3 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var mockLambda = (lambdas) => {
-  const list = (0, import_test.mockObjectValues)(lambdas);
+  const list = (0, import_utils2.mockObjectValues)(lambdas);
   (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda3.LambdaClient).on(import_client_lambda3.InvokeCommand).callsFake(async (input) => {
     const name = input.FunctionName || "";
     const type = input.InvocationType || "RequestResponse";
@@ -299,7 +299,7 @@ var mockLambda = (lambdas) => {
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
-    const result = await (0, import_test.asyncCall)(callback, payload);
+    const result = await (0, import_utils2.nextTick)(callback, payload);
     if (type === "RequestResponse" && result) {
       return {
         Payload: (0, import_util_utf8_node2.fromUtf8)(JSON.stringify(result))

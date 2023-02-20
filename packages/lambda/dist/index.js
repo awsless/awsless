@@ -249,7 +249,7 @@ var lambda = (options) => {
 };
 
 // src/helpers/mock.ts
-import { asyncCall, mockObjectValues } from "@awsless/test";
+import { nextTick, mockObjectValues } from "@awsless/utils";
 import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2 } from "@aws-sdk/client-lambda";
 import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
 import { mockClient } from "aws-sdk-client-mock";
@@ -263,7 +263,7 @@ var mockLambda = (lambdas) => {
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
-    const result = await asyncCall(callback, payload);
+    const result = await nextTick(callback, payload);
     if (type === "RequestResponse" && result) {
       return {
         Payload: fromUtf82(JSON.stringify(result))

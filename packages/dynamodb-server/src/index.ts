@@ -23,6 +23,10 @@ export class DynamoDBServer {
 			throw new Error(`DynamoDB server is already listening on port: ${this.endpoint.port}`)
 		}
 
+		if(port < 0 || port >= 65536) {
+			throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
+		}
+
 		this.endpoint.port = port
 		this.process = await dynamoDbLocal.spawn({ port })
 	}
@@ -39,21 +43,22 @@ export class DynamoDBServer {
 	async ping() {
 		const client = this.getClient()
 		const command = new ListTablesCommand({})
-		const response = await client.send(command)
-		return Array.isArray(response.TableNames)
+		try {
+			const response = await client.send(command)
+			return Array.isArray(response.TableNames)
+		} catch (error) {
+			return false
+		}
 	}
 
 	/** Ping the DynamoDB server untill its ready. */
 	async wait(times: number = 10) {
 		while (times--) {
-			try {
-				if (await this.ping()) {
-					return
-				}
-			} catch (error) {
-				await sleepAwait(100 * times)
-				continue
+			if (await this.ping()) {
+				return
 			}
+
+			await sleepAwait(100 * times)
 		}
 
 		throw new Error('DynamoDB server is unavailable')

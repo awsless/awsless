@@ -1,5 +1,4 @@
 
-import { describe, it, expect } from 'vitest'
 import { Bugsnag } from '../src/bugsnag'
 import { bugsnag } from '../src'
 import { lambda } from '@awsless/lambda'

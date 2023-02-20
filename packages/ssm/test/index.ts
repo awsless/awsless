@@ -21,7 +21,7 @@ describe('SSM', () => {
 			string: string('string'),
 			integer: integer('integer'),
 			float: float('float'),
-			array: array<string>('array'),
+			array: array('array'),
 			json: json<JSON>('json'),
 		})
 

@@ -356,7 +356,7 @@ import { BatchGetItemCommand, BatchWriteItemCommand, CreateTableCommand as Creat
 import { BatchWriteCommand, DeleteCommand as DeleteCommand2, DynamoDBDocumentClient as DynamoDBDocumentClient3, GetCommand as GetCommand2, PutCommand as PutCommand3, TransactGetCommand, TransactWriteCommand as TransactWriteCommand2, UpdateCommand as UpdateCommand2, QueryCommand as Query, ScanCommand as Scan, BatchGetCommand as BatchGetCommand2 } from "@aws-sdk/lib-dynamodb";
 import { mockClient } from "aws-sdk-client-mock";
 import { DynamoDBServer } from "@awsless/dynamodb-server";
-import { requestPort } from "@awsless/test";
+import { requestPort } from "@heat/request-port";
 
 // src/test/seed.ts
 import { PutCommand as PutCommand2 } from "@aws-sdk/lib-dynamodb";

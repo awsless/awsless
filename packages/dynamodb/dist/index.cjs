@@ -402,7 +402,7 @@ var import_client_dynamodb3 = require("@aws-sdk/client-dynamodb");
 var import_lib_dynamodb11 = require("@aws-sdk/lib-dynamodb");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_dynamodb_server = require("@awsless/dynamodb-server");
-var import_test = require("@awsless/test");
+var import_request_port = require("@heat/request-port");
 
 // src/test/seed.ts
 var import_lib_dynamodb10 = require("@aws-sdk/lib-dynamodb");
@@ -444,7 +444,7 @@ var mockDynamoDB = (configOrServer) => {
     server = new import_dynamodb_server.DynamoDBServer();
     let releasePort;
     beforeAll && beforeAll(async () => {
-      const [port, release] = await (0, import_test.requestPort)();
+      const [port, release] = await (0, import_request_port.requestPort)();
       releasePort = release;
       await server.listen(port);
       await server.wait();
