@@ -29,6 +29,6 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@awsless/lambda": "workspace:^0.0.1"
+		"@awsless/lambda": "workspace:^0.0.2"
 	}
 }

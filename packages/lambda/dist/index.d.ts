@@ -85,9 +85,9 @@ type Invoke = {
 declare const invoke: Invoke;
 
 type Lambdas = {
-    [key: string]: (payload: unknown) => unknown;
+    [key: string]: (payload: any) => unknown;
 };
-declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: unknown[]) => unknown>; };
+declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
 
 declare const lambdaClient: {
     (): LambdaClient;

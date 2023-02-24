@@ -39,14 +39,16 @@
 		"@aws-sdk/smithy-client": "3.272.0",
 		"@aws-sdk/util-dynamodb": "3.258.0",
 		"@aws-sdk/util-utf8-node": "3.259.0",
-		"@awsless/dynamodb-server": "workspace:^0.0.1",
-		"@awsless/utils": "workspace:^0.0.1",
+		"@awsless/dynamodb-server": "workspace:^",
+		"@awsless/utils": "workspace:^",
 		"@heat/request-port": "^0.0.1",
 		"aws-sdk-client-mock": "^2.0.1",
 		"chunk": "^0.0.3",
 		"ts-toolbelt": "^9.6.0"
 	},
 	"devDependencies": {
+		"@awsless/big-float": "workspace:^",
+		"@awsless/validate": "workspace:^",
 		"@types/chunk": "^0.0.0"
 	}
 }

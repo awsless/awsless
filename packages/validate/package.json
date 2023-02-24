@@ -29,10 +29,10 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"peerDependencies": {
-		"@awsless/big-float": "workspace:^0.0.1"
+		"@awsless/big-float": "workspace:^"
 	},
 	"devDependencies": {
-		"@awsless/big-float": "workspace:^0.0.1"
+		"@awsless/big-float": "workspace:^"
 	},
 	"dependencies": {
 		"superstruct": "^1.0.3"

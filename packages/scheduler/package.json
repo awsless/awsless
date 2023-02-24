@@ -30,7 +30,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-scheduler": "3.272.0",
-		"@awsless/utils": "workspace:^0.0.1",
+		"@awsless/utils": "workspace:^",
 		"aws-sdk-client-mock": "^2.0.1"
 	}
 }

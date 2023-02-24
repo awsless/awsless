@@ -58,8 +58,8 @@ updateItem(table, { id: '1' }, {
 	// 	set(name('id'), value(3))
 	// ),
 
-	// condition: (builder) => {
-	// 	builder.eq()
+	// condition(query) {
+	// 	query.eq('userId', 1)
 	// }
 
 	condition: and(

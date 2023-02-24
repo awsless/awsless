@@ -4,7 +4,7 @@ import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { mockClient } from 'aws-sdk-client-mock'
 
 type Lambdas = {
-	[key: string]: (payload: unknown) => unknown
+	[key: string]: (payload: any) => unknown
 }
 
 export const mockLambda = <T extends Lambdas>(lambdas: T) => {

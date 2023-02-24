@@ -1,6 +1,7 @@
 import { Mock } from 'vitest'
 
-export type Func = (...args: unknown[]) => unknown
+export type Func = (...args: any[]) => any
+// export type Func = <TArgs extends any[] = any, TReturns = any>(...args: TArgs) => TReturns
 export type Result<T extends string | number | symbol> = Record<T, Mock<any, Func>>
 
 export const mockObjectValues = <T extends Record<string, Func>>(object: T): Result<keyof T> => {

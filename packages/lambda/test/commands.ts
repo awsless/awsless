@@ -5,7 +5,7 @@ import { string } from '@awsless/validate'
 describe('Lambda', () => {
 
 	const mock = mockLambda({
-		echo: (payload) => payload as unknown,
+		echo: (payload) => payload,
 		noop: () => {},
 	})
 

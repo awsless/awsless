@@ -9,15 +9,14 @@ unlike JavaScript's number data type which is 64-bit binary floating point.
 We are wrapping ```bigfloat-esnext``` behind the scenes.
 
 # Basic usage
-```typescript
+```ts
 import { BigFloat, sqrt } from "@awsless/big-float";
 
 sqrt(new BigFloat(2)).toString()      // "1.4142"
-
 ```
 
 ### Change precision
-```typescript
+```ts
 import { sqrt, set_precision } from "@awsless/big-float";
 
 sqrt(2).toString();     // "1.4142"
@@ -25,10 +24,21 @@ set_precision(-10);
 sqrt(2).toString();     // "1.4142135623"
 ```
 
-### The bigfloat object
-```typescript
+### The bigfloat interface
+```ts
 interface IBigFloat {
   coefficient: bigint;
   exponent: number;
 }
+```
+
+### Available API
+```ts
+import { BigFloat, set_precision } from "@awsless/big-float";
+
+// arithmetic
+import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor } from '@awsless/big-float'
+
+// retational
+export { eq, lt, lte, gt, gte } from '@awsless/big-float'
 ```
