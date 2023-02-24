@@ -32,7 +32,7 @@ export const sqsStruct = <A, B>(body: Struct<A, B>) => {
 export const sqsInput = (records: unknown[]) => {
 	return {
 		Records: records.map((body, i) => ({
-			messageId: i,
+			messageId: String(i),
 			body: JSON.stringify(body),
 			messageAttributes: {}
 		})),

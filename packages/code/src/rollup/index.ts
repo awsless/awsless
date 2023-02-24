@@ -3,6 +3,7 @@ import { InputPluginOption, rollup as bundler, RollupLog } from 'rollup'
 
 import nodeResolve from '@rollup/plugin-node-resolve'
 import typescript from '@rollup/plugin-typescript'
+// import sucrase from '@rollup/plugin-sucrase'
 import commonjs from '@rollup/plugin-commonjs'
 import terser from '@rollup/plugin-terser'
 import babel from '@rollup/plugin-babel'
@@ -36,12 +37,6 @@ export const plugins = ({ minimize = false, sourceMap = true, transpilers }:Plug
 	}, transpilers)
 
 	return [
-		transpilersOptions.coffeescript && coffee({
-			sourceMap
-		}),
-		transpilersOptions.typescript && typescript({
-			sourceMap,
-		}) as unknown,
 		commonjs({ sourceMap }),
 		babel({
 			sourceMaps: sourceMap,
@@ -56,16 +51,31 @@ export const plugins = ({ minimize = false, sourceMap = true, transpilers }:Plug
 			extensions: ['.js', '.jsx'],
 			babelHelpers: 'bundled',
 		}),
+		stylus(),
 		json(),
 		lua(),
 		raw({
 			extensions: [ '.md', '.html', '.css' ],
 		}),
-		stylus(),
 		nodeResolve({
 			preferBuiltins: true,
 			extensions: ['.js', '.coffee', '.jsx']
 		}),
+
+		transpilersOptions.coffeescript && coffee({
+			sourceMap
+		}),
+
+		transpilersOptions.typescript && typescript({
+			sourceMap,
+		}) as unknown,
+
+		// transpilersOptions.typescript && sucrase({
+		// 	jsxFragmentPragma: 'Fragment',
+		// 	jsxPragma: 'h',
+		// 	transforms: ['typescript', 'jsx']
+		// }),
+
 		minimize && terser({
 			toplevel: true,
 			sourceMap,

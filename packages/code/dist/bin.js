@@ -2,7 +2,7 @@ import {
   build,
   plugins,
   spawn
-} from "./chunk-F64XMDIX.js";
+} from "./chunk-NYOD66N3.js";
 
 // src/bin.ts
 import { Command } from "commander";
@@ -19,7 +19,7 @@ import { join as join2 } from "path";
 import { readFile } from "fs/promises";
 import { mergeConfig } from "vite";
 import { startVitest } from "vitest/node";
-import { configDefaults } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 var test = async (filters = []) => {
   const json = await readFile(join2(process.cwd(), "package.json"));
   const data = JSON.parse(json.toString());
@@ -27,17 +27,17 @@ var test = async (filters = []) => {
   await startVitest("test", filters, {
     watch: false,
     ui: false
-  }, {
+  }, mergeConfig(config, defineConfig({
     plugins: plugins({
       minimize: false,
       sourceMap: true
     }),
-    test: mergeConfig(config, {
+    test: {
       include: ["./test/**/*.{js,jsx,coffee,ts}"],
       exclude: configDefaults.exclude,
       globals: true
-    })
-  });
+    }
+  })));
 };
 
 // src/bin.ts

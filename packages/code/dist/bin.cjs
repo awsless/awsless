@@ -166,12 +166,6 @@ var plugins = ({ minimize = false, sourceMap = true, transpilers } = {}) => {
     coffee: true
   }, transpilers);
   return [
-    transpilersOptions.coffeescript && coffee_default({
-      sourceMap
-    }),
-    transpilersOptions.typescript && (0, import_plugin_typescript.default)({
-      sourceMap
-    }),
     (0, import_plugin_commonjs.default)({ sourceMap }),
     (0, import_plugin_babel.default)({
       sourceMaps: sourceMap,
@@ -186,16 +180,27 @@ var plugins = ({ minimize = false, sourceMap = true, transpilers } = {}) => {
       extensions: [".js", ".jsx"],
       babelHelpers: "bundled"
     }),
+    stylus_default(),
     (0, import_plugin_json.default)(),
     lua_default(),
     raw_default({
       extensions: [".md", ".html", ".css"]
     }),
-    stylus_default(),
     (0, import_plugin_node_resolve.default)({
       preferBuiltins: true,
       extensions: [".js", ".coffee", ".jsx"]
     }),
+    transpilersOptions.coffeescript && coffee_default({
+      sourceMap
+    }),
+    transpilersOptions.typescript && (0, import_plugin_typescript.default)({
+      sourceMap
+    }),
+    // transpilersOptions.typescript && sucrase({
+    // 	jsxFragmentPragma: 'Fragment',
+    // 	jsxPragma: 'h',
+    // 	transforms: ['typescript', 'jsx']
+    // }),
     minimize && (0, import_plugin_terser.default)({
       toplevel: true,
       sourceMap
@@ -332,17 +337,17 @@ var test = async (filters = []) => {
   await (0, import_node.startVitest)("test", filters, {
     watch: false,
     ui: false
-  }, {
+  }, (0, import_vite.mergeConfig)(config, (0, import_config.defineConfig)({
     plugins: plugins({
       minimize: false,
       sourceMap: true
     }),
-    test: (0, import_vite.mergeConfig)(config, {
+    test: {
       include: ["./test/**/*.{js,jsx,coffee,ts}"],
       exclude: import_config.configDefaults.exclude,
       globals: true
-    })
-  });
+    }
+  })));
 };
 
 // src/bin.ts

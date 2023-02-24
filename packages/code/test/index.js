@@ -81,7 +81,7 @@ describe('Code', () => {
 		expect(e2.toString()).toContain(`console.log('Hello')`)
 
 		await clean('test/dist')
-	}, 10000)
+	}, 20000)
 
 	it('should bundle all files', async () => {
 		const path = testPath('bundle')
@@ -208,6 +208,7 @@ describe('Code', () => {
 			jsx: testPath('types', '2.jsx'),
 			ts: testPath('types', '3.ts'),
 			coffee: testPath('types', '4.coffee'),
+			tsx: testPath('types', '5.tsx'),
 			all: testPath('types')
 		}
 

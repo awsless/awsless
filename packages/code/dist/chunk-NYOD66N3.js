@@ -157,12 +157,6 @@ var plugins = ({ minimize = false, sourceMap = true, transpilers } = {}) => {
     coffee: true
   }, transpilers);
   return [
-    transpilersOptions.coffeescript && coffee_default({
-      sourceMap
-    }),
-    transpilersOptions.typescript && typescript({
-      sourceMap
-    }),
     commonjs({ sourceMap }),
     babel({
       sourceMaps: sourceMap,
@@ -177,16 +171,27 @@ var plugins = ({ minimize = false, sourceMap = true, transpilers } = {}) => {
       extensions: [".js", ".jsx"],
       babelHelpers: "bundled"
     }),
+    stylus_default(),
     json(),
     lua_default(),
     raw_default({
       extensions: [".md", ".html", ".css"]
     }),
-    stylus_default(),
     nodeResolve({
       preferBuiltins: true,
       extensions: [".js", ".coffee", ".jsx"]
     }),
+    transpilersOptions.coffeescript && coffee_default({
+      sourceMap
+    }),
+    transpilersOptions.typescript && typescript({
+      sourceMap
+    }),
+    // transpilersOptions.typescript && sucrase({
+    // 	jsxFragmentPragma: 'Fragment',
+    // 	jsxPragma: 'h',
+    // 	transforms: ['typescript', 'jsx']
+    // }),
     minimize && terser({
       toplevel: true,
       sourceMap

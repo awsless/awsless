@@ -3,7 +3,7 @@ import { join } from 'path'
 import { readFile } from 'fs/promises'
 import { mergeConfig } from 'vite'
 import { startVitest } from 'vitest/node'
-import { configDefaults } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import { plugins } from './rollup/index'
 
 export const test = async (filters:string[] = []) => {
@@ -14,17 +14,17 @@ export const test = async (filters:string[] = []) => {
 	await startVitest('test', filters, {
 		watch: false,
 		ui: false
-	}, {
+	}, mergeConfig(config, defineConfig({
 		plugins: plugins({
 			minimize: false,
-			sourceMap: true
+			sourceMap: true,
 		}) as any[],
-		test: mergeConfig(config, ({
+		test: {
 			include: ['./test/**/*.{js,jsx,coffee,ts}'],
 			exclude: configDefaults.exclude,
 			globals: true,
-		}))
-	})
+		}
+	})))
 }
 
 /*
