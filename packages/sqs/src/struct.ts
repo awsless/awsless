@@ -34,6 +34,7 @@ export const sqsInput = (records: unknown[]) => {
 		Records: records.map((body, i) => ({
 			messageId: i,
 			body: JSON.stringify(body),
+			messageAttributes: {}
 		})),
 	}
 }
