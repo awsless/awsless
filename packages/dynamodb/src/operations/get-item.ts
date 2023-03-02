@@ -1,28 +1,37 @@
 
-import { GetCommand, GetCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { BaseTable, ExpressionBuilder, Options } from '../types.js'
-import { send } from '../helper/send.js'
-import { addProjectionExpression, generator } from '../helper/expression.js'
+import { projectionExpression, ProjectionExpression, ProjectionResponse } from '../expressions/projection.js'
+import { client } from '../client.js'
+import { IDGenerator } from '../helper/id-generator.js'
+import { AnyTableDefinition } from '../table.js'
+import { Options } from '../types/options.js'
+import { PrimaryKey } from '../types/key.js'
+import { GetItemCommand } from '@aws-sdk/client-dynamodb'
 
-export interface GetOptions extends Options {
+type GetOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = Options & {
 	consistentRead?: boolean
-	projection?: ExpressionBuilder
+	projection?: P
 }
 
-export const getItem = async <T extends BaseTable>(
+export const getItem = async <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined>(
 	table: T,
-	key: T['key'],
-	options:GetOptions = {}
-): Promise<T['model'] | undefined> => {
-	const command = new GetCommand({
+	key: PrimaryKey<T>,
+	options: GetOptions<T, P> = {}
+): Promise<ProjectionResponse<T, P> | undefined> => {
+
+	const gen = new IDGenerator(table)
+	const command = new GetItemCommand({
 		TableName: table.name,
-		Key: key,
-		ConsistentRead: options.consistentRead
+		Key: table.marshall(key),
+		ConsistentRead: options.consistentRead,
+		ProjectionExpression: projectionExpression(options, gen),
+		...gen.attributeNames(),
 	})
 
-	addProjectionExpression(command.input, options, generator(), table)
+	const result = await client(options).send(command)
 
-	const result = await send(command, options) as GetCommandOutput
+	if(result.Item) {
+		return table.unmarshall(result.Item)
+	}
 
-	return result.Item as T['model'] | undefined
+	return undefined
 }

@@ -1,7 +1,9 @@
 
 // import { bigfloat, Infer, Struct, object } from '@awsless/validate'
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { BigFloat, Numeric } from '@awsless/big-float'
-import { putItem } from '../operations/put-item'
+// import { eq } from './conditions'
+// import { Object } from 'ts-toolbelt'
 
 
 // String	S
@@ -157,10 +159,10 @@ export const object = <S extends Schema>(schema: S): Type<'M', InferSchemaMarsha
 	}
 })
 
-type TableDefinition<S extends Schema, Hash extends keyof S, Sort extends keyof S = never> = {
+type TableDefinition<S extends Schema, Hash extends keyof S, Sort extends keyof S | undefined = undefined> = {
 	name: string
 	hash: Hash
-	sort?: Sort
+	sort: Sort
 	schema: S
 	// type: Type<'M', InferSchemaMarshalled<S>, InferSchemaInput<S>, InferSchemaOutput<S>>
 	// marshall: (unmarshalled:InferSchemaInput<S>) => InferSchemaMarshalled<S>
@@ -169,18 +171,21 @@ type TableDefinition<S extends Schema, Hash extends keyof S, Sort extends keyof 
 
 type AnyTableDefinition = TableDefinition<Schema, keyof Schema, keyof Schema>
 
-type Options<S extends Schema, Hash extends keyof S, Sort extends keyof S = never> = {
+type DefineOptions<S extends Schema, Hash extends keyof S, Sort extends keyof S> = {
 	hash: Hash
 	sort?: Sort
 	schema: S
 }
 
-export const define = <S extends Schema, Hash extends keyof S, Sort extends keyof S = never>(
+export const define = <S extends Schema, Hash extends keyof S, Sort extends keyof S>(
 	tableName:string,
-	options:Options<S, Hash, Sort>
+	options:DefineOptions<S, Hash, Sort>
 ):TableDefinition<S, Hash, Sort> => ({
-	...options,
 	name: tableName,
+	hash: options.hash,
+	sort: (options.sort as Sort), // I Don't know how to fix this any other way.
+	schema: options.schema,
+
 	// type: object(options.schema),
 	// marshall(unmarshalled: InferSchemaInput<S>) {
 	// 	return object(options.schema).marshall(unmarshalled).M
@@ -195,21 +200,25 @@ export const define = <S extends Schema, Hash extends keyof S, Sort extends keyo
 // 	amount: bigint
 // }
 
+const schema = {
+	id:		string(),
+	sort:	number(),
+	index:	optional(number()),
+	amount: bigfloat(),
+	list:	array(object({
+		id:	string(),
+	})),
+	data:	binary<ArrayBuffer>(),
+	set: 	numberSet(),
+	attr:	object({
+		id:	string(),
+	})
+}
+
 const users = define('table-name', {
 	hash: 'id',
 	sort: 'sort',
-	schema: {
-		id:		string(),
-		sort:	number(),
-		index:	optional(number()),
-		amount: bigfloat(),
-		list:	array(string()),
-		data:	binary<ArrayBuffer>(),
-		set: 	numberSet(),
-		attr:	object({
-			id:	string(),
-		})
-	}
+	schema
 })
 
 // const lol = users.marshall({
@@ -224,40 +233,63 @@ const users = define('table-name', {
 // })
 
 
-// type Users = typeof users
-// const key:HashKey<{
-// 	id: Type<'S', string, string, string>,
-// 	sort: Type<'S', string, string, string>
-// }, 'id'> = { id: '1' }
+type Users = typeof users
+// const key:SortKey<TableDefinition<typeof schema, 'id', never>> = { sort: 1 }
 
-// key.id
 
-const eq = () => {
-	return (table, ) => {
+class ConditionExpression<T extends AnyTableDefinition> {
+	constructor(private def:T) {
 
 	}
 }
 
 
-type Users = typeof users
-const key:SortKey<Users> = { id: '1', asd: 233 }
+export interface Options {
+	client?: DynamoDBClient
+}
 
-const getItem = <T extends AnyTableDefinition>(table:T, key:PrimaryKey<T>) => {
+export type ProjectionOption<T extends AnyTableDefinition> = (keyof T['schema'] | NestedObjectKey<InferSchemaInput<T['schema']>>)[]
+
+export interface GetOptions<T extends AnyTableDefinition> extends Options {
+	consistentRead?: boolean
+	projection?: ProjectionOption<T>
+	// test?: Object.Paths<{ test: { n: number } }>
+}
+
+export const getItem = <T extends AnyTableDefinition>(table:T, key:PrimaryKey<T>, options?:GetOptions<T> = {}) => {
 
 }
 
-const result = getItem(users, { id: '1' })
-// , {
-// 	cond: (builder) => {
-// 		builder.
-// 	}
-// })
+const result = getItem(users, { id: '1', sort: 1 }, {
+	projection: [
+		'amount',
+		[ 'list', 0 ],
+		[ 'list', 1, 'id' ],
+		[ 'attr', 'id' ]
+	]
+	// condition: (path, value) => {
+	// 	return eq(path('id'), value(1))
+	// }
+})
 
-// putItem(users)
-// 	.condition()
-// 	.where(2, 21)
-// 	.condition()
-// 	.where(2, 21)
+type NestedArrayKey<O extends unknown[]> = {
+	[K in Extract<keyof O, number>]: O[K] extends unknown[]
+	? [ K ] | [ K, ...NestedArrayKey<O[K]> ]
+	: O[K] extends Record<string, unknown>
+	? [ K ] | [ K, ...NestedObjectKey<O[K]> ]
+	: [ K ]
+}[ Extract<keyof O, number> ]
+
+type NestedObjectKey<O extends Record<string, unknown>> = {
+	[K in Extract<keyof O, string>]: O[K] extends unknown[]
+	? [ K ] | [ K, ...NestedArrayKey<O[K]> ]
+	: O[K] extends Record<string, unknown>
+	? [ K ] | [ K, ...NestedObjectKey<O[K]> ]
+	: [ K ]
+}[ Extract<keyof O, string> ]
+
+
+const LOL:NestedObjectKey<{ test: { n: {id:string}[] } }> = [ 'test', 'n', 1, 'id' ]
 
 // keys
 // getItem(users, { id: 1, sort: 1 }, {
@@ -265,7 +297,13 @@ const result = getItem(users, { id: '1' })
 // })
 
 
-// getItem(users, {
+// type LIST = ['test'] | ['test', 'id']
+
+// const T:LIST = ['test', 'id']
+
+
+
+// getItems(users, {
 // 	condition: (exp) => {
 // 		exp.eq({ id: '1' }).
 // 	}

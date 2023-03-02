@@ -1,5 +1,5 @@
 
-import { migrate, mockDynamoDB, scan, Table } from '../src/index'
+import { define, migrate, mockDynamoDB, number, object, scan, string } from '../src/index'
 import { tables } from './aws/tables'
 
 describe('Migrate', () => {
@@ -15,19 +15,26 @@ describe('Migrate', () => {
 		}
 	})
 
+	const posts1 = define('posts', {
+		hash: 'userId',
+		sort: 'id',
+		schema: object({
+			id:	number(),
+			userId: number(),
+			title: string(),
+		})
+	})
 
-	type PostV1 = {
-		userId: number
-		id: number
-		title: string
-	}
-
-	type PostV2 = PostV1 & {
-		createdAt: string
-	}
-
-	const posts1 = new Table<PostV1, 'userId', 'id'>('posts')
-	const posts2 = new Table<PostV2, 'userId', 'id'>('posts')
+	const posts2 = define('posts', {
+		hash: 'userId',
+		sort: 'id',
+		schema: object({
+			id:	number(),
+			userId: number(),
+			title: string(),
+			date: string(),
+		})
+	})
 
 	it('should migrate the table', async () => {
 
@@ -36,7 +43,7 @@ describe('Migrate', () => {
 			transform(item) {
 				return {
 					...item,
-					createdAt: (new Date).toISOString()
+					date: (new Date).toISOString()
 				}
 			}
 		})
@@ -52,22 +59,22 @@ describe('Migrate', () => {
 			count: 3,
 			items: [
 				{
-					userId: 1,
 					id: 1,
+					userId: 1,
 					title: 'one',
-					createdAt: expect.any(String) as string
+					date: expect.any(String) as string
 				},
 				{
-					userId: 1,
 					id: 2,
+					userId: 1,
 					title: 'two',
-					createdAt: expect.any(String) as string
+					date: expect.any(String) as string
 				},
 				{
-					userId: 1,
 					id: 3,
+					userId: 1,
 					title: 'three',
-					createdAt: expect.any(String) as string
+					date: expect.any(String) as string
 				}
 			]
 		})

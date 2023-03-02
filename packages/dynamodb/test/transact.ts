@@ -1,5 +1,5 @@
 
-import { ql, scan, transactWrite, transactPut, transactConditionCheck, Table, mockDynamoDB } from '../src/index'
+import { scan, transactWrite, transactPut, transactConditionCheck, define, mockDynamoDB, object, number, string, optional } from '../src/index'
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb'
 import { tables } from './aws/tables'
 
@@ -7,24 +7,28 @@ describe('DynamoDB Transact', () => {
 
 	mockDynamoDB({ tables })
 
-	type Post = {
-		userId: number
-		id: number
-		title: string
-	}
-
-	const posts = new Table<Post, 'userId', 'id'>('posts')
+	const posts = define('posts', {
+		hash: 'userId',
+		sort: 'id',
+		schema: object({
+			id: number(),
+			userId: number(),
+			title: optional(string()),
+		}),
+	})
 
 	it('should transact', async () => {
 		await transactWrite({
 			items: [
 				transactConditionCheck(posts, { userId: 1, id: 0 }, {
-					condition: ql`attribute_not_exists(#id)`
+					condition(exp) {
+						exp.where('id').attributeNotExists
+					}
 				}),
 
-				transactPut(posts, { userId: 1, id: 1, title: '' }),
-				transactPut(posts, { userId: 1, id: 2, title: '' }),
-				transactPut(posts, { userId: 1, id: 3, title: '' }),
+				transactPut(posts, { userId: 1, id: 1 }),
+				transactPut(posts, { userId: 1, id: 2 }),
+				transactPut(posts, { userId: 1, id: 3 }),
 			]
 		})
 
@@ -33,9 +37,9 @@ describe('DynamoDB Transact', () => {
 			cursor: undefined,
 			count: 3,
 			items: [
-				{ userId: 1, id: 1, title: '' },
-				{ userId: 1, id: 2, title: '' },
-				{ userId: 1, id: 3, title: '' }
+				{ userId: 1, id: 1 },
+				{ userId: 1, id: 2 },
+				{ userId: 1, id: 3 }
 			]}
 		)
 	})
@@ -44,9 +48,11 @@ describe('DynamoDB Transact', () => {
 		const promise = transactWrite({
 			items: [
 				transactConditionCheck(posts, { userId: 1, id: 1 }, {
-					condition: ql`attribute_not_exists(#id)`
+					condition(exp) {
+						exp.where('id').attributeNotExists
+					}
 				}),
-				transactPut(posts, { userId: 1, id: 4, title: '' }),
+				transactPut(posts, { userId: 1, id: 4 }),
 			]
 		})
 
@@ -57,9 +63,9 @@ describe('DynamoDB Transact', () => {
 			cursor: undefined,
 			count: 3,
 			items: [
-				{ userId: 1, id: 1, title: '' },
-				{ userId: 1, id: 2, title: '' },
-				{ userId: 1, id: 3, title: '' }
+				{ userId: 1, id: 1 },
+				{ userId: 1, id: 2 },
+				{ userId: 1, id: 3 }
 			]}
 		)
 	})

@@ -1,77 +1,61 @@
-import { Item } from "./types"
-// import { Object } from 'ts-toolbelt'
+import { AnyStruct } from "./structs/struct"
 
-export class Table<Model extends Item, HashKey extends keyof Model, SortKey extends keyof Model = never> {
-	declare model: Model
-	declare hashKey: HashKey
-	declare sortKey: SortKey
-	// declare paths: PathOf<Model>
-	declare key: Pick<Model, HashKey | SortKey>
+// export type Schema = Record<string, AnyStruct>
 
-	constructor(readonly name: string) {}
-
-	toString() {
-		return this.name
-	}
+export type TableDefinition<
+	Struct extends AnyStruct,
+	Hash extends keyof Struct['INPUT'],
+	Sort extends keyof Struct['INPUT'] | undefined,
+	Indexes extends TableIndexes<Struct> | undefined
+> = {
+	name: string
+	hash: Hash
+	sort: Sort
+	schema: Struct
+	indexes: Indexes
+	marshall: (item:Partial<Struct['INPUT']>) => Struct['MARSHALLED']['M']
+	unmarshall: (item:Struct['MARSHALLED']['M']) => Partial<Struct['OUTPUT']>
 }
 
+export type AnyTableDefinition = TableDefinition<
+	AnyStruct,
+	any,
+	any,
+	any
+>
 
+export type IndexNames<T extends AnyTableDefinition> = Extract<keyof T['indexes'], string>
 
+type TableIndex<Struct extends AnyStruct> = {
+	hash: keyof Struct['INPUT']
+	sort?: keyof Struct['INPUT']
+}
 
+type TableIndexes<Struct extends AnyStruct> = Record<string, TableIndex<Struct>>
 
-// type PathsOf<O, P extends unknown[] = []> = [ K keyof O ]
-
-// type Test = {
-// 	num: number
-// 	deep: {
-// 		str: string
-// 	}
-// 	array: {item: string}[]
-// }
-
-// type PathOf<T> =
-//   T extends Record<PropertyKey, unknown> ? readonly [ keyof T ] | readonly [ keyof T, ...PathOf<T[keyof T]> ]
-//   : T extends readonly unknown[] ? readonly [ keyof T, ...PathOf<T[keyof T]> ]
-//   : readonly []
-
-// type Paths = PathOf<Test>
-
-// const lol:Paths = ['array', 0, 'item']
-
-// lol[0]
-
-// // const lol:Paths = [] as Paths
-
-// // lol[0]
-
-// // type UnionOf<A> =
-// //     A extends List
-// //     ? A[number]
-// //     : A[keyof A]
-
-
-
-// // /**
-// //  * @hidden
-// //  */
-// // type _Paths<O, P extends List = []> = UnionOf<{
-// //     [K in keyof O]:
-// //     O[K] extends BuiltIn | Primitive ? NonNullableFlat<[...P, K?]> :
-// //     [Keys<O[K]>] extends [never] ? NonNullableFlat<[...P, K?]> :
-// //     12 extends Length<P> ? NonNullableFlat<[...P, K?]> :
-// //     _Paths<O[K], [...P, K?]>
-// // }>
-
-// // /**
-// //  * Get all the possible paths of `O`
-// //  * (⚠️ this won't work with circular-refs)
-// //  * @param O to be inspected
-// //  * @returns [[String]][]
-// //  * @example
-// //  * ```ts
-// //  * ```
-// //  */
-// // export type Paths<O, P extends List = []> =
-// //     _Paths<O, P> extends infer X
-// //     ? Cast<X, List<Key>>
-// //     : never
+export const define = <
+	Struct extends AnyStruct,
+	Hash extends keyof Struct['INPUT'],
+	Sort extends keyof Struct['INPUT'] | undefined,
+	Indexes extends TableIndexes<Struct> | undefined
+>(
+	name:string,
+	options: {
+		hash: Hash
+		sort?: Sort
+		schema: Struct
+		indexes?: Indexes
+	}
+): TableDefinition<Struct, Hash, Sort, Indexes> => ({
+	name,
+	hash: options.hash,
+	sort: (options.sort as Sort),
+	schema: options.schema,
+	indexes: (options.indexes as Indexes),
+	marshall: (item) => {
+		return options.schema.marshall(item).M
+	},
+	unmarshall: (item) => {
+		return options.schema.unmarshall({ M: item })
+	},
+})

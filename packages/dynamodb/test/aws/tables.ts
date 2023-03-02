@@ -16,8 +16,21 @@ export const tables = [
 			{ KeyType: 'SORT', AttributeName: 'id' }
 		],
 		AttributeDefinitions: [
+			{ AttributeName: 'sortId', AttributeType: 'N' },
 			{ AttributeName: 'userId', AttributeType: 'N' },
 			{ AttributeName: 'id', AttributeType: 'N' }
+		],
+		GlobalSecondaryIndexes: [
+			{
+				IndexName: 'list',
+				Projection: {
+					ProjectionType: 'ALL'
+				},
+				KeySchema: [
+					{ KeyType: 'HASH', AttributeName: 'userId' },
+					{ KeyType: 'SORT', AttributeName: 'sortId' }
+				],
+			}
 		]
 	}
 ]

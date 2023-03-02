@@ -1,51 +1,64 @@
+import { QueryCommand } from "@aws-sdk/client-dynamodb"
+import { client } from "../client"
+import { KeyCondition, keyConditionExpression } from "../expressions/key-condition"
+import { projectionExpression, ProjectionExpression, ProjectionResponse } from "../expressions/projection"
+import { IDGenerator } from "../helper/id-generator"
+import { AnyTableDefinition, IndexNames } from "../table"
+import { CursorKey } from "../types/key"
+import { Options } from "../types/options"
 
-import { QueryCommand, QueryCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { addExpression, addProjectionExpression, generator } from '../helper/expression.js'
-import { send } from '../helper/send.js'
-import { BaseTable, ExpressionBuilder, Options } from '../types.js'
-
-export interface QueryOptions<T extends BaseTable> extends Options {
-	keyCondition: ExpressionBuilder
-	projection?: ExpressionBuilder
-	index?: string
+type QueryOptions<
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined,
+	I extends IndexNames<T> | undefined
+> = Options & {
+	keyCondition: (exp: KeyCondition<T>) => void
+	projection?: P
+	index?: I
 	consistentRead?: boolean
-	limit?: number
 	forward?: boolean
-	cursor?: T['key']
+	limit?: number
+	cursor?: CursorKey<T, I>
 }
 
-export interface QueryResponse<T extends BaseTable> {
+type QueryResponse<
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined,
+	I extends IndexNames<T> | undefined
+> = {
 	count: number
-	items: T['model'][]
-	cursor?: T['key']
+	items: ProjectionResponse<T, P>[]
+	cursor?: CursorKey<T, I>
 }
 
-export const query = async <T extends BaseTable>(
+export const query = async <
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined,
+	I extends IndexNames<T> | undefined
+>(
 	table: T,
-	options:QueryOptions<T>
-): Promise<QueryResponse<T>> => {
+	options: QueryOptions<T, P, I>
+): Promise<QueryResponse<T, P, I>> => {
 	const { forward = true } = options
-	const gen = generator()
-	const keyCondition = options.keyCondition(gen, table)
 
+	const gen = new IDGenerator(table)
 	const command = new QueryCommand({
 		TableName: table.name,
 		IndexName: options.index,
-		KeyConditionExpression: keyCondition.query,
+		KeyConditionExpression: keyConditionExpression(options, gen),
 		ConsistentRead: options.consistentRead,
 		ScanIndexForward: forward,
 		Limit: options.limit || 10,
-		ExclusiveStartKey: options.cursor,
+		ExclusiveStartKey: options.cursor && table.marshall(options.cursor),
+		ProjectionExpression: projectionExpression(options, gen),
+		...gen.attributes()
 	})
 
-	addExpression(command.input, keyCondition)
-	addProjectionExpression(command.input, options, gen, table)
-
-	const result = await send(command, options) as QueryCommandOutput
+	const result = await client(options).send(command)
 
 	return {
 		count: result.Count || 0,
-		items: result.Items || [],
-		cursor: result.LastEvaluatedKey
+		items: result.Items?.map(item => table.unmarshall(item)) || [],
+		cursor: result.LastEvaluatedKey && (table.unmarshall(result.LastEvaluatedKey) as CursorKey<T, I>),
 	}
 }

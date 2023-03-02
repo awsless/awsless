@@ -1,25 +1,34 @@
 
-import { PutCommand, PutCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { BaseTable, MutateOptions } from '../types.js'
-import { send } from '../helper/send.js'
-import { addConditionExpression, addReturnValues, generator } from '../helper/expression.js'
+import { client } from '../client.js'
+import { IDGenerator } from '../helper/id-generator.js'
+import { ReturnResponse, ReturnValues } from '../expressions/return.js'
+import { conditionExpression } from '../expressions/conditions.js'
+import { MutateOptions } from '../types/options.js'
+import { AnyTableDefinition } from '../table.js'
+import { PutItemCommand } from '@aws-sdk/client-dynamodb'
 
-export type PutOptions = MutateOptions
-
-export const putItem = async <T extends BaseTable>(
+export const putItem = async <T extends AnyTableDefinition, R extends ReturnValues = 'NONE'>(
 	table: T,
-	item: T['model'],
-	options:PutOptions = {}
-): Promise<T['model'] | undefined> => {
-	const command = new PutCommand({
-		TableName: table.toString(),
-		Item: item,
+	item: T['schema']['INPUT'],
+	options: MutateOptions<T, R> = {}
+): Promise<ReturnResponse<T, R>> => {
+
+	const gen = new IDGenerator(table)
+	const command = new PutItemCommand({
+		TableName: table.name,
+		Item: table.marshall(item),
+		ConditionExpression: conditionExpression<T>(options, gen),
+		ReturnValues: options.return,
+		...gen.attributes(),
 	})
 
-	addReturnValues(command.input, options)
-	addConditionExpression(command.input, options, generator(), table)
+	console.log(command.input);
 
-	const result = await send(command, options) as PutCommandOutput
+	const result = await client(options).send(command)
 
-	return result.Attributes
+	if(result.Attributes) {
+		return table.unmarshall(result.Attributes) as ReturnResponse<T, R>
+	}
+
+	return undefined as ReturnResponse<T, R>
 }

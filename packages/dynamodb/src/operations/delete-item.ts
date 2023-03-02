@@ -1,26 +1,33 @@
 
-import { DeleteCommand, DeleteCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { BaseTable, MutateOptions } from '../types.js'
-import { send } from '../helper/send.js'
-import { addConditionExpression, addReturnValues, generator } from '../helper/expression.js'
+import { DeleteItemCommand } from '@aws-sdk/client-dynamodb'
+import { conditionExpression } from '../expressions/conditions.js'
+import { ReturnResponse, ReturnValues } from '../expressions/return.js'
+import { client } from '../client.js'
+import { IDGenerator } from '../helper/id-generator.js'
+import { AnyTableDefinition } from '../table.js'
+import { PrimaryKey } from '../types/key.js'
+import { MutateOptions } from '../types/options.js'
 
-export type DeleteOptions = MutateOptions
-
-export const deleteItem = async <T extends BaseTable>(
+export const deleteItem = async <T extends AnyTableDefinition, R extends ReturnValues = 'NONE'>(
 	table: T,
-	key: T['key'],
-	options:DeleteOptions = {}
-): Promise<T['model'] | undefined> => {
-	const command = new DeleteCommand({
+	key: PrimaryKey<T>,
+	options: MutateOptions<T, R> = {}
+): Promise<ReturnResponse<T, R>> => {
+
+	const gen = new IDGenerator(table)
+	const command = new DeleteItemCommand({
 		TableName: table.name,
-		Key: key,
+		Key: table.marshall(key),
+		ConditionExpression: conditionExpression<T>(options, gen),
+		ReturnValues: options.return,
+		...gen.attributes(),
 	})
 
-	const gen = generator()
-	addReturnValues(command.input, options)
-	addConditionExpression(command.input, options, gen, table)
+	const result = await client(options).send(command)
 
-	const result = await send(command, options) as DeleteCommandOutput
+	if(result.Attributes) {
+		return table.unmarshall(result.Attributes) as ReturnResponse<T, R>
+	}
 
-	return result.Attributes
+	return undefined as ReturnResponse<T, R>
 }

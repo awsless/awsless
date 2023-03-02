@@ -1,36 +1,40 @@
 
-import { BaseTable, Item, Options } from '../types.js'
+import { AnyTableDefinition } from '../table.js'
+import { CursorKey } from '../types/key.js'
+import { Options } from '../types/options.js'
 import { putItem } from './put-item.js'
-import { scan, ScanResponse } from './scan.js'
+import { scan } from './scan.js'
 
-export interface MigrateOptions<Old extends Item, New extends Item> extends Options {
+type MigrateOptions<From extends AnyTableDefinition, To extends AnyTableDefinition> = Options & {
 	consistentRead?: boolean
 	batch?: number
-	transform: TransformCallback<Old, New>
+	transform: TransformCallback<From, To>
 }
 
-export interface TransformCallback<Old extends Item, New extends Item> {
-	(item:Old): New | Promise<New>
+type TransformCallback<From extends AnyTableDefinition, To extends AnyTableDefinition> = {
+	(item:From['schema']['OUTPUT']): To['schema']['INPUT'] | Promise<To['schema']['INPUT']>
 }
 
-export interface MigrateResponse {
+type MigrateResponse = {
 	itemsProcessed: number
 }
 
-export const migrate = async <From extends BaseTable, To extends BaseTable>(
-	from:From,
-	to:To,
-	options:MigrateOptions<From['model'], To['model']>
+export const migrate = async <From extends AnyTableDefinition, To extends AnyTableDefinition>(
+	from: From,
+	to: To,
+	options: MigrateOptions<From, To>
 ): Promise<MigrateResponse> => {
 
-	let cursor: From['key'] | undefined = undefined
+	let cursor: CursorKey<From>
 	let itemsProcessed = 0
 
-	for(;;){
-		const result:ScanResponse<From> = await scan(from, {
+	const loop = async () => {
+		const result = await scan(from, {
 			client: options.client,
 			consistentRead: options.consistentRead,
 			limit: options.batch || 1000,
+
+			// @ts-ignore
 			cursor
 		})
 
@@ -44,10 +48,17 @@ export const migrate = async <From extends BaseTable, To extends BaseTable>(
 		}))
 
 		if(result.items.length === 0 || !result.cursor) {
-			break
+			return false
 		}
 
 		cursor = result.cursor
+		return true
+	}
+
+	for(;;) {
+		if(!await loop()) {
+			break
+		}
 	}
 
 	return {

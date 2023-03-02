@@ -1,23 +1,25 @@
 
-import { mockDynamoDB, putItem, ql, Table, ConditionalCheckFailedException, transactWrite, transactPut, TransactionCanceledException } from '../src/index'
+import { mockDynamoDB, putItem, ConditionalCheckFailedException, transactWrite, transactPut, TransactionCanceledException, define, object, number, string } from '../src/index'
 import { tables } from './aws/tables'
 
 describe('Condition Exeption', () => {
 
 	mockDynamoDB({ tables })
 
-	type User = {
-		id: number
-		name: string
-	}
+	const users = define('users', {
+		hash: 'id',
+		schema: object({
+			id:	number(),
+			name: string(),
+		})
+	})
 
-	const users = new Table<User, 'id'>('users')
 	const user1 = { id: 1, name: 'John' }
 	const user2 = { id: 2, name: 'Gill' }
 
 	it('should fail on condition failure', async () => {
 		const promise = putItem(users, user1, {
-			condition: ql`attribute_exists(#id)`
+			condition(exp) { exp.where('id').attributeExists }
 		})
 
 		await expect(promise).rejects.toThrow(ConditionalCheckFailedException)
@@ -28,7 +30,7 @@ describe('Condition Exeption', () => {
 			items: [
 				transactPut(users, user1),
 				transactPut(users, user2, {
-					condition: ql`attribute_exists(#id)`
+					condition(exp) { exp.where('id').attributeExists }
 				}),
 			]
 		})

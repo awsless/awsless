@@ -1,31 +1,46 @@
 
+import { KeyCondition } from '../expressions/key-condition.js'
+import { ProjectionExpression, ProjectionResponse } from '../expressions/projection.js'
 import { fromCursor, toCursor } from '../helper/cursor.js'
-import { BaseTable, ExpressionBuilder, Options } from '../types.js'
+import { AnyTableDefinition, IndexNames } from '../table.js'
+import { CursorKey } from '../types/key.js'
+import { Options } from '../types/options.js'
 import { query } from './query.js'
 
-export interface PaginationOptions extends Options {
-	keyCondition: ExpressionBuilder
-	projection?: ExpressionBuilder
-	index?: string
+type PaginationOptions<
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined,
+	I extends IndexNames<T> | undefined
+> = Options & {
+	keyCondition: (exp: KeyCondition<T>) => void
+	projection?: P
+	index?: I
 	consistentRead?: boolean
-	limit?: number
 	forward?: boolean
+	limit?: number
 	cursor?: string
 }
 
-interface PaginationResponse<T extends BaseTable> {
+type PaginationResponse<
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined
+> = {
 	count: number
-	items: T['model'][]
+	items: ProjectionResponse<T, P>[]
 	cursor?: string
 }
 
-export const pagination = async <T extends BaseTable>(
+export const pagination = async <
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined,
+	I extends IndexNames<T> | undefined
+>(
 	table: T,
-	options:PaginationOptions
-): Promise<PaginationResponse<T>> => {
+	options: PaginationOptions<T, P, I>
+): Promise<PaginationResponse<T, P>> => {
 	const result = await query(table, {
 		...options,
-		cursor: options.cursor ? fromCursor<T['key']>(options.cursor) : undefined
+		cursor: options.cursor ? fromCursor<CursorKey<T, I>>(options.cursor) : undefined
 	})
 
 	// FIX the problem where DynamoDB will return a cursor

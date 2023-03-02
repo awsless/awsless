@@ -1,55 +1,80 @@
 
-import { BatchGetCommand, BatchGetCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { BaseTable, ExpressionBuilder, Options } from '../types.js'
-import { send } from '../helper/send.js'
-import { generator } from '../helper/expression.js'
+import { BatchGetItemCommand } from "@aws-sdk/client-dynamodb"
+import { client } from "../client"
+import { projectionExpression, ProjectionExpression, ProjectionResponse } from "../expressions/projection"
+import { IDGenerator } from "../helper/id-generator"
+import { AnyTableDefinition } from "../table"
+import { PrimaryKey } from "../types/key"
+import { Options } from "../types/options"
 
-export interface BatchGetOptions<F extends boolean> extends Options {
-	projection?: ExpressionBuilder
+type BatchGetOptions<
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined,
+	F extends boolean
+> = Options & {
+	projection?: P
 	consistentRead?: boolean
 	filterNonExistentItems?: F
 }
 
 type BatchGetItem = {
-	<T extends BaseTable>(
+	<
+		T extends AnyTableDefinition,
+		P extends ProjectionExpression<T> | undefined
+	>(
 		table:T,
-		keys: T['key'][],
-		options?:BatchGetOptions<false>
-	): Promise<(T['model'] | undefined)[]>
+		keys: PrimaryKey<T>[],
+		options?:BatchGetOptions<T, P, false>
+	): Promise<(ProjectionResponse<T, P> | undefined)[]>
 
-	<T extends BaseTable>(
+	<
+		T extends AnyTableDefinition,
+		P extends ProjectionExpression<T> | undefined
+	>(
 		table:T,
-		keys: T['key'][],
-		options?:BatchGetOptions<true>
-	): Promise<T['model'][]>
+		keys: PrimaryKey<T>[],
+		options?:BatchGetOptions<T, P, true>
+	): Promise<ProjectionResponse<T, P>[]>
 }
 
-export const batchGetItem:BatchGetItem = async <T extends BaseTable>(
-	table:T,
-	keys: T['key'][],
-	options:BatchGetOptions<boolean> = { filterNonExistentItems: false }
-): Promise<(T['model'] | undefined)[]> => {
-	let response: (T['model'] | undefined)[] = []
-	let unprocessedKeys: T['key'][] = keys
+export const batchGetItem:BatchGetItem = async <
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined
+>(
+	table: T,
+	keys: PrimaryKey<T>[],
+	options: BatchGetOptions<T, P, boolean> = { filterNonExistentItems: false }
+):  Promise<(ProjectionResponse<T, P> | undefined)[]> => {
 
-	const projection = options.projection && options.projection(generator(), table)
+	let response: (ProjectionResponse<T, P> | undefined)[] = []
+	let unprocessedKeys: PrimaryKey<T>[] = keys.map(key => table.marshall(key))
+
+	const gen = new IDGenerator(table)
+	const projection = projectionExpression(options, gen)
+	const attributes = gen.attributeNames()
 
 	while(unprocessedKeys.length) {
-		const command = new BatchGetCommand({
+		const command = new BatchGetItemCommand({
 			RequestItems: {
 				[ table.name ]: {
 					Keys: unprocessedKeys,
 					ConsistentRead: options.consistentRead,
-					ExpressionAttributeNames: projection?.names,
-					ProjectionExpression: projection?.query,
+					ProjectionExpression: projection,
+					...attributes,
 				}
 			}
 		})
 
-		const result = await send(command, options) as BatchGetCommandOutput
+		const result = await client(options).send(command)
 
-		unprocessedKeys = ( result.UnprocessedKeys?.[ table.name ]?.Keys || [] )
-		response = [ ...response, ...(result.Responses?.[ table.name ] || []) ]
+		unprocessedKeys = (result.UnprocessedKeys?.[ table.name ]?.Keys || []) as PrimaryKey<T>[]
+
+		response = [
+			...response,
+			...(result.Responses?.[ table.name ] || []).map(
+				item => table.unmarshall(item)
+			)
+		]
 	}
 
 	if(options.filterNonExistentItems) {
@@ -59,7 +84,9 @@ export const batchGetItem:BatchGetItem = async <T extends BaseTable>(
 	return keys.map(key => {
 		return response.find(item => {
 			for(const i in key) {
-				if(key[i] !== item?.[i]) {
+				const k = i as keyof PrimaryKey<T>
+
+				if(key[k] !== item?.[k]) {
 					return false
 				}
 			}

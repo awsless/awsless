@@ -1,145 +1,140 @@
 
-import { TransactWriteCommand, TransactWriteCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { BaseTable, ExpressionBuilder, Options, Value } from '../types.js'
-import { addConditionExpression, addExpression, generator } from '../helper/expression.js'
-import { send } from '../helper/send.js'
+import { AttributeValue, TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb"
+import { client } from "../client"
+import { Condition, conditionExpression } from "../expressions/conditions"
+import { updateExpression, Update as UpdateExp } from "../expressions/update"
+import { IDGenerator } from "../helper/id-generator"
+import { AnyTableDefinition } from "../table"
+import { PrimaryKey } from "../types/key"
+import { Options } from "../types/options"
 
-interface TransactWriteOptions extends Options {
+type TransactWriteOptions = Options & {
 	idempotantKey?: string
-	items: Transactable<BaseTable>[]
+	items: Transactable<AnyTableDefinition>[]
 }
 
-type Transactable<T extends BaseTable> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
+type Transactable<T extends AnyTableDefinition> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
 
-interface Command {
+type Command = {
 	TableName: string
 	ConditionExpression?: string
-	ExpressionAttributeNames?: { [key: string]: string }
-	ExpressionAttributeValues?: { [key: string]: Value }
+	ExpressionAttributeNames?: Record<string, string>
+	ExpressionAttributeValues?: Record<string, AttributeValue>
 }
 
-interface ConditionCheck<T extends BaseTable> {
+type ConditionCheck<T extends AnyTableDefinition> = {
 	ConditionCheck: Command & {
-		Key: T['key']
+		Key: PrimaryKey<T>
 		ConditionExpression: string
 	}
 }
 
-interface Put<T extends BaseTable> {
+type Put<T extends AnyTableDefinition> = {
 	Put: Command & {
-		Item: T['model']
+		Item: T['schema']['INPUT']
 	}
 }
 
-interface Update<T extends BaseTable> {
+type Update<T extends AnyTableDefinition> = {
 	Update: Command & {
-		Key: T['key']
+		Key: PrimaryKey<T>
 		UpdateExpression: string
 	}
 }
 
-interface Delete<T extends BaseTable> {
+type Delete<T extends AnyTableDefinition> = {
 	Delete: Command & {
-		Key: T['key']
+		Key: PrimaryKey<T>
 	}
 }
 
 export const transactWrite = async (options:TransactWriteOptions): Promise<void> => {
-	const command = new TransactWriteCommand({
+	const command = new TransactWriteItemsCommand({
 		ClientRequestToken: options.idempotantKey,
 		TransactItems: options.items
 	})
 
-	await send(command, options) as TransactWriteCommandOutput
+	await client(options).send(command)
 }
 
-interface ConditionCheckOptions {
-	condition: ExpressionBuilder
+type ConditionCheckOptions<T extends AnyTableDefinition> = {
+	condition: (exp:Condition<T>) => void
 }
 
-export const transactConditionCheck = <T extends BaseTable>(
+export const transactConditionCheck = <T extends AnyTableDefinition>(
 	table: T,
-	key: T['key'],
-	options: ConditionCheckOptions
-) => {
-	const gen = generator()
-	const condition = options.condition(gen, table)
-	const command: ConditionCheck<T> = {
+	key: PrimaryKey<T>,
+	options: ConditionCheckOptions<T>
+): ConditionCheck<T> => {
+	const gen = new IDGenerator(table)
+	return {
 		ConditionCheck: {
-			TableName: table.toString(),
-			Key: key,
-			ConditionExpression: condition.query
+			TableName: table.name,
+			Key: table.marshall(key),
+			ConditionExpression: conditionExpression<T>(options, gen)!,
+			...gen.attributes(),
 		}
 	}
-
-	addExpression(command.ConditionCheck, condition)
-	return command
 }
 
-interface PutOptions {
-	condition?: ExpressionBuilder
+type PutOptions<T extends AnyTableDefinition> = {
+	condition?: (exp:Condition<T>) => void
 }
 
-export const transactPut = <T extends BaseTable>(
+export const transactPut = <T extends AnyTableDefinition>(
 	table: T,
-	item: T['model'],
-	options: PutOptions = {}
-) => {
-	const command: Put<T> = {
+	item: T['schema']['INPUT'],
+	options: PutOptions<T> = {}
+): Put<T> => {
+	const gen = new IDGenerator(table)
+	return {
 		Put: {
 			TableName: table.name,
-			Item: item,
+			Item: table.marshall(item),
+			ConditionExpression: conditionExpression<T>(options, gen),
+			...gen.attributes(),
 		}
 	}
-
-	addConditionExpression(command.Put, options, generator(), table)
-
-	return command
 }
 
-interface UpdateOptions {
-	update: ExpressionBuilder
-	condition?: ExpressionBuilder
+type UpdateOptions<T extends AnyTableDefinition> = {
+	update: (exp:UpdateExp<T>) => void
+	condition?: (exp:Condition<T>) => void
 }
 
-export const transactUpdate = <T extends BaseTable>(
+export const transactUpdate = <T extends AnyTableDefinition>(
 	table: T,
-	key: T['key'],
-	options: UpdateOptions
-) => {
-	const gen = generator()
-	const update = options.update(gen, table)
-	const command: Update<T> = {
+	key: PrimaryKey<T>,
+	options: UpdateOptions<T>
+): Update<T> => {
+	const gen = new IDGenerator(table)
+	return {
 		Update: {
-			TableName: table.toString(),
-			Key: key,
-			UpdateExpression: update.query,
+			TableName: table.name,
+			Key: table.marshall(key),
+			UpdateExpression: updateExpression<T>(options, gen),
+			ConditionExpression: conditionExpression<T>(options, gen),
+			...gen.attributes()
 		}
 	}
-
-	addExpression(command.Update, update)
-	addConditionExpression(command.Update, options, gen, table)
-
-	return command
 }
 
-interface DeleteOptions {
-	condition?: ExpressionBuilder
+type DeleteOptions<T extends AnyTableDefinition> = {
+	condition?: (exp:Condition<T>) => void
 }
 
-export const transactDelete = <T extends BaseTable>(
+export const transactDelete = <T extends AnyTableDefinition>(
 	table: T,
-	key: T['key'],
-	options: DeleteOptions = {}
-) => {
-	const command: Delete<T> = {
+	key: PrimaryKey<T>,
+	options: DeleteOptions<T> = {}
+): Delete<T> => {
+	const gen = new IDGenerator(table)
+	return {
 		Delete: {
-			TableName: table.toString(),
-			Key: key,
+			TableName: table.name,
+			Key: table.marshall(key),
+			ConditionExpression: conditionExpression<T>(options, gen),
+			...gen.attributes()
 		}
 	}
-
-	addConditionExpression(command.Delete, options, generator(), table)
-
-	return command
 }

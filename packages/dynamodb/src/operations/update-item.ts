@@ -1,31 +1,39 @@
 
-import { UpdateCommand, UpdateCommandOutput } from '@aws-sdk/lib-dynamodb'
-import { BaseTable, ExpressionBuilder, MutateOptions } from '../types.js'
-import { addConditionExpression, addExpression, addReturnValues, generator } from '../helper/expression.js'
-import { send } from '../helper/send.js'
+import { client } from '../client.js'
+import { UpdateItemCommand } from '@aws-sdk/client-dynamodb'
+import { MutateOptions } from '../types/options.js'
+import { conditionExpression } from '../expressions/conditions.js'
+import { ReturnResponse, ReturnValues } from '../expressions/return.js'
+import { AnyTableDefinition } from '../table.js'
+import { PrimaryKey } from '../types/key.js'
+import { IDGenerator } from '../helper/id-generator.js'
+import { updateExpression, Update } from '../expressions/update.js'
 
-export interface UpdateOptions extends MutateOptions {
-	update: ExpressionBuilder
+type UpdateOptions<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> = MutateOptions<T, R> & {
+	update: (exp:Update<T>) => void
 }
 
-export const updateItem = async <T extends BaseTable>(
+export const updateItem = async <T extends AnyTableDefinition, R extends ReturnValues = 'NONE'>(
 	table: T,
-	key: T['key'],
-	options:UpdateOptions
-): Promise<T['model'] | undefined> => {
-	const gen = generator()
-	const update = options.update(gen, table)
-	const command = new UpdateCommand({
+	key: PrimaryKey<T>,
+	options: UpdateOptions<T, R>
+): Promise<ReturnResponse<T, R>> => {
+
+	const gen = new IDGenerator(table)
+	const command = new UpdateItemCommand({
 		TableName: table.name,
-		Key: key,
-		UpdateExpression: update.query,
+		Key: table.marshall(key),
+		UpdateExpression: updateExpression<T>(options, gen),
+		ConditionExpression: conditionExpression<T>(options, gen),
+		ReturnValues: options.return,
+		...gen.attributes(),
 	})
 
-	addExpression(command.input, update)
-	addReturnValues(command.input, options)
-	addConditionExpression(command.input, options, gen, table)
+	const result = await client(options).send(command)
 
-	const result = await send(command, options) as UpdateCommandOutput
+	if(result.Attributes) {
+		return table.unmarshall(result.Attributes) as ReturnResponse<T, R>
+	}
 
-	return result.Attributes
+	return undefined as ReturnResponse<T, R>
 }
