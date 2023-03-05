@@ -1,6 +1,5 @@
 import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { AnyTableDefinition } from "../table"
-import { InferPath } from "../types/infer"
 
 type ExpressionAttributeNames = Record<string, string>
 type ExpressionAttributeValues = Record<string, AttributeValue>
@@ -9,7 +8,7 @@ export class IDGenerator<T extends AnyTableDefinition> {
 	private cacheN = new Map<string, number>()
 	private countN = 0
 
-	private cacheV = new Map<AttributeValue, { path:InferPath<T> | undefined, id: number }>()
+	private cacheV = new Map<AttributeValue, { path:string | Array<string | number> | undefined, id: number }>()
 	private countV = 0
 
 	constructor(private table:T) {}
@@ -36,7 +35,7 @@ export class IDGenerator<T extends AnyTableDefinition> {
 		return `#n${this.cacheN.get(key)}`
 	}
 
-	value<P extends InferPath<T>>(value:AttributeValue, path?:P) {
+	value(value:AttributeValue, path?:string | Array<string | number>) {
 		if(!this.cacheV.has(value)) {
 			this.cacheV.set(value, { path, id: ++this.countV })
 		}

@@ -1,36 +1,33 @@
+import { bigfloat, bigint, define, number, object, optional, string, stringSet } from "../../src";
 
-export const tables = [
-	{
-		TableName: 'users',
-		KeySchema: [
-			{ KeyType: 'HASH', AttributeName: 'id' }
-		],
-		AttributeDefinitions: [
-			{ AttributeName: 'id', AttributeType: 'N' }
-		]
-	},
-	{
-		TableName: 'posts',
-		KeySchema: [
-			{ KeyType: 'HASH', AttributeName: 'userId' },
-			{ KeyType: 'SORT', AttributeName: 'id' }
-		],
-		AttributeDefinitions: [
-			{ AttributeName: 'sortId', AttributeType: 'N' },
-			{ AttributeName: 'userId', AttributeType: 'N' },
-			{ AttributeName: 'id', AttributeType: 'N' }
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: 'list',
-				Projection: {
-					ProjectionType: 'ALL'
-				},
-				KeySchema: [
-					{ KeyType: 'HASH', AttributeName: 'userId' },
-					{ KeyType: 'SORT', AttributeName: 'sortId' }
-				],
-			}
-		]
+export const posts = define('posts', {
+	hash: 'userId',
+	sort: 'id',
+	schema: object({
+		id: number(),
+		sortId: number(),
+		userId: number(),
+
+		title: optional(string()),
+		amount: bigfloat(),
+
+		attributes: object({
+			likes: bigint(),
+			tags: stringSet(),
+		})
+	}),
+	indexes: {
+		list: {
+			hash: 'userId',
+			sort: 'sortId'
+		},
 	}
-]
+})
+
+export const users = define('users', {
+	hash: 'id',
+	schema: object({
+		id: number(),
+		name: string(),
+	}),
+})

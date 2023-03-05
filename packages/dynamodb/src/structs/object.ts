@@ -30,6 +30,10 @@ type InferPaths<S extends Schema> = {
 	[K in KeyOf<S>]: [K] | [ K, ...S[K]['PATHS'] ]
 }[ KeyOf<S> ]
 
+type InferOptPaths<S extends Schema> = {
+	[K in KeyOf<S>]: S[K]['optional'] extends true ? [K] | [ K, ...S[K]['OPT_PATHS'] ] : []
+}[ KeyOf<S> ]
+
 // class ObjectStruct<
 // 	T extends AttributeTypes,
 // 	M, I, O,
@@ -42,12 +46,13 @@ type InferPaths<S extends Schema> = {
 // }
 
 export const object = <S extends Schema>(schema:S) => new Struct<
-	'M',
 	InferMarshalled<S>,
 	InferInput<S>,
 	InferOutput<S>,
-	InferPaths<S>
+	InferPaths<S>,
+	InferOptPaths<S>
 >(
+	'M',
 	(unmarshalled:Record<string, unknown>) => {
 		const marshalled:Record<string, unknown> = {}
 		for(const [ key, type ] of Object.entries(schema)) {
@@ -60,14 +65,12 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 			marshalled[key] = type.marshall(value)
 		}
 
-		return {
-			M: marshalled as InferMarshalled<S>
-		}
+		return marshalled as InferMarshalled<S>
 	},
-	(marshalled) => {
+	(marshalled:Record<string, Record<string, any>>) => {
 		const unmarshalled:Record<string, unknown> = {}
 		for(const [ key, type ] of Object.entries(schema)) {
-			const value = (marshalled.M as Record<string, Record<string, any>>)[key]
+			const value = marshalled[key]
 
 			if(typeof value === 'undefined') {
 				continue

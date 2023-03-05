@@ -1,6 +1,7 @@
 import { Struct } from "./struct";
 
-export const boolean = () => new Struct<'BOOL', boolean, boolean, boolean>(
-	(value) => ({ BOOL: value }),
-	(value) => value.BOOL
+export const boolean = () => new Struct<boolean, boolean, boolean>(
+	'BOOL',
+	(value) => value,
+	(value) => value,
 )

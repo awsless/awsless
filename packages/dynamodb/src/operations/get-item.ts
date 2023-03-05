@@ -7,15 +7,24 @@ import { Options } from '../types/options.js'
 import { PrimaryKey } from '../types/key.js'
 import { GetItemCommand } from '@aws-sdk/client-dynamodb'
 
-type GetOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = Options & {
-	consistentRead?: boolean
-	projection?: P
-}
+// type GetOptions<
+// 	T extends AnyTableDefinition,
+// 	P extends ProjectionExpression<T> | undefined
+// > = Options & {
+// 	consistentRead?: boolean
+// 	projection?: P
+// }
 
-export const getItem = async <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined>(
+export const getItem = async <
+	T extends AnyTableDefinition,
+	P extends ProjectionExpression<T> | undefined = undefined
+>(
 	table: T,
 	key: PrimaryKey<T>,
-	options: GetOptions<T, P> = {}
+	options: Options & {
+		consistentRead?: boolean
+		projection?: P
+	} = {}
 ): Promise<ProjectionResponse<T, P> | undefined> => {
 
 	const gen = new IDGenerator(table)
@@ -30,7 +39,7 @@ export const getItem = async <T extends AnyTableDefinition, P extends Projection
 	const result = await client(options).send(command)
 
 	if(result.Item) {
-		return table.unmarshall(result.Item)
+		return table.unmarshall(result.Item) as ProjectionResponse<T, P>
 	}
 
 	return undefined

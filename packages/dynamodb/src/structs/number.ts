@@ -1,7 +1,8 @@
 
 import { Struct } from "./struct";
 
-export const number = () => new Struct<'N', string, number, number>(
-	(value) => ({ N: value.toString() }),
-	(value) => Number(value.N)
+export const number = () => new Struct<string, number, number>(
+	'N',
+	(value) => value.toString(),
+	(value) => Number(value)
 )

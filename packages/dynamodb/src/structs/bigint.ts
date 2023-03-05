@@ -1,6 +1,7 @@
 import { Struct } from "./struct";
 
-export const bigint = () => new Struct<'N', string, bigint, bigint>(
-	(value) => ({ N: value.toString() }),
-	(value) => BigInt(value.N)
+export const bigint = () => new Struct<string, bigint, bigint>(
+	'N',
+	(value) => value.toString(),
+	(value) => BigInt(value)
 )

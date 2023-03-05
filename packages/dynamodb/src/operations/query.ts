@@ -12,7 +12,7 @@ type QueryOptions<
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined
 > = Options & {
-	keyCondition: (exp: KeyCondition<T>) => void
+	keyCondition: (exp: KeyCondition<T, I>) => void
 	projection?: P
 	index?: I
 	consistentRead?: boolean
@@ -33,8 +33,8 @@ type QueryResponse<
 
 export const query = async <
 	T extends AnyTableDefinition,
-	P extends ProjectionExpression<T> | undefined,
-	I extends IndexNames<T> | undefined
+	P extends ProjectionExpression<T> | undefined = undefined,
+	I extends IndexNames<T> | undefined = undefined
 >(
 	table: T,
 	options: QueryOptions<T, P, I>

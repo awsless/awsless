@@ -2,18 +2,11 @@
 import { AttributeValue, TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb"
 import { client } from "../client"
 import { Condition, conditionExpression } from "../expressions/conditions"
-import { updateExpression, Update as UpdateExp } from "../expressions/update"
+import { updateExpression, UpdateExpression } from "../expressions/update"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition } from "../table"
 import { PrimaryKey } from "../types/key"
 import { Options } from "../types/options"
-
-type TransactWriteOptions = Options & {
-	idempotantKey?: string
-	items: Transactable<AnyTableDefinition>[]
-}
-
-type Transactable<T extends AnyTableDefinition> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
 
 type Command = {
 	TableName: string
@@ -47,6 +40,13 @@ type Delete<T extends AnyTableDefinition> = {
 		Key: PrimaryKey<T>
 	}
 }
+
+type TransactWriteOptions = Options & {
+	idempotantKey?: string
+	items: Transactable<any>[]
+}
+
+type Transactable<T extends AnyTableDefinition> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
 
 export const transactWrite = async (options:TransactWriteOptions): Promise<void> => {
 	const command = new TransactWriteItemsCommand({
@@ -98,7 +98,7 @@ export const transactPut = <T extends AnyTableDefinition>(
 }
 
 type UpdateOptions<T extends AnyTableDefinition> = {
-	update: (exp:UpdateExp<T>) => void
+	update: (exp:UpdateExpression<T>) => void
 	condition?: (exp:Condition<T>) => void
 }
 

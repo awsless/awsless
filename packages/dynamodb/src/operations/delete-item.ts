@@ -8,7 +8,10 @@ import { AnyTableDefinition } from '../table.js'
 import { PrimaryKey } from '../types/key.js'
 import { MutateOptions } from '../types/options.js'
 
-export const deleteItem = async <T extends AnyTableDefinition, R extends ReturnValues = 'NONE'>(
+export const deleteItem = async <
+	T extends AnyTableDefinition,
+	R extends ReturnValues = 'NONE'
+>(
 	table: T,
 	key: PrimaryKey<T>,
 	options: MutateOptions<T, R> = {}

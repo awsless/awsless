@@ -7,7 +7,10 @@ import { MutateOptions } from '../types/options.js'
 import { AnyTableDefinition } from '../table.js'
 import { PutItemCommand } from '@aws-sdk/client-dynamodb'
 
-export const putItem = async <T extends AnyTableDefinition, R extends ReturnValues = 'NONE'>(
+export const putItem = async <
+	T extends AnyTableDefinition,
+	R extends ReturnValues = 'NONE'
+>(
 	table: T,
 	item: T['schema']['INPUT'],
 	options: MutateOptions<T, R> = {}
@@ -21,8 +24,6 @@ export const putItem = async <T extends AnyTableDefinition, R extends ReturnValu
 		ReturnValues: options.return,
 		...gen.attributes(),
 	})
-
-	console.log(command.input);
 
 	const result = await client(options).send(command)
 

@@ -7,13 +7,19 @@ import { ReturnResponse, ReturnValues } from '../expressions/return.js'
 import { AnyTableDefinition } from '../table.js'
 import { PrimaryKey } from '../types/key.js'
 import { IDGenerator } from '../helper/id-generator.js'
-import { updateExpression, Update } from '../expressions/update.js'
+import { updateExpression, UpdateExpression } from '../expressions/update.js'
 
-type UpdateOptions<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> = MutateOptions<T, R> & {
-	update: (exp:Update<T>) => void
+type UpdateOptions<
+	T extends AnyTableDefinition,
+	R extends ReturnValues = 'NONE'
+> = MutateOptions<T, R> & {
+	update: (exp:UpdateExpression<T>) => void
 }
 
-export const updateItem = async <T extends AnyTableDefinition, R extends ReturnValues = 'NONE'>(
+export const updateItem = async <
+	T extends AnyTableDefinition,
+	R extends ReturnValues = 'NONE'
+>(
 	table: T,
 	key: PrimaryKey<T>,
 	options: UpdateOptions<T, R>

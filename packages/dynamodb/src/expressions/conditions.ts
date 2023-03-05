@@ -25,8 +25,8 @@ type Where<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
 
 	in: (values: InferValue<T, P>[]) => Combiner<T>
 
-	attributeExists: Combiner<T>
-	attributeNotExists: Combiner<T>
+	exists: Combiner<T>
+	// attributeNotExists: Combiner<T>
 
 	attributeType: (value: AttributeTypes) => Combiner<T>
 	beginsWith: (value:InferValue<T, P>) => Combiner<T>
@@ -80,8 +80,8 @@ export const conditionExpression = <T extends AnyTableDefinition>(
 				lte: (value) => q(`(${n} <= ${v(value)})`, c),
 				between: (min, max) => q(`(${n} BETWEEN ${v(min)} AND ${v(max)})`, c),
 				in:	(values) => q(`(${n} IN (${values.map(value => v(value)).join(', ')})`, c),
-				get attributeExists() { return q(`attribute_exists(${n})`, c) },
-				get attributeNotExists() { return q(`attribute_not_exists(${n})`, c) },
+				get exists() { return q(`attribute_exists(${n})`, c) },
+				// get attributeNotExists() { return q(`attribute_not_exists(${n})`, c) },
 				attributeType: (value) => q(`attribute_type(${n}, ${gen.value({ S: value })})`, c),
 				beginsWith: (value) => q(`begins_with(${n}, ${v(value)})`, c),
 				contains: (value) => q(`contains(${n}, ${gen.value(value as InferValue<T, P>, [ ...path, 0 ])})`, c),

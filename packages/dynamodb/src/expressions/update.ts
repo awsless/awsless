@@ -1,79 +1,88 @@
 
+import { BigFloat } from "@awsless/big-float"
 import { IDGenerator } from "../helper/id-generator"
+import { AttributeTypes } from "../structs/struct"
 import { AnyTableDefinition } from "../table"
 import { InferPath, InferValue } from "../types/infer"
 
-export type Update<T extends AnyTableDefinition> = Readonly<{
-	set: <P extends InferPath<T>>(...path:P) => Set<T, P>
-	remove: <P extends InferPath<T>>(...path:P) => Update<T>
-	add: <P extends InferPath<T>>(...path:P) => Value<T, P>
-	delete: <P extends InferPath<T>>(...path: P) => Value<T, P>
+export type UpdateExpression<T extends AnyTableDefinition> = Readonly<{
+	/** Define a custom update expression */
+	raw: (fn:(
+		path:<P extends InferPath<T>>(...path:P) => string,
+		value:(value:Record<AttributeTypes, any>) => string
+	) => string) => void
+
+	/** Update a given property */
+	update: <P extends InferPath<T>>(...path:P) => Update<T, P>
 }>
 
-type Set<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
-	value: (value:InferValue<T, P>) => Update<T>
-	sub: <P2 extends InferPath<T>>(...path:P2) => Setter<T, P2>
-	add: <P2 extends InferPath<T>>(...path:P2) => Setter<T, P2>
-	listAppend: (value:InferValue<T, P>) => Update<T>
-	ifNotExists: (value:InferValue<T, P>) => Update<T>
-}>
+type Update<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
 
-type Setter<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
-	to: (value:InferValue<T, P>) => Update<T>
-	ifNotExists: (value:InferValue<T, P>) => Update<T>
-}>
+	/** Set a value */
+	set: (value:InferValue<T, P>) => UpdateExpression<T>
 
-type Value<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
-	value: (...values:InferValue<T, P>[]) => Update<T>
+	/** Delete a property */
+	del: () => UpdateExpression<T>
+
+	/** Increment a numeric value */
+	incr: (value?:number | bigint | BigFloat, initialValue?: number | bigint | BigFloat) => UpdateExpression<T>
+
+	/** Decrement a numeric value */
+	decr: (value?:number | bigint | BigFloat, initialValue?: number | bigint | BigFloat) => UpdateExpression<T>
+
+	/** Append values to a Set */
+	append: (values:InferValue<T, P>) => UpdateExpression<T>
+
+	/** Remove values from a Set */
+	remove: (values:InferValue<T, P>) => UpdateExpression<T>
+
 }>
 
 export const updateExpression = <T extends AnyTableDefinition>(
-	options:{ update: (exp:Update<T>) => void },
+	options:{ update: (exp:UpdateExpression<T>) => void },
 	gen:IDGenerator<T>,
 ) => {
 	const sets:string[] = []
 	const adds:string[] = []
 	const rems:string[] = []
 	const dels:string[] = []
+	const raws:string[] = []
 
 	const q = <T>(list:string[], v: string, response:T):T => {
 		list.push(v)
 		return response
 	}
 
-	const update = (): Update<T> => ({
-		set: (...path) => set(path),
-		remove: (...path) => q(rems, `${gen.path(path)}`, update()),
-		add: (...path) => val(path),
-		delete: (...path) => val(path),
+	const start = (): UpdateExpression<T> => ({
+		update: (...path) => update(path),
+		raw: (fn) => {
+			raws.push(fn(
+				(...path) => gen.path(path),
+				(value) => gen.value(value),
+			))
+		}
 	})
 
-	const set = <P extends InferPath<T>>(path:P): Set<T, P> => {
+	const update = <P extends InferPath<T>>(path:P): Update<T, P> => {
 		const n = gen.path(path)
+		const v = (value:any) => gen.value(value, path)
+		const s = start()
+
 		return {
-			value: (value) => q(sets, `${n} = ${gen.value(value, path)}`, update()),
-			add: (...p2) => setter(p2, `${n} = ${gen.path(p2)} +`),
-			sub: (...p2) => setter(p2, `${n} = ${gen.path(p2)} -`),
-			listAppend: (value) => q(sets, `${n} = list_append(${n}, ${gen.value(value, path)})`, update()),
-			ifNotExists: (value) => q(sets, `${n} = if_not_exists(${n}, ${gen.value(value, path)})`, update()),
+			set: (value) => q(sets, `${n} = ${v(value)}`, s),
+			del: () => q(rems, n, s),
+			incr: (value = 1, initialValue = 0) => q(sets, `${n} = ${v(value)} + if_not_exists(${n}, ${v(initialValue)})`, s),
+			decr: (value = 1, initialValue = 0) => q(sets, `${n} = ${v(value)} - if_not_exists(${n}, ${v(initialValue)})`, s),
+			append: (values) => q(adds, `${n} ${v(values)}`, s),
+			remove: (values) => q(dels, `${n} ${v(values)}`, s),
 		}
 	}
 
-	const setter = <P extends InferPath<T>>(path:P, op:string): Setter<T, P> => {
-		return {
-			to: (value) => q(sets, `${op} ${gen.value(value, path)}`, update()),
-			ifNotExists: (value) => q(sets, `${op} if_not_exists(${gen.path(path)}, ${gen.value(value, path)})`, update()),
-		}
-	}
+	options.update(start())
 
-	const val = <P extends InferPath<T>>(path:P): Value<T, P> => {
-		const n = gen.path(path)
-		return {
-			value: (value) => q(adds, `${n} ${gen.value(value, path)}`, update()),
-		}
+	if(raws.length) {
+		return raws.join(' ')
 	}
-
-	options.update(update())
 
 	const query:string[] = []
 

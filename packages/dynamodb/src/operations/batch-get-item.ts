@@ -39,7 +39,7 @@ type BatchGetItem = {
 
 export const batchGetItem:BatchGetItem = async <
 	T extends AnyTableDefinition,
-	P extends ProjectionExpression<T> | undefined
+	P extends ProjectionExpression<T> | undefined = undefined
 >(
 	table: T,
 	keys: PrimaryKey<T>[],
@@ -77,11 +77,7 @@ export const batchGetItem:BatchGetItem = async <
 		]
 	}
 
-	if(options.filterNonExistentItems) {
-		return response
-	}
-
-	return keys.map(key => {
+	const list = keys.map(key => {
 		return response.find(item => {
 			for(const i in key) {
 				const k = i as keyof PrimaryKey<T>
@@ -94,4 +90,10 @@ export const batchGetItem:BatchGetItem = async <
 			return true
 		})
 	})
+
+	if(options.filterNonExistentItems) {
+		return list.filter(item => !!item)
+	}
+
+	return list
 }

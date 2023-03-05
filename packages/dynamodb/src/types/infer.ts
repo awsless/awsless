@@ -8,4 +8,7 @@ type WalkPath<Object, Path extends Array<unknown>> = (
 )
 
 export type InferPath<T extends AnyTableDefinition> = T['schema']['PATHS']
+
 export type InferValue<T extends AnyTableDefinition, P extends T['schema']['PATHS']> = WalkPath<T['schema']['INPUT'], P>
+
+export type InferOptionalPath<T extends AnyTableDefinition> = T['schema']['OPT_PATHS']

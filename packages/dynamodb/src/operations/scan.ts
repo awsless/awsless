@@ -31,8 +31,8 @@ type ScanResponse<
 
 export const scan = async <
 	T extends AnyTableDefinition,
-	P extends ProjectionExpression<T> | undefined,
-	I extends IndexNames<T> | undefined
+	P extends ProjectionExpression<T> | undefined = undefined,
+	I extends IndexNames<T> | undefined = undefined
 >(
 	table: T,
 	options: ScanOptions<T, P, I> = {}

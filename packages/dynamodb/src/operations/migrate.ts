@@ -5,21 +5,33 @@ import { Options } from '../types/options.js'
 import { putItem } from './put-item.js'
 import { scan } from './scan.js'
 
-type MigrateOptions<From extends AnyTableDefinition, To extends AnyTableDefinition> = Options & {
+type MigrateOptions<
+	From extends AnyTableDefinition,
+	To extends AnyTableDefinition
+> = Options & {
 	consistentRead?: boolean
 	batch?: number
 	transform: TransformCallback<From, To>
 }
 
-type TransformCallback<From extends AnyTableDefinition, To extends AnyTableDefinition> = {
-	(item:From['schema']['OUTPUT']): To['schema']['INPUT'] | Promise<To['schema']['INPUT']>
+type TransformCallback<
+	From extends AnyTableDefinition,
+	To extends AnyTableDefinition
+> = {
+	(item:From['schema']['OUTPUT']): (
+		To['schema']['INPUT'] |
+		Promise<To['schema']['INPUT']>
+	)
 }
 
 type MigrateResponse = {
 	itemsProcessed: number
 }
 
-export const migrate = async <From extends AnyTableDefinition, To extends AnyTableDefinition>(
+export const migrate = async <
+	From extends AnyTableDefinition,
+	To extends AnyTableDefinition
+>(
 	from: From,
 	to: To,
 	options: MigrateOptions<From, To>

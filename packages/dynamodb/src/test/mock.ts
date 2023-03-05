@@ -6,9 +6,10 @@ import { DynamoDBServer } from '@awsless/dynamodb-server'
 import { requestPort } from '@heat/request-port'
 import { SeedData, seed } from './seed'
 import { migrate } from './migrate'
+import { AnyTableDefinition } from '../table'
 
 export interface StartDynamoDBOptions {
-	tables: CreateTableCommandInput | CreateTableCommandInput[],
+	tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[],
 	timeout?: number
 	seed?: SeedData
 }
