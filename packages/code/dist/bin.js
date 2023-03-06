@@ -23,7 +23,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 var test = async (filters = []) => {
   const json = await readFile(join2(process.cwd(), "package.json"));
   const data = JSON.parse(json.toString());
-  const config = data?.vitest || {};
+  const config = { test: data?.vitest || {} };
   await startVitest("test", filters, {
     watch: false,
     ui: false

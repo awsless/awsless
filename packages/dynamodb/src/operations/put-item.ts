@@ -1,7 +1,7 @@
 
 import { client } from '../client.js'
 import { IDGenerator } from '../helper/id-generator.js'
-import { ReturnResponse, ReturnValues } from '../expressions/return.js'
+import { ReturnResponse, LimitedReturnValues } from '../expressions/return.js'
 import { conditionExpression } from '../expressions/conditions.js'
 import { MutateOptions } from '../types/options.js'
 import { AnyTableDefinition } from '../table.js'
@@ -9,7 +9,7 @@ import { PutItemCommand } from '@aws-sdk/client-dynamodb'
 
 export const putItem = async <
 	T extends AnyTableDefinition,
-	R extends ReturnValues = 'NONE'
+	R extends LimitedReturnValues = 'NONE'
 >(
 	table: T,
 	item: T['schema']['INPUT'],

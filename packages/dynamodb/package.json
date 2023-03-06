@@ -30,7 +30,7 @@
 	},
 	"vitest": {
 		"exclude": [
-			"test/aws/**/*"
+			"test/aws/*"
 		]
 	},
 	"dependencies": {

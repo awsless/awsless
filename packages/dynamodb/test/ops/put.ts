@@ -17,7 +17,7 @@ describe('Put', () => {
 	})
 
 	it('should return updated item', async () => {
-		const result = await putItem(users, user, { return: 'ALL_NEW' })
+		const result = await putItem(users, user, { return: 'ALL_OLD' })
 
 		expectTypeOf(result).toEqualTypeOf<{ id: number, name: string } | undefined>()
 		expect(result).toStrictEqual(user)

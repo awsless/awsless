@@ -333,7 +333,7 @@ var import_config = require("vitest/config");
 var test = async (filters = []) => {
   const json2 = await (0, import_promises4.readFile)((0, import_path8.join)(process.cwd(), "package.json"));
   const data = JSON.parse(json2.toString());
-  const config = data?.vitest || {};
+  const config = { test: data?.vitest || {} };
   await (0, import_node.startVitest)("test", filters, {
     watch: false,
     ui: false

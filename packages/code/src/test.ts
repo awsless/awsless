@@ -9,7 +9,7 @@ import { plugins } from './rollup/index'
 export const test = async (filters:string[] = []) => {
 	const json = await readFile(join(process.cwd(), 'package.json'))
 	const data = JSON.parse(json.toString())
-	const config = data?.vitest || {}
+	const config = { test: data?.vitest || {} }
 
 	await startVitest('test', filters, {
 		watch: false,
