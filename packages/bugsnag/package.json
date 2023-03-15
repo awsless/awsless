@@ -1,5 +1,5 @@
 {
-	"name": "@awsless/core",
+	"name": "@awsless/bugsnag",
 	"version": "0.0.1",
 	"license": "MIT",
 	"type": "module",

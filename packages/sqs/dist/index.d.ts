@@ -37,7 +37,7 @@ declare const sendMessageBatch: ({ client, queue, items }: SendMessageBatch) => 
 type Queues = {
     [key: string]: (payload: unknown) => unknown;
 };
-declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: unknown[]) => unknown>; };
+declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
 
 type Input<T> = {
     Records: {
@@ -80,8 +80,9 @@ declare const sqsStruct: <A, B>(body: Struct<A, B>) => Struct<{
 }>;
 declare const sqsInput: (records: unknown[]) => {
     Records: {
-        messageId: number;
+        messageId: string;
         body: string;
+        messageAttributes: {};
     }[];
 };
 

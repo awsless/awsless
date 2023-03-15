@@ -153,8 +153,9 @@ var sqsStruct = (body) => {
 var sqsInput = (records) => {
   return {
     Records: records.map((body, i) => ({
-      messageId: i,
-      body: JSON.stringify(body)
+      messageId: String(i),
+      body: JSON.stringify(body),
+      messageAttributes: {}
     }))
   };
 };
