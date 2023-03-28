@@ -1,0 +1,31 @@
+{
+	"name": "@awsless/redis-server",
+	"version": "0.0.1",
+	"license": "MIT",
+	"main": "./dist/index.js",
+	"module": "./dist/index.mjs",
+	"types": "./dist/index.d.ts",
+	"files": [
+		"dist"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"redisMemoryServer": {
+		"disablePostinstall": "1",
+		"systemBinary": "/usr/local/bin/redis-server"
+	},
+	"scripts": {
+		"test": "pnpm code test",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean --external vitest",
+		"prepublish": "pnpm test; pnpm build"
+	},
+	"dependencies": {
+		"ioredis": "^5.3.1",
+		"redis-memory-server": "^0.6.0"
+	}
+}
