@@ -10,9 +10,7 @@ describe('Update', () => {
 
 	it('should update', async () => {
 		const result1 = await updateItem(users, { id: 1 }, {
-			update(exp) {
-				exp.update('name').set('Jack')
-			},
+			update: (exp) => exp.update('name').set('Jack'),
 		})
 
 		expectTypeOf(result1).toBeVoid()
@@ -24,9 +22,7 @@ describe('Update', () => {
 
 	it('should return updated item', async () => {
 		const result = await updateItem(users, { id: 1 }, {
-			update(exp) {
-				exp.update('name').set('Edited')
-			},
+			update: (exp) => exp.update('name').set('Edited'),
 			return: 'ALL_NEW',
 		})
 
@@ -39,12 +35,8 @@ describe('Update', () => {
 
 	it('should update with condition', async () => {
 		const result = await updateItem(users, { id: 1 }, {
-			update(exp) {
-				exp.update('name').set('Jack')
-			},
-			condition(exp) {
-				exp.where('name').eq('Edited')
-			},
+			update: (exp) => exp.update('name').set('Jack'),
+			condition: (exp) => exp.where('name').eq('Edited'),
 			return: 'ALL_NEW',
 		})
 

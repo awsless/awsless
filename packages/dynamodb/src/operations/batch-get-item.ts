@@ -2,6 +2,7 @@
 import { BatchGetItemCommand } from "@aws-sdk/client-dynamodb"
 import { client } from "../client"
 import { projectionExpression, ProjectionExpression, ProjectionResponse } from "../expressions/projection"
+import { debug } from "../helper/debug"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition } from "../table"
 import { PrimaryKey } from "../types/key"
@@ -65,6 +66,7 @@ export const batchGetItem:BatchGetItem = async <
 			}
 		})
 
+		debug(options, command)
 		const result = await client(options).send(command)
 
 		unprocessedKeys = (result.UnprocessedKeys?.[ table.name ]?.Keys || []) as PrimaryKey<T>[]

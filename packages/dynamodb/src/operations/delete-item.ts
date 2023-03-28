@@ -1,12 +1,13 @@
 
 import { DeleteItemCommand } from '@aws-sdk/client-dynamodb'
-import { conditionExpression } from '../expressions/conditions.js'
+import { conditionExpression } from '../expressions/condition.js'
 import { ReturnResponse, LimitedReturnValues } from '../expressions/return.js'
 import { client } from '../client.js'
 import { IDGenerator } from '../helper/id-generator.js'
 import { AnyTableDefinition } from '../table.js'
 import { PrimaryKey } from '../types/key.js'
 import { MutateOptions } from '../types/options.js'
+import { debug } from '../helper/debug.js'
 
 export const deleteItem = async <
 	T extends AnyTableDefinition,
@@ -26,6 +27,7 @@ export const deleteItem = async <
 		...gen.attributes(),
 	})
 
+	debug(options, command)
 	const result = await client(options).send(command)
 
 	if(result.Attributes) {

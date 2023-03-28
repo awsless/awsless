@@ -1,53 +1,89 @@
 
-import { mockDynamoDB, putItem, ConditionalCheckFailedException, transactWrite, transactPut, TransactionCanceledException } from '../../src/index'
-import { users } from '../aws/tables'
+import { define, number, object, string, stringSet } from '../../src'
+import { Combine, Condition, conditionExpression } from '../../src/expressions/condition'
+import { IDGenerator } from '../../src/helper/id-generator'
 
-describe('Condition Exeption', () => {
+describe('Condition Expression', () => {
 
-	mockDynamoDB({ tables: [ users ] })
-
-	const user1 = { id: 1, name: 'John' }
-	const user2 = { id: 2, name: 'Gill' }
-
-	it('should fail on condition failure', async () => {
-		const promise = putItem(users, user1, {
-			condition(exp) { exp.where('id').exists }
-		})
-
-		await expect(promise)
-			.rejects.toThrow(ConditionalCheckFailedException)
+	const users = define('users', {
+		hash: 'id',
+		schema: object({
+			id: number(),
+			name: string(),
+			tags: stringSet(),
+		}),
 	})
 
-	it('should fail on transaction condition failure', async () => {
-		const promise = transactWrite({
-			items: [
-				transactPut(users, user1),
-				transactPut(users, user2, {
-					condition(exp) { exp.where('id').exists }
-				}),
-			]
+	const assert = (
+		expectation:string,
+		condition:(exp:Condition<typeof users>) => Combine<typeof users>,
+	) => {
+		it(expectation, async () => {
+			const gen = new IDGenerator(users)
+			const result = conditionExpression({ condition }, gen)
+
+			expect(result).toBe(expectation)
 		})
+	}
 
-		await expect(promise)
-			.rejects.toThrow(TransactionCanceledException)
+	assert(
+		'attribute_exists( #n1 ) OR NOT attribute_exists( #n1 )',
+		(exp) => exp
+			.where('id').exists
+			.or
+			.where('id').not.exists
+	)
 
-		try {
-			await promise
-		} catch(error) {
-			if(error instanceof TransactionCanceledException) {
-				expect(error.CancellationReasons).toStrictEqual([
-					{
-						Code: 'None',
-						Item: undefined,
-						Message: undefined
-					},
-					{
-						Code: 'ConditionalCheckFailed',
-						Item: undefined,
-						Message: expect.any(String) as string
-					},
-				])
-			}
-		}
-	})
+	assert(
+		'( #n1 = :v1 ) AND ( #n1 <> :v1 ) AND ( #n1 > :v1 ) AND ( #n1 >= :v1 ) AND ( #n1 < :v1 ) AND ( #n1 <= :v2 )',
+		(exp) => exp
+			.where('id').eq(1)
+			.and
+			.where('id').nq(1)
+			.and
+			.where('id').gt(1)
+			.and
+			.where('id').gte(1)
+			.and
+			.where('id').lt(1)
+			.and
+			.where('id').lte(0)
+	)
+
+	assert(
+		'( #n1 BETWEEN :v1 AND :v2 )',
+		(exp) => exp.where('id').between(1, 100)
+	)
+
+	assert(
+		'( size( #n1 ) > :v1 )',
+		(exp) => exp.where('id').size.gt(1)
+	)
+
+	assert(
+		'( #n1 IN ( :v1 , :v2 , :v3 ))',
+		(exp) => exp.where('id').in([1, 2, 3])
+	)
+
+	assert(
+		'attribute_type( #n1 , :v1 )',
+		(exp) => exp.where('id').attributeType('N')
+	)
+
+	assert(
+		'begins_with( #n1 , :v1 )',
+		(exp) => exp.where('name').beginsWith('start-')
+	)
+
+	assert(
+		'contains( #n1 , :v1 )',
+		(exp) => exp.where('tags').contains('tag')
+	)
+
+	assert(
+		'attribute_exists( #n1 ) OR NOT attribute_exists( #n1 )',
+		(exp) => exp
+			.extend(exp => true ? exp.where('id').exists.or : exp)
+			.where('id').not.exists
+	)
 })

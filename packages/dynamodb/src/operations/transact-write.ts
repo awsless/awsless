@@ -1,8 +1,9 @@
 
 import { AttributeValue, TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb"
 import { client } from "../client"
-import { Condition, conditionExpression } from "../expressions/conditions"
+import { Combine, Condition, conditionExpression } from "../expressions/condition"
 import { updateExpression, UpdateExpression } from "../expressions/update"
+import { debug } from "../helper/debug"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition } from "../table"
 import { PrimaryKey } from "../types/key"
@@ -54,11 +55,13 @@ export const transactWrite = async (options:TransactWriteOptions): Promise<void>
 		TransactItems: options.items
 	})
 
+	debug(options, command)
+
 	await client(options).send(command)
 }
 
 type ConditionCheckOptions<T extends AnyTableDefinition> = {
-	condition: (exp:Condition<T>) => void
+	condition: (exp:Condition<T>) => Combine<T>
 }
 
 export const transactConditionCheck = <T extends AnyTableDefinition>(
@@ -78,7 +81,7 @@ export const transactConditionCheck = <T extends AnyTableDefinition>(
 }
 
 type PutOptions<T extends AnyTableDefinition> = {
-	condition?: (exp:Condition<T>) => void
+	condition?: (exp:Condition<T>) => Combine<T>
 }
 
 export const transactPut = <T extends AnyTableDefinition>(
@@ -98,8 +101,8 @@ export const transactPut = <T extends AnyTableDefinition>(
 }
 
 type UpdateOptions<T extends AnyTableDefinition> = {
-	update: (exp:UpdateExpression<T>) => void
-	condition?: (exp:Condition<T>) => void
+	update: (exp:UpdateExpression<T>) => UpdateExpression<T>
+	condition?: (exp:Condition<T>) => Combine<T>
 }
 
 export const transactUpdate = <T extends AnyTableDefinition>(
@@ -120,7 +123,7 @@ export const transactUpdate = <T extends AnyTableDefinition>(
 }
 
 type DeleteOptions<T extends AnyTableDefinition> = {
-	condition?: (exp:Condition<T>) => void
+	condition?: (exp:Condition<T>) => Combine<T>
 }
 
 export const transactDelete = <T extends AnyTableDefinition>(

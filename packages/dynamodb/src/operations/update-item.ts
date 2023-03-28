@@ -2,18 +2,19 @@
 import { client } from '../client.js'
 import { UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { MutateOptions } from '../types/options.js'
-import { conditionExpression } from '../expressions/conditions.js'
+import { conditionExpression } from '../expressions/condition.js'
 import { ReturnResponse, ReturnValues } from '../expressions/return.js'
 import { AnyTableDefinition } from '../table.js'
 import { PrimaryKey } from '../types/key.js'
 import { IDGenerator } from '../helper/id-generator.js'
 import { updateExpression, UpdateExpression } from '../expressions/update.js'
+import { debug } from '../helper/debug.js'
 
 type UpdateOptions<
 	T extends AnyTableDefinition,
 	R extends ReturnValues = 'NONE'
 > = MutateOptions<T, R> & {
-	update: (exp:UpdateExpression<T>) => void
+	update: (exp:UpdateExpression<T>) => UpdateExpression<T>
 }
 
 export const updateItem = async <
@@ -34,6 +35,8 @@ export const updateItem = async <
 		ReturnValues: options.return,
 		...gen.attributes(),
 	})
+
+	debug(options, command)
 
 	const result = await client(options).send(command)
 

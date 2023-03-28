@@ -26,7 +26,7 @@ describe('Query', () => {
 		])
 
 		const result = await query(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) }
+			keyCondition: (exp) => exp.where('userId').eq(1)
 		})
 
 		expect(result).toStrictEqual({
@@ -42,7 +42,7 @@ describe('Query', () => {
 
 	it('should query list backwards', async () => {
 		const result = await query(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			forward: false,
 		})
 
@@ -59,7 +59,7 @@ describe('Query', () => {
 
 	it('should support limit & cursor', async () => {
 		const result1 = await query(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			limit: 1,
 		})
 
@@ -74,7 +74,7 @@ describe('Query', () => {
 		})
 
 		const result2 = await query(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			cursor: result1.cursor,
 			limit: 1,
 		})
@@ -91,12 +91,10 @@ describe('Query', () => {
 	it('should support index', async () => {
 		const result = await query(posts, {
 			index: 'list',
-			keyCondition(exp) {
-				exp
-					.where('userId').eq(1)
-					.and
-					.where('sortId').eq(1)
-			},
+			keyCondition: (exp) => exp
+				.where('userId').eq(1)
+				.and
+				.where('sortId').eq(1)
 		})
 
 		expect(result).toStrictEqual({

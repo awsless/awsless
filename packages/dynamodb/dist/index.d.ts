@@ -1,10 +1,10 @@
 import { Numeric, BigFloat } from '@awsless/big-float';
-import { CreateTableCommandInput, DynamoDBClient, AttributeValue } from '@aws-sdk/client-dynamodb';
+import { CreateTableCommandInput, AttributeValue, DynamoDBClient } from '@aws-sdk/client-dynamodb';
 export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-type AttributeTypes = 'S' | 'N' | 'B' | 'BOOL' | 'L' | 'M' | 'SS' | 'NS' | 'BS';
+type AttributeTypes = 'S' | 'N' | 'B' | 'BOOL' | 'DATE' | 'L' | 'M' | 'SS' | 'NS' | 'BS';
 type AnyStruct = Struct<any, any, any, Array<string | number>, Array<string | number>, AttributeTypes, boolean>;
 declare class Struct<Marshalled, Input, Output, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Type extends AttributeTypes = AttributeTypes, Optional extends boolean = false> {
     readonly type: Type;
@@ -22,6 +22,8 @@ declare class Struct<Marshalled, Input, Output, Paths extends Array<string | num
     unmarshall(value: Record<Type, Marshalled>): Output;
 }
 
+type InferInput$1<T extends AnyTableDefinition> = T['schema']['INPUT'];
+type InferOutput$1<T extends AnyTableDefinition> = T['schema']['OUTPUT'];
 type AnyTableDefinition = TableDefinition<AnyStruct, Extract<keyof AnyStruct['INPUT'], string>, Extract<keyof AnyStruct['INPUT'], string> | undefined, any>;
 type IndexNames<T extends AnyTableDefinition> = Extract<keyof T['indexes'], string>;
 type TableIndex<Struct extends AnyStruct> = {
@@ -97,6 +99,8 @@ type ArrayPaths<L extends AnyStruct> = [number] | [number, ...L['PATHS']];
 type ArrayOptPaths<L extends AnyStruct> = [number] | [number, ...L['OPT_PATHS']];
 declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, AttributeTypes, false>;
 
+declare const date: () => Struct<string, Date, Date, [], [], AttributeTypes, false>;
+
 declare const stringSet: () => Struct<string[], Set<string>, Set<string>, [], [], AttributeTypes, false>;
 
 declare const numberSet: () => Struct<string[], Set<number>, Set<number>, [], [], AttributeTypes, false>;
@@ -118,41 +122,64 @@ declare const mockDynamoDB: (configOrServer: StartDynamoDBOptions | DynamoDBServ
 
 type WalkPath<Object, Path extends Array<unknown>> = (Path extends [infer Key extends keyof Object, ...infer Rest] ? WalkPath<Object[Key], Rest> : Object);
 type InferPath<T extends AnyTableDefinition> = T['schema']['PATHS'];
-type InferValue$1<T extends AnyTableDefinition, P extends T['schema']['PATHS']> = WalkPath<T['schema']['INPUT'], P>;
+type InferValue$1<T extends AnyTableDefinition, P extends InferPath<T>> = WalkPath<T['schema']['INPUT'], P>;
+type InferSetValue<T extends AnyTableDefinition, P extends InferPath<T>> = Parameters<InferValue$1<T, P>['add']>[0];
 
-type InferSetType<T extends AnyTableDefinition, P extends InferPath<T>> = (Parameters<InferValue$1<T, P>['add']>[0]);
-type Condition<T extends AnyTableDefinition> = Readonly<{
-    where: <P extends InferPath<T>>(...path: P) => Where$1<T, P>;
-}>;
-type Where$1<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
-    not: Where$1<T, P>;
-    eq: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    nq: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    gt: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    gte: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    lt: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    lte: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    between: (min: InferValue$1<T, P>, max: InferValue$1<T, P>) => Combiner$1<T>;
-    in: (values: InferValue$1<T, P>[]) => Combiner$1<T>;
-    exists: Combiner$1<T>;
-    attributeType: (value: AttributeTypes) => Combiner$1<T>;
-    beginsWith: (value: InferValue$1<T, P>) => Combiner$1<T>;
-    contains: (value: InferSetType<T, P>) => Combiner$1<T>;
-    size: Size<T>;
-}>;
-type Size<T extends AnyTableDefinition> = Readonly<{
-    eq: (value: number | bigint) => Combiner$1<T>;
-    nq: (value: number | bigint) => Combiner$1<T>;
-    gt: (value: number | bigint) => Combiner$1<T>;
-    gte: (value: number | bigint) => Combiner$1<T>;
-    lt: (value: number | bigint) => Combiner$1<T>;
-    lte: (value: number | bigint) => Combiner$1<T>;
-    between: (min: number | bigint, max: number | bigint) => Combiner$1<T>;
-}>;
-type Combiner$1<T extends AnyTableDefinition> = Readonly<{
-    and: Condition<T>;
-    or: Condition<T>;
-}>;
+type ChainValue<T extends AnyTableDefinition> = {
+    v: AttributeValue;
+    p?: InferPath<T>;
+};
+type ChainPath<T extends AnyTableDefinition> = {
+    p: InferPath<T>;
+};
+declare const key$1: unique symbol;
+type ChainItem<T extends AnyTableDefinition> = ChainValue<T> | ChainPath<T> | string;
+type ChainItems<T extends AnyTableDefinition> = Array<ChainItem<T>>;
+declare class Chain$1<T extends AnyTableDefinition> {
+    [key$1]: ChainItems<T>;
+    constructor(query: ChainItems<T>);
+}
+
+declare class Condition<T extends AnyTableDefinition> extends Chain$1<T> {
+    where<P extends InferPath<T>>(...path: P): Where$1<T, P>;
+    extend<R extends Combine$1<T> | Condition<T> | void>(fn: (exp: Condition<T>) => R): R;
+}
+declare class Where$1<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain$1<T> {
+    private path;
+    constructor(query: ChainItems<T>, path: P);
+    get not(): Where$1<T, P>;
+    get exists(): Combine$1<T>;
+    get size(): Size<T, P>;
+    private compare;
+    private fn;
+    eq(value: InferValue$1<T, P>): Combine$1<T>;
+    nq(value: InferValue$1<T, P>): Combine$1<T>;
+    gt(value: InferValue$1<T, P>): Combine$1<T>;
+    gte(value: InferValue$1<T, P>): Combine$1<T>;
+    lt(value: InferValue$1<T, P>): Combine$1<T>;
+    lte(value: InferValue$1<T, P>): Combine$1<T>;
+    between(min: InferValue$1<T, P>, max: InferValue$1<T, P>): Combine$1<T>;
+    in(values: InferValue$1<T, P>[]): Combine$1<T>;
+    attributeType(value: AttributeTypes): Combine$1<T>;
+    beginsWith(value: string): Combine$1<T>;
+    contains(value: InferSetValue<T, P>): Combine$1<T>;
+}
+declare class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain$1<T> {
+    private path;
+    constructor(query: ChainItems<T>, path: P);
+    private compare;
+    eq(value: number | bigint | BigFloat): Combine$1<T>;
+    nq(value: number | bigint | BigFloat): Combine$1<T>;
+    gt(value: number | bigint | BigFloat): Combine$1<T>;
+    gte(value: number | bigint | BigFloat): Combine$1<T>;
+    lt(value: number | bigint | BigFloat): Combine$1<T>;
+    lte(value: number | bigint | BigFloat): Combine$1<T>;
+    between(min: number | bigint | BigFloat, max: number | bigint | BigFloat): Combine$1<T>;
+}
+declare class Combine$1<T extends AnyTableDefinition> extends Chain$1<T> {
+    get and(): Condition<T>;
+    get or(): Condition<T>;
+}
 
 type ReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW';
 type LimitedReturnValues = 'NONE' | 'ALL_OLD';
@@ -160,9 +187,10 @@ type ReturnResponse<T extends AnyTableDefinition, R extends ReturnValues | Limit
 
 interface Options {
     client?: DynamoDBClient;
+    debug?: boolean;
 }
 interface MutateOptions<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> extends Options {
-    condition?: (exp: Condition<T>) => void;
+    condition?: (exp: Condition<T>) => Combine$1<T>;
     return?: R;
 }
 
@@ -174,6 +202,12 @@ declare const dynamoDBDocumentClient: {
     (): DynamoDBDocumentClient;
     set(client: DynamoDBDocumentClient): void;
 };
+
+declare module '@aws-sdk/client-dynamodb' {
+    interface TransactionCanceledException {
+        conditionFailedAt: (index: number) => boolean;
+    }
+}
 
 type DeepPick<O, P> = (P extends keyof O ? {
     [_ in P]: O[P];
@@ -202,29 +236,45 @@ declare const getItem: <T extends AnyTableDefinition, P extends ProjectionExpres
 
 declare const putItem: <T extends AnyTableDefinition, R extends LimitedReturnValues = "NONE">(table: T, item: T["schema"]["INPUT"], options?: MutateOptions<T, R>) => Promise<ReturnResponse<T, R>>;
 
-type UpdateExpression<T extends AnyTableDefinition> = Readonly<{
-    /** Define a custom update expression */
-    raw: (fn: (path: <P extends InferPath<T>>(...path: P) => string, value: (value: Record<AttributeTypes, any>) => string) => string) => void;
+declare const key: unique symbol;
+type ChainData<T extends AnyTableDefinition> = {
+    readonly set: ChainItem<T>[][];
+    readonly add: ChainItem<T>[][];
+    readonly rem: ChainItem<T>[][];
+    readonly del: ChainItem<T>[][];
+};
+declare class Chain<T extends AnyTableDefinition> {
+    [key]: ChainData<T>;
+    constructor(data: ChainData<T>);
+}
+declare class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
     /** Update a given property */
-    update: <P extends InferPath<T>>(...path: P) => Update$1<T, P>;
-}>;
-type Update$1<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
+    update<P extends InferPath<T>>(...path: P): Update$1<T, P>;
+    extend<R extends UpdateExpression<T> | void>(fn: (exp: UpdateExpression<T>) => R): R;
+}
+declare class Update$1<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
+    private path;
+    constructor(query: ChainData<T>, path: P);
+    private u;
+    private i;
     /** Set a value */
-    set: (value: InferValue$1<T, P>) => UpdateExpression<T>;
+    set(value: InferValue$1<T, P>): UpdateExpression<T>;
+    /** Set a value if the attribute doesn't already exists */
+    setIfNotExists(value: InferValue$1<T, P>): UpdateExpression<T>;
     /** Delete a property */
-    del: () => UpdateExpression<T>;
+    del(): UpdateExpression<T>;
     /** Increment a numeric value */
-    incr: (value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat) => UpdateExpression<T>;
+    incr(value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat): UpdateExpression<T>;
     /** Decrement a numeric value */
-    decr: (value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat) => UpdateExpression<T>;
+    decr(value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat): UpdateExpression<T>;
     /** Append values to a Set */
-    append: (values: InferValue$1<T, P>) => UpdateExpression<T>;
+    append(values: InferValue$1<T, P>): UpdateExpression<T>;
     /** Remove values from a Set */
-    remove: (values: InferValue$1<T, P>) => UpdateExpression<T>;
-}>;
+    remove(values: InferValue$1<T, P>): UpdateExpression<T>;
+}
 
 type UpdateOptions$1<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> = MutateOptions<T, R> & {
-    update: (exp: UpdateExpression<T>) => void;
+    update: (exp: UpdateExpression<T>) => UpdateExpression<T>;
 };
 declare const updateItem: <T extends AnyTableDefinition, R extends ReturnValues = "NONE">(table: T, key: PrimaryKey<T, undefined>, options: UpdateOptions$1<T, R>) => Promise<ReturnResponse<T, R>>;
 
@@ -241,27 +291,33 @@ type BatchGetItem = {
 };
 declare const batchGetItem: BatchGetItem;
 
+declare const batchPutItem: <T extends AnyTableDefinition>(table: T, items: T["schema"]["INPUT"][], options?: Options) => Promise<void>;
+
 type PrimaryKeyNames<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? T['indexes'][I]['hash'] | T['indexes'][I]['sort'] : T['indexes'][I]['hash'] : T['sort'] extends string ? T['hash'] | T['sort'] : T['hash']);
 type InferValue<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> = T['schema']['INPUT'][P];
-type KeyCondition<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = Readonly<{
-    where: <P extends PrimaryKeyNames<T, I>>(path: P) => Where<T, P, I>;
-}>;
-type Where<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> = Readonly<{
-    eq: (value: InferValue<T, P, I>) => Combiner<T, I>;
-    gt: (value: InferValue<T, P, I>) => Combiner<T, I>;
-    gte: (value: InferValue<T, P, I>) => Combiner<T, I>;
-    lt: (value: InferValue<T, P, I>) => Combiner<T, I>;
-    lte: (value: InferValue<T, P, I>) => Combiner<T, I>;
-    between: (min: InferValue<T, P, I>, max: InferValue<T, P, I>) => Combiner<T, I>;
-    beginsWith: (value: InferValue<T, P, I>) => Combiner<T, I>;
-}>;
-type Combiner<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = Readonly<{
-    and: KeyCondition<T, I>;
-    or: KeyCondition<T, I>;
-}>;
+declare class KeyCondition<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends Chain$1<T> {
+    where<P extends PrimaryKeyNames<T, I>>(path: P): Where<T, P, I>;
+    extend<R extends Combine<T, I> | KeyCondition<T, I> | void>(fn: (exp: KeyCondition<T, I>) => R): R;
+}
+declare class Where<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> extends Chain$1<T> {
+    private path;
+    constructor(query: ChainItems<T>, path: P);
+    private compare;
+    eq(value: InferValue<T, P, I>): Combine<T, I>;
+    gt(value: InferValue<T, P, I>): Combine<T, I>;
+    gte(value: InferValue<T, P, I>): Combine<T, I>;
+    lt(value: InferValue<T, P, I>): Combine<T, I>;
+    lte(value: InferValue<T, P, I>): Combine<T, I>;
+    between(min: InferValue<T, P, I>, max: InferValue<T, P, I>): Combine<T, I>;
+    beginsWith(value: InferValue<T, P, I>): Combine<T, I>;
+}
+declare class Combine<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends Chain$1<T> {
+    get and(): KeyCondition<T, I>;
+    get or(): KeyCondition<T, I>;
+}
 
 type PaginationOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
-    keyCondition: (exp: KeyCondition<T, I>) => void;
+    keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
     projection?: P;
     index?: I;
     consistentRead?: boolean;
@@ -277,7 +333,7 @@ type PaginationResponse<T extends AnyTableDefinition, P extends ProjectionExpres
 declare const pagination: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options: PaginationOptions<T, P, I>) => Promise<PaginationResponse<T, P>>;
 
 type QueryOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
-    keyCondition: (exp: KeyCondition<T, I>) => void;
+    keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
     projection?: P;
     index?: I;
     consistentRead?: boolean;
@@ -341,20 +397,20 @@ type TransactWriteOptions = Options & {
 type Transactable<T extends AnyTableDefinition> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>;
 declare const transactWrite: (options: TransactWriteOptions) => Promise<void>;
 type ConditionCheckOptions<T extends AnyTableDefinition> = {
-    condition: (exp: Condition<T>) => void;
+    condition: (exp: Condition<T>) => Combine$1<T>;
 };
 declare const transactConditionCheck: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options: ConditionCheckOptions<T>) => ConditionCheck<T>;
 type PutOptions<T extends AnyTableDefinition> = {
-    condition?: (exp: Condition<T>) => void;
+    condition?: (exp: Condition<T>) => Combine$1<T>;
 };
 declare const transactPut: <T extends AnyTableDefinition>(table: T, item: T["schema"]["INPUT"], options?: PutOptions<T>) => Put<T>;
 type UpdateOptions<T extends AnyTableDefinition> = {
-    update: (exp: UpdateExpression<T>) => void;
-    condition?: (exp: Condition<T>) => void;
+    update: (exp: UpdateExpression<T>) => UpdateExpression<T>;
+    condition?: (exp: Condition<T>) => Combine$1<T>;
 };
 declare const transactUpdate: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options: UpdateOptions<T>) => Update<T>;
 type DeleteOptions<T extends AnyTableDefinition> = {
-    condition?: (exp: Condition<T>) => void;
+    condition?: (exp: Condition<T>) => Combine$1<T>;
 };
 declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => Delete<T>;
 
@@ -371,4 +427,4 @@ type MigrateResponse = {
 };
 declare const migrate: <From extends AnyTableDefinition, To extends AnyTableDefinition>(from: From, to: To, options: MigrateOptions<From, To>) => Promise<MigrateResponse>;
 
-export { array, batchGetItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, pagination, putItem, query, scan, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, updateItem };
+export { InferInput$1 as InferInput, InferOutput$1 as InferOutput, TableDefinition, array, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, pagination, putItem, query, scan, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, updateItem };

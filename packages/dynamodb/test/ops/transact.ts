@@ -37,9 +37,9 @@ describe('DynamoDB Transact', () => {
 	it('should update', async () => {
 		await transactWrite({
 			items: [
-				transactUpdate(users, { id: 1 }, { update(exp) { exp.update('name').set('Test') }}),
-				transactUpdate(users, { id: 2 }, { update(exp) { exp.update('name').set('Test') }}),
-				transactUpdate(users, { id: 3 }, { update(exp) { exp.update('name').set('Test') }}),
+				transactUpdate(users, { id: 1 }, { update: (exp) => exp.update('name').set('Test') }),
+				transactUpdate(users, { id: 2 }, { update: (exp) => exp.update('name').set('Test') }),
+				transactUpdate(users, { id: 3 }, { update: (exp) => exp.update('name').set('Test') }),
 			]
 		})
 
@@ -76,9 +76,7 @@ describe('DynamoDB Transact', () => {
 		await transactWrite({
 			items: [
 				transactConditionCheck(users, { id: 0 }, {
-					condition(exp) {
-						exp.where('id').not.exists
-					}
+					condition: (exp) => exp.where('id').not.exists
 				}),
 
 				transactPut(users, { id: 1 }),
@@ -97,9 +95,7 @@ describe('DynamoDB Transact', () => {
 		const promise = transactWrite({
 			items: [
 				transactConditionCheck(users, { id: 1 }, {
-					condition(exp) {
-						exp.where('id').not.exists
-					}
+					condition: (exp) => exp.where('id').not.exists
 				}),
 				transactPut(users, { id: 2 }),
 			]

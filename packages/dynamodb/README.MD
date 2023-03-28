@@ -48,7 +48,7 @@ const user = await getItem(posts, { userId: 1, id: 1 })
 // Update a post in the posts table
 await updateItem(posts, { userId: 1, id: 1 }, {
 	update(exp) {
-		exp.update('title').set('Hi...')
+		return exp.update('title').set('Hi...')
 	}
 })
 
@@ -58,14 +58,14 @@ await deleteItem(posts, { userId: 1, id: 1 })
 // List posts from user 1
 const { items, cursor } = await query(posts, {
 	keyCondition(exp) {
-		exp.where('userId').eq(1)
+		return exp.where('userId').eq(1)
 	}
 })
 
 // List posts from user 1 but with stringified cursors
 const { items, cursor } = await pagination(posts, {
 	keyCondition(exp) {
-		exp.where('userId').eq(1)
+		return exp.where('userId').eq(1)
 	}
 })
 
@@ -77,7 +77,7 @@ await transactWrite({
 	items: [
 		transactConditionCheck(posts, { userId: 1, id: 0 }, {
 			condition(exp) {
-        		exp.where('id').not.exists
+        		return exp.where('id').not.exists
         	}
 		}),
 

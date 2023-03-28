@@ -1,5 +1,5 @@
 
-import { KeyCondition } from '../expressions/key-condition.js'
+import { Combine, KeyCondition } from '../expressions/key-condition.js'
 import { ProjectionExpression, ProjectionResponse } from '../expressions/projection.js'
 import { fromCursor, toCursor } from '../helper/cursor.js'
 import { AnyTableDefinition, IndexNames } from '../table.js'
@@ -12,7 +12,7 @@ type PaginationOptions<
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined
 > = Options & {
-	keyCondition: (exp: KeyCondition<T, I>) => void
+	keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>
 	projection?: P
 	index?: I
 	consistentRead?: boolean

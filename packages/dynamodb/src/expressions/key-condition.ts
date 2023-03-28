@@ -1,4 +1,5 @@
 
+import { build, Chain, chainData, ChainItems, merge as m } from "../helper/chainable"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition, IndexNames } from "../table"
 
@@ -15,47 +16,67 @@ type PrimaryKeyNames<
 		: T['hash']
 )
 
-// type PrimaryKeyNames<
-// 	T extends AnyTableDefinition,
-// 	I extends IndexNames<T> | undefined
-// > = (
-// 	I extends IndexNames<T> ? 'INDEX' : 'NORMAL'
-// )
-
 type InferValue<
 	T extends AnyTableDefinition,
 	P extends PrimaryKeyNames<T, I>,
 	I extends IndexNames<T> | undefined
 > = T['schema']['INPUT'][P]
 
-export type KeyCondition<
+export class KeyCondition<
 	T extends AnyTableDefinition,
 	I extends IndexNames<T> | undefined
-> = Readonly<{
-	where: <P extends PrimaryKeyNames<T, I>>(path:P) => Where<T, P, I>
-}>
+> extends Chain<T> {
+	where<P extends PrimaryKeyNames<T, I>>(path:P) {
+		return new Where<T, P, I>(m(this), path)
+	}
 
-type Where<
+	extend<R extends Combine<T, I> | KeyCondition<T, I> | void>(fn:(exp:KeyCondition<T, I>) => R): R {
+		return fn(this)
+	}
+}
+
+class Where<
 	T extends AnyTableDefinition,
 	P extends PrimaryKeyNames<T, I>,
 	I extends IndexNames<T> | undefined
-> = Readonly<{
-	eq: (value:InferValue<T, P, I>) => Combiner<T, I>
-	gt: (value:InferValue<T, P, I>) => Combiner<T, I>
-	gte: (value:InferValue<T, P, I>) => Combiner<T, I>
-	lt: (value:InferValue<T, P, I>) => Combiner<T, I>
-	lte: (value:InferValue<T, P, I>) => Combiner<T, I>
-	between: (min: InferValue<T, P, I>, max: InferValue<T, P, I>) => Combiner<T, I>
-	beginsWith: (value:InferValue<T, P, I>) => Combiner<T, I>
-}>
+> extends Chain<T> {
+	constructor(query:ChainItems<T>, private path:P) {
+		super(query)
+	}
 
-type Combiner<
+	private compare(comparator:string, v:InferValue<T, P, I>) {
+		return new Combine<T, I>(m(this, '(', { p:[ this.path ] }, comparator, { v, p:[ this.path ] }, ')'))
+	}
+
+	eq(value:InferValue<T, P, I>) { return this.compare('=', value) }
+	gt(value:InferValue<T, P, I>) { return this.compare('>', value) }
+	gte(value:InferValue<T, P, I>) { return this.compare('>=', value) }
+	lt(value:InferValue<T, P, I>) { return this.compare('<', value) }
+	lte(value:InferValue<T, P, I>) { return this.compare('<=', value) }
+
+	between(min:InferValue<T, P, I>, max:InferValue<T, P, I>) {
+		return new Combine<T, I>(m(this, '(',
+			{ p: [ this.path ] }, 'BETWEEN', { v: min, p: [ this.path ] }, 'AND', { v:max, p: [ this.path ] },
+		')'))
+	}
+
+	beginsWith(value:InferValue<T, P, I>) {
+		return new Combine<T, I>(m(this, 'begins_with(', { p: [ this.path ] }, ',', { v: value, p: [ this.path ] }, ')'))
+	}
+}
+
+export class Combine<
 	T extends AnyTableDefinition,
 	I extends IndexNames<T> | undefined
-> = Readonly<{
-	and: KeyCondition<T, I>
-	or: KeyCondition<T, I>
-}>
+> extends Chain<T> {
+	get and() {
+		return new KeyCondition<T, I>(m(this, 'AND'))
+	}
+
+	get or() {
+		return new KeyCondition<T, I>(m(this, 'OR'))
+	}
+}
 
 export const keyConditionExpression = <
 	T extends AnyTableDefinition,
@@ -63,43 +84,13 @@ export const keyConditionExpression = <
 >(
 	options:{
 		index?: I
-		keyCondition: (exp:KeyCondition<T, I>) => void
+		keyCondition: (exp:KeyCondition<T, I>) => Combine<T, I>
 	},
 	gen:IDGenerator<T>,
 ) => {
 
-	const query:string[] = []
-	const q = <T>(v: string, response:T):T => {
-		query.push(v)
-		return response
-	}
+	const condition = options.keyCondition(new KeyCondition<T, I>([]))
+	const query = build(chainData(condition), gen).join(' ')
 
-	const condition = (): KeyCondition<T, I> => ({
-		where: (path) => where(path)
-	})
-
-	const where = <P extends PrimaryKeyNames<T, I>>(path:P): Where<T, P, I> => {
-		const n = gen.path(path)
-		const v = (value:InferValue<T, P, I>) => gen.value(value, [ path ])
-		const c = combiner()
-
-		return {
-			eq: (value) => q(`(${n} = ${v(value)})`, c),
-			gt: (value) => q(`(${n} > ${v(value)})`, c),
-			gte: (value) => q(`(${n} >= ${v(value)})`, c),
-			lt: (value) => q(`(${n} < ${v(value)})`, c),
-			lte: (value) => q(`(${n} <= ${v(value)})`, c),
-			between: (min, max) => q(`(${n} BETWEEN ${v(min)} AND ${v(max)})`, c),
-			beginsWith: (value) => q(`begins_with(${n}, ${v(value)})`, c),
-		}
-	}
-
-	const combiner = ():Combiner<T, I> => ({
-		get and() { return q(`AND`, condition()) },
-		get or() { return q(`OR`, condition()) },
-	})
-
-	options.keyCondition(condition())
-
-	return query.join(' ')
+	return query
 }

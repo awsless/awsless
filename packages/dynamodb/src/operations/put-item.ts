@@ -2,10 +2,11 @@
 import { client } from '../client.js'
 import { IDGenerator } from '../helper/id-generator.js'
 import { ReturnResponse, LimitedReturnValues } from '../expressions/return.js'
-import { conditionExpression } from '../expressions/conditions.js'
+import { conditionExpression } from '../expressions/condition.js'
 import { MutateOptions } from '../types/options.js'
 import { AnyTableDefinition } from '../table.js'
 import { PutItemCommand } from '@aws-sdk/client-dynamodb'
+import { debug } from '../helper/debug.js'
 
 export const putItem = async <
 	T extends AnyTableDefinition,
@@ -25,6 +26,7 @@ export const putItem = async <
 		...gen.attributes(),
 	})
 
+	debug(options, command)
 	const result = await client(options).send(command)
 
 	if(result.Attributes) {

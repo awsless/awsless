@@ -26,9 +26,7 @@ describe('Put', () => {
 	it('should put when condition is successful', async () => {
 		const other = { ...user, id: 2 }
 		await putItem(users, other, {
-			condition(exp) {
-				exp.where('id').not.exists
-			}
+			condition: (exp) => exp.where('id').not.exists,
 		})
 
 		const result = await getItem(users, { id: 2 })
@@ -37,9 +35,7 @@ describe('Put', () => {
 
 	it('should not put when condition fails', async () => {
 		await expect(putItem(users, user, {
-			condition(exp) {
-				exp.where('id').not.exists
-			}
+			condition: (exp) => exp.where('id').not.exists,
 		})).rejects.toThrow(ConditionalCheckFailedException)
 	})
 })

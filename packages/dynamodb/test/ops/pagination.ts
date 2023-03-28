@@ -25,7 +25,7 @@ describe('Pagination', () => {
 		])
 
 		const result = await pagination(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) }
+			keyCondition: (exp) => exp.where('userId').eq(1),
 		})
 
 		expect(result).toStrictEqual({
@@ -41,7 +41,7 @@ describe('Pagination', () => {
 
 	it('should pagination list backwards', async () => {
 		const result = await pagination(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			forward: false,
 		})
 
@@ -58,7 +58,7 @@ describe('Pagination', () => {
 
 	it('should support limit & cursor', async () => {
 		const result1 = await pagination(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			limit: 1,
 		})
 
@@ -73,7 +73,7 @@ describe('Pagination', () => {
 		})
 
 		const result2 = await pagination(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			cursor: result1.cursor,
 			limit: 1,
 		})
@@ -90,12 +90,10 @@ describe('Pagination', () => {
 	it('should support index', async () => {
 		const result = await pagination(posts, {
 			index: 'list',
-			keyCondition(exp) {
-				exp
-					.where('userId').eq(1)
-					.and
-					.where('sortId').eq(1)
-			},
+			keyCondition: (exp) => exp
+				.where('userId').eq(1)
+				.and
+				.where('sortId').eq(1)
 		})
 
 		expect(result).toStrictEqual({
@@ -109,7 +107,7 @@ describe('Pagination', () => {
 
 	it('should not return cursor when no more items are available', async () => {
 		const result = await pagination(posts, {
-			keyCondition(exp) { exp.where('userId').eq(1) },
+			keyCondition: (exp) => exp.where('userId').eq(1),
 			limit: 3,
 		})
 

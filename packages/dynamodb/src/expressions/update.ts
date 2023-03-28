@@ -1,95 +1,153 @@
 
 import { BigFloat } from "@awsless/big-float"
+import { build, ChainItem, ChainItems } from "../helper/chainable"
 import { IDGenerator } from "../helper/id-generator"
-import { AttributeTypes } from "../structs/struct"
 import { AnyTableDefinition } from "../table"
 import { InferPath, InferValue } from "../types/infer"
 
-export type UpdateExpression<T extends AnyTableDefinition> = Readonly<{
-	/** Define a custom update expression */
-	raw: (fn:(
-		path:<P extends InferPath<T>>(...path:P) => string,
-		value:(value:Record<AttributeTypes, any>) => string
-	) => string) => void
+const key = Symbol()
+
+type ChainData<T extends AnyTableDefinition> = {
+	readonly set: ChainItem<T>[][]
+	readonly add: ChainItem<T>[][]
+	readonly rem: ChainItem<T>[][]
+	readonly del: ChainItem<T>[][]
+}
+
+class Chain<T extends AnyTableDefinition> {
+	[key]: ChainData<T>
+
+	constructor(data:ChainData<T>) {
+		this[key] = data
+	}
+}
+
+const m = <T extends AnyTableDefinition>(chain:Chain<T>, op?: keyof ChainData<T>, ...items:ChainItems<T>):ChainData<T> => {
+	const d = chain[key]
+	const n = {
+		set: [ ...d.set ],
+		add: [ ...d.add ],
+		rem: [ ...d.rem ],
+		del: [ ...d.del ],
+	}
+
+	if(op && items.length) {
+		n[op].push(items)
+	}
+
+	return n
+}
+
+export class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
 
 	/** Update a given property */
-	update: <P extends InferPath<T>>(...path:P) => Update<T, P>
-}>
+	update<P extends InferPath<T>>(...path:P) {
+		return new Update<T, P>(m(this), path)
+	}
 
-type Update<T extends AnyTableDefinition, P extends InferPath<T>> = Readonly<{
+	extend<R extends UpdateExpression<T> | void>(fn:(exp:UpdateExpression<T>) => R): R {
+		return fn(this)
+	}
+}
+
+class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
+	constructor(query:ChainData<T>, private path:P) {
+		super(query)
+	}
+
+	private u(op:keyof ChainData<T>, ...items:ChainItems<T>) {
+		return new UpdateExpression<T>(m(this, op, ...items))
+	}
+
+	private i(op: '+' | '-', value: number | bigint | BigFloat = 1, initialValue: number | bigint | BigFloat = 0) {
+		return this.u(
+			'set',
+			{ p:this.path },
+			'=',
+			'if_not_exists(',
+			{ p:this.path },
+			',',
+			{ v: { N: String(initialValue) } },
+			')',
+			op,
+			{ v: { N: String(value) } },
+		)
+	}
 
 	/** Set a value */
-	set: (value:InferValue<T, P>) => UpdateExpression<T>
+	set(value:InferValue<T, P>) {
+		return this.u('set', { p:this.path }, '=', { v:value, p:this.path })
+	}
+
+	/** Set a value if the attribute doesn't already exists */
+	setIfNotExists(value:InferValue<T, P>) {
+		return this.u(
+			'set',
+			{ p:this.path },
+			'=',
+			'if_not_exists(',
+			{ p:this.path },
+			',',
+			{ v: value, p: this.path },
+			')'
+		)
+	}
 
 	/** Delete a property */
-	del: () => UpdateExpression<T>
+	del() {
+		return this.u('rem', { p:this.path })
+	}
 
 	/** Increment a numeric value */
-	incr: (value?:number | bigint | BigFloat, initialValue?: number | bigint | BigFloat) => UpdateExpression<T>
+	incr(value:number | bigint | BigFloat = 1, initialValue: number | bigint | BigFloat = 0) {
+		return this.i('+', value, initialValue)
+	}
 
 	/** Decrement a numeric value */
-	decr: (value?:number | bigint | BigFloat, initialValue?: number | bigint | BigFloat) => UpdateExpression<T>
+	decr(value:number | bigint | BigFloat = 1, initialValue: number | bigint | BigFloat = 0) {
+		return this.i('-', value, initialValue)
+	}
 
 	/** Append values to a Set */
-	append: (values:InferValue<T, P>) => UpdateExpression<T>
+	append(values:InferValue<T, P>) {
+		return this.u('add', { p:this.path }, { v: values, p:this.path })
+	}
 
 	/** Remove values from a Set */
-	remove: (values:InferValue<T, P>) => UpdateExpression<T>
-
-}>
+	remove(values:InferValue<T, P>) {
+		return this.u('del', { p:this.path }, { v: values, p:this.path })
+	}
+}
 
 export const updateExpression = <T extends AnyTableDefinition>(
-	options:{ update: (exp:UpdateExpression<T>) => void },
+	options:{ update: (exp:UpdateExpression<T>) => UpdateExpression<T> },
 	gen:IDGenerator<T>,
 ) => {
-	const sets:string[] = []
-	const adds:string[] = []
-	const rems:string[] = []
-	const dels:string[] = []
-	const raws:string[] = []
+	const update = options.update(new UpdateExpression<T>({
+		set: [],
+		add: [],
+		rem: [],
+		del: []
+	}))
 
-	const q = <T>(list:string[], v: string, response:T):T => {
-		list.push(v)
-		return response
-	}
-
-	const start = (): UpdateExpression<T> => ({
-		update: (...path) => update(path),
-		raw: (fn) => {
-			raws.push(fn(
-				(...path) => gen.path(path),
-				(value) => gen.value(value),
-			))
+	const buildList = (name:string, list:ChainItem<T>[][]) => {
+		if(list.length) {
+			return [
+				name,
+				list.map(items => build(items, gen).join(' ')).join(', ')
+			]
 		}
-	})
 
-	const update = <P extends InferPath<T>>(path:P): Update<T, P> => {
-		const n = gen.path(path)
-		const v = (value:any) => gen.value(value, path)
-		const s = start()
-
-		return {
-			set: (value) => q(sets, `${n} = ${v(value)}`, s),
-			del: () => q(rems, n, s),
-			incr: (value = 1, initialValue = 0) => q(sets, `${n} = ${v(value)} + if_not_exists(${n}, ${v(initialValue)})`, s),
-			decr: (value = 1, initialValue = 0) => q(sets, `${n} = ${v(value)} - if_not_exists(${n}, ${v(initialValue)})`, s),
-			append: (values) => q(adds, `${n} ${v(values)}`, s),
-			remove: (values) => q(dels, `${n} ${v(values)}`, s),
-		}
+		return []
 	}
 
-	options.update(start())
+	const data = update[key]
+	const query:string = [
+		...buildList('SET', data.set),
+		...buildList('ADD', data.add),
+		...buildList('REMOVE', data.rem),
+		...buildList('DELETE', data.del),
+	].join(' ')
 
-	if(raws.length) {
-		return raws.join(' ')
-	}
-
-	const query:string[] = []
-
-	if(sets.length) query.push(`SET ${sets.join(', ')}`)
-	if(rems.length) query.push(`REMOVE ${rems.join(', ')}`)
-	if(adds.length) query.push(`ADD ${adds.join(', ')}`)
-	if(dels.length) query.push(`DELETE ${dels.join(', ')}`)
-
-	return query.join(' ')
+	return query
 }

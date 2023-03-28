@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -9,27 +11,38 @@ var __export = (target, all) => {
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    for (let key3 of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key3) && key3 !== except)
+        __defProp(to, key3, { get: () => from[key3], enumerable: !(desc = __getOwnPropDesc(from, key3)) || desc.enumerable });
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  ConditionalCheckFailedException: () => import_client_dynamodb12.ConditionalCheckFailedException,
-  TransactionCanceledException: () => import_client_dynamodb12.TransactionCanceledException,
+  ConditionalCheckFailedException: () => import_client_dynamodb14.ConditionalCheckFailedException,
+  TableDefinition: () => TableDefinition,
+  TransactionCanceledException: () => import_client_dynamodb14.TransactionCanceledException,
   array: () => array,
   batchGetItem: () => batchGetItem,
+  batchPutItem: () => batchPutItem,
   bigfloat: () => bigfloat,
   bigint: () => bigint,
   bigintSet: () => bigintSet,
   binary: () => binary,
   binarySet: () => binarySet,
   boolean: () => boolean,
+  date: () => date,
   define: () => define,
   deleteItem: () => deleteItem,
   dynamoDBClient: () => dynamoDBClient,
@@ -315,23 +328,23 @@ var object = (schema) => new Struct(
   "M",
   (unmarshalled) => {
     const marshalled = {};
-    for (const [key, type] of Object.entries(schema)) {
-      const value = unmarshalled[key];
+    for (const [key3, type] of Object.entries(schema)) {
+      const value = unmarshalled[key3];
       if (typeof value === "undefined") {
         continue;
       }
-      marshalled[key] = type.marshall(value);
+      marshalled[key3] = type.marshall(value);
     }
     return marshalled;
   },
   (marshalled) => {
     const unmarshalled = {};
-    for (const [key, type] of Object.entries(schema)) {
-      const value = marshalled[key];
+    for (const [key3, type] of Object.entries(schema)) {
+      const value = marshalled[key3];
       if (typeof value === "undefined") {
         continue;
       }
-      unmarshalled[key] = type.unmarshall(value);
+      unmarshalled[key3] = type.unmarshall(value);
     }
     return unmarshalled;
   },
@@ -348,6 +361,13 @@ var array = (struct) => new Struct(
   (_, ...rest) => {
     return rest.length ? struct.walk?.(...rest) : struct;
   }
+);
+
+// src/structs/date.ts
+var date = () => new Struct(
+  "N",
+  (value) => String(value.getTime()),
+  (value) => new Date(Number(value))
 );
 
 // src/structs/set/string.ts
@@ -552,6 +572,15 @@ var client = (options) => {
   return options.client || dynamoDBClient();
 };
 
+// src/exceptions/transaction-canceled.ts
+var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
+import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt = (index) => {
+  return (void 0).CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
+};
+
+// src/index.ts
+var import_client_dynamodb14 = require("@aws-sdk/client-dynamodb");
+
 // src/expressions/projection.ts
 var projectionExpression = (options, gen) => {
   if (options.projection) {
@@ -569,22 +598,22 @@ var IDGenerator = class {
   countN = 0;
   cacheV = /* @__PURE__ */ new Map();
   countV = 0;
-  path(key) {
-    if (Array.isArray(key)) {
-      return key.map((name, index) => {
+  path(key3) {
+    if (Array.isArray(key3)) {
+      return key3.map((name, index) => {
         if (typeof name === "string") {
           return `${index === 0 ? "" : "."}${this.name(name)}`;
         }
         return `[${name}]`;
       }).join("");
     }
-    return this.name(key);
+    return this.name(key3);
   }
-  name(key) {
-    if (!this.cacheN.has(key)) {
-      this.cacheN.set(key, ++this.countN);
+  name(key3) {
+    if (!this.cacheN.has(key3)) {
+      this.cacheN.set(key3, ++this.countN);
     }
-    return `#n${this.cacheN.get(key)}`;
+    return `#n${this.cacheN.get(key3)}`;
   }
   value(value, path) {
     if (!this.cacheV.has(value)) {
@@ -596,8 +625,8 @@ var IDGenerator = class {
     const attrs = {};
     if (this.cacheN.size > 0) {
       const names = {};
-      for (const [key, id] of this.cacheN) {
-        names[`#n${id}`] = key;
+      for (const [key3, id] of this.cacheN) {
+        names[`#n${id}`] = key3;
       }
       attrs.ExpressionAttributeNames = names;
     }
@@ -623,16 +652,26 @@ var IDGenerator = class {
 };
 
 // src/operations/get-item.ts
-var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
-var getItem = async (table, key, options = {}) => {
+var import_client_dynamodb5 = require("@aws-sdk/client-dynamodb");
+
+// src/helper/debug.ts
+var debug = (options = {}, command) => {
+  if (options.debug) {
+    console.log("DynamoDB:", JSON.stringify(command.input, null, 2));
+  }
+};
+
+// src/operations/get-item.ts
+var getItem = async (table, key3, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb4.GetItemCommand({
+  const command = new import_client_dynamodb5.GetItemCommand({
     TableName: table.name,
-    Key: table.marshall(key),
+    Key: table.marshall(key3),
     ConsistentRead: options.consistentRead,
     ProjectionExpression: projectionExpression(options, gen),
     ...gen.attributeNames()
   });
+  debug(options, command);
   const result = await client(options).send(command);
   if (result.Item) {
     return table.unmarshall(result.Item);
@@ -640,82 +679,190 @@ var getItem = async (table, key, options = {}) => {
   return void 0;
 };
 
-// src/expressions/conditions.ts
+// src/helper/chainable.ts
+var key = Symbol();
+var Chain = class {
+  [key];
+  constructor(query2) {
+    this[key] = query2;
+  }
+};
+var isValue = (item) => {
+  return typeof item.v !== "undefined";
+};
+var isPath = (item) => {
+  return typeof item.p !== "undefined";
+};
+var merge = (chain, ...items) => {
+  return [
+    ...chain[key],
+    ...items
+  ];
+};
+var build = (items, gen) => {
+  return items.map((item) => {
+    if (isValue(item)) {
+      return gen.value(item.v, item.p);
+    }
+    if (isPath(item)) {
+      return gen.path(item.p);
+    }
+    return item;
+  });
+};
+var chainData = (chain) => {
+  return chain[key];
+};
+
+// src/expressions/condition.ts
+var Condition = class extends Chain {
+  where(...path) {
+    return new Where(merge(this), path);
+  }
+  extend(fn) {
+    return fn(this);
+  }
+};
+var Where = class extends Chain {
+  constructor(query2, path) {
+    super(query2);
+    this.path = path;
+  }
+  get not() {
+    return new Where(merge(this, "NOT"), this.path);
+  }
+  get exists() {
+    return new Combine(merge(this, "attribute_exists(", { p: this.path }, ")"));
+  }
+  get size() {
+    return new Size(merge(this), this.path);
+  }
+  compare(comparator, v) {
+    return new Combine(merge(this, "(", { p: this.path }, comparator, { v, p: this.path }, ")"));
+  }
+  fn(fnName, v) {
+    return new Combine(merge(this, `${fnName}(`, { p: this.path }, ",", v, ")"));
+  }
+  eq(value) {
+    return this.compare("=", value);
+  }
+  nq(value) {
+    return this.compare("<>", value);
+  }
+  gt(value) {
+    return this.compare(">", value);
+  }
+  gte(value) {
+    return this.compare(">=", value);
+  }
+  lt(value) {
+    return this.compare("<", value);
+  }
+  lte(value) {
+    return this.compare("<=", value);
+  }
+  between(min, max) {
+    return new Combine(merge(
+      this,
+      "(",
+      { p: this.path },
+      "BETWEEN",
+      { v: min, p: this.path },
+      "AND",
+      { v: max, p: this.path },
+      ")"
+    ));
+  }
+  in(values) {
+    return new Combine(merge(
+      this,
+      "(",
+      { p: this.path },
+      "IN (",
+      ...values.map((v) => ({ v, p: this.path })).map((v, i) => i === 0 ? v : [",", v]).flat(),
+      "))"
+    ));
+  }
+  attributeType(value) {
+    return this.fn("attribute_type", { v: { S: value } });
+  }
+  beginsWith(value) {
+    return this.fn("begins_with", { v: { S: value } });
+  }
+  contains(value) {
+    return this.fn("contains", { v: value, p: [...this.path, 0] });
+  }
+};
+var Size = class extends Chain {
+  constructor(query2, path) {
+    super(query2);
+    this.path = path;
+  }
+  compare(comparator, num) {
+    return new Combine(merge(this, "(", "size(", { p: this.path }, ")", comparator, { v: { N: String(num) } }, ")"));
+  }
+  eq(value) {
+    return this.compare("=", value);
+  }
+  nq(value) {
+    return this.compare("<>", value);
+  }
+  gt(value) {
+    return this.compare(">", value);
+  }
+  gte(value) {
+    return this.compare(">=", value);
+  }
+  lt(value) {
+    return this.compare("<", value);
+  }
+  lte(value) {
+    return this.compare("<=", value);
+  }
+  between(min, max) {
+    return new Combine(merge(
+      this,
+      "(",
+      "size(",
+      { p: this.path },
+      ")",
+      "BETWEEN",
+      { v: { N: String(min) } },
+      "AND",
+      { v: { N: String(max) } },
+      ")"
+    ));
+  }
+};
+var Combine = class extends Chain {
+  get and() {
+    return new Condition(merge(this, "AND"));
+  }
+  get or() {
+    return new Condition(merge(this, "OR"));
+  }
+};
 var conditionExpression = (options, gen) => {
   if (options.condition) {
-    const query2 = [];
-    const q = (v, response) => {
-      query2.push(v);
-      return response;
-    };
-    const condition = () => ({
-      where: (...path) => where(path)
-    });
-    const where = (path) => {
-      const n = gen.path(path);
-      const v = (value) => gen.value(value, path);
-      const c = combiner();
-      return {
-        get not() {
-          return q(`NOT`, where(path));
-        },
-        eq: (value) => q(`(${n} = ${v(value)})`, c),
-        nq: (value) => q(`(${n} <> ${v(value)})`, c),
-        gt: (value) => q(`(${n} > ${v(value)})`, c),
-        gte: (value) => q(`(${n} >= ${v(value)})`, c),
-        lt: (value) => q(`(${n} < ${v(value)})`, c),
-        lte: (value) => q(`(${n} <= ${v(value)})`, c),
-        between: (min, max) => q(`(${n} BETWEEN ${v(min)} AND ${v(max)})`, c),
-        in: (values) => q(`(${n} IN (${values.map((value) => v(value)).join(", ")})`, c),
-        get exists() {
-          return q(`attribute_exists(${n})`, c);
-        },
-        // get attributeNotExists() { return q(`attribute_not_exists(${n})`, c) },
-        attributeType: (value) => q(`attribute_type(${n}, ${gen.value({ S: value })})`, c),
-        beginsWith: (value) => q(`begins_with(${n}, ${v(value)})`, c),
-        contains: (value) => q(`contains(${n}, ${gen.value(value, [...path, 0])})`, c),
-        get size() {
-          return size(n, c);
-        }
-      };
-    };
-    const size = (n, c) => {
-      const v = (value) => gen.value({ N: String(value) });
-      return {
-        eq: (value) => q(`(size(${n}) = ${v(value)})`, c),
-        nq: (value) => q(`(size(${n}) <> ${v(value)})`, c),
-        gt: (value) => q(`(size(${n}) > ${v(value)})`, c),
-        gte: (value) => q(`(size(${n}) >= ${v(value)})`, c),
-        lt: (value) => q(`(size(${n}) < ${v(value)})`, c),
-        lte: (value) => q(`(size(${n}) <= ${v(value)})`, c),
-        between: (min, max) => q(`(size(${n}) BETWEEN ${v(min)} AND ${v(max)})`, c)
-      };
-    };
-    const combiner = () => ({
-      get and() {
-        return q(`AND`, condition());
-      },
-      get or() {
-        return q(`OR`, condition());
-      }
-    });
-    options.condition(condition());
-    return query2.join(" ");
+    const condition = options.condition(new Condition([]));
+    const query2 = build(chainData(condition), gen).join(" ");
+    return query2;
   }
   return;
 };
 
 // src/operations/put-item.ts
-var import_client_dynamodb5 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb6 = require("@aws-sdk/client-dynamodb");
 var putItem = async (table, item, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb5.PutItemCommand({
+  const command = new import_client_dynamodb6.PutItemCommand({
     TableName: table.name,
     Item: table.marshall(item),
     ConditionExpression: conditionExpression(options, gen),
     ReturnValues: options.return,
     ...gen.attributes()
   });
+  debug(options, command);
   const result = await client(options).send(command);
   if (result.Attributes) {
     return table.unmarshall(result.Attributes);
@@ -724,68 +871,136 @@ var putItem = async (table, item, options = {}) => {
 };
 
 // src/operations/update-item.ts
-var import_client_dynamodb6 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb7 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/update.ts
-var updateExpression = (options, gen) => {
-  const sets = [];
-  const adds = [];
-  const rems = [];
-  const dels = [];
-  const raws = [];
-  const q = (list, v, response) => {
-    list.push(v);
-    return response;
-  };
-  const start = () => ({
-    update: (...path) => update(path),
-    raw: (fn) => {
-      raws.push(fn(
-        (...path) => gen.path(path),
-        (value) => gen.value(value)
-      ));
-    }
-  });
-  const update = (path) => {
-    const n = gen.path(path);
-    const v = (value) => gen.value(value, path);
-    const s = start();
-    return {
-      set: (value) => q(sets, `${n} = ${v(value)}`, s),
-      del: () => q(rems, n, s),
-      incr: (value = 1, initialValue = 0) => q(sets, `${n} = ${v(value)} + if_not_exists(${n}, ${v(initialValue)})`, s),
-      decr: (value = 1, initialValue = 0) => q(sets, `${n} = ${v(value)} - if_not_exists(${n}, ${v(initialValue)})`, s),
-      append: (values) => q(adds, `${n} ${v(values)}`, s),
-      remove: (values) => q(dels, `${n} ${v(values)}`, s)
-    };
-  };
-  options.update(start());
-  if (raws.length) {
-    return raws.join(" ");
+var key2 = Symbol();
+var Chain2 = class {
+  [key2];
+  constructor(data) {
+    this[key2] = data;
   }
-  const query2 = [];
-  if (sets.length)
-    query2.push(`SET ${sets.join(", ")}`);
-  if (rems.length)
-    query2.push(`REMOVE ${rems.join(", ")}`);
-  if (adds.length)
-    query2.push(`ADD ${adds.join(", ")}`);
-  if (dels.length)
-    query2.push(`DELETE ${dels.join(", ")}`);
-  return query2.join(" ");
+};
+var m = (chain, op, ...items) => {
+  const d = chain[key2];
+  const n = {
+    set: [...d.set],
+    add: [...d.add],
+    rem: [...d.rem],
+    del: [...d.del]
+  };
+  if (op && items.length) {
+    n[op].push(items);
+  }
+  return n;
+};
+var UpdateExpression = class extends Chain2 {
+  /** Update a given property */
+  update(...path) {
+    return new Update(m(this), path);
+  }
+  extend(fn) {
+    return fn(this);
+  }
+};
+var Update = class extends Chain2 {
+  constructor(query2, path) {
+    super(query2);
+    this.path = path;
+  }
+  u(op, ...items) {
+    return new UpdateExpression(m(this, op, ...items));
+  }
+  i(op, value = 1, initialValue = 0) {
+    return this.u(
+      "set",
+      { p: this.path },
+      "=",
+      "if_not_exists(",
+      { p: this.path },
+      ",",
+      { v: { N: String(initialValue) } },
+      ")",
+      op,
+      { v: { N: String(value) } }
+    );
+  }
+  /** Set a value */
+  set(value) {
+    return this.u("set", { p: this.path }, "=", { v: value, p: this.path });
+  }
+  /** Set a value if the attribute doesn't already exists */
+  setIfNotExists(value) {
+    return this.u(
+      "set",
+      { p: this.path },
+      "=",
+      "if_not_exists(",
+      { p: this.path },
+      ",",
+      { v: value, p: this.path },
+      ")"
+    );
+  }
+  /** Delete a property */
+  del() {
+    return this.u("rem", { p: this.path });
+  }
+  /** Increment a numeric value */
+  incr(value = 1, initialValue = 0) {
+    return this.i("+", value, initialValue);
+  }
+  /** Decrement a numeric value */
+  decr(value = 1, initialValue = 0) {
+    return this.i("-", value, initialValue);
+  }
+  /** Append values to a Set */
+  append(values) {
+    return this.u("add", { p: this.path }, { v: values, p: this.path });
+  }
+  /** Remove values from a Set */
+  remove(values) {
+    return this.u("del", { p: this.path }, { v: values, p: this.path });
+  }
+};
+var updateExpression = (options, gen) => {
+  const update = options.update(new UpdateExpression({
+    set: [],
+    add: [],
+    rem: [],
+    del: []
+  }));
+  const buildList = (name, list) => {
+    if (list.length) {
+      return [
+        name,
+        list.map((items) => build(items, gen).join(" ")).join(", ")
+      ];
+    }
+    return [];
+  };
+  const data = update[key2];
+  const query2 = [
+    ...buildList("SET", data.set),
+    ...buildList("ADD", data.add),
+    ...buildList("REMOVE", data.rem),
+    ...buildList("DELETE", data.del)
+  ].join(" ");
+  return query2;
 };
 
 // src/operations/update-item.ts
-var updateItem = async (table, key, options) => {
+var updateItem = async (table, key3, options) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb6.UpdateItemCommand({
+  const command = new import_client_dynamodb7.UpdateItemCommand({
     TableName: table.name,
-    Key: table.marshall(key),
+    Key: table.marshall(key3),
     UpdateExpression: updateExpression(options, gen),
     ConditionExpression: conditionExpression(options, gen),
     ReturnValues: options.return,
     ...gen.attributes()
   });
+  debug(options, command);
   const result = await client(options).send(command);
   if (result.Attributes) {
     return table.unmarshall(result.Attributes);
@@ -794,16 +1009,17 @@ var updateItem = async (table, key, options) => {
 };
 
 // src/operations/delete-item.ts
-var import_client_dynamodb7 = require("@aws-sdk/client-dynamodb");
-var deleteItem = async (table, key, options = {}) => {
+var import_client_dynamodb8 = require("@aws-sdk/client-dynamodb");
+var deleteItem = async (table, key3, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb7.DeleteItemCommand({
+  const command = new import_client_dynamodb8.DeleteItemCommand({
     TableName: table.name,
-    Key: table.marshall(key),
+    Key: table.marshall(key3),
     ConditionExpression: conditionExpression(options, gen),
     ReturnValues: options.return,
     ...gen.attributes()
   });
+  debug(options, command);
   const result = await client(options).send(command);
   if (result.Attributes) {
     return table.unmarshall(result.Attributes);
@@ -812,15 +1028,15 @@ var deleteItem = async (table, key, options = {}) => {
 };
 
 // src/operations/batch-get-item.ts
-var import_client_dynamodb8 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
 var batchGetItem = async (table, keys, options = { filterNonExistentItems: false }) => {
   let response = [];
-  let unprocessedKeys = keys.map((key) => table.marshall(key));
+  let unprocessedKeys = keys.map((key3) => table.marshall(key3));
   const gen = new IDGenerator(table);
   const projection = projectionExpression(options, gen);
   const attributes = gen.attributeNames();
   while (unprocessedKeys.length) {
-    const command = new import_client_dynamodb8.BatchGetItemCommand({
+    const command = new import_client_dynamodb9.BatchGetItemCommand({
       RequestItems: {
         [table.name]: {
           Keys: unprocessedKeys,
@@ -830,6 +1046,7 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
         }
       }
     });
+    debug(options, command);
     const result = await client(options).send(command);
     unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || [];
     response = [
@@ -839,11 +1056,11 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
       )
     ];
   }
-  const list = keys.map((key) => {
+  const list = keys.map((key3) => {
     return response.find((item) => {
-      for (const i in key) {
+      for (const i in key3) {
         const k = i;
-        if (key[k] !== item?.[k]) {
+        if (key3[k] !== item?.[k]) {
           return false;
         }
       }
@@ -854,6 +1071,29 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
     return list.filter((item) => !!item);
   }
   return list;
+};
+
+// src/operations/batch-put-item.ts
+var import_client_dynamodb10 = require("@aws-sdk/client-dynamodb");
+var import_chunk = __toESM(require("chunk"), 1);
+var batchPutItem = async (table, items, options = {}) => {
+  await Promise.all((0, import_chunk.default)(items, 25).map(async (items2) => {
+    let unprocessedItems = {
+      [table.name]: items2.map((item) => ({
+        PutRequest: {
+          Item: table.marshall(item)
+        }
+      }))
+    };
+    while (unprocessedItems?.[table.name]?.length) {
+      const command = new import_client_dynamodb10.BatchWriteItemCommand({
+        RequestItems: unprocessedItems
+      });
+      debug(options, command);
+      const result = await client(options).send(command);
+      unprocessedItems = result.UnprocessedItems;
+    }
+  }));
 };
 
 // src/helper/cursor.ts
@@ -870,49 +1110,75 @@ var toCursor = (value) => {
 };
 
 // src/operations/query.ts
-var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/key-condition.ts
+var KeyCondition = class extends Chain {
+  where(path) {
+    return new Where2(merge(this), path);
+  }
+  extend(fn) {
+    return fn(this);
+  }
+};
+var Where2 = class extends Chain {
+  constructor(query2, path) {
+    super(query2);
+    this.path = path;
+  }
+  compare(comparator, v) {
+    return new Combine2(merge(this, "(", { p: [this.path] }, comparator, { v, p: [this.path] }, ")"));
+  }
+  eq(value) {
+    return this.compare("=", value);
+  }
+  gt(value) {
+    return this.compare(">", value);
+  }
+  gte(value) {
+    return this.compare(">=", value);
+  }
+  lt(value) {
+    return this.compare("<", value);
+  }
+  lte(value) {
+    return this.compare("<=", value);
+  }
+  between(min, max) {
+    return new Combine2(merge(
+      this,
+      "(",
+      { p: [this.path] },
+      "BETWEEN",
+      { v: min, p: [this.path] },
+      "AND",
+      { v: max, p: [this.path] },
+      ")"
+    ));
+  }
+  beginsWith(value) {
+    return new Combine2(merge(this, "begins_with(", { p: [this.path] }, ",", { v: value, p: [this.path] }, ")"));
+  }
+};
+var Combine2 = class extends Chain {
+  get and() {
+    return new KeyCondition(merge(this, "AND"));
+  }
+  get or() {
+    return new KeyCondition(merge(this, "OR"));
+  }
+};
 var keyConditionExpression = (options, gen) => {
-  const query2 = [];
-  const q = (v, response) => {
-    query2.push(v);
-    return response;
-  };
-  const condition = () => ({
-    where: (path) => where(path)
-  });
-  const where = (path) => {
-    const n = gen.path(path);
-    const v = (value) => gen.value(value, [path]);
-    const c = combiner();
-    return {
-      eq: (value) => q(`(${n} = ${v(value)})`, c),
-      gt: (value) => q(`(${n} > ${v(value)})`, c),
-      gte: (value) => q(`(${n} >= ${v(value)})`, c),
-      lt: (value) => q(`(${n} < ${v(value)})`, c),
-      lte: (value) => q(`(${n} <= ${v(value)})`, c),
-      between: (min, max) => q(`(${n} BETWEEN ${v(min)} AND ${v(max)})`, c),
-      beginsWith: (value) => q(`begins_with(${n}, ${v(value)})`, c)
-    };
-  };
-  const combiner = () => ({
-    get and() {
-      return q(`AND`, condition());
-    },
-    get or() {
-      return q(`OR`, condition());
-    }
-  });
-  options.keyCondition(condition());
-  return query2.join(" ");
+  const condition = options.keyCondition(new KeyCondition([]));
+  const query2 = build(chainData(condition), gen).join(" ");
+  return query2;
 };
 
 // src/operations/query.ts
 var query = async (table, options) => {
   const { forward = true } = options;
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb9.QueryCommand({
+  const command = new import_client_dynamodb11.QueryCommand({
     TableName: table.name,
     IndexName: options.index,
     KeyConditionExpression: keyConditionExpression(options, gen),
@@ -923,6 +1189,7 @@ var query = async (table, options) => {
     ProjectionExpression: projectionExpression(options, gen),
     ...gen.attributes()
   });
+  debug(options, command);
   const result = await client(options).send(command);
   return {
     count: result.Count || 0,
@@ -954,10 +1221,10 @@ var pagination = async (table, options) => {
 };
 
 // src/operations/scan.ts
-var import_client_dynamodb10 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb12 = require("@aws-sdk/client-dynamodb");
 var scan = async (table, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb10.ScanCommand({
+  const command = new import_client_dynamodb12.ScanCommand({
     TableName: table.name,
     IndexName: options.index,
     ConsistentRead: options.consistentRead,
@@ -966,6 +1233,7 @@ var scan = async (table, options = {}) => {
     ProjectionExpression: projectionExpression(options, gen),
     ...gen.attributeNames()
   });
+  debug(options, command);
   const result = await client(options).send(command);
   return {
     count: result.Count || 0,
@@ -975,20 +1243,21 @@ var scan = async (table, options = {}) => {
 };
 
 // src/operations/transact-write.ts
-var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb13 = require("@aws-sdk/client-dynamodb");
 var transactWrite = async (options) => {
-  const command = new import_client_dynamodb11.TransactWriteItemsCommand({
+  const command = new import_client_dynamodb13.TransactWriteItemsCommand({
     ClientRequestToken: options.idempotantKey,
     TransactItems: options.items
   });
+  debug(options, command);
   await client(options).send(command);
 };
-var transactConditionCheck = (table, key, options) => {
+var transactConditionCheck = (table, key3, options) => {
   const gen = new IDGenerator(table);
   return {
     ConditionCheck: {
       TableName: table.name,
-      Key: table.marshall(key),
+      Key: table.marshall(key3),
       ConditionExpression: conditionExpression(options, gen),
       ...gen.attributes()
     }
@@ -1005,24 +1274,24 @@ var transactPut = (table, item, options = {}) => {
     }
   };
 };
-var transactUpdate = (table, key, options) => {
+var transactUpdate = (table, key3, options) => {
   const gen = new IDGenerator(table);
   return {
     Update: {
       TableName: table.name,
-      Key: table.marshall(key),
+      Key: table.marshall(key3),
       UpdateExpression: updateExpression(options, gen),
       ConditionExpression: conditionExpression(options, gen),
       ...gen.attributes()
     }
   };
 };
-var transactDelete = (table, key, options = {}) => {
+var transactDelete = (table, key3, options = {}) => {
   const gen = new IDGenerator(table);
   return {
     Delete: {
       TableName: table.name,
-      Key: table.marshall(key),
+      Key: table.marshall(key3),
       ConditionExpression: conditionExpression(options, gen),
       ...gen.attributes()
     }
@@ -1063,21 +1332,21 @@ var migrate2 = async (from, to, options) => {
     itemsProcessed
   };
 };
-
-// src/index.ts
-var import_client_dynamodb12 = require("@aws-sdk/client-dynamodb");
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ConditionalCheckFailedException,
+  TableDefinition,
   TransactionCanceledException,
   array,
   batchGetItem,
+  batchPutItem,
   bigfloat,
   bigint,
   bigintSet,
   binary,
   binarySet,
   boolean,
+  date,
   define,
   deleteItem,
   dynamoDBClient,

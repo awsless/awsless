@@ -6,6 +6,7 @@ import { IDGenerator } from '../helper/id-generator.js'
 import { AnyTableDefinition, IndexNames } from '../table.js'
 import { CursorKey } from '../types/key.js'
 import { Options } from '../types/options.js'
+import { debug } from '../helper/debug.js'
 
 type ScanOptions<
 	T extends AnyTableDefinition,
@@ -49,6 +50,7 @@ export const scan = async <
 		...gen.attributeNames(),
 	})
 
+	debug(options, command)
 	const result = await client(options).send(command)
 
 	return {

@@ -6,6 +6,7 @@ import { AnyTableDefinition } from '../table.js'
 import { Options } from '../types/options.js'
 import { PrimaryKey } from '../types/key.js'
 import { GetItemCommand } from '@aws-sdk/client-dynamodb'
+import { debug } from '../helper/debug'
 
 // type GetOptions<
 // 	T extends AnyTableDefinition,
@@ -36,6 +37,7 @@ export const getItem = async <
 		...gen.attributeNames(),
 	})
 
+	debug(options, command)
 	const result = await client(options).send(command)
 
 	if(result.Item) {

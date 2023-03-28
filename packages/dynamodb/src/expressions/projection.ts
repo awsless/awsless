@@ -45,15 +45,6 @@ export type ProjectionResponse<
 	: T['schema']['OUTPUT']
 )
 
-// export type ProjectionResponse<
-// 	T extends AnyTableDefinition,
-// 	P extends ProjectionExpression<T> | undefined = undefined
-// > = (
-// 	P extends ProjectionExpression<T>
-// 	? 1
-// 	: T['schema']['OUTPUT']
-// )
-
 export const projectionExpression = <
 	T extends AnyTableDefinition,
 	P extends ProjectionExpression<T> | undefined = undefined

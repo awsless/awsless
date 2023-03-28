@@ -7,6 +7,9 @@ import { AnyStruct } from "./structs/struct"
 // 	any
 // >
 
+export type InferInput<T extends AnyTableDefinition> = T['schema']['INPUT']
+export type InferOutput<T extends AnyTableDefinition> = T['schema']['OUTPUT']
+
 export type AnyTableDefinition = TableDefinition<
 	AnyStruct,
 	Extract<keyof AnyStruct['INPUT'], string>,
@@ -22,50 +25,6 @@ export type TableIndex<Struct extends AnyStruct> = {
 }
 
 type TableIndexes<Struct extends AnyStruct> = Record<string, TableIndex<Struct>>
-
-// export type TableDefinition<
-// 	Struct extends AnyStruct,
-// 	Hash extends keyof Struct['INPUT'],
-// 	Sort extends keyof Struct['INPUT'] | undefined,
-// 	Indexes extends TableIndexes<Struct> | undefined
-// > = {
-// 	name: string
-// 	hash: Hash
-// 	sort: Sort
-// 	schema: Struct
-// 	indexes: Indexes
-// 	marshall: (item:Partial<Struct['INPUT']>) => Struct['MARSHALLED'][string]
-// 	unmarshall: (item:Struct['MARSHALLED'][string]) => Struct['OUTPUT']
-// }
-
-// export const define = <
-// 	Struct extends AnyStruct,
-// 	Hash extends Extract<keyof Struct['INPUT'], string>,
-// 	Sort extends Extract<keyof Struct['INPUT'], string> | undefined,
-// 	Indexes extends TableIndexes<Struct> | undefined
-// >(
-// 	name:string,
-// 	options: {
-// 		hash: Hash
-// 		sort?: Sort
-// 		schema: Struct
-// 		indexes?: Indexes
-// 	}
-// ): TableDefinition<Struct, Hash, Sort, Indexes> => ({
-// 	name,
-// 	hash: options.hash,
-// 	sort: (options.sort as Sort),
-// 	schema: options.schema,
-// 	indexes: (options.indexes as Indexes),
-// 	marshall(item:Partial<Struct['INPUT']>): Struct['MARSHALLED'][string] {
-// 		return options.schema._marshall(item)
-// 	},
-
-// 	unmarshall(item:Struct['MARSHALLED'][string]): Struct['OUTPUT'] {
-// 		return options.schema._unmarshall(item)
-// 	}
-// })
-
 
 export class TableDefinition<
 	Struct extends AnyStruct,

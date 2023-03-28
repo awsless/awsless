@@ -1,7 +1,8 @@
 import { QueryCommand } from "@aws-sdk/client-dynamodb"
 import { client } from "../client"
-import { KeyCondition, keyConditionExpression } from "../expressions/key-condition"
+import { Combine, KeyCondition, keyConditionExpression } from "../expressions/key-condition"
 import { projectionExpression, ProjectionExpression, ProjectionResponse } from "../expressions/projection"
+import { debug } from "../helper/debug"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition, IndexNames } from "../table"
 import { CursorKey } from "../types/key"
@@ -12,7 +13,7 @@ type QueryOptions<
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined
 > = Options & {
-	keyCondition: (exp: KeyCondition<T, I>) => void
+	keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>
 	projection?: P
 	index?: I
 	consistentRead?: boolean
@@ -54,6 +55,7 @@ export const query = async <
 		...gen.attributes()
 	})
 
+	debug(options, command)
 	const result = await client(options).send(command)
 
 	return {

@@ -34,9 +34,7 @@ describe('Delete', () => {
 		await putItem(users, user)
 
 		await deleteItem(users, { id: 1 }, {
-			condition(exp) {
-				exp.where('id').eq(1)
-			},
+			condition: (exp) => exp.where('id').eq(1)
 		})
 
 		const result = await getItem(users, { id: 1 })
