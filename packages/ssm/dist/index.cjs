@@ -30,6 +30,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  SSMClient: () => import_client_ssm4.SSMClient,
   array: () => array,
   float: () => float,
   integer: () => integer,
@@ -40,6 +41,7 @@ __export(src_exports, {
   string: () => string
 });
 module.exports = __toCommonJS(src_exports);
+var import_client_ssm4 = require("@aws-sdk/client-ssm");
 
 // src/client.ts
 var import_client_ssm = require("@aws-sdk/client-ssm");
@@ -169,6 +171,7 @@ var mockSSM = (values) => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  SSMClient,
   array,
   float,
   integer,

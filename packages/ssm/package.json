@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/ssm",
-	"version": "0.0.1",
+	"version": "0.0.4",
 	"license": "MIT",
 	"type": "module",
 	"repository": {

@@ -1,4 +1,5 @@
 import { SSMClient } from '@aws-sdk/client-ssm';
+export { SSMClient } from '@aws-sdk/client-ssm';
 import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
 
 declare const ssmClient: {

@@ -1,8 +1,6 @@
-
-import { float, integer, string, ssm, array, json, mockSSM } from '../src/index'
+import { float, integer, string, ssm, array, json, mockSSM, SSMClient } from '../src/index'
 
 describe('SSM', () => {
-
 	const mock = mockSSM({
 		'/string': 'string',
 		'/integer': '1',
@@ -37,7 +35,7 @@ describe('SSM', () => {
 	})
 
 	it('should cache paths results', async () => {
-		const fetch = (ttl:number) => ssm({ key: 'string'}, { ttl })
+		const fetch = (ttl: number) => ssm({ key: 'string' }, { ttl })
 
 		await fetch(0)
 		expect(mock).toBeCalledTimes(1)
@@ -47,5 +45,22 @@ describe('SSM', () => {
 
 		await fetch(10)
 		expect(mock).toBeCalledTimes(2)
+	})
+
+	it('should allow client with custom config', async () => {
+		const client = new SSMClient({
+			region: 'eu-west-2',
+		})
+
+		const result = await ssm(
+			{
+				default: 'string',
+			},
+			{ client }
+		)
+
+		expect(result).toStrictEqual({
+			default: 'string',
+		})
 	})
 })

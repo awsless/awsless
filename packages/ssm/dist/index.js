@@ -1,3 +1,6 @@
+// src/index.ts
+import { SSMClient as SSMClient3 } from "@aws-sdk/client-ssm";
+
 // src/client.ts
 import { SSMClient } from "@aws-sdk/client-ssm";
 import { globalClient } from "@awsless/utils";
@@ -125,6 +128,7 @@ var mockSSM = (values) => {
   return mock;
 };
 export {
+  SSMClient3 as SSMClient,
   array,
   float,
   integer,
