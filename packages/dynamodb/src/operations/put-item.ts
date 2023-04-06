@@ -7,13 +7,15 @@ import { MutateOptions } from '../types/options.js'
 import { AnyTableDefinition } from '../table.js'
 import { PutItemCommand } from '@aws-sdk/client-dynamodb'
 import { debug } from '../helper/debug.js'
+import { ExtractInput } from '../types/input.js'
 
 export const putItem = async <
 	T extends AnyTableDefinition,
+	I,
 	R extends LimitedReturnValues = 'NONE'
 >(
 	table: T,
-	item: T['schema']['INPUT'],
+	item: ExtractInput<I, T>,
 	options: MutateOptions<T, R> = {}
 ): Promise<ReturnResponse<T, R>> => {
 

@@ -358,7 +358,7 @@ program.command("run").argument("<file>", "file to execute").description("execut
   node.stdout.pipe(process.stdout);
   node.stderr.pipe(process.stderr);
 });
-program.command("build").argument("<files...>", "files to build").description("build package").option("-o, --output", "output directory", "dist").option("-c, --clean", "clean up output directory").action(async (input, options) => {
+program.command("build").argument("<files...>", "files to build").description("build project").option("-o, --output", "output directory", "dist").option("-c, --clean", "clean up output directory").action(async (input, options) => {
   if (options.clean) {
     await clean(options.output);
   }

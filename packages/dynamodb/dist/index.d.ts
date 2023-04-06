@@ -1,8 +1,9 @@
 import { Numeric, BigFloat } from '@awsless/big-float';
 import { CreateTableCommandInput, AttributeValue, DynamoDBClient } from '@aws-sdk/client-dynamodb';
-export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+export { ConditionalCheckFailedException, DynamoDBClient, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 type AttributeTypes = 'S' | 'N' | 'B' | 'BOOL' | 'DATE' | 'L' | 'M' | 'SS' | 'NS' | 'BS';
 type AnyStruct = Struct<any, any, any, Array<string | number>, Array<string | number>, AttributeTypes, boolean>;
@@ -67,7 +68,7 @@ declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], Attribut
 
 type BinaryValue = ArrayBuffer | Blob | Buffer | DataView | File | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
 
-declare const binary: <T extends BinaryValue>() => Struct<T, T, T, [], [], AttributeTypes, false>;
+declare const binary: () => Struct<BinaryValue, BinaryValue, Uint8Array, [], [], AttributeTypes, false>;
 
 type Schema = Record<string, AnyStruct>;
 type KeyOf<S> = Extract<keyof S, string>;
@@ -95,11 +96,17 @@ type InferOptPaths<S extends Schema> = {
 }[KeyOf<S>];
 declare const object: <S extends Schema>(schema: S) => Struct<InferMarshalled<S>, InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, AttributeTypes, false>;
 
+type RecordPaths<S extends AnyStruct> = [string] | [string, ...S['PATHS']];
+type RecordOptPaths<S extends AnyStruct> = [string] | [string, ...S['OPT_PATHS']];
+declare const record: <S extends AnyStruct>(struct: S) => Struct<Record<string, S["MARSHALLED"]>, Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, AttributeTypes, false>;
+
 type ArrayPaths<L extends AnyStruct> = [number] | [number, ...L['PATHS']];
 type ArrayOptPaths<L extends AnyStruct> = [number] | [number, ...L['OPT_PATHS']];
 declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, AttributeTypes, false>;
 
 declare const date: () => Struct<string, Date, Date, [], [], AttributeTypes, false>;
+
+declare const unknown: () => Struct<string, unknown, unknown, [], [], AttributeTypes, false>;
 
 declare const stringSet: () => Struct<string[], Set<string>, Set<string>, [], [], AttributeTypes, false>;
 
@@ -107,7 +114,7 @@ declare const numberSet: () => Struct<string[], Set<number>, Set<number>, [], []
 
 declare const bigintSet: () => Struct<string[], Set<bigint>, Set<bigint>, [], [], AttributeTypes, false>;
 
-declare const binarySet: <T extends BinaryValue>() => Struct<T[], Set<T>, Set<T>, [], [], AttributeTypes, false>;
+declare const binarySet: () => Struct<BinaryValue[], Set<BinaryValue>, Set<Uint8Array>, [], [], AttributeTypes, false>;
 
 type SeedData = {
     [key: string]: object[];
@@ -293,6 +300,8 @@ declare const batchGetItem: BatchGetItem;
 
 declare const batchPutItem: <T extends AnyTableDefinition>(table: T, items: T["schema"]["INPUT"][], options?: Options) => Promise<void>;
 
+declare const batchDeleteItem: <T extends AnyTableDefinition>(table: T, keys: PrimaryKey<T, undefined>[], options?: Options) => Promise<void>;
+
 type PrimaryKeyNames<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? T['indexes'][I]['hash'] | T['indexes'][I]['sort'] : T['indexes'][I]['hash'] : T['sort'] extends string ? T['hash'] | T['sort'] : T['hash']);
 type InferValue<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> = T['schema']['INPUT'][P];
 declare class KeyCondition<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends Chain$1<T> {
@@ -427,4 +436,4 @@ type MigrateResponse = {
 };
 declare const migrate: <From extends AnyTableDefinition, To extends AnyTableDefinition>(from: From, to: To, options: MigrateOptions<From, To>) => Promise<MigrateResponse>;
 
-export { InferInput$1 as InferInput, InferOutput$1 as InferOutput, TableDefinition, array, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, pagination, putItem, query, scan, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, updateItem };
+export { InferInput$1 as InferInput, InferOutput$1 as InferOutput, TableDefinition, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, pagination, putItem, query, record, scan, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, unknown, updateItem };

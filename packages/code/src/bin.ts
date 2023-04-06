@@ -24,7 +24,7 @@ program
 program
 	.command('build')
 	.argument('<files...>', 'files to build')
-	.description('build package')
+	.description('build project')
 	.option('-o, --output', 'output directory', 'dist')
 	.option('-c, --clean', 'clean up output directory')
 	.action(async (input, options) => {

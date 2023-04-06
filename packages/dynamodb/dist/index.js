@@ -282,6 +282,28 @@ var object = (schema) => new Struct(
   }
 );
 
+// src/structs/record.ts
+var record = (struct) => new Struct(
+  "M",
+  (unmarshalled) => {
+    const marshalled = {};
+    for (const [key3, value] of Object.entries(unmarshalled)) {
+      marshalled[key3] = struct.marshall(value);
+    }
+    return marshalled;
+  },
+  (marshalled) => {
+    const unmarshalled = {};
+    for (const [key3, value] of Object.entries(marshalled)) {
+      unmarshalled[key3] = struct.unmarshall(value);
+    }
+    return unmarshalled;
+  },
+  (_, ...rest) => {
+    return rest.length ? struct.walk?.(...rest) : struct;
+  }
+);
+
 // src/structs/array.ts
 var array = (struct) => new Struct(
   "L",
@@ -297,6 +319,13 @@ var date = () => new Struct(
   "N",
   (value) => String(value.getTime()),
   (value) => new Date(Number(value))
+);
+
+// src/structs/unknown.ts
+var unknown = () => new Struct(
+  "S",
+  (value) => JSON.stringify(value),
+  (value) => JSON.parse(value)
 );
 
 // src/structs/set/string.ts
@@ -500,6 +529,10 @@ var dynamoDBDocumentClient = globalClient(() => {
 var client = (options) => {
   return options.client || dynamoDBClient();
 };
+
+// src/index.ts
+import { DynamoDBDocumentClient as DynamoDBDocumentClient4 } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBClient as DynamoDBClient4 } from "@aws-sdk/client-dynamodb";
 
 // src/exceptions/transaction-canceled.ts
 import { TransactionCanceledException as Exception } from "@aws-sdk/client-dynamodb";
@@ -1025,6 +1058,29 @@ var batchPutItem = async (table, items, options = {}) => {
   }));
 };
 
+// src/operations/batch-delete-item.ts
+import { BatchWriteItemCommand as BatchWriteItemCommand3 } from "@aws-sdk/client-dynamodb";
+import chunk2 from "chunk";
+var batchDeleteItem = async (table, keys, options = {}) => {
+  await Promise.all(chunk2(keys, 25).map(async (items) => {
+    let unprocessedItems = {
+      [table.name]: items.map((item) => ({
+        DeleteRequest: {
+          Key: table.marshall(item)
+        }
+      }))
+    };
+    while (unprocessedItems?.[table.name]?.length) {
+      const command = new BatchWriteItemCommand3({
+        RequestItems: unprocessedItems
+      });
+      debug(options, command);
+      const result = await client(options).send(command);
+      unprocessedItems = result.UnprocessedItems;
+    }
+  }));
+};
+
 // src/helper/cursor.ts
 var fromCursor = (cursor) => {
   return JSON.parse(
@@ -1263,9 +1319,12 @@ var migrate2 = async (from, to, options) => {
 };
 export {
   ConditionalCheckFailedException,
+  DynamoDBClient4 as DynamoDBClient,
+  DynamoDBDocumentClient4 as DynamoDBDocumentClient,
   TableDefinition,
   TransactionCanceledException,
   array,
+  batchDeleteItem,
   batchGetItem,
   batchPutItem,
   bigfloat,
@@ -1289,6 +1348,7 @@ export {
   pagination,
   putItem,
   query,
+  record,
   scan,
   string,
   stringSet,
@@ -1297,5 +1357,6 @@ export {
   transactPut,
   transactUpdate,
   transactWrite,
+  unknown,
   updateItem
 };

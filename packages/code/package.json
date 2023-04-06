@@ -23,7 +23,7 @@
 	},
 	"scripts": {
 		"test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-		"test2": "pnpm code test",
+		"test-code": "pnpm code test",
 		"build": "pnpm tsup src/index.ts src/bin.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
@@ -78,31 +78,5 @@
 		"preact": "^10.12.1",
 		"ts-jest": "^29.0.3",
 		"uuid": "^9.0.0"
-	},
-	"backupDependencies": {
-		"@babel/core": "^7.20.12",
-		"@babel/plugin-transform-runtime": "^7.19.6",
-		"@babel/preset-env": "^7.20.2",
-		"@babel/preset-react": "^7.18.6",
-		"@lopatnov/rollup-plugin-uglify": "^2.1.5",
-		"@rollup/plugin-babel": "^6.0.2",
-		"@rollup/plugin-commonjs": "^23.0.2",
-		"@rollup/plugin-json": "^5.0.1",
-		"@rollup/plugin-node-resolve": "^15.0.1",
-		"@rollup/plugin-terser": "^0.3.0",
-		"@rollup/plugin-typescript": "^9.0.2",
-		"clean-css": "^5.3.1",
-		"coffeescript": "^2.7.0",
-		"commander": "^9.4.1",
-		"node-eval": "^2.0.0",
-		"object-assign": "^4.1.1",
-		"rollup": "^3.2.5",
-		"rollup-pluginutils": "^2.8.2",
-		"stylus": "^0.59.0",
-		"terser": "^5.16.3",
-		"tslib": "^2.4.1",
-		"typescript": "^4.8.4",
-		"vite": "^3.2.3",
-		"vitest": "^0.25.1"
 	}
 }

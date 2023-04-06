@@ -12,8 +12,10 @@ export { bigint } from './structs/bigint.js'
 export { bigfloat } from './structs/bigfloat.js'
 export { binary } from './structs/binary.js'
 export { object } from './structs/object.js'
+export { record } from './structs/record.js'
 export { array } from './structs/array.js'
 export { date } from './structs/date.js'
+export { unknown } from './structs/unknown.js'
 
 export { stringSet } from './structs/set/string.js'
 export { numberSet } from './structs/set/number.js'
@@ -24,8 +26,9 @@ export { binarySet } from './structs/set/binary.js'
 export { mockDynamoDB } from './test/mock.js'
 
 // client
-export { dynamoDBClient } from './client.js'
-// export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'
+export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'
+export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
+export { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 
 // errors
 import './exceptions/transaction-canceled'
@@ -39,6 +42,7 @@ export { deleteItem } from './operations/delete-item.js'
 
 export { batchGetItem } from './operations/batch-get-item.js'
 export { batchPutItem } from './operations/batch-put-item.js'
+export { batchDeleteItem } from './operations/batch-delete-item.js'
 
 export { pagination } from './operations/pagination.js'
 export { query } from './operations/query.js'

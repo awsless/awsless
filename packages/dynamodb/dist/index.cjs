@@ -30,10 +30,13 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  ConditionalCheckFailedException: () => import_client_dynamodb14.ConditionalCheckFailedException,
+  ConditionalCheckFailedException: () => import_client_dynamodb16.ConditionalCheckFailedException,
+  DynamoDBClient: () => import_client_dynamodb15.DynamoDBClient,
+  DynamoDBDocumentClient: () => import_lib_dynamodb4.DynamoDBDocumentClient,
   TableDefinition: () => TableDefinition,
-  TransactionCanceledException: () => import_client_dynamodb14.TransactionCanceledException,
+  TransactionCanceledException: () => import_client_dynamodb16.TransactionCanceledException,
   array: () => array,
+  batchDeleteItem: () => batchDeleteItem,
   batchGetItem: () => batchGetItem,
   batchPutItem: () => batchPutItem,
   bigfloat: () => bigfloat,
@@ -57,6 +60,7 @@ __export(src_exports, {
   pagination: () => pagination,
   putItem: () => putItem,
   query: () => query,
+  record: () => record,
   scan: () => scan,
   string: () => string,
   stringSet: () => stringSet,
@@ -65,6 +69,7 @@ __export(src_exports, {
   transactPut: () => transactPut,
   transactUpdate: () => transactUpdate,
   transactWrite: () => transactWrite,
+  unknown: () => unknown,
   updateItem: () => updateItem
 });
 module.exports = __toCommonJS(src_exports);
@@ -353,6 +358,28 @@ var object = (schema) => new Struct(
   }
 );
 
+// src/structs/record.ts
+var record = (struct) => new Struct(
+  "M",
+  (unmarshalled) => {
+    const marshalled = {};
+    for (const [key3, value] of Object.entries(unmarshalled)) {
+      marshalled[key3] = struct.marshall(value);
+    }
+    return marshalled;
+  },
+  (marshalled) => {
+    const unmarshalled = {};
+    for (const [key3, value] of Object.entries(marshalled)) {
+      unmarshalled[key3] = struct.unmarshall(value);
+    }
+    return unmarshalled;
+  },
+  (_, ...rest) => {
+    return rest.length ? struct.walk?.(...rest) : struct;
+  }
+);
+
 // src/structs/array.ts
 var array = (struct) => new Struct(
   "L",
@@ -368,6 +395,13 @@ var date = () => new Struct(
   "N",
   (value) => String(value.getTime()),
   (value) => new Date(Number(value))
+);
+
+// src/structs/unknown.ts
+var unknown = () => new Struct(
+  "S",
+  (value) => JSON.stringify(value),
+  (value) => JSON.parse(value)
 );
 
 // src/structs/set/string.ts
@@ -572,6 +606,10 @@ var client = (options) => {
   return options.client || dynamoDBClient();
 };
 
+// src/index.ts
+var import_lib_dynamodb4 = require("@aws-sdk/lib-dynamodb");
+var import_client_dynamodb15 = require("@aws-sdk/client-dynamodb");
+
 // src/exceptions/transaction-canceled.ts
 var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
 import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt = (index) => {
@@ -579,7 +617,7 @@ import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt
 };
 
 // src/index.ts
-var import_client_dynamodb14 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb16 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/projection.ts
 var projectionExpression = (options, gen) => {
@@ -1096,6 +1134,29 @@ var batchPutItem = async (table, items, options = {}) => {
   }));
 };
 
+// src/operations/batch-delete-item.ts
+var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
+var import_chunk2 = __toESM(require("chunk"), 1);
+var batchDeleteItem = async (table, keys, options = {}) => {
+  await Promise.all((0, import_chunk2.default)(keys, 25).map(async (items) => {
+    let unprocessedItems = {
+      [table.name]: items.map((item) => ({
+        DeleteRequest: {
+          Key: table.marshall(item)
+        }
+      }))
+    };
+    while (unprocessedItems?.[table.name]?.length) {
+      const command = new import_client_dynamodb11.BatchWriteItemCommand({
+        RequestItems: unprocessedItems
+      });
+      debug(options, command);
+      const result = await client(options).send(command);
+      unprocessedItems = result.UnprocessedItems;
+    }
+  }));
+};
+
 // src/helper/cursor.ts
 var fromCursor = (cursor) => {
   return JSON.parse(
@@ -1110,7 +1171,7 @@ var toCursor = (value) => {
 };
 
 // src/operations/query.ts
-var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb12 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/key-condition.ts
 var KeyCondition = class extends Chain {
@@ -1178,7 +1239,7 @@ var keyConditionExpression = (options, gen) => {
 var query = async (table, options) => {
   const { forward = true } = options;
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb11.QueryCommand({
+  const command = new import_client_dynamodb12.QueryCommand({
     TableName: table.name,
     IndexName: options.index,
     KeyConditionExpression: keyConditionExpression(options, gen),
@@ -1221,10 +1282,10 @@ var pagination = async (table, options) => {
 };
 
 // src/operations/scan.ts
-var import_client_dynamodb12 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb13 = require("@aws-sdk/client-dynamodb");
 var scan = async (table, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb12.ScanCommand({
+  const command = new import_client_dynamodb13.ScanCommand({
     TableName: table.name,
     IndexName: options.index,
     ConsistentRead: options.consistentRead,
@@ -1243,9 +1304,9 @@ var scan = async (table, options = {}) => {
 };
 
 // src/operations/transact-write.ts
-var import_client_dynamodb13 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb14 = require("@aws-sdk/client-dynamodb");
 var transactWrite = async (options) => {
-  const command = new import_client_dynamodb13.TransactWriteItemsCommand({
+  const command = new import_client_dynamodb14.TransactWriteItemsCommand({
     ClientRequestToken: options.idempotantKey,
     TransactItems: options.items
   });
@@ -1335,9 +1396,12 @@ var migrate2 = async (from, to, options) => {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ConditionalCheckFailedException,
+  DynamoDBClient,
+  DynamoDBDocumentClient,
   TableDefinition,
   TransactionCanceledException,
   array,
+  batchDeleteItem,
   batchGetItem,
   batchPutItem,
   bigfloat,
@@ -1361,6 +1425,7 @@ var migrate2 = async (from, to, options) => {
   pagination,
   putItem,
   query,
+  record,
   scan,
   string,
   stringSet,
@@ -1369,5 +1434,6 @@ var migrate2 = async (from, to, options) => {
   transactPut,
   transactUpdate,
   transactWrite,
+  unknown,
   updateItem
 });
