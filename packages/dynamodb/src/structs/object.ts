@@ -67,7 +67,7 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 
 		return marshalled as InferMarshalled<S>
 	},
-	(marshalled:Record<string, Record<string, any>>) => {
+	(marshalled:Record<string, Record<string, unknown>>) => {
 		const unmarshalled:Record<string, unknown> = {}
 		for(const [ key, type ] of Object.entries(schema)) {
 			const value = marshalled[key]

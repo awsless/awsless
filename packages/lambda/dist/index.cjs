@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  LambdaClient: () => import_client_lambda4.LambdaClient,
   TimeoutError: () => TimeoutError,
   ValidationError: () => ValidationError,
   ViewableError: () => ViewableError,
@@ -316,8 +317,12 @@ var mockLambda = (lambdas) => {
   });
   return list;
 };
+
+// src/index.ts
+var import_client_lambda4 = require("@aws-sdk/client-lambda");
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  LambdaClient,
   TimeoutError,
   ValidationError,
   ViewableError,

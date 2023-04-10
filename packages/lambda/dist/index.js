@@ -280,7 +280,11 @@ var mockLambda = (lambdas) => {
   });
   return list;
 };
+
+// src/index.ts
+import { LambdaClient as LambdaClient3 } from "@aws-sdk/client-lambda";
 export {
+  LambdaClient3 as LambdaClient,
   TimeoutError,
   ValidationError,
   ViewableError,

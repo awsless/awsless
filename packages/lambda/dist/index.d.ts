@@ -1,6 +1,7 @@
 import { Context as Context$1 } from 'aws-lambda';
 import { Infer, Struct, Failure } from '@awsless/validate';
 import { LambdaClient } from '@aws-sdk/client-lambda';
+export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Jsonify, AsyncReturnType } from 'type-fest';
 import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
 

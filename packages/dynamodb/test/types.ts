@@ -1,19 +1,16 @@
 
 import { BigFloat } from '@awsless/big-float'
 import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional } from '../src'
-// import { enums } from '../src/structs/__enums'
 
 describe('Types', () => {
 
-	// const lol = enums(['foo', 'bar'])
-
-	const obj1 = string()
-	const obj2 = array(string())
-	const obj3 = { s: string() }
-	const obj4 = object({
-		key1: string(),
-		key2: string()
-	})
+	// const obj1 = string()
+	// const obj2 = array(string())
+	// const obj3 = { s: string() }
+	// const obj4 = object({
+	// 	key1: string(),
+	// 	key2: string()
+	// })
 
 	const table = define('table', {
 		hash: 'key',
@@ -21,7 +18,7 @@ describe('Types', () => {
 			key: number(),
 			number: number(),
 			string: string(),
-			enum: string<'foo' | 'bar'>(),
+			// enum: string<'foo' | 'bar'>(),
 			bigint: bigint(),
 			bigfloat: bigfloat(),
 			boolean: boolean(),
@@ -82,17 +79,19 @@ describe('Types', () => {
 
 		// result!.enum
 
-		expectTypeOf(result!.number).toBeNumber()
-		expectTypeOf(result!.string).toBeString()
+		expectTypeOf(result!.number).toEqualTypeOf<number>()
+		expectTypeOf(result!.string).toEqualTypeOf<string>()
+		// expectTypeOf(result!.enum).toEqualTypeOf<'foo' | 'bar'>()
 		expectTypeOf(result!.bigint).toEqualTypeOf<bigint>()
 		expectTypeOf(result!.bigfloat).toEqualTypeOf<BigFloat>()
-		expectTypeOf(result!.boolean).toBeBoolean()
+		expectTypeOf(result!.boolean).toEqualTypeOf<boolean>()
 		expectTypeOf(result!.binary).toEqualTypeOf<Uint8Array>()
 		expectTypeOf(result!.date).toEqualTypeOf<Date>()
-		expectTypeOf(result!.unknown).toBeUnknown()
+		expectTypeOf(result!.unknown).toEqualTypeOf<unknown>()
 		expectTypeOf(result!.optional).toEqualTypeOf<string | undefined>()
 		expectTypeOf(result!.array).toEqualTypeOf<{ key: string }[]>()
 		expectTypeOf(result!.record).toEqualTypeOf<Record<string, { key:string }>>()
+		expectTypeOf(result!.sets).toBeObject()
 		expectTypeOf(result!.sets.string).toEqualTypeOf<Set<string>>()
 		expectTypeOf(result!.sets.number).toEqualTypeOf<Set<number>>()
 		expectTypeOf(result!.sets.bigint).toEqualTypeOf<Set<bigint>>()
@@ -117,6 +116,7 @@ describe('Types', () => {
 			update: (exp) => exp
 				.update('number').set(2)
 				.update('string').set('2')
+				// .update('enum').set('bar')
 				.update('bigint').set(2n)
 				.update('bigfloat').set(new BigFloat(2))
 				.update('boolean').set(false)

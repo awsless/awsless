@@ -18,3 +18,4 @@ export { mockLambda } from './helpers/mock'
 
 // client
 export { lambdaClient } from './helpers/client'
+export { LambdaClient } from '@aws-sdk/client-lambda'

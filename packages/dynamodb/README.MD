@@ -8,9 +8,10 @@ The @awsless/dynamodb package provides a small and tree-shakable layer around aw
 
 ## The Problem
 
-- Floating Point Precision - Almost no DynamoDB clients are suitable when floating point precision is important. We use our @awsless/big-float package to solve this problem.
-- Tree-shakable - The API is designed to balance tree-shakability vs providing a fully typed API.
-- Testing - We provide a local DynamoDB server and mock that will route all DynamoDB requests to the local DynamoDB server.
+- __Floating Point Precision__ - Almost no DynamoDB clients are suitable when floating point precision is important. We use our @awsless/big-float package to solve this problem.
+- __Tree-shakable__ - The API is designed to balance tree-shakability vs providing a fully typed API.
+- __Query Builder__ - Type safe & easy to use query expression builder.
+- __Testing__ - We provide a local DynamoDB server and mock that will route all DynamoDB requests to the local DynamoDB server.
 
 ## Setup
 
@@ -111,6 +112,92 @@ it('your test', async () => {
 		title: 'Hello World',
 	})
 })
+
+```
+
+# Schema Types
+
+We provides the following schema types:
+
+- array
+- bigfloat
+- bigint
+- binary
+- boolean
+- date
+- number
+- object
+- optional
+- record
+- string
+- unknown
+- bigintSet
+- binarySet
+- numberSet
+- stringSet
+
+The `binary` & `binarySet` schema type supports the following input value types:
+
+`ArrayBuffer, Blob, Buffer, DataView, File, Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array`
+
+And the output value type is always `Uint8Array`.
+
+# Operation Functions
+
+| Type						| Description					|
+|---------------------------|-------------------------------|
+| `getItem`					| Store an item |
+| `updateItem`				| Update an item |
+| `deleteItem`				| Delete an item |
+| `query`					| Query a list of items |
+| `scan`     				| Scan the table for items |
+| `pagination`				| Pagination helper to query a list of items |
+| `migrate`					| Migration helper to migrate your table to a different structure |
+| `batchGetItem`			| Batch get items |
+| `batchPutItem`			| Batch store items |
+| `batchDeleteItem`			| Batch delete items |
+| `transactWrite`			| Execute a transactional write |
+| `transactPut`				| Store an item transactionally |
+| `transactUpdate`			| Update an item transactionally |
+| `transactDelete`			| Delete an item transactionally |
+| `transactConditionCheck`	| Conditional check transactionally |
+
+# Typescript Infer Types
+
+## `InferInput<T>`
+
+Infer the item type of a table definition when inserting an item.
+
+## `InferOutput<T>`
+
+Infer the item type of a table definition when querying an item.
+
+```ts
+import { define, InferInput, InferOutput, object, number, string, binary } from "@awsless/dynamodb";
+
+const posts = define('posts', {
+	hash: 'id',
+	schema: object({
+		id: number(),
+		title: string(),
+		data: binary(),
+	})
+})
+
+/* {
+  id: number,
+  title: string,
+  data: BinaryValue
+} */
+type Post1 = InferInput<typeof posts>
+
+/* {
+  id: number,
+  title: string,
+  data: Uint8Array
+} */
+type Post2 = InferOutput<typeof posts>
+
 
 ```
 
