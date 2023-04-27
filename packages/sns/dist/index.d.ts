@@ -22,7 +22,7 @@ declare const publish: ({ client, topic, subject, payload, attributes, region, a
 type Topics = {
     [key: string]: (payload: any) => any;
 };
-declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: unknown[]) => unknown>; };
+declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
 
 declare const snsClient: {
     (): SNSClient;

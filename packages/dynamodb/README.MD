@@ -92,7 +92,7 @@ await transactWrite({
 # Mock for testing
 
 ```ts
-import { mockLambda, ... } from "@awsless/dynamodb";
+import { mockDynamoDB, ... } from "@awsless/dynamodb";
 
 const posts = define('posts', {
 	hash: 'id',

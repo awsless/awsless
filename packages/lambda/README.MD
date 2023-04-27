@@ -3,6 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/@awsless/lambda.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/lambda)
 [![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
 
+# TODO
+- Rename ViewableError to ExpectedError
 
 # Basic usage
 
@@ -19,34 +21,21 @@ export default lambda({
 
 ```ts
 import { lambda } from "@awsless/lambda";
-import { object, integer, string, min, max } from "@awsless/validate";
+import { object, string } from "@awsless/validate";
 import { bugsnag } from "@awsless/bugsnag";
-import { Table, pagination } from "@awsless/dynamodb";
-
-type User = {
-  id: number
-  name: string
-}
-
-const users = new Table<User, 'id'>('users')
 
 export default lambda({
 
   // Validate the input
   input: object({
-    limit: max(min(integer(), 0), 100),
-    cursor: string(),
+    message: string()
   }),
 
   // Log errors to bugsnag
   logger: bugsnag(),
 
-  handle({ limit, cursor }) {
-    // Return a paginated list of users
-    return pagination(table, {
-      limit,
-      cursor,
-    })
+  handle({ message }) {
+    return message
   }
 })
 ```
@@ -86,7 +75,10 @@ const lambdas = mockLambda({
 })
 
 it('your test', async () => {
-  const result = await invoke('echo', 'Hi')
+  const result = await invoke({
+    name: 'echo',
+    payload: 'Hi'
+  })
   expect(result).toBe('Hi')
   expect(lambdas.echo).toBeCalled()
 })
