@@ -1,34 +1,15 @@
-import { mockSES } from '../src'
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
+import { mockSES, sendEmail } from '../src'
 
 describe('SES Mock', () => {
 	const ses = mockSES()
 
 	it('should send ses email', async () => {
-		const client = new SESv2Client({})
-		await client.send(
-			new SendEmailCommand({
-				FromEmailAddress: 'info@jacksclub.io',
-				Destination: {
-					ToAddresses: ['info@jacksclub.io'],
-				},
-				Content: {
-					Simple: {
-						Subject: {
-							Data: 'Email Subject',
-							Charset: 'UTF-8',
-						},
-
-						Body: {
-							Html: {
-								Data: '<p>Hello world</p>',
-								Charset: 'UTF-8',
-							},
-						},
-					},
-				},
-			})
-		)
+		await sendEmail({
+			from: 'support@jacksclub.io',
+			to: ['info@jacksclub.io'],
+			subject: 'Email Subject',
+			html: '<p>Hello world</p>',
+		})
 
 		expect(ses).toBeCalledTimes(1)
 	})

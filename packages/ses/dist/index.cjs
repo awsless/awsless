@@ -21,6 +21,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var src_exports = {};
 __export(src_exports, {
   mockSES: () => mockSES,
+  sendEmail: () => sendEmail,
   sesClient: () => sesClient
 });
 module.exports = __toCommonJS(src_exports);
@@ -45,8 +46,35 @@ var import_utils = require("@awsless/utils");
 var sesClient = (0, import_utils.globalClient)(() => {
   return new import_client_sesv22.SESv2Client({});
 });
+
+// src/commands.ts
+var import_client_sesv23 = require("@aws-sdk/client-sesv2");
+var sendEmail = async ({ client = sesClient(), subject, from, to, html }) => {
+  const command = new import_client_sesv23.SendEmailCommand({
+    FromEmailAddress: from,
+    Destination: {
+      ToAddresses: to
+    },
+    Content: {
+      Simple: {
+        Subject: {
+          Data: subject,
+          Charset: "UTF-8"
+        },
+        Body: {
+          Html: {
+            Data: html,
+            Charset: "UTF-8"
+          }
+        }
+      }
+    }
+  });
+  return client.send(command);
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   mockSES,
+  sendEmail,
   sesClient
 });

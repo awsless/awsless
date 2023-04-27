@@ -24,7 +24,7 @@ declare const deleteSchedule: ({ client, idempotentKey }: DeleteSchedule) => Pro
 type Lambdas = {
     [key: string]: (payload: any) => any;
 };
-declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: unknown[]) => unknown>; };
+declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
 
 declare const schedulerClient: {
     (): SchedulerClient;
