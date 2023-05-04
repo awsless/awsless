@@ -26,7 +26,7 @@ importers:
 
   packages/bugsnag:
     specifiers:
-      '@awsless/lambda': workspace:^0.0.2
+      '@awsless/lambda': workspace:^
     dependencies:
       '@awsless/lambda': link:../lambda
 
@@ -191,16 +191,6 @@ importers:
       type-fest: 3.6.0
     devDependencies:
       '@awsless/validate': link:../validate
-
-  packages/redis:
-    specifiers:
-      '@awsless/redis-server': workspace:^
-      '@awsless/utils': workspace:^
-      ioredis: ^5.3.1
-    dependencies:
-      '@awsless/redis-server': link:../redis-server
-      '@awsless/utils': link:../utils
-      ioredis: 5.3.1
 
   packages/redis-server:
     specifiers:
