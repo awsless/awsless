@@ -34,7 +34,7 @@ var test = async (filters = []) => {
     }),
     test: {
       include: ["./test/**/*.{js,jsx,coffee,ts}"],
-      exclude: configDefaults.exclude,
+      exclude: ["./test/**/_*", ...configDefaults.exclude],
       globals: true
     }
   })));

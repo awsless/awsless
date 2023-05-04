@@ -20,8 +20,8 @@ export const test = async (filters:string[] = []) => {
 			sourceMap: true,
 		}) as any[],
 		test: {
-			include: ['./test/**/*.{js,jsx,coffee,ts}'],
-			exclude: configDefaults.exclude,
+			include: [ './test/**/*.{js,jsx,coffee,ts}' ],
+			exclude: [ './test/**/_*', ...configDefaults.exclude ],
 			globals: true,
 		}
 	})))

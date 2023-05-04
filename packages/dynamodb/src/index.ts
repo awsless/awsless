@@ -2,6 +2,9 @@
 // define
 export { define, InferOutput, InferInput, TableDefinition } from './table.js'
 
+// types
+export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'
+
 // structs
 export { optional } from './structs/optional.js'
 
@@ -40,13 +43,19 @@ export { putItem } from './operations/put-item.js'
 export { updateItem } from './operations/update-item.js'
 export { deleteItem } from './operations/delete-item.js'
 
+export { getIndexedItem } from './operations/get-indexed-item.js'
+
 export { batchGetItem } from './operations/batch-get-item.js'
 export { batchPutItem } from './operations/batch-put-item.js'
 export { batchDeleteItem } from './operations/batch-delete-item.js'
 
-export { pagination } from './operations/pagination.js'
 export { query } from './operations/query.js'
 export { scan } from './operations/scan.js'
 
+export { queryAll } from './operations/query-all.js'
+export { scanAll } from './operations/scan-all.js'
+
+export { paginateQuery } from './operations/paginate-query.js'
+export { paginateScan } from './operations/paginate-scan.js'
+
 export { transactWrite, transactUpdate, transactPut, transactDelete, transactConditionCheck } from './operations/transact-write.js'
-export { migrate } from './operations/migrate.js'

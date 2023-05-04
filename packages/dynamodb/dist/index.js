@@ -989,6 +989,112 @@ var deleteItem = async (table, key3, options = {}) => {
   return void 0;
 };
 
+// src/operations/query.ts
+import { QueryCommand as QueryCommand2 } from "@aws-sdk/client-dynamodb";
+
+// src/expressions/key-condition.ts
+var KeyCondition = class extends Chain {
+  where(path) {
+    return new Where2(merge(this), path);
+  }
+  extend(fn) {
+    return fn(this);
+  }
+};
+var Where2 = class extends Chain {
+  constructor(query2, path) {
+    super(query2);
+    this.path = path;
+  }
+  compare(comparator, v) {
+    return new Combine2(merge(this, "(", { p: [this.path] }, comparator, { v, p: [this.path] }, ")"));
+  }
+  eq(value) {
+    return this.compare("=", value);
+  }
+  gt(value) {
+    return this.compare(">", value);
+  }
+  gte(value) {
+    return this.compare(">=", value);
+  }
+  lt(value) {
+    return this.compare("<", value);
+  }
+  lte(value) {
+    return this.compare("<=", value);
+  }
+  between(min, max) {
+    return new Combine2(merge(
+      this,
+      "(",
+      { p: [this.path] },
+      "BETWEEN",
+      { v: min, p: [this.path] },
+      "AND",
+      { v: max, p: [this.path] },
+      ")"
+    ));
+  }
+  beginsWith(value) {
+    return new Combine2(merge(this, "begins_with(", { p: [this.path] }, ",", { v: value, p: [this.path] }, ")"));
+  }
+};
+var Combine2 = class extends Chain {
+  get and() {
+    return new KeyCondition(merge(this, "AND"));
+  }
+  get or() {
+    return new KeyCondition(merge(this, "OR"));
+  }
+};
+var keyConditionExpression = (options, gen) => {
+  const condition = options.keyCondition(new KeyCondition([]));
+  const query2 = build(chainData(condition), gen).join(" ");
+  return query2;
+};
+
+// src/operations/query.ts
+var query = async (table, options) => {
+  const { forward = true } = options;
+  const gen = new IDGenerator(table);
+  const command = new QueryCommand2({
+    TableName: table.name,
+    IndexName: options.index,
+    KeyConditionExpression: keyConditionExpression(options, gen),
+    ConsistentRead: options.consistentRead,
+    ScanIndexForward: forward,
+    Limit: options.limit || 10,
+    ExclusiveStartKey: options.cursor && table.marshall(options.cursor),
+    ProjectionExpression: projectionExpression(options, gen),
+    ...gen.attributes()
+  });
+  debug(options, command);
+  const result = await client(options).send(command);
+  return {
+    count: result.Count || 0,
+    items: result.Items?.map((item) => table.unmarshall(item)) || [],
+    cursor: result.LastEvaluatedKey && table.unmarshall(result.LastEvaluatedKey)
+  };
+};
+
+// src/operations/get-indexed-item.ts
+var getIndexedItem = async (table, key3, options) => {
+  const keys = table.indexes[options.index];
+  const result = await query(table, {
+    ...options,
+    limit: 1,
+    keyCondition(exp) {
+      const query2 = exp.where(keys.hash).eq(key3[keys.hash]);
+      if (!keys.sort) {
+        return query2;
+      }
+      return query2.and.where(keys.sort).eq(key3[keys.sort]);
+    }
+  });
+  return result.items[0];
+};
+
 // src/operations/batch-get-item.ts
 import { BatchGetItemCommand as BatchGetItemCommand2 } from "@aws-sdk/client-dynamodb";
 var batchGetItem = async (table, keys, options = { filterNonExistentItems: false }) => {
@@ -1081,6 +1187,91 @@ var batchDeleteItem = async (table, keys, options = {}) => {
   }));
 };
 
+// src/operations/scan.ts
+import { ScanCommand as ScanCommand2 } from "@aws-sdk/client-dynamodb";
+var scan = async (table, options = {}) => {
+  const gen = new IDGenerator(table);
+  const command = new ScanCommand2({
+    TableName: table.name,
+    IndexName: options.index,
+    ConsistentRead: options.consistentRead,
+    Limit: options.limit || 10,
+    ExclusiveStartKey: options.cursor && table.marshall(options.cursor),
+    ProjectionExpression: projectionExpression(options, gen),
+    ...gen.attributeNames()
+  });
+  debug(options, command);
+  const result = await client(options).send(command);
+  return {
+    count: result.Count || 0,
+    items: result.Items?.map((item) => table.unmarshall(item)) || [],
+    cursor: result.LastEvaluatedKey && table.unmarshall(result.LastEvaluatedKey)
+  };
+};
+
+// src/operations/query-all.ts
+var queryAll = async (table, options) => {
+  let cursor;
+  let itemsProcessed = 0;
+  const loop = async () => {
+    const result = await query(table, {
+      client: options.client,
+      index: options.index,
+      keyCondition: options.keyCondition,
+      projection: options.projection,
+      consistentRead: options.consistentRead,
+      forward: options.forward,
+      limit: options.batch,
+      cursor
+    });
+    itemsProcessed += result.items.length;
+    await options.handle(result.items);
+    if (result.items.length === 0 || !result.cursor) {
+      return false;
+    }
+    cursor = result.cursor;
+    return true;
+  };
+  for (; ; ) {
+    if (!await loop()) {
+      break;
+    }
+  }
+  return {
+    itemsProcessed
+  };
+};
+
+// src/operations/scan-all.ts
+var scanAll = async (table, options) => {
+  let cursor;
+  let itemsProcessed = 0;
+  const loop = async () => {
+    const result = await scan(table, {
+      client: options.client,
+      projection: options.projection,
+      consistentRead: options.consistentRead,
+      limit: options.batch,
+      cursor
+    });
+    itemsProcessed += result.items.length;
+    await options.handle(result.items);
+    if (result.items.length === 0 || !result.cursor) {
+      return false;
+    }
+    cursor = result.cursor;
+    return true;
+  };
+  for (; ; ) {
+    if (!await loop()) {
+      break;
+    }
+  }
+  return {
+    itemsProcessed
+  };
+};
+
 // src/helper/cursor.ts
 var fromCursor = (cursor) => {
   return JSON.parse(
@@ -1094,97 +1285,8 @@ var toCursor = (value) => {
   ).toString("base64");
 };
 
-// src/operations/query.ts
-import { QueryCommand as QueryCommand2 } from "@aws-sdk/client-dynamodb";
-
-// src/expressions/key-condition.ts
-var KeyCondition = class extends Chain {
-  where(path) {
-    return new Where2(merge(this), path);
-  }
-  extend(fn) {
-    return fn(this);
-  }
-};
-var Where2 = class extends Chain {
-  constructor(query2, path) {
-    super(query2);
-    this.path = path;
-  }
-  compare(comparator, v) {
-    return new Combine2(merge(this, "(", { p: [this.path] }, comparator, { v, p: [this.path] }, ")"));
-  }
-  eq(value) {
-    return this.compare("=", value);
-  }
-  gt(value) {
-    return this.compare(">", value);
-  }
-  gte(value) {
-    return this.compare(">=", value);
-  }
-  lt(value) {
-    return this.compare("<", value);
-  }
-  lte(value) {
-    return this.compare("<=", value);
-  }
-  between(min, max) {
-    return new Combine2(merge(
-      this,
-      "(",
-      { p: [this.path] },
-      "BETWEEN",
-      { v: min, p: [this.path] },
-      "AND",
-      { v: max, p: [this.path] },
-      ")"
-    ));
-  }
-  beginsWith(value) {
-    return new Combine2(merge(this, "begins_with(", { p: [this.path] }, ",", { v: value, p: [this.path] }, ")"));
-  }
-};
-var Combine2 = class extends Chain {
-  get and() {
-    return new KeyCondition(merge(this, "AND"));
-  }
-  get or() {
-    return new KeyCondition(merge(this, "OR"));
-  }
-};
-var keyConditionExpression = (options, gen) => {
-  const condition = options.keyCondition(new KeyCondition([]));
-  const query2 = build(chainData(condition), gen).join(" ");
-  return query2;
-};
-
-// src/operations/query.ts
-var query = async (table, options) => {
-  const { forward = true } = options;
-  const gen = new IDGenerator(table);
-  const command = new QueryCommand2({
-    TableName: table.name,
-    IndexName: options.index,
-    KeyConditionExpression: keyConditionExpression(options, gen),
-    ConsistentRead: options.consistentRead,
-    ScanIndexForward: forward,
-    Limit: options.limit || 10,
-    ExclusiveStartKey: options.cursor && table.marshall(options.cursor),
-    ProjectionExpression: projectionExpression(options, gen),
-    ...gen.attributes()
-  });
-  debug(options, command);
-  const result = await client(options).send(command);
-  return {
-    count: result.Count || 0,
-    items: result.Items?.map((item) => table.unmarshall(item)) || [],
-    cursor: result.LastEvaluatedKey && table.unmarshall(result.LastEvaluatedKey)
-  };
-};
-
-// src/operations/pagination.ts
-var pagination = async (table, options) => {
+// src/operations/paginate-query.ts
+var paginateQuery = async (table, options) => {
   const result = await query(table, {
     ...options,
     cursor: options.cursor ? fromCursor(options.cursor) : void 0
@@ -1205,25 +1307,25 @@ var pagination = async (table, options) => {
   };
 };
 
-// src/operations/scan.ts
-import { ScanCommand as ScanCommand2 } from "@aws-sdk/client-dynamodb";
-var scan = async (table, options = {}) => {
-  const gen = new IDGenerator(table);
-  const command = new ScanCommand2({
-    TableName: table.name,
-    IndexName: options.index,
-    ConsistentRead: options.consistentRead,
-    Limit: options.limit || 10,
-    ExclusiveStartKey: options.cursor && table.marshall(options.cursor),
-    ProjectionExpression: projectionExpression(options, gen),
-    ...gen.attributeNames()
+// src/operations/paginate-scan.ts
+var paginateScan = async (table, options = {}) => {
+  const result = await scan(table, {
+    ...options,
+    cursor: options.cursor ? fromCursor(options.cursor) : void 0
   });
-  debug(options, command);
-  const result = await client(options).send(command);
+  if (result.cursor) {
+    const more = await scan(table, {
+      ...options,
+      limit: 1,
+      cursor: result.cursor
+    });
+    if (more.count === 0) {
+      delete result.cursor;
+    }
+  }
   return {
-    count: result.Count || 0,
-    items: result.Items?.map((item) => table.unmarshall(item)) || [],
-    cursor: result.LastEvaluatedKey && table.unmarshall(result.LastEvaluatedKey)
+    ...result,
+    cursor: result.cursor && toCursor(result.cursor)
   };
 };
 
@@ -1282,41 +1384,6 @@ var transactDelete = (table, key3, options = {}) => {
     }
   };
 };
-
-// src/operations/migrate.ts
-var migrate2 = async (from, to, options) => {
-  let cursor;
-  let itemsProcessed = 0;
-  const loop = async () => {
-    const result = await scan(from, {
-      client: options.client,
-      consistentRead: options.consistentRead,
-      limit: options.batch || 1e3,
-      // @ts-ignore
-      cursor
-    });
-    await Promise.all(result.items.map(async (item) => {
-      const newItem = await options.transform(item);
-      await putItem(to, newItem, {
-        client: options.client
-      });
-      itemsProcessed++;
-    }));
-    if (result.items.length === 0 || !result.cursor) {
-      return false;
-    }
-    cursor = result.cursor;
-    return true;
-  };
-  for (; ; ) {
-    if (!await loop()) {
-      break;
-    }
-  }
-  return {
-    itemsProcessed
-  };
-};
 export {
   ConditionalCheckFailedException,
   DynamoDBClient4 as DynamoDBClient,
@@ -1338,18 +1405,21 @@ export {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
+  getIndexedItem,
   getItem,
-  migrate2 as migrate,
   mockDynamoDB,
   number,
   numberSet,
   object,
   optional,
-  pagination,
+  paginateQuery,
+  paginateScan,
   putItem,
   query,
+  queryAll,
   record,
   scan,
+  scanAll,
   string,
   stringSet,
   transactConditionCheck,

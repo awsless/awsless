@@ -1,6 +1,6 @@
-import { define, mockDynamoDB, number, object, pagination, putItem } from '../../src/index'
+import { define, mockDynamoDB, number, object, paginateQuery, putItem } from '../../src/index'
 
-describe('Pagination', () => {
+describe('Paginate Query', () => {
 
 	const posts = define('posts', {
 		hash: 'userId',
@@ -24,7 +24,7 @@ describe('Pagination', () => {
 			putItem(posts, { userId: 1, id: 3, sortId: 3 }),
 		])
 
-		const result = await pagination(posts, {
+		const result = await paginateQuery(posts, {
 			keyCondition: (exp) => exp.where('userId').eq(1),
 		})
 
@@ -40,7 +40,7 @@ describe('Pagination', () => {
 	})
 
 	it('should pagination list backwards', async () => {
-		const result = await pagination(posts, {
+		const result = await paginateQuery(posts, {
 			keyCondition: (exp) => exp.where('userId').eq(1),
 			forward: false,
 		})
@@ -57,7 +57,7 @@ describe('Pagination', () => {
 	})
 
 	it('should support limit & cursor', async () => {
-		const result1 = await pagination(posts, {
+		const result1 = await paginateQuery(posts, {
 			keyCondition: (exp) => exp.where('userId').eq(1),
 			limit: 1,
 		})
@@ -72,7 +72,7 @@ describe('Pagination', () => {
 			],
 		})
 
-		const result2 = await pagination(posts, {
+		const result2 = await paginateQuery(posts, {
 			keyCondition: (exp) => exp.where('userId').eq(1),
 			cursor: result1.cursor,
 			limit: 1,
@@ -88,7 +88,7 @@ describe('Pagination', () => {
 	})
 
 	it('should support index', async () => {
-		const result = await pagination(posts, {
+		const result = await paginateQuery(posts, {
 			index: 'list',
 			keyCondition: (exp) => exp
 				.where('userId').eq(1)
@@ -106,7 +106,7 @@ describe('Pagination', () => {
 	})
 
 	it('should not return cursor when no more items are available', async () => {
-		const result = await pagination(posts, {
+		const result = await paginateQuery(posts, {
 			keyCondition: (exp) => exp.where('userId').eq(1),
 			limit: 3,
 		})

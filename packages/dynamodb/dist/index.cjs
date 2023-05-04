@@ -50,18 +50,21 @@ __export(src_exports, {
   deleteItem: () => deleteItem,
   dynamoDBClient: () => dynamoDBClient,
   dynamoDBDocumentClient: () => dynamoDBDocumentClient,
+  getIndexedItem: () => getIndexedItem,
   getItem: () => getItem,
-  migrate: () => migrate2,
   mockDynamoDB: () => mockDynamoDB,
   number: () => number,
   numberSet: () => numberSet,
   object: () => object,
   optional: () => optional,
-  pagination: () => pagination,
+  paginateQuery: () => paginateQuery,
+  paginateScan: () => paginateScan,
   putItem: () => putItem,
   query: () => query,
+  queryAll: () => queryAll,
   record: () => record,
   scan: () => scan,
+  scanAll: () => scanAll,
   string: () => string,
   stringSet: () => stringSet,
   transactConditionCheck: () => transactConditionCheck,
@@ -1065,113 +1068,8 @@ var deleteItem = async (table, key3, options = {}) => {
   return void 0;
 };
 
-// src/operations/batch-get-item.ts
-var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
-var batchGetItem = async (table, keys, options = { filterNonExistentItems: false }) => {
-  let response = [];
-  let unprocessedKeys = keys.map((key3) => table.marshall(key3));
-  const gen = new IDGenerator(table);
-  const projection = projectionExpression(options, gen);
-  const attributes = gen.attributeNames();
-  while (unprocessedKeys.length) {
-    const command = new import_client_dynamodb9.BatchGetItemCommand({
-      RequestItems: {
-        [table.name]: {
-          Keys: unprocessedKeys,
-          ConsistentRead: options.consistentRead,
-          ProjectionExpression: projection,
-          ...attributes
-        }
-      }
-    });
-    debug(options, command);
-    const result = await client(options).send(command);
-    unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || [];
-    response = [
-      ...response,
-      ...(result.Responses?.[table.name] || []).map(
-        (item) => table.unmarshall(item)
-      )
-    ];
-  }
-  const list = keys.map((key3) => {
-    return response.find((item) => {
-      for (const i in key3) {
-        const k = i;
-        if (key3[k] !== item?.[k]) {
-          return false;
-        }
-      }
-      return true;
-    });
-  });
-  if (options.filterNonExistentItems) {
-    return list.filter((item) => !!item);
-  }
-  return list;
-};
-
-// src/operations/batch-put-item.ts
-var import_client_dynamodb10 = require("@aws-sdk/client-dynamodb");
-var import_chunk = __toESM(require("chunk"), 1);
-var batchPutItem = async (table, items, options = {}) => {
-  await Promise.all((0, import_chunk.default)(items, 25).map(async (items2) => {
-    let unprocessedItems = {
-      [table.name]: items2.map((item) => ({
-        PutRequest: {
-          Item: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new import_client_dynamodb10.BatchWriteItemCommand({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
-};
-
-// src/operations/batch-delete-item.ts
-var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
-var import_chunk2 = __toESM(require("chunk"), 1);
-var batchDeleteItem = async (table, keys, options = {}) => {
-  await Promise.all((0, import_chunk2.default)(keys, 25).map(async (items) => {
-    let unprocessedItems = {
-      [table.name]: items.map((item) => ({
-        DeleteRequest: {
-          Key: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new import_client_dynamodb11.BatchWriteItemCommand({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
-};
-
-// src/helper/cursor.ts
-var fromCursor = (cursor) => {
-  return JSON.parse(
-    Buffer.from(cursor, "base64").toString("utf-8")
-  );
-};
-var toCursor = (value) => {
-  return Buffer.from(
-    JSON.stringify(value),
-    "utf-8"
-  ).toString("base64");
-};
-
 // src/operations/query.ts
-var import_client_dynamodb12 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/key-condition.ts
 var KeyCondition = class extends Chain {
@@ -1239,7 +1137,7 @@ var keyConditionExpression = (options, gen) => {
 var query = async (table, options) => {
   const { forward = true } = options;
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb12.QueryCommand({
+  const command = new import_client_dynamodb9.QueryCommand({
     TableName: table.name,
     IndexName: options.index,
     KeyConditionExpression: keyConditionExpression(options, gen),
@@ -1259,26 +1157,113 @@ var query = async (table, options) => {
   };
 };
 
-// src/operations/pagination.ts
-var pagination = async (table, options) => {
+// src/operations/get-indexed-item.ts
+var getIndexedItem = async (table, key3, options) => {
+  const keys = table.indexes[options.index];
   const result = await query(table, {
     ...options,
-    cursor: options.cursor ? fromCursor(options.cursor) : void 0
-  });
-  if (result.cursor) {
-    const more = await query(table, {
-      ...options,
-      limit: 1,
-      cursor: result.cursor
-    });
-    if (more.count === 0) {
-      delete result.cursor;
+    limit: 1,
+    keyCondition(exp) {
+      const query2 = exp.where(keys.hash).eq(key3[keys.hash]);
+      if (!keys.sort) {
+        return query2;
+      }
+      return query2.and.where(keys.sort).eq(key3[keys.sort]);
     }
+  });
+  return result.items[0];
+};
+
+// src/operations/batch-get-item.ts
+var import_client_dynamodb10 = require("@aws-sdk/client-dynamodb");
+var batchGetItem = async (table, keys, options = { filterNonExistentItems: false }) => {
+  let response = [];
+  let unprocessedKeys = keys.map((key3) => table.marshall(key3));
+  const gen = new IDGenerator(table);
+  const projection = projectionExpression(options, gen);
+  const attributes = gen.attributeNames();
+  while (unprocessedKeys.length) {
+    const command = new import_client_dynamodb10.BatchGetItemCommand({
+      RequestItems: {
+        [table.name]: {
+          Keys: unprocessedKeys,
+          ConsistentRead: options.consistentRead,
+          ProjectionExpression: projection,
+          ...attributes
+        }
+      }
+    });
+    debug(options, command);
+    const result = await client(options).send(command);
+    unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || [];
+    response = [
+      ...response,
+      ...(result.Responses?.[table.name] || []).map(
+        (item) => table.unmarshall(item)
+      )
+    ];
   }
-  return {
-    ...result,
-    cursor: result.cursor && toCursor(result.cursor)
-  };
+  const list = keys.map((key3) => {
+    return response.find((item) => {
+      for (const i in key3) {
+        const k = i;
+        if (key3[k] !== item?.[k]) {
+          return false;
+        }
+      }
+      return true;
+    });
+  });
+  if (options.filterNonExistentItems) {
+    return list.filter((item) => !!item);
+  }
+  return list;
+};
+
+// src/operations/batch-put-item.ts
+var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
+var import_chunk = __toESM(require("chunk"), 1);
+var batchPutItem = async (table, items, options = {}) => {
+  await Promise.all((0, import_chunk.default)(items, 25).map(async (items2) => {
+    let unprocessedItems = {
+      [table.name]: items2.map((item) => ({
+        PutRequest: {
+          Item: table.marshall(item)
+        }
+      }))
+    };
+    while (unprocessedItems?.[table.name]?.length) {
+      const command = new import_client_dynamodb11.BatchWriteItemCommand({
+        RequestItems: unprocessedItems
+      });
+      debug(options, command);
+      const result = await client(options).send(command);
+      unprocessedItems = result.UnprocessedItems;
+    }
+  }));
+};
+
+// src/operations/batch-delete-item.ts
+var import_client_dynamodb12 = require("@aws-sdk/client-dynamodb");
+var import_chunk2 = __toESM(require("chunk"), 1);
+var batchDeleteItem = async (table, keys, options = {}) => {
+  await Promise.all((0, import_chunk2.default)(keys, 25).map(async (items) => {
+    let unprocessedItems = {
+      [table.name]: items.map((item) => ({
+        DeleteRequest: {
+          Key: table.marshall(item)
+        }
+      }))
+    };
+    while (unprocessedItems?.[table.name]?.length) {
+      const command = new import_client_dynamodb12.BatchWriteItemCommand({
+        RequestItems: unprocessedItems
+      });
+      debug(options, command);
+      const result = await client(options).send(command);
+      unprocessedItems = result.UnprocessedItems;
+    }
+  }));
 };
 
 // src/operations/scan.ts
@@ -1300,6 +1285,126 @@ var scan = async (table, options = {}) => {
     count: result.Count || 0,
     items: result.Items?.map((item) => table.unmarshall(item)) || [],
     cursor: result.LastEvaluatedKey && table.unmarshall(result.LastEvaluatedKey)
+  };
+};
+
+// src/operations/query-all.ts
+var queryAll = async (table, options) => {
+  let cursor;
+  let itemsProcessed = 0;
+  const loop = async () => {
+    const result = await query(table, {
+      client: options.client,
+      index: options.index,
+      keyCondition: options.keyCondition,
+      projection: options.projection,
+      consistentRead: options.consistentRead,
+      forward: options.forward,
+      limit: options.batch,
+      cursor
+    });
+    itemsProcessed += result.items.length;
+    await options.handle(result.items);
+    if (result.items.length === 0 || !result.cursor) {
+      return false;
+    }
+    cursor = result.cursor;
+    return true;
+  };
+  for (; ; ) {
+    if (!await loop()) {
+      break;
+    }
+  }
+  return {
+    itemsProcessed
+  };
+};
+
+// src/operations/scan-all.ts
+var scanAll = async (table, options) => {
+  let cursor;
+  let itemsProcessed = 0;
+  const loop = async () => {
+    const result = await scan(table, {
+      client: options.client,
+      projection: options.projection,
+      consistentRead: options.consistentRead,
+      limit: options.batch,
+      cursor
+    });
+    itemsProcessed += result.items.length;
+    await options.handle(result.items);
+    if (result.items.length === 0 || !result.cursor) {
+      return false;
+    }
+    cursor = result.cursor;
+    return true;
+  };
+  for (; ; ) {
+    if (!await loop()) {
+      break;
+    }
+  }
+  return {
+    itemsProcessed
+  };
+};
+
+// src/helper/cursor.ts
+var fromCursor = (cursor) => {
+  return JSON.parse(
+    Buffer.from(cursor, "base64").toString("utf-8")
+  );
+};
+var toCursor = (value) => {
+  return Buffer.from(
+    JSON.stringify(value),
+    "utf-8"
+  ).toString("base64");
+};
+
+// src/operations/paginate-query.ts
+var paginateQuery = async (table, options) => {
+  const result = await query(table, {
+    ...options,
+    cursor: options.cursor ? fromCursor(options.cursor) : void 0
+  });
+  if (result.cursor) {
+    const more = await query(table, {
+      ...options,
+      limit: 1,
+      cursor: result.cursor
+    });
+    if (more.count === 0) {
+      delete result.cursor;
+    }
+  }
+  return {
+    ...result,
+    cursor: result.cursor && toCursor(result.cursor)
+  };
+};
+
+// src/operations/paginate-scan.ts
+var paginateScan = async (table, options = {}) => {
+  const result = await scan(table, {
+    ...options,
+    cursor: options.cursor ? fromCursor(options.cursor) : void 0
+  });
+  if (result.cursor) {
+    const more = await scan(table, {
+      ...options,
+      limit: 1,
+      cursor: result.cursor
+    });
+    if (more.count === 0) {
+      delete result.cursor;
+    }
+  }
+  return {
+    ...result,
+    cursor: result.cursor && toCursor(result.cursor)
   };
 };
 
@@ -1358,41 +1463,6 @@ var transactDelete = (table, key3, options = {}) => {
     }
   };
 };
-
-// src/operations/migrate.ts
-var migrate2 = async (from, to, options) => {
-  let cursor;
-  let itemsProcessed = 0;
-  const loop = async () => {
-    const result = await scan(from, {
-      client: options.client,
-      consistentRead: options.consistentRead,
-      limit: options.batch || 1e3,
-      // @ts-ignore
-      cursor
-    });
-    await Promise.all(result.items.map(async (item) => {
-      const newItem = await options.transform(item);
-      await putItem(to, newItem, {
-        client: options.client
-      });
-      itemsProcessed++;
-    }));
-    if (result.items.length === 0 || !result.cursor) {
-      return false;
-    }
-    cursor = result.cursor;
-    return true;
-  };
-  for (; ; ) {
-    if (!await loop()) {
-      break;
-    }
-  }
-  return {
-    itemsProcessed
-  };
-};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   ConditionalCheckFailedException,
@@ -1415,18 +1485,21 @@ var migrate2 = async (from, to, options) => {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
+  getIndexedItem,
   getItem,
-  migrate,
   mockDynamoDB,
   number,
   numberSet,
   object,
   optional,
-  pagination,
+  paginateQuery,
+  paginateScan,
   putItem,
   query,
+  queryAll,
   record,
   scan,
+  scanAll,
   string,
   stringSet,
   transactConditionCheck,

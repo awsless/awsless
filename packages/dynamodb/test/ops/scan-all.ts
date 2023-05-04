@@ -1,0 +1,53 @@
+
+import { define, mockDynamoDB, number, object, scanAll } from '../../src/index'
+
+describe('Scan All', () => {
+
+	const posts = define('posts', {
+		hash: 'id',
+		schema: object({
+			id:	number(),
+		})
+	})
+
+	mockDynamoDB({
+		tables: [ posts ],
+		seed: {
+			posts: [
+				{ id: 1 },
+				{ id: 2 },
+				{ id: 3 },
+				{ id: 4 },
+				{ id: 5 },
+				{ id: 6 },
+				{ id: 7 },
+				{ id: 8 },
+				{ id: 9 },
+				{ id: 10 },
+			]
+		}
+	})
+
+	it('should list all items in the table', async () => {
+		let items:any[] = []
+
+		const result = await scanAll(posts, {
+			batch: 3,
+			async handle(batch) {
+
+				expect(batch.length).toBeLessThanOrEqual(3)
+
+				items = [
+					...items,
+					...batch,
+				]
+			}
+		})
+
+		expect(result).toStrictEqual({
+			itemsProcessed: 10
+		})
+
+		expect(items.length).toStrictEqual(10)
+	})
+})

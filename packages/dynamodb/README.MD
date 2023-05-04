@@ -64,14 +64,23 @@ const { items, cursor } = await query(posts, {
 })
 
 // List posts from user 1 but with stringified cursors
-const { items, cursor } = await pagination(posts, {
+const { items, cursor } = await paginateQuery(posts, {
 	keyCondition(exp) {
 		return exp.where('userId').eq(1)
 	}
 })
 
-// List all posts
+// List posts
 const { items, cursor } = await scan(posts)
+
+// List all posts
+await scanAll(posts, {
+	batch: 100,
+	async handle(items) {
+		// Processing batches of 100 items at a time...
+		...
+	}
+})
 
 // Write a transaction
 await transactWrite({
@@ -146,13 +155,17 @@ And the output value type is always `Uint8Array`.
 
 | Type						| Description					|
 |---------------------------|-------------------------------|
-| `getItem`					| Store an item |
+| `getItem`					| Get an item |
+| `putItem`					| Store an item |
 | `updateItem`				| Update an item |
 | `deleteItem`				| Delete an item |
+| `getIndexedItem`			| Get an item from a specific index |
 | `query`					| Query a list of items |
+| `queryAll`				| Query a list of items |
+| `paginateQuery`			| Pagination helper to query a list of items |
 | `scan`     				| Scan the table for items |
-| `pagination`				| Pagination helper to query a list of items |
-| `migrate`					| Migration helper to migrate your table to a different structure |
+| `scanAll`     			| Scan the table for items |
+| `paginateScan`			| Pagination helper to scan a list of items |
 | `batchGetItem`			| Batch get items |
 | `batchPutItem`			| Batch store items |
 | `batchDeleteItem`			| Batch delete items |

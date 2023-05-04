@@ -7,7 +7,7 @@ import { CursorKey } from '../types/key.js'
 import { Options } from '../types/options.js'
 import { query } from './query.js'
 
-type PaginationOptions<
+type PaginateQueryOptions<
 	T extends AnyTableDefinition,
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined
@@ -21,7 +21,7 @@ type PaginationOptions<
 	cursor?: string
 }
 
-type PaginationResponse<
+type PaginateQueryResponse<
 	T extends AnyTableDefinition,
 	P extends ProjectionExpression<T> | undefined
 > = {
@@ -30,14 +30,14 @@ type PaginationResponse<
 	cursor?: string
 }
 
-export const pagination = async <
+export const paginateQuery = async <
 	T extends AnyTableDefinition,
 	P extends ProjectionExpression<T> | undefined = undefined,
 	I extends IndexNames<T> | undefined = undefined
 >(
 	table: T,
-	options: PaginationOptions<T, P, I>
-): Promise<PaginationResponse<T, P>> => {
+	options: PaginateQueryOptions<T, P, I>
+): Promise<PaginateQueryResponse<T, P>> => {
 	const result = await query(table, {
 		...options,
 		cursor: options.cursor ? fromCursor<CursorKey<T, I>>(options.cursor) : undefined

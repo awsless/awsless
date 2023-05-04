@@ -2,7 +2,7 @@
 import { AnyTableDefinition } from '../table.js'
 import { CursorKey } from '../types/key.js'
 import { Options } from '../types/options.js'
-import { putItem } from './put-item.js'
+import { batchPutItem } from './batch-put-item.js'
 import { scan } from './scan.js'
 
 type MigrateOptions<
@@ -18,9 +18,9 @@ type TransformCallback<
 	From extends AnyTableDefinition,
 	To extends AnyTableDefinition
 > = {
-	(item:From['schema']['OUTPUT']): (
-		To['schema']['INPUT'] |
-		Promise<To['schema']['INPUT']>
+	(items:From['schema']['OUTPUT'][]): (
+		To['schema']['INPUT'][] |
+		Promise<To['schema']['INPUT'][]>
 	)
 }
 
@@ -50,14 +50,10 @@ export const migrate = async <
 			cursor
 		})
 
-		await Promise.all(result.items.map(async item => {
-			const newItem = await options.transform(item)
-			await putItem(to, newItem, {
-				client: options.client
-			})
+		itemsProcessed += result.items.length
 
-			itemsProcessed++
-		}))
+		const items = await options.transform(result.items)
+		await batchPutItem(to, items, { client: options.client })
 
 		if(result.items.length === 0 || !result.cursor) {
 			return false

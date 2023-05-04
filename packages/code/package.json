@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/code",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"license": "MIT",
 	"type": "module",
 	"files": [
@@ -68,7 +68,7 @@
 		"tslib": "^2.4.1",
 		"typescript": "^4.8.4",
 		"vite": "^4.1.4",
-		"vitest": "^0.25.8"
+		"vitest": "^0.30.1"
 	},
 	"devDependencies": {
 		"@types/clean-css": "^4.2.6",

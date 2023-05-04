@@ -1,3 +1,4 @@
+
 import { float, integer, string, ssm, array, json, mockSSM, SSMClient } from '../src/index'
 
 describe('SSM', () => {

@@ -344,7 +344,7 @@ var test = async (filters = []) => {
     }),
     test: {
       include: ["./test/**/*.{js,jsx,coffee,ts}"],
-      exclude: import_config.configDefaults.exclude,
+      exclude: ["./test/**/_*", ...import_config.configDefaults.exclude],
       globals: true
     }
   })));

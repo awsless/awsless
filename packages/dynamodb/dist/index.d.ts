@@ -54,6 +54,12 @@ declare const define: <Struct extends AnyStruct, Hash extends Extract<keyof Stru
     indexes?: Indexes | undefined;
 }) => TableDefinition<Struct, Hash, Sort, Indexes>;
 
+type Key<T extends AnyTableDefinition, K extends keyof T['schema']['INPUT']> = Required<Record<K, T['schema']['INPUT'][K]>>;
+type HashKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = (I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>);
+type SortKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key<T, T['sort']> : {});
+type PrimaryKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
+type CursorKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> & (I extends IndexNames<T> ? PrimaryKey<T, I> : {});
+
 declare const optional: <M, I, O, P extends (string | number)[] = [], OP extends (string | number)[] = [], T extends AttributeTypes = AttributeTypes>(struct: Struct<M, I, O, P, OP, T, false>) => Struct<M, I, O, P, OP, T, true>;
 
 declare const string: () => Struct<string, string, string, [], [], AttributeTypes, false>;
@@ -230,12 +236,6 @@ type Merge<U> = ((U extends any ? (k: U) => void : never) extends ((k: infer I) 
 type ProjectionExpression<T extends AnyTableDefinition> = Array<T['schema']['PATHS'] | Exclude<T['schema']['PATHS'][number], number>>;
 type ProjectionResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = (P extends ProjectionExpression<T> ? Merge<DeepPickList<T['schema']['OUTPUT'], P>> : T['schema']['OUTPUT']);
 
-type Key<T extends AnyTableDefinition, K extends keyof T['schema']['INPUT']> = Required<Record<K, T['schema']['INPUT'][K]>>;
-type HashKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = (I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>);
-type SortKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key<T, T['sort']> : {});
-type PrimaryKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
-type CursorKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> & (I extends IndexNames<T> ? PrimaryKey<T, I> : {});
-
 declare const getItem: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T, undefined>, options?: Options & {
     consistentRead?: boolean | undefined;
     projection?: P | undefined;
@@ -287,6 +287,12 @@ declare const updateItem: <T extends AnyTableDefinition, R extends ReturnValues 
 
 declare const deleteItem: <T extends AnyTableDefinition, R extends LimitedReturnValues = "NONE">(table: T, key: PrimaryKey<T, undefined>, options?: MutateOptions<T, R>) => Promise<ReturnResponse<T, R>>;
 
+declare const getIndexedItem: <T extends AnyTableDefinition, I extends Extract<keyof T["indexes"], string>, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T, I>, options: Options & {
+    index: I;
+    consistentRead?: boolean | undefined;
+    projection?: P | undefined;
+}) => Promise<ProjectionResponse<T, P> | undefined>;
+
 type BatchGetOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, F extends boolean> = Options & {
     projection?: P;
     consistentRead?: boolean;
@@ -325,22 +331,6 @@ declare class Combine<T extends AnyTableDefinition, I extends IndexNames<T> | un
     get or(): KeyCondition<T, I>;
 }
 
-type PaginationOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
-    keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
-    projection?: P;
-    index?: I;
-    consistentRead?: boolean;
-    forward?: boolean;
-    limit?: number;
-    cursor?: string;
-};
-type PaginationResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
-    count: number;
-    items: ProjectionResponse<T, P>[];
-    cursor?: string;
-};
-declare const pagination: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options: PaginationOptions<T, P, I>) => Promise<PaginationResponse<T, P>>;
-
 type QueryOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
     projection?: P;
@@ -370,6 +360,67 @@ type ScanResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T
     cursor?: CursorKey<T, I>;
 };
 declare const scan: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options?: ScanOptions<T, P, I>) => Promise<ScanResponse<T, P, I>>;
+
+type QueryAllOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
+    keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
+    projection?: P;
+    index?: I;
+    consistentRead?: boolean;
+    forward?: boolean;
+    batch: number;
+    handle: Handle$1<T, P>;
+};
+type Handle$1<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
+    (items: ProjectionResponse<T, P>[]): void | Promise<void>;
+};
+type Response$1 = {
+    itemsProcessed: number;
+};
+declare const queryAll: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends Extract<keyof T["indexes"], string> | undefined>(table: T, options: QueryAllOptions<T, P, I>) => Promise<Response$1>;
+
+type ScanAllOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = Options & {
+    projection?: P;
+    consistentRead?: boolean;
+    batch: number;
+    handle: Handle<T, P>;
+};
+type Handle<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
+    (items: ProjectionResponse<T, P>[]): void | Promise<void>;
+};
+type Response = {
+    itemsProcessed: number;
+};
+declare const scanAll: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined>(table: T, options: ScanAllOptions<T, P>) => Promise<Response>;
+
+type PaginateQueryOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
+    keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
+    projection?: P;
+    index?: I;
+    consistentRead?: boolean;
+    forward?: boolean;
+    limit?: number;
+    cursor?: string;
+};
+type PaginateQueryResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
+    count: number;
+    items: ProjectionResponse<T, P>[];
+    cursor?: string;
+};
+declare const paginateQuery: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options: PaginateQueryOptions<T, P, I>) => Promise<PaginateQueryResponse<T, P>>;
+
+type PaginateScanOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
+    projection?: P;
+    index?: I;
+    consistentRead?: boolean;
+    limit?: number;
+    cursor?: string;
+};
+type PaginateScanResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
+    count: number;
+    items: ProjectionResponse<T, P>[];
+    cursor?: string;
+};
+declare const paginateScan: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
 type Command = {
     TableName: string;
@@ -423,17 +474,4 @@ type DeleteOptions<T extends AnyTableDefinition> = {
 };
 declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => Delete<T>;
 
-type MigrateOptions<From extends AnyTableDefinition, To extends AnyTableDefinition> = Options & {
-    consistentRead?: boolean;
-    batch?: number;
-    transform: TransformCallback<From, To>;
-};
-type TransformCallback<From extends AnyTableDefinition, To extends AnyTableDefinition> = {
-    (item: From['schema']['OUTPUT']): (To['schema']['INPUT'] | Promise<To['schema']['INPUT']>);
-};
-type MigrateResponse = {
-    itemsProcessed: number;
-};
-declare const migrate: <From extends AnyTableDefinition, To extends AnyTableDefinition>(from: From, to: To, options: MigrateOptions<From, To>) => Promise<MigrateResponse>;
-
-export { InferInput$1 as InferInput, InferOutput$1 as InferOutput, TableDefinition, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, pagination, putItem, query, record, scan, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, unknown, updateItem };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, unknown, updateItem };
