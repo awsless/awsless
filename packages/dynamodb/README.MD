@@ -74,13 +74,10 @@ const { items, cursor } = await paginateQuery(posts, {
 const { items, cursor } = await scan(posts)
 
 // List all posts
-await scanAll(posts, {
-	batch: 100,
-	async handle(items) {
-		// Processing batches of 100 items at a time...
-		...
-	}
-})
+for await(const items of scanAll(posts, { batch: 100 })) {
+	// Processing batches of 100 items at a time...
+	...
+}
 
 // Write a transaction
 await transactWrite({

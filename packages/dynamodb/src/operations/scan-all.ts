@@ -12,30 +12,19 @@ type ScanAllOptions<
 	projection?: P
 	consistentRead?: boolean
 	batch: number
-	handle: Handle<T, P>
+	cursor?: CursorKey<T>
 }
 
-type Handle<
-	T extends AnyTableDefinition,
-	P extends ProjectionExpression<T> | undefined,
-> = {
-	(items:ProjectionResponse<T, P>[]): void | Promise<void>
-}
-
-type Response = {
-	itemsProcessed: number
-}
-
-export const scanAll = async <
+export const scanAll = function* <
 	T extends AnyTableDefinition,
 	P extends ProjectionExpression<T> | undefined,
 >(
 	table: T,
 	options: ScanAllOptions<T, P>
-): Promise<Response> => {
+): Generator<Promise<ProjectionResponse<T, P>[]>> {
 
-	let cursor: CursorKey<T> | undefined
-	let itemsProcessed = 0
+	let cursor: CursorKey<T> | undefined = options.cursor
+	let done = false
 
 	const loop = async () => {
 		const result = await scan(table, {
@@ -46,25 +35,16 @@ export const scanAll = async <
 			cursor
 		})
 
-		itemsProcessed += result.items.length
-
-		await options.handle(result.items)
+		cursor = result.cursor
 
 		if(result.items.length === 0 || !result.cursor) {
-			return false
+			done = true
 		}
 
-		cursor = result.cursor
-		return true
+		return result.items
 	}
 
-	for(;;) {
-		if(!await loop()) {
-			break
-		}
-	}
-
-	return {
-		itemsProcessed
+	while(!done) {
+		yield loop()
 	}
 }

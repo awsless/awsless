@@ -289,7 +289,6 @@ declare const deleteItem: <T extends AnyTableDefinition, R extends LimitedReturn
 
 declare const getIndexedItem: <T extends AnyTableDefinition, I extends Extract<keyof T["indexes"], string>, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T, I>, options: Options & {
     index: I;
-    consistentRead?: boolean | undefined;
     projection?: P | undefined;
 }) => Promise<ProjectionResponse<T, P> | undefined>;
 
@@ -367,30 +366,18 @@ type QueryAllOptions<T extends AnyTableDefinition, P extends ProjectionExpressio
     index?: I;
     consistentRead?: boolean;
     forward?: boolean;
+    cursor?: CursorKey<T, I>;
     batch: number;
-    handle: Handle$1<T, P>;
 };
-type Handle$1<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
-    (items: ProjectionResponse<T, P>[]): void | Promise<void>;
-};
-type Response$1 = {
-    itemsProcessed: number;
-};
-declare const queryAll: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends Extract<keyof T["indexes"], string> | undefined>(table: T, options: QueryAllOptions<T, P, I>) => Promise<Response$1>;
+declare const queryAll: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends Extract<keyof T["indexes"], string> | undefined>(table: T, options: QueryAllOptions<T, P, I>) => Generator<Promise<ProjectionResponse<T, P>[]>, any, unknown>;
 
 type ScanAllOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = Options & {
     projection?: P;
     consistentRead?: boolean;
     batch: number;
-    handle: Handle<T, P>;
+    cursor?: CursorKey<T>;
 };
-type Handle<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = {
-    (items: ProjectionResponse<T, P>[]): void | Promise<void>;
-};
-type Response = {
-    itemsProcessed: number;
-};
-declare const scanAll: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined>(table: T, options: ScanAllOptions<T, P>) => Promise<Response>;
+declare const scanAll: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined>(table: T, options: ScanAllOptions<T, P>) => Generator<Promise<ProjectionResponse<T, P>[]>, any, unknown>;
 
 type PaginateQueryOptions<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;

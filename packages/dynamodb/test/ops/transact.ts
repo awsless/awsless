@@ -103,6 +103,19 @@ describe('DynamoDB Transact', () => {
 
 		await expect(promise).rejects.toThrow(TransactionCanceledException)
 
+		try {
+			await promise
+		} catch(error) {
+			if(error instanceof TransactionCanceledException) {
+				expect(error.conditionFailedAt(0)).toBe(true)
+				expect(error.conditionFailedAt(1)).toBe(false)
+				expect(error.conditionFailedAt(0, 1)).toBe(true)
+				expect(error.conditionFailedAt(1, 2)).toBe(false)
+				expect(error.conditionFailedAt(0, 1, 2)).toBe(true)
+				expect(error.conditionFailedAt(2, 3, 4)).toBe(false)
+			}
+		}
+
 		const result = await scan(users)
 		expect(result).toStrictEqual({
 			cursor: undefined,

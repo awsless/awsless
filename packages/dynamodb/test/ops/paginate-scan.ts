@@ -1,20 +1,28 @@
-import { define, mockDynamoDB, number, object, paginateScan, putItem } from '../../src/index'
+import { bigint, define, mockDynamoDB, number, object, paginateScan, putItem } from '../../src/index'
 
 describe('Paginate Scan', () => {
 
 	const posts = define('posts', {
-		hash: 'id',
+		hash: 'userId',
+		sort: 'id',
 		schema: object({
-			id: number(),
+			userId: number(),
+			sortId: number(),
+			id: bigint(),
 		}),
+		indexes: {
+			list: { hash: 'userId', sort: 'sortId' }
+		}
 	})
 
 	mockDynamoDB({ tables: [ posts ] })
 
 	it('should pagination list', async () => {
-		await putItem(posts, { id: 1 })
-		await putItem(posts, { id: 2 })
-		await putItem(posts, { id: 3 })
+		await Promise.all([
+			putItem(posts, { userId: 1, id: 1n, sortId: 1 }),
+			putItem(posts, { userId: 1, id: 2n, sortId: 2 }),
+			putItem(posts, { userId: 1, id: 3n, sortId: 3 }),
+		])
 
 		const result = await paginateScan(posts)
 
@@ -22,9 +30,9 @@ describe('Paginate Scan', () => {
 			cursor: undefined,
 			count: 3,
 			items: [
-				{ id: 2 },
-				{ id: 1 },
-				{ id: 3 },
+				{ userId: 1, sortId: 1, id: 1n },
+				{ userId: 1, sortId: 2, id: 2n },
+				{ userId: 1, sortId: 3, id: 3n },
 			],
 		})
 	})
@@ -40,7 +48,7 @@ describe('Paginate Scan', () => {
 			count: 1,
 			cursor: expect.any(String),
 			items: [
-				{ id: 2 },
+				{ userId: 1, sortId: 1, id: 1n },
 			],
 		})
 
@@ -53,7 +61,23 @@ describe('Paginate Scan', () => {
 			count: 1,
 			cursor: expect.any(String),
 			items: [
-				{ id: 1 },
+				{ userId: 1, sortId: 2, id: 2n },
+			],
+		})
+	})
+
+	it('should support index', async () => {
+		const result = await paginateScan(posts, {
+			index: 'list'
+		})
+
+		expect(result).toStrictEqual({
+			cursor: undefined,
+			count: 3,
+			items: [
+				{ userId: 1, sortId: 1, id: 1n },
+				{ userId: 1, sortId: 2, id: 2n },
+				{ userId: 1, sortId: 3, id: 3n },
 			],
 		})
 	})

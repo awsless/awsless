@@ -1289,9 +1289,9 @@ var scan = async (table, options = {}) => {
 };
 
 // src/operations/query-all.ts
-var queryAll = async (table, options) => {
-  let cursor;
-  let itemsProcessed = 0;
+var queryAll = function* (table, options) {
+  let cursor = options.cursor;
+  let done = false;
   const loop = async () => {
     const result = await query(table, {
       client: options.client,
@@ -1303,28 +1303,21 @@ var queryAll = async (table, options) => {
       limit: options.batch,
       cursor
     });
-    itemsProcessed += result.items.length;
-    await options.handle(result.items);
-    if (result.items.length === 0 || !result.cursor) {
-      return false;
-    }
     cursor = result.cursor;
-    return true;
-  };
-  for (; ; ) {
-    if (!await loop()) {
-      break;
+    if (result.items.length === 0 || !result.cursor) {
+      done = true;
     }
-  }
-  return {
-    itemsProcessed
+    return result.items;
   };
+  while (!done) {
+    yield loop();
+  }
 };
 
 // src/operations/scan-all.ts
-var scanAll = async (table, options) => {
-  let cursor;
-  let itemsProcessed = 0;
+var scanAll = function* (table, options) {
+  let cursor = options.cursor;
+  let done = false;
   const loop = async () => {
     const result = await scan(table, {
       client: options.client,
@@ -1333,22 +1326,15 @@ var scanAll = async (table, options) => {
       limit: options.batch,
       cursor
     });
-    itemsProcessed += result.items.length;
-    await options.handle(result.items);
-    if (result.items.length === 0 || !result.cursor) {
-      return false;
-    }
     cursor = result.cursor;
-    return true;
-  };
-  for (; ; ) {
-    if (!await loop()) {
-      break;
+    if (result.items.length === 0 || !result.cursor) {
+      done = true;
     }
-  }
-  return {
-    itemsProcessed
+    return result.items;
   };
+  while (!done) {
+    yield loop();
+  }
 };
 
 // src/helper/cursor.ts
@@ -1368,7 +1354,7 @@ var toCursor = (value) => {
 var paginateQuery = async (table, options) => {
   const result = await query(table, {
     ...options,
-    cursor: options.cursor ? fromCursor(options.cursor) : void 0
+    cursor: options.cursor ? table.unmarshall(fromCursor(options.cursor)) : void 0
   });
   if (result.cursor) {
     const more = await query(table, {
@@ -1382,7 +1368,7 @@ var paginateQuery = async (table, options) => {
   }
   return {
     ...result,
-    cursor: result.cursor && toCursor(result.cursor)
+    cursor: result.cursor && toCursor(table.marshall(result.cursor))
   };
 };
 
@@ -1390,7 +1376,7 @@ var paginateQuery = async (table, options) => {
 var paginateScan = async (table, options = {}) => {
   const result = await scan(table, {
     ...options,
-    cursor: options.cursor ? fromCursor(options.cursor) : void 0
+    cursor: options.cursor ? table.unmarshall(fromCursor(options.cursor)) : void 0
   });
   if (result.cursor) {
     const more = await scan(table, {
@@ -1404,7 +1390,7 @@ var paginateScan = async (table, options = {}) => {
   }
   return {
     ...result,
-    cursor: result.cursor && toCursor(result.cursor)
+    cursor: result.cursor && toCursor(table.marshall(result.cursor))
   };
 };
 

@@ -33,23 +33,19 @@ describe('Query All', () => {
 	it('should list all items in the table', async () => {
 		let items:any[] = []
 
-		const result = await queryAll(posts, {
+		const generator = queryAll(posts, {
 			batch: 3,
-			keyCondition: exp => exp.where('userId').eq(1),
-			async handle(batch) {
-
-				expect(batch.length).toBeLessThanOrEqual(3)
-
-				items = [
-					...items,
-					...batch,
-				]
-			}
+			keyCondition: exp => exp.where('userId').eq(1)
 		})
 
-		expect(result).toStrictEqual({
-			itemsProcessed: 10
-		})
+		for await (const batch of generator) {
+			expect(batch.length).toBeLessThanOrEqual(3)
+
+			items = [
+				...items,
+				...batch,
+			]
+		}
 
 		expect(items).toStrictEqual([
 			{ userId: 1, id: 1 },

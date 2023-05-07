@@ -40,7 +40,7 @@ export const paginateQuery = async <
 ): Promise<PaginateQueryResponse<T, P>> => {
 	const result = await query(table, {
 		...options,
-		cursor: options.cursor ? fromCursor<CursorKey<T, I>>(options.cursor) : undefined
+		cursor: options.cursor ? table.unmarshall(fromCursor<CursorKey<T, I>>(options.cursor)) : undefined
 	})
 
 	// FIX the problem where DynamoDB will return a cursor
@@ -60,6 +60,6 @@ export const paginateQuery = async <
 
 	return {
 		...result,
-		cursor: result.cursor && toCursor(result.cursor)
+		cursor: result.cursor && toCursor(table.marshall(result.cursor))
 	}
 }

@@ -14,7 +14,6 @@ export const getIndexedItem = async <
 	key: PrimaryKey<T, I>,
 	options: Options & {
 		index: I,
-		consistentRead?: boolean
 		projection?: P
 	}
 ): Promise<ProjectionResponse<T, P> | undefined> => {

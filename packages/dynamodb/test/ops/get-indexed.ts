@@ -10,7 +10,8 @@ describe('Get Index', () => {
 			name: string(),
 		}),
 		indexes: {
-			name: { hash: 'name' }
+			name: { hash: 'name' },
+			deep: { hash: 'id', sort: 'name' }
 		}
 	})
 
@@ -29,6 +30,13 @@ describe('Get Index', () => {
 		await putItem(users, user)
 		const result = await getIndexedItem(users, { name: 'Jack' }, {
 			index: 'name'
+		})
+		expect(result).toStrictEqual(user)
+	})
+
+	it('should get item with a sort key', async () => {
+		const result = await getIndexedItem(users, { id: 1, name: 'Jack' }, {
+			index: 'deep'
 		})
 		expect(result).toStrictEqual(user)
 	})

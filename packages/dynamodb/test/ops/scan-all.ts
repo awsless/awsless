@@ -31,22 +31,37 @@ describe('Scan All', () => {
 	it('should list all items in the table', async () => {
 		let items:any[] = []
 
-		const result = await scanAll(posts, {
+		const generator = scanAll(posts, {
 			batch: 3,
-			async handle(batch) {
-
-				expect(batch.length).toBeLessThanOrEqual(3)
-
-				items = [
-					...items,
-					...batch,
-				]
-			}
 		})
 
-		expect(result).toStrictEqual({
-			itemsProcessed: 10
+		for await (const batch of generator) {
+			expect(batch.length).toBeLessThanOrEqual(3)
+
+			items = [
+				...items,
+				...batch,
+			]
+		}
+
+		expect(items.length).toStrictEqual(10)
+	})
+
+	it('should list all items in the table', async () => {
+		let items:any[] = []
+
+		const generator = scanAll(posts, {
+			batch: 3,
 		})
+
+		for await (const batch of generator) {
+			expect(batch.length).toBeLessThanOrEqual(3)
+
+			items = [
+				...items,
+				...batch,
+			]
+		}
 
 		expect(items.length).toStrictEqual(10)
 	})

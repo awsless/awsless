@@ -1,4 +1,4 @@
-import { define, mockDynamoDB, number, object, paginateQuery, putItem } from '../../src/index'
+import { bigint, define, mockDynamoDB, number, object, paginateQuery, putItem } from '../../src/index'
 
 describe('Paginate Query', () => {
 
@@ -8,7 +8,7 @@ describe('Paginate Query', () => {
 		schema: object({
 			userId: number(),
 			sortId: number(),
-			id: number(),
+			id: bigint(),
 		}),
 		indexes: {
 			list: { hash: 'userId', sort: 'sortId' }
@@ -19,9 +19,9 @@ describe('Paginate Query', () => {
 
 	it('should pagination list', async () => {
 		await Promise.all([
-			putItem(posts, { userId: 1, id: 1, sortId: 1 }),
-			putItem(posts, { userId: 1, id: 2, sortId: 2 }),
-			putItem(posts, { userId: 1, id: 3, sortId: 3 }),
+			putItem(posts, { userId: 1, id: 1n, sortId: 1 }),
+			putItem(posts, { userId: 1, id: 2n, sortId: 2 }),
+			putItem(posts, { userId: 1, id: 3n, sortId: 3 }),
 		])
 
 		const result = await paginateQuery(posts, {
@@ -32,9 +32,9 @@ describe('Paginate Query', () => {
 			cursor: undefined,
 			count: 3,
 			items: [
-				{ userId: 1, sortId: 1, id: 1 },
-				{ userId: 1, sortId: 2, id: 2 },
-				{ userId: 1, sortId: 3, id: 3 },
+				{ userId: 1, sortId: 1, id: 1n },
+				{ userId: 1, sortId: 2, id: 2n },
+				{ userId: 1, sortId: 3, id: 3n },
 			],
 		})
 	})
@@ -49,9 +49,9 @@ describe('Paginate Query', () => {
 			cursor: undefined,
 			count: 3,
 			items: [
-				{ userId: 1, sortId: 3, id: 3 },
-				{ userId: 1, sortId: 2, id: 2 },
-				{ userId: 1, sortId: 1, id: 1 },
+				{ userId: 1, sortId: 3, id: 3n },
+				{ userId: 1, sortId: 2, id: 2n },
+				{ userId: 1, sortId: 1, id: 1n },
 			],
 		})
 	})
@@ -68,7 +68,7 @@ describe('Paginate Query', () => {
 			count: 1,
 			cursor: expect.any(String),
 			items: [
-				{ userId: 1, sortId: 1, id: 1 },
+				{ userId: 1, sortId: 1, id: 1n },
 			],
 		})
 
@@ -82,7 +82,7 @@ describe('Paginate Query', () => {
 			count: 1,
 			cursor: expect.any(String),
 			items: [
-				{ userId: 1, sortId: 2, id: 2 },
+				{ userId: 1, sortId: 2, id: 2n },
 			],
 		})
 	})
@@ -100,7 +100,7 @@ describe('Paginate Query', () => {
 			cursor: undefined,
 			count: 1,
 			items: [
-				{ userId: 1, sortId: 1, id: 1 },
+				{ userId: 1, sortId: 1, id: 1n },
 			],
 		})
 	})

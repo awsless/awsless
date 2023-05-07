@@ -16,32 +16,21 @@ type QueryAllOptions<
 	index?: I
 	consistentRead?: boolean
 	forward?: boolean
+	cursor?: CursorKey<T, I>
 	batch: number
-	handle: Handle<T, P>
 }
 
-type Handle<
-	T extends AnyTableDefinition,
-	P extends ProjectionExpression<T> | undefined,
-> = {
-	(items:ProjectionResponse<T, P>[]): void | Promise<void>
-}
-
-type Response = {
-	itemsProcessed: number
-}
-
-export const queryAll = async <
+export const queryAll = function* <
 	T extends AnyTableDefinition,
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined
 >(
 	table: T,
 	options: QueryAllOptions<T, P, I>
-): Promise<Response> => {
+): Generator<Promise<ProjectionResponse<T, P>[]>> {
 
-	let cursor: CursorKey<T, I> | undefined
-	let itemsProcessed = 0
+	let cursor: CursorKey<T, I> | undefined = options.cursor
+	let done = false
 
 	const loop = async () => {
 		const result = await query(table, {
@@ -55,25 +44,16 @@ export const queryAll = async <
 			cursor
 		})
 
-		itemsProcessed += result.items.length
-
-		await options.handle(result.items)
+		cursor = result.cursor
 
 		if(result.items.length === 0 || !result.cursor) {
-			return false
+			done = true
 		}
 
-		cursor = result.cursor
-		return true
+		return result.items
 	}
 
-	for(;;) {
-		if(!await loop()) {
-			break
-		}
-	}
-
-	return {
-		itemsProcessed
+	while(!done) {
+		yield loop()
 	}
 }
