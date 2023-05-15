@@ -1,6 +1,6 @@
 {
-	"name": "@awsless/ssm",
-	"version": "0.0.6",
+	"name": "@awsless/env",
+	"version": "0.0.1",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -27,14 +27,5 @@
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
-	},
-	"dependencies": {
-		"@aws-sdk/client-ssm": "3.49.0",
-		"@awsless/utils": "workspace:^",
-		"aws-sdk-client-mock": "^2.1.1",
-		"chunk": "^0.0.3"
-	},
-	"devDependencies": {
-		"@types/chunk": "^0.0.0"
 	}
 }

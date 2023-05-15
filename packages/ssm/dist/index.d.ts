@@ -43,4 +43,4 @@ declare const json: <T = unknown>(path: string) => {
 
 declare const mockSSM: (values: Record<string, string>) => vitest_dist_index_5aad25c1.x<any, any>;
 
-export { array, float, integer, json, mockSSM, ssm, ssmClient, string };
+export { Paths, array, float, integer, json, mockSSM, ssm, ssmClient, string };
