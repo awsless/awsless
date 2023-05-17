@@ -15,7 +15,7 @@ export class RedisServer {
 		// }
 
 		this.process = new RedisMemoryServer({
-			autoStart: false,
+			autoStart: true,
 			binary: { systemBinary: '/usr/local/bin/redis-server' },
 		})
 	}

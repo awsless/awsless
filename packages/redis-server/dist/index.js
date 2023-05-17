@@ -9,7 +9,7 @@ var RedisServer = class {
       throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
     }
     this.process = new RedisMemoryServer({
-      autoStart: false,
+      autoStart: true,
       binary: { systemBinary: "/usr/local/bin/redis-server" }
     });
   }
