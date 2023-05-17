@@ -1,27 +1,6 @@
 import { BigFloat } from '@awsless/big-float'
-import {
-	define,
-	number,
-	object,
-	string,
-	date,
-	putItem,
-	mockDynamoDB,
-	array,
-	bigfloat,
-	bigint,
-	binary,
-	unknown,
-	boolean,
-	bigintSet,
-	stringSet,
-	numberSet,
-	binarySet,
-	getItem,
-	updateItem,
-	record,
-	optional,
-} from '../src'
+import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional } from '../src'
+// import { CATCH_ALL } from '../src/structs/object'
 
 describe('Types', () => {
 	// const obj1 = string()
@@ -46,16 +25,16 @@ describe('Types', () => {
 			date: date(),
 			optional: optional(string()),
 			unknown: unknown(),
-			array: array(
-				object({
-					key: string(),
-				})
-			),
-			record: record(
-				object({
-					key: string(),
-				})
-			),
+			array: array(object({
+				key: string(),
+			})),
+			record: record(object({
+				key: string(),
+			})),
+			// advanced: object({
+			// 	id: string(),
+			// 	[CATCH_ALL]: object({}),
+			// }),
 			sets: object({
 				string: stringSet(),
 				number: numberSet(),
@@ -86,6 +65,10 @@ describe('Types', () => {
 			key1: { key: '1' },
 			key2: { key: '1' },
 		},
+		// advanced: {
+		// 	id: '1',
+		// 	other: {},
+		// },
 		sets: {
 			string: new Set(['1']),
 			number: new Set([1]),
