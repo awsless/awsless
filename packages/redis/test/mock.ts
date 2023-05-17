@@ -1,11 +1,10 @@
-import type { Redis } from 'ioredis'
 import { command, mockRedis } from '../src'
 
 describe('Redis Mock', () => {
 	mockRedis()
 
 	it('should get and set data in redis', async () => {
-		const hoi = await command({ host: 'localhost', port: 6379, db: 0 }, async (client: Redis) => {
+		const hoi = await command({ host: 'localhost', port: 6379, db: 0 }, async (client) => {
 			await client.set('foo', 'bar')
 			const result = await client.get('foo')
 			expect(result).toBe('bar')

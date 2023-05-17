@@ -1,11 +1,13 @@
 import { redisClient } from './client'
-import type { RedisOptions } from 'ioredis'
+import type { Redis, RedisOptions } from 'ioredis'
 
-export const command = async (options: RedisOptions, callback: Function) => {
+export const command = async <T>(options: RedisOptions, callback: (client:Redis) => T): Promise<T> => {
 	const client = redisClient(options)
 
+	let result:T | undefined
+
 	try {
-		var result = await callback(client)
+		result = await callback(client)
 	} catch (error) {
 		throw error
 	} finally {
