@@ -1,38 +1,17 @@
-"use strict";
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
-  RedisServer: () => RedisServer
-});
-module.exports = __toCommonJS(src_exports);
-var import_redis_memory_server = require("redis-memory-server");
-var import_ioredis = require("ioredis");
+import { RedisMemoryServer } from "redis-memory-server";
+import { Redis } from "ioredis";
 var RedisServer = class {
   client;
   process;
-  async listen() {
+  async start() {
     if (this.process) {
       throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
     }
-    this.process = new import_redis_memory_server.RedisMemoryServer({ autoStart: false });
+    this.process = new RedisMemoryServer({
+      autoStart: false,
+      binary: { systemBinary: "/usr/local/bin/redis-server" }
+    });
   }
   /** Kill the Redis server. */
   async kill() {
@@ -50,7 +29,7 @@ var RedisServer = class {
   /** Get RedisClient connected to redis memory server. */
   async getClient() {
     if (!this.client) {
-      this.client = new import_ioredis.Redis({
+      this.client = new Redis({
         host: await this.process?.getHost(),
         port: await this.process?.getPort(),
         stringNumbers: true,
@@ -66,7 +45,6 @@ var RedisServer = class {
     return this.client;
   }
 };
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
+export {
   RedisServer
-});
+};

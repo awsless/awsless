@@ -14,14 +14,17 @@ export class RedisServer {
 		// 	throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
 		// }
 
-		this.process = new RedisMemoryServer({ autoStart: false });
+		this.process = new RedisMemoryServer({
+			autoStart: false,
+			binary: { systemBinary: '/usr/local/bin/redis-server' },
+		})
 	}
 
 	/** Kill the Redis server. */
 	async kill() {
 		if (this.process) {
 			await this.client?.disconnect()
-			await this.process.stop();
+			await this.process.stop()
 			this.process = undefined
 		}
 	}
@@ -29,7 +32,7 @@ export class RedisServer {
 	/** Ping the Redis server if its ready. */
 	async ping() {
 		const client = await this.getClient()
-		return (await client.ping() === 'PONG')
+		return (await client.ping()) === 'PONG'
 	}
 
 	/** Get RedisClient connected to redis memory server. */
@@ -42,11 +45,11 @@ export class RedisServer {
 				keepAlive: 0,
 				noDelay: true,
 				enableReadyCheck: false,
-				maxRetriesPerRequest: null
+				maxRetriesPerRequest: null,
 				// retryStrategy: (options) => {
 				// 	return
 				// },
-			});
+			})
 		}
 
 		return this.client
