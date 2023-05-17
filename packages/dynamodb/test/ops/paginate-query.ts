@@ -1,4 +1,4 @@
-import { bigint, define, mockDynamoDB, number, object, paginateQuery, putItem } from '../../dist/index'
+import { bigint, define, mockDynamoDB, number, object, paginateQuery, putItem } from '../../src/index'
 
 describe('Paginate Query', () => {
 	const posts = define('posts', {
