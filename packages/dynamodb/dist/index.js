@@ -536,8 +536,14 @@ import { DynamoDBClient as DynamoDBClient4 } from "@aws-sdk/client-dynamodb";
 
 // src/exceptions/transaction-canceled.ts
 import { TransactionCanceledException as Exception } from "@aws-sdk/client-dynamodb";
-Exception.prototype.conditionFailedAt = (index) => {
-  return (void 0).CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
+Exception.prototype.conditionFailedAt = function(...indexes) {
+  const reasons = this.CancellationReasons || [];
+  for (const index of indexes) {
+    if (reasons[index]?.Code === "ConditionalCheckFailed") {
+      return true;
+    }
+  }
+  return false;
 };
 
 // src/index.ts

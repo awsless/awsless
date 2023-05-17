@@ -615,8 +615,14 @@ var import_client_dynamodb15 = require("@aws-sdk/client-dynamodb");
 
 // src/exceptions/transaction-canceled.ts
 var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
-import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt = (index) => {
-  return (void 0).CancellationReasons?.[index]?.Code === "ConditionalCheckFailed";
+import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) {
+  const reasons = this.CancellationReasons || [];
+  for (const index of indexes) {
+    if (reasons[index]?.Code === "ConditionalCheckFailed") {
+      return true;
+    }
+  }
+  return false;
 };
 
 // src/index.ts

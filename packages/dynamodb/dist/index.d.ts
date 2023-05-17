@@ -218,7 +218,7 @@ declare const dynamoDBDocumentClient: {
 
 declare module '@aws-sdk/client-dynamodb' {
     interface TransactionCanceledException {
-        conditionFailedAt: (index: number) => boolean;
+        conditionFailedAt: (...indexes: number[]) => boolean;
     }
 }
 
