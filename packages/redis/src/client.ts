@@ -1,17 +1,19 @@
 import { Redis } from 'ioredis'
+import type { RedisOptions } from 'ioredis'
 
 // This is an async call because the mock client is async
-export const redisClient = async (host: string, port: number, db: number) => {
+export const redisClient = (options: RedisOptions) => {
 	return new Redis({
-		host,
-		port,
-		db,
+		...options,
 		stringNumbers: true,
 		keepAlive: 0,
 		noDelay: true,
 		enableReadyCheck: false,
-		maxRetriesPerRequest: null,
+		maxRetriesPerRequest: 3,
 		autoResubscribe: false,
+		commandQueue: false,
+		offlineQueue: false,
+		enableOfflineQueue: false,
 		autoResendUnfulfilledCommands: false,
 		connectTimeout: 1000 * 5,
 		commandTimeout: 1000 * 5,

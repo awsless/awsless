@@ -1,34 +1,25 @@
 // src/mock.ts
-import { RedisServer } from "@awsless/redis-server";
-var server;
 var mockRedis = async () => {
-  server = new RedisServer();
-  beforeAll && beforeAll(async () => {
-    await server.start();
-    await server.ping();
+  vi.mock("ioredis", async () => {
+    const module = await vi.importActual("ioredis-mock");
+    return { Redis: module.default };
   });
-  afterAll && afterAll(async () => {
-    await server.kill();
-  });
-  vi.mock("./client.ts", async () => {
-    return { redisClient: async () => await server.getClient() };
-  });
-  return server;
 };
 
 // src/client.ts
 import { Redis } from "ioredis";
-var redisClient = async (host, port, db) => {
+var redisClient = (options) => {
   return new Redis({
-    host,
-    port,
-    db,
+    ...options,
     stringNumbers: true,
     keepAlive: 0,
     noDelay: true,
     enableReadyCheck: false,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 3,
     autoResubscribe: false,
+    commandQueue: false,
+    offlineQueue: false,
+    enableOfflineQueue: false,
     autoResendUnfulfilledCommands: false,
     connectTimeout: 1e3 * 5,
     commandTimeout: 1e3 * 5
@@ -46,7 +37,21 @@ var redisClient = async (host, port, db) => {
     // },
   });
 };
+
+// src/commands.ts
+var command = async (options, callback) => {
+  const client = redisClient(options);
+  try {
+    var result = await callback(client);
+  } catch (error) {
+    throw error;
+  } finally {
+    await client.disconnect();
+  }
+  return result;
+};
 export {
+  command,
   mockRedis,
   redisClient
 };

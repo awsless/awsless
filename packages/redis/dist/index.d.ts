@@ -1,8 +1,9 @@
-import { RedisServer } from '@awsless/redis-server';
-import { Redis } from 'ioredis';
+import { RedisOptions, Redis } from 'ioredis';
 
-declare const mockRedis: () => Promise<RedisServer>;
+declare const mockRedis: () => Promise<void>;
 
-declare const redisClient: (host: string, port: number, db: number) => Promise<Redis>;
+declare const redisClient: (options: RedisOptions) => Redis;
 
-export { mockRedis, redisClient };
+declare const command: (options: RedisOptions, callback: Function) => Promise<any>;
+
+export { command, mockRedis, redisClient };

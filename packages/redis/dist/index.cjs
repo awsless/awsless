@@ -20,42 +20,34 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  command: () => command,
   mockRedis: () => mockRedis,
   redisClient: () => redisClient
 });
 module.exports = __toCommonJS(src_exports);
 
 // src/mock.ts
-var import_redis_server = require("@awsless/redis-server");
-var server;
 var mockRedis = async () => {
-  server = new import_redis_server.RedisServer();
-  beforeAll && beforeAll(async () => {
-    await server.start();
-    await server.ping();
+  vi.mock("ioredis", async () => {
+    const module2 = await vi.importActual("ioredis-mock");
+    return { Redis: module2.default };
   });
-  afterAll && afterAll(async () => {
-    await server.kill();
-  });
-  vi.mock("./client.ts", async () => {
-    return { redisClient: async () => await server.getClient() };
-  });
-  return server;
 };
 
 // src/client.ts
 var import_ioredis = require("ioredis");
-var redisClient = async (host, port, db) => {
+var redisClient = (options) => {
   return new import_ioredis.Redis({
-    host,
-    port,
-    db,
+    ...options,
     stringNumbers: true,
     keepAlive: 0,
     noDelay: true,
     enableReadyCheck: false,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 3,
     autoResubscribe: false,
+    commandQueue: false,
+    offlineQueue: false,
+    enableOfflineQueue: false,
     autoResendUnfulfilledCommands: false,
     connectTimeout: 1e3 * 5,
     commandTimeout: 1e3 * 5
@@ -73,8 +65,22 @@ var redisClient = async (host, port, db) => {
     // },
   });
 };
+
+// src/commands.ts
+var command = async (options, callback) => {
+  const client = redisClient(options);
+  try {
+    var result = await callback(client);
+  } catch (error) {
+    throw error;
+  } finally {
+    await client.disconnect();
+  }
+  return result;
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  command,
   mockRedis,
   redisClient
 });
