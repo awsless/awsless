@@ -66,7 +66,7 @@ describe('Paginate Query', () => {
 		expect(result1).toStrictEqual({
 			count: 1,
 			cursor: expect.any(String),
-			items: [{ userId: 1, sortId: 1, id: 1n }],
+			items: [{ userId: 1, sortId: 1, id: 1 }],
 		})
 
 		const result2 = await paginateQuery(posts, {
@@ -78,7 +78,7 @@ describe('Paginate Query', () => {
 		expect(result2).toStrictEqual({
 			count: 1,
 			cursor: expect.any(String),
-			items: [{ userId: 1, sortId: 2, id: 2n }],
+			items: [{ userId: 1, sortId: 2, id: 2 }],
 		})
 	})
 
@@ -91,7 +91,7 @@ describe('Paginate Query', () => {
 		expect(result).toStrictEqual({
 			cursor: undefined,
 			count: 1,
-			items: [{ userId: 1, sortId: 1, id: 1n }],
+			items: [{ userId: 1, sortId: 1, id: 1 }],
 		})
 	})
 
