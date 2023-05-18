@@ -278,7 +278,8 @@ var object = (schema) => new Struct(
     return unmarshalled;
   },
   (path, ...rest) => {
-    return rest.length ? schema[path].walk?.(...rest) : schema[path];
+    const type = schema[path];
+    return rest.length ? type.walk?.(...rest) : type;
   }
 );
 
@@ -535,8 +536,8 @@ import { DynamoDBDocumentClient as DynamoDBDocumentClient4 } from "@aws-sdk/lib-
 import { DynamoDBClient as DynamoDBClient4 } from "@aws-sdk/client-dynamodb";
 
 // src/exceptions/transaction-canceled.ts
-import { TransactionCanceledException as Exception } from "@aws-sdk/client-dynamodb";
-Exception.prototype.conditionFailedAt = function(...indexes) {
+import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
+TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) {
   const reasons = this.CancellationReasons || [];
   for (const index of indexes) {
     if (reasons[index]?.Code === "ConditionalCheckFailed") {
@@ -547,7 +548,7 @@ Exception.prototype.conditionFailedAt = function(...indexes) {
 };
 
 // src/index.ts
-import { ConditionalCheckFailedException, TransactionCanceledException } from "@aws-sdk/client-dynamodb";
+import { ConditionalCheckFailedException, TransactionCanceledException as TransactionCanceledException2 } from "@aws-sdk/client-dynamodb";
 
 // src/expressions/projection.ts
 var projectionExpression = (options, gen) => {
@@ -1381,7 +1382,7 @@ export {
   DynamoDBClient4 as DynamoDBClient,
   DynamoDBDocumentClient4 as DynamoDBDocumentClient,
   TableDefinition,
-  TransactionCanceledException,
+  TransactionCanceledException2 as TransactionCanceledException,
   array,
   batchDeleteItem,
   batchGetItem,

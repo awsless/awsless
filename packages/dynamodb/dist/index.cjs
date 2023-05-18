@@ -357,7 +357,8 @@ var object = (schema) => new Struct(
     return unmarshalled;
   },
   (path, ...rest) => {
-    return rest.length ? schema[path].walk?.(...rest) : schema[path];
+    const type = schema[path];
+    return rest.length ? type.walk?.(...rest) : type;
   }
 );
 
