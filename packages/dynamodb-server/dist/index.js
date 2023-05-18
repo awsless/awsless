@@ -89,7 +89,7 @@ var DynamoDBServer = class {
   getClient() {
     if (!this.client) {
       this.client = new import_client_dynamodb.DynamoDBClient({
-        maxAttempts: 10,
+        maxAttempts: 3,
         endpoint: this.endpoint,
         region: this.region,
         tls: false,
