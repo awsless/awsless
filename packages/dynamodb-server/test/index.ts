@@ -7,13 +7,13 @@ describe('DynamoDB Server', () => {
 		await server.kill()
 	})
 
-	it('should start a local DynamoDB server listening on port X', async () => {
-		await server.listen(33333)
-	})
-
 	it('should ping the server FAIL', async () => {
 		const result = await server.ping()
 		expect(result).toBe(false)
+	})
+
+	it('should start a local DynamoDB server listening on port X', async () => {
+		await server.listen(33333)
 	})
 
 	it('should wait until the server is ready for use', async () => {

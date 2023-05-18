@@ -45,6 +45,8 @@ export class DynamoDBServer {
 		const command = new ListTablesCommand({})
 		try {
 			const response = await client.send(command)
+			console.log(response);
+
 			return Array.isArray(response.TableNames)
 		} catch (error) {
 			return false

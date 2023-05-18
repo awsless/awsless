@@ -36,10 +36,10 @@
 		]
 	},
 	"dependencies": {
-		"@aws-sdk/client-dynamodb": "3.332.0",
-		"@aws-sdk/lib-dynamodb": "3.258.0",
-		"@aws-sdk/smithy-client": "3.272.0",
-		"@aws-sdk/util-dynamodb": "3.258.0",
+		"@aws-sdk/client-dynamodb": "3.329.0",
+		"@aws-sdk/lib-dynamodb": "3.329.0",
+		"@aws-sdk/smithy-client": "3.329.0",
+		"@aws-sdk/util-dynamodb": "3.329.0",
 		"@aws-sdk/util-utf8-node": "3.259.0",
 		"@awsless/dynamodb-server": "workspace:^",
 		"@awsless/utils": "workspace:^",
