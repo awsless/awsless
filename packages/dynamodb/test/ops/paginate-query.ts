@@ -86,6 +86,7 @@ describe('Paginate Query', () => {
 		const result = await paginateQuery(posts, {
 			index: 'list',
 			keyCondition: exp => exp.where('userId').eq(1).and.where('sortId').eq(1),
+			// limit: 1
 		})
 
 		expect(result).toStrictEqual({

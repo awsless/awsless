@@ -8,6 +8,7 @@ export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'
 // structs
 export { optional } from './structs/optional.js'
 
+export { uuid } from './structs/uuid.js'
 export { string } from './structs/string.js'
 export { boolean } from './structs/boolean.js'
 export { number } from './structs/number.js'
@@ -18,6 +19,7 @@ export { object } from './structs/object.js'
 export { record } from './structs/record.js'
 export { array } from './structs/array.js'
 export { date } from './structs/date.js'
+export { ttl } from './structs/ttl.js'
 export { unknown } from './structs/unknown.js'
 
 export { stringSet } from './structs/set/string.js'

@@ -62,6 +62,8 @@ type CursorKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined
 
 declare const optional: <M, I, O, P extends (string | number)[] = [], OP extends (string | number)[] = [], T extends AttributeTypes = AttributeTypes>(struct: Struct<M, I, O, P, OP, T, false>) => Struct<M, I, O, P, OP, T, true>;
 
+declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], AttributeTypes, false>;
+
 declare const string: () => Struct<string, string, string, [], [], AttributeTypes, false>;
 
 declare const boolean: () => Struct<boolean, boolean, boolean, [], [], AttributeTypes, false>;
@@ -111,6 +113,8 @@ type ArrayOptPaths<L extends AnyStruct> = [number] | [number, ...L['OPT_PATHS']]
 declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, AttributeTypes, false>;
 
 declare const date: () => Struct<string, Date, Date, [], [], AttributeTypes, false>;
+
+declare const ttl: () => Struct<string, Date, Date, [], [], AttributeTypes, false>;
 
 declare const unknown: () => Struct<string, unknown, unknown, [], [], AttributeTypes, false>;
 
@@ -461,4 +465,4 @@ type DeleteOptions<T extends AnyTableDefinition> = {
 };
 declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => Delete<T>;
 
-export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, unknown, updateItem };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };

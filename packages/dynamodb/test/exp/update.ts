@@ -64,14 +64,14 @@ describe('Update Expression', () => {
 		[
 			'SET ' + [
 				'#n1 = :v1',
-				'#n1 = if_not_exists( #n1 , :v1 )',
-				'#n2 = :v2',
-				'#n1 = if_not_exists( #n1 , :v3 ) + :v4',
-				'#n1 = if_not_exists( #n1 , :v5 ) - :v6',
+				'#n1 = if_not_exists( #n1 , :v2 )',
+				'#n2 = :v3',
+				'#n1 = if_not_exists( #n1 , :v4 ) + :v5',
+				'#n1 = if_not_exists( #n1 , :v6 ) - :v7',
 			].join(', '),
-			'ADD #n1 :v1, #n2 :v7',
+			'ADD #n1 :v8, #n2 :v9',
 			'REMOVE #n1, #n2',
-			'DELETE #n2 :v7',
+			'DELETE #n2 :v10',
 		].join(' '),
 		(exp) => exp
 			.update('id').set(1)

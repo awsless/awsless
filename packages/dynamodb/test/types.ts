@@ -1,5 +1,6 @@
 import { BigFloat } from '@awsless/big-float'
-import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional } from '../src'
+import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional, uuid, ttl } from '../src'
+import { UUID, randomUUID } from 'crypto'
 // import { CATCH_ALL } from '../src/structs/object'
 
 describe('Types', () => {
@@ -14,6 +15,7 @@ describe('Types', () => {
 	const table = define('table', {
 		hash: 'key',
 		schema: object({
+			id: uuid(),
 			key: number(),
 			number: number(),
 			string: string(),
@@ -23,6 +25,7 @@ describe('Types', () => {
 			boolean: boolean(),
 			binary: binary(),
 			date: date(),
+			ttl: ttl(),
 			optional: optional(string()),
 			unknown: unknown(),
 			array: array(object({
@@ -46,9 +49,12 @@ describe('Types', () => {
 
 	mockDynamoDB({ tables: [table] })
 
+	const id = randomUUID()
+	const now = new Date()
 	const bytes = new Int8Array(5).fill(1)
 
 	const item = {
+		id,
 		key: 1,
 		number: 1,
 		string: '1',
@@ -57,7 +63,8 @@ describe('Types', () => {
 		bigfloat: new BigFloat(1),
 		boolean: true,
 		binary: bytes,
-		date: new Date(),
+		date: now,
+		ttl: now,
 		optional: '1',
 		unknown: { random: 1 },
 		array: [{ key: '1' }],
@@ -86,6 +93,7 @@ describe('Types', () => {
 
 		// result!.enum
 
+		expectTypeOf(result!.id).toEqualTypeOf<UUID>()
 		expectTypeOf(result!.number).toEqualTypeOf<number>()
 		expectTypeOf(result!.string).toEqualTypeOf<string>()
 		// expectTypeOf(result!.enum).toEqualTypeOf<'foo' | 'bar'>()
@@ -94,6 +102,7 @@ describe('Types', () => {
 		expectTypeOf(result!.boolean).toEqualTypeOf<boolean>()
 		expectTypeOf(result!.binary).toEqualTypeOf<Uint8Array>()
 		expectTypeOf(result!.date).toEqualTypeOf<Date>()
+		expectTypeOf(result!.ttl).toEqualTypeOf<Date>()
 		expectTypeOf(result!.unknown).toEqualTypeOf<unknown>()
 		expectTypeOf(result!.optional).toEqualTypeOf<string | undefined>()
 		expectTypeOf(result!.array).toEqualTypeOf<{ key: string }[]>()
@@ -107,6 +116,7 @@ describe('Types', () => {
 		expect(result).toStrictEqual({
 			...item,
 			binary: new Uint8Array(bytes),
+			ttl: new Date(Math.floor(now.getTime() / 1000) * 1000),
 			sets: {
 				...item.sets,
 				binary: new Set([new Uint8Array(bytes)]),
@@ -125,43 +135,29 @@ describe('Types', () => {
 				return: 'ALL_NEW',
 				update: exp =>
 					exp
-						.update('number')
-						.set(2)
-						.update('string')
-						.set('2')
-						// .update('enum').set('bar')
-						.update('bigint')
-						.set(2n)
-						.update('bigfloat')
-						.set(new BigFloat(2))
-						.update('boolean')
-						.set(false)
-						.update('binary')
-						.set(bytes)
-						.update('date')
-						.set(date)
-						.update('optional')
-						.del()
-						.update('unknown')
-						.set({ random: 2 })
-						.update('array', 0)
-						.set({ key: '2' })
-						.update('record', 'key1')
-						.set({ key: '2' })
-						.update('record', 'key2')
-						.set({ key: '2' })
-						.update('sets', 'string')
-						.set(new Set(['2']))
-						.update('sets', 'number')
-						.set(new Set([2]))
-						.update('sets', 'bigint')
-						.set(new Set([2n]))
-						.update('sets', 'binary')
-						.set(new Set([bytes])),
+						.update('id').set('0-0-0-0-0')
+						.update('number').set(2)
+						.update('string').set('2')
+						.update('bigint').set(2n)
+						.update('bigfloat').set(new BigFloat(2))
+						.update('boolean').set(false)
+						.update('binary').set(bytes)
+						.update('date').set(date)
+						.update('ttl').set(date)
+						.update('optional').del()
+						.update('unknown').set({ random: 2 })
+						.update('array', 0).set({ key: '2' })
+						.update('record', 'key1').set({ key: '2' })
+						.update('record', 'key2').set({ key: '2' })
+						.update('sets', 'string').set(new Set(['2']))
+						.update('sets', 'number').set(new Set([2]))
+						.update('sets', 'bigint').set(new Set([2n]))
+						.update('sets', 'binary').set(new Set([bytes])),
 			}
 		)
 
 		expect(result).toStrictEqual({
+			id: '0-0-0-0-0',
 			key: 1,
 			number: 2,
 			string: '2',
@@ -170,6 +166,7 @@ describe('Types', () => {
 			boolean: false,
 			binary: bytes,
 			date,
+			ttl: new Date(Math.floor(date.getTime() / 1000) * 1000),
 			unknown: { random: 2 },
 			array: [{ key: '2' }],
 			record: {

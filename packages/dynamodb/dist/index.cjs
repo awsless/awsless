@@ -72,8 +72,10 @@ __export(src_exports, {
   transactPut: () => transactPut,
   transactUpdate: () => transactUpdate,
   transactWrite: () => transactWrite,
+  ttl: () => ttl,
   unknown: () => unknown,
-  updateItem: () => updateItem
+  updateItem: () => updateItem,
+  uuid: () => uuid
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -129,6 +131,13 @@ var optional = (struct) => {
     true
   );
 };
+
+// src/structs/uuid.ts
+var uuid = () => new Struct(
+  "S",
+  (value) => value,
+  (value) => value
+);
 
 // src/structs/string.ts
 var string = () => new Struct(
@@ -401,6 +410,21 @@ var date = () => new Struct(
   (value) => new Date(Number(value))
 );
 
+// src/structs/ttl.ts
+var ttl = () => new Struct(
+  "N",
+  (value) => String(Math.floor(value.getTime() / 1e3)),
+  (value) => new Date(Number(value) * 1e3)
+  // (value) => {
+  // 	console.log('VALUE SET', Math.floor(value.getTime() / 1000));
+  // 	return String(Math.floor(value.getTime() / 1000))
+  // },
+  // (value) => {
+  // 	console.log('VALUE GET', value);
+  // 	return new Date(Number(value) * 1000)
+  // }
+);
+
 // src/structs/unknown.ts
 var unknown = () => new Struct(
   "S",
@@ -644,7 +668,7 @@ var IDGenerator = class {
   }
   cacheN = /* @__PURE__ */ new Map();
   countN = 0;
-  cacheV = /* @__PURE__ */ new Map();
+  cacheV = [];
   countV = 0;
   path(key3) {
     if (Array.isArray(key3)) {
@@ -664,17 +688,16 @@ var IDGenerator = class {
     return `#n${this.cacheN.get(key3)}`;
   }
   value(value, path) {
-    if (!this.cacheV.has(value)) {
-      this.cacheV.set(value, { path, id: ++this.countV });
-    }
-    return `:v${this.cacheV.get(value).id}`;
+    const id = ++this.countV;
+    this.cacheV.push({ path, value, id });
+    return `:v${id}`;
   }
   attributeNames() {
     const attrs = {};
     if (this.cacheN.size > 0) {
       const names = {};
-      for (const [key3, id] of this.cacheN) {
-        names[`#n${id}`] = key3;
+      for (const [name, id] of this.cacheN) {
+        names[`#n${id}`] = name;
       }
       attrs.ExpressionAttributeNames = names;
     }
@@ -682,9 +705,9 @@ var IDGenerator = class {
   }
   attributeValues() {
     const attrs = {};
-    if (this.cacheV.size > 0) {
+    if (this.cacheV.length > 0) {
       const values = {};
-      for (const [value, { path, id }] of this.cacheV) {
+      for (const { path, id, value } of this.cacheV) {
         values[`:v${id}`] = path ? this.table.schema.walk?.(...path)?.marshall(value) : value;
       }
       attrs.ExpressionAttributeValues = values;
@@ -1500,6 +1523,8 @@ var transactDelete = (table, key3, options = {}) => {
   transactPut,
   transactUpdate,
   transactWrite,
+  ttl,
   unknown,
-  updateItem
+  updateItem,
+  uuid
 });

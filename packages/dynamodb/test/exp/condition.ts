@@ -35,7 +35,7 @@ describe('Condition Expression', () => {
 	)
 
 	assert(
-		'( #n1 = :v1 ) AND ( #n1 <> :v1 ) AND ( #n1 > :v1 ) AND ( #n1 >= :v1 ) AND ( #n1 < :v1 ) AND ( #n1 <= :v2 )',
+		'( #n1 = :v1 ) AND ( #n1 <> :v2 ) AND ( #n1 > :v3 ) AND ( #n1 >= :v4 ) AND ( #n1 < :v5 ) AND ( #n1 <= :v6 )',
 		(exp) => exp
 			.where('id').eq(1)
 			.and

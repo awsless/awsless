@@ -55,8 +55,12 @@ export const query = async <
 		...gen.attributes()
 	})
 
+	// console.log('INPUT', command.input);
+
 	debug(options, command)
 	const result = await client(options).send(command)
+
+	// console.log('RESULT', result);
 
 	return {
 		count: result.Count || 0,

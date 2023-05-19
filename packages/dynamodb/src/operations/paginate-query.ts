@@ -47,6 +47,9 @@ export const paginateQuery = async <
 	// even when no more items are available.
 
 	if(result.cursor) {
+
+		// console.log(options.index, result.cursor);
+
 		const more = await query(table, {
 			...options,
 			limit: 1,

@@ -27,7 +27,7 @@ describe('Key Condition Expression', () => {
 	}
 
 	assert(
-		'( #n1 = :v1 ) AND ( #n1 > :v1 ) AND ( #n1 >= :v1 ) AND ( #n1 < :v1 ) AND ( #n1 <= :v1 )',
+		'( #n1 = :v1 ) AND ( #n1 > :v2 ) AND ( #n1 >= :v3 ) AND ( #n1 < :v4 ) AND ( #n1 <= :v5 )',
 		(exp) => exp
 			.where('id').eq(1)
 			.and
@@ -51,7 +51,7 @@ describe('Key Condition Expression', () => {
 	)
 
 	assert(
-		'( #n1 = :v1 ) AND ( #n1 > :v1 )',
+		'( #n1 = :v1 ) AND ( #n1 > :v2 )',
 		(exp) => exp
 			.extend(exp => true ? exp.where('id').eq(1).and : exp)
 			.where('id').gt(1)

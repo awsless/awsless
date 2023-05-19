@@ -91,6 +91,7 @@ describe('Query', () => {
 	it('should support index', async () => {
 		const result = await query(posts, {
 			index: 'list',
+			limit: 1,
 			keyCondition: (exp) => exp
 				.where('userId').eq(1)
 				.and
@@ -98,8 +99,8 @@ describe('Query', () => {
 		})
 
 		expect(result).toStrictEqual({
-			cursor: undefined,
 			count: 1,
+			cursor: { userId: 1, sortId: 1, id: 1 },
 			items: [
 				{ userId: 1, sortId: 1, id: 1 },
 			],

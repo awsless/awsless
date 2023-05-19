@@ -8,7 +8,7 @@ export class IDGenerator<T extends AnyTableDefinition> {
 	private cacheN = new Map<string, number>()
 	private countN = 0
 
-	private cacheV = new Map<AttributeValue, { path:string | Array<string | number> | undefined, id: number }>()
+	private cacheV: { path:string | Array<string | number> | undefined, id: number, value: AttributeValue }[] = []
 	private countV = 0
 
 	constructor(private table:T) {}
@@ -36,11 +36,10 @@ export class IDGenerator<T extends AnyTableDefinition> {
 	}
 
 	value(value:AttributeValue, path?:string | Array<string | number>) {
-		if(!this.cacheV.has(value)) {
-			this.cacheV.set(value, { path, id: ++this.countV })
-		}
+		const id = ++this.countV
+		this.cacheV.push({ path, value, id })
 
-		return `:v${this.cacheV.get(value)!.id}`
+		return `:v${id}`
 	}
 
 	attributeNames() {
@@ -48,8 +47,8 @@ export class IDGenerator<T extends AnyTableDefinition> {
 
 		if(this.cacheN.size > 0) {
 			const names:ExpressionAttributeNames = {}
-			for(const [ key, id ] of this.cacheN) {
-				names[`#n${id}`] = key
+			for(const [ name, id ] of this.cacheN) {
+				names[`#n${id}`] = name
 			}
 
 			attrs.ExpressionAttributeNames = names
@@ -61,9 +60,9 @@ export class IDGenerator<T extends AnyTableDefinition> {
 	attributeValues() {
 		const attrs:{ ExpressionAttributeValues?: ExpressionAttributeValues } = {}
 
-		if(this.cacheV.size > 0) {
+		if(this.cacheV.length > 0) {
 			const values:ExpressionAttributeValues = {}
-			for(const [ value, { path, id } ] of this.cacheV) {
+			for(const { path, id, value } of this.cacheV) {
 				values[`:v${id}`] = (path ? this.table.schema.walk?.(...path)?.marshall(value) : value) as AttributeValue
 			}
 
