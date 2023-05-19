@@ -5,17 +5,17 @@ export class RedisServer {
 	private client?: Redis
 	private process?: RedisMemoryServer
 
-	async start() {
+	async start(port? : number) {
 		if (this.process) {
 			throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`)
 		}
 
-		// if(port < 0 || port >= 65536) {
-		// 	throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
-		// }
+		if(port && (port < 0 || port >= 65536)) {
+			throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
+		}
 
-		this.process = new RedisMemoryServer({
-			autoStart: true,
+		this.process = await RedisMemoryServer.create({
+			instance: { port },
 			binary: { systemBinary: '/usr/local/bin/redis-server' },
 		})
 	}

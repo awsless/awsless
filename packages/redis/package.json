@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/redis",
-	"version": "0.0.4",
+	"version": "0.0.7",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -29,7 +29,8 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"ioredis": "^5.3.2",
-		"ioredis-mock": "^8.7.0"
+		"@awsless/redis-server": "workspace:^",
+		"@heat/request-port": "^0.0.1",
+		"ioredis": "^5.3.2"
 	}
 }

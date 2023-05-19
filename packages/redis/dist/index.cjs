@@ -27,18 +27,18 @@ __export(src_exports, {
 module.exports = __toCommonJS(src_exports);
 
 // src/mock.ts
-var mockRedis = async () => {
-  vi.mock("ioredis", async () => {
-    const module2 = await vi.importActual("ioredis-mock");
-    return { Redis: module2.default };
-  });
-};
+var import_redis_server = require("@awsless/redis-server");
+var import_request_port = require("@heat/request-port");
 
 // src/client.ts
 var import_ioredis = require("ioredis");
+var optionOverrides = {};
+var overrideOptions = (options) => {
+  optionOverrides = options;
+};
 var redisClient = (options) => {
   return new import_ioredis.Redis({
-    ...options,
+    lazyConnect: true,
     stringNumbers: true,
     keepAlive: 0,
     noDelay: true,
@@ -47,10 +47,11 @@ var redisClient = (options) => {
     autoResubscribe: false,
     commandQueue: false,
     offlineQueue: false,
-    enableOfflineQueue: false,
     autoResendUnfulfilledCommands: false,
     connectTimeout: 1e3 * 5,
-    commandTimeout: 1e3 * 5
+    commandTimeout: 1e3 * 5,
+    ...options,
+    ...optionOverrides
     // retryStrategy: (times) => {
     // 	if (options.error && options.error.code === 'ECONNREFUSED') {
     // 		return new Error 'The redis server refused the connection'
@@ -66,11 +67,32 @@ var redisClient = (options) => {
   });
 };
 
+// src/mock.ts
+var mockRedis = async () => {
+  const server = new import_redis_server.RedisServer();
+  let releasePort;
+  beforeAll && beforeAll(async () => {
+    const [port, release] = await (0, import_request_port.requestPort)();
+    releasePort = release;
+    await server.start(port);
+    await server.ping();
+    overrideOptions({
+      port,
+      host: "localhost"
+    });
+  });
+  afterAll && afterAll(async () => {
+    await server.kill();
+    await releasePort();
+  });
+};
+
 // src/commands.ts
 var command = async (options, callback) => {
   const client = redisClient(options);
+  let result;
   try {
-    var result = await callback(client);
+    result = await callback(client);
   } catch (error) {
     throw error;
   } finally {

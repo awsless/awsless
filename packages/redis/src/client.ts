@@ -1,10 +1,14 @@
 import { Redis } from 'ioredis'
 import type { RedisOptions } from 'ioredis'
 
-// This is an async call because the mock client is async
+let optionOverrides: RedisOptions = {}
+export const overrideOptions = (options: RedisOptions) => {
+	optionOverrides = options
+}
+
 export const redisClient = (options: RedisOptions) => {
 	return new Redis({
-		...options,
+		lazyConnect: true,
 		stringNumbers: true,
 		keepAlive: 0,
 		noDelay: true,
@@ -13,10 +17,11 @@ export const redisClient = (options: RedisOptions) => {
 		autoResubscribe: false,
 		commandQueue: false,
 		offlineQueue: false,
-		enableOfflineQueue: false,
 		autoResendUnfulfilledCommands: false,
 		connectTimeout: 1000 * 5,
 		commandTimeout: 1000 * 5,
+		...options,
+		...optionOverrides
 
 		// retryStrategy: (times) => {
 		// 	if (options.error && options.error.code === 'ECONNREFUSED') {

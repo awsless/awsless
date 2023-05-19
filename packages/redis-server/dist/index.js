@@ -4,12 +4,15 @@ import { Redis } from "ioredis";
 var RedisServer = class {
   client;
   process;
-  async start() {
+  async start(port) {
     if (this.process) {
       throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
     }
-    this.process = new RedisMemoryServer({
-      autoStart: true,
+    if (port && (port < 0 || port >= 65536)) {
+      throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
+    }
+    this.process = await RedisMemoryServer.create({
+      instance: { port },
       binary: { systemBinary: "/usr/local/bin/redis-server" }
     });
   }

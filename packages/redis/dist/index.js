@@ -1,16 +1,16 @@
 // src/mock.ts
-var mockRedis = async () => {
-  vi.mock("ioredis", async () => {
-    const module = await vi.importActual("ioredis-mock");
-    return { Redis: module.default };
-  });
-};
+import { RedisServer } from "@awsless/redis-server";
+import { requestPort } from "@heat/request-port";
 
 // src/client.ts
 import { Redis } from "ioredis";
+var optionOverrides = {};
+var overrideOptions = (options) => {
+  optionOverrides = options;
+};
 var redisClient = (options) => {
   return new Redis({
-    ...options,
+    lazyConnect: true,
     stringNumbers: true,
     keepAlive: 0,
     noDelay: true,
@@ -19,10 +19,11 @@ var redisClient = (options) => {
     autoResubscribe: false,
     commandQueue: false,
     offlineQueue: false,
-    enableOfflineQueue: false,
     autoResendUnfulfilledCommands: false,
     connectTimeout: 1e3 * 5,
-    commandTimeout: 1e3 * 5
+    commandTimeout: 1e3 * 5,
+    ...options,
+    ...optionOverrides
     // retryStrategy: (times) => {
     // 	if (options.error && options.error.code === 'ECONNREFUSED') {
     // 		return new Error 'The redis server refused the connection'
@@ -38,11 +39,32 @@ var redisClient = (options) => {
   });
 };
 
+// src/mock.ts
+var mockRedis = async () => {
+  const server = new RedisServer();
+  let releasePort;
+  beforeAll && beforeAll(async () => {
+    const [port, release] = await requestPort();
+    releasePort = release;
+    await server.start(port);
+    await server.ping();
+    overrideOptions({
+      port,
+      host: "localhost"
+    });
+  });
+  afterAll && afterAll(async () => {
+    await server.kill();
+    await releasePort();
+  });
+};
+
 // src/commands.ts
 var command = async (options, callback) => {
   const client = redisClient(options);
+  let result;
   try {
-    var result = await callback(client);
+    result = await callback(client);
   } catch (error) {
     throw error;
   } finally {
