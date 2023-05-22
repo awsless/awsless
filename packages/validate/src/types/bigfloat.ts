@@ -18,19 +18,20 @@ export const bigfloat = ():Struct<BigFloat, null> => {
 	})
 }
 
-export const positive = <T extends BigFloat, S extends any>(struct:Struct<T, S>) => {
+export const positive = <T extends BigFloat | number, S extends any>(struct:Struct<T, S>) => {
 	const expected = `Expected a positive ${struct.type}`
-	const zero = new BigFloat(0)
+	const ZERO = new BigFloat(0)
 
-	return refine(struct, 'positive', (value:BigFloat) => {
-		return gt(value, zero) || `${expected} but received '${value}'`
+	return refine(struct, 'positive', (value:BigFloat | number) => {
+		return gt(value, ZERO) || `${expected} but received '${value}'`
 	})
 }
 
-export const precision = <T extends BigFloat, S extends any>(struct:Struct<T, S>, decimals:number) => {
+export const precision = <T extends BigFloat | number, S extends any>(struct:Struct<T, S>, decimals:number) => {
 	const expected = `Expected a ${struct.type}`
 
-	return refine(struct, 'precision', (value:BigFloat) => {
-		return -value.exponent <= decimals || `${expected} with ${decimals} decimals`
+	return refine(struct, 'precision', (value:BigFloat | number) => {
+		const big = new BigFloat(value)
+		return -big.exponent <= decimals || `${expected} with ${decimals} decimals`
 	})
 }

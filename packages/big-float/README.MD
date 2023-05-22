@@ -37,7 +37,7 @@ interface IBigFloat {
 import { BigFloat, set_precision } from "@awsless/big-float";
 
 // arithmetic
-import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor } from '@awsless/big-float'
+import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor, factor } from '@awsless/big-float'
 
 // retational
 export { eq, lt, lte, gt, gte } from '@awsless/big-float'
