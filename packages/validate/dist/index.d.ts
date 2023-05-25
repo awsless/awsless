@@ -4,8 +4,8 @@ import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
 
 declare const bigfloat: () => Struct<BigFloat, null>;
-declare const positive: <T extends BigFloat, S extends unknown>(struct: Struct<T, S>) => Struct<T, S>;
-declare const precision: <T extends BigFloat, S extends unknown>(struct: Struct<T, S>, decimals: number) => Struct<T, S>;
+declare const positive: <T extends number | BigFloat, S extends unknown>(struct: Struct<T, S>) => Struct<T, S>;
+declare const precision: <T extends number | BigFloat, S extends unknown>(struct: Struct<T, S>, decimals: number) => Struct<T, S>;
 
 declare const date: () => Struct<Date, null>;
 

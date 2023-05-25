@@ -32,7 +32,9 @@ import {
   sqrt as a_sqrt,
   ceil as a_ceil,
   floor as a_floor,
-  exponentiation as a_exponentiation
+  exponentiation as a_exponentiation,
+  lt as a_lt,
+  eq as a_eq
 } from "bigfloat-esnext";
 var neg = (a) => new BigFloat(a_neg(make2(a)));
 var abs = (a) => new BigFloat(a_abs(make2(a)));
@@ -46,8 +48,10 @@ var sub = (a, ...other) => {
     return a_sub(make2(prev), make2(current));
   }, a));
 };
-var mul = (multiplicand, multiplier) => {
-  return new BigFloat(a_mul(make2(multiplicand), make2(multiplier)));
+var mul = (multiplicand, ...multipliers) => {
+  return new BigFloat(multipliers.reduce((prev, current) => {
+    return a_mul(make2(prev), make2(current));
+  }, multiplicand));
 };
 var div = (dividend, divisor, precision) => {
   return new BigFloat(a_div(make2(dividend), make2(divisor), precision));
@@ -64,18 +68,31 @@ var floor = (a, precision = 0, divisorPrecision) => {
 var pow = (base, exp) => {
   return new BigFloat(a_exponentiation(make2(base), make2(exp)));
 };
+var factor = (number) => {
+  const value = make2(number);
+  const ZERO = make2(0);
+  if (a_lt(value, ZERO)) {
+    const NEG_ONE = make2(-1);
+    return new BigFloat(a_mul(NEG_ONE, factor(a_mul(value, NEG_ONE))));
+  }
+  const ONE = make2(1);
+  if (a_eq(value, ZERO) || a_eq(value, ONE)) {
+    return new BigFloat(ONE);
+  }
+  return new BigFloat(a_mul(value, factor(a_sub(value, ONE))));
+};
 
 // src/relational.ts
 import {
   make as make3,
-  eq as a_eq,
-  lt as a_lt,
+  eq as a_eq2,
+  lt as a_lt2,
   lte as a_lte,
   gt as a_gt,
   gte as a_gte
 } from "bigfloat-esnext";
-var eq = (a, b) => a_eq(make3(a), make3(b));
-var lt = (a, b) => a_lt(make3(a), make3(b));
+var eq = (a, b) => a_eq2(make3(a), make3(b));
+var lt = (a, b) => a_lt2(make3(a), make3(b));
 var lte = (a, b) => a_lte(make3(a), make3(b));
 var gt = (a, b) => a_gt(make3(a), make3(b));
 var gte = (a, b) => a_gte(make3(a), make3(b));
@@ -101,6 +118,7 @@ export {
   div,
   eq,
   evaluate,
+  factor,
   floor,
   fraction,
   gt,

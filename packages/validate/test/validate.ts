@@ -30,7 +30,7 @@ describe('Validate Types', () => {
 		})
 	}
 
-	testRule('big float', {
+	testRule('big-float', {
 		valid: [0, -1, 1, '0', '1', '-1', new BigFloat(1), new BigFloat('1')],
 		invalid: [null, undefined, true, false, NaN, '', 'a', [], {}, new Date(), new Set(), new Map()],
 		validate: (value) => {
@@ -39,21 +39,27 @@ describe('Validate Types', () => {
 		}
 	})
 
-	testRule('big float positive', {
+	testRule('big-float / number positive', {
 		valid: [1, 100, 1000],
 		invalid: [0, -1, -100, -1000],
 		validate: (value) => {
 			const result = create(value, positive(bigfloat()))
 			expect(result.toString()).toBe(value.toString())
+
+			const result2 = create(value, positive(number()))
+			expect(result2.toString()).toBe(value.toString())
 		}
 	})
 
-	testRule('big float precision', {
+	testRule('big-float / number precision', {
 		valid: [0, 1, 100, 1000, 0.01, 100.01],
 		invalid: [0.001, 100.0001],
 		validate: (value) => {
 			const result = create(value, precision(bigfloat(), 2))
 			expect(result.toString()).toBe(value.toString())
+
+			const result2 = create(value, precision(number(), 2))
+			expect(result2.toString()).toBe(value.toString())
 		}
 	})
 

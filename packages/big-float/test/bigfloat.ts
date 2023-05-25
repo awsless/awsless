@@ -1,5 +1,5 @@
 
-import { abs, add, BigFloat, ceil, div, eq, floor, gt, gte, lt, lte, mul, neg, Numeric, pow, sqrt, sub } from '../src/index'
+import { abs, add, BigFloat, ceil, div, eq, factor, floor, gt, gte, lt, lte, mul, neg, Numeric, pow, sqrt, sub } from '../src/index'
 
 describe('BigFloat', () => {
 
@@ -23,15 +23,26 @@ describe('BigFloat', () => {
 		it('2 - 1 = 1', () => expect(eq(sub(2, 1), 1)).toBe(true))
 		it('3 - 1 - 1 = 1', () => expect(eq(sub(3, 1, 1), 1)).toBe(true))
 		it('2 * 2 = 4', () => expect(eq(mul(2, 2), 4)).toBe(true))
+		it('2 * 2 * 2 = 8', () => expect(eq(mul(2, 2, 2), 8)).toBe(true))
 		it('4 / 2 = 2', () => expect(eq(div(4, 2), 2)).toBe(true))
 		it('2 ^ 2 = 4', () => expect(eq(pow(2, 2), 4)).toBe(true))
 		it('sqrt(4) = 2', () => expect(eq(sqrt(4), 2)).toBe(true))
 		it('ceil(0.5) = 1', () => expect(eq(ceil(.5), 1)).toBe(true))
 		it('floor(0.5) = 0', () => expect(eq(floor(.5), 0)).toBe(true))
+
 		it('abs(1) = 1', () => expect(eq(abs(1), 1)).toBe(true))
 		it('abs(-1) = 1', () => expect(eq(abs(-1), 1)).toBe(true))
+
 		it('neg(1) = -1', () => expect(eq(neg(1), -1)).toBe(true))
 		it('neg(-1) = -1', () => expect(eq(neg(-1), 1)).toBe(true))
+
+		it('factor(0) = 1', () => expect(eq(factor(0), 1)).toBe(true))
+		it('factor(1) = 1', () => expect(eq(factor(1), 1)).toBe(true))
+		it('factor(2) = 2', () => expect(eq(factor(2), 2)).toBe(true))
+		it('factor(5) = 120', () => expect(eq(factor(5), 120)).toBe(true))
+		it('factor(-1) = -1', () => expect(eq(factor(-1), -1)).toBe(true))
+		it('factor(-2) = -2', () => expect(eq(factor(-2), -2)).toBe(true))
+		it('factor(-5) = -120', () => expect(eq(factor(-5), -120)).toBe(true))
 	})
 
 	describe('floor', () => {

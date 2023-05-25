@@ -27,6 +27,7 @@ __export(src_exports, {
   div: () => div,
   eq: () => eq,
   evaluate: () => import_bigfloat_esnext4.evaluate,
+  factor: () => factor,
   floor: () => floor,
   fraction: () => import_bigfloat_esnext4.fraction,
   gt: () => gt,
@@ -85,8 +86,10 @@ var sub = (a, ...other) => {
     return (0, import_bigfloat_esnext2.sub)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
   }, a));
 };
-var mul = (multiplicand, multiplier) => {
-  return new BigFloat((0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(multiplicand), (0, import_bigfloat_esnext2.make)(multiplier)));
+var mul = (multiplicand, ...multipliers) => {
+  return new BigFloat(multipliers.reduce((prev, current) => {
+    return (0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+  }, multiplicand));
 };
 var div = (dividend, divisor, precision) => {
   return new BigFloat((0, import_bigfloat_esnext2.div)((0, import_bigfloat_esnext2.make)(dividend), (0, import_bigfloat_esnext2.make)(divisor), precision));
@@ -102,6 +105,19 @@ var floor = (a, precision = 0, divisorPrecision) => {
 };
 var pow = (base, exp) => {
   return new BigFloat((0, import_bigfloat_esnext2.exponentiation)((0, import_bigfloat_esnext2.make)(base), (0, import_bigfloat_esnext2.make)(exp)));
+};
+var factor = (number) => {
+  const value = (0, import_bigfloat_esnext2.make)(number);
+  const ZERO = (0, import_bigfloat_esnext2.make)(0);
+  if ((0, import_bigfloat_esnext2.lt)(value, ZERO)) {
+    const NEG_ONE = (0, import_bigfloat_esnext2.make)(-1);
+    return new BigFloat((0, import_bigfloat_esnext2.mul)(NEG_ONE, factor((0, import_bigfloat_esnext2.mul)(value, NEG_ONE))));
+  }
+  const ONE = (0, import_bigfloat_esnext2.make)(1);
+  if ((0, import_bigfloat_esnext2.eq)(value, ZERO) || (0, import_bigfloat_esnext2.eq)(value, ONE)) {
+    return new BigFloat(ONE);
+  }
+  return new BigFloat((0, import_bigfloat_esnext2.mul)(value, factor((0, import_bigfloat_esnext2.sub)(value, ONE))));
 };
 
 // src/relational.ts
@@ -123,6 +139,7 @@ var import_bigfloat_esnext4 = require("bigfloat-esnext");
   div,
   eq,
   evaluate,
+  factor,
   floor,
   fraction,
   gt,

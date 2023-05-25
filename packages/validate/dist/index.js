@@ -16,15 +16,16 @@ var bigfloat = () => {
 };
 var positive = (struct2) => {
   const expected = `Expected a positive ${struct2.type}`;
-  const zero = new BigFloat(0);
+  const ZERO = new BigFloat(0);
   return refine(struct2, "positive", (value) => {
-    return gt(value, zero) || `${expected} but received '${value}'`;
+    return gt(value, ZERO) || `${expected} but received '${value}'`;
   });
 };
 var precision = (struct2, decimals) => {
   const expected = `Expected a ${struct2.type}`;
   return refine(struct2, "precision", (value) => {
-    return -value.exponent <= decimals || `${expected} with ${decimals} decimals`;
+    const big = new BigFloat(value);
+    return -big.exponent <= decimals || `${expected} with ${decimals} decimals`;
   });
 };
 
