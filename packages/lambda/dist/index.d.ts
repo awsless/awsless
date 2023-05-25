@@ -3,7 +3,7 @@ import { Infer, Struct, Failure } from '@awsless/validate';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Jsonify, AsyncReturnType } from 'type-fest';
-import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
+import { Mock } from 'vitest';
 
 type OptStruct = Struct<any, unknown> | undefined;
 type Input<T extends OptStruct = undefined> = T extends undefined ? unknown : Infer<RemoveUndefined<T>>;
@@ -88,7 +88,7 @@ declare const invoke: Invoke;
 type Lambdas = {
     [key: string]: (payload: any) => unknown;
 };
-declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
+declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
 declare const lambdaClient: {
     (): LambdaClient;

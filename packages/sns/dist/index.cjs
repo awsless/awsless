@@ -23,6 +23,7 @@ __export(src_exports, {
   mockSNS: () => mockSNS,
   publish: () => publish,
   snsClient: () => snsClient,
+  snsInput: () => snsInput,
   snsRecords: () => snsRecords,
   snsStruct: () => snsStruct
 });
@@ -90,7 +91,7 @@ var mockSNS = (topics) => {
           Sns: {
             TopicArn: input.TopicArn,
             MessageId: (0, import_crypto.randomUUID)(),
-            Timestamp: Date.now(),
+            Timestamp: (/* @__PURE__ */ new Date()).toISOString(),
             Message: input.Message
           }
         }
@@ -126,11 +127,24 @@ var snsStruct = (message) => {
     )
   });
 };
+var snsInput = (records) => {
+  return {
+    Records: records.map((body, i) => ({
+      Sns: {
+        TopicArn: "arn:aws:sns",
+        MessageId: String(i),
+        Timestamp: /* @__PURE__ */ new Date(),
+        Message: body
+      }
+    }))
+  };
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   mockSNS,
   publish,
   snsClient,
+  snsInput,
   snsRecords,
   snsStruct
 });

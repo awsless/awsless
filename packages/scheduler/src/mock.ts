@@ -6,6 +6,8 @@ import {
 } from '@aws-sdk/client-scheduler'
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
+// @ts-ignore
+import { Mock } from 'vitest'
 
 type Lambdas = {
 	[key: string]: (payload: any) => any

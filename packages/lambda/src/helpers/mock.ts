@@ -2,6 +2,8 @@ import { nextTick, mockObjectValues } from '@awsless/utils'
 import { InvokeCommand, InvokeCommandInput, LambdaClient } from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { mockClient } from 'aws-sdk-client-mock'
+// @ts-ignore
+import { Mock } from 'vitest'
 
 type Lambdas = {
 	[key: string]: (payload: any) => unknown

@@ -1,6 +1,6 @@
 import { SSMClient } from '@aws-sdk/client-ssm';
 export { SSMClient } from '@aws-sdk/client-ssm';
-import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
+import { Mock } from 'vitest';
 
 declare const ssmClient: {
     (): SSMClient;
@@ -41,6 +41,6 @@ declare const json: <T = unknown>(path: string) => {
     transform(value: string): T;
 };
 
-declare const mockSSM: (values: Record<string, string>) => vitest_dist_index_5aad25c1.x<any, any>;
+declare const mockSSM: (values: Record<string, string>) => Mock<any, any>;
 
 export { Paths, array, float, integer, json, mockSSM, ssm, ssmClient, string };

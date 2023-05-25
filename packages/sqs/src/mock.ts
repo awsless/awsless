@@ -10,6 +10,8 @@ import {
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
+// @ts-ignore
+import { Mock } from 'vitest'
 
 type Queues = {
 	[key: string]: (payload: unknown) => unknown

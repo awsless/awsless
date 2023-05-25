@@ -1,8 +1,8 @@
-import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
+import { Mock } from 'vitest';
 import * as _aws_sdk_client_sesv2 from '@aws-sdk/client-sesv2';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
 
-declare const mockSES: () => vitest_dist_index_5aad25c1.x<any[], any>;
+declare const mockSES: () => Mock<any, any>;
 
 declare const sesClient: {
     (): SESv2Client;

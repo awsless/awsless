@@ -2,6 +2,8 @@ import { PublishCommand, PublishCommandInput, SNSClient } from '@aws-sdk/client-
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
+// @ts-ignore
+import { Mock } from 'vitest'
 
 type Topics = {
 	[key: string]: (payload: any) => any
@@ -27,7 +29,7 @@ export const mockSNS = <T extends Topics>(topics: T) => {
 						Sns: {
 							TopicArn: input.TopicArn,
 							MessageId: randomUUID(),
-							Timestamp: Date.now(),
+							Timestamp: new Date().toISOString(),
 							Message: input.Message,
 						},
 					},

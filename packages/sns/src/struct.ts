@@ -28,3 +28,16 @@ export const snsStruct = <A, B>(message: Struct<A, B>) => {
 		),
 	})
 }
+
+export const snsInput = (records: any[]) => {
+	return {
+		Records: records.map((body, i) => ({
+			Sns: {
+				TopicArn: 'arn:aws:sns',
+				MessageId: String(i),
+				Timestamp: new Date(),
+				Message: body,
+			},
+		})),
+	}
+}

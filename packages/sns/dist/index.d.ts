@@ -1,6 +1,6 @@
 import * as _aws_sdk_client_sns from '@aws-sdk/client-sns';
 import { SNSClient } from '@aws-sdk/client-sns';
-import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
+import { Mock } from 'vitest';
 import * as superstruct_dist_utils from 'superstruct/dist/utils';
 import { Struct } from '@awsless/validate';
 
@@ -22,7 +22,7 @@ declare const publish: ({ client, topic, subject, payload, attributes, region, a
 type Topics = {
     [key: string]: (payload: any) => any;
 };
-declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
+declare const mockSNS: <T extends Topics>(topics: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
 declare const snsClient: {
     (): SNSClient;
@@ -75,5 +75,15 @@ declare const snsStruct: <A, B>(message: Struct<A, B>) => Struct<{
         }>;
     }>>;
 }>;
+declare const snsInput: (records: any[]) => {
+    Records: {
+        Sns: {
+            TopicArn: string;
+            MessageId: string;
+            Timestamp: Date;
+            Message: any;
+        };
+    }[];
+};
 
-export { mockSNS, publish, snsClient, snsRecords, snsStruct };
+export { mockSNS, publish, snsClient, snsInput, snsRecords, snsStruct };

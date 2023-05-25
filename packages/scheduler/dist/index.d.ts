@@ -1,6 +1,6 @@
 import * as _aws_sdk_client_scheduler from '@aws-sdk/client-scheduler';
 import { SchedulerClient } from '@aws-sdk/client-scheduler';
-import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
+import { Mock } from 'vitest';
 
 interface CreateSchedule {
     client?: SchedulerClient;
@@ -24,7 +24,7 @@ declare const deleteSchedule: ({ client, idempotentKey }: DeleteSchedule) => Pro
 type Lambdas = {
     [key: string]: (payload: any) => any;
 };
-declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
+declare const mockScheduler: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
 declare const schedulerClient: {
     (): SchedulerClient;

@@ -60,7 +60,7 @@ var mockSNS = (topics) => {
           Sns: {
             TopicArn: input.TopicArn,
             MessageId: randomUUID(),
-            Timestamp: Date.now(),
+            Timestamp: (/* @__PURE__ */ new Date()).toISOString(),
             Message: input.Message
           }
         }
@@ -96,10 +96,23 @@ var snsStruct = (message) => {
     )
   });
 };
+var snsInput = (records) => {
+  return {
+    Records: records.map((body, i) => ({
+      Sns: {
+        TopicArn: "arn:aws:sns",
+        MessageId: String(i),
+        Timestamp: /* @__PURE__ */ new Date(),
+        Message: body
+      }
+    }))
+  };
+};
 export {
   mockSNS,
   publish,
   snsClient,
+  snsInput,
   snsRecords,
   snsStruct
 };

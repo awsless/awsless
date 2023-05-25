@@ -1,6 +1,6 @@
 import * as _aws_sdk_client_sqs from '@aws-sdk/client-sqs';
 import { SQSClient } from '@aws-sdk/client-sqs';
-import * as vitest_dist_index_5aad25c1 from 'vitest/dist/index-5aad25c1';
+import { Mock } from 'vitest';
 import * as superstruct_dist_utils from 'superstruct/dist/utils';
 import { Struct } from '@awsless/validate';
 
@@ -37,7 +37,7 @@ declare const sendMessageBatch: ({ client, queue, items }: SendMessageBatch) => 
 type Queues = {
     [key: string]: (payload: unknown) => unknown;
 };
-declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: vitest_dist_index_5aad25c1.x<any, (...args: any[]) => any>; };
+declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
 type Input<T> = {
     Records: {
