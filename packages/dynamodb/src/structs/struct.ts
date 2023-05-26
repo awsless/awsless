@@ -1,5 +1,6 @@
+import { AttributeValue } from "@aws-sdk/client-dynamodb"
 
-export type AttributeTypes = 'S' | 'N' | 'B' | 'BOOL' | 'DATE' | 'L' | 'M' | 'SS' | 'NS' | 'BS'
+export type AttributeTypes = keyof AttributeValue
 
 export type AnyStruct = Struct<
 	any,

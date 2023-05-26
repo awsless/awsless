@@ -1,6 +1,8 @@
 import { BigFloat } from '@awsless/big-float'
-import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional, uuid, ttl } from '../src'
+import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional, uuid, ttl, any, enums } from '../src'
 import { UUID, randomUUID } from 'crypto'
+// import { any } from '../src/structs/any'
+// import { AttributeTypes } from '../src/structs/struct'
 // import { CATCH_ALL } from '../src/structs/object'
 
 describe('Types', () => {
@@ -19,7 +21,7 @@ describe('Types', () => {
 			key: number(),
 			number: number(),
 			string: string(),
-			// enum: string<'foo' | 'bar'>(),
+			enums: enums<'foo' | 'bar'>(),
 			bigint: bigint(),
 			bigfloat: bigfloat(),
 			boolean: boolean(),
@@ -34,10 +36,7 @@ describe('Types', () => {
 			record: record(object({
 				key: string(),
 			})),
-			// advanced: object({
-			// 	id: string(),
-			// 	[CATCH_ALL]: object({}),
-			// }),
+			any: any(),
 			sets: object({
 				string: stringSet(),
 				number: numberSet(),
@@ -58,7 +57,7 @@ describe('Types', () => {
 		key: 1,
 		number: 1,
 		string: '1',
-		// enum: 'foo',
+		enums: 'foo' as const,
 		bigint: 1n,
 		bigfloat: new BigFloat(1),
 		boolean: true,
@@ -72,10 +71,11 @@ describe('Types', () => {
 			key1: { key: '1' },
 			key2: { key: '1' },
 		},
-		// advanced: {
-		// 	id: '1',
-		// 	other: {},
-		// },
+		any: {
+			M: {
+				id: { S: '1' },
+			}
+		},
 		sets: {
 			string: new Set(['1']),
 			number: new Set([1]),
@@ -91,12 +91,10 @@ describe('Types', () => {
 	it('get', async () => {
 		const result = await getItem(table, { key: 1 })
 
-		// result!.enum
-
 		expectTypeOf(result!.id).toEqualTypeOf<UUID>()
 		expectTypeOf(result!.number).toEqualTypeOf<number>()
 		expectTypeOf(result!.string).toEqualTypeOf<string>()
-		// expectTypeOf(result!.enum).toEqualTypeOf<'foo' | 'bar'>()
+		expectTypeOf(result!.enums).toEqualTypeOf<'foo' | 'bar'>()
 		expectTypeOf(result!.bigint).toEqualTypeOf<bigint>()
 		expectTypeOf(result!.bigfloat).toEqualTypeOf<BigFloat>()
 		expectTypeOf(result!.boolean).toEqualTypeOf<boolean>()
@@ -107,6 +105,7 @@ describe('Types', () => {
 		expectTypeOf(result!.optional).toEqualTypeOf<string | undefined>()
 		expectTypeOf(result!.array).toEqualTypeOf<{ key: string }[]>()
 		expectTypeOf(result!.record).toEqualTypeOf<Record<string, { key: string }>>()
+		expectTypeOf(result!.any).toBeAny()
 		expectTypeOf(result!.sets).toBeObject()
 		expectTypeOf(result!.sets.string).toEqualTypeOf<Set<string>>()
 		expectTypeOf(result!.sets.number).toEqualTypeOf<Set<number>>()
@@ -138,6 +137,7 @@ describe('Types', () => {
 						.update('id').set('0-0-0-0-0')
 						.update('number').set(2)
 						.update('string').set('2')
+						.update('enums').set('bar')
 						.update('bigint').set(2n)
 						.update('bigfloat').set(new BigFloat(2))
 						.update('boolean').set(false)
@@ -149,6 +149,7 @@ describe('Types', () => {
 						.update('array', 0).set({ key: '2' })
 						.update('record', 'key1').set({ key: '2' })
 						.update('record', 'key2').set({ key: '2' })
+						.update('any').set({ M: { id: { S: '2' } } })
 						.update('sets', 'string').set(new Set(['2']))
 						.update('sets', 'number').set(new Set([2]))
 						.update('sets', 'bigint').set(new Set([2n]))
@@ -161,6 +162,7 @@ describe('Types', () => {
 			key: 1,
 			number: 2,
 			string: '2',
+			enums: 'bar',
 			bigint: 2n,
 			bigfloat: new BigFloat(2),
 			boolean: false,
@@ -172,6 +174,9 @@ describe('Types', () => {
 			record: {
 				key1: { key: '2' },
 				key2: { key: '2' },
+			},
+			any: {
+				M: { id: { S: '2' } },
 			},
 			sets: {
 				string: new Set(['2']),

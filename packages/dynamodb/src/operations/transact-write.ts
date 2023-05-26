@@ -1,5 +1,5 @@
 
-import { AttributeValue, TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb"
+import { TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb"
 import { client } from "../client"
 import { Combine, Condition, conditionExpression } from "../expressions/condition"
 import { updateExpression, UpdateExpression } from "../expressions/update"
@@ -8,6 +8,7 @@ import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition } from "../table"
 import { PrimaryKey } from "../types/key"
 import { Options } from "../types/options"
+import { AttributeValue } from "../types/value"
 
 type Command = {
 	TableName: string

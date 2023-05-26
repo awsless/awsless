@@ -51,6 +51,26 @@ var optional = (struct) => {
   );
 };
 
+// src/structs/any.ts
+var Any = class {
+  marshall(value) {
+    return value;
+  }
+  unmarshall(value) {
+    return value;
+  }
+  _marshall(value) {
+    return value;
+  }
+  _unmarshall(value) {
+    return value;
+  }
+  type;
+  optional = true;
+  walk;
+};
+var any = () => new Any();
+
 // src/structs/uuid.ts
 var uuid = () => new Struct(
   "S",
@@ -329,6 +349,13 @@ var date = () => new Struct(
   (value) => new Date(Number(value))
 );
 
+// src/structs/enums.ts
+var enums = () => new Struct(
+  "S",
+  (value) => value,
+  (value) => value
+);
+
 // src/structs/ttl.ts
 var ttl = () => new Struct(
   "N",
@@ -556,6 +583,10 @@ var client = (options) => {
 // src/index.ts
 import { DynamoDBDocumentClient as DynamoDBDocumentClient4 } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBClient as DynamoDBClient4 } from "@aws-sdk/client-dynamodb";
+import { GetItemCommand as GetItemCommand3, PutItemCommand as PutItemCommand3, UpdateItemCommand as UpdateItemCommand3, DeleteItemCommand as DeleteItemCommand3 } from "@aws-sdk/client-dynamodb";
+import { QueryCommand as QueryCommand3, ScanCommand as ScanCommand3 } from "@aws-sdk/client-dynamodb";
+import { TransactWriteItemsCommand as TransactWriteItemsCommand3, TransactGetItemsCommand as TransactGetItemsCommand2 } from "@aws-sdk/client-dynamodb";
+import { BatchGetItemCommand as BatchGetItemCommand3, BatchWriteItemCommand as BatchWriteItemCommand4 } from "@aws-sdk/client-dynamodb";
 
 // src/exceptions/transaction-canceled.ts
 import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
@@ -1399,11 +1430,22 @@ var transactDelete = (table, key3, options = {}) => {
   };
 };
 export {
+  BatchGetItemCommand3 as BatchGetItemCommand,
+  BatchWriteItemCommand4 as BatchWriteItemCommand,
   ConditionalCheckFailedException,
+  DeleteItemCommand3 as DeleteItemCommand,
   DynamoDBClient4 as DynamoDBClient,
   DynamoDBDocumentClient4 as DynamoDBDocumentClient,
+  GetItemCommand3 as GetItemCommand,
+  PutItemCommand3 as PutItemCommand,
+  QueryCommand3 as QueryCommand,
+  ScanCommand3 as ScanCommand,
   TableDefinition,
+  TransactGetItemsCommand2 as TransactGetItemsCommand,
+  TransactWriteItemsCommand3 as TransactWriteItemsCommand,
   TransactionCanceledException2 as TransactionCanceledException,
+  UpdateItemCommand3 as UpdateItemCommand,
+  any,
   array,
   batchDeleteItem,
   batchGetItem,
@@ -1419,6 +1461,7 @@ export {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
+  enums,
   getIndexedItem,
   getItem,
   mockDynamoDB,

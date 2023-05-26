@@ -1,7 +1,7 @@
-import { AttributeValue } from "@aws-sdk/client-dynamodb";
 import { IDGenerator } from "./id-generator";
 import { AnyTableDefinition } from "../table";
 import { InferPath } from "../types/infer";
+import { AttributeValue } from "../types/value";
 
 export type ChainValue<T extends AnyTableDefinition> = {
 	v: AttributeValue

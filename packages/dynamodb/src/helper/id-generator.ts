@@ -1,5 +1,5 @@
-import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { AnyTableDefinition } from "../table"
+import { AttributeValue } from "../types/value"
 
 type ExpressionAttributeNames = Record<string, string>
 type ExpressionAttributeValues = Record<string, AttributeValue>
@@ -63,7 +63,7 @@ export class IDGenerator<T extends AnyTableDefinition> {
 		if(this.cacheV.length > 0) {
 			const values:ExpressionAttributeValues = {}
 			for(const { path, id, value } of this.cacheV) {
-				values[`:v${id}`] = (path ? this.table.schema.walk?.(...path)?.marshall(value) : value) as AttributeValue
+				values[`:v${id}`] = (path ? this.table.schema.walk?.(...path)?.marshall(value) : value)
 			}
 
 			attrs.ExpressionAttributeValues = values

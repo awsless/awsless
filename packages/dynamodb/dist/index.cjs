@@ -30,11 +30,22 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  ConditionalCheckFailedException: () => import_client_dynamodb16.ConditionalCheckFailedException,
+  BatchGetItemCommand: () => import_client_dynamodb19.BatchGetItemCommand,
+  BatchWriteItemCommand: () => import_client_dynamodb19.BatchWriteItemCommand,
+  ConditionalCheckFailedException: () => import_client_dynamodb20.ConditionalCheckFailedException,
+  DeleteItemCommand: () => import_client_dynamodb16.DeleteItemCommand,
   DynamoDBClient: () => import_client_dynamodb15.DynamoDBClient,
   DynamoDBDocumentClient: () => import_lib_dynamodb4.DynamoDBDocumentClient,
+  GetItemCommand: () => import_client_dynamodb16.GetItemCommand,
+  PutItemCommand: () => import_client_dynamodb16.PutItemCommand,
+  QueryCommand: () => import_client_dynamodb17.QueryCommand,
+  ScanCommand: () => import_client_dynamodb17.ScanCommand,
   TableDefinition: () => TableDefinition,
-  TransactionCanceledException: () => import_client_dynamodb16.TransactionCanceledException,
+  TransactGetItemsCommand: () => import_client_dynamodb18.TransactGetItemsCommand,
+  TransactWriteItemsCommand: () => import_client_dynamodb18.TransactWriteItemsCommand,
+  TransactionCanceledException: () => import_client_dynamodb20.TransactionCanceledException,
+  UpdateItemCommand: () => import_client_dynamodb16.UpdateItemCommand,
+  any: () => any,
   array: () => array,
   batchDeleteItem: () => batchDeleteItem,
   batchGetItem: () => batchGetItem,
@@ -50,6 +61,7 @@ __export(src_exports, {
   deleteItem: () => deleteItem,
   dynamoDBClient: () => dynamoDBClient,
   dynamoDBDocumentClient: () => dynamoDBDocumentClient,
+  enums: () => enums,
   getIndexedItem: () => getIndexedItem,
   getItem: () => getItem,
   mockDynamoDB: () => mockDynamoDB,
@@ -131,6 +143,26 @@ var optional = (struct) => {
     true
   );
 };
+
+// src/structs/any.ts
+var Any = class {
+  marshall(value) {
+    return value;
+  }
+  unmarshall(value) {
+    return value;
+  }
+  _marshall(value) {
+    return value;
+  }
+  _unmarshall(value) {
+    return value;
+  }
+  type;
+  optional = true;
+  walk;
+};
+var any = () => new Any();
 
 // src/structs/uuid.ts
 var uuid = () => new Struct(
@@ -410,6 +442,13 @@ var date = () => new Struct(
   (value) => new Date(Number(value))
 );
 
+// src/structs/enums.ts
+var enums = () => new Struct(
+  "S",
+  (value) => value,
+  (value) => value
+);
+
 // src/structs/ttl.ts
 var ttl = () => new Struct(
   "N",
@@ -637,6 +676,10 @@ var client = (options) => {
 // src/index.ts
 var import_lib_dynamodb4 = require("@aws-sdk/lib-dynamodb");
 var import_client_dynamodb15 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb16 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb17 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb18 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb19 = require("@aws-sdk/client-dynamodb");
 
 // src/exceptions/transaction-canceled.ts
 var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
@@ -651,7 +694,7 @@ import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt
 };
 
 // src/index.ts
-var import_client_dynamodb16 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb20 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/projection.ts
 var projectionExpression = (options, gen) => {
@@ -1481,11 +1524,22 @@ var transactDelete = (table, key3, options = {}) => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  BatchGetItemCommand,
+  BatchWriteItemCommand,
   ConditionalCheckFailedException,
+  DeleteItemCommand,
   DynamoDBClient,
   DynamoDBDocumentClient,
+  GetItemCommand,
+  PutItemCommand,
+  QueryCommand,
+  ScanCommand,
   TableDefinition,
+  TransactGetItemsCommand,
+  TransactWriteItemsCommand,
   TransactionCanceledException,
+  UpdateItemCommand,
+  any,
   array,
   batchDeleteItem,
   batchGetItem,
@@ -1501,6 +1555,7 @@ var transactDelete = (table, key3, options = {}) => {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
+  enums,
   getIndexedItem,
   getItem,
   mockDynamoDB,

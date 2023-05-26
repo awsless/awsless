@@ -8,6 +8,7 @@ export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'
 // structs
 export { optional } from './structs/optional.js'
 
+export { any } from './structs/any.js'
 export { uuid } from './structs/uuid.js'
 export { string } from './structs/string.js'
 export { boolean } from './structs/boolean.js'
@@ -19,6 +20,7 @@ export { object } from './structs/object.js'
 export { record } from './structs/record.js'
 export { array } from './structs/array.js'
 export { date } from './structs/date.js'
+export { enums } from './structs/enums.js'
 export { ttl } from './structs/ttl.js'
 export { unknown } from './structs/unknown.js'
 
@@ -34,6 +36,12 @@ export { mockDynamoDB } from './test/mock.js'
 export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 export { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+
+// commands
+export { GetItemCommand, PutItemCommand, UpdateItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb'
+export { QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb'
+export { TransactWriteItemsCommand, TransactGetItemsCommand } from '@aws-sdk/client-dynamodb'
+export { BatchGetItemCommand, BatchWriteItemCommand } from '@aws-sdk/client-dynamodb'
 
 // errors
 import './exceptions/transaction-canceled'

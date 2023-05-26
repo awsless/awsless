@@ -1,11 +1,12 @@
+import { AttributeValue as AttributeValue$1, CreateTableCommandInput, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { Numeric, BigFloat } from '@awsless/big-float';
-import { CreateTableCommandInput, AttributeValue, DynamoDBClient } from '@aws-sdk/client-dynamodb';
-export { ConditionalCheckFailedException, DynamoDBClient, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+import { NativeAttributeBinary, NativeAttributeValue, NativeScalarAttributeValue } from '@aws-sdk/util-dynamodb';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-type AttributeTypes = 'S' | 'N' | 'B' | 'BOOL' | 'DATE' | 'L' | 'M' | 'SS' | 'NS' | 'BS';
+type AttributeTypes = keyof AttributeValue$1;
 type AnyStruct = Struct<any, any, any, Array<string | number>, Array<string | number>, AttributeTypes, boolean>;
 declare class Struct<Marshalled, Input, Output, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Type extends AttributeTypes = AttributeTypes, Optional extends boolean = false> {
     readonly type: Type;
@@ -60,23 +61,37 @@ type SortKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined =
 type PrimaryKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
 type CursorKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> & (I extends IndexNames<T> ? PrimaryKey<T, I> : {});
 
-declare const optional: <M, I, O, P extends (string | number)[] = [], OP extends (string | number)[] = [], T extends AttributeTypes = AttributeTypes>(struct: Struct<M, I, O, P, OP, T, false>) => Struct<M, I, O, P, OP, T, true>;
+declare const optional: <M, I, O, P extends (string | number)[] = [], OP extends (string | number)[] = [], T extends "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown" = "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown">(struct: Struct<M, I, O, P, OP, T, false>) => Struct<M, I, O, P, OP, T, true>;
 
-declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], AttributeTypes, false>;
+declare class Any {
+    readonly MARSHALLED: any;
+    readonly INPUT: any;
+    readonly OUTPUT: any;
+    readonly PATHS: [];
+    readonly OPT_PATHS: [];
+    marshall(value: any): any;
+    unmarshall(value: any): any;
+    _marshall(value: any): any;
+    _unmarshall(value: any): any;
+    type: any;
+    optional: boolean;
+    walk: undefined;
+}
+declare const any: () => Any;
 
-declare const string: () => Struct<string, string, string, [], [], AttributeTypes, false>;
+declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const boolean: () => Struct<boolean, boolean, boolean, [], [], AttributeTypes, false>;
+declare const string: () => Struct<string, string, string, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const number: () => Struct<string, number, number, [], [], AttributeTypes, false>;
+declare const boolean: () => Struct<boolean, boolean, boolean, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const bigint: () => Struct<string, bigint, bigint, [], [], AttributeTypes, false>;
+declare const number: () => Struct<string, number, number, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], AttributeTypes, false>;
+declare const bigint: () => Struct<string, bigint, bigint, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-type BinaryValue = ArrayBuffer | Blob | Buffer | DataView | File | Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
+declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const binary: () => Struct<BinaryValue, BinaryValue, Uint8Array, [], [], AttributeTypes, false>;
+declare const binary: () => Struct<NativeAttributeBinary, NativeAttributeBinary, Uint8Array, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 type Schema = Record<string | symbol, AnyStruct>;
 type KeyOf<S> = Extract<keyof S, string>;
@@ -102,29 +117,31 @@ type InferPaths<S extends Schema> = {
 type InferOptPaths<S extends Schema> = {
     [K in KeyOf<S>]: S[K]['optional'] extends true ? [K] | [K, ...S[K]['OPT_PATHS']] : [];
 }[KeyOf<S>];
-declare const object: <S extends Schema>(schema: S) => Struct<InferMarshalled<S>, InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, AttributeTypes, false>;
+declare const object: <S extends Schema>(schema: S) => Struct<InferMarshalled<S>, InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 type RecordPaths<S extends AnyStruct> = [string] | [string, ...S['PATHS']];
 type RecordOptPaths<S extends AnyStruct> = [string] | [string, ...S['OPT_PATHS']];
-declare const record: <S extends AnyStruct>(struct: S) => Struct<Record<string, S["MARSHALLED"]>, Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, AttributeTypes, false>;
+declare const record: <S extends AnyStruct>(struct: S) => Struct<Record<string, S["MARSHALLED"]>, Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 type ArrayPaths<L extends AnyStruct> = [number] | [number, ...L['PATHS']];
 type ArrayOptPaths<L extends AnyStruct> = [number] | [number, ...L['OPT_PATHS']];
-declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, AttributeTypes, false>;
+declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const date: () => Struct<string, Date, Date, [], [], AttributeTypes, false>;
+declare const date: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const ttl: () => Struct<string, Date, Date, [], [], AttributeTypes, false>;
+declare const enums: <T extends string>() => Struct<string, T, T, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const unknown: () => Struct<string, unknown, unknown, [], [], AttributeTypes, false>;
+declare const ttl: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const stringSet: () => Struct<string[], Set<string>, Set<string>, [], [], AttributeTypes, false>;
+declare const unknown: () => Struct<string, unknown, unknown, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const numberSet: () => Struct<string[], Set<number>, Set<number>, [], [], AttributeTypes, false>;
+declare const stringSet: () => Struct<string[], Set<string>, Set<string>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const bigintSet: () => Struct<string[], Set<bigint>, Set<bigint>, [], [], AttributeTypes, false>;
+declare const numberSet: () => Struct<string[], Set<number>, Set<number>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const binarySet: () => Struct<BinaryValue[], Set<BinaryValue>, Set<Uint8Array>, [], [], AttributeTypes, false>;
+declare const bigintSet: () => Struct<string[], Set<bigint>, Set<bigint>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const binarySet: () => Struct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 type SeedData = {
     [key: string]: object[];
@@ -136,6 +153,8 @@ interface StartDynamoDBOptions {
     seed?: SeedData;
 }
 declare const mockDynamoDB: (configOrServer: StartDynamoDBOptions | DynamoDBServer) => DynamoDBServer;
+
+type AttributeValue = NativeAttributeBinary | NativeAttributeValue | NativeScalarAttributeValue;
 
 type WalkPath<Object, Path extends Array<unknown>> = (Path extends [infer Key extends keyof Object, ...infer Rest] ? WalkPath<Object[Key], Rest> : Object);
 type InferPath<T extends AnyTableDefinition> = T['schema']['PATHS'];
@@ -465,4 +484,4 @@ type DeleteOptions<T extends AnyTableDefinition> = {
 };
 declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => Delete<T>;
 
-export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };

@@ -68,35 +68,20 @@ export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServe
 		return documentClient.send(command)
 	}
 
-	// @ts-ignore
 	mockClient(DynamoDBClient)
-		// @ts-ignore
 		.on(CreateTableCommand).callsFake((input) => clientSend(new CreateTableCommand(input)))
-		// @ts-ignore
 		.on(ListTablesCommand).callsFake((input) => clientSend(new ListTablesCommand(input)))
-
-		// @ts-ignore
 		.on(GetItemCommand).callsFake((input) => clientSend(new GetItemCommand(input)))
-		// @ts-ignore
 		.on(PutItemCommand).callsFake((input) => clientSend(new PutItemCommand(input)))
-		// @ts-ignore
 		.on(DeleteItemCommand).callsFake((input) => clientSend(new DeleteItemCommand(input)))
-		// @ts-ignore
 		.on(UpdateItemCommand).callsFake((input) => clientSend(new UpdateItemCommand(input)))
-		// @ts-ignore
 		.on(QueryCommand).callsFake((input) => clientSend(new QueryCommand(input)))
-		// @ts-ignore
 		.on(ScanCommand).callsFake((input) => clientSend(new ScanCommand(input)))
-		// @ts-ignore
 		.on(BatchGetItemCommand).callsFake((input) => clientSend(new BatchGetItemCommand(input)))
-		// @ts-ignore
 		.on(BatchWriteItemCommand).callsFake((input) => clientSend(new BatchWriteItemCommand(input)))
-		// @ts-ignore
 		.on(TransactGetItemsCommand).callsFake((input) => clientSend(new TransactGetItemsCommand(input)))
-		// @ts-ignore
 		.on(TransactWriteItemsCommand).callsFake((input) => clientSend(new TransactWriteItemsCommand(input)))
 
-	// @ts-ignore
 	mockClient(DynamoDBDocumentClient)
 		.on(GetCommand).callsFake((input) => documentClientSend(new GetCommand(input)))
 		.on(PutCommand).callsFake((input) => documentClientSend(new PutCommand(input)))

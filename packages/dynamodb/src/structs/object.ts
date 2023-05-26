@@ -1,7 +1,5 @@
 import { Struct, AnyStruct } from "./struct";
 
-// export const CATCH_ALL:unique symbol = Symbol('The catch all object key')
-
 type Schema = Record<string | symbol, AnyStruct>
 
 type KeyOf<S> = Extract<keyof S, string>
@@ -19,12 +17,10 @@ type Optinalize<S extends Schema> = FilterOptional<S> & FilterRequired<S>
 type InferInput<S extends Schema> = {
 	[ K in keyof Optinalize<S> ]: S[K]['INPUT']
 }
-// & ( S[typeof CATCH_ALL] extends undefined ? {} : { [key: string]: S[typeof CATCH_ALL]['INPUT'] | undefined } )
 
 type InferOutput<S extends Schema> = {
 	[ K in keyof Optinalize<S> ]: S[K]['OUTPUT']
 }
-// & { [key: string]: S[typeof CATCH_ALL] extends undefined ? unknown : S[typeof CATCH_ALL]['OUTPUT'] | undefined }
 
 type InferMarshalled<S extends Schema> = {
 	[ K in keyof Optinalize<S> ]: S[K]['MARSHALLED']
@@ -38,17 +34,6 @@ type InferOptPaths<S extends Schema> = {
 	[K in KeyOf<S>]: S[K]['optional'] extends true ? [K] | [ K, ...S[K]['OPT_PATHS'] ] : []
 }[ KeyOf<S> ]
 
-// class ObjectStruct<
-// 	T extends AttributeTypes,
-// 	M, I, O,
-// 	P extends Array<string | number> = [],
-// 	Opt extends boolean = false
-// > extends Struct<T, M, I, O, P, Opt> {
-// 	walk(...path:Array<string | number>) {
-
-// 	}
-// }
-
 
 export const object = <S extends Schema>(schema:S) => new Struct<
 	InferMarshalled<S>,
@@ -60,16 +45,6 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 	'M',
 	(unmarshalled:Record<string, unknown>) => {
 		const marshalled:Record<string, unknown> = {}
-
-		// for(const [ key, value ] of Object.entries(unmarshalled)) {
-		// 	const type = schema[key] || schema[CATCH_ALL]
-
-		// 	if(typeof type === 'undefined') {
-		// 		continue
-		// 	}
-
-		// 	marshalled[key] = type.marshall(value)
-		// }
 
 		for(const [ key, type ] of Object.entries(schema)) {
 			const value = unmarshalled[key]
@@ -86,16 +61,6 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 	(marshalled:Record<string, Record<string, unknown>>) => {
 		const unmarshalled:Record<string, unknown> = {}
 
-		// for(const [ key, value ] of Object.entries(marshalled)) {
-		// 	const type = schema[key] || schema[CATCH_ALL]
-
-		// 	if(typeof type === 'undefined') {
-		// 		continue
-		// 	}
-
-		// 	unmarshalled[key] = type.unmarshall(value)
-		// }
-
 		for(const [ key, type ] of Object.entries(schema)) {
 			const value = marshalled[key]
 
@@ -109,7 +74,6 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 		return unmarshalled as InferOutput<S>
 	}, (path, ...rest) => {
 		const type = schema[path]
-		// const type = schema[path] || schema[CATCH_ALL]
 		return rest.length ? type.walk?.(...rest) : type
 	}
 )

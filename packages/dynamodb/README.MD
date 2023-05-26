@@ -136,7 +136,9 @@ We provides the following schema types:
 - optional
 - record
 - string
+- ttl
 - unknown
+- uuid
 - bigintSet
 - binarySet
 - numberSet
@@ -183,27 +185,30 @@ Infer the item type of a table definition when inserting an item.
 Infer the item type of a table definition when querying an item.
 
 ```ts
-import { define, InferInput, InferOutput, object, number, string, binary } from "@awsless/dynamodb";
+import { define, InferInput, InferOutput, object, uuid, number, string, binary } from "@awsless/dynamodb";
 
 const posts = define('posts', {
 	hash: 'id',
 	schema: object({
-		id: number(),
+		id: uuid(),
 		title: string(),
+		likes: number(),
 		data: binary(),
 	})
 })
 
 /* {
-  id: number,
+  id: UUID,
   title: string,
+  likes: number,
   data: BinaryValue
 } */
 type Post1 = InferInput<typeof posts>
 
 /* {
-  id: number,
+  id: UUID,
   title: string,
+  likes: number,
   data: Uint8Array
 } */
 type Post2 = InferOutput<typeof posts>

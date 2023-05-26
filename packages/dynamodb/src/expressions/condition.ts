@@ -1,5 +1,4 @@
 
-import { AttributeValue } from "@aws-sdk/client-dynamodb"
 import { BigFloat } from "@awsless/big-float"
 import { IDGenerator } from "../helper/id-generator"
 import { AttributeTypes } from "../structs/struct"
@@ -75,7 +74,7 @@ class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<
 	}
 
 	contains(value:InferSetValue<T, P>) {
-		return this.fn('contains', { v: (value as AttributeValue), p: [ ...this.path, 0 ] })
+		return this.fn('contains', { v: value, p: [ ...this.path, 0 ] })
 	}
 }
 
