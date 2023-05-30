@@ -31,6 +31,7 @@ export { binarySet } from './structs/set/binary.js'
 
 // test
 export { mockDynamoDB } from './test/mock.js'
+export { seedTable } from './test/seed.js'
 
 // client
 export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'

@@ -1,5 +1,5 @@
 
-import { build, Chain, chainData, ChainItems, merge as m } from "../helper/chainable"
+import { QueryBulder, build, flatten } from "../helper/query"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition, IndexNames } from "../table"
 
@@ -25,9 +25,9 @@ type InferValue<
 export class KeyCondition<
 	T extends AnyTableDefinition,
 	I extends IndexNames<T> | undefined
-> extends Chain<T> {
+> extends QueryBulder<T> {
 	where<P extends PrimaryKeyNames<T, I>>(path:P) {
-		return new Where<T, P, I>(m(this), path)
+		return new Where<T, P, I>(this, path)
 	}
 
 	extend<R extends Combine<T, I> | KeyCondition<T, I> | void>(fn:(exp:KeyCondition<T, I>) => R): R {
@@ -39,13 +39,15 @@ class Where<
 	T extends AnyTableDefinition,
 	P extends PrimaryKeyNames<T, I>,
 	I extends IndexNames<T> | undefined
-> extends Chain<T> {
-	constructor(query:ChainItems<T>, private path:P) {
+> extends QueryBulder<T> {
+	constructor(query:QueryBulder<T>, private path:P) {
 		super(query)
 	}
 
 	private compare(comparator:string, v:InferValue<T, P, I>) {
-		return new Combine<T, I>(m(this, '(', { p:[ this.path ] }, comparator, { v, p:[ this.path ] }, ')'))
+		return new Combine<T, I>(this, [
+			'(', { p:[ this.path ] }, comparator, { v, p:[ this.path ] }, ')'
+		])
 	}
 
 	eq(value:InferValue<T, P, I>) { return this.compare('=', value) }
@@ -55,26 +57,30 @@ class Where<
 	lte(value:InferValue<T, P, I>) { return this.compare('<=', value) }
 
 	between(min:InferValue<T, P, I>, max:InferValue<T, P, I>) {
-		return new Combine<T, I>(m(this, '(',
-			{ p: [ this.path ] }, 'BETWEEN', { v: min, p: [ this.path ] }, 'AND', { v:max, p: [ this.path ] },
-		')'))
+		return new Combine<T, I>(this, [
+			'(',
+				{ p: [ this.path ] }, 'BETWEEN', { v: min, p: [ this.path ] }, 'AND', { v:max, p: [ this.path ] },
+			')'
+		])
 	}
 
 	beginsWith(value:InferValue<T, P, I>) {
-		return new Combine<T, I>(m(this, 'begins_with(', { p: [ this.path ] }, ',', { v: value, p: [ this.path ] }, ')'))
+		return new Combine<T, I>(this, [
+			'begins_with(', { p: [ this.path ] }, ',', { v: value, p: [ this.path ] }, ')'
+		])
 	}
 }
 
 export class Combine<
 	T extends AnyTableDefinition,
 	I extends IndexNames<T> | undefined
-> extends Chain<T> {
+> extends QueryBulder<T> {
 	get and() {
-		return new KeyCondition<T, I>(m(this, 'AND'))
+		return new KeyCondition<T, I>(this, ['AND'])
 	}
 
 	get or() {
-		return new KeyCondition<T, I>(m(this, 'OR'))
+		return new KeyCondition<T, I>(this, ['OR'])
 	}
 }
 
@@ -88,9 +94,5 @@ export const keyConditionExpression = <
 	},
 	gen:IDGenerator<T>,
 ) => {
-
-	const condition = options.keyCondition(new KeyCondition<T, I>([]))
-	const query = build(chainData(condition), gen).join(' ')
-
-	return query
+	return build(flatten(options.keyCondition(new KeyCondition<T, I>())), gen)
 }

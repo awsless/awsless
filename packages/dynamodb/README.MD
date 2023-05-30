@@ -98,7 +98,7 @@ await transactWrite({
 # Mock for testing
 
 ```ts
-import { mockDynamoDB, ... } from "@awsless/dynamodb";
+import { mockDynamoDB, seedTable, ... } from "@awsless/dynamodb";
 
 const posts = define('posts', {
 	hash: 'id',
@@ -109,14 +109,17 @@ const posts = define('posts', {
 })
 
 mockDynamoDB({
-  tables: [ posts ]
-})
-
-it('your test', async () => {
-	await putItem(posts, {
+  tables: [ posts ],
+  seeds: [
+	seedTable(posts, {
 		id: 1,
 		title: 'Hello World',
 	})
+  ]
+})
+
+it('your test', async () => {
+	const result = await getItem(posts, { id: 1 })
 })
 
 ```
@@ -131,6 +134,7 @@ We provides the following schema types:
 - binary
 - boolean
 - date
+- enums
 - number
 - object
 - optional

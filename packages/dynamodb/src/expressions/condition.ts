@@ -4,41 +4,66 @@ import { IDGenerator } from "../helper/id-generator"
 import { AttributeTypes } from "../structs/struct"
 import { AnyTableDefinition } from "../table"
 import { InferPath, InferSetValue, InferValue } from "../types/infer"
-import { build, Chain, chainData, ChainItems, ChainValue, merge as m } from "../helper/chainable"
+import { build, cursor, flatten, QueryBulder, QueryItem, QueryValue } from "../helper/query"
 
-export class Condition<T extends AnyTableDefinition> extends Chain<T> {
+export class Condition<T extends AnyTableDefinition> extends QueryBulder<T> {
 	where<P extends InferPath<T>>(...path:P) {
-		return new Where(m(this), path)
+		return new Where<T, P>(this, [], path)
 	}
 
-	extend<R extends Combine<T> | Condition<T> | void>(fn:(exp:Condition<T>) => R): R {
-		return fn(this)
+	group<R extends Combine<T>>(fn:(exp:Condition<T>) => R): Combine<T> {
+		const combiner = fn(new Condition<T>())
+		// // @ts-ignore
+		// combiner.break()
+
+		// return combiner
+		return new Combine<T>(this, ['(', combiner, ')'])
 	}
+
+	extend<R extends Combine<T> | Condition<T>>(fn:(exp:Condition<T>) => R): R {
+		return fn(new Condition<T>())
+	}
+
+	// where<P extends InferPath<T>>(...path:P) {
+	// 	return new Where<T, P>(this, path))
+	// }
+
+	// group<R extends Combine<T>>(fn:(exp:Condition<T>) => R): R {
+	// 	return fn(new Condition<T>(this, ['(', cursor, ')'])))
+	// }
+
+	// extend<R extends Combine<T> | Condition<T>>(fn:(exp:Condition<T>) => R): R {
+	// 	return fn(new Condition<T>(this, [])))
+	// }
 }
 
-class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
-	constructor(query:ChainItems<T>, private path:P) {
-		super(query)
+class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBulder<T> {
+	constructor(query:QueryBulder<T>, items:QueryItem<T>[], private path:P) {
+		super(query, items)
 	}
 
+	// constructor(items:QueryItem<T>[], private path:P) {
+	// 	super(items)
+	// }
+
 	get not() {
-		return new Where<T, P>(m(this, 'NOT'), this.path)
+		return new Where<T, P>(this, ['NOT', '(', cursor, ')'], this.path)
 	}
 
 	get exists() {
-		return new Combine<T>(m(this, 'attribute_exists(', { p:this.path }, ')'))
+		return new Combine<T>(this, ['attribute_exists(', { p:this.path }, ')'])
 	}
 
 	get size() {
-		return new Size<T, P>(m(this), this.path)
+		return new Size<T, P>(this, this.path)
 	}
 
 	private compare(comparator:string, v:InferValue<T, P>) {
-		return new Combine<T>(m(this, '(', { p:this.path }, comparator, { v, p: this.path }, ')'))
+		return new Combine<T>(this, ['(', { p:this.path }, comparator, { v, p: this.path }, ')'])
 	}
 
-	private fn(fnName:string, v:ChainValue<T>) {
-		return new Combine<T>(m(this, `${fnName}(`, { p:this.path }, ',', v, ')'))
+	private fn(fnName:string, v:QueryValue<T>) {
+		return new Combine<T>(this, [`${fnName}(`, { p:this.path }, ',', v, ')'])
 	}
 
 	eq(value:InferValue<T, P>) { return this.compare('=', value) }
@@ -49,20 +74,20 @@ class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<
 	lte(value:InferValue<T, P>) { return this.compare('<=', value) }
 
 	between(min:InferValue<T, P>, max:InferValue<T, P>) {
-		return new Combine<T>(m(this, '(',
+		return new Combine<T>(this, ['(',
 			{ p:this.path }, 'BETWEEN', { v: min, p: this.path }, 'AND', { v:max, p: this.path },
-		')'))
+		')'])
 	}
 
 	in(values:InferValue<T, P>[]) {
-		return new Combine<T>(m(this,
+		return new Combine<T>(this, [
 			'(', { p:this.path }, 'IN (',
 			...values
 				.map(v => ({v, p: this.path }))
 				.map((v, i) => i === 0 ? v : [',', v])
 				.flat(),
 			'))'
-		))
+		])
 	}
 
 	attributeType(value:AttributeTypes) {
@@ -78,13 +103,15 @@ class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<
 	}
 }
 
-class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
-	constructor(query:ChainItems<T>, private path:P) {
+class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBulder<T> {
+	constructor(query:QueryBulder<T>, private path:P) {
 		super(query)
 	}
 
 	private compare(comparator:string, num:number | bigint | BigFloat) {
-		return new Combine<T>(m(this, '(', 'size(', { p:this.path }, ')', comparator, { v: { N: String(num) } }, ')'))
+		return new Combine<T>(this, [
+			'(', 'size(', { p:this.path }, ')', comparator, { v: { N: String(num) } }, ')'
+		])
 	}
 
 	eq(value:number | bigint | BigFloat) { return this.compare('=', value) }
@@ -95,19 +122,21 @@ class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T
 	lte(value:number | bigint | BigFloat) { return this.compare('<=', value) }
 
 	between(min:number | bigint | BigFloat, max:number | bigint | BigFloat) {
-		return new Combine<T>(m(this, '(', 'size(',
-			{ p:this.path }, ')', 'BETWEEN', { v: { N: String(min) } }, 'AND', { v: { N: String(max) } },
-		')'))
+		return new Combine<T>(this, [
+			'(', 'size(',
+				{ p:this.path }, ')', 'BETWEEN', { v: { N: String(min) } }, 'AND', { v: { N: String(max) } },
+			')'
+		])
 	}
 }
 
-export class Combine<T extends AnyTableDefinition> extends Chain<T> {
+export class Combine<T extends AnyTableDefinition> extends QueryBulder<T> {
 	get and() {
-		return new Condition<T>(m(this, 'AND'))
+		return new Condition<T>(this, ['AND'])
 	}
 
 	get or() {
-		return new Condition<T>(m(this, 'OR'))
+		return new Condition<T>(this, ['OR'])
 	}
 }
 
@@ -116,10 +145,7 @@ export const conditionExpression = <T extends AnyTableDefinition>(
 	gen:IDGenerator<T>,
 ) => {
 	if(options.condition) {
-		const condition = options.condition(new Condition<T>([]))
-		const query = build(chainData(condition), gen).join(' ')
-
-		return query
+		return build(flatten(options.condition(new Condition<T>())), gen)
 	}
 
 	return

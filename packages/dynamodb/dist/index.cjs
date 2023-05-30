@@ -35,7 +35,7 @@ __export(src_exports, {
   ConditionalCheckFailedException: () => import_client_dynamodb20.ConditionalCheckFailedException,
   DeleteItemCommand: () => import_client_dynamodb16.DeleteItemCommand,
   DynamoDBClient: () => import_client_dynamodb15.DynamoDBClient,
-  DynamoDBDocumentClient: () => import_lib_dynamodb4.DynamoDBDocumentClient,
+  DynamoDBDocumentClient: () => import_lib_dynamodb3.DynamoDBDocumentClient,
   GetItemCommand: () => import_client_dynamodb16.GetItemCommand,
   PutItemCommand: () => import_client_dynamodb16.PutItemCommand,
   QueryCommand: () => import_client_dynamodb17.QueryCommand,
@@ -77,6 +77,7 @@ __export(src_exports, {
   record: () => record,
   scan: () => scan,
   scanAll: () => scanAll,
+  seedTable: () => seedTable,
   string: () => string,
   stringSet: () => stringSet,
   transactConditionCheck: () => transactConditionCheck,
@@ -504,34 +505,74 @@ var binarySet = () => new Struct(
 );
 
 // src/test/mock.ts
-var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
 var import_lib_dynamodb2 = require("@aws-sdk/lib-dynamodb");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_dynamodb_server = require("@awsless/dynamodb-server");
 var import_request_port = require("@heat/request-port");
 
-// src/test/seed.ts
+// src/operations/batch-put-item.ts
+var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
+var import_chunk = __toESM(require("chunk"), 1);
+
+// src/client.ts
+var import_utils = require("@awsless/utils");
 var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
-var seed = (client2, data) => {
-  return Promise.all(Object.entries(data).map(([TableName, items]) => {
-    return Promise.all(items.map(async (item) => {
-      try {
-        await client2.send(new import_lib_dynamodb.PutCommand({
-          TableName,
-          Item: item
-        }));
-      } catch (error) {
-        if (error instanceof Error) {
-          throw new Error(`DynamoDB Seeding Error: ${error.message}`);
+var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
+var dynamoDBClient = (0, import_utils.globalClient)(() => {
+  return new import_client_dynamodb.DynamoDBClient({});
+});
+var dynamoDBDocumentClient = (0, import_utils.globalClient)(() => {
+  return import_lib_dynamodb.DynamoDBDocumentClient.from(dynamoDBClient(), {
+    marshallOptions: {
+      removeUndefinedValues: true
+    }
+  });
+});
+var client = (options) => {
+  return options.client || dynamoDBClient();
+};
+
+// src/helper/debug.ts
+var debug = (options = {}, command) => {
+  if (options.debug) {
+    console.log("DynamoDB:", JSON.stringify(command.input, null, 2));
+  }
+};
+
+// src/operations/batch-put-item.ts
+var batchPutItem = async (table, items, options = {}) => {
+  await Promise.all((0, import_chunk.default)(items, 25).map(async (items2) => {
+    let unprocessedItems = {
+      [table.name]: items2.map((item) => ({
+        PutRequest: {
+          Item: table.marshall(item)
         }
-        throw error;
-      }
-    }));
+      }))
+    };
+    while (unprocessedItems?.[table.name]?.length) {
+      const command = new import_client_dynamodb2.BatchWriteItemCommand({
+        RequestItems: unprocessedItems
+      });
+      debug(options, command);
+      const result = await client(options).send(command);
+      unprocessedItems = result.UnprocessedItems;
+    }
+  }));
+};
+
+// src/test/seed.ts
+var seedTable = (table, items) => {
+  return { table, items };
+};
+var seed = async (defs) => {
+  await Promise.all(defs.map(({ table, items }) => {
+    return batchPutItem(table, items);
   }));
 };
 
 // src/test/migrate.ts
-var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb3 = require("@aws-sdk/client-dynamodb");
 
 // src/test/serialize.ts
 var filter = (list) => {
@@ -604,7 +645,7 @@ var migrate = (client2, tables) => {
     if (table instanceof TableDefinition) {
       table = serializeTable(table);
     }
-    return client2.send(new import_client_dynamodb.CreateTableCommand({
+    return client2.send(new import_client_dynamodb3.CreateTableCommand({
       ...table,
       BillingMode: "PAY_PER_REQUEST"
     }));
@@ -618,22 +659,20 @@ var mockDynamoDB = (configOrServer) => {
     server = configOrServer;
   } else {
     server = new import_dynamodb_server.DynamoDBServer();
-    let releasePort;
     beforeAll && beforeAll(async () => {
-      const [port, release] = await (0, import_request_port.requestPort)();
-      releasePort = release;
+      const [port, releasePort] = await (0, import_request_port.requestPort)();
       await server.listen(port);
       await server.wait();
       if (configOrServer.tables) {
         await migrate(server.getClient(), configOrServer.tables);
         if (configOrServer.seed) {
-          await seed(server.getDocumentClient(), configOrServer.seed);
+          await seed(configOrServer.seed);
         }
       }
-    }, configOrServer.timeout);
-    afterAll && afterAll(async () => {
-      await server.kill();
-      await releasePort();
+      return async () => {
+        await server.kill();
+        await releasePort();
+      };
     }, configOrServer.timeout);
   }
   const client2 = server.getClient();
@@ -650,31 +689,13 @@ var mockDynamoDB = (configOrServer) => {
     }
     return documentClient.send(command);
   };
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_dynamodb2.DynamoDBClient).on(import_client_dynamodb2.CreateTableCommand).callsFake((input) => clientSend(new import_client_dynamodb2.CreateTableCommand(input))).on(import_client_dynamodb2.ListTablesCommand).callsFake((input) => clientSend(new import_client_dynamodb2.ListTablesCommand(input))).on(import_client_dynamodb2.GetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb2.GetItemCommand(input))).on(import_client_dynamodb2.PutItemCommand).callsFake((input) => clientSend(new import_client_dynamodb2.PutItemCommand(input))).on(import_client_dynamodb2.DeleteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb2.DeleteItemCommand(input))).on(import_client_dynamodb2.UpdateItemCommand).callsFake((input) => clientSend(new import_client_dynamodb2.UpdateItemCommand(input))).on(import_client_dynamodb2.QueryCommand).callsFake((input) => clientSend(new import_client_dynamodb2.QueryCommand(input))).on(import_client_dynamodb2.ScanCommand).callsFake((input) => clientSend(new import_client_dynamodb2.ScanCommand(input))).on(import_client_dynamodb2.BatchGetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb2.BatchGetItemCommand(input))).on(import_client_dynamodb2.BatchWriteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb2.BatchWriteItemCommand(input))).on(import_client_dynamodb2.TransactGetItemsCommand).callsFake((input) => clientSend(new import_client_dynamodb2.TransactGetItemsCommand(input))).on(import_client_dynamodb2.TransactWriteItemsCommand).callsFake((input) => clientSend(new import_client_dynamodb2.TransactWriteItemsCommand(input)));
+  (0, import_aws_sdk_client_mock.mockClient)(import_client_dynamodb4.DynamoDBClient).on(import_client_dynamodb4.CreateTableCommand).callsFake((input) => clientSend(new import_client_dynamodb4.CreateTableCommand(input))).on(import_client_dynamodb4.ListTablesCommand).callsFake((input) => clientSend(new import_client_dynamodb4.ListTablesCommand(input))).on(import_client_dynamodb4.GetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb4.GetItemCommand(input))).on(import_client_dynamodb4.PutItemCommand).callsFake((input) => clientSend(new import_client_dynamodb4.PutItemCommand(input))).on(import_client_dynamodb4.DeleteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb4.DeleteItemCommand(input))).on(import_client_dynamodb4.UpdateItemCommand).callsFake((input) => clientSend(new import_client_dynamodb4.UpdateItemCommand(input))).on(import_client_dynamodb4.QueryCommand).callsFake((input) => clientSend(new import_client_dynamodb4.QueryCommand(input))).on(import_client_dynamodb4.ScanCommand).callsFake((input) => clientSend(new import_client_dynamodb4.ScanCommand(input))).on(import_client_dynamodb4.BatchGetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb4.BatchGetItemCommand(input))).on(import_client_dynamodb4.BatchWriteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb4.BatchWriteItemCommand(input))).on(import_client_dynamodb4.TransactGetItemsCommand).callsFake((input) => clientSend(new import_client_dynamodb4.TransactGetItemsCommand(input))).on(import_client_dynamodb4.TransactWriteItemsCommand).callsFake((input) => clientSend(new import_client_dynamodb4.TransactWriteItemsCommand(input)));
   (0, import_aws_sdk_client_mock.mockClient)(import_lib_dynamodb2.DynamoDBDocumentClient).on(import_lib_dynamodb2.GetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.GetCommand(input))).on(import_lib_dynamodb2.PutCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.PutCommand(input))).on(import_lib_dynamodb2.DeleteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.DeleteCommand(input))).on(import_lib_dynamodb2.UpdateCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.UpdateCommand(input))).on(import_lib_dynamodb2.QueryCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.QueryCommand(input))).on(import_lib_dynamodb2.ScanCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.ScanCommand(input))).on(import_lib_dynamodb2.BatchGetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.BatchGetCommand(input))).on(import_lib_dynamodb2.BatchWriteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.BatchWriteCommand(input))).on(import_lib_dynamodb2.TransactGetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.TransactGetCommand(input))).on(import_lib_dynamodb2.TransactWriteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.TransactWriteCommand(input)));
   return server;
 };
 
-// src/client.ts
-var import_utils = require("@awsless/utils");
-var import_lib_dynamodb3 = require("@aws-sdk/lib-dynamodb");
-var import_client_dynamodb3 = require("@aws-sdk/client-dynamodb");
-var dynamoDBClient = (0, import_utils.globalClient)(() => {
-  return new import_client_dynamodb3.DynamoDBClient({});
-});
-var dynamoDBDocumentClient = (0, import_utils.globalClient)(() => {
-  return import_lib_dynamodb3.DynamoDBDocumentClient.from(dynamoDBClient(), {
-    marshallOptions: {
-      removeUndefinedValues: true
-    }
-  });
-});
-var client = (options) => {
-  return options.client || dynamoDBClient();
-};
-
 // src/index.ts
-var import_lib_dynamodb4 = require("@aws-sdk/lib-dynamodb");
+var import_lib_dynamodb3 = require("@aws-sdk/lib-dynamodb");
 var import_client_dynamodb15 = require("@aws-sdk/client-dynamodb");
 var import_client_dynamodb16 = require("@aws-sdk/client-dynamodb");
 var import_client_dynamodb17 = require("@aws-sdk/client-dynamodb");
@@ -682,8 +703,8 @@ var import_client_dynamodb18 = require("@aws-sdk/client-dynamodb");
 var import_client_dynamodb19 = require("@aws-sdk/client-dynamodb");
 
 // src/exceptions/transaction-canceled.ts
-var import_client_dynamodb4 = require("@aws-sdk/client-dynamodb");
-import_client_dynamodb4.TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) {
+var import_client_dynamodb5 = require("@aws-sdk/client-dynamodb");
+import_client_dynamodb5.TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) {
   const reasons = this.CancellationReasons || [];
   for (const index of indexes) {
     if (reasons[index]?.Code === "ConditionalCheckFailed") {
@@ -766,19 +787,10 @@ var IDGenerator = class {
 };
 
 // src/operations/get-item.ts
-var import_client_dynamodb5 = require("@aws-sdk/client-dynamodb");
-
-// src/helper/debug.ts
-var debug = (options = {}, command) => {
-  if (options.debug) {
-    console.log("DynamoDB:", JSON.stringify(command.input, null, 2));
-  }
-};
-
-// src/operations/get-item.ts
+var import_client_dynamodb6 = require("@aws-sdk/client-dynamodb");
 var getItem = async (table, key3, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb5.GetItemCommand({
+  const command = new import_client_dynamodb6.GetItemCommand({
     TableName: table.name,
     Key: table.marshall(key3),
     ConsistentRead: options.consistentRead,
@@ -793,28 +805,40 @@ var getItem = async (table, key3, options = {}) => {
   return void 0;
 };
 
-// src/helper/chainable.ts
+// src/helper/query.ts
 var key = Symbol();
-var Chain = class {
-  [key];
-  constructor(query2) {
-    this[key] = query2;
-  }
-};
+var cursor = Symbol();
 var isValue = (item) => {
   return typeof item.v !== "undefined";
 };
 var isPath = (item) => {
   return typeof item.p !== "undefined";
 };
-var merge = (chain, ...items) => {
-  return [
-    ...chain[key],
-    ...items
-  ];
+var flatten = (builder) => {
+  let current = builder;
+  while (true) {
+    const data = current[key];
+    if (data.parent) {
+      const parent = data.parent[key];
+      const found = parent.items.findIndex((item) => item === cursor);
+      const index = found >= 0 ? found : parent.items.length;
+      parent.items = [
+        ...parent.items.slice(0, index),
+        ...data.items,
+        ...parent.items.slice(index + 1)
+      ];
+      current = data.parent;
+    } else {
+      break;
+    }
+  }
+  return current;
 };
-var build = (items, gen) => {
-  return items.map((item) => {
+var build = (builder, gen) => {
+  return builder[key].items.filter((item) => item !== cursor).map((item) => {
+    if (item instanceof QueryBulder) {
+      return build(flatten(item), gen);
+    }
     if (isValue(item)) {
       return gen.value(item.v, item.p);
     }
@@ -822,40 +846,62 @@ var build = (items, gen) => {
       return gen.path(item.p);
     }
     return item;
-  });
+  }).join(" ");
 };
-var chainData = (chain) => {
-  return chain[key];
+var QueryBulder = class {
+  [key];
+  constructor(parent = void 0, items = []) {
+    this[key] = {
+      parent,
+      items
+    };
+  }
 };
 
 // src/expressions/condition.ts
-var Condition = class extends Chain {
+var Condition = class extends QueryBulder {
   where(...path) {
-    return new Where(merge(this), path);
+    return new Where(this, [], path);
+  }
+  group(fn) {
+    const combiner = fn(new Condition());
+    return new Combine(this, ["(", combiner, ")"]);
   }
   extend(fn) {
-    return fn(this);
+    return fn(new Condition());
   }
+  // where<P extends InferPath<T>>(...path:P) {
+  // 	return new Where<T, P>(this, path))
+  // }
+  // group<R extends Combine<T>>(fn:(exp:Condition<T>) => R): R {
+  // 	return fn(new Condition<T>(this, ['(', cursor, ')'])))
+  // }
+  // extend<R extends Combine<T> | Condition<T>>(fn:(exp:Condition<T>) => R): R {
+  // 	return fn(new Condition<T>(this, [])))
+  // }
 };
-var Where = class extends Chain {
-  constructor(query2, path) {
-    super(query2);
+var Where = class extends QueryBulder {
+  constructor(query2, items, path) {
+    super(query2, items);
     this.path = path;
   }
+  // constructor(items:QueryItem<T>[], private path:P) {
+  // 	super(items)
+  // }
   get not() {
-    return new Where(merge(this, "NOT"), this.path);
+    return new Where(this, ["NOT", "(", cursor, ")"], this.path);
   }
   get exists() {
-    return new Combine(merge(this, "attribute_exists(", { p: this.path }, ")"));
+    return new Combine(this, ["attribute_exists(", { p: this.path }, ")"]);
   }
   get size() {
-    return new Size(merge(this), this.path);
+    return new Size(this, this.path);
   }
   compare(comparator, v) {
-    return new Combine(merge(this, "(", { p: this.path }, comparator, { v, p: this.path }, ")"));
+    return new Combine(this, ["(", { p: this.path }, comparator, { v, p: this.path }, ")"]);
   }
   fn(fnName, v) {
-    return new Combine(merge(this, `${fnName}(`, { p: this.path }, ",", v, ")"));
+    return new Combine(this, [`${fnName}(`, { p: this.path }, ",", v, ")"]);
   }
   eq(value) {
     return this.compare("=", value);
@@ -876,8 +922,7 @@ var Where = class extends Chain {
     return this.compare("<=", value);
   }
   between(min, max) {
-    return new Combine(merge(
-      this,
+    return new Combine(this, [
       "(",
       { p: this.path },
       "BETWEEN",
@@ -885,17 +930,16 @@ var Where = class extends Chain {
       "AND",
       { v: max, p: this.path },
       ")"
-    ));
+    ]);
   }
   in(values) {
-    return new Combine(merge(
-      this,
+    return new Combine(this, [
       "(",
       { p: this.path },
       "IN (",
       ...values.map((v) => ({ v, p: this.path })).map((v, i) => i === 0 ? v : [",", v]).flat(),
       "))"
-    ));
+    ]);
   }
   attributeType(value) {
     return this.fn("attribute_type", { v: { S: value } });
@@ -907,13 +951,21 @@ var Where = class extends Chain {
     return this.fn("contains", { v: value, p: [...this.path, 0] });
   }
 };
-var Size = class extends Chain {
+var Size = class extends QueryBulder {
   constructor(query2, path) {
     super(query2);
     this.path = path;
   }
   compare(comparator, num) {
-    return new Combine(merge(this, "(", "size(", { p: this.path }, ")", comparator, { v: { N: String(num) } }, ")"));
+    return new Combine(this, [
+      "(",
+      "size(",
+      { p: this.path },
+      ")",
+      comparator,
+      { v: { N: String(num) } },
+      ")"
+    ]);
   }
   eq(value) {
     return this.compare("=", value);
@@ -934,8 +986,7 @@ var Size = class extends Chain {
     return this.compare("<=", value);
   }
   between(min, max) {
-    return new Combine(merge(
-      this,
+    return new Combine(this, [
       "(",
       "size(",
       { p: this.path },
@@ -945,31 +996,29 @@ var Size = class extends Chain {
       "AND",
       { v: { N: String(max) } },
       ")"
-    ));
+    ]);
   }
 };
-var Combine = class extends Chain {
+var Combine = class extends QueryBulder {
   get and() {
-    return new Condition(merge(this, "AND"));
+    return new Condition(this, ["AND"]);
   }
   get or() {
-    return new Condition(merge(this, "OR"));
+    return new Condition(this, ["OR"]);
   }
 };
 var conditionExpression = (options, gen) => {
   if (options.condition) {
-    const condition = options.condition(new Condition([]));
-    const query2 = build(chainData(condition), gen).join(" ");
-    return query2;
+    return build(flatten(options.condition(new Condition())), gen);
   }
   return;
 };
 
 // src/operations/put-item.ts
-var import_client_dynamodb6 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb7 = require("@aws-sdk/client-dynamodb");
 var putItem = async (table, item, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb6.PutItemCommand({
+  const command = new import_client_dynamodb7.PutItemCommand({
     TableName: table.name,
     Item: table.marshall(item),
     ConditionExpression: conditionExpression(options, gen),
@@ -985,11 +1034,11 @@ var putItem = async (table, item, options = {}) => {
 };
 
 // src/operations/update-item.ts
-var import_client_dynamodb7 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb8 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/update.ts
 var key2 = Symbol();
-var Chain2 = class {
+var Chain = class {
   [key2];
   constructor(data) {
     this[key2] = data;
@@ -1008,7 +1057,7 @@ var m = (chain, op, ...items) => {
   }
   return n;
 };
-var UpdateExpression = class extends Chain2 {
+var UpdateExpression = class extends Chain {
   /** Update a given property */
   update(...path) {
     return new Update(m(this), path);
@@ -1017,7 +1066,7 @@ var UpdateExpression = class extends Chain2 {
     return fn(this);
   }
 };
-var Update = class extends Chain2 {
+var Update = class extends Chain {
   constructor(query2, path) {
     super(query2);
     this.path = path;
@@ -1077,6 +1126,17 @@ var Update = class extends Chain2 {
     return this.u("del", { p: this.path }, { v: values, p: this.path });
   }
 };
+var build2 = (items, gen) => {
+  return items.map((item) => {
+    if (isValue(item)) {
+      return gen.value(item.v, item.p);
+    }
+    if (isPath(item)) {
+      return gen.path(item.p);
+    }
+    return item;
+  }).join(" ");
+};
 var updateExpression = (options, gen) => {
   const update = options.update(new UpdateExpression({
     set: [],
@@ -1088,7 +1148,7 @@ var updateExpression = (options, gen) => {
     if (list.length) {
       return [
         name,
-        list.map((items) => build(items, gen).join(" ")).join(", ")
+        list.map((items) => build2(items, gen)).join(", ")
       ];
     }
     return [];
@@ -1106,7 +1166,7 @@ var updateExpression = (options, gen) => {
 // src/operations/update-item.ts
 var updateItem = async (table, key3, options) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb7.UpdateItemCommand({
+  const command = new import_client_dynamodb8.UpdateItemCommand({
     TableName: table.name,
     Key: table.marshall(key3),
     UpdateExpression: updateExpression(options, gen),
@@ -1123,10 +1183,10 @@ var updateItem = async (table, key3, options) => {
 };
 
 // src/operations/delete-item.ts
-var import_client_dynamodb8 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
 var deleteItem = async (table, key3, options = {}) => {
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb8.DeleteItemCommand({
+  const command = new import_client_dynamodb9.DeleteItemCommand({
     TableName: table.name,
     Key: table.marshall(key3),
     ConditionExpression: conditionExpression(options, gen),
@@ -1142,24 +1202,30 @@ var deleteItem = async (table, key3, options = {}) => {
 };
 
 // src/operations/query.ts
-var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb10 = require("@aws-sdk/client-dynamodb");
 
 // src/expressions/key-condition.ts
-var KeyCondition = class extends Chain {
+var KeyCondition = class extends QueryBulder {
   where(path) {
-    return new Where2(merge(this), path);
+    return new Where2(this, path);
   }
   extend(fn) {
     return fn(this);
   }
 };
-var Where2 = class extends Chain {
+var Where2 = class extends QueryBulder {
   constructor(query2, path) {
     super(query2);
     this.path = path;
   }
   compare(comparator, v) {
-    return new Combine2(merge(this, "(", { p: [this.path] }, comparator, { v, p: [this.path] }, ")"));
+    return new Combine2(this, [
+      "(",
+      { p: [this.path] },
+      comparator,
+      { v, p: [this.path] },
+      ")"
+    ]);
   }
   eq(value) {
     return this.compare("=", value);
@@ -1177,8 +1243,7 @@ var Where2 = class extends Chain {
     return this.compare("<=", value);
   }
   between(min, max) {
-    return new Combine2(merge(
-      this,
+    return new Combine2(this, [
       "(",
       { p: [this.path] },
       "BETWEEN",
@@ -1186,31 +1251,35 @@ var Where2 = class extends Chain {
       "AND",
       { v: max, p: [this.path] },
       ")"
-    ));
+    ]);
   }
   beginsWith(value) {
-    return new Combine2(merge(this, "begins_with(", { p: [this.path] }, ",", { v: value, p: [this.path] }, ")"));
+    return new Combine2(this, [
+      "begins_with(",
+      { p: [this.path] },
+      ",",
+      { v: value, p: [this.path] },
+      ")"
+    ]);
   }
 };
-var Combine2 = class extends Chain {
+var Combine2 = class extends QueryBulder {
   get and() {
-    return new KeyCondition(merge(this, "AND"));
+    return new KeyCondition(this, ["AND"]);
   }
   get or() {
-    return new KeyCondition(merge(this, "OR"));
+    return new KeyCondition(this, ["OR"]);
   }
 };
 var keyConditionExpression = (options, gen) => {
-  const condition = options.keyCondition(new KeyCondition([]));
-  const query2 = build(chainData(condition), gen).join(" ");
-  return query2;
+  return build(flatten(options.keyCondition(new KeyCondition())), gen);
 };
 
 // src/operations/query.ts
 var query = async (table, options) => {
   const { forward = true } = options;
   const gen = new IDGenerator(table);
-  const command = new import_client_dynamodb9.QueryCommand({
+  const command = new import_client_dynamodb10.QueryCommand({
     TableName: table.name,
     IndexName: options.index,
     KeyConditionExpression: keyConditionExpression(options, gen),
@@ -1248,7 +1317,7 @@ var getIndexedItem = async (table, key3, options) => {
 };
 
 // src/operations/batch-get-item.ts
-var import_client_dynamodb10 = require("@aws-sdk/client-dynamodb");
+var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
 var batchGetItem = async (table, keys, options = { filterNonExistentItems: false }) => {
   let response = [];
   let unprocessedKeys = keys.map((key3) => table.marshall(key3));
@@ -1256,7 +1325,7 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
   const projection = projectionExpression(options, gen);
   const attributes = gen.attributeNames();
   while (unprocessedKeys.length) {
-    const command = new import_client_dynamodb10.BatchGetItemCommand({
+    const command = new import_client_dynamodb11.BatchGetItemCommand({
       RequestItems: {
         [table.name]: {
           Keys: unprocessedKeys,
@@ -1291,29 +1360,6 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
     return list.filter((item) => !!item);
   }
   return list;
-};
-
-// src/operations/batch-put-item.ts
-var import_client_dynamodb11 = require("@aws-sdk/client-dynamodb");
-var import_chunk = __toESM(require("chunk"), 1);
-var batchPutItem = async (table, items, options = {}) => {
-  await Promise.all((0, import_chunk.default)(items, 25).map(async (items2) => {
-    let unprocessedItems = {
-      [table.name]: items2.map((item) => ({
-        PutRequest: {
-          Item: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new import_client_dynamodb11.BatchWriteItemCommand({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
 };
 
 // src/operations/batch-delete-item.ts
@@ -1363,7 +1409,7 @@ var scan = async (table, options = {}) => {
 
 // src/operations/query-all.ts
 var queryAll = function* (table, options) {
-  let cursor = options.cursor;
+  let cursor2 = options.cursor;
   let done = false;
   const loop = async () => {
     const result = await query(table, {
@@ -1374,9 +1420,9 @@ var queryAll = function* (table, options) {
       consistentRead: options.consistentRead,
       forward: options.forward,
       limit: options.batch,
-      cursor
+      cursor: cursor2
     });
-    cursor = result.cursor;
+    cursor2 = result.cursor;
     if (result.items.length === 0 || !result.cursor) {
       done = true;
     }
@@ -1389,7 +1435,7 @@ var queryAll = function* (table, options) {
 
 // src/operations/scan-all.ts
 var scanAll = function* (table, options) {
-  let cursor = options.cursor;
+  let cursor2 = options.cursor;
   let done = false;
   const loop = async () => {
     const result = await scan(table, {
@@ -1397,9 +1443,9 @@ var scanAll = function* (table, options) {
       projection: options.projection,
       consistentRead: options.consistentRead,
       limit: options.batch,
-      cursor
+      cursor: cursor2
     });
-    cursor = result.cursor;
+    cursor2 = result.cursor;
     if (result.items.length === 0 || !result.cursor) {
       done = true;
     }
@@ -1411,9 +1457,9 @@ var scanAll = function* (table, options) {
 };
 
 // src/helper/cursor.ts
-var fromCursor = (cursor) => {
+var fromCursor = (cursor2) => {
   return JSON.parse(
-    Buffer.from(cursor, "base64").toString("utf-8")
+    Buffer.from(cursor2, "base64").toString("utf-8")
   );
 };
 var toCursor = (value) => {
@@ -1571,6 +1617,7 @@ var transactDelete = (table, key3, options = {}) => {
   record,
   scan,
   scanAll,
+  seedTable,
   string,
   stringSet,
   transactConditionCheck,

@@ -1,5 +1,5 @@
 
-import { define, mockDynamoDB, number, object, scanAll } from '../../src/index'
+import { define, mockDynamoDB, number, object, scanAll, seedTable } from '../../src/index'
 
 describe('Scan All', () => {
 
@@ -12,8 +12,8 @@ describe('Scan All', () => {
 
 	mockDynamoDB({
 		tables: [ posts ],
-		seed: {
-			posts: [
+		seed: [
+			seedTable(posts, [
 				{ id: 1 },
 				{ id: 2 },
 				{ id: 3 },
@@ -24,8 +24,8 @@ describe('Scan All', () => {
 				{ id: 8 },
 				{ id: 9 },
 				{ id: 10 },
-			]
-		}
+			])
+		]
 	})
 
 	it('should list all items in the table', async () => {

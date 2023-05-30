@@ -4,14 +4,28 @@ import { BatchWriteCommand, DeleteCommand, DynamoDBDocumentClient, GetCommand, P
 import { mockClient } from 'aws-sdk-client-mock'
 import { DynamoDBServer } from '@awsless/dynamodb-server'
 import { requestPort } from '@heat/request-port'
-import { SeedData, seed } from './seed'
+import { seed } from './seed'
 import { migrate } from './migrate'
-import { AnyTableDefinition } from '../table'
+import { AnyTableDefinition, InferInput } from '../table'
 
-export interface StartDynamoDBOptions {
+// type GetType<T extends CreateTableCommandInput[]> = T extends (infer U)[] ? U : never;
+
+// type SeedTable<T extends AnyTableDefinition> = {
+// 	table: T extends (first: infer K) =>  any ? K : any ;
+// 	items: InferInput<E>[]
+// }
+
+// type SeedTable<T extends AnyTableDefinition> = Record<T['name'], InferInput<T>[]>
+// type Names<T extends AnyTableDefinition[]> = { [ K in keyof T ]: T[K]['name'] }[number]
+
+// type Single<T extends AnyTableDefinition[]> =
+
+type SeedTable<T extends AnyTableDefinition> = { table: T, items:InferInput<T>[] }
+
+export type StartDynamoDBOptions = {
 	tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[],
 	timeout?: number
-	seed?: SeedData
+	seed?: SeedTable<AnyTableDefinition>[]
 }
 
 export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServer) => {
@@ -22,11 +36,9 @@ export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServe
 		server = configOrServer
 	} else {
 		server = new DynamoDBServer()
-		let releasePort: () => Promise<void>
 
 		beforeAll && beforeAll(async () => {
-			const [ port, release ] = await requestPort()
-			releasePort = release
+			const [ port, releasePort ] = await requestPort()
 
 			await server.listen(port)
 			await server.wait()
@@ -34,14 +46,14 @@ export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServe
 			if(configOrServer.tables) {
 				await migrate(server.getClient(), configOrServer.tables)
 				if(configOrServer.seed) {
-					await seed(server.getDocumentClient(), configOrServer.seed)
+					await seed(configOrServer.seed)
 				}
 			}
-		}, configOrServer.timeout)
 
-		afterAll && afterAll(async () => {
-			await server.kill()
-			await releasePort()
+			return async () => {
+				await server.kill()
+				await releasePort()
+			}
 		}, configOrServer.timeout)
 	}
 

@@ -143,16 +143,21 @@ declare const bigintSet: () => Struct<string[], Set<bigint>, Set<bigint>, [], []
 
 declare const binarySet: () => Struct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-type SeedData = {
-    [key: string]: object[];
+type SeedTable<T extends AnyTableDefinition> = {
+    table: T;
+    items: InferInput$1<T>[];
 };
-
-interface StartDynamoDBOptions {
+type StartDynamoDBOptions = {
     tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[];
     timeout?: number;
-    seed?: SeedData;
-}
+    seed?: SeedTable<AnyTableDefinition>[];
+};
 declare const mockDynamoDB: (configOrServer: StartDynamoDBOptions | DynamoDBServer) => DynamoDBServer;
+
+declare const seedTable: <T extends AnyTableDefinition>(table: T, items: InferInput$1<T>[]) => {
+    table: T;
+    items: InferInput$1<T>[];
+};
 
 type AttributeValue = NativeAttributeBinary | NativeAttributeValue | NativeScalarAttributeValue;
 
@@ -161,28 +166,32 @@ type InferPath<T extends AnyTableDefinition> = T['schema']['PATHS'];
 type InferValue$1<T extends AnyTableDefinition, P extends InferPath<T>> = WalkPath<T['schema']['INPUT'], P>;
 type InferSetValue<T extends AnyTableDefinition, P extends InferPath<T>> = Parameters<InferValue$1<T, P>['add']>[0];
 
-type ChainValue<T extends AnyTableDefinition> = {
+type QueryValue<T extends AnyTableDefinition> = {
     v: AttributeValue;
     p?: InferPath<T>;
 };
-type ChainPath<T extends AnyTableDefinition> = {
+type QueryPath<T extends AnyTableDefinition> = {
     p: InferPath<T>;
 };
 declare const key$1: unique symbol;
-type ChainItem<T extends AnyTableDefinition> = ChainValue<T> | ChainPath<T> | string;
-type ChainItems<T extends AnyTableDefinition> = Array<ChainItem<T>>;
-declare class Chain$1<T extends AnyTableDefinition> {
-    [key$1]: ChainItems<T>;
-    constructor(query: ChainItems<T>);
+declare const cursor: unique symbol;
+type QueryItem<T extends AnyTableDefinition> = QueryBulder<T> | QueryValue<T> | QueryPath<T> | typeof cursor | string;
+declare class QueryBulder<T extends AnyTableDefinition> {
+    [key$1]: {
+        parent: QueryBulder<T> | undefined;
+        items: QueryItem<T>[];
+    };
+    constructor(parent?: QueryBulder<T> | undefined, items?: QueryItem<T>[]);
 }
 
-declare class Condition<T extends AnyTableDefinition> extends Chain$1<T> {
+declare class Condition<T extends AnyTableDefinition> extends QueryBulder<T> {
     where<P extends InferPath<T>>(...path: P): Where$1<T, P>;
-    extend<R extends Combine$1<T> | Condition<T> | void>(fn: (exp: Condition<T>) => R): R;
+    group<R extends Combine$1<T>>(fn: (exp: Condition<T>) => R): Combine$1<T>;
+    extend<R extends Combine$1<T> | Condition<T>>(fn: (exp: Condition<T>) => R): R;
 }
-declare class Where$1<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain$1<T> {
+declare class Where$1<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBulder<T> {
     private path;
-    constructor(query: ChainItems<T>, path: P);
+    constructor(query: QueryBulder<T>, items: QueryItem<T>[], path: P);
     get not(): Where$1<T, P>;
     get exists(): Combine$1<T>;
     get size(): Size<T, P>;
@@ -200,9 +209,9 @@ declare class Where$1<T extends AnyTableDefinition, P extends InferPath<T>> exte
     beginsWith(value: string): Combine$1<T>;
     contains(value: InferSetValue<T, P>): Combine$1<T>;
 }
-declare class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain$1<T> {
+declare class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBulder<T> {
     private path;
-    constructor(query: ChainItems<T>, path: P);
+    constructor(query: QueryBulder<T>, path: P);
     private compare;
     eq(value: number | bigint | BigFloat): Combine$1<T>;
     nq(value: number | bigint | BigFloat): Combine$1<T>;
@@ -212,7 +221,7 @@ declare class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends
     lte(value: number | bigint | BigFloat): Combine$1<T>;
     between(min: number | bigint | BigFloat, max: number | bigint | BigFloat): Combine$1<T>;
 }
-declare class Combine$1<T extends AnyTableDefinition> extends Chain$1<T> {
+declare class Combine$1<T extends AnyTableDefinition> extends QueryBulder<T> {
     get and(): Condition<T>;
     get or(): Condition<T>;
 }
@@ -268,10 +277,10 @@ declare const putItem: <T extends AnyTableDefinition, R extends LimitedReturnVal
 
 declare const key: unique symbol;
 type ChainData<T extends AnyTableDefinition> = {
-    readonly set: ChainItem<T>[][];
-    readonly add: ChainItem<T>[][];
-    readonly rem: ChainItem<T>[][];
-    readonly del: ChainItem<T>[][];
+    readonly set: QueryItem<T>[][];
+    readonly add: QueryItem<T>[][];
+    readonly rem: QueryItem<T>[][];
+    readonly del: QueryItem<T>[][];
 };
 declare class Chain<T extends AnyTableDefinition> {
     [key]: ChainData<T>;
@@ -332,13 +341,13 @@ declare const batchDeleteItem: <T extends AnyTableDefinition>(table: T, keys: Pr
 
 type PrimaryKeyNames<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? T['indexes'][I]['hash'] | T['indexes'][I]['sort'] : T['indexes'][I]['hash'] : T['sort'] extends string ? T['hash'] | T['sort'] : T['hash']);
 type InferValue<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> = T['schema']['INPUT'][P];
-declare class KeyCondition<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends Chain$1<T> {
+declare class KeyCondition<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
     where<P extends PrimaryKeyNames<T, I>>(path: P): Where<T, P, I>;
     extend<R extends Combine<T, I> | KeyCondition<T, I> | void>(fn: (exp: KeyCondition<T, I>) => R): R;
 }
-declare class Where<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> extends Chain$1<T> {
+declare class Where<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
     private path;
-    constructor(query: ChainItems<T>, path: P);
+    constructor(query: QueryBulder<T>, path: P);
     private compare;
     eq(value: InferValue<T, P, I>): Combine<T, I>;
     gt(value: InferValue<T, P, I>): Combine<T, I>;
@@ -348,7 +357,7 @@ declare class Where<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I
     between(min: InferValue<T, P, I>, max: InferValue<T, P, I>): Combine<T, I>;
     beginsWith(value: InferValue<T, P, I>): Combine<T, I>;
 }
-declare class Combine<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends Chain$1<T> {
+declare class Combine<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
     get and(): KeyCondition<T, I>;
     get or(): KeyCondition<T, I>;
 }
@@ -484,4 +493,4 @@ type DeleteOptions<T extends AnyTableDefinition> = {
 };
 declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => Delete<T>;
 
-export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seedTable, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };

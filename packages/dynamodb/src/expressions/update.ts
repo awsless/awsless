@@ -1,6 +1,6 @@
 
 import { BigFloat } from "@awsless/big-float"
-import { build, ChainItem, ChainItems } from "../helper/chainable"
+import { isPath, isValue, QueryItem } from "../helper/query"
 import { IDGenerator } from "../helper/id-generator"
 import { AnyTableDefinition } from "../table"
 import { InferPath, InferValue } from "../types/infer"
@@ -8,10 +8,10 @@ import { InferPath, InferValue } from "../types/infer"
 const key = Symbol()
 
 type ChainData<T extends AnyTableDefinition> = {
-	readonly set: ChainItem<T>[][]
-	readonly add: ChainItem<T>[][]
-	readonly rem: ChainItem<T>[][]
-	readonly del: ChainItem<T>[][]
+	readonly set: QueryItem<T>[][]
+	readonly add: QueryItem<T>[][]
+	readonly rem: QueryItem<T>[][]
+	readonly del: QueryItem<T>[][]
 }
 
 class Chain<T extends AnyTableDefinition> {
@@ -22,7 +22,7 @@ class Chain<T extends AnyTableDefinition> {
 	}
 }
 
-const m = <T extends AnyTableDefinition>(chain:Chain<T>, op?: keyof ChainData<T>, ...items:ChainItems<T>):ChainData<T> => {
+const m = <T extends AnyTableDefinition>(chain:Chain<T>, op?: keyof ChainData<T>, ...items:QueryItem<T>[]):ChainData<T> => {
 	const d = chain[key]
 	const n = {
 		set: [ ...d.set ],
@@ -55,7 +55,7 @@ class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain
 		super(query)
 	}
 
-	private u(op:keyof ChainData<T>, ...items:ChainItems<T>) {
+	private u(op:keyof ChainData<T>, ...items:QueryItem<T>[]) {
 		return new UpdateExpression<T>(m(this, op, ...items))
 	}
 
@@ -93,6 +93,16 @@ class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain
 		)
 	}
 
+	/** Set a attribute to a different but already existing attribute */
+	setAttr(path:InferPath<T>) {
+		return this.u(
+			'set',
+			{ p:this.path },
+			'=',
+			{ p:path },
+		)
+	}
+
 	/** Delete a property */
 	del() {
 		return this.u('rem', { p:this.path })
@@ -119,6 +129,20 @@ class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain
 	}
 }
 
+const build = <T extends AnyTableDefinition>(items: QueryItem<T>[], gen:IDGenerator<T>) => {
+	return items.map(item => {
+		if(isValue(item)) {
+			return gen.value(item.v, item.p)
+		}
+
+		if(isPath(item)) {
+			return gen.path(item.p)
+		}
+
+		return item
+	}).join(' ')
+}
+
 export const updateExpression = <T extends AnyTableDefinition>(
 	options:{ update: (exp:UpdateExpression<T>) => UpdateExpression<T> },
 	gen:IDGenerator<T>,
@@ -130,11 +154,11 @@ export const updateExpression = <T extends AnyTableDefinition>(
 		del: []
 	}))
 
-	const buildList = (name:string, list:ChainItem<T>[][]) => {
+	const buildList = (name:string, list:QueryItem<T>[][]) => {
 		if(list.length) {
 			return [
 				name,
-				list.map(items => build(items, gen).join(' ')).join(', ')
+				list.map(items => build(items, gen)).join(', ')
 			]
 		}
 

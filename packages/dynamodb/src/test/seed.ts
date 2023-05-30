@@ -1,24 +1,13 @@
 
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb'
+import { AnyTableDefinition, InferInput } from '../table'
+import { batchPutItem } from '../operations/batch-put-item'
 
-export type SeedData = {[key:string]: object[]}
+export const seedTable = <T extends AnyTableDefinition>(table:T, items: InferInput<T>[]) => {
+	return { table, items }
+}
 
-export const seed = (client:DynamoDBDocumentClient, data: SeedData) => {
-	return Promise.all(Object.entries(data).map(([TableName, items]) => {
-		return Promise.all(items.map(async item => {
-			try {
-				// @ts-ignore
-				await client.send(new PutCommand({
-					TableName,
-					Item: item,
-				}))
-			} catch(error) {
-				if(error instanceof Error) {
-					throw new Error(`DynamoDB Seeding Error: ${error.message}`)
-				}
-
-				throw error
-			}
-		}))
+export const seed = async (defs: ReturnType<typeof seedTable>[]) => {
+	await Promise.all(defs.map(({ table, items }) => {
+		return batchPutItem(table, items)
 	}))
 }
