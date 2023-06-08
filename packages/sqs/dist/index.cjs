@@ -184,12 +184,19 @@ var sqsStruct = (body) => {
     )
   });
 };
-var sqsInput = (records) => {
+var sqsInput = (records, attributes = {}) => {
+  const messageAttributes = {};
+  Object.keys(attributes).map((key) => {
+    messageAttributes[key] = {
+      dataType: "String",
+      stringValue: attributes[key]
+    };
+  });
   return {
     Records: records.map((body) => ({
       messageId: (0, import_crypto2.randomUUID)(),
       body: JSON.stringify(body),
-      messageAttributes: {}
+      messageAttributes
     }))
   };
 };

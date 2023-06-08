@@ -30,12 +30,21 @@ export const sqsStruct = <A, B>(body: Struct<A, B>) => {
 	})
 }
 
-export const sqsInput = (records: unknown[]) => {
+export const sqsInput = (records: unknown[], attributes: Record<string, string> = {}) => {
+	const messageAttributes: Record<string, { dataType: string; stringValue: string }> = {}
+
+	Object.keys(attributes).map(key => {
+		messageAttributes[key] = {
+			dataType: 'String',
+			stringValue: attributes[key],
+		}
+	})
+
 	return {
 		Records: records.map(body => ({
 			messageId: randomUUID(),
 			body: JSON.stringify(body),
-			messageAttributes: {},
+			messageAttributes,
 		})),
 	}
 }

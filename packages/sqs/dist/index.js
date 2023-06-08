@@ -151,12 +151,19 @@ var sqsStruct = (body) => {
     )
   });
 };
-var sqsInput = (records) => {
+var sqsInput = (records, attributes = {}) => {
+  const messageAttributes = {};
+  Object.keys(attributes).map((key) => {
+    messageAttributes[key] = {
+      dataType: "String",
+      stringValue: attributes[key]
+    };
+  });
   return {
     Records: records.map((body) => ({
       messageId: randomUUID2(),
       body: JSON.stringify(body),
-      messageAttributes: {}
+      messageAttributes
     }))
   };
 };

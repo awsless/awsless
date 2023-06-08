@@ -6,7 +6,7 @@ describe('Struct', () => {
 		assertType<number>(1)
 
 		const struct = sqsStruct(type({ id: number() }))
-		const event = sqsInput([{ id: 1 }, { id: 1 }])
+		const event = sqsInput([{ id: 1 }, { id: 1 }], { foo: 'bar' })
 
 		const result = create(event, struct)
 		const records = sqsRecords(result)
