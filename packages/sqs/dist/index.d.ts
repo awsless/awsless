@@ -82,6 +82,9 @@ declare const sqsInput: (records: unknown[], attributes?: Record<string, string>
     Records: {
         messageId: `${string}-${string}-${string}-${string}-${string}`;
         body: string;
+        attributes: {
+            SentTimestamp: string;
+        };
         messageAttributes: Record<string, {
             dataType: string;
             stringValue: string;

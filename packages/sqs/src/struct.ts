@@ -44,6 +44,9 @@ export const sqsInput = (records: unknown[], attributes: Record<string, string> 
 		Records: records.map(body => ({
 			messageId: randomUUID(),
 			body: JSON.stringify(body),
+			attributes: {
+				SentTimestamp: String(Date.now()),
+			},
 			messageAttributes,
 		})),
 	}

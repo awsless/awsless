@@ -163,6 +163,9 @@ var sqsInput = (records, attributes = {}) => {
     Records: records.map((body) => ({
       messageId: randomUUID2(),
       body: JSON.stringify(body),
+      attributes: {
+        SentTimestamp: String(Date.now())
+      },
       messageAttributes
     }))
   };

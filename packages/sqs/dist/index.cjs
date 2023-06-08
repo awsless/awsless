@@ -196,6 +196,9 @@ var sqsInput = (records, attributes = {}) => {
     Records: records.map((body) => ({
       messageId: (0, import_crypto2.randomUUID)(),
       body: JSON.stringify(body),
+      attributes: {
+        SentTimestamp: String(Date.now())
+      },
       messageAttributes
     }))
   };
