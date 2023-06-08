@@ -162,6 +162,7 @@ var mockSQS = (queues) => {
 
 // src/struct.ts
 var import_validate = require("@awsless/validate");
+var import_crypto2 = require("crypto");
 var import_superstruct = require("superstruct");
 var sqsRecords = (input) => {
   return input.Records.map((item) => item.body);
@@ -185,8 +186,8 @@ var sqsStruct = (body) => {
 };
 var sqsInput = (records) => {
   return {
-    Records: records.map((body, i) => ({
-      messageId: String(i),
+    Records: records.map((body) => ({
+      messageId: (0, import_crypto2.randomUUID)(),
       body: JSON.stringify(body),
       messageAttributes: {}
     }))

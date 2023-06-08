@@ -1,5 +1,6 @@
 import 'superstruct'
 import { json, array, type, string, date, Struct } from '@awsless/validate'
+import { randomUUID } from 'crypto'
 
 type Input<T> = {
 	Records: {
@@ -34,7 +35,7 @@ export const snsInput = (records: any[]) => {
 		Records: records.map((body, i) => ({
 			Sns: {
 				TopicArn: 'arn:aws:sns',
-				MessageId: String(i),
+				MessageId: randomUUID(),
 				Timestamp: new Date(),
 				Message: body,
 			},

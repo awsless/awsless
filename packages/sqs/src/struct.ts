@@ -1,4 +1,5 @@
 import { json, array, type, string, record, Struct } from '@awsless/validate'
+import { randomUUID } from 'crypto'
 import 'superstruct'
 
 type Input<T> = {
@@ -31,10 +32,10 @@ export const sqsStruct = <A, B>(body: Struct<A, B>) => {
 
 export const sqsInput = (records: unknown[]) => {
 	return {
-		Records: records.map((body, i) => ({
-			messageId: String(i),
+		Records: records.map(body => ({
+			messageId: randomUUID(),
 			body: JSON.stringify(body),
-			messageAttributes: {}
+			messageAttributes: {},
 		})),
 	}
 }

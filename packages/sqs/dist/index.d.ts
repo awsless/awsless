@@ -80,7 +80,7 @@ declare const sqsStruct: <A, B>(body: Struct<A, B>) => Struct<{
 }>;
 declare const sqsInput: (records: unknown[]) => {
     Records: {
-        messageId: string;
+        messageId: `${string}-${string}-${string}-${string}-${string}`;
         body: string;
         messageAttributes: {};
     }[];

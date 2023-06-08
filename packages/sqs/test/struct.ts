@@ -2,9 +2,8 @@ import { sqsInput, sqsRecords, sqsStruct } from '../src'
 import { number, type, create } from '@awsless/validate'
 
 describe('Struct', () => {
-
 	it('sqsStruct', () => {
-		assertType<string>(1)
+		assertType<number>(1)
 
 		const struct = sqsStruct(type({ id: number() }))
 		const event = sqsInput([{ id: 1 }, { id: 1 }])
