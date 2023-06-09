@@ -51,13 +51,13 @@ export const VERSION_8_8_1:VersionArgs = {
 		'discovery.type': `single-node`,
 		// 'discovery.cluster_formation_warning_timeout': `1ms`,
 
-		'network.host': host,
+		'http.host': host,
 		'http.port': port,
 
 		'path.data': `data/${port}/data`,
 		'path.logs': `data/${port}/logs`,
 
-		'plugins.security.disabled': true,
+		// 'plugins.security.disabled': true,
 
 		// 'xpack.security.enabled': false,
 		// 'xpack.security.authc.api_key.enabled': false,
