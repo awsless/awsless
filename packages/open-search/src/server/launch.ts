@@ -35,7 +35,7 @@ export const launch = ({ path, host, port, version, debug }:Options): Promise<()
 		const child = spawn(binary, parseSettings(version.settings({ host, port })))
 
 		const onError = (error:string) => fail(error)
-		const onStandardError = (error: Buffer) => console.log(error.toString('utf8'))
+		const onStandardError = (error: Buffer) => console.error(error.toString('utf8'))
 		const onStandardOut = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
 
@@ -88,7 +88,7 @@ export const launch = ({ path, host, port, version, debug }:Options): Promise<()
 		}
 
 		const done = async () => {
-			// off()
+			off()
 			await cleanUp()
 			resolve(kill)
 		}
