@@ -1,3 +1,0 @@
-// stream: {
-// 	[ betTable.name ]: process,
-// },

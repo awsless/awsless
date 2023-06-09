@@ -1,5 +1,6 @@
 
 import { AnyTableDefinition } from "../table"
+// import { Union } from 'ts-toolbelt'
 
 // type KeysOfUnion<T> = T extends T ? keyof T: never;
 
@@ -17,11 +18,8 @@ export type InferSetValue<T extends AnyTableDefinition, P extends InferPath<T>> 
 
 export type InferOptionalPath<T extends AnyTableDefinition> = T['schema']['OPT_PATHS']
 
-// export type InferTypedPath<T extends AnyTableDefinition, P extends InferPath<T>> = {
-// 	[K in keyof T['schema']['PATHS']]: WalkPath<T['schema']['INPUT'], T['schema']['PATHS'][K]> extends InferValue<T, P> ? T['schema']['PATHS'][K] : never
-// }[keyof T['schema']['PATHS']]
+// export type InferTypedPath<T extends AnyTableDefinition, P extends InferPath<T>> = InferTypedPath2<T, Union.ListOf<T['schema']['PATHS'][number]>, P>
 
-
-// type TEST = 'YES' | 'NO'
-
-// type TEST_1 = { [ K in keyof KeysOfUnion<TEST> ]: K }
+// export type InferTypedPath2<T extends AnyTableDefinition, Paths extends InferPath<T>, P extends InferPath<T>> = {
+// 	[K in keyof Paths]: WalkPath<T['schema']['INPUT'], Paths[K]> extends InferValue<T, P> ? Paths[K] : never
+// }[keyof Paths]

@@ -1,9 +1,8 @@
 
 import { Combine, KeyCondition } from '../expressions/key-condition.js'
 import { ProjectionExpression, ProjectionResponse } from '../expressions/projection.js'
-import { fromCursor, toCursor } from '../helper/cursor.js'
+import { fromCursorString, toCursorString } from '../helper/cursor.js'
 import { AnyTableDefinition, IndexNames } from '../table.js'
-import { CursorKey } from '../types/key.js'
 import { Options } from '../types/options.js'
 import { query } from './query.js'
 
@@ -40,16 +39,13 @@ export const paginateQuery = async <
 ): Promise<PaginateQueryResponse<T, P>> => {
 	const result = await query(table, {
 		...options,
-		cursor: options.cursor ? table.unmarshall(fromCursor<CursorKey<T, I>>(options.cursor)) : undefined
+		cursor: fromCursorString<T, I>(table, options.cursor)
 	})
 
 	// FIX the problem where DynamoDB will return a cursor
 	// even when no more items are available.
 
 	if(result.cursor) {
-
-		// console.log(options.index, result.cursor);
-
 		const more = await query(table, {
 			...options,
 			limit: 1,
@@ -63,6 +59,6 @@ export const paginateQuery = async <
 
 	return {
 		...result,
-		cursor: result.cursor && toCursor(table.marshall(result.cursor))
+		cursor: toCursorString<T, I>(table, result.cursor)
 	}
 }

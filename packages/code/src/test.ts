@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises'
 import { mergeConfig } from 'vite'
 import { startVitest } from 'vitest/node'
 import { configDefaults, defineConfig } from 'vitest/config'
-import { plugins } from './rollup/index'
+import { loadTsConfigAliases, plugins } from './rollup/index'
 
 export const test = async (filters:string[] = []) => {
 	const json = await readFile(join(process.cwd(), 'package.json'))
@@ -18,7 +18,11 @@ export const test = async (filters:string[] = []) => {
 		plugins: plugins({
 			minimize: false,
 			sourceMap: true,
+			// aliases: loadTsConfigAliases()
 		}) as any[],
+		resolve: {
+			alias: loadTsConfigAliases()
+		},
 		test: {
 			include: [ './test/**/*.{js,jsx,coffee,ts}' ],
 			exclude: [ './test/**/_*', ...configDefaults.exclude ],

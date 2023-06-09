@@ -4,6 +4,7 @@ export { define, InferOutput, InferInput, TableDefinition } from './table.js'
 
 // types
 export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'
+export { Transactable, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate } from './operations/transact-write.js'
 
 // structs
 export { optional } from './structs/optional.js'
@@ -32,6 +33,10 @@ export { binarySet } from './structs/set/binary.js'
 // test
 export { mockDynamoDB } from './test/mock.js'
 export { seedTable } from './test/seed.js'
+export { streamTable } from './test/stream.js'
+
+// validation struct
+export { streamStruct } from './test/struct.js'
 
 // client
 export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'

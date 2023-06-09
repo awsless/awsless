@@ -10,6 +10,7 @@ describe('Update Expression', () => {
 		schema: object({
 			id: number(),
 			name: string(),
+			other: string(),
 		}),
 	})
 
@@ -91,5 +92,11 @@ describe('Update Expression', () => {
 		(exp) => exp
 			.extend(exp => true ? exp.update('id').set(1) : exp)
 			.update('name').set('Jack')
+	)
+
+	assert(
+		'SET #n1 = #n2',
+		(exp) => exp
+			.update('name').setAttr('other')
 	)
 })

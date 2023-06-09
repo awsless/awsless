@@ -3,6 +3,9 @@
 	"compilerOptions": {
 		"types": ["node", "preact"],
 		"jsx": "react-jsx",
-		"jsxImportSource": "preact"
+		"jsxImportSource": "preact",
+		"paths": {
+			"$alias/*": ["./test/data/alias/*"]
+		}
 	}
 }

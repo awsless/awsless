@@ -13,6 +13,7 @@ import { basename as basename2, extname as extname5, join as join2 } from "path"
 import { rollup as bundler } from "rollup";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import typescript from "@rollup/plugin-typescript";
+import alias from "@rollup/plugin-alias";
 import commonjs from "@rollup/plugin-commonjs";
 import terser from "@rollup/plugin-terser";
 import babel from "@rollup/plugin-babel";
@@ -108,10 +109,6 @@ var raw_default = (options = {}) => {
   };
 };
 
-// src/rollup/index.ts
-import { access } from "fs/promises";
-import { join } from "path";
-
 // src/rollup/stylus.ts
 import { createFilter as createFilter4 } from "rollup-pluginutils";
 import { dirname, extname as extname4, basename } from "path";
@@ -140,6 +137,9 @@ var stylus_default = (options = {}) => {
 };
 
 // src/rollup/index.ts
+import loadTsConfig from "tsconfig-loader";
+import { access } from "fs/promises";
+import { join, resolve } from "path";
 var extensions = [
   "json",
   "js",
@@ -151,12 +151,13 @@ var extensions = [
   "md",
   "html"
 ];
-var plugins = ({ minimize = false, sourceMap = true, transpilers } = {}) => {
+var plugins = ({ minimize = false, sourceMap = true, transpilers, aliases } = {}) => {
   const transpilersOptions = Object.assign({
     ts: true,
     coffee: true
   }, transpilers);
   return [
+    alias({ entries: aliases }),
     commonjs({ sourceMap }),
     babel({
       sourceMaps: sourceMap,
@@ -210,6 +211,22 @@ var shouldIncludeTypescript = async (transpilers) => {
   }
   return transpilers;
 };
+var loadTsConfigAliases = () => {
+  const loaded = (loadTsConfig.default || loadTsConfig).call();
+  if (!loaded) {
+    return;
+  }
+  const cwd = process.cwd();
+  const paths = loaded.tsConfig?.compilerOptions?.paths || {};
+  const aliases = {};
+  for (const key in paths) {
+    const alias2 = paths[key]?.[0];
+    const find = key.replace(/\/\*$/, "");
+    const replacement = alias2.replace(/\/\*$/, "");
+    aliases[find] = resolve(join(cwd, replacement));
+  }
+  return aliases;
+};
 var rollup = async (input, options = {}) => {
   const {
     minimize = false,
@@ -222,7 +239,8 @@ var rollup = async (input, options = {}) => {
     },
     // exports = 'default',
     external,
-    onwarn
+    onwarn,
+    aliases
   } = options;
   const bundle2 = await bundler({
     input,
@@ -231,7 +249,8 @@ var rollup = async (input, options = {}) => {
     plugins: plugins({
       minimize,
       sourceMap,
-      transpilers: await shouldIncludeTypescript(transpilers)
+      transpilers: await shouldIncludeTypescript(transpilers),
+      aliases: aliases || loadTsConfigAliases()
     }),
     treeshake: {
       moduleSideEffects
@@ -332,7 +351,7 @@ var spawn = async (input, options = {}) => {
 };
 var exec = async (input, options = {}) => {
   const node = await spawn(input, options);
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     const outs = [];
     const errs = [];
     node.stderr.on("data", (data) => {
@@ -348,7 +367,7 @@ var exec = async (input, options = {}) => {
         return reject(new RuntimeError(error));
       }
       const result = Buffer.concat(outs).toString("utf8").replace(/\n$/, "");
-      resolve(result);
+      resolve2(result);
     });
   });
 };
@@ -357,6 +376,7 @@ export {
   RuntimeError,
   extensions,
   plugins,
+  loadTsConfigAliases,
   build,
   bundle,
   compile,

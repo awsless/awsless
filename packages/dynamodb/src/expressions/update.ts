@@ -94,7 +94,7 @@ class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain
 	}
 
 	/** Set a attribute to a different but already existing attribute */
-	setAttr(path:InferPath<T>) {
+	setAttr(...path:InferPath<T>) {
 		return this.u(
 			'set',
 			{ p:this.path },

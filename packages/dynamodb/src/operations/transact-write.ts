@@ -17,38 +17,38 @@ type Command = {
 	ExpressionAttributeValues?: Record<string, AttributeValue>
 }
 
-type ConditionCheck<T extends AnyTableDefinition> = {
+export type TransactConditionCheck<T extends AnyTableDefinition> = {
 	ConditionCheck: Command & {
 		Key: PrimaryKey<T>
 		ConditionExpression: string
 	}
 }
 
-type Put<T extends AnyTableDefinition> = {
+export type TransactPut<T extends AnyTableDefinition> = {
 	Put: Command & {
 		Item: T['schema']['INPUT']
 	}
 }
 
-type Update<T extends AnyTableDefinition> = {
+export type TransactUpdate<T extends AnyTableDefinition> = {
 	Update: Command & {
 		Key: PrimaryKey<T>
 		UpdateExpression: string
 	}
 }
 
-type Delete<T extends AnyTableDefinition> = {
+export type TransactDelete<T extends AnyTableDefinition> = {
 	Delete: Command & {
 		Key: PrimaryKey<T>
 	}
 }
 
+export type Transactable<T extends AnyTableDefinition> = TransactConditionCheck<T> | TransactPut<T> | TransactUpdate<T> | TransactDelete<T>
+
 type TransactWriteOptions = Options & {
 	idempotantKey?: string
 	items: Transactable<any>[]
 }
-
-type Transactable<T extends AnyTableDefinition> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>
 
 export const transactWrite = async (options:TransactWriteOptions): Promise<void> => {
 	const command = new TransactWriteItemsCommand({
@@ -69,7 +69,7 @@ export const transactConditionCheck = <T extends AnyTableDefinition>(
 	table: T,
 	key: PrimaryKey<T>,
 	options: ConditionCheckOptions<T>
-): ConditionCheck<T> => {
+): TransactConditionCheck<T> => {
 	const gen = new IDGenerator(table)
 	return {
 		ConditionCheck: {
@@ -89,7 +89,7 @@ export const transactPut = <T extends AnyTableDefinition>(
 	table: T,
 	item: T['schema']['INPUT'],
 	options: PutOptions<T> = {}
-): Put<T> => {
+): TransactPut<T> => {
 	const gen = new IDGenerator(table)
 	return {
 		Put: {
@@ -110,7 +110,7 @@ export const transactUpdate = <T extends AnyTableDefinition>(
 	table: T,
 	key: PrimaryKey<T>,
 	options: UpdateOptions<T>
-): Update<T> => {
+): TransactUpdate<T> => {
 	const gen = new IDGenerator(table)
 	return {
 		Update: {
@@ -131,7 +131,7 @@ export const transactDelete = <T extends AnyTableDefinition>(
 	table: T,
 	key: PrimaryKey<T>,
 	options: DeleteOptions<T> = {}
-): Delete<T> => {
+): TransactDelete<T> => {
 	const gen = new IDGenerator(table)
 	return {
 		Delete: {

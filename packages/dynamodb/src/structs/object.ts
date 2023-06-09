@@ -49,7 +49,7 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 		for(const [ key, type ] of Object.entries(schema)) {
 			const value = unmarshalled[key]
 
-			if(typeof value === 'undefined') {
+			if(type.filterIn(value)) {
 				continue
 			}
 
@@ -64,7 +64,7 @@ export const object = <S extends Schema>(schema:S) => new Struct<
 		for(const [ key, type ] of Object.entries(schema)) {
 			const value = marshalled[key]
 
-			if(typeof value === 'undefined') {
+			if(type.filterOut(value)) {
 				continue
 			}
 

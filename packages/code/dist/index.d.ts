@@ -1,5 +1,6 @@
 import * as rollup from 'rollup';
 import { RollupLog } from 'rollup';
+import { Alias } from '@rollup/plugin-alias';
 import * as child_process from 'child_process';
 
 declare class RuntimeError extends Error {
@@ -15,6 +16,7 @@ interface RollupOptions {
     moduleSideEffects?: boolean | string[] | 'no-external' | ((id: string, external: boolean) => boolean);
     exports?: 'auto' | 'default' | 'named' | 'none';
     onwarn?: (warning: RollupLog) => void;
+    aliases?: Record<string, string> | Alias[];
     transpilers?: {
         typescript?: boolean;
         coffeescript?: boolean;

@@ -2,7 +2,7 @@ import { RedisServer } from '@awsless/redis-server'
 import { requestPort } from '@heat/request-port'
 import { overrideOptions } from './client'
 
-export const mockRedis = async () => {
+export const mockRedis = () => {
 
 	const server = new RedisServer()
 	let releasePort: () => Promise<void>

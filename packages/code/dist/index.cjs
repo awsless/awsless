@@ -56,6 +56,7 @@ var import_path6 = require("path");
 var import_rollup = require("rollup");
 var import_plugin_node_resolve = __toESM(require("@rollup/plugin-node-resolve"), 1);
 var import_plugin_typescript = __toESM(require("@rollup/plugin-typescript"), 1);
+var import_plugin_alias = __toESM(require("@rollup/plugin-alias"), 1);
 var import_plugin_commonjs = __toESM(require("@rollup/plugin-commonjs"), 1);
 var import_plugin_terser = __toESM(require("@rollup/plugin-terser"), 1);
 var import_plugin_babel = __toESM(require("@rollup/plugin-babel"), 1);
@@ -151,10 +152,6 @@ var raw_default = (options = {}) => {
   };
 };
 
-// src/rollup/index.ts
-var import_promises = require("fs/promises");
-var import_path5 = require("path");
-
 // src/rollup/stylus.ts
 var import_rollup_pluginutils4 = require("rollup-pluginutils");
 var import_path4 = require("path");
@@ -183,6 +180,9 @@ var stylus_default = (options = {}) => {
 };
 
 // src/rollup/index.ts
+var import_tsconfig_loader = __toESM(require("tsconfig-loader"), 1);
+var import_promises = require("fs/promises");
+var import_path5 = require("path");
 var extensions = [
   "json",
   "js",
@@ -194,12 +194,13 @@ var extensions = [
   "md",
   "html"
 ];
-var plugins = ({ minimize = false, sourceMap = true, transpilers } = {}) => {
+var plugins = ({ minimize = false, sourceMap = true, transpilers, aliases } = {}) => {
   const transpilersOptions = Object.assign({
     ts: true,
     coffee: true
   }, transpilers);
   return [
+    (0, import_plugin_alias.default)({ entries: aliases }),
     (0, import_plugin_commonjs.default)({ sourceMap }),
     (0, import_plugin_babel.default)({
       sourceMaps: sourceMap,
@@ -253,6 +254,22 @@ var shouldIncludeTypescript = async (transpilers) => {
   }
   return transpilers;
 };
+var loadTsConfigAliases = () => {
+  const loaded = (import_tsconfig_loader.default.default || import_tsconfig_loader.default).call();
+  if (!loaded) {
+    return;
+  }
+  const cwd = process.cwd();
+  const paths = loaded.tsConfig?.compilerOptions?.paths || {};
+  const aliases = {};
+  for (const key in paths) {
+    const alias2 = paths[key]?.[0];
+    const find = key.replace(/\/\*$/, "");
+    const replacement = alias2.replace(/\/\*$/, "");
+    aliases[find] = (0, import_path5.resolve)((0, import_path5.join)(cwd, replacement));
+  }
+  return aliases;
+};
 var rollup = async (input, options = {}) => {
   const {
     minimize = false,
@@ -265,7 +282,8 @@ var rollup = async (input, options = {}) => {
     },
     // exports = 'default',
     external,
-    onwarn
+    onwarn,
+    aliases
   } = options;
   const bundle2 = await (0, import_rollup.rollup)({
     input,
@@ -274,7 +292,8 @@ var rollup = async (input, options = {}) => {
     plugins: plugins({
       minimize,
       sourceMap,
-      transpilers: await shouldIncludeTypescript(transpilers)
+      transpilers: await shouldIncludeTypescript(transpilers),
+      aliases: aliases || loadTsConfigAliases()
     }),
     treeshake: {
       moduleSideEffects
@@ -375,7 +394,7 @@ var spawn = async (input, options = {}) => {
 };
 var exec = async (input, options = {}) => {
   const node = await spawn(input, options);
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     const outs = [];
     const errs = [];
     node.stderr.on("data", (data) => {
@@ -391,7 +410,7 @@ var exec = async (input, options = {}) => {
         return reject(new RuntimeError(error));
       }
       const result = Buffer.concat(outs).toString("utf8").replace(/\n$/, "");
-      resolve(result);
+      resolve2(result);
     });
   });
 };

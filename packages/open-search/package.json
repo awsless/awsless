@@ -1,0 +1,43 @@
+{
+	"name": "@awsless/open-search",
+	"version": "0.0.2",
+	"license": "MIT",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"files": [
+		"dist"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {
+		"test": "pnpm code test",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@aws-sdk/credential-providers": "^3.345.0",
+		"@awsless/big-float": "workspace:^",
+		"@heat/request-port": "^0.0.1",
+		"@opensearch-project/opensearch": "^1.2.0",
+		"@types/decompress": "^4.2.4",
+		"@types/find-cache-dir": "^3.2.1",
+		"aws-opensearch-connector": "^1.1.0",
+		"decompress": "^4.2.1",
+		"find-cache-dir": "^4.0.0",
+		"sleep-await": "^1.0.2"
+	}
+}

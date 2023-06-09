@@ -42,6 +42,18 @@ export class Struct<
 		readonly optional: Optional = false as Optional
 	) {}
 
+	filterIn(value:Input | undefined) {
+		// if(!this.optional){
+		// 	return false
+		// }
+
+		return typeof value === 'undefined'
+	}
+
+	filterOut(value:Input | undefined) {
+		return typeof value === 'undefined'
+	}
+
 	marshall(value:Input): Record<Type, Marshalled> {
 		return {
 			[ this.type ]: this._marshall(value)

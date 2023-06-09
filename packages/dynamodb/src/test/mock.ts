@@ -7,28 +7,19 @@ import { requestPort } from '@heat/request-port'
 import { seed } from './seed'
 import { migrate } from './migrate'
 import { AnyTableDefinition, InferInput } from '../table'
-
-// type GetType<T extends CreateTableCommandInput[]> = T extends (infer U)[] ? U : never;
-
-// type SeedTable<T extends AnyTableDefinition> = {
-// 	table: T extends (first: infer K) =>  any ? K : any ;
-// 	items: InferInput<E>[]
-// }
-
-// type SeedTable<T extends AnyTableDefinition> = Record<T['name'], InferInput<T>[]>
-// type Names<T extends AnyTableDefinition[]> = { [ K in keyof T ]: T[K]['name'] }[number]
-
-// type Single<T extends AnyTableDefinition[]> =
+import { Stream, pipeStream } from './stream'
 
 type SeedTable<T extends AnyTableDefinition> = { table: T, items:InferInput<T>[] }
+type Tables = CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[]
 
-export type StartDynamoDBOptions = {
-	tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[],
+export type StartDynamoDBOptions<T extends Tables> = {
+	tables: T
+	stream?: Stream<AnyTableDefinition>[]
 	timeout?: number
 	seed?: SeedTable<AnyTableDefinition>[]
 }
 
-export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServer) => {
+export const mockDynamoDB = <T extends Tables>(configOrServer:StartDynamoDBOptions<T> | DynamoDBServer) => {
 
 	let server:DynamoDBServer;
 
@@ -60,24 +51,36 @@ export const mockDynamoDB = (configOrServer:StartDynamoDBOptions | DynamoDBServe
 	const client = server.getClient()
 	const documentClient = server.getDocumentClient()
 
-	const clientSend = (command:any) => {
-		// @ts-ignore
-		if(client.__proto__.send.wrappedMethod) {
-			// @ts-ignore
-			return client.__proto__.send.wrappedMethod.call(client, command)
+	const processStream = (command:any, send:<T>() => T) => {
+		if(!(configOrServer instanceof DynamoDBServer) && configOrServer.stream) {
+			return pipeStream(configOrServer.stream, command, send)
 		}
 
-		return client.send(command)
+		return send()
+	}
+
+	const clientSend = (command:any) => {
+		return processStream(command, () => {
+			// @ts-ignore
+			if(client.__proto__.send.wrappedMethod) {
+				// @ts-ignore
+				return client.__proto__.send.wrappedMethod.call(client, command)
+			}
+
+			return client.send(command)
+		})
 	}
 
 	const documentClientSend = (command:any) => {
-		// @ts-ignore
-		if(documentClient.__proto__.send.wrappedMethod) {
+		return processStream(command, () => {
 			// @ts-ignore
-			return documentClient.__proto__.send.wrappedMethod.call(documentClient, command)
-		}
+			if(documentClient.__proto__.send.wrappedMethod) {
+				// @ts-ignore
+				return documentClient.__proto__.send.wrappedMethod.call(documentClient, command)
+			}
 
-		return documentClient.send(command)
+			return documentClient.send(command)
+		})
 	}
 
 	mockClient(DynamoDBClient)

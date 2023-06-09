@@ -1,8 +1,9 @@
 import {
   build,
+  loadTsConfigAliases,
   plugins,
   spawn
-} from "./chunk-NYOD66N3.js";
+} from "./chunk-IU4XVLKS.js";
 
 // src/bin.ts
 import { Command } from "commander";
@@ -31,7 +32,11 @@ var test = async (filters = []) => {
     plugins: plugins({
       minimize: false,
       sourceMap: true
+      // aliases: loadTsConfigAliases()
     }),
+    resolve: {
+      alias: loadTsConfigAliases()
+    },
     test: {
       include: ["./test/**/*.{js,jsx,coffee,ts}"],
       exclude: ["./test/**/_*", ...configDefaults.exclude],

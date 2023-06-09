@@ -38,6 +38,7 @@ describe('Types', () => {
 			})),
 			any: any(),
 			sets: object({
+				empty: stringSet(),
 				string: stringSet(),
 				number: numberSet(),
 				bigint: bigintSet(),
@@ -77,6 +78,7 @@ describe('Types', () => {
 			}
 		},
 		sets: {
+			empty: new Set<string>(),
 			string: new Set(['1']),
 			number: new Set([1]),
 			bigint: new Set([1n]),
@@ -107,6 +109,7 @@ describe('Types', () => {
 		expectTypeOf(result!.record).toEqualTypeOf<Record<string, { key: string }>>()
 		expectTypeOf(result!.any).toBeAny()
 		expectTypeOf(result!.sets).toBeObject()
+		expectTypeOf(result!.sets.empty).toEqualTypeOf<Set<string>>()
 		expectTypeOf(result!.sets.string).toEqualTypeOf<Set<string>>()
 		expectTypeOf(result!.sets.number).toEqualTypeOf<Set<number>>()
 		expectTypeOf(result!.sets.bigint).toEqualTypeOf<Set<bigint>>()
@@ -150,6 +153,7 @@ describe('Types', () => {
 						.update('record', 'key1').set({ key: '2' })
 						.update('record', 'key2').set({ key: '2' })
 						.update('any').set({ M: { id: { S: '2' } } })
+						.update('sets', 'empty').append(new Set(['foo']))
 						.update('sets', 'string').set(new Set(['2']))
 						.update('sets', 'number').set(new Set([2]))
 						.update('sets', 'bigint').set(new Set([2n]))
@@ -179,6 +183,7 @@ describe('Types', () => {
 				M: { id: { S: '2' } },
 			},
 			sets: {
+				empty: new Set(['foo']),
 				string: new Set(['2']),
 				number: new Set([2]),
 				bigint: new Set([2n]),

@@ -1,8 +1,7 @@
 
 import { ProjectionExpression, ProjectionResponse } from '../expressions/projection.js'
-import { fromCursor, toCursor } from '../helper/cursor.js'
+import { fromCursorString, toCursorString } from '../helper/cursor.js'
 import { AnyTableDefinition, IndexNames } from '../table.js'
-import { CursorKey } from '../types/key.js'
 import { Options } from '../types/options.js'
 import { scan } from './scan.js'
 
@@ -37,7 +36,7 @@ export const paginateScan = async <
 ): Promise<PaginateScanResponse<T, P>> => {
 	const result = await scan(table, {
 		...options,
-		cursor: options.cursor ? table.unmarshall(fromCursor<CursorKey<T, I>>(options.cursor)) : undefined
+		cursor: fromCursorString<T, I>(table, options.cursor),
 	})
 
 	// FIX the problem where DynamoDB will return a cursor
@@ -57,6 +56,6 @@ export const paginateScan = async <
 
 	return {
 		...result,
-		cursor: result.cursor && toCursor(table.marshall(result.cursor))
+		cursor: toCursorString<T, I>(table, result.cursor),
 	}
 }

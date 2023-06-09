@@ -1,8 +1,10 @@
-import { AttributeValue as AttributeValue$1, CreateTableCommandInput, DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { AttributeValue as AttributeValue$1, DynamoDBClient, CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
 export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
-import { Numeric, BigFloat } from '@awsless/big-float';
+import { BigFloat, Numeric } from '@awsless/big-float';
 import { NativeAttributeBinary, NativeAttributeValue, NativeScalarAttributeValue } from '@aws-sdk/util-dynamodb';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
+import * as superstruct_dist_utils from 'superstruct/dist/utils';
+import { Struct as Struct$1 } from '@awsless/validate';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
@@ -20,6 +22,8 @@ declare class Struct<Marshalled, Input, Output, Paths extends Array<string | num
     readonly PATHS: Paths;
     readonly OPT_PATHS: OptionalPaths;
     constructor(type: Type, _marshall: (value: Input) => Marshalled, _unmarshall: (value: Marshalled) => Output, walk?: undefined | ((...path: Array<string | number>) => AnyStruct | undefined), optional?: Optional);
+    filterIn(value: Input | undefined): boolean;
+    filterOut(value: Input | undefined): boolean;
     marshall(value: Input): Record<Type, Marshalled>;
     unmarshall(value: Record<Type, Marshalled>): Output;
 }
@@ -60,104 +64,6 @@ type HashKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined =
 type SortKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key<T, T['sort']> : {});
 type PrimaryKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
 type CursorKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> & (I extends IndexNames<T> ? PrimaryKey<T, I> : {});
-
-declare const optional: <M, I, O, P extends (string | number)[] = [], OP extends (string | number)[] = [], T extends "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown" = "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown">(struct: Struct<M, I, O, P, OP, T, false>) => Struct<M, I, O, P, OP, T, true>;
-
-declare class Any {
-    readonly MARSHALLED: any;
-    readonly INPUT: any;
-    readonly OUTPUT: any;
-    readonly PATHS: [];
-    readonly OPT_PATHS: [];
-    marshall(value: any): any;
-    unmarshall(value: any): any;
-    _marshall(value: any): any;
-    _unmarshall(value: any): any;
-    type: any;
-    optional: boolean;
-    walk: undefined;
-}
-declare const any: () => Any;
-
-declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const string: () => Struct<string, string, string, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const boolean: () => Struct<boolean, boolean, boolean, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const number: () => Struct<string, number, number, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const bigint: () => Struct<string, bigint, bigint, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const binary: () => Struct<NativeAttributeBinary, NativeAttributeBinary, Uint8Array, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-type Schema = Record<string | symbol, AnyStruct>;
-type KeyOf<S> = Extract<keyof S, string>;
-type FilterOptional<S extends Schema> = {
-    [K in KeyOf<S> as S[K]['optional'] extends true ? K : never]?: S[K];
-};
-type FilterRequired<S extends Schema> = {
-    [K in KeyOf<S> as S[K]['optional'] extends true ? never : K]: S[K];
-};
-type Optinalize<S extends Schema> = FilterOptional<S> & FilterRequired<S>;
-type InferInput<S extends Schema> = {
-    [K in keyof Optinalize<S>]: S[K]['INPUT'];
-};
-type InferOutput<S extends Schema> = {
-    [K in keyof Optinalize<S>]: S[K]['OUTPUT'];
-};
-type InferMarshalled<S extends Schema> = {
-    [K in keyof Optinalize<S>]: S[K]['MARSHALLED'];
-};
-type InferPaths<S extends Schema> = {
-    [K in KeyOf<S>]: [K] | [K, ...S[K]['PATHS']];
-}[KeyOf<S>];
-type InferOptPaths<S extends Schema> = {
-    [K in KeyOf<S>]: S[K]['optional'] extends true ? [K] | [K, ...S[K]['OPT_PATHS']] : [];
-}[KeyOf<S>];
-declare const object: <S extends Schema>(schema: S) => Struct<InferMarshalled<S>, InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-type RecordPaths<S extends AnyStruct> = [string] | [string, ...S['PATHS']];
-type RecordOptPaths<S extends AnyStruct> = [string] | [string, ...S['OPT_PATHS']];
-declare const record: <S extends AnyStruct>(struct: S) => Struct<Record<string, S["MARSHALLED"]>, Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-type ArrayPaths<L extends AnyStruct> = [number] | [number, ...L['PATHS']];
-type ArrayOptPaths<L extends AnyStruct> = [number] | [number, ...L['OPT_PATHS']];
-declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const date: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const enums: <T extends string>() => Struct<string, T, T, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const ttl: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const unknown: () => Struct<string, unknown, unknown, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const stringSet: () => Struct<string[], Set<string>, Set<string>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const numberSet: () => Struct<string[], Set<number>, Set<number>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const bigintSet: () => Struct<string[], Set<bigint>, Set<bigint>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-declare const binarySet: () => Struct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
-type SeedTable<T extends AnyTableDefinition> = {
-    table: T;
-    items: InferInput$1<T>[];
-};
-type StartDynamoDBOptions = {
-    tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[];
-    timeout?: number;
-    seed?: SeedTable<AnyTableDefinition>[];
-};
-declare const mockDynamoDB: (configOrServer: StartDynamoDBOptions | DynamoDBServer) => DynamoDBServer;
-
-declare const seedTable: <T extends AnyTableDefinition>(table: T, items: InferInput$1<T>[]) => {
-    table: T;
-    items: InferInput$1<T>[];
-};
 
 type AttributeValue = NativeAttributeBinary | NativeAttributeValue | NativeScalarAttributeValue;
 
@@ -226,6 +132,45 @@ declare class Combine$1<T extends AnyTableDefinition> extends QueryBulder<T> {
     get or(): Condition<T>;
 }
 
+declare const key: unique symbol;
+type ChainData<T extends AnyTableDefinition> = {
+    readonly set: QueryItem<T>[][];
+    readonly add: QueryItem<T>[][];
+    readonly rem: QueryItem<T>[][];
+    readonly del: QueryItem<T>[][];
+};
+declare class Chain<T extends AnyTableDefinition> {
+    [key]: ChainData<T>;
+    constructor(data: ChainData<T>);
+}
+declare class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
+    /** Update a given property */
+    update<P extends InferPath<T>>(...path: P): Update<T, P>;
+    extend<R extends UpdateExpression<T> | void>(fn: (exp: UpdateExpression<T>) => R): R;
+}
+declare class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
+    private path;
+    constructor(query: ChainData<T>, path: P);
+    private u;
+    private i;
+    /** Set a value */
+    set(value: InferValue$1<T, P>): UpdateExpression<T>;
+    /** Set a value if the attribute doesn't already exists */
+    setIfNotExists(value: InferValue$1<T, P>): UpdateExpression<T>;
+    /** Set a attribute to a different but already existing attribute */
+    setAttr(...path: InferPath<T>): UpdateExpression<T>;
+    /** Delete a property */
+    del(): UpdateExpression<T>;
+    /** Increment a numeric value */
+    incr(value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat): UpdateExpression<T>;
+    /** Decrement a numeric value */
+    decr(value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat): UpdateExpression<T>;
+    /** Append values to a Set */
+    append(values: InferValue$1<T, P>): UpdateExpression<T>;
+    /** Remove values from a Set */
+    remove(values: InferValue$1<T, P>): UpdateExpression<T>;
+}
+
 type ReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW';
 type LimitedReturnValues = 'NONE' | 'ALL_OLD';
 type ReturnResponse<T extends AnyTableDefinition, R extends ReturnValues | LimitedReturnValues = 'NONE'> = (R extends 'NONE' ? void : R extends 'ALL_NEW' | 'ALL_OLD' ? T['schema']['OUTPUT'] | undefined : Partial<T['schema']['OUTPUT']> | undefined);
@@ -238,6 +183,237 @@ interface MutateOptions<T extends AnyTableDefinition, R extends ReturnValues = '
     condition?: (exp: Condition<T>) => Combine$1<T>;
     return?: R;
 }
+
+type Command = {
+    TableName: string;
+    ConditionExpression?: string;
+    ExpressionAttributeNames?: Record<string, string>;
+    ExpressionAttributeValues?: Record<string, AttributeValue>;
+};
+type TransactConditionCheck<T extends AnyTableDefinition> = {
+    ConditionCheck: Command & {
+        Key: PrimaryKey<T>;
+        ConditionExpression: string;
+    };
+};
+type TransactPut<T extends AnyTableDefinition> = {
+    Put: Command & {
+        Item: T['schema']['INPUT'];
+    };
+};
+type TransactUpdate<T extends AnyTableDefinition> = {
+    Update: Command & {
+        Key: PrimaryKey<T>;
+        UpdateExpression: string;
+    };
+};
+type TransactDelete<T extends AnyTableDefinition> = {
+    Delete: Command & {
+        Key: PrimaryKey<T>;
+    };
+};
+type Transactable<T extends AnyTableDefinition> = TransactConditionCheck<T> | TransactPut<T> | TransactUpdate<T> | TransactDelete<T>;
+type TransactWriteOptions = Options & {
+    idempotantKey?: string;
+    items: Transactable<any>[];
+};
+declare const transactWrite: (options: TransactWriteOptions) => Promise<void>;
+type ConditionCheckOptions<T extends AnyTableDefinition> = {
+    condition: (exp: Condition<T>) => Combine$1<T>;
+};
+declare const transactConditionCheck: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options: ConditionCheckOptions<T>) => TransactConditionCheck<T>;
+type PutOptions<T extends AnyTableDefinition> = {
+    condition?: (exp: Condition<T>) => Combine$1<T>;
+};
+declare const transactPut: <T extends AnyTableDefinition>(table: T, item: T["schema"]["INPUT"], options?: PutOptions<T>) => TransactPut<T>;
+type UpdateOptions$1<T extends AnyTableDefinition> = {
+    update: (exp: UpdateExpression<T>) => UpdateExpression<T>;
+    condition?: (exp: Condition<T>) => Combine$1<T>;
+};
+declare const transactUpdate: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options: UpdateOptions$1<T>) => TransactUpdate<T>;
+type DeleteOptions<T extends AnyTableDefinition> = {
+    condition?: (exp: Condition<T>) => Combine$1<T>;
+};
+declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => TransactDelete<T>;
+
+declare const optional: <M, I, O, P extends (string | number)[] = [], OP extends (string | number)[] = [], T extends "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown" = "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown">(struct: Struct<M, I, O, P, OP, T, false>) => Struct<M, I, O, P, OP, T, true>;
+
+declare class Any {
+    readonly MARSHALLED: any;
+    readonly INPUT: any;
+    readonly OUTPUT: any;
+    readonly PATHS: [];
+    readonly OPT_PATHS: [];
+    filterIn(value: any): boolean;
+    filterOut(value: any): boolean;
+    marshall(value: any): any;
+    unmarshall(value: any): any;
+    _marshall(value: any): any;
+    _unmarshall(value: any): any;
+    type: any;
+    optional: boolean;
+    walk: undefined;
+}
+declare const any: () => Any;
+
+declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const string: () => Struct<string, string, string, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const boolean: () => Struct<boolean, boolean, boolean, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const number: () => Struct<string, number, number, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const bigint: () => Struct<string, bigint, bigint, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const binary: () => Struct<NativeAttributeBinary, NativeAttributeBinary, Uint8Array, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+type Schema = Record<string | symbol, AnyStruct>;
+type KeyOf<S> = Extract<keyof S, string>;
+type FilterOptional<S extends Schema> = {
+    [K in KeyOf<S> as S[K]['optional'] extends true ? K : never]?: S[K];
+};
+type FilterRequired<S extends Schema> = {
+    [K in KeyOf<S> as S[K]['optional'] extends true ? never : K]: S[K];
+};
+type Optinalize<S extends Schema> = FilterOptional<S> & FilterRequired<S>;
+type InferInput<S extends Schema> = {
+    [K in keyof Optinalize<S>]: S[K]['INPUT'];
+};
+type InferOutput<S extends Schema> = {
+    [K in keyof Optinalize<S>]: S[K]['OUTPUT'];
+};
+type InferMarshalled<S extends Schema> = {
+    [K in keyof Optinalize<S>]: S[K]['MARSHALLED'];
+};
+type InferPaths<S extends Schema> = {
+    [K in KeyOf<S>]: [K] | [K, ...S[K]['PATHS']];
+}[KeyOf<S>];
+type InferOptPaths<S extends Schema> = {
+    [K in KeyOf<S>]: S[K]['optional'] extends true ? [K] | [K, ...S[K]['OPT_PATHS']] : [];
+}[KeyOf<S>];
+declare const object: <S extends Schema>(schema: S) => Struct<InferMarshalled<S>, InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+type RecordPaths<S extends AnyStruct> = [string] | [string, ...S['PATHS']];
+type RecordOptPaths<S extends AnyStruct> = [string] | [string, ...S['OPT_PATHS']];
+declare const record: <S extends AnyStruct>(struct: S) => Struct<Record<string, S["MARSHALLED"]>, Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+type ArrayPaths<L extends AnyStruct> = [number] | [number, ...L['PATHS']];
+type ArrayOptPaths<L extends AnyStruct> = [number] | [number, ...L['OPT_PATHS']];
+declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][], S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const date: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const enums: <T extends string>() => Struct<string, T, T, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const ttl: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const unknown: () => Struct<string, unknown, unknown, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare class SetStruct<Marshalled, Input extends Set<any>, Output extends Set<any>, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Type extends AttributeTypes = AttributeTypes, Optional extends boolean = false> {
+    readonly type: Type;
+    readonly _marshall: (value: Input) => Marshalled;
+    readonly _unmarshall: (value: Marshalled) => Output;
+    readonly walk: undefined | ((...path: Array<string | number>) => AnyStruct | undefined);
+    readonly optional: Optional;
+    readonly MARSHALLED: Marshalled;
+    readonly INPUT: Input;
+    readonly OUTPUT: Output;
+    readonly PATHS: Paths;
+    readonly OPT_PATHS: OptionalPaths;
+    constructor(type: Type, _marshall: (value: Input) => Marshalled, _unmarshall: (value: Marshalled) => Output, walk?: undefined | ((...path: Array<string | number>) => AnyStruct | undefined), optional?: Optional);
+    filterIn(value: Input | undefined): boolean;
+    filterOut(): boolean;
+    marshall(value: Input): Record<Type, Marshalled>;
+    unmarshall(value: Record<Type, Marshalled> | undefined): Output;
+}
+
+declare const stringSet: () => SetStruct<string[], Set<string>, Set<string>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const numberSet: () => SetStruct<string[], Set<number>, Set<number>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const bigintSet: () => SetStruct<string[], Set<bigint>, Set<bigint>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+declare const binarySet: () => SetStruct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+type StreamData<T extends AnyTableDefinition> = {
+    Keys: PrimaryKey<T>;
+    OldImage?: InferOutput$1<T>;
+    NewImage?: InferOutput$1<T>;
+};
+type StreamRequest<T extends AnyTableDefinition> = {
+    Records: {
+        eventName: 'MODIFY' | 'INSERT' | 'REMOVE';
+        dynamodb: StreamData<T>;
+    }[];
+};
+type Stream<T extends AnyTableDefinition> = {
+    table: T;
+    fn: (payload: StreamRequest<T>) => void;
+};
+declare const streamTable: <T extends AnyTableDefinition>(table: T, fn: (payload: StreamRequest<T>) => void) => Stream<AnyTableDefinition>;
+
+type SeedTable<T extends AnyTableDefinition> = {
+    table: T;
+    items: InferInput$1<T>[];
+};
+type Tables = CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[];
+type StartDynamoDBOptions<T extends Tables> = {
+    tables: T;
+    stream?: Stream<AnyTableDefinition>[];
+    timeout?: number;
+    seed?: SeedTable<AnyTableDefinition>[];
+};
+declare const mockDynamoDB: <T extends Tables>(configOrServer: StartDynamoDBOptions<T> | DynamoDBServer) => DynamoDBServer;
+
+declare const seedTable: <T extends AnyTableDefinition>(table: T, items: InferInput$1<T>[]) => {
+    table: T;
+    items: InferInput$1<T>[];
+};
+
+declare const streamStruct: <T extends AnyTableDefinition>(table: T) => Struct$1<{
+    Records: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+        eventName: "REMOVE" | "MODIFY" | "INSERT";
+        dynamodb: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+            Keys: PrimaryKey<T, undefined>;
+            OldImage: T["schema"]["OUTPUT"] | undefined;
+            NewImage: T["schema"]["OUTPUT"] | undefined;
+        }>>;
+    }>>[];
+}, {
+    Records: Struct$1<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+        eventName: "REMOVE" | "MODIFY" | "INSERT";
+        dynamodb: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+            Keys: PrimaryKey<T, undefined>;
+            OldImage: T["schema"]["OUTPUT"] | undefined;
+            NewImage: T["schema"]["OUTPUT"] | undefined;
+        }>>;
+    }>>[], Struct$1<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+        eventName: "REMOVE" | "MODIFY" | "INSERT";
+        dynamodb: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+            Keys: PrimaryKey<T, undefined>;
+            OldImage: T["schema"]["OUTPUT"] | undefined;
+            NewImage: T["schema"]["OUTPUT"] | undefined;
+        }>>;
+    }>>, {
+        eventName: Struct$1<"REMOVE" | "MODIFY" | "INSERT", {
+            REMOVE: "REMOVE";
+            MODIFY: "MODIFY";
+            INSERT: "INSERT";
+        }>;
+        dynamodb: Struct$1<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
+            Keys: PrimaryKey<T, undefined>;
+            OldImage: T["schema"]["OUTPUT"] | undefined;
+            NewImage: T["schema"]["OUTPUT"] | undefined;
+        }>>, {
+            Keys: Struct$1<PrimaryKey<T, undefined>, unknown>;
+            OldImage: Struct$1<T["schema"]["OUTPUT"] | undefined, unknown>;
+            NewImage: Struct$1<T["schema"]["OUTPUT"] | undefined, unknown>;
+        }>;
+    }>>;
+}>;
 
 declare const dynamoDBClient: {
     (): DynamoDBClient;
@@ -275,47 +451,10 @@ declare const getItem: <T extends AnyTableDefinition, P extends ProjectionExpres
 
 declare const putItem: <T extends AnyTableDefinition, R extends LimitedReturnValues = "NONE">(table: T, item: T["schema"]["INPUT"], options?: MutateOptions<T, R>) => Promise<ReturnResponse<T, R>>;
 
-declare const key: unique symbol;
-type ChainData<T extends AnyTableDefinition> = {
-    readonly set: QueryItem<T>[][];
-    readonly add: QueryItem<T>[][];
-    readonly rem: QueryItem<T>[][];
-    readonly del: QueryItem<T>[][];
-};
-declare class Chain<T extends AnyTableDefinition> {
-    [key]: ChainData<T>;
-    constructor(data: ChainData<T>);
-}
-declare class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
-    /** Update a given property */
-    update<P extends InferPath<T>>(...path: P): Update$1<T, P>;
-    extend<R extends UpdateExpression<T> | void>(fn: (exp: UpdateExpression<T>) => R): R;
-}
-declare class Update$1<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
-    private path;
-    constructor(query: ChainData<T>, path: P);
-    private u;
-    private i;
-    /** Set a value */
-    set(value: InferValue$1<T, P>): UpdateExpression<T>;
-    /** Set a value if the attribute doesn't already exists */
-    setIfNotExists(value: InferValue$1<T, P>): UpdateExpression<T>;
-    /** Delete a property */
-    del(): UpdateExpression<T>;
-    /** Increment a numeric value */
-    incr(value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat): UpdateExpression<T>;
-    /** Decrement a numeric value */
-    decr(value?: number | bigint | BigFloat, initialValue?: number | bigint | BigFloat): UpdateExpression<T>;
-    /** Append values to a Set */
-    append(values: InferValue$1<T, P>): UpdateExpression<T>;
-    /** Remove values from a Set */
-    remove(values: InferValue$1<T, P>): UpdateExpression<T>;
-}
-
-type UpdateOptions$1<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> = MutateOptions<T, R> & {
+type UpdateOptions<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> = MutateOptions<T, R> & {
     update: (exp: UpdateExpression<T>) => UpdateExpression<T>;
 };
-declare const updateItem: <T extends AnyTableDefinition, R extends ReturnValues = "NONE">(table: T, key: PrimaryKey<T, undefined>, options: UpdateOptions$1<T, R>) => Promise<ReturnResponse<T, R>>;
+declare const updateItem: <T extends AnyTableDefinition, R extends ReturnValues = "NONE">(table: T, key: PrimaryKey<T, undefined>, options: UpdateOptions<T, R>) => Promise<ReturnResponse<T, R>>;
 
 declare const deleteItem: <T extends AnyTableDefinition, R extends LimitedReturnValues = "NONE">(table: T, key: PrimaryKey<T, undefined>, options?: MutateOptions<T, R>) => Promise<ReturnResponse<T, R>>;
 
@@ -441,56 +580,4 @@ type PaginateScanResponse<T extends AnyTableDefinition, P extends ProjectionExpr
 };
 declare const paginateScan: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
-type Command = {
-    TableName: string;
-    ConditionExpression?: string;
-    ExpressionAttributeNames?: Record<string, string>;
-    ExpressionAttributeValues?: Record<string, AttributeValue>;
-};
-type ConditionCheck<T extends AnyTableDefinition> = {
-    ConditionCheck: Command & {
-        Key: PrimaryKey<T>;
-        ConditionExpression: string;
-    };
-};
-type Put<T extends AnyTableDefinition> = {
-    Put: Command & {
-        Item: T['schema']['INPUT'];
-    };
-};
-type Update<T extends AnyTableDefinition> = {
-    Update: Command & {
-        Key: PrimaryKey<T>;
-        UpdateExpression: string;
-    };
-};
-type Delete<T extends AnyTableDefinition> = {
-    Delete: Command & {
-        Key: PrimaryKey<T>;
-    };
-};
-type TransactWriteOptions = Options & {
-    idempotantKey?: string;
-    items: Transactable<any>[];
-};
-type Transactable<T extends AnyTableDefinition> = ConditionCheck<T> | Put<T> | Update<T> | Delete<T>;
-declare const transactWrite: (options: TransactWriteOptions) => Promise<void>;
-type ConditionCheckOptions<T extends AnyTableDefinition> = {
-    condition: (exp: Condition<T>) => Combine$1<T>;
-};
-declare const transactConditionCheck: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options: ConditionCheckOptions<T>) => ConditionCheck<T>;
-type PutOptions<T extends AnyTableDefinition> = {
-    condition?: (exp: Condition<T>) => Combine$1<T>;
-};
-declare const transactPut: <T extends AnyTableDefinition>(table: T, item: T["schema"]["INPUT"], options?: PutOptions<T>) => Put<T>;
-type UpdateOptions<T extends AnyTableDefinition> = {
-    update: (exp: UpdateExpression<T>) => UpdateExpression<T>;
-    condition?: (exp: Condition<T>) => Combine$1<T>;
-};
-declare const transactUpdate: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options: UpdateOptions<T>) => Update<T>;
-type DeleteOptions<T extends AnyTableDefinition> = {
-    condition?: (exp: Condition<T>) => Combine$1<T>;
-};
-declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T, undefined>, options?: DeleteOptions<T>) => Delete<T>;
-
-export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seedTable, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate, Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seedTable, streamStruct, streamTable, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
