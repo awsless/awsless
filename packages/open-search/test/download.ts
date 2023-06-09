@@ -41,10 +41,11 @@ describe('Download', () => {
 	// }, 50 * 1000)
 
 	it('fetch', async () => {
-		const response = await fetch(`https://${host}:${port}/_cat/indices`, {
+		const response = await fetch(`https://${host}:${port}`, {
 			method: 'GET',
 			headers: {
-				'content-type': 'application/json'
+				'content-type': 'application/json',
+				'authorization': 'Basic ' + btoa('admin:admin'),
 			}
 		})
 
