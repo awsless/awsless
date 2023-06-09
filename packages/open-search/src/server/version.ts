@@ -11,16 +11,21 @@ export const VERSION_7_7_1:VersionArgs = {
 	version: '7.7.1',
 	started: (line) => line.includes('started'),
 	settings: ({ port, host }) => ({
-		// 'node.name': `elasticsearch-${port}`,
+		'node.name': `elasticsearch-${port}`,
 		// 'node.roles': '[ master, data ]',
 
-		// 'node.data': true,
-		// 'node.master': true,
+		'node.data': true,
+		'node.master': true,
+		// 'gateway.recover_after_nodes': 1,
 
 		// 'cluster.name': `elasticsearch-cluster-${port}`,
 		// 'cluster.initial_master_nodes': `[ elasticsearch-${port} ]`,
 
-		// 'discovery.type': `single-node`,
+		'discovery.type': `single-node`,
+		// 'discovery.seed_hosts': `[ ${host}:${port} ]`,
+		'transport.port': port + 1,
+		// 'cluster.initial_master_nodes': `[ elasticsearch-${port} ]`,
+
 		// 'discovery.seed_hosts': `${host}:9300`,
 		// 'discovery.cluster_formation_warning_timeout': `1ms`,
 		// 'discovery.zen.minimum_master_nodes': 1,
@@ -33,31 +38,33 @@ export const VERSION_7_7_1:VersionArgs = {
 	})
 }
 
-export const VERSION_8_8_0:VersionArgs = {
-	version: '8.8.0',
+export const VERSION_8_8_1:VersionArgs = {
+	version: '2.6.0',
 	started: (line) => line.includes('license') && line.includes('mode [basic] - valid'),
 	settings: ({ port, host }) => ({
-		'node.name': `elasticsearch-${port}`,
-		'node.roles': '[ master, data ]',
+		// 'node.name': `elasticsearch-${port}`,
+		// 'node.roles': '[ master, data ]',
 
-		'cluster.name': `elasticsearch-cluster-${port}`,
+		// 'cluster.name': `elasticsearch-cluster-${port}`,
 		// 'cluster.initial_master_nodes': `[ elasticsearch-${port} ]`,
 
 		'discovery.type': `single-node`,
-		'discovery.cluster_formation_warning_timeout': `1ms`,
+		// 'discovery.cluster_formation_warning_timeout': `1ms`,
 
-		'network.host': host,
-		'http.port': port,
+		// 'network.host': host,
+		// 'http.port': port,
 
-		'path.data': `data/${port}/data`,
-		'path.logs': `data/${port}/logs`,
+		// 'path.data': `data/${port}/data`,
+		// 'path.logs': `data/${port}/logs`,
 
-		'xpack.security.enabled': false,
-		'xpack.security.authc.api_key.enabled': false,
-		'xpack.security.autoconfiguration.enabled': false,
-		'xpack.security.enrollment.enabled': false,
-		'xpack.security.http.ssl.enabled': false,
-		'xpack.security.authc.token.enabled': false,
-		'xpack.security.transport.ssl.enabled': false,
+		// 'plugins.security.disabled': true,
+
+		// 'xpack.security.enabled': false,
+		// 'xpack.security.authc.api_key.enabled': false,
+		// 'xpack.security.autoconfiguration.enabled': false,
+		// 'xpack.security.enrollment.enabled': false,
+		// 'xpack.security.http.ssl.enabled': false,
+		// 'xpack.security.authc.token.enabled': false,
+		// 'xpack.security.transport.ssl.enabled': false,
 	})
 }

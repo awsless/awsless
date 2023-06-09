@@ -31,13 +31,15 @@ type Options = {
 
 export const launch = ({ path, host, port, version, debug }:Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
-		const binary = join(path, 'bin/elasticsearch')
+		const binary = join(path, 'bin/opensearch')
 		const child = spawn(binary, parseSettings(version.settings({ host, port })))
 
 		const onError = (error:string) => fail(error)
-		const onStandardError = (error: Buffer) => fail(error.toString('utf8'))
+		const onStandardError = (error: Buffer) => console.log(error.toString('utf8'))
 		const onStandardOut = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
+
+			// console.log('LINE', line)
 
 			if(debug) {
 				console.log(line)
@@ -86,7 +88,7 @@ export const launch = ({ path, host, port, version, debug }:Options): Promise<()
 		}
 
 		const done = async () => {
-			off()
+			// off()
 			await cleanUp()
 			resolve(kill)
 		}
