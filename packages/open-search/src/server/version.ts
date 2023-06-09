@@ -40,7 +40,7 @@ export const VERSION_7_7_1:VersionArgs = {
 
 export const VERSION_8_8_1:VersionArgs = {
 	version: '2.6.0',
-	started: (line) => line.includes('license') && line.includes('mode [basic] - valid'),
+	started: (line) => line.includes('starting opensearch'),
 	settings: ({ port, host }) => ({
 		// 'node.name': `elasticsearch-${port}`,
 		// 'node.roles': '[ master, data ]',
@@ -51,13 +51,13 @@ export const VERSION_8_8_1:VersionArgs = {
 		'discovery.type': `single-node`,
 		// 'discovery.cluster_formation_warning_timeout': `1ms`,
 
-		// 'network.host': host,
-		// 'http.port': port,
+		'network.host': host,
+		'http.port': port,
 
-		// 'path.data': `data/${port}/data`,
-		// 'path.logs': `data/${port}/logs`,
+		'path.data': `data/${port}/data`,
+		'path.logs': `data/${port}/logs`,
 
-		// 'plugins.security.disabled': true,
+		'plugins.security.disabled': true,
 
 		// 'xpack.security.enabled': false,
 		// 'xpack.security.authc.api_key.enabled': false,

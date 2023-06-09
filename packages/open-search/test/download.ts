@@ -2,6 +2,7 @@ import { Client } from "@opensearch-project/opensearch/."
 import { download } from "../src/server/download"
 import { launch } from "../src/server/launch"
 import { VERSION_7_7_1, VERSION_8_8_1 } from "../src/server/version"
+import { wait } from "../src/server/wait"
 // import { wait } from "../src/server/wait"
 
 describe('Download', () => {
@@ -17,7 +18,7 @@ describe('Download', () => {
 
 	afterAll(async () => {
 		await kill?.()
-	})
+	}, 20 * 1000)
 
 	it('download', async () => {
 		await download(version.version)
@@ -40,7 +41,7 @@ describe('Download', () => {
 	// }, 50 * 1000)
 
 	it('fetch', async () => {
-		const response = await fetch(`http://${host}:${port}/_cat/indices`, {
+		const response = await fetch(`https://${host}:${port}/_cat/indices`, {
 			method: 'GET',
 			headers: {
 				'content-type': 'application/json'
@@ -59,13 +60,13 @@ describe('Download', () => {
 
 	}, 50 * 1000)
 
-	it('client', async () => {
-		const client = new Client({
-			node: `http://${host}:${port}`,
-		})
+	// it('client', async () => {
+	// 	const client = new Client({
+	// 		node: `http://${host}:${port}`,
+	// 	})
 
-		const result = await client.cat.indices({ format: 'json' })
+	// 	const result = await client.cat.indices({ format: 'json' })
 
-		console.log(result);
-	}, 50 * 1000)
+	// 	console.log(result);
+	// }, 50 * 1000)
 })

@@ -31,11 +31,12 @@ type Options = {
 
 export const launch = ({ path, host, port, version, debug }:Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
-		const binary = join(path, 'bin/opensearch')
+		const binary = join(path, 'opensearch-tar-install.sh')
+		console.log(binary)
 		const child = spawn(binary, parseSettings(version.settings({ host, port })))
 
 		const onError = (error:string) => fail(error)
-		const onStandardError = (error: Buffer) => console.error(error.toString('utf8'))
+		const onMessage = (error: Buffer) => console.error(error.toString('utf8'))
 		const onStandardOut = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
 
@@ -76,14 +77,14 @@ export const launch = ({ path, host, port, version, debug }:Options): Promise<()
 		}
 
 		const off = () => {
-			child.stderr.off('data', onStandardError)
-			child.stdout.off('data', onStandardOut)
+			child.stderr.off('data', onMessage)
+			child.stdout.off('data', onMessage)
 			child.off('error', onError)
 		}
 
 		const on = () => {
-			child.stderr.on('data', onStandardError)
-			child.stdout.on('data', onStandardOut)
+			child.stderr.on('data', onMessage)
+			child.stdout.on('data', onMessage)
 			child.on('error', onError)
 		}
 
