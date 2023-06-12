@@ -1,5 +1,5 @@
 
-import { abs, add, BigFloat, ceil, div, eq, factor, floor, gt, gte, lt, lte, mul, neg, Numeric, pow, sqrt, sub } from '../src/index'
+import { abs, add, BigFloat, BILLION, ceil, div, EIGHT, eq, factor, FIVE, floor, FOUR, gt, gte, HUNDRED, lt, lte, MILLION, mul, neg, NINE, Numeric, ONE, pow, SEVEN, SIX, sqrt, sub, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO } from '../src/index'
 
 describe('BigFloat', () => {
 
@@ -69,5 +69,31 @@ describe('BigFloat', () => {
 		test('0.5555555555', 0, 1)
 		test('0.5555555555', 2, 0.56)
 		test('0.5555555555', 8, '0.55555556')
+	})
+
+	describe('constants', () => {
+		const test = (value:BigFloat, expectation:Numeric) => {
+			it(`${value} = ${expectation}`, () => {
+				expect(eq(value, expectation)).toBe(true)
+			})
+		}
+
+		test(ZERO,	'0')
+		test(ONE,	'1')
+		test(TWO,	'2')
+		test(THREE,	'3')
+		test(FOUR,	'4')
+		test(FIVE,	'5')
+		test(SIX,	'6')
+		test(SEVEN,	'7')
+		test(EIGHT,	'8')
+		test(NINE,	'9')
+		test(TEN,	'10')
+
+		test(HUNDRED,	'100')
+		test(THOUSAND,	'1000')
+		test(MILLION,	'1000000')
+		test(BILLION,	'1000000000')
+		test(TRILLION,	'1000000000000')
 	})
 })

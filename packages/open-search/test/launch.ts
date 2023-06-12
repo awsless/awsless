@@ -1,33 +1,33 @@
-import { Client } from "@opensearch-project/opensearch/."
-import { download } from "../src/server/download"
+import { Client } from "@opensearch-project/opensearch"
 import { launch } from "../src/server/launch"
-import { VERSION_2_6_0, VERSION_2_8_0 } from "../src/server/version"
-import { wait } from "../src/server/wait"
-// import { wait } from "../src/server/wait"
+import { VERSION_2_8_0 } from "../src/server/version"
 
 describe('Download', () => {
 
 	let kill:() => void
 
-	const version = VERSION_2_6_0
+	// const version = '8.8.0'
+	// const version = '7.7.1'
+	// const version = VERSION_7_7_1
+	const version = VERSION_2_8_0
 	const port = 55700
 	const host = 'localhost'
 
 	afterAll(async () => {
 		await kill?.()
-	}, 20 * 1000)
+	}, 30 * 1000)
 
 	// it('download', async () => {
 	// 	await download(version.version)
 	// }, 50 * 1000)
 
 	it('launch', async () => {
-		const path = await download(version.version)
+		// const path = await download(version.version)
 		kill = await launch({
-			path,
+			// path,
 			port,
 			host,
-			debug: true,
+			// debug: true,
 			version,
 		})
 	}, 100 * 1000)
@@ -38,12 +38,14 @@ describe('Download', () => {
 	// }, 50 * 1000)
 
 	// it('fetch', async () => {
+	// 	// curl -X GET https://localhost:9200 -u 'admin:admin' --insecure
+
 	// 	const response = await fetch(`http://${host}:${port}/_cat/indices`, {
 	// 		method: 'GET',
-	// 		// headers: {
-	// 		// 	'content-type': 'application/json',
-	// 		// 	'authorization': 'Basic ' + btoa('admin:admin'),
-	// 		// }
+	// 		headers: {
+	// 			'content-type': 'application/json',
+	// 			// 'authorization': 'Basic ' + 'YWRtaW46YWRtaW4=',
+	// 		}
 	// 	})
 
 	// 	console.log(response.status);
@@ -66,5 +68,5 @@ describe('Download', () => {
 		const result = await client.cat.indices({ format: 'json' })
 
 		console.log(result);
-	}, 10 * 1000)
+	}, 50 * 1000)
 })

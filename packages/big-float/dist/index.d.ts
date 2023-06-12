@@ -28,4 +28,21 @@ declare const lte: (a: Numeric, b: Numeric) => boolean;
 declare const gt: (a: Numeric, b: Numeric) => boolean;
 declare const gte: (a: Numeric, b: Numeric) => boolean;
 
-export { BigFloat, Numeric, abs, add, ceil, div, eq, factor, floor, gt, gte, lt, lte, mul, neg, pow, sqrt, sub };
+declare const ZERO: BigFloat;
+declare const ONE: BigFloat;
+declare const TWO: BigFloat;
+declare const THREE: BigFloat;
+declare const FOUR: BigFloat;
+declare const FIVE: BigFloat;
+declare const SIX: BigFloat;
+declare const SEVEN: BigFloat;
+declare const EIGHT: BigFloat;
+declare const NINE: BigFloat;
+declare const TEN: BigFloat;
+declare const HUNDRED: BigFloat;
+declare const THOUSAND: BigFloat;
+declare const MILLION: BigFloat;
+declare const BILLION: BigFloat;
+declare const TRILLION: BigFloat;
+
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, div, eq, factor, floor, gt, gte, lt, lte, mul, neg, pow, sqrt, sub };

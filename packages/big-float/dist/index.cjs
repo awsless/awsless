@@ -20,7 +20,23 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  BILLION: () => BILLION,
   BigFloat: () => BigFloat,
+  EIGHT: () => EIGHT,
+  FIVE: () => FIVE,
+  FOUR: () => FOUR,
+  HUNDRED: () => HUNDRED,
+  MILLION: () => MILLION,
+  NINE: () => NINE,
+  ONE: () => ONE,
+  SEVEN: () => SEVEN,
+  SIX: () => SIX,
+  TEN: () => TEN,
+  THOUSAND: () => THOUSAND,
+  THREE: () => THREE,
+  TRILLION: () => TRILLION,
+  TWO: () => TWO,
+  ZERO: () => ZERO,
   abs: () => abs,
   add: () => add,
   ceil: () => ceil,
@@ -108,16 +124,16 @@ var pow = (base, exp) => {
 };
 var factor = (number) => {
   const value = (0, import_bigfloat_esnext2.make)(number);
-  const ZERO = (0, import_bigfloat_esnext2.make)(0);
-  if ((0, import_bigfloat_esnext2.lt)(value, ZERO)) {
+  const ZERO2 = (0, import_bigfloat_esnext2.make)(0);
+  if ((0, import_bigfloat_esnext2.lt)(value, ZERO2)) {
     const NEG_ONE = (0, import_bigfloat_esnext2.make)(-1);
     return new BigFloat((0, import_bigfloat_esnext2.mul)(NEG_ONE, factor((0, import_bigfloat_esnext2.mul)(value, NEG_ONE))));
   }
-  const ONE = (0, import_bigfloat_esnext2.make)(1);
-  if ((0, import_bigfloat_esnext2.eq)(value, ZERO) || (0, import_bigfloat_esnext2.eq)(value, ONE)) {
-    return new BigFloat(ONE);
+  const ONE2 = (0, import_bigfloat_esnext2.make)(1);
+  if ((0, import_bigfloat_esnext2.eq)(value, ZERO2) || (0, import_bigfloat_esnext2.eq)(value, ONE2)) {
+    return new BigFloat(ONE2);
   }
-  return new BigFloat((0, import_bigfloat_esnext2.mul)(value, factor((0, import_bigfloat_esnext2.sub)(value, ONE))));
+  return new BigFloat((0, import_bigfloat_esnext2.mul)(value, factor((0, import_bigfloat_esnext2.sub)(value, ONE2))));
 };
 
 // src/relational.ts
@@ -130,9 +146,43 @@ var gte = (a, b) => (0, import_bigfloat_esnext3.gte)((0, import_bigfloat_esnext3
 
 // src/index.ts
 var import_bigfloat_esnext4 = require("bigfloat-esnext");
+
+// src/constants.ts
+var ZERO = new BigFloat(0);
+var ONE = new BigFloat(1);
+var TWO = new BigFloat(2);
+var THREE = new BigFloat(3);
+var FOUR = new BigFloat(4);
+var FIVE = new BigFloat(5);
+var SIX = new BigFloat(6);
+var SEVEN = new BigFloat(7);
+var EIGHT = new BigFloat(8);
+var NINE = new BigFloat(9);
+var TEN = new BigFloat(10);
+var HUNDRED = new BigFloat(100);
+var THOUSAND = new BigFloat(1e3);
+var MILLION = new BigFloat(1e6);
+var BILLION = new BigFloat(1e9);
+var TRILLION = new BigFloat(1e12);
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  BILLION,
   BigFloat,
+  EIGHT,
+  FIVE,
+  FOUR,
+  HUNDRED,
+  MILLION,
+  NINE,
+  ONE,
+  SEVEN,
+  SIX,
+  TEN,
+  THOUSAND,
+  THREE,
+  TRILLION,
+  TWO,
+  ZERO,
   abs,
   add,
   ceil,

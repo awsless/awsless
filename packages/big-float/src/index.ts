@@ -15,3 +15,8 @@ export {
 	is_big_float, is_number, is_negative, is_positive, is_zero, is_integer,
 
 } from 'bigfloat-esnext'
+
+export {
+	ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN,
+	HUNDRED, THOUSAND, MILLION, BILLION, TRILLION
+} from './constants.js'

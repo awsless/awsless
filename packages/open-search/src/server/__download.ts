@@ -2,8 +2,11 @@ import { stat, mkdir } from 'fs/promises';
 import { resolve, join } from 'path'
 import findCacheDir from 'find-cache-dir'
 import decompress from 'decompress';
+<<<<<<< HEAD:packages/open-search/src/server/download.ts
 // import { exec } from 'child_process';
 // import { promisify } from 'util';
+=======
+>>>>>>> c5be3d3 (changes):packages/open-search/src/server/__download.ts
 
 export type Version = `${string}.${string}.${string}`
 
@@ -52,9 +55,6 @@ export const download = async (version: Version) => {
 
 	await mkdir(path, { recursive: true, mode: '0777' })
 	await decompress(buffer, path)
-
-	// const result = await promisify(exec)(join(file, '/opensearch-tar-install.sh'))
-	// console.log(result);
 
 	return file
 }

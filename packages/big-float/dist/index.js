@@ -70,16 +70,16 @@ var pow = (base, exp) => {
 };
 var factor = (number) => {
   const value = make2(number);
-  const ZERO = make2(0);
-  if (a_lt(value, ZERO)) {
+  const ZERO2 = make2(0);
+  if (a_lt(value, ZERO2)) {
     const NEG_ONE = make2(-1);
     return new BigFloat(a_mul(NEG_ONE, factor(a_mul(value, NEG_ONE))));
   }
-  const ONE = make2(1);
-  if (a_eq(value, ZERO) || a_eq(value, ONE)) {
-    return new BigFloat(ONE);
+  const ONE2 = make2(1);
+  if (a_eq(value, ZERO2) || a_eq(value, ONE2)) {
+    return new BigFloat(ONE2);
   }
-  return new BigFloat(a_mul(value, factor(a_sub(value, ONE))));
+  return new BigFloat(a_mul(value, factor(a_sub(value, ONE2))));
 };
 
 // src/relational.ts
@@ -110,8 +110,42 @@ import {
   is_zero,
   is_integer
 } from "bigfloat-esnext";
+
+// src/constants.ts
+var ZERO = new BigFloat(0);
+var ONE = new BigFloat(1);
+var TWO = new BigFloat(2);
+var THREE = new BigFloat(3);
+var FOUR = new BigFloat(4);
+var FIVE = new BigFloat(5);
+var SIX = new BigFloat(6);
+var SEVEN = new BigFloat(7);
+var EIGHT = new BigFloat(8);
+var NINE = new BigFloat(9);
+var TEN = new BigFloat(10);
+var HUNDRED = new BigFloat(100);
+var THOUSAND = new BigFloat(1e3);
+var MILLION = new BigFloat(1e6);
+var BILLION = new BigFloat(1e9);
+var TRILLION = new BigFloat(1e12);
 export {
+  BILLION,
   BigFloat,
+  EIGHT,
+  FIVE,
+  FOUR,
+  HUNDRED,
+  MILLION,
+  NINE,
+  ONE,
+  SEVEN,
+  SIX,
+  TEN,
+  THOUSAND,
+  THREE,
+  TRILLION,
+  TWO,
+  ZERO,
   abs,
   add,
   ceil,
