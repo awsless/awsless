@@ -3,7 +3,7 @@ import { array, bigfloat, bigint, boolean, date, define, deleteItem, enums, inde
 import { BigFloat } from '@awsless/big-float'
 
 describe('Open Search Mock', () => {
-	// mockOpenSearch({ version: '8.8.0' })
+
 	mockOpenSearch()
 
 	const id = randomUUID()

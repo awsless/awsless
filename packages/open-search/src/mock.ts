@@ -1,7 +1,7 @@
 
 import { requestPort } from '@heat/request-port'
 import { mockClient } from './client';
-// import { download } from './server/__download';
+import { download } from './server/download';
 import { launch } from './server/launch';
 import { wait } from './server/wait';
 import { VERSION_2_8_0, VersionArgs } from './server/version';
@@ -16,9 +16,9 @@ export const mockOpenSearch = ({ version = VERSION_2_8_0, debug = false }: Optio
 		const [ port, release ] = await requestPort()
 
 		const host = 'localhost'
-		// const path = await download(version.version)
+		const path = await download(version.version)
 		const kill = await launch({
-			// path,
+			path,
 			port,
 			host,
 			version,

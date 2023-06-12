@@ -1,8 +1,8 @@
 import { spawn } from 'child_process';
 import { rm, stat } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { VersionArgs } from './version';
-import findCacheDir from 'find-cache-dir';
+// import findCacheDir from 'find-cache-dir';
 
 const exists = async (path: string) => {
 	try {
@@ -12,13 +12,6 @@ const exists = async (path: string) => {
 	}
 
 	return true
-}
-
-const getCachePath = (): string => {
-	return resolve(findCacheDir({
-		name: '@awsless/open-search',
-		cwd: process.cwd(),
-	}) || '')
 }
 
 export type Settings = Record<string, string | number | boolean>
@@ -32,17 +25,30 @@ const parseSettings = (settings: Settings) => {
 }
 
 type Options = {
-	// path: string,
+	path: string,
 	host: string,
 	port: number,
 	debug?: boolean,
 	version: VersionArgs
 }
 
-export const launch = ({ host, port, version, debug }:Options): Promise<() => Promise<void>> => {
+export const launch = ({ path, host, port, version, debug }:Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
-		const cache = join(getCachePath(), 'opensearch', String(port))
-		const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
+		const cache = join(path, 'cache', String(port))
+
+		const cleanUp = async () => {
+			if(await exists(cache)) {
+				await rm(cache, {
+					recursive: true
+				})
+			}
+		}
+
+		await cleanUp()
+
+		const binary = join(path, 'opensearch-tar-install.sh')
+		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })))
+		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
 
 		const onError = (error:string) => fail(error)
 		const onMessage = (message: Buffer) => {
@@ -57,29 +63,22 @@ export const launch = ({ host, port, version, debug }:Options): Promise<() => Pr
 			}
 		}
 
-		const kill = (): Promise<void> => {
-			return new Promise(resolve => {
+		const kill = async (): Promise<void> => {
+			await new Promise(resolve => {
 				child.once(`exit`, () => {
-					resolve()
+					resolve(void 0)
 				})
 
 				child.kill()
 			})
+
+			await cleanUp()
 		}
 
 		process.on('beforeExit', async () => {
 			off()
 			await kill()
-			await cleanUp()
 		})
-
-		const cleanUp = async () => {
-			if(await exists(cache)) {
-				await rm(cache, {
-					recursive: true
-				})
-			}
-		}
 
 		const off = () => {
 			child.stderr.off('data', onMessage)
@@ -95,18 +94,15 @@ export const launch = ({ host, port, version, debug }:Options): Promise<() => Pr
 
 		const done = async () => {
 			off()
-			await cleanUp()
 			resolve(kill)
 		}
 
 		const fail = async (error: string) => {
 			off()
 			await kill()
-			await cleanUp()
 			reject(new Error(error))
 		}
 
-		await cleanUp()
 		on()
 	})
 }
