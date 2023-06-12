@@ -18,8 +18,9 @@ type VersionArgs = {
 
 type Options$3 = {
     version?: VersionArgs;
+    debug?: boolean;
 };
-declare const mockOpenSearch: ({ version }?: Options$3) => void;
+declare const mockOpenSearch: ({ version, debug }?: Options$3) => void;
 
 type Type = 'text' | 'double' | 'long' | 'boolean' | 'date';
 type AnyStruct = Struct<any, any, any>;

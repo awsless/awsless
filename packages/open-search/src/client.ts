@@ -1,5 +1,5 @@
 import { Client }		from '@opensearch-project/opensearch'
-import { fromEnv }		from '@aws-sdk/credential-providers'
+// import { fromEnv }		from '@aws-sdk/credential-providers'
 import createConnector	from 'aws-opensearch-connector'
 
 let client: Client
@@ -9,7 +9,7 @@ export const searchClient = async () => {
 		client = new Client({
 			...createConnector({
 				region: process.env.AWS_REGION,
-				credentials: await fromEnv()(),
+				// credentials: await fromEnv()(),
 			}),
 			node: 'https://' + process.env.SEARCH_DOMAIN
 		})

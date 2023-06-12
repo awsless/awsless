@@ -2,8 +2,8 @@ import { stat, mkdir } from 'fs/promises';
 import { resolve, join } from 'path'
 import findCacheDir from 'find-cache-dir'
 import decompress from 'decompress';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+// import { exec } from 'child_process';
+// import { promisify } from 'util';
 
 export type Version = `${string}.${string}.${string}`
 

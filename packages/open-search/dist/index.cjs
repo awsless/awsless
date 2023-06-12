@@ -53,15 +53,14 @@ module.exports = __toCommonJS(src_exports);
 
 // src/client.ts
 var import_opensearch = require("@opensearch-project/opensearch");
-var import_credential_providers = require("@aws-sdk/credential-providers");
 var import_aws_opensearch_connector = __toESM(require("aws-opensearch-connector"), 1);
 var client;
 var searchClient = async () => {
   if (!client) {
     client = new import_opensearch.Client({
       ...(0, import_aws_opensearch_connector.default)({
-        region: process.env.AWS_REGION,
-        credentials: await (0, import_credential_providers.fromEnv)()()
+        region: process.env.AWS_REGION
+        // credentials: await fromEnv()(),
       }),
       node: "https://" + process.env.SEARCH_DOMAIN
     });
@@ -82,14 +81,10 @@ var import_find_cache_dir = __toESM(require("find-cache-dir"), 1);
 var import_decompress = __toESM(require("decompress"), 1);
 var getArchiveName = (version) => {
   switch (process.platform) {
-    case "darwin":
-      return `elasticsearch-${version}-darwin-x86_64.tar.gz`;
-    case "linux":
-      return `elasticsearch-${version}-linux-x86_64.tar.gz`;
     case "win32":
-      return `elasticsearch-${version}-windows-x86_64.zip`;
+      return `opensearch-${version}-windows-arm64.zip`;
     default:
-      return `elasticsearch-${version}-linux-x86_64.tar.gz`;
+      return `opensearch-${version}-linux-x64.tar.gz`;
   }
 };
 var getDownloadPath = () => {
@@ -108,12 +103,13 @@ var exists = async (path) => {
 };
 var download = async (version) => {
   const path = getDownloadPath();
-  const name = `elasticsearch-${version}`;
+  const name = `opensearch-${version}`;
   const file = (0, import_path.join)(path, name);
   if (await exists(file)) {
     return file;
   }
-  const url = `https://artifacts.elastic.co/downloads/elasticsearch/${getArchiveName(version)}`;
+  console.log(`Downloading OpenSearch ${version}`);
+  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`;
   const response = await fetch(url, { method: "GET" });
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
@@ -139,17 +135,17 @@ var parseSettings = (settings) => {
     return ["-E", `${key}=${value}`];
   }).flat();
 };
-var launch = ({ path, host, port, version }) => {
+var launch = ({ path, host, port, version, debug }) => {
   return new Promise(async (resolve2, reject) => {
-    const binary = (0, import_path2.join)(path, "bin/elasticsearch");
-    console.log(path, port, host);
-    console.log(parseSettings(version.settings({ host, port })));
+    const binary = (0, import_path2.join)(path, "bin/opensearch");
     const child = (0, import_child_process.spawn)(binary, parseSettings(version.settings({ host, port })));
     const onError = (error) => fail(error);
-    const onStandardError = (error) => fail(error.toString("utf8"));
+    const onStandardError = (error) => console.error(error.toString("utf8"));
     const onStandardOut = (message) => {
       const line = message.toString("utf8").toLowerCase();
-      console.log(line);
+      if (debug) {
+        console.log(line);
+      }
       if (version.started(line)) {
         done();
       }
@@ -223,32 +219,22 @@ var wait = async (times = 10) => {
 };
 
 // src/server/version.ts
-var VERSION_8_8_0 = {
-  version: "8.8.0",
-  started: (line) => line.includes("license") && line.includes("mode [basic] - valid"),
+var VERSION_2_8_0 = {
+  version: "2.8.0",
+  started: (line) => line.includes("started"),
   settings: ({ port, host }) => ({
-    "node.name": `elasticsearch-${port}`,
-    "node.roles": "[ master, data ]",
-    "cluster.name": `elasticsearch-cluster-${port}`,
-    // 'cluster.initial_master_nodes': `[ elasticsearch-${port} ]`,
-    "discovery.type": `single-node`,
-    "discovery.cluster_formation_warning_timeout": `1ms`,
-    "network.host": host,
+    // 'discovery.type': 'single-node',
+    "http.host": host,
     "http.port": port,
     "path.data": `data/${port}/data`,
     "path.logs": `data/${port}/logs`,
-    "xpack.security.enabled": false,
-    "xpack.security.authc.api_key.enabled": false,
-    "xpack.security.autoconfiguration.enabled": false,
-    "xpack.security.enrollment.enabled": false,
-    "xpack.security.http.ssl.enabled": false,
-    "xpack.security.authc.token.enabled": false,
-    "xpack.security.transport.ssl.enabled": false
+    // 'plugins.performanceanalyzer.disabled': true,
+    "plugins.security.disabled": true
   })
 };
 
 // src/mock.ts
-var mockOpenSearch = ({ version = VERSION_8_8_0 } = {}) => {
+var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
   beforeAll && beforeAll(async () => {
     const [port, release] = await (0, import_request_port.requestPort)();
     const host = "localhost";
@@ -257,7 +243,8 @@ var mockOpenSearch = ({ version = VERSION_8_8_0 } = {}) => {
       path,
       port,
       host,
-      version
+      version,
+      debug
     });
     mockClient(host, port);
     await wait();
