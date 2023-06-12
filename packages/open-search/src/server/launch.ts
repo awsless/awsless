@@ -33,8 +33,8 @@ type Options = {
 
 export const launch = ({ path, host, port, version, debug }: Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
-		const binary = join(path, 'bin/opensearch')
-		// const binary = '/usr/local/opt/opensearch/bin/opensearch'
+		// const binary = join(path, 'bin/opensearch')
+		const binary = 'opensearch'
 		const child = spawn(binary, parseSettings(version.settings({ host, port })))
 
 		const onError = (error: string) => fail(error)

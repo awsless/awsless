@@ -9,16 +9,13 @@ describe('Download', () => {
 
 	let kill:() => void
 
-	// const version = '8.8.0'
-	// const version = '7.7.1'
-	// const version = VERSION_7_7_1
-	const version = VERSION_2_8_0
+	const version = VERSION_2_6_0
 	const port = 55700
 	const host = 'localhost'
 
-	// afterAll(async () => {
-	// 	await kill?.()
-	// }, 20 * 1000)
+	afterAll(async () => {
+		await kill?.()
+	}, 20 * 1000)
 
 	// it('download', async () => {
 	// 	await download(version.version)
@@ -41,7 +38,7 @@ describe('Download', () => {
 	// }, 50 * 1000)
 
 	// it('fetch', async () => {
-	// 	const response = await fetch(`https://${host}:${port}`, {
+	// 	const response = await fetch(`http://${host}:${port}/_cat/indices`, {
 	// 		method: 'GET',
 	// 		// headers: {
 	// 		// 	'content-type': 'application/json',
@@ -65,8 +62,6 @@ describe('Download', () => {
 		const client = new Client({
 			node: `http://${host}:${port}`,
 		})
-		console.log(client)
-		await new Promise(resolve => setTimeout(resolve, 3 * 1000))
 
 		const result = await client.cat.indices({ format: 'json' })
 

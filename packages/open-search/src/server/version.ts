@@ -12,7 +12,6 @@ export const VERSION_2_6_0: VersionArgs = {
 	started: line => line.includes('started'),
 	settings: ({ port, host }) => ({
 		'discovery.type': `single-node`,
-		// 'discovery.cluster_formation_warning_timeout': `1ms`,
 
 		'http.host': host,
 		'http.port': port,
@@ -20,7 +19,16 @@ export const VERSION_2_6_0: VersionArgs = {
 		'path.data': `data/${port}/data`,
 		'path.logs': `data/${port}/logs`,
 
-		'plugins.security.disabled': true,
+		// 'plugins.security.disabled': true,
+
+
+		// 'node.name': `opensearch-${port}-node1`,
+		// 'cluster.name': `opensearch-${port}`,
+		// 'cluster.initial_master_nodes': `opensearch-${port}-node1`,
+		// 'node.data': true,
+		// 'node.master': true,
+		// 'gateway.recover_after_nodes': 1,
+		// 'gateway.expected_nodes': 1,
 	}),
 }
 
@@ -29,6 +37,7 @@ export const VERSION_2_8_0:VersionArgs = {
 	started: (line) => line.includes('started'),
 	settings: ({ port, host }) => ({
 		'discovery.type': 'single-node',
+		// 'cluster.name': `opensearch-${port}`,
 
 		'http.host': host,
 		'http.port': port,
