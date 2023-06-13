@@ -1,5 +1,5 @@
 
-type Type = 'text' | 'double' | 'long' | 'boolean' | 'date'
+type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date'
 
 export type AnyStruct = Struct<
 	any,

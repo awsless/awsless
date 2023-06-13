@@ -14,7 +14,6 @@ export const VERSION_2_8_0:VersionArgs = {
 	started: (line) => line.includes('started'),
 	settings: ({ port, host, cache }) => ({
 		'discovery.type': 'single-node',
-		// 'cluster.name': `opensearch-${port}`,
 
 		'http.host': host,
 		'http.port': port,
@@ -22,7 +21,6 @@ export const VERSION_2_8_0:VersionArgs = {
 		'path.data': `${cache}/data`,
 		'path.logs': `${cache}/logs`,
 
-		// 'plugins.performanceanalyzer.disabled': true,
 		'plugins.security.disabled': true,
 	})
 }

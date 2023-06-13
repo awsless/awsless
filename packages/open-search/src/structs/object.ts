@@ -25,7 +25,11 @@ export const object = <S extends Schema>(schema:S) => {
 	return new Struct<InferEncoded<S>, InferInput<S>, InferOutput<S>>(
 		(input) => {
 			const encoded:Record<string, unknown> = {}
-			for(const key in input) {
+			for(const key in schema) {
+				if(typeof input[key] === 'undefined') {
+					throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(input)}`)
+				}
+
 				encoded[key] = schema[key].encode(input[key])
 			}
 
@@ -33,7 +37,11 @@ export const object = <S extends Schema>(schema:S) => {
 		},
 		(encoded) => {
 			const output:Record<string, unknown> = {}
-			for(const key in encoded) {
+			for(const key in schema) {
+				if(typeof encoded[key] === 'undefined') {
+					throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(encoded)}`)
+				}
+
 				output[key] = schema[key].decode(encoded[key])
 			}
 

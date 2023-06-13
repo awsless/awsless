@@ -39,6 +39,11 @@ describe('Validate Types', () => {
 		}
 	})
 
+	it('big-float like', () => {
+		const result = create({ exponent: -5, coefficient: 10n }, bigfloat())
+		expect(result.toString()).toStrictEqual('0.0001')
+	})
+
 	testRule('big-float / number positive', {
 		valid: [1, 100, 1000],
 		invalid: [0, -1, -100, -1000],

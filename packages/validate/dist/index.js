@@ -1,11 +1,17 @@
 // src/types/bigfloat.ts
-import { coerce, define, number, string, union, refine } from "superstruct";
+import { coerce, define, number, string, union, refine, object, bigint } from "superstruct";
 import { BigFloat, gt } from "@awsless/big-float";
 var bigfloat = () => {
   const base = define("bigfloat", (value) => {
     return value instanceof BigFloat || "Invalid number";
   });
-  return coerce(base, union([string(), number()]), (value) => {
+  const bigFloatLike = coerce(base, object({
+    exponent: number(),
+    coefficient: bigint()
+  }), (value) => {
+    return new BigFloat(value);
+  });
+  return coerce(bigFloatLike, union([string(), number()]), (value) => {
     if (typeof value === "string" && value !== "" || typeof value === "number") {
       if (!isNaN(Number(value))) {
         return new BigFloat(value);
@@ -95,7 +101,7 @@ import {
   refine as refine3,
   any,
   array,
-  bigint,
+  bigint as bigint2,
   boolean,
   enums,
   func,
@@ -107,7 +113,7 @@ import {
   never,
   nullable,
   number as number2,
-  object,
+  object as object2,
   optional,
   record,
   regexp,
@@ -141,7 +147,7 @@ export {
   assert,
   assign,
   bigfloat,
-  bigint,
+  bigint2 as bigint,
   boolean,
   coerce5 as coerce,
   create,
@@ -169,7 +175,7 @@ export {
   nonempty,
   nullable,
   number2 as number,
-  object,
+  object2 as object,
   omit,
   optional,
   partial,

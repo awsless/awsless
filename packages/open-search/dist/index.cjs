@@ -137,11 +137,19 @@ var parseSettings = (settings) => {
 };
 var launch = ({ path, host, port, version, debug }) => {
   return new Promise(async (resolve2, reject) => {
-    const binary = (0, import_path2.join)(path, "bin/opensearch");
-    const child = (0, import_child_process.spawn)(binary, parseSettings(version.settings({ host, port })));
+    const cache = (0, import_path2.join)(path, "cache", String(port));
+    const cleanUp = async () => {
+      if (await exists2(cache)) {
+        await (0, import_promises2.rm)(cache, {
+          recursive: true
+        });
+      }
+    };
+    await cleanUp();
+    const binary = (0, import_path2.join)(path, "opensearch-tar-install.sh");
+    const child = (0, import_child_process.spawn)(binary, parseSettings(version.settings({ host, port, cache })));
     const onError = (error) => fail(error);
-    const onStandardError = (error) => console.error(error.toString("utf8"));
-    const onStandardOut = (message) => {
+    const onMessage = (message) => {
       const line = message.toString("utf8").toLowerCase();
       if (debug) {
         console.log(line);
@@ -150,49 +158,38 @@ var launch = ({ path, host, port, version, debug }) => {
         done();
       }
     };
-    const kill = () => {
-      return new Promise((resolve3) => {
+    const kill = async () => {
+      await new Promise((resolve3) => {
         child.once(`exit`, () => {
-          resolve3();
+          resolve3(void 0);
         });
         child.kill();
       });
+      await cleanUp();
     };
     process.on("beforeExit", async () => {
       off();
       await kill();
-      await cleanUp();
     });
-    const cleanUp = async () => {
-      const data = (0, import_path2.join)(path, `data/${port}`);
-      if (await exists2(data)) {
-        await (0, import_promises2.rm)(data, {
-          recursive: true
-        });
-      }
-    };
     const off = () => {
-      child.stderr.off("data", onStandardError);
-      child.stdout.off("data", onStandardOut);
+      child.stderr.off("data", onMessage);
+      child.stdout.off("data", onMessage);
       child.off("error", onError);
     };
     const on = () => {
-      child.stderr.on("data", onStandardError);
-      child.stdout.on("data", onStandardOut);
+      child.stderr.on("data", onMessage);
+      child.stdout.on("data", onMessage);
       child.on("error", onError);
     };
     const done = async () => {
       off();
-      await cleanUp();
       resolve2(kill);
     };
     const fail = async (error) => {
       off();
       await kill();
-      await cleanUp();
       reject(new Error(error));
     };
-    await cleanUp();
     on();
   });
 };
@@ -222,13 +219,12 @@ var wait = async (times = 10) => {
 var VERSION_2_8_0 = {
   version: "2.8.0",
   started: (line) => line.includes("started"),
-  settings: ({ port, host }) => ({
-    // 'discovery.type': 'single-node',
+  settings: ({ port, host, cache }) => ({
+    "discovery.type": "single-node",
     "http.host": host,
     "http.port": port,
-    "path.data": `data/${port}/data`,
-    "path.logs": `data/${port}/logs`,
-    // 'plugins.performanceanalyzer.disabled': true,
+    "path.data": `${cache}/data`,
+    "path.logs": `${cache}/logs`,
     "plugins.security.disabled": true
   })
 };
@@ -416,14 +412,20 @@ var object = (schema) => {
   return new Struct(
     (input) => {
       const encoded = {};
-      for (const key in input) {
+      for (const key in schema) {
+        if (typeof input[key] === "undefined") {
+          throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(input)}`);
+        }
         encoded[key] = schema[key].encode(input[key]);
       }
       return encoded;
     },
     (encoded) => {
       const output = {};
-      for (const key in encoded) {
+      for (const key in schema) {
+        if (typeof encoded[key] === "undefined") {
+          throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(encoded)}`);
+        }
         output[key] = schema[key].decode(encoded[key]);
       }
       return output;
@@ -445,7 +447,7 @@ var set = (struct) => {
 var string = () => new Struct(
   (value) => value,
   (value) => value,
-  { type: "text" }
+  { type: "keyword" }
 );
 
 // src/structs/uuid.ts
