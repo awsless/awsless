@@ -6,6 +6,7 @@ import { download } from "../src/server/download"
 describe('Download', () => {
 
 	let kill:() => void
+	let path: string
 
 	const version = VERSION_2_8_0
 	const port = 55700
@@ -15,13 +16,16 @@ describe('Download', () => {
 		await kill?.()
 	}, 30 * 1000)
 
+	it('download', async () => {
+		path = await download(version.version)
+	}, 100 * 1000)
+
 	it('launch', async () => {
-		const path = await download(version.version)
 		kill = await launch({
 			path,
 			port,
 			host,
-			debug: true,
+			// debug: true,
 			version,
 		})
 	}, 100 * 1000)

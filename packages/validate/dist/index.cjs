@@ -88,7 +88,13 @@ var bigfloat = () => {
   const base = (0, import_superstruct.define)("bigfloat", (value) => {
     return value instanceof import_big_float.BigFloat || "Invalid number";
   });
-  return (0, import_superstruct.coerce)(base, (0, import_superstruct.union)([(0, import_superstruct.string)(), (0, import_superstruct.number)()]), (value) => {
+  const bigFloatLike = (0, import_superstruct.coerce)(base, (0, import_superstruct.object)({
+    exponent: (0, import_superstruct.number)(),
+    coefficient: (0, import_superstruct.bigint)()
+  }), (value) => {
+    return new import_big_float.BigFloat(value);
+  });
+  return (0, import_superstruct.coerce)(bigFloatLike, (0, import_superstruct.union)([(0, import_superstruct.string)(), (0, import_superstruct.number)()]), (value) => {
     if (typeof value === "string" && value !== "" || typeof value === "number") {
       if (!isNaN(Number(value))) {
         return new import_big_float.BigFloat(value);

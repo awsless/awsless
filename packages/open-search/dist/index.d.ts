@@ -3,15 +3,15 @@ import { Numeric, BigFloat } from '@awsless/big-float';
 
 declare const searchClient: () => Promise<Client>;
 
-type Version = `${string}.${string}.${string}`;
-
 type Settings = Record<string, string | number | boolean>;
 
+type Version = `${string}.${string}.${string}`;
 type VersionArgs = {
     version: Version;
     settings: (opts: {
         port: number;
         host: string;
+        cache: string;
     }) => Settings;
     started: (line: string) => boolean;
 };
@@ -22,7 +22,7 @@ type Options$3 = {
 };
 declare const mockOpenSearch: ({ version, debug }?: Options$3) => void;
 
-type Type = 'text' | 'double' | 'long' | 'boolean' | 'date';
+type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
 type AnyStruct = Struct<any, any, any>;
 type Props = {
     type: Type;

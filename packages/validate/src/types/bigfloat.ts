@@ -1,5 +1,5 @@
 
-import { coerce, define, number, string, union, refine, Struct } from 'superstruct'
+import { coerce, define, number, string, union, refine, Struct, object, bigint } from 'superstruct'
 import { BigFloat, gt } from '@awsless/big-float'
 
 export const bigfloat = ():Struct<BigFloat, null> => {
@@ -7,7 +7,14 @@ export const bigfloat = ():Struct<BigFloat, null> => {
 		return (value instanceof BigFloat) || 'Invalid number'
 	})
 
-	return coerce(base, union([ string(), number() ]), (value): BigFloat | null => {
+	const bigFloatLike = coerce(base, object({
+		exponent: number(),
+		coefficient: bigint(),
+	}), (value) => {
+		return new BigFloat(value)
+	})
+
+	return coerce(bigFloatLike, union([ string(), number() ]), (value): BigFloat | null => {
 		if((typeof value === 'string' && value !== '') || typeof value === 'number') {
 			if(!isNaN(Number(value))) {
 				return new BigFloat(value)
