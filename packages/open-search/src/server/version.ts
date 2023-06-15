@@ -22,7 +22,6 @@ export const VERSION_2_8_0:VersionArgs = {
 		'path.data': `${cache}/data`,
 		'path.logs': `${cache}/logs`,
 
-		// 'plugins.performanceanalyzer.disabled': true,
 		'plugins.security.disabled': true,
 	})
 }
