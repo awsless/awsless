@@ -23,7 +23,7 @@ export const command = async <T, U>(
 	return result
 }
 
-export const migrate = async <T>(migrations: Record<string, string>, options: PoolOptions) => {
+export const migrate = async <T>(migrations: Record<string, string>, options: PoolOptions = {}) => {
 	await Promise.all(
 		Object.entries(migrations).map(async ([database]) => {
 			await command(options, async client => {

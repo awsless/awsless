@@ -244,7 +244,7 @@ var command = async (options, callback) => {
   }
   return result;
 };
-var migrate = async (migrations, options) => {
+var migrate = async (migrations, options = {}) => {
   await Promise.all(
     Object.entries(migrations).map(async ([database]) => {
       await command(options, async (client) => {
@@ -297,16 +297,17 @@ var mockMysql = ({ migrations, version = VERSION_8_0_32, debug = false } = {}) =
     overrideOptions({
       port,
       host,
-      user: "root"
+      user: "root",
+      password: void 0
     });
     await wait();
     if (migrations) {
-      await migrate(migrations, {});
+      await migrate(migrations);
     }
-  });
+  }, 60 * 1e3);
   afterAll && afterAll(async () => {
-    await kill();
-    await releasePort();
+    await kill?.();
+    await releasePort?.();
   });
 };
 export {

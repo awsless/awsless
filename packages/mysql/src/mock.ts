@@ -35,18 +35,19 @@ export const mockMysql = ({ migrations, version = VERSION_8_0_32, debug = false 
 				port,
 				host,
 				user: 'root',
+				password: undefined,
 			})
 
 			await wait()
 
 			if (migrations) {
-				await migrate(migrations, {})
+				await migrate(migrations)
 			}
-		})
+		}, 60 * 1000)
 
 	afterAll &&
 		afterAll(async () => {
-			await kill()
-			await releasePort()
+			await kill?.()
+			await releasePort?.()
 		})
 }
