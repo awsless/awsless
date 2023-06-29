@@ -311,6 +311,7 @@ var mockMysql = ({ migrations, version = VERSION_8_0_32, debug = false } = {}) =
 };
 export {
   command,
+  migrate,
   mockMysql,
   mysqlClient
 };

@@ -31,6 +31,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var src_exports = {};
 __export(src_exports, {
   command: () => command,
+  migrate: () => migrate,
   mockMysql: () => mockMysql,
   mysqlClient: () => mysqlClient
 });
@@ -350,6 +351,7 @@ var mockMysql = ({ migrations, version = VERSION_8_0_32, debug = false } = {}) =
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   command,
+  migrate,
   mockMysql,
   mysqlClient
 });
