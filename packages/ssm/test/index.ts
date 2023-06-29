@@ -1,5 +1,4 @@
-
-import { float, integer, string, ssm, array, json, mockSSM, SSMClient } from '../src/index'
+import { float, integer, string, ssm, array, json, mockSSM, SSMClient, putParameter } from '../src/index'
 
 describe('SSM', () => {
 	const mock = mockSSM({
@@ -63,5 +62,14 @@ describe('SSM', () => {
 		expect(result).toStrictEqual({
 			default: 'string',
 		})
+	})
+
+	it('should put paremeters', async () => {
+		await putParameter({
+			name: 'test',
+			value: 'test',
+		})
+
+		expect(mock).toBeCalledTimes(1)
 	})
 })

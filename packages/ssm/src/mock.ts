@@ -1,4 +1,9 @@
-import { SSMClient, GetParametersCommand, GetParametersCommandInput } from '@aws-sdk/client-ssm'
+import {
+	SSMClient,
+	GetParametersCommand,
+	GetParametersCommandInput,
+	PutParameterCommand,
+} from '@aws-sdk/client-ssm'
 import { mockClient } from 'aws-sdk-client-mock'
 import { nextTick, mockFn } from '@awsless/utils'
 // @ts-ignore
@@ -19,6 +24,12 @@ export const mockSSM = (values: Record<string, string>) => {
 					}
 				}),
 			}
+		})
+
+		.on(PutParameterCommand)
+		.callsFake(async () => {
+			await nextTick(mock)
+			return {}
 		})
 
 	beforeEach &&

@@ -1,3 +1,4 @@
+import * as _aws_sdk_client_ssm from '@aws-sdk/client-ssm';
 import { SSMClient } from '@aws-sdk/client-ssm';
 export { SSMClient } from '@aws-sdk/client-ssm';
 import { Mock } from 'vitest';
@@ -19,9 +20,17 @@ type Transformer = {
 type Output<T> = {
     [key in keyof T]: T[key] extends Transformer ? ReturnType<T[key]['transform']> : string;
 };
+type PutParameter = {
+    client?: SSMClient;
+    name: string;
+    value: string;
+    type?: 'String' | 'StringList' | 'SecureString';
+};
 
 /** Fetch the provided ssm paths */
 declare const ssm: <T extends Paths>(paths: T, { client, ttl }?: Options) => Promise<Output<T>>;
+
+declare const putParameter: ({ client, name, value, type }: PutParameter) => Promise<_aws_sdk_client_ssm.PutParameterCommandOutput>;
 
 declare const string: (path: string) => string;
 declare const float: (path: string) => {
@@ -43,4 +52,4 @@ declare const json: <T = unknown>(path: string) => {
 
 declare const mockSSM: (values: Record<string, string>) => Mock<any, any>;
 
-export { Paths, array, float, integer, json, mockSSM, ssm, ssmClient, string };
+export { Paths, array, float, integer, json, mockSSM, putParameter, ssm, ssmClient, string };

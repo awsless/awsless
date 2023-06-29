@@ -67,6 +67,19 @@ var ssm = async (paths, { client = ssmClient(), ttl = 0 } = {}) => {
   return values;
 };
 
+// src/commands.ts
+import { PutParameterCommand } from "@aws-sdk/client-ssm";
+var putParameter = ({ client = ssmClient(), name, value, type = "String" }) => {
+  const command = new PutParameterCommand({
+    Name: name,
+    Value: value,
+    Type: type,
+    Overwrite: true,
+    Tier: "Standard"
+  });
+  return client.send(command);
+};
+
 // src/values.ts
 var string = (path) => {
   return path;
@@ -105,7 +118,11 @@ var json = (path) => {
 };
 
 // src/mock.ts
-import { SSMClient as SSMClient2, GetParametersCommand as GetParametersCommand2 } from "@aws-sdk/client-ssm";
+import {
+  SSMClient as SSMClient2,
+  GetParametersCommand as GetParametersCommand2,
+  PutParameterCommand as PutParameterCommand2
+} from "@aws-sdk/client-ssm";
 import { mockClient } from "aws-sdk-client-mock";
 import { nextTick, mockFn } from "@awsless/utils";
 var mockSSM = (values) => {
@@ -121,6 +138,9 @@ var mockSSM = (values) => {
         };
       })
     };
+  }).on(PutParameterCommand2).callsFake(async () => {
+    await nextTick(mock);
+    return {};
   });
   beforeEach && beforeEach(() => {
     mock.mockClear();
@@ -134,6 +154,7 @@ export {
   integer,
   json,
   mockSSM,
+  putParameter,
   ssm,
   ssmClient,
   string

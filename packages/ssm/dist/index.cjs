@@ -30,18 +30,19 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  SSMClient: () => import_client_ssm4.SSMClient,
+  SSMClient: () => import_client_ssm5.SSMClient,
   array: () => array,
   float: () => float,
   integer: () => integer,
   json: () => json,
   mockSSM: () => mockSSM,
+  putParameter: () => putParameter,
   ssm: () => ssm,
   ssmClient: () => ssmClient,
   string: () => string
 });
 module.exports = __toCommonJS(src_exports);
-var import_client_ssm4 = require("@aws-sdk/client-ssm");
+var import_client_ssm5 = require("@aws-sdk/client-ssm");
 
 // src/client.ts
 var import_client_ssm = require("@aws-sdk/client-ssm");
@@ -109,6 +110,19 @@ var ssm = async (paths, { client = ssmClient(), ttl = 0 } = {}) => {
   return values;
 };
 
+// src/commands.ts
+var import_client_ssm3 = require("@aws-sdk/client-ssm");
+var putParameter = ({ client = ssmClient(), name, value, type = "String" }) => {
+  const command = new import_client_ssm3.PutParameterCommand({
+    Name: name,
+    Value: value,
+    Type: type,
+    Overwrite: true,
+    Tier: "Standard"
+  });
+  return client.send(command);
+};
+
 // src/values.ts
 var string = (path) => {
   return path;
@@ -147,13 +161,13 @@ var json = (path) => {
 };
 
 // src/mock.ts
-var import_client_ssm3 = require("@aws-sdk/client-ssm");
+var import_client_ssm4 = require("@aws-sdk/client-ssm");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_utils2 = require("@awsless/utils");
 var mockSSM = (values) => {
   const mock = (0, import_utils2.mockFn)(() => {
   });
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_ssm3.SSMClient).on(import_client_ssm3.GetParametersCommand).callsFake(async (input) => {
+  (0, import_aws_sdk_client_mock.mockClient)(import_client_ssm4.SSMClient).on(import_client_ssm4.GetParametersCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(mock);
     return {
       Parameters: (input.Names || []).map((name) => {
@@ -163,6 +177,9 @@ var mockSSM = (values) => {
         };
       })
     };
+  }).on(import_client_ssm4.PutParameterCommand).callsFake(async () => {
+    await (0, import_utils2.nextTick)(mock);
+    return {};
   });
   beforeEach && beforeEach(() => {
     mock.mockClear();
@@ -177,6 +194,7 @@ var mockSSM = (values) => {
   integer,
   json,
   mockSSM,
+  putParameter,
   ssm,
   ssmClient,
   string

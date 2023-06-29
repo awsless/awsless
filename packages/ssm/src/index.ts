@@ -1,6 +1,7 @@
 export { SSMClient } from '@aws-sdk/client-ssm'
 export { ssmClient } from './client'
 export { ssm } from './ssm'
+export { putParameter } from './commands'
 export { string, float, integer, array, json } from './values'
 export { mockSSM } from './mock'
 export type { Paths } from './types'
