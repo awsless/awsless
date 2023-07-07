@@ -262,14 +262,15 @@ var decodeCursor = (cursor) => {
     return;
   }
 };
-var search = async (table, { query, limit = 10, cursor, sort }) => {
+var search = async (table, { query: query2, aggs, limit = 10, cursor, sort }) => {
   const client2 = await searchClient();
   const result = await client2.search({
     index: table.index,
     body: {
       size: limit + 1,
       search_after: decodeCursor(cursor),
-      query,
+      query: query2,
+      aggs,
       sort
     }
   });
@@ -283,9 +284,23 @@ var search = async (table, { query, limit = 10, cursor, sort }) => {
     cursor: nextCursor,
     found: total.value,
     count: items.length,
-    items: items.map((item) => {
-      return table.schema.decode(item._source);
-    })
+    items: items.map((item) => table.schema.decode(item._source))
+  };
+};
+
+// src/ops/query.ts
+var query = async (table, { query: query2 }) => {
+  const client2 = await searchClient();
+  const result = await client2.transport.request({
+    method: "POST",
+    path: "_plugins/_sql?format=json",
+    body: { query: query2 }
+  });
+  const { hits, total } = result.body.hits;
+  return {
+    found: total.value,
+    count: hits.length,
+    items: hits.map((item) => table.schema.decode(item._source))
   };
 };
 
@@ -417,6 +432,7 @@ export {
   mockOpenSearch,
   number,
   object,
+  query,
   search,
   searchClient,
   set,

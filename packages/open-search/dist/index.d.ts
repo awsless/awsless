@@ -16,11 +16,11 @@ type VersionArgs = {
     started: (line: string) => boolean;
 };
 
-type Options$3 = {
+type Options$4 = {
     version?: VersionArgs;
     debug?: boolean;
 };
-declare const mockOpenSearch: ({ version, debug }?: Options$3) => void;
+declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
 
 type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
 type AnyStruct = Struct<any, any, any>;
@@ -51,31 +51,42 @@ type Table<I extends string, S extends AnyStruct> = {
 type AnyTable = Table<string, AnyStruct>;
 declare const define: <I extends string, S extends AnyStruct>(index: I, schema: S) => Table<I, S>;
 
+type Options$3 = {
+    refresh?: boolean;
+};
+declare const indexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"], { refresh }?: Options$3) => Promise<void>;
+
 type Options$2 = {
     refresh?: boolean;
 };
-declare const indexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"], { refresh }?: Options$2) => Promise<void>;
-
-type Options$1 = {
-    refresh?: boolean;
-};
-declare const deleteItem: <T extends AnyTable>(table: T, id: string, { refresh }?: Options$1) => Promise<void>;
+declare const deleteItem: <T extends AnyTable>(table: T, id: string, { refresh }?: Options$2) => Promise<void>;
 
 declare const migrate: (table: AnyTable) => Promise<void>;
 
-type Options = {
-    query: unknown;
+type Options$1 = {
+    query?: unknown;
+    aggs?: unknown;
     limit?: number;
     cursor?: string;
     sort?: unknown;
 };
-type Response<T extends AnyTable> = {
+type Response$1<T extends AnyTable> = {
     cursor?: string;
     found: number;
     count: number;
     items: T['schema']['OUTPUT'][];
 };
-declare const search: <T extends AnyTable>(table: T, { query, limit, cursor, sort }: Options) => Promise<Response<T>>;
+declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort }: Options$1) => Promise<Response$1<T>>;
+
+type Options = {
+    query: string;
+};
+type Response<T extends AnyTable> = {
+    found: number;
+    count: number;
+    items: T['schema']['OUTPUT'][];
+};
+declare const query: <T extends AnyTable>(table: T, { query }: Options) => Promise<Response<T>>;
 
 declare const array: <S extends AnyStruct>(struct: S) => Struct<S["ENCODED"][], S["INPUT"][], S["OUTPUT"][]>;
 
@@ -109,4 +120,4 @@ declare const string: () => Struct<string, string, string>;
 
 declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { AnyTable, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, uuid };
+export { AnyTable, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, query, search, searchClient, set, string, uuid };

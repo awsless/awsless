@@ -1,35 +1,32 @@
-import { searchClient } from "../client"
-import { AnyTable } from "../table"
+import { searchClient } from '../client'
+import { AnyTable } from '../table'
 
 type Options = {
-	query: unknown
+	query?: unknown
+	aggs?: unknown
 	limit?: number
 	cursor?: string
 	sort?: unknown
 }
 
 type Response<T extends AnyTable> = {
-	cursor?: string,
-	found: number,
-	count: number,
-	items: T['schema']['OUTPUT'][],
+	cursor?: string
+	found: number
+	count: number
+	items: T['schema']['OUTPUT'][]
 }
 
-const encodeCursor = (cursor:object) => {
+const encodeCursor = (cursor: object) => {
 	const json = JSON.stringify(cursor)
 
-	return Buffer
-		.from(json, 'utf8')
-		.toString('base64')
+	return Buffer.from(json, 'utf8').toString('base64')
 }
 
-const decodeCursor = (cursor?:string) => {
-	if(!cursor) return
+const decodeCursor = (cursor?: string) => {
+	if (!cursor) return
 
 	try {
-		const json = Buffer
-			.from(cursor, 'base64')
-			.toString('utf8')
+		const json = Buffer.from(cursor, 'base64').toString('utf8')
 
 		return JSON.parse(json)
 	} catch {
@@ -37,7 +34,10 @@ const decodeCursor = (cursor?:string) => {
 	}
 }
 
-export const search = async <T extends AnyTable>(table:T, { query, limit = 10, cursor, sort }:Options): Promise<Response<T>> => {
+export const search = async <T extends AnyTable>(
+	table: T,
+	{ query, aggs, limit = 10, cursor, sort }: Options
+): Promise<Response<T>> => {
 	const client = await searchClient()
 	const result = await client.search({
 		index: table.index,
@@ -45,6 +45,7 @@ export const search = async <T extends AnyTable>(table:T, { query, limit = 10, c
 			size: limit + 1,
 			search_after: decodeCursor(cursor),
 			query,
+			aggs,
 			sort,
 		},
 	})
@@ -59,7 +60,7 @@ export const search = async <T extends AnyTable>(table:T, { query, limit = 10, c
 
 	let nextCursor: string | undefined
 
-	if(hits.length > limit) {
+	if (hits.length > limit) {
 		nextCursor = encodeCursor(hits[limit - 1].sort)
 	}
 
@@ -69,8 +70,6 @@ export const search = async <T extends AnyTable>(table:T, { query, limit = 10, c
 		cursor: nextCursor,
 		found: total.value,
 		count: items.length,
-		items: items.map(item => {
-			return table.schema.decode(item._source)
-		}),
+		items: items.map(item => table.schema.decode(item._source))
 	}
 }

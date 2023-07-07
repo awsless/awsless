@@ -1,32 +1,34 @@
 import { randomUUID } from 'crypto'
-import { array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, set, string, uuid } from '../src'
+import { array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, set, string, uuid, query } from '../src'
 import { BigFloat } from '@awsless/big-float'
 
 describe('Open Search Mock', () => {
-
 	mockOpenSearch()
 
 	const id = randomUUID()
 	const createdAt = new Date()
 
-	const users = define('users', object({
-		id: uuid(),
-		name: string(),
-		type: enums<'foo' | 'bar'>(),
-		enabled: boolean(),
-		likes: bigint(),
-		balance: bigfloat(),
-		tags: set(string()),
-		links: array(number()),
-		createdAt: date(),
-		data: object({
-			number: number(),
-		}),
-	}))
+	const users = define(
+		'users',
+		object({
+			id: uuid(),
+			name: string(),
+			type: enums<'foo' | 'bar'>(),
+			enabled: boolean(),
+			likes: bigint(),
+			balance: bigfloat(),
+			tags: set(string()),
+			links: array(number()),
+			createdAt: date(),
+			data: object({
+				number: number(),
+			}),
+		})
+	)
 
 	it('should migrate', async () => {
 		await migrate(users)
-	}, 50 * 1000)
+	})
 
 	it('should index item', async () => {
 		await indexItem(users, '1', {
@@ -36,12 +38,12 @@ describe('Open Search Mock', () => {
 			enabled: true,
 			likes: 10n,
 			balance: new BigFloat(1),
-			tags: new Set([ 'tag' ]),
-			links: [ 1 ],
+			tags: new Set(['tag']),
+			links: [1],
 			createdAt,
 			data: {
 				number: 1,
-			}
+			},
 		})
 	})
 
@@ -55,15 +57,42 @@ describe('Open Search Mock', () => {
 							fuzziness: 'AUTO',
 							fuzzy_transpositions: true,
 							allow_leading_wildcard: true,
-							fields: [ 'name' ],
-						}
-					}
-				}
+							fields: ['name'],
+						},
+					},
+				},
 			},
 		})
 
 		expect(result).toStrictEqual({
 			cursor: undefined,
+			found: 1,
+			count: 1,
+			items: [
+				{
+					id,
+					type: 'bar',
+					name: 'jacksclub',
+					enabled: true,
+					likes: 10n,
+					balance: new BigFloat(1),
+					tags: new Set(['tag']),
+					links: [1],
+					createdAt,
+					data: {
+						number: 1,
+					},
+				},
+			],
+		})
+	})
+
+	it('should query items', async () => {
+		const result = await query(users, {
+			query: `SELECT * FROM users`,
+		})
+
+		expect(result).toStrictEqual({
 			found: 1,
 			count: 1,
 			items: [{

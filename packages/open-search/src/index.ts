@@ -1,5 +1,3 @@
-
-
 export { searchClient } from './client'
 
 // mock
@@ -13,6 +11,7 @@ export { indexItem } from './ops/index-item'
 export { deleteItem } from './ops/delete-item'
 export { migrate } from './ops/migrate'
 export { search } from './ops/search'
+export { query } from './ops/query'
 
 // types
 export { array } from './structs/array'
