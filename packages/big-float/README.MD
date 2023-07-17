@@ -40,7 +40,7 @@ import { BigFloat, set_precision } from "@awsless/big-float";
 import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor, factor } from '@awsless/big-float'
 
 // retational
-export { eq, lt, lte, gt, gte } from '@awsless/big-float'
+export { eq, lt, lte, gt, gte, min, max } from '@awsless/big-float'
 
 // constants
 export { ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, HUNDRED, THOUSAND, MILLION, BILLION, TRILLION } from '@awsless/big-float'

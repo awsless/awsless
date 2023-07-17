@@ -56,6 +56,8 @@ __export(src_exports, {
   is_zero: () => import_bigfloat_esnext4.is_zero,
   lt: () => lt,
   lte: () => lte,
+  max: () => max,
+  min: () => min,
   mul: () => mul,
   neg: () => neg,
   pow: () => pow,
@@ -143,6 +145,16 @@ var lt = (a, b) => (0, import_bigfloat_esnext3.lt)((0, import_bigfloat_esnext3.m
 var lte = (a, b) => (0, import_bigfloat_esnext3.lte)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
 var gt = (a, b) => (0, import_bigfloat_esnext3.gt)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
 var gte = (a, b) => (0, import_bigfloat_esnext3.gte)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
+var min = (...values) => {
+  return new BigFloat(values.reduce((prev, current) => {
+    return lt(prev, current) ? prev : current;
+  }));
+};
+var max = (...values) => {
+  return new BigFloat(values.reduce((prev, current) => {
+    return gt(prev, current) ? prev : current;
+  }));
+};
 
 // src/index.ts
 var import_bigfloat_esnext4 = require("bigfloat-esnext");
@@ -202,6 +214,8 @@ var TRILLION = new BigFloat(1e12);
   is_zero,
   lt,
   lte,
+  max,
+  min,
   mul,
   neg,
   pow,

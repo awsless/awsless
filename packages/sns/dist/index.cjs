@@ -23,8 +23,6 @@ __export(src_exports, {
   mockSNS: () => mockSNS,
   publish: () => publish,
   snsClient: () => snsClient,
-  snsInput: () => snsInput,
-  snsRecords: () => snsRecords,
   snsStruct: () => snsStruct
 });
 module.exports = __toCommonJS(src_exports);
@@ -109,42 +107,23 @@ var mockSNS = (topics) => {
 // src/struct.ts
 var import_superstruct = require("superstruct");
 var import_validate = require("@awsless/validate");
-var snsRecords = (input) => {
-  return input.Records.map(({ Sns: item }) => item.Message);
-};
 var snsStruct = (message) => {
-  return (0, import_validate.type)({
-    Records: (0, import_validate.array)(
-      (0, import_validate.type)({
-        Sns: (0, import_validate.type)({
-          TopicArn: (0, import_validate.string)(),
-          MessageId: (0, import_validate.string)(),
-          Timestamp: (0, import_validate.date)(),
-          Message: (0, import_validate.json)(message)
-          // MessageAttributes
-        })
-      })
-    )
-  });
-};
-var snsInput = (records) => {
-  return {
-    Records: records.map((body, i) => ({
-      Sns: {
-        TopicArn: "arn:aws:sns",
-        MessageId: String(i),
-        Timestamp: /* @__PURE__ */ new Date(),
-        Message: body
-      }
-    }))
-  };
+  return (0, import_validate.coerce)(
+    (0, import_validate.array)(message),
+    (0, import_validate.type)({
+      Records: (0, import_validate.array)((0, import_validate.type)({
+        Sns: (0, import_validate.type)({ Message: (0, import_validate.string)() })
+      }))
+    }),
+    (value) => {
+      return value.Records.map((item) => JSON.parse(item.Sns.Message));
+    }
+  );
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   mockSNS,
   publish,
   snsClient,
-  snsInput,
-  snsRecords,
   snsStruct
 });

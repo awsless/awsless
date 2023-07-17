@@ -2,8 +2,8 @@
 import { Context } from 'aws-lambda'
 import { transformValidationErrors } from './errors/validation.js'
 import { create } from '@awsless/validate'
-import { Input, Logger, Loggers, OptStruct, Output, Context as ExtendedContext, Handler } from './types.js'
-import { createTimeout } from './errors/timeout.js'
+import { Input, Logger, Loggers, OptStruct, Output, Context as ExtendedContext, Handler } from './type.js'
+import { createTimeoutWrap } from './errors/timeout.js'
 import { isViewableError } from './errors/viewable.js'
 import { getWarmUpEvent, warmUp } from './helpers/warm-up.js'
 import { normalizeError } from './helpers/error.js'
@@ -65,14 +65,15 @@ export const lambda:LambdaFactory = <
 				return undefined
 			}
 
-			const timeout = createTimeout(context, (error) => { log(error) })
-			const input = await transformValidationErrors(() => options.input ? create(event, options.input) : event) as Input<I>
-			const extendedContext = { ...(context || {}), event, log } as ExtendedContext
-			const output:Output<O> = await transformValidationErrors(() => options.handle(input, extendedContext))
+			const result = await createTimeoutWrap(context, log, async () => {
+				const input = await transformValidationErrors(() => options.input ? create(event, options.input) : event) as Input<I>
+				const extendedContext = { ...(context || {}), event, log } as ExtendedContext
+				const output:Output<O> = await transformValidationErrors(() => options.handle(input, extendedContext))
 
-			clearTimeout(timeout)
+				return (options.output ? create(output, options.output) : output) as Output<O>
+			})
 
-			return (options.output ? create(output, options.output) : output) as Output<O>
+			return result
 
 		} catch(error) {
 			if(!isViewableError(error) || options.logViewableErrors) {

@@ -1,7 +1,6 @@
 import * as _aws_sdk_client_sqs from '@aws-sdk/client-sqs';
 import { SQSClient } from '@aws-sdk/client-sqs';
 import { Mock } from 'vitest';
-import * as superstruct_dist_utils from 'superstruct/dist/utils';
 import { Struct } from '@awsless/validate';
 
 declare const sqsClient: {
@@ -39,57 +38,6 @@ type Queues = {
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
-type Input<T> = {
-    Records: {
-        body: T;
-    }[];
-};
-declare const sqsRecords: <T>(input: Input<T>) => T[];
-declare const sqsStruct: <A, B>(body: Struct<A, B>) => Struct<{
-    Records: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-        body: A;
-        messageId: string;
-        messageAttributes: Record<string, {
-            dataType: string;
-            stringValue: string;
-        }>;
-    }>>[];
-}, {
-    Records: Struct<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-        body: A;
-        messageId: string;
-        messageAttributes: Record<string, {
-            dataType: string;
-            stringValue: string;
-        }>;
-    }>>[], Struct<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-        body: A;
-        messageId: string;
-        messageAttributes: Record<string, {
-            dataType: string;
-            stringValue: string;
-        }>;
-    }>>, {
-        body: Struct<A, B>;
-        messageId: Struct<string, null>;
-        messageAttributes: Struct<Record<string, {
-            dataType: string;
-            stringValue: string;
-        }>, null>;
-    }>>;
-}>;
-declare const sqsInput: (records: unknown[], attributes?: Record<string, string>) => {
-    Records: {
-        messageId: `${string}-${string}-${string}-${string}-${string}`;
-        body: string;
-        attributes: {
-            SentTimestamp: string;
-        };
-        messageAttributes: Record<string, {
-            dataType: string;
-            stringValue: string;
-        }>;
-    }[];
-};
+declare const sqsStruct: <A, B>(body: Struct<A, B>) => Struct<A[], Struct<A, B>>;
 
-export { mockSQS, sendMessage, sendMessageBatch, sqsClient, sqsInput, sqsRecords, sqsStruct };
+export { mockSQS, sendMessage, sendMessageBatch, sqsClient, sqsStruct };

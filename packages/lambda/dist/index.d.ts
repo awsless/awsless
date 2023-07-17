@@ -41,6 +41,8 @@ type LambdaFactory = {
 declare const lambda: LambdaFactory;
 
 declare class ViewableError extends Error {
+    readonly type: string;
+    readonly data?: unknown;
     readonly name = "ViewableError";
     constructor(type: string, message: string, data?: unknown);
 }
@@ -49,6 +51,7 @@ interface ViewableErrorData {
     message: string;
     data?: unknown;
 }
+declare const isViewableErrorType: (error: unknown, type: string) => boolean;
 declare const isViewableError: (error: unknown) => error is ViewableError;
 declare const isViewableErrorString: (value: string) => boolean;
 declare const parseViewableErrorString: (value: string) => ViewableErrorData;
@@ -95,4 +98,4 @@ declare const lambdaClient: {
     set(client: LambdaClient): void;
 };
 
-export { Context, ExtraMetaData, Handler, Input, Logger, Loggers, Output, Response, TimeoutError, ValidationError, ViewableError, getViewableErrorData, invoke, isViewableError, isViewableErrorString, lambda, lambdaClient, mockLambda, parseViewableErrorString };
+export { Context, ExtraMetaData, Handler, Input, Logger, Loggers, Output, Response, TimeoutError, ValidationError, ViewableError, getViewableErrorData, invoke, isViewableError, isViewableErrorString, isViewableErrorType, lambda, lambdaClient, mockLambda, parseViewableErrorString };

@@ -4,7 +4,7 @@ import { IDGenerator } from "../helper/id-generator"
 import { AttributeTypes } from "../structs/struct"
 import { AnyTableDefinition } from "../table"
 import { InferPath, InferSetValue, InferValue } from "../types/infer"
-import { build, cursor, flatten, QueryBulder, QueryItem, QueryValue } from "../helper/query"
+import { build, flatten, QueryBulder, QueryItem, QueryValue } from "../helper/query"
 
 export class Condition<T extends AnyTableDefinition> extends QueryBulder<T> {
 	where<P extends InferPath<T>>(...path:P) {
@@ -13,10 +13,7 @@ export class Condition<T extends AnyTableDefinition> extends QueryBulder<T> {
 
 	group<R extends Combine<T>>(fn:(exp:Condition<T>) => R): Combine<T> {
 		const combiner = fn(new Condition<T>())
-		// // @ts-ignore
-		// combiner.break()
 
-		// return combiner
 		return new Combine<T>(this, ['(', combiner, ')'])
 	}
 
@@ -47,7 +44,7 @@ class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryB
 	// }
 
 	get not() {
-		return new Where<T, P>(this, ['NOT', '(', cursor, ')'], this.path)
+		return new Where<T, P>(this, ['NOT'], this.path)
 	}
 
 	get exists() {

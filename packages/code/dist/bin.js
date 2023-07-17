@@ -24,15 +24,16 @@ import { configDefaults, defineConfig } from "vitest/config";
 var test = async (filters = []) => {
   const json = await readFile(join2(process.cwd(), "package.json"));
   const data = JSON.parse(json.toString());
-  const config = { test: data?.vitest || {} };
+  const config = data?.vitest || {};
   await startVitest("test", filters, {
     watch: false,
     ui: false
-  }, mergeConfig(config, defineConfig({
+  }, mergeConfig({ test: config }, defineConfig({
     plugins: plugins({
       minimize: false,
-      sourceMap: true
+      sourceMap: true,
       // aliases: loadTsConfigAliases()
+      ...config
     }),
     resolve: {
       alias: loadTsConfigAliases()

@@ -1,7 +1,6 @@
 import * as _aws_sdk_client_sns from '@aws-sdk/client-sns';
 import { SNSClient } from '@aws-sdk/client-sns';
 import { Mock } from 'vitest';
-import * as superstruct_dist_utils from 'superstruct/dist/utils';
 import { Struct } from '@awsless/validate';
 
 type Attributes = {
@@ -29,61 +28,6 @@ declare const snsClient: {
     set(client: SNSClient): void;
 };
 
-type Input<T> = {
-    Records: {
-        Sns: {
-            Message: T;
-        };
-    }[];
-};
-declare const snsRecords: <T>(input: Input<T>) => T[];
-declare const snsStruct: <A, B>(message: Struct<A, B>) => Struct<{
-    Records: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-        Sns: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-            TopicArn: string;
-            MessageId: string;
-            Timestamp: Date;
-            Message: A;
-        }>>;
-    }>>[];
-}, {
-    Records: Struct<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-        Sns: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-            TopicArn: string;
-            MessageId: string;
-            Timestamp: Date;
-            Message: A;
-        }>>;
-    }>>[], Struct<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-        Sns: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-            TopicArn: string;
-            MessageId: string;
-            Timestamp: Date;
-            Message: A;
-        }>>;
-    }>>, {
-        Sns: Struct<superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
-            TopicArn: string;
-            MessageId: string;
-            Timestamp: Date;
-            Message: A;
-        }>>, {
-            TopicArn: Struct<string, null>;
-            MessageId: Struct<string, null>;
-            Timestamp: Struct<Date, null>;
-            Message: Struct<A, B>;
-        }>;
-    }>>;
-}>;
-declare const snsInput: (records: any[]) => {
-    Records: {
-        Sns: {
-            TopicArn: string;
-            MessageId: string;
-            Timestamp: Date;
-            Message: any;
-        };
-    }[];
-};
+declare const snsStruct: <A, B>(message: Struct<A, B>) => Struct<A[], Struct<A, B>>;
 
-export { mockSNS, publish, snsClient, snsInput, snsRecords, snsStruct };
+export { mockSNS, publish, snsClient, snsStruct };

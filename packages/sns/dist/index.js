@@ -77,42 +77,23 @@ var mockSNS = (topics) => {
 
 // src/struct.ts
 import "superstruct";
-import { json, array, type, string, date } from "@awsless/validate";
-var snsRecords = (input) => {
-  return input.Records.map(({ Sns: item }) => item.Message);
-};
+import { array, type, string, coerce } from "@awsless/validate";
 var snsStruct = (message) => {
-  return type({
-    Records: array(
-      type({
-        Sns: type({
-          TopicArn: string(),
-          MessageId: string(),
-          Timestamp: date(),
-          Message: json(message)
-          // MessageAttributes
-        })
-      })
-    )
-  });
-};
-var snsInput = (records) => {
-  return {
-    Records: records.map((body, i) => ({
-      Sns: {
-        TopicArn: "arn:aws:sns",
-        MessageId: String(i),
-        Timestamp: /* @__PURE__ */ new Date(),
-        Message: body
-      }
-    }))
-  };
+  return coerce(
+    array(message),
+    type({
+      Records: array(type({
+        Sns: type({ Message: string() })
+      }))
+    }),
+    (value) => {
+      return value.Records.map((item) => JSON.parse(item.Sns.Message));
+    }
+  );
 };
 export {
   mockSNS,
   publish,
   snsClient,
-  snsInput,
-  snsRecords,
   snsStruct
 };

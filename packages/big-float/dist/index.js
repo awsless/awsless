@@ -96,6 +96,16 @@ var lt = (a, b) => a_lt2(make3(a), make3(b));
 var lte = (a, b) => a_lte(make3(a), make3(b));
 var gt = (a, b) => a_gt(make3(a), make3(b));
 var gte = (a, b) => a_gte(make3(a), make3(b));
+var min = (...values) => {
+  return new BigFloat(values.reduce((prev, current) => {
+    return lt(prev, current) ? prev : current;
+  }));
+};
+var max = (...values) => {
+  return new BigFloat(values.reduce((prev, current) => {
+    return gt(prev, current) ? prev : current;
+  }));
+};
 
 // src/index.ts
 import {
@@ -165,6 +175,8 @@ export {
   is_zero,
   lt,
   lte,
+  max,
+  min,
   mul,
   neg,
   pow,

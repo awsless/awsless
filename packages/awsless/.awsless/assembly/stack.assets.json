@@ -1,0 +1,30 @@
+{
+  "version": "32.0.0",
+  "files": {
+    "e229df038cacfab3141008d2f230ce64e3c11317f4a6f60cdd158aa4e1bbc7c8": {
+      "source": {
+        "path": "global.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-app-468004125411-eu-west-1",
+          "objectKey": "e229df038cacfab3141008d2f230ce64e3c11317f4a6f60cdd158aa4e1bbc7c8.json"
+        }
+      }
+    },
+    "ed19a631730b51299b8c01276b09654faa5527fd11e7f76086e2dce7d5e9233a": {
+      "source": {
+        "path": "stack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-app-468004125411-eu-west-1",
+          "objectKey": "ed19a631730b51299b8c01276b09654faa5527fd11e7f76086e2dce7d5e9233a.json"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

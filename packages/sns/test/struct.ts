@@ -1,14 +1,24 @@
 import { number, type, create } from 'superstruct'
-import { snsInput, snsRecords, snsStruct } from '../src'
+import { snsStruct } from '../src'
 
 describe('structs', () => {
-	it('snsStruct', () => {
+	it('should allow easy test input', () => {
 		const struct = snsStruct(type({ id: number() }))
-		const event = snsInput([{ id: 1 }])
-		const result = create(event, struct)
-		const records = snsRecords(result)
+		const result = create([{ id: 1 }], struct)
 
-		expect(result.Records[0].Sns.Message).toStrictEqual({ id: 1 })
-		expect(records).toStrictEqual([{ id: 1 }])
+		expect(result).toStrictEqual([{ id: 1 }])
+	})
+
+	it('should allow sns structured input', () => {
+		const struct = snsStruct(type({ id: number() }))
+		const result = create({
+			Records: [{
+				Sns: {
+					Message: JSON.stringify({ id: 1 })
+				}
+			}]
+		}, struct)
+
+		expect(result).toStrictEqual([{ id: 1 }])
 	})
 })

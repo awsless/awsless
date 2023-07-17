@@ -1,3 +1,0 @@
-{
-	"app": "ts-node --prefer-ts-exts examples/index.ts"
-}

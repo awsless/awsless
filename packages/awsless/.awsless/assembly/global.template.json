@@ -1,0 +1,11 @@
+{
+ "Resources": {
+  "TopicEvent53584EDE": {
+   "Type": "AWS::SNS::Topic",
+   "Properties": {
+    "DisplayName": "event",
+    "TopicName": "event"
+   }
+  }
+ }
+}

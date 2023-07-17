@@ -1,12 +1,14 @@
 
-import { getViewableErrorData, isViewableError, ViewableError } from '../src'
+import { getViewableErrorData, isViewableError, isViewableErrorType, ViewableError } from '../src'
 
 describe('ViewableError', () => {
 
 	it('should support instanceof', () => {
-		const error = new ViewableError('type', 'message')
+		const error = new ViewableError('type', 'message', { foo: 'bar' })
 		expect(error).instanceOf(ViewableError)
 		expect(error).instanceOf(Error)
+		expect(error.type).toBe('type')
+		expect(error.data).toStrictEqual({ foo: 'bar' })
 	})
 
 	it('should know if an error is viewable', () => {
@@ -17,6 +19,13 @@ describe('ViewableError', () => {
 		expect(isViewableError(error1)).toBe(true)
 		expect(isViewableError(error2)).toBe(true)
 		expect(isViewableError(error3)).toBe(false)
+	})
+
+	it('should know what error type is', () => {
+		const error = new ViewableError('one', 'message')
+
+		expect(isViewableErrorType(error, 'one')).toBe(true)
+		expect(isViewableErrorType(error, 'two')).toBe(false)
 	})
 
 	it('should get viewable error data', () => {
