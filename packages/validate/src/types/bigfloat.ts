@@ -38,7 +38,7 @@ export const precision = <T extends BigFloat | number, S extends any>(struct:Str
 	const expected = `Expected a ${struct.type}`
 
 	return refine(struct, 'precision', (value:BigFloat | number) => {
-		const big = new BigFloat(value)
+		const big = new BigFloat(value.toString())
 		return -big.exponent <= decimals || `${expected} with ${decimals} decimals`
 	})
 }

@@ -3,7 +3,7 @@ const prefix = '[viewable]'
 export class ViewableError extends Error {
 	readonly name = 'ViewableError'
 
-	constructor(type: string, message: string, data?: unknown) {
+	constructor(readonly type: string, message: string, readonly data?: unknown) {
 		super(
 			`${prefix} ${JSON.stringify({
 				type,
@@ -18,6 +18,10 @@ interface ViewableErrorData {
 	type: string
 	message: string
 	data?: unknown
+}
+
+export const isViewableErrorType = (error: unknown, type: string): boolean => {
+	return isViewableError(error) && getViewableErrorData(error).type === type
 }
 
 export const isViewableError = (error: unknown): error is ViewableError => {

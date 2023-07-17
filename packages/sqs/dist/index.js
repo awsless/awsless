@@ -128,54 +128,18 @@ var mockSQS = (queues) => {
 };
 
 // src/struct.ts
-import { json, array, type, string, record } from "@awsless/validate";
-import { randomUUID as randomUUID2 } from "crypto";
-import "superstruct";
-var sqsRecords = (input) => {
-  return input.Records.map((item) => item.body);
-};
+import { array, type, string, coerce } from "@awsless/validate";
 var sqsStruct = (body) => {
-  return type({
-    Records: array(
-      type({
-        body: json(body),
-        messageId: string(),
-        messageAttributes: record(
-          string(),
-          type({
-            dataType: string(),
-            stringValue: string()
-          })
-        )
-      })
-    )
-  });
-};
-var sqsInput = (records, attributes = {}) => {
-  const messageAttributes = {};
-  Object.keys(attributes).map((key) => {
-    messageAttributes[key] = {
-      dataType: "String",
-      stringValue: attributes[key]
-    };
-  });
-  return {
-    Records: records.map((body) => ({
-      messageId: randomUUID2(),
-      body: JSON.stringify(body),
-      attributes: {
-        SentTimestamp: String(Date.now())
-      },
-      messageAttributes
-    }))
-  };
+  return coerce(
+    array(body),
+    type({ Records: array(type({ body: string() })) }),
+    ({ Records }) => Records.map((item) => JSON.parse(item.body))
+  );
 };
 export {
   mockSQS,
   sendMessage,
   sendMessageBatch,
   sqsClient,
-  sqsInput,
-  sqsRecords,
   sqsStruct
 };

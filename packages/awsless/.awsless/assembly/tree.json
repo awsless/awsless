@@ -1,0 +1,987 @@
+{
+  "version": "tree-0.1",
+  "tree": {
+    "id": "App",
+    "path": "",
+    "children": {
+      "stats": {
+        "id": "stats",
+        "path": "stats",
+        "children": {
+          "TableStats": {
+            "id": "TableStats",
+            "path": "stats/TableStats",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "stats/TableStats/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::DynamoDB::Table",
+                  "aws:cdk:cloudformation:props": {
+                    "keySchema": [
+                      {
+                        "attributeName": "id",
+                        "keyType": "HASH"
+                      }
+                    ],
+                    "attributeDefinitions": [
+                      {
+                        "attributeName": "id",
+                        "attributeType": "S"
+                      }
+                    ],
+                    "billingMode": "PAY_PER_REQUEST",
+                    "tableClass": "STANDARD",
+                    "tableName": "app-stats-stats"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_dynamodb.CfnTable",
+                  "version": "2.87.0"
+                }
+              },
+              "ScalingRole": {
+                "id": "ScalingRole",
+                "path": "stats/TableStats/ScalingRole",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_dynamodb.Table",
+              "version": "2.87.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.87.0"
+        }
+      },
+      "bet": {
+        "id": "bet",
+        "path": "bet",
+        "children": {
+          "FunctionProcess": {
+            "id": "FunctionProcess",
+            "path": "bet/FunctionProcess",
+            "children": {
+              "ServiceRole": {
+                "id": "ServiceRole",
+                "path": "bet/FunctionProcess/ServiceRole",
+                "children": {
+                  "ImportServiceRole": {
+                    "id": "ImportServiceRole",
+                    "path": "bet/FunctionProcess/ServiceRole/ImportServiceRole",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.87.0"
+                    }
+                  },
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "bet/FunctionProcess/ServiceRole/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::IAM::Role",
+                      "aws:cdk:cloudformation:props": {
+                        "assumeRolePolicyDocument": {
+                          "Statement": [
+                            {
+                              "Action": "sts:AssumeRole",
+                              "Effect": "Allow",
+                              "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                              }
+                            }
+                          ],
+                          "Version": "2012-10-17"
+                        },
+                        "managedPolicyArns": [
+                          {
+                            "Fn::Join": [
+                              "",
+                              [
+                                "arn:",
+                                {
+                                  "Ref": "AWS::Partition"
+                                },
+                                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                              ]
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.CfnRole",
+                      "version": "2.87.0"
+                    }
+                  },
+                  "DefaultPolicy": {
+                    "id": "DefaultPolicy",
+                    "path": "bet/FunctionProcess/ServiceRole/DefaultPolicy",
+                    "children": {
+                      "Resource": {
+                        "id": "Resource",
+                        "path": "bet/FunctionProcess/ServiceRole/DefaultPolicy/Resource",
+                        "attributes": {
+                          "aws:cdk:cloudformation:type": "AWS::IAM::Policy",
+                          "aws:cdk:cloudformation:props": {
+                            "policyDocument": {
+                              "Statement": [
+                                {
+                                  "Action": [
+                                    "sqs:ReceiveMessage",
+                                    "sqs:ChangeMessageVisibility",
+                                    "sqs:GetQueueUrl",
+                                    "sqs:DeleteMessage",
+                                    "sqs:GetQueueAttributes"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": {
+                                    "Fn::GetAtt": [
+                                      "QueueProcess8EB62347",
+                                      "Arn"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "Action": "sns:publish",
+                                  "Effect": "Allow",
+                                  "Resource": "*"
+                                },
+                                {
+                                  "Action": [
+                                    "ssm:GetParameter",
+                                    "ssm:GetParameters",
+                                    "ssm:GetParametersByPath"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": {
+                                    "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prod/awsless/app"
+                                  }
+                                },
+                                {
+                                  "Action": [
+                                    "sqs:SendMessage",
+                                    "sqs:GetQueueAttributes",
+                                    "sqs:GetQueueUrl"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": {
+                                    "Fn::GetAtt": [
+                                      "QueueProcess8EB62347",
+                                      "Arn"
+                                    ]
+                                  }
+                                }
+                              ],
+                              "Version": "2012-10-17"
+                            },
+                            "policyName": "FunctionProcessServiceRoleDefaultPolicy1F96388D",
+                            "roles": [
+                              {
+                                "Ref": "FunctionProcessServiceRole28502AC5"
+                              }
+                            ]
+                          }
+                        },
+                        "constructInfo": {
+                          "fqn": "aws-cdk-lib.aws_iam.CfnPolicy",
+                          "version": "2.87.0"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.Policy",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.Role",
+                  "version": "2.87.0"
+                }
+              },
+              "Resource": {
+                "id": "Resource",
+                "path": "bet/FunctionProcess/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::Lambda::Function",
+                  "aws:cdk:cloudformation:props": {
+                    "code": {
+                      "s3Bucket": "awsless-bootstrap-468004125411-eu-west-1",
+                      "s3Key": "app/bet/function/process.zip",
+                      "s3ObjectVersion": "nTYowxW2JYE1__UOwyKeWvCYXhaooUY1"
+                    },
+                    "role": {
+                      "Fn::GetAtt": [
+                        "FunctionProcessServiceRole28502AC5",
+                        "Arn"
+                      ]
+                    },
+                    "architectures": [
+                      "arm64"
+                    ],
+                    "environment": {
+                      "variables": {
+                        "APP": "app",
+                        "STAGE": "prod",
+                        "STACK": "bet",
+                        "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1",
+                        "RESOURCE_QUEUE_PROCESS": "app-bet-process"
+                      }
+                    },
+                    "ephemeralStorage": {
+                      "size": 512
+                    },
+                    "functionName": "app-bet-process",
+                    "handler": "index.default",
+                    "runtime": "nodejs18.x",
+                    "timeout": 30
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.CfnFunction",
+                  "version": "2.87.0"
+                }
+              },
+              "EventInvokeConfig": {
+                "id": "EventInvokeConfig",
+                "path": "bet/FunctionProcess/EventInvokeConfig",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "bet/FunctionProcess/EventInvokeConfig/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::Lambda::EventInvokeConfig",
+                      "aws:cdk:cloudformation:props": {
+                        "functionName": {
+                          "Ref": "FunctionProcess0A863BC7"
+                        },
+                        "qualifier": "$LATEST",
+                        "maximumRetryAttempts": 2
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_lambda.CfnEventInvokeConfig",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.EventInvokeConfig",
+                  "version": "2.87.0"
+                }
+              },
+              "SqsEventSource:betQueueProcessBF85C460": {
+                "id": "SqsEventSource:betQueueProcessBF85C460",
+                "path": "bet/FunctionProcess/SqsEventSource:betQueueProcessBF85C460",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "bet/FunctionProcess/SqsEventSource:betQueueProcessBF85C460/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::Lambda::EventSourceMapping",
+                      "aws:cdk:cloudformation:props": {
+                        "functionName": {
+                          "Ref": "FunctionProcess0A863BC7"
+                        },
+                        "eventSourceArn": {
+                          "Fn::GetAtt": [
+                            "QueueProcess8EB62347",
+                            "Arn"
+                          ]
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_lambda.CfnEventSourceMapping",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.EventSourceMapping",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_lambda.Function",
+              "version": "2.87.0"
+            }
+          },
+          "QueueProcess": {
+            "id": "QueueProcess",
+            "path": "bet/QueueProcess",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "bet/QueueProcess/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::SQS::Queue",
+                  "aws:cdk:cloudformation:props": {
+                    "delaySeconds": 0,
+                    "maximumMessageSize": 262144,
+                    "messageRetentionPeriod": 604800,
+                    "queueName": "app-bet-process",
+                    "receiveMessageWaitTimeSeconds": 0,
+                    "visibilityTimeout": 30
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_sqs.CfnQueue",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_sqs.Queue",
+              "version": "2.87.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.87.0"
+        }
+      },
+      "dice": {
+        "id": "dice",
+        "path": "dice",
+        "children": {
+          "FunctionEvent": {
+            "id": "FunctionEvent",
+            "path": "dice/FunctionEvent",
+            "children": {
+              "ServiceRole": {
+                "id": "ServiceRole",
+                "path": "dice/FunctionEvent/ServiceRole",
+                "children": {
+                  "ImportServiceRole": {
+                    "id": "ImportServiceRole",
+                    "path": "dice/FunctionEvent/ServiceRole/ImportServiceRole",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.87.0"
+                    }
+                  },
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "dice/FunctionEvent/ServiceRole/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::IAM::Role",
+                      "aws:cdk:cloudformation:props": {
+                        "assumeRolePolicyDocument": {
+                          "Statement": [
+                            {
+                              "Action": "sts:AssumeRole",
+                              "Effect": "Allow",
+                              "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                              }
+                            }
+                          ],
+                          "Version": "2012-10-17"
+                        },
+                        "managedPolicyArns": [
+                          {
+                            "Fn::Join": [
+                              "",
+                              [
+                                "arn:",
+                                {
+                                  "Ref": "AWS::Partition"
+                                },
+                                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                              ]
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.CfnRole",
+                      "version": "2.87.0"
+                    }
+                  },
+                  "DefaultPolicy": {
+                    "id": "DefaultPolicy",
+                    "path": "dice/FunctionEvent/ServiceRole/DefaultPolicy",
+                    "children": {
+                      "Resource": {
+                        "id": "Resource",
+                        "path": "dice/FunctionEvent/ServiceRole/DefaultPolicy/Resource",
+                        "attributes": {
+                          "aws:cdk:cloudformation:type": "AWS::IAM::Policy",
+                          "aws:cdk:cloudformation:props": {
+                            "policyDocument": {
+                              "Statement": [
+                                {
+                                  "Action": "sns:publish",
+                                  "Effect": "Allow",
+                                  "Resource": "*"
+                                },
+                                {
+                                  "Action": [
+                                    "ssm:GetParameter",
+                                    "ssm:GetParameters",
+                                    "ssm:GetParametersByPath"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": {
+                                    "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prod/awsless/app"
+                                  }
+                                },
+                                {
+                                  "Action": [
+                                    "s3:GetObject*",
+                                    "s3:GetBucket*",
+                                    "s3:List*",
+                                    "s3:DeleteObject*",
+                                    "s3:PutObject",
+                                    "s3:PutObjectLegalHold",
+                                    "s3:PutObjectRetention",
+                                    "s3:PutObjectTagging",
+                                    "s3:PutObjectVersionTagging",
+                                    "s3:Abort*"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": [
+                                    {
+                                      "Fn::GetAtt": [
+                                        "StoreFiles065828D1",
+                                        "Arn"
+                                      ]
+                                    },
+                                    {
+                                      "Fn::Join": [
+                                        "",
+                                        [
+                                          {
+                                            "Fn::GetAtt": [
+                                              "StoreFiles065828D1",
+                                              "Arn"
+                                            ]
+                                          },
+                                          "/*"
+                                        ]
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ],
+                              "Version": "2012-10-17"
+                            },
+                            "policyName": "FunctionEventServiceRoleDefaultPolicy32D2E98B",
+                            "roles": [
+                              {
+                                "Ref": "FunctionEventServiceRole166804FB"
+                              }
+                            ]
+                          }
+                        },
+                        "constructInfo": {
+                          "fqn": "aws-cdk-lib.aws_iam.CfnPolicy",
+                          "version": "2.87.0"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.Policy",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.Role",
+                  "version": "2.87.0"
+                }
+              },
+              "Resource": {
+                "id": "Resource",
+                "path": "dice/FunctionEvent/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::Lambda::Function",
+                  "aws:cdk:cloudformation:props": {
+                    "code": {
+                      "s3Bucket": "awsless-bootstrap-468004125411-eu-west-1",
+                      "s3Key": "app/dice/function/event.zip",
+                      "s3ObjectVersion": "d_R1_Mpv7Hkn19186vregG9Bt36XGxyg"
+                    },
+                    "role": {
+                      "Fn::GetAtt": [
+                        "FunctionEventServiceRole166804FB",
+                        "Arn"
+                      ]
+                    },
+                    "architectures": [
+                      "arm64"
+                    ],
+                    "environment": {
+                      "variables": {
+                        "APP": "app",
+                        "STAGE": "prod",
+                        "STACK": "dice",
+                        "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1",
+                        "RESOURCE_STORE_FILES": "app-dice-files"
+                      }
+                    },
+                    "ephemeralStorage": {
+                      "size": 512
+                    },
+                    "functionName": "app-dice-event",
+                    "handler": "index.default",
+                    "runtime": "nodejs18.x",
+                    "timeout": 30
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.CfnFunction",
+                  "version": "2.87.0"
+                }
+              },
+              "EventInvokeConfig": {
+                "id": "EventInvokeConfig",
+                "path": "dice/FunctionEvent/EventInvokeConfig",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "dice/FunctionEvent/EventInvokeConfig/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::Lambda::EventInvokeConfig",
+                      "aws:cdk:cloudformation:props": {
+                        "functionName": {
+                          "Ref": "FunctionEventC45B1AB7"
+                        },
+                        "qualifier": "$LATEST",
+                        "maximumRetryAttempts": 2
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_lambda.CfnEventInvokeConfig",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.EventInvokeConfig",
+                  "version": "2.87.0"
+                }
+              },
+              "AllowInvoke:diceTopicEvent2F5AB5BE": {
+                "id": "AllowInvoke:diceTopicEvent2F5AB5BE",
+                "path": "dice/FunctionEvent/AllowInvoke:diceTopicEvent2F5AB5BE",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::Lambda::Permission",
+                  "aws:cdk:cloudformation:props": {
+                    "action": "lambda:InvokeFunction",
+                    "functionName": {
+                      "Fn::GetAtt": [
+                        "FunctionEventC45B1AB7",
+                        "Arn"
+                      ]
+                    },
+                    "principal": "sns.amazonaws.com",
+                    "sourceArn": {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:",
+                          {
+                            "Ref": "AWS::Partition"
+                          },
+                          ":sns:",
+                          {
+                            "Ref": "AWS::Region"
+                          },
+                          ":",
+                          {
+                            "Ref": "AWS::AccountId"
+                          },
+                          ":topic/app-dice-event"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.CfnPermission",
+                  "version": "2.87.0"
+                }
+              },
+              "TopicEvent": {
+                "id": "TopicEvent",
+                "path": "dice/FunctionEvent/TopicEvent",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "dice/FunctionEvent/TopicEvent/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::SNS::Subscription",
+                      "aws:cdk:cloudformation:props": {
+                        "protocol": "lambda",
+                        "topicArn": {
+                          "Fn::Join": [
+                            "",
+                            [
+                              "arn:",
+                              {
+                                "Ref": "AWS::Partition"
+                              },
+                              ":sns:",
+                              {
+                                "Ref": "AWS::Region"
+                              },
+                              ":",
+                              {
+                                "Ref": "AWS::AccountId"
+                              },
+                              ":topic/app-dice-event"
+                            ]
+                          ]
+                        },
+                        "endpoint": {
+                          "Fn::GetAtt": [
+                            "FunctionEventC45B1AB7",
+                            "Arn"
+                          ]
+                        },
+                        "region": {
+                          "Ref": "AWS::Region"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_sns.CfnSubscription",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_sns.Subscription",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_lambda.Function",
+              "version": "2.87.0"
+            }
+          },
+          "TopicEvent": {
+            "id": "TopicEvent",
+            "path": "dice/TopicEvent",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_sns.TopicBase",
+              "version": "2.87.0"
+            }
+          },
+          "StoreFiles": {
+            "id": "StoreFiles",
+            "path": "dice/StoreFiles",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "dice/StoreFiles/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::S3::Bucket",
+                  "aws:cdk:cloudformation:props": {
+                    "accessControl": "Private",
+                    "bucketName": "app-dice-files"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_s3.CfnBucket",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_s3.Bucket",
+              "version": "2.87.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.87.0"
+        }
+      },
+      "wallet": {
+        "id": "wallet",
+        "path": "wallet",
+        "children": {
+          "FunctionBet": {
+            "id": "FunctionBet",
+            "path": "wallet/FunctionBet",
+            "children": {
+              "ServiceRole": {
+                "id": "ServiceRole",
+                "path": "wallet/FunctionBet/ServiceRole",
+                "children": {
+                  "ImportServiceRole": {
+                    "id": "ImportServiceRole",
+                    "path": "wallet/FunctionBet/ServiceRole/ImportServiceRole",
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.Resource",
+                      "version": "2.87.0"
+                    }
+                  },
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "wallet/FunctionBet/ServiceRole/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::IAM::Role",
+                      "aws:cdk:cloudformation:props": {
+                        "assumeRolePolicyDocument": {
+                          "Statement": [
+                            {
+                              "Action": "sts:AssumeRole",
+                              "Effect": "Allow",
+                              "Principal": {
+                                "Service": "lambda.amazonaws.com"
+                              }
+                            }
+                          ],
+                          "Version": "2012-10-17"
+                        },
+                        "managedPolicyArns": [
+                          {
+                            "Fn::Join": [
+                              "",
+                              [
+                                "arn:",
+                                {
+                                  "Ref": "AWS::Partition"
+                                },
+                                ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                              ]
+                            ]
+                          }
+                        ]
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.CfnRole",
+                      "version": "2.87.0"
+                    }
+                  },
+                  "DefaultPolicy": {
+                    "id": "DefaultPolicy",
+                    "path": "wallet/FunctionBet/ServiceRole/DefaultPolicy",
+                    "children": {
+                      "Resource": {
+                        "id": "Resource",
+                        "path": "wallet/FunctionBet/ServiceRole/DefaultPolicy/Resource",
+                        "attributes": {
+                          "aws:cdk:cloudformation:type": "AWS::IAM::Policy",
+                          "aws:cdk:cloudformation:props": {
+                            "policyDocument": {
+                              "Statement": [
+                                {
+                                  "Action": "sns:publish",
+                                  "Effect": "Allow",
+                                  "Resource": "*"
+                                },
+                                {
+                                  "Action": [
+                                    "ssm:GetParameter",
+                                    "ssm:GetParameters",
+                                    "ssm:GetParametersByPath"
+                                  ],
+                                  "Effect": "Allow",
+                                  "Resource": {
+                                    "Fn::Sub": "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/prod/awsless/app"
+                                  }
+                                },
+                                {
+                                  "Action": "lambda:InvokeFunction",
+                                  "Effect": "Allow",
+                                  "Resource": [
+                                    {
+                                      "Fn::GetAtt": [
+                                        "FunctionBet9F58109D",
+                                        "Arn"
+                                      ]
+                                    },
+                                    {
+                                      "Fn::Join": [
+                                        "",
+                                        [
+                                          {
+                                            "Fn::GetAtt": [
+                                              "FunctionBet9F58109D",
+                                              "Arn"
+                                            ]
+                                          },
+                                          ":*"
+                                        ]
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ],
+                              "Version": "2012-10-17"
+                            },
+                            "policyName": "FunctionBetServiceRoleDefaultPolicyC0751457",
+                            "roles": [
+                              {
+                                "Ref": "FunctionBetServiceRole854C3EA4"
+                              }
+                            ]
+                          }
+                        },
+                        "constructInfo": {
+                          "fqn": "aws-cdk-lib.aws_iam.CfnPolicy",
+                          "version": "2.87.0"
+                        }
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_iam.Policy",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.Role",
+                  "version": "2.87.0"
+                }
+              },
+              "Resource": {
+                "id": "Resource",
+                "path": "wallet/FunctionBet/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::Lambda::Function",
+                  "aws:cdk:cloudformation:props": {
+                    "code": {
+                      "s3Bucket": "awsless-bootstrap-468004125411-eu-west-1",
+                      "s3Key": "app/wallet/function/bet.zip",
+                      "s3ObjectVersion": "JvpLNfX1HrX.GYwHF.s1buDzSrN3UkT3"
+                    },
+                    "role": {
+                      "Fn::GetAtt": [
+                        "FunctionBetServiceRole854C3EA4",
+                        "Arn"
+                      ]
+                    },
+                    "architectures": [
+                      "arm64"
+                    ],
+                    "environment": {
+                      "variables": {
+                        "APP": "app",
+                        "STAGE": "prod",
+                        "STACK": "wallet",
+                        "AWS_NODEJS_CONNECTION_REUSE_ENABLED": "1",
+                        "RESOURCE_FUNCTION_BET": "app-wallet-bet"
+                      }
+                    },
+                    "ephemeralStorage": {
+                      "size": 512
+                    },
+                    "functionName": "app-wallet-bet",
+                    "handler": "index.default",
+                    "runtime": "nodejs18.x",
+                    "timeout": 30
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.CfnFunction",
+                  "version": "2.87.0"
+                }
+              },
+              "EventInvokeConfig": {
+                "id": "EventInvokeConfig",
+                "path": "wallet/FunctionBet/EventInvokeConfig",
+                "children": {
+                  "Resource": {
+                    "id": "Resource",
+                    "path": "wallet/FunctionBet/EventInvokeConfig/Resource",
+                    "attributes": {
+                      "aws:cdk:cloudformation:type": "AWS::Lambda::EventInvokeConfig",
+                      "aws:cdk:cloudformation:props": {
+                        "functionName": {
+                          "Ref": "FunctionBet9F58109D"
+                        },
+                        "qualifier": "$LATEST",
+                        "maximumRetryAttempts": 2
+                      }
+                    },
+                    "constructInfo": {
+                      "fqn": "aws-cdk-lib.aws_lambda.CfnEventInvokeConfig",
+                      "version": "2.87.0"
+                    }
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_lambda.EventInvokeConfig",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_lambda.Function",
+              "version": "2.87.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.87.0"
+        }
+      },
+      "global": {
+        "id": "global",
+        "path": "global",
+        "children": {
+          "TopicEvent": {
+            "id": "TopicEvent",
+            "path": "global/TopicEvent",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "global/TopicEvent/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::SNS::Topic",
+                  "aws:cdk:cloudformation:props": {
+                    "displayName": "event",
+                    "topicName": "event"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_sns.CfnTopic",
+                  "version": "2.87.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_sns.Topic",
+              "version": "2.87.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.87.0"
+        }
+      },
+      "Tree": {
+        "id": "Tree",
+        "path": "Tree",
+        "constructInfo": {
+          "fqn": "constructs.Construct",
+          "version": "10.1.246"
+        }
+      }
+    },
+    "constructInfo": {
+      "fqn": "aws-cdk-lib.App",
+      "version": "2.87.0"
+    }
+  }
+}

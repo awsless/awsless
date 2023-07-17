@@ -7,7 +7,7 @@
 		"noFallthroughCasesInSwitch": true,
 		"target": "es2022",
 		"types": ["node", "vitest/globals"],
-		"lib": ["es2022", "dom"],
+		"lib": ["es2022"],
 		"esModuleInterop": true,
 		"moduleResolution": "Node",
 		"skipLibCheck": true,

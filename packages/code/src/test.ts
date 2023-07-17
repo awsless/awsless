@@ -9,16 +9,19 @@ import { loadTsConfigAliases, plugins } from './rollup/index'
 export const test = async (filters:string[] = []) => {
 	const json = await readFile(join(process.cwd(), 'package.json'))
 	const data = JSON.parse(json.toString())
-	const config = { test: data?.vitest || {} }
+	const config = data?.vitest || {}
+	// const config = { test: data?.vitest || {} }
+	// const pluginConfig = data?.vitest?.plugins || {}
 
 	await startVitest('test', filters, {
 		watch: false,
 		ui: false
-	}, mergeConfig(config, defineConfig({
+	}, mergeConfig({ test: config }, defineConfig({
 		plugins: plugins({
 			minimize: false,
 			sourceMap: true,
 			// aliases: loadTsConfigAliases()
+			...config,
 		}) as any[],
 		resolve: {
 			alias: loadTsConfigAliases()

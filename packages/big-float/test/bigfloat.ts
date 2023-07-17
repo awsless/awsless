@@ -1,5 +1,5 @@
 
-import { abs, add, BigFloat, BILLION, ceil, div, EIGHT, eq, factor, FIVE, floor, FOUR, gt, gte, HUNDRED, lt, lte, MILLION, mul, neg, NINE, Numeric, ONE, pow, SEVEN, SIX, sqrt, sub, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO } from '../src/index'
+import { abs, add, BigFloat, BILLION, ceil, div, EIGHT, eq, factor, FIVE, floor, FOUR, gt, gte, HUNDRED, lt, lte, max, MILLION, min, mul, neg, NINE, Numeric, ONE, pow, SEVEN, SIX, sqrt, sub, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO } from '../src/index'
 
 describe('BigFloat', () => {
 
@@ -15,6 +15,24 @@ describe('BigFloat', () => {
 		it('2 > 1', () => expect(gt(2, 1)).toBe(true))
 		it('2 >= 1', () => expect(gte(2, 1)).toBe(true))
 		it('2 >= 2', () => expect(gte(2, 2)).toBe(true))
+	})
+
+	describe('min', () => {
+		it('min(1) = 1', () => expect(eq(min(1), 1)).toBe(true))
+		it('min(1, 2, 3) = 3', () => expect(eq(min(1, 2, 3), 1)).toBe(true))
+		it('min(1, 10) = 10', () => expect(eq(min(1, 10), 1)).toBe(true))
+		it('min(1, 1.1) = 1.1', () => expect(eq(min(1, 1.1), 1)).toBe(true))
+		it('min(1, 0) = 0', () => expect(eq(min(1, 0), 0)).toBe(true))
+		it('min(1, -1) = -1', () => expect(eq(min(1, -1), -1)).toBe(true))
+	})
+
+	describe('max', () => {
+		it('max(1) = 1', () => expect(eq(max(1), 1)).toBe(true))
+		it('max(1, 2, 3) = 3', () => expect(eq(max(1, 2, 3), 3)).toBe(true))
+		it('max(1, 10) = 10', () => expect(eq(max(1, 10), 10)).toBe(true))
+		it('max(1, 1.1) = 1.1', () => expect(eq(max(1, 1.1), 1.1)).toBe(true))
+		it('max(1, 0) = 0', () => expect(eq(max(1, 0), 1)).toBe(true))
+		it('max(1, -1) = -1', () => expect(eq(max(1, -1), 1)).toBe(true))
 	})
 
 	describe('arithmetic', () => {

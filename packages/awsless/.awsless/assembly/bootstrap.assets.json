@@ -1,0 +1,18 @@
+{
+  "version": "32.0.0",
+  "files": {
+    "baaf5e26f4d03116ac9950859b3f0bfffca099806497e86ac79bab07e2bd74e3": {
+      "source": {
+        "path": "bootstrap.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-468004125411-eu-west-1",
+          "objectKey": "baaf5e26f4d03116ac9950859b3f0bfffca099806497e86ac79bab07e2bd74e3.json"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

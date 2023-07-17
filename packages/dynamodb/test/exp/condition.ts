@@ -27,7 +27,7 @@ describe('Condition Expression', () => {
 	}
 
 	assert(
-		'attribute_exists( #n1 ) OR NOT ( attribute_exists( #n1 ) )',
+		'attribute_exists( #n1 ) OR NOT attribute_exists( #n1 )',
 		(exp) => exp
 			.where('id').exists
 			.or
@@ -106,9 +106,17 @@ describe('Condition Expression', () => {
 	)
 
 	assert(
-		'attribute_exists( #n1 ) OR NOT ( attribute_exists( #n1 ) )',
+		'attribute_exists( #n1 ) OR NOT attribute_exists( #n1 )',
 		(exp) => exp
 			.extend(exp => true ? exp.where('id').exists.or : exp)
 			.where('id').not.exists
+	)
+
+	assert(
+		'NOT attribute_exists( #n1 ) AND attribute_exists( #n2 )',
+		(exp) => exp
+			.where('id').not.exists
+			.and
+			.where('name').exists
 	)
 })

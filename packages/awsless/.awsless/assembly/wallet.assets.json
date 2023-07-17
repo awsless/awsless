@@ -1,0 +1,54 @@
+{
+  "version": "32.0.0",
+  "files": {
+    "1a92e4293809600416f5b4f33c28b6542cc51ccbe42eb41af9724f415c824bcf": {
+      "source": {
+        "path": "stats.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-468004125411-eu-west-1",
+          "objectKey": "1a92e4293809600416f5b4f33c28b6542cc51ccbe42eb41af9724f415c824bcf.json"
+        }
+      }
+    },
+    "0020f69ccf8ddb78b31642793147eca0f04de6072bd15657b382176da15423c2": {
+      "source": {
+        "path": "bet.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-468004125411-eu-west-1",
+          "objectKey": "0020f69ccf8ddb78b31642793147eca0f04de6072bd15657b382176da15423c2.json"
+        }
+      }
+    },
+    "eaa9d2aad879ce0c6ab0ca8acbe488f21c6e02b132c8cc5febf83b4b775f7de7": {
+      "source": {
+        "path": "dice.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-468004125411-eu-west-1",
+          "objectKey": "eaa9d2aad879ce0c6ab0ca8acbe488f21c6e02b132c8cc5febf83b4b775f7de7.json"
+        }
+      }
+    },
+    "8160edbe39e066a313b9ce0251a462f67a4704f7f8d9927604c6ed5327d3ff58": {
+      "source": {
+        "path": "wallet.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "awsless-bootstrap-468004125411-eu-west-1",
+          "objectKey": "8160edbe39e066a313b9ce0251a462f67a4704f7f8d9927604c6ed5327d3ff58.json"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

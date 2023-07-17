@@ -1,0 +1,52 @@
+{
+	"name": "@awsless/awsless",
+	"version": "0.0.1",
+	"license": "MIT",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"files": [
+		"dist"
+	],
+	"bin": "./dist/bin.cjs",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {
+		"test": "pnpm code test",
+		"term": "zsh -c 'node dist/bin.js ${*} --config-file=./test/_data/config.ts' --",
+		"berm": "zsh -c 'pnpm build; node dist/bin.js ${*} --config-file=./test/_data/config.ts' --",
+		"build": "pnpm tsup src/bin.ts src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@aws-sdk/client-cloudformation": "^3.369.0",
+		"@aws-sdk/client-s3": "^3.369.0",
+		"@aws-sdk/client-ssm": "3.329.0",
+		"@aws-sdk/client-sts": "^3.369.0",
+		"@aws-sdk/credential-providers": "^3.369.0",
+		"@awsless/code": "workspace:^",
+		"@types/prompts": "^2.4.4",
+		"aws-cdk-lib": "^2.87.0",
+		"chalk": "^5.3.0",
+		"change-case": "^4.1.2",
+		"commander": "^9.4.1",
+		"constructs": "^10.1.246",
+		"filesize": "^10.0.7",
+		"jszip": "^3.10.1",
+		"prompts": "^2.4.2",
+		"ts-import": "5.0.0-beta.0"
+	}
+}

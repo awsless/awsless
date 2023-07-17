@@ -221,7 +221,7 @@ var Where = class extends QueryBulder {
   // 	super(items)
   // }
   get not() {
-    return new Where(this, ["NOT", "(", cursor, ")"], this.path);
+    return new Where(this, ["NOT"], this.path);
   }
   get exists() {
     return new Combine(this, ["attribute_exists(", { p: this.path }, ")"]);

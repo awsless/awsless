@@ -27,6 +27,8 @@ declare const lt: (a: Numeric, b: Numeric) => boolean;
 declare const lte: (a: Numeric, b: Numeric) => boolean;
 declare const gt: (a: Numeric, b: Numeric) => boolean;
 declare const gte: (a: Numeric, b: Numeric) => boolean;
+declare const min: (...values: Numeric[]) => BigFloat;
+declare const max: (...values: Numeric[]) => BigFloat;
 
 declare const ZERO: BigFloat;
 declare const ONE: BigFloat;
@@ -45,4 +47,4 @@ declare const MILLION: BigFloat;
 declare const BILLION: BigFloat;
 declare const TRILLION: BigFloat;
 
-export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, div, eq, factor, floor, gt, gte, lt, lte, mul, neg, pow, sqrt, sub };
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, div, eq, factor, floor, gt, gte, lt, lte, max, min, mul, neg, pow, sqrt, sub };

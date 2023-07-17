@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"module": "ESNext",
+		// "module": "CommonJS",
+		// "moduleResolution": "NodeNext",
+		// "preserveSymlinks": true
+		"esModuleInterop": true,
+		// "allowImportingTsExtensions": true,
+	},
+	// "ts-node": {
+    //     "esm": true,
+	// 	"experimentalSpecifierResolution": "node",
+    // }
+}

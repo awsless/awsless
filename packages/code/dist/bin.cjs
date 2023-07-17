@@ -352,15 +352,16 @@ var import_config = require("vitest/config");
 var test = async (filters = []) => {
   const json2 = await (0, import_promises4.readFile)((0, import_path8.join)(process.cwd(), "package.json"));
   const data = JSON.parse(json2.toString());
-  const config = { test: data?.vitest || {} };
+  const config = data?.vitest || {};
   await (0, import_node.startVitest)("test", filters, {
     watch: false,
     ui: false
-  }, (0, import_vite.mergeConfig)(config, (0, import_config.defineConfig)({
+  }, (0, import_vite.mergeConfig)({ test: config }, (0, import_config.defineConfig)({
     plugins: plugins({
       minimize: false,
-      sourceMap: true
+      sourceMap: true,
       // aliases: loadTsConfigAliases()
+      ...config
     }),
     resolve: {
       alias: loadTsConfigAliases()

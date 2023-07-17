@@ -34,8 +34,6 @@ __export(src_exports, {
   sendMessage: () => sendMessage,
   sendMessageBatch: () => sendMessageBatch,
   sqsClient: () => sqsClient,
-  sqsInput: () => sqsInput,
-  sqsRecords: () => sqsRecords,
   sqsStruct: () => sqsStruct
 });
 module.exports = __toCommonJS(src_exports);
@@ -162,46 +160,12 @@ var mockSQS = (queues) => {
 
 // src/struct.ts
 var import_validate = require("@awsless/validate");
-var import_crypto2 = require("crypto");
-var import_superstruct = require("superstruct");
-var sqsRecords = (input) => {
-  return input.Records.map((item) => item.body);
-};
 var sqsStruct = (body) => {
-  return (0, import_validate.type)({
-    Records: (0, import_validate.array)(
-      (0, import_validate.type)({
-        body: (0, import_validate.json)(body),
-        messageId: (0, import_validate.string)(),
-        messageAttributes: (0, import_validate.record)(
-          (0, import_validate.string)(),
-          (0, import_validate.type)({
-            dataType: (0, import_validate.string)(),
-            stringValue: (0, import_validate.string)()
-          })
-        )
-      })
-    )
-  });
-};
-var sqsInput = (records, attributes = {}) => {
-  const messageAttributes = {};
-  Object.keys(attributes).map((key) => {
-    messageAttributes[key] = {
-      dataType: "String",
-      stringValue: attributes[key]
-    };
-  });
-  return {
-    Records: records.map((body) => ({
-      messageId: (0, import_crypto2.randomUUID)(),
-      body: JSON.stringify(body),
-      attributes: {
-        SentTimestamp: String(Date.now())
-      },
-      messageAttributes
-    }))
-  };
+  return (0, import_validate.coerce)(
+    (0, import_validate.array)(body),
+    (0, import_validate.type)({ Records: (0, import_validate.array)((0, import_validate.type)({ body: (0, import_validate.string)() })) }),
+    ({ Records }) => Records.map((item) => JSON.parse(item.body))
+  );
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
@@ -209,7 +173,5 @@ var sqsInput = (records, attributes = {}) => {
   sendMessage,
   sendMessageBatch,
   sqsClient,
-  sqsInput,
-  sqsRecords,
   sqsStruct
 });

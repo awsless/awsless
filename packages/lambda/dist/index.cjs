@@ -28,6 +28,7 @@ __export(src_exports, {
   invoke: () => invoke,
   isViewableError: () => isViewableError,
   isViewableErrorString: () => isViewableErrorString,
+  isViewableErrorType: () => isViewableErrorType,
   lambda: () => lambda,
   lambdaClient: () => lambdaClient,
   mockLambda: () => mockLambda,
@@ -41,7 +42,6 @@ var import_validate = require("@awsless/validate");
 // src/errors/viewable.ts
 var prefix = "[viewable]";
 var ViewableError = class extends Error {
-  name = "ViewableError";
   constructor(type, message, data) {
     super(
       `${prefix} ${JSON.stringify({
@@ -50,7 +50,13 @@ var ViewableError = class extends Error {
         data
       })}`
     );
+    this.type = type;
+    this.data = data;
   }
+  name = "ViewableError";
+};
+var isViewableErrorType = (error, type) => {
+  return isViewableError(error) && getViewableErrorData(error).type === type;
 };
 var isViewableError = (error) => {
   return error instanceof ViewableError || error instanceof Error && isViewableErrorString(error.message);
@@ -103,16 +109,20 @@ var TimeoutError = class extends Error {
     super(`Lambda will timeout in ${remainingTime}ms`);
   }
 };
-var createTimeout = (context, callback) => {
+var createTimeoutWrap = async (context, log, callback) => {
   if (!context) {
-    return;
+    return callback();
   }
-  const delay = context.getRemainingTimeInMillis() - 1e3;
+  const time = context.getRemainingTimeInMillis();
+  const delay = Math.max(time - 1e3, 1e3);
   const id = setTimeout(() => {
-    const remaining = context.getRemainingTimeInMillis();
-    callback(new TimeoutError(remaining));
+    log(new TimeoutError(context.getRemainingTimeInMillis()));
   }, delay);
-  return id;
+  try {
+    return await callback();
+  } finally {
+    clearTimeout(id);
+  }
 };
 
 // src/helpers/warm-up.ts
@@ -268,14 +278,13 @@ var lambda = (options) => {
         await warmUp(warmUpEvent, context);
         return void 0;
       }
-      const timeout = createTimeout(context, (error) => {
-        log(error);
+      const result = await createTimeoutWrap(context, log, async () => {
+        const input = await transformValidationErrors(() => options.input ? (0, import_validate2.create)(event, options.input) : event);
+        const extendedContext = { ...context || {}, event, log };
+        const output = await transformValidationErrors(() => options.handle(input, extendedContext));
+        return options.output ? (0, import_validate2.create)(output, options.output) : output;
       });
-      const input = await transformValidationErrors(() => options.input ? (0, import_validate2.create)(event, options.input) : event);
-      const extendedContext = { ...context || {}, event, log };
-      const output = await transformValidationErrors(() => options.handle(input, extendedContext));
-      clearTimeout(timeout);
-      return options.output ? (0, import_validate2.create)(output, options.output) : output;
+      return result;
     } catch (error) {
       if (!isViewableError(error) || options.logViewableErrors) {
         await log(error);
@@ -330,6 +339,7 @@ var import_client_lambda4 = require("@aws-sdk/client-lambda");
   invoke,
   isViewableError,
   isViewableErrorString,
+  isViewableErrorType,
   lambda,
   lambdaClient,
   mockLambda,
