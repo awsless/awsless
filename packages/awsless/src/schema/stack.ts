@@ -10,3 +10,6 @@ export const StackSchema: z.ZodType<StackConfig, z.ZodTypeDef, StackConfig> = z.
 	name: ResourceIdSchema,
 	depends: z.array(z.lazy(() => StackSchema)).optional()
 })
+
+export type StackConfigInput = z.input<typeof StackSchema>
+export type StackConfigOutput = z.output<typeof StackSchema>

@@ -1,20 +1,17 @@
 
 import { definePlugin } from "../plugin";
 import { z } from 'zod'
-import { ScheduleExpressionSchema } from "../schema/schedule";
-import { Rule } from "aws-cdk-lib/aws-events";
 import { addResourceEnvironment, toId, toName } from "../util/resource";
 import { FunctionSchema, toFunction } from "./function";
-import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
 import { ResourceIdSchema } from "../schema/resource-id";
 import { DurationSchema } from "../schema/duration";
 import { SizeSchema } from "../schema/size";
 import { Queue } from "aws-cdk-lib/aws-sqs";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+import { LocalFileSchema } from "../schema/local-file";
 
 export const queuePlugin = definePlugin({
 	name: 'queue',
-	// depends: [ functionPlugin ],
 	schema: z.object({
 		defaults: z.object({
 			queue: z.object({
@@ -24,29 +21,33 @@ export const queuePlugin = definePlugin({
 				deliveryDelay: DurationSchema.default('0 seconds'),
 				receiveMessageWaitTime: DurationSchema.default('0 seconds'),
 				maxMessageSize: SizeSchema.default('256 KB'),
-			}),
-		}),
+			}).default({}),
+		}).default({}),
 		stacks: z.object({
-			queues: z.record(ResourceIdSchema, z.object({
-				consumer: FunctionSchema,
-				fifo: z.boolean().optional(),
-				retentionPeriod: DurationSchema.optional(),
-				visibilityTimeout: DurationSchema.optional(),
-				deliveryDelay: DurationSchema.optional(),
-				receiveMessageWaitTime: DurationSchema.optional(),
-				maxMessageSize: SizeSchema.optional(),
-			}).strict()).optional()
+			queues: z.record(ResourceIdSchema, z.union([
+				LocalFileSchema,
+				z.object({
+					consumer: FunctionSchema,
+					fifo: z.boolean().optional(),
+					retentionPeriod: DurationSchema.optional(),
+					visibilityTimeout: DurationSchema.optional(),
+					deliveryDelay: DurationSchema.optional(),
+					receiveMessageWaitTime: DurationSchema.optional(),
+					maxMessageSize: SizeSchema.optional(),
+				})
+			])).optional()
 		}).array()
 	}),
 	onStack(context) {
+		const { stack, config } = context
 		return Object.entries(context.stackConfig.queues || {}).map(([ id, functionOrProps ]) => {
 
 			const props = typeof functionOrProps === 'string'
-				? { ...context.config.defaults.queue, consumer: functionOrProps }
-				: { ...context.config.defaults.queue, ...functionOrProps }
+				? { ...config.defaults.queue, consumer: functionOrProps }
+				: { ...config.defaults.queue, ...functionOrProps }
 
-			const queue = new Queue(context.stack, toId('queue', id), {
-				queueName: toName(context.stack, id),
+			const queue = new Queue(stack, toId('queue', id), {
+				queueName: toName(stack, id),
 				...props,
 				maxMessageSizeBytes: props.maxMessageSize.toBytes()
 			})
@@ -55,9 +56,9 @@ export const queuePlugin = definePlugin({
 			lambda.addEventSource(new SqsEventSource(queue))
 			// queue.grantConsumeMessages(lambda)
 
-			context.bind((lambda) => {
+			context.bind(lambda => {
 				queue.grantSendMessages(lambda)
-				addResourceEnvironment(context.stack, 'queue', id, lambda)
+				addResourceEnvironment(stack, 'queue', id, lambda)
 			})
 
 			return lambda

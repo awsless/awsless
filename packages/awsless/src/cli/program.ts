@@ -5,6 +5,7 @@ import { bootstrap } from './command/bootstrap'
 import { status } from './command/status'
 import { deploy } from './command/deploy'
 import { config } from './command/config'
+import { test } from './command/test'
 
 export type ProgramOptions = {
 	configFile?: string
@@ -38,6 +39,7 @@ const commands = [
 	// diff,
 	// remove,
 	config,
+	test,
 ]
 
 commands.forEach(command => command(program))

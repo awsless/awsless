@@ -1,48 +1,56 @@
 import { App, Stack } from "aws-cdk-lib"
 import { Assets } from "./util/assets"
-import { Schema, z } from "zod"
-import { Config } from "./config"
+import { AnyZodObject, z } from "zod"
+import { BaseConfig } from "./config"
 import { Function } from "aws-cdk-lib/aws-lambda"
 import { Binding } from "./stack"
 
-export type PluginSchema = Schema | undefined
+export type PluginSchema = AnyZodObject | undefined
 export type PluginDepends = Plugin[] | undefined
 
-type ExtendedConfig<S extends Schema | undefined = undefined> = (
-	S extends Schema
-		? Config & z.infer<S>
-		: Config
+export type ExtendedConfigOutput<S extends AnyZodObject | undefined = undefined> = (
+	S extends AnyZodObject
+		? BaseConfig & z.output<S>
+		: BaseConfig
 )
 
-export type StackContext<S extends Schema | undefined = undefined> = {
-	config: ExtendedConfig<S>
+export type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = (
+	S extends AnyZodObject
+		? BaseConfig & z.input<S>
+		: BaseConfig
+)
+
+export type StackContext<S extends AnyZodObject | undefined = undefined> = {
+	config: ExtendedConfigOutput<S>
 	stack: Stack
-	stackConfig: ExtendedConfig<S>['stacks'][number]
+	stackConfig: ExtendedConfigOutput<S>['stacks'][number]
 	assets: Assets
 	app: App
 	bind: (cb: Binding) => void
 }
 
-export type BootstrapContext<S extends Schema | undefined = undefined> = {
-	config: ExtendedConfig<S>
+export type BootstrapContext<S extends AnyZodObject | undefined = undefined> = {
+	config: ExtendedConfigOutput<S>
 	assets: Assets
+	stack: Stack
+	app: App
 }
 
-export type AppContext<S extends Schema | undefined = undefined> = {
-	config: ExtendedConfig<S>
+export type AppContext<S extends AnyZodObject | undefined = undefined> = {
+	config: ExtendedConfigOutput<S>
 	assets: Assets
 	app: App
 }
 
-export type Plugin<S extends Schema | undefined = undefined> = {
+export type Plugin<S extends AnyZodObject | undefined = undefined> = {
 	name: string
 	schema?: S
 	// depends?: D
-	onBootstrap?: (config: BootstrapContext<S>, bootstrap: Stack) => void
-	onStack?: (context: StackContext<S>) => Function[]
+	onBootstrap?: (config: BootstrapContext<S>) => void
+	onStack?: (context: StackContext<S>) => Function[] | void
 	onApp?: (config:AppContext<S>) => void
 }
 
 export const definePlugin = <
-	S extends Schema | undefined = undefined,
+	S extends AnyZodObject | undefined = undefined,
 >(plugin:Plugin<S>) => plugin

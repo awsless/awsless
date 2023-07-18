@@ -1,6 +1,5 @@
 import { Command } from "commander";
 import { toApp } from "../../app";
-import { Tasks } from "../../util/__task";
 import { loadingDialog } from "../ui/layout/dialog";
 import { layout } from "../ui/layout/layout";
 import { Signal, derive } from "../lib/signal";
@@ -18,7 +17,7 @@ export const build = (program: Command) => {
 		.action(async (filters: string[]) => {
 			await layout(async (config, write, term) => {
 
-				const { app, assets } = toApp(config, filters)
+				const { app, assets } = await toApp(config, filters)
 
 				// --------------------------------------------------------
 				// Build stack assets
@@ -44,7 +43,7 @@ export const build = (program: Command) => {
 						const start = new Date()
 						const time = new Signal('')
 						const details = new Signal('')
-						const status = new Signal('building')
+						const status = new Signal(style.info('building'))
 
 						const line = flexLine(term, [
 							icon,
@@ -59,9 +58,9 @@ export const build = (program: Command) => {
 							// hr,
 							' [ ',
 							status,
-							' ]',
 							details,
 							time,
+							' ]',
 							br(),
 						])
 
@@ -70,12 +69,12 @@ export const build = (program: Command) => {
 						const data = await asset.build?.()
 
 						const diff = new Date().getTime() - start.getTime()
-						time.set(' ' + style.time(diff) + style.time.dim('ms'))
+						time.set(' / ' + style.attr(diff) + style.attr.dim('ms'))
 
 						if(data) {
-							details.set(' ' + Object.entries(data).map(([key, value]) => {
-								return `[ ${style.label(key)}: ${style.info(value)} ]`
-							}).join(' '))
+							details.set(Object.entries(data).map(([key, value]) => {
+								return ` / ${style.label(key)}: ${style.info(value)}`
+							}).join(' / '))
 						}
 
 						status.set(style.success('done'))

@@ -6,17 +6,21 @@ import { Credentials, getCredentials } from "./util/credentials"
 import { debug } from "./cli/logger"
 import { load } from 'ts-import'
 import { style } from "./cli/style"
-import { AppConfig } from "./schema/app"
+import { AppConfigInput, AppConfigOutput, AppSchema } from "./schema/app"
+import { ExtendedConfigOutput } from "./plugin"
+import { defaultPlugins } from "./plugins"
 
-export type Config = AppConfig & {
+export type BaseConfig = AppConfigOutput & {
 	account: string
 	credentials: Credentials
 }
 
-export type AppConfigFactory = (options: ProgramOptions) => AppConfig | Promise<AppConfig>
+export type Config = ExtendedConfigOutput<typeof defaultPlugins[number]['schema']>
+
+export type AppConfigFactory = (options: ProgramOptions) => AppConfigInput | Promise<AppConfigInput>
 
 type Module = {
-	default: AppConfigFactory | AppConfig
+	default: AppConfigFactory | AppConfigInput
 }
 
 export const importConfig = async (options: ProgramOptions): Promise<Config> => {
@@ -31,19 +35,34 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 		stage: options.stage,
 	})) : module.default
 
-	// debug('Validate config file')
-	// Validate the config with superstruct...
+	debug('Validate config file')
 
-	debug('Load credentials', style.info(appConfig.profile))
-	const credentials = getCredentials(appConfig.profile)
+	const plugins = [
+		...defaultPlugins,
+		...(appConfig.plugins || [])
+	]
+
+	let schema = AppSchema
+
+	for(const plugin of plugins) {
+		if(plugin.schema) {
+			// @ts-ignore
+			schema = schema.and(plugin.schema)
+		}
+	}
+
+	const config = await schema.parseAsync(appConfig)
+	debug('Final config:', config.stacks);
+
+	debug('Load credentials', style.info(config.profile))
+	const credentials = getCredentials(config.profile)
 
 	debug('Load AWS account ID')
-	const account = await getAccountId(credentials, appConfig.region)
+	const account = await getAccountId(credentials, config.region)
 	debug('Account ID:', style.info(account))
 
 	return {
-		...appConfig,
-		stage: appConfig.stage ?? 'prod',
+		...config,
 		account,
 		credentials,
 	}

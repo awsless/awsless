@@ -21,10 +21,10 @@ export function toSize(size: Size): CDKSize {
 export const SizeSchema = z.custom<Size>((value) => {
 	return z.string()
 		.regex(/[0-9]+ (KB|MB|GB)/, 'Invalid size')
-		.refine<Size>((size): size is Size => {
-			const [ str ] = size.split(' ')
-			const number = parseInt(str)
-			return number > 0
-		}, 'Size must be greater then zero')
+		// .refine<Size>((size): size is Size => {
+		// 	const [ str ] = size.split(' ')
+		// 	const number = parseInt(str)
+		// 	return number > 0
+		// }, 'Size must be greater then zero')
 		.parse(value)
 }).transform<CDKSize>(toSize)

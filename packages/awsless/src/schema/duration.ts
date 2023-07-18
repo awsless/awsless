@@ -34,10 +34,10 @@ export function toDuration(duration: Duration): CDKDuration {
 export const DurationSchema = z.custom<Duration>((value) => {
 	return z.string()
 		.regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/, 'Invalid duration')
-		.refine<Duration>((duration): duration is Duration => {
-			const [ str ] = duration.split(' ')
-			const number = parseInt(str)
-			return number > 0
-		}, 'Duration must be greater then zero')
+		// .refine<Duration>((duration): duration is Duration => {
+		// 	const [ str ] = duration.split(' ')
+		// 	const number = parseInt(str)
+		// 	return number > 0
+		// }, 'Duration must be greater then zero')
 		.parse(value)
 }).transform<CDKDuration>(toDuration)

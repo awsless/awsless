@@ -2,13 +2,20 @@
 import { StackContext, definePlugin } from "../../plugin";
 import { z } from 'zod'
 import { toId, toName } from "../../util/resource";
-import { DurationSchema, toDuration } from "../../schema/duration";
+import { DurationSchema } from "../../schema/duration";
 import { LocalFileSchema } from "../../schema/local-file";
-import { Code, Function } from "aws-cdk-lib/aws-lambda";
-import { RuntimeSchema, toRuntime } from "./schema/runtime";
-import { ArchitectureSchema, toArchitecture } from "./schema/architecture";
+import { CfnFunction, Code, Function } from "aws-cdk-lib/aws-lambda";
+import { RuntimeSchema } from "./schema/runtime";
+import { ArchitectureSchema } from "./schema/architecture";
 import { ResourceIdSchema } from "../../schema/resource-id";
-import { SizeSchema, toSize } from "../../schema/size";
+import { SizeSchema } from "../../schema/size";
+import { defaultBuild } from "./util/build-worker";
+import { writeBuildFiles, writeBuildHash } from "./util/build";
+import { publishFunctionAsset } from "./util/publish";
+import { assetBucketName } from "../../stack/bootstrap";
+import { RetryAttempts } from "./schema/retry-attempts";
+import { filesize } from "filesize";
+import { style } from "../../cli/style";
 
 	// timeout?: Duration
 	// runtime?: Runtime
@@ -28,27 +35,23 @@ export const FunctionSchema = z.union([
 		memorySize: SizeSchema.optional(),
 		architecture: ArchitectureSchema.optional(),
 		ephemeralStorageSize: SizeSchema.optional(),
+		retryAttempts: RetryAttempts,
 		environment: z.record(z.string(), z.string()).optional(),
-	}).strict()
+	})
 ])
 
 const schema = z.object({
 	defaults: z.object({
 		function: z.object({
-			timeout: DurationSchema.optional(),
-			runtime: RuntimeSchema.optional(),
-			memorySize: SizeSchema.optional(),
-			architecture: ArchitectureSchema.optional(),
-			ephemeralStorageSize: SizeSchema.optional(),
+			timeout: DurationSchema.default('10 seconds'),
+			runtime: RuntimeSchema.default('nodejs18.x'),
+			memorySize: SizeSchema.default('128 MB'),
+			architecture: ArchitectureSchema.default('arm_64'),
+			ephemeralStorageSize: SizeSchema.default('512 MB'),
+			retryAttempts: RetryAttempts.default(2),
 			environment: z.record(z.string(), z.string()).optional(),
-			// timeout: DurationSchema.default('10 seconds'),
-			// runtime: RuntimeSchema.default('nodejs18.x'),
-			// memorySize: SizeSchema.default('124 MB'),
-			// architecture: ArchitectureSchema.default('arm_64'),
-			// ephemeralStorageSize: SizeSchema.default('512 MB'),
-			// environment: z.record(z.string(), z.string()).optional(),
-		}).optional(),
-	}).optional(),
+		}).default({}),
+	}).default({}),
 	stacks: z.object({
 		functions: z.record(
 			ResourceIdSchema,
@@ -68,7 +71,7 @@ export const functionPlugin = definePlugin({
 })
 
 export const toFunction = (
-	{ config, stack, stackConfig }: StackContext<typeof schema>,
+	{ config, stack, stackConfig, assets }: StackContext<typeof schema>,
 	id: string,
 	fileOrProps:z.infer<typeof FunctionSchema>
 ) => {
@@ -80,13 +83,37 @@ export const toFunction = (
 		functionName: toName(stack, id),
 		handler: 'index.default',
 		code: Code.fromInline('export default () => {}'),
+		...props,
+		memorySize: props.memorySize.toMebibytes(),
+	})
 
-		timeout: props.timeout ?? toDuration('10 seconds'),
-		runtime: props.runtime ?? toRuntime('nodejs18.x'),
-		memorySize: (props.memorySize ?? toSize('124 MB')).toMebibytes(),
-		architecture: props.architecture ?? toArchitecture('arm_64'),
-		ephemeralStorageSize: props.ephemeralStorageSize ?? toSize('512 MB'),
-		environment: props.environment
+	assets.add({
+		stack: stackConfig,
+		resource: 'function',
+		resourceName: id,
+		async build() {
+			const result = await defaultBuild(props.file)
+
+			const bundle = await writeBuildFiles(config, stack, id, result.files)
+			await writeBuildHash(config, stack, id, result.hash)
+
+			const func = lambda.node.defaultChild! as CfnFunction
+			func.handler = result.handler
+
+			return {
+				fileSize: style.attr(filesize(bundle.size))
+			}
+		},
+		async publish() {
+			const version = await publishFunctionAsset(config, stack, id)
+			const func = lambda.node.defaultChild! as CfnFunction
+
+			func.code = {
+				s3Bucket: assetBucketName(config),
+				s3Key: `${config.name}/${ stack.artifactId }/function/${id}.zip`,
+				s3ObjectVersion: version,
+			}
+		}
 	})
 
 	lambda.addEnvironment('APP', config.name, { removeInEdge: true })

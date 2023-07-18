@@ -10,9 +10,9 @@ import { PolicyStatement } from "aws-cdk-lib/aws-iam"
 // import { toStore } from "./__resource/store"
 import { configParameterPrefix } from "./util/param"
 import { Assets } from "./util/assets"
-import { StackConfig } from "./schema/stack"
+import { StackConfigOutput } from "./schema/stack"
 import { Plugin } from "./plugin"
-import { Schema } from "zod"
+import { AnyZodObject } from "zod"
 import { debug } from "./cli/logger"
 import { style } from "./cli/style"
 
@@ -36,8 +36,8 @@ type Context = {
 	config: Config
 	assets: Assets
 	app: App
-	stackConfig: StackConfig
-	plugins: Plugin<Schema | undefined>[]
+	stackConfig: StackConfigOutput
+	plugins: Plugin<AnyZodObject | undefined>[]
 }
 
 export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) => {
@@ -62,6 +62,7 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 		bindings.push(cb)
 	}
 
+	debug('Run plugin onStack listeners')
 	const functions = plugins.map(plugin => plugin.onStack?.({
 		config,
 		assets,
@@ -69,7 +70,16 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 		stack,
 		stackConfig,
 		bind,
-	})).flat().filter(lambda => !!lambda) as Function[]
+	})).filter(Boolean).flat().filter(Boolean) as Function[]
+
+	// ------------------------------------------------------
+	// Check if stack has resources
+
+	if(stack.node.children.length === 0) {
+		throw new Error(`Stack ${style.info(stackConfig.name)} has no resources defined`)
+	}
+
+	// debug('STACK STUFF', stackConfig.name, stack.node.children.length)
 
 	// ------------------------------------------------------
 	// Grant access to all lambda functions

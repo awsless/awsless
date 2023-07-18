@@ -1,6 +1,6 @@
 import { AppConfig, makeApp, toApp } from "../src/app"
 import { Tasks } from "../src/util/__task"
-import { globalStack } from "../src/stack/global"
+import { globalStack } from "../src/stack/app-bootstrap"
 import { bootstrapStack, deployBootstrap } from "../src/stack/bootstrap"
 import { formatConfig, importConfig } from "../src/config"
 import { formatTree } from "../src/util/deployment"

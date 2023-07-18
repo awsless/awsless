@@ -15,7 +15,7 @@ export const style = {
 	warning: chalk.yellow,
 	error: chalk.red,
 
-	time: chalk.yellow,
+	attr: chalk.yellow,
 
 	cursor: chalk.bgWhite.blackBright
 }

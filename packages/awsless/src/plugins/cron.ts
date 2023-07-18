@@ -9,16 +9,15 @@ import { ResourceIdSchema } from "../schema/resource-id";
 
 export const cronPlugin = definePlugin({
 	name: 'cron',
-	// depends: [ functionPlugin ],
 	schema: z.object({
 		stacks: z.object({
 			crons: z.record(ResourceIdSchema, z.object({
 				consumer: FunctionSchema,
 				schedule: ScheduleExpressionSchema,
 				description: z.string().max(512).optional()
-			}).passthrough()).optional()
-		}).passthrough().array()
-	}).passthrough(),
+			})).optional()
+		}).array()
+	}),
 	onStack(context) {
 		return Object.entries(context.stackConfig.crons || {}).map(([ id, props ]) => {
 			const lambda = toFunction(context as any, id, props.consumer)

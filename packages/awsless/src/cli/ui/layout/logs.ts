@@ -24,7 +24,7 @@ export const logs = () => {
 			previous = log.date
 
 			return [
-				style.time(`${time}${style.time.dim('ms')}`),
+				style.attr(`${time}${style.attr.dim('ms')}`),
 				' [ ', log.type, ' ] ',
 				log.message,
 				br(),

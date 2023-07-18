@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import {
+  __require,
+  definePlugin
+} from "./chunk-6KILQ5DR.js";
 
 // src/cli/program.ts
 import { Command } from "commander";
@@ -23,7 +27,7 @@ var style = {
   success: chalk.green,
   warning: chalk.yellow,
   error: chalk.red,
-  time: chalk.yellow,
+  attr: chalk.yellow,
   cursor: chalk.bgWhite.blackBright
 };
 var symbol = {
@@ -169,6 +173,7 @@ var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
   const bind = (cb) => {
     bindings.push(cb);
   };
+  debug("Run plugin onStack listeners");
   const functions = plugins.map((plugin) => plugin.onStack?.({
     config: config2,
     assets,
@@ -176,7 +181,10 @@ var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
     stack,
     stackConfig,
     bind
-  })).flat().filter((lambda) => !!lambda);
+  })).filter(Boolean).flat().filter(Boolean);
+  if (stack.node.children.length === 0) {
+    throw new Error(`Stack ${style.info(stackConfig.name)} has no resources defined`);
+  }
   bindings.forEach((cb) => functions.forEach(cb));
   const allowTopicPublish = new PolicyStatement({
     actions: ["sns:publish"],
@@ -207,9 +215,29 @@ var outDir = join(rootDir, ".awsless");
 var assemblyDir = join(outDir, "assembly");
 var functionDir = join(outDir, "function");
 
-// src/stack/global.ts
-import { Stack as Stack3 } from "aws-cdk-lib";
-import { Topic } from "aws-cdk-lib/aws-sns";
+// src/stack/app-bootstrap.ts
+import { Stack as Stack4 } from "aws-cdk-lib";
+
+// src/plugins/cron.ts
+import { z as z10 } from "zod";
+
+// src/schema/schedule.ts
+import { Schedule } from "aws-cdk-lib/aws-events";
+import { z } from "zod";
+var RateExpressionSchema = z.custom((value) => {
+  return z.string().regex(/rate\([0-9]+ (seconds?|minutes?|hours?|days?)\)/, "Invalid rate expression").refine((rate) => {
+    const [str] = rate.substring(5).split(" ");
+    const number = parseInt(str);
+    return number > 0;
+  }, "Rate duration must be greater then zero").parse(value);
+}).transform(Schedule.expression);
+var CronExpressionSchema = z.custom((value) => {
+  return z.string().refine((cron) => !!cron).parse(value);
+}).transform((cron) => Schedule.expression(cron));
+var ScheduleExpressionSchema = z.union([RateExpressionSchema, CronExpressionSchema]);
+
+// src/plugins/cron.ts
+import { Rule } from "aws-cdk-lib/aws-events";
 
 // src/util/resource.ts
 import { Arn } from "aws-cdk-lib";
@@ -220,28 +248,227 @@ var toId = (resource, id) => {
 var toName = (stack, id) => {
   return paramCase(`${stack.stackName}-${id}`);
 };
-
-// src/stack/global.ts
-var findAllTopicIds = (config2) => {
-  return [...new Set(config2.stacks.map(
-    (stack) => Object.keys(stack.topics || {})
-  ).flat())];
+var toEnvKey = (resource, id) => {
+  return constantCase(`RESOURCE_${resource}_${id}`);
 };
-var globalStack = (config2, app) => {
-  const stack = new Stack3(app, "global", {
-    stackName: `${config2.name}-global`
+var toArn = (stack, service, resource, id) => {
+  return Arn.format({
+    service,
+    resource,
+    resourceName: toName(stack, id)
+  }, stack);
+};
+var addResourceEnvironment = (stack, resource, id, lambda) => {
+  const key = toEnvKey(resource, id);
+  const value = toName(stack, id);
+  lambda.addEnvironment(key, value, {
+    removeInEdge: true
   });
-  findAllTopicIds(config2).map((id) => {
-    new Topic(stack, toId("topic", id), {
-      topicName: id,
-      displayName: id
+};
+
+// src/plugins/function/index.ts
+import { z as z9 } from "zod";
+
+// src/schema/duration.ts
+import { z as z2 } from "zod";
+import { Duration as CDKDuration } from "aws-cdk-lib/core";
+function toDuration(duration) {
+  const [count, unit] = duration.split(" ");
+  const countNum = parseInt(count);
+  const unitLower = unit.toLowerCase();
+  if (unitLower.startsWith("second")) {
+    return CDKDuration.seconds(countNum);
+  } else if (unitLower.startsWith("minute")) {
+    return CDKDuration.minutes(countNum);
+  } else if (unitLower.startsWith("hour")) {
+    return CDKDuration.hours(countNum);
+  } else if (unitLower.startsWith("day")) {
+    return CDKDuration.days(countNum);
+  }
+  return CDKDuration.days(0);
+}
+var DurationSchema = z2.custom((value) => {
+  return z2.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/, "Invalid duration").parse(value);
+}).transform(toDuration);
+
+// src/schema/local-file.ts
+import { z as z3 } from "zod";
+var LocalFileSchema = z3.string().refine(async () => {
+  return true;
+}, `File doesn't exist`);
+
+// src/plugins/function/index.ts
+import { Code, Function } from "aws-cdk-lib/aws-lambda";
+
+// src/plugins/function/schema/runtime.ts
+import { Runtime as CdkRuntime } from "aws-cdk-lib/aws-lambda";
+import { z as z4 } from "zod";
+var runtimes = {
+  "container": CdkRuntime.FROM_IMAGE,
+  "rust": CdkRuntime.PROVIDED_AL2,
+  "nodejs16.x": CdkRuntime.NODEJS_16_X,
+  "nodejs18.x": CdkRuntime.NODEJS_18_X,
+  "python3.9": CdkRuntime.PYTHON_3_9,
+  "python3.10": CdkRuntime.PYTHON_3_10,
+  "go1.x": CdkRuntime.PROVIDED_AL2,
+  "go": CdkRuntime.PROVIDED_AL2
+};
+var toRuntime = (runtime) => {
+  return runtimes[runtime];
+};
+var RuntimeSchema = z4.enum(Object.keys(runtimes)).transform(toRuntime);
+
+// src/plugins/function/schema/architecture.ts
+import { Architecture as CdkArchitecture } from "aws-cdk-lib/aws-lambda";
+import { z as z5 } from "zod";
+var toArchitecture = (architecture) => {
+  return architecture === "x86_64" ? CdkArchitecture.X86_64 : CdkArchitecture.ARM_64;
+};
+var ArchitectureSchema = z5.enum(["x86_64", "arm_64"]).transform(toArchitecture);
+
+// src/schema/resource-id.ts
+import { z as z6 } from "zod";
+var ResourceIdSchema = z6.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
+
+// src/schema/size.ts
+import { Size as CDKSize } from "aws-cdk-lib/core";
+import { z as z7 } from "zod";
+function toSize(size) {
+  const [count, unit] = size.split(" ");
+  const countNum = parseInt(count);
+  if (unit === "KB") {
+    return CDKSize.kibibytes(countNum);
+  } else if (unit === "MB") {
+    return CDKSize.mebibytes(countNum);
+  } else if (unit === "GB") {
+    return CDKSize.gibibytes(countNum);
+  }
+  throw new TypeError(`Invalid size ${size}`);
+}
+var SizeSchema = z7.custom((value) => {
+  return z7.string().regex(/[0-9]+ (KB|MB|GB)/, "Invalid size").parse(value);
+}).transform(toSize);
+
+// src/plugins/function/util/build-worker.ts
+import { Worker } from "worker_threads";
+var cjs = typeof __require !== "undefined";
+var importESM = `
+import { bundle } from "@awsless/code";
+import { createHash } from "crypto";
+import { parentPort, workerData } from "worker_threads";
+`;
+var importCJS = `
+const { bundle } = require("@awsless/code");
+const { createHash } = require("crypto");
+const { parentPort, workerData } = require("worker_threads");
+`;
+var workerCode = `
+${cjs ? importCJS : importESM}
+
+const build = async (file) => {
+	const { code, map } = await bundle(file, {
+		format: 'esm',
+		sourceMap: true,
+		minimize: true,
+		onwarn: () => {},
+		moduleSideEffects: (id) => file === id,
+		external: (importee) => (
+			importee.startsWith('aws-sdk') ||
+			importee.startsWith('@aws-sdk')
+		),
+	})
+
+	const hash = createHash('sha1').update(code).digest('hex')
+
+    parentPort.postMessage(JSON.stringify({
+		handler: 'index.default',
+		hash,
+		files: [
+			{ name: 'index.js', code, map: map?.toString() }
+		]
+	}))
+}
+
+build(workerData)
+`;
+var defaultBuild = async (file) => {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(workerCode, { workerData: file, eval: true });
+    const cleanUp = () => {
+      worker.removeAllListeners();
+      worker.terminate();
+    };
+    worker.on("message", (data) => {
+      resolve(JSON.parse(data.toString("utf8")));
+      cleanUp();
+    });
+    worker.on("error", (data) => {
+      reject(data);
+      cleanUp();
+    });
+    worker.on("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(`Worker exited with code ${code}`));
+        cleanUp();
+      }
     });
   });
-  return stack;
 };
 
+// src/plugins/function/util/build.ts
+import JSZip from "jszip";
+import { basename, join as join2 } from "path";
+import { mkdir, writeFile } from "fs/promises";
+import { filesize } from "filesize";
+var zipFiles = (files) => {
+  const zip = new JSZip();
+  for (const file of files) {
+    zip.file(file.name, file.code, {
+      compression: "DEFLATE",
+      compressionOptions: {
+        level: 9
+      }
+    });
+  }
+  return zip.generateAsync({
+    type: "nodebuffer"
+  });
+};
+var writeBuildHash = async (config2, stack, id, hash) => {
+  const funcPath = join2(functionDir, config2.name, stack.artifactId, id);
+  const versionFile = join2(funcPath, "HASH");
+  await writeFile(versionFile, hash);
+};
+var writeBuildFiles = async (config2, stack, id, files) => {
+  const bundle = await zipFiles(files);
+  const funcPath = join2(functionDir, config2.name, stack.artifactId, id);
+  const filesPath = join2(funcPath, "files");
+  const bundleFile = join2(funcPath, "bundle.zip");
+  debug("Bundle size of", style.info(join2(config2.name, stack.artifactId, id)), "is", style.attr(filesize(bundle.byteLength)));
+  await mkdir(filesPath, { recursive: true });
+  await writeFile(bundleFile, bundle);
+  await Promise.all(files.map(async (file) => {
+    const fileName = join2(filesPath, file.name);
+    await mkdir(basename(fileName), { recursive: true });
+    await writeFile(fileName, file.code);
+    if (file.map) {
+      const mapName = join2(filesPath, `${file.name}.map`);
+      await writeFile(mapName, file.map);
+    }
+  }));
+  return {
+    file: bundleFile,
+    size: bundle.byteLength
+  };
+};
+
+// src/plugins/function/util/publish.ts
+import { join as join3 } from "path";
+import { readFile } from "fs/promises";
+import { GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client, StorageClass } from "@aws-sdk/client-s3";
+
 // src/stack/bootstrap.ts
-import { CfnOutput, RemovalPolicy, Stack as Stack4 } from "aws-cdk-lib";
+import { CfnOutput, RemovalPolicy, Stack as Stack3 } from "aws-cdk-lib";
 import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
 var assetBucketName = (config2) => {
   return `awsless-bootstrap-${config2.account}-${config2.region}`;
@@ -252,7 +479,7 @@ var assetBucketUrl = (config2, stackName) => {
 };
 var version = "2";
 var bootstrapStack = (config2, app) => {
-  const stack = new Stack4(app, "bootstrap", {
+  const stack = new Stack3(app, "bootstrap", {
     stackName: `awsless-bootstrap`
   });
   new Bucket(stack, "assets", {
@@ -271,6 +498,360 @@ var shouldDeployBootstrap = async (client, name) => {
   debug("Check bootstrap status");
   const info = await client.get(name);
   return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
+};
+
+// src/plugins/function/util/publish.ts
+var publishFunctionAsset = async (config2, stack, id) => {
+  const bucket = assetBucketName(config2);
+  const key = `${config2.name}/${stack.artifactId}/function/${id}.zip`;
+  const funcPath = join3(functionDir, config2.name, stack.artifactId, id);
+  const bundleFile = join3(funcPath, "bundle.zip");
+  const hashFile = join3(funcPath, "HASH");
+  const hash = await readFile(hashFile, "utf8");
+  const file = await readFile(bundleFile, "utf8");
+  const client = new S3Client({
+    credentials: config2.credentials,
+    region: config2.region
+  });
+  let getResult;
+  try {
+    getResult = await client.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: key
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.name === "NoSuchKey") {
+    } else {
+      throw error;
+    }
+  }
+  if (getResult?.Metadata?.hash === hash) {
+    return getResult.VersionId;
+  }
+  const putResult = await client.send(new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: file,
+    ACL: ObjectCannedACL.private,
+    StorageClass: StorageClass.STANDARD,
+    Metadata: {
+      hash
+    }
+  }));
+  return putResult.VersionId;
+};
+
+// src/plugins/function/schema/retry-attempts.ts
+import { z as z8 } from "zod";
+var RetryAttempts = z8.number().int().min(0).max(2);
+
+// src/plugins/function/index.ts
+import { filesize as filesize2 } from "filesize";
+var FunctionSchema = z9.union([
+  LocalFileSchema,
+  z9.object({
+    file: LocalFileSchema,
+    timeout: DurationSchema.optional(),
+    runtime: RuntimeSchema.optional(),
+    memorySize: SizeSchema.optional(),
+    architecture: ArchitectureSchema.optional(),
+    ephemeralStorageSize: SizeSchema.optional(),
+    retryAttempts: RetryAttempts,
+    environment: z9.record(z9.string(), z9.string()).optional()
+  })
+]);
+var schema = z9.object({
+  defaults: z9.object({
+    function: z9.object({
+      timeout: DurationSchema.default("10 seconds"),
+      runtime: RuntimeSchema.default("nodejs18.x"),
+      memorySize: SizeSchema.default("128 MB"),
+      architecture: ArchitectureSchema.default("arm_64"),
+      ephemeralStorageSize: SizeSchema.default("512 MB"),
+      retryAttempts: RetryAttempts.default(2),
+      environment: z9.record(z9.string(), z9.string()).optional()
+    }).default({})
+  }).default({}),
+  stacks: z9.object({
+    functions: z9.record(
+      ResourceIdSchema,
+      FunctionSchema
+    ).optional()
+  }).array()
+});
+var functionPlugin = definePlugin({
+  name: "function",
+  schema,
+  onStack(context) {
+    return Object.entries(context.stackConfig.functions || {}).map(([id, fileOrProps]) => {
+      return toFunction(context, id, fileOrProps);
+    });
+  }
+});
+var toFunction = ({ config: config2, stack, stackConfig, assets }, id, fileOrProps) => {
+  const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
+  const lambda = new Function(stack, toId("function", id), {
+    functionName: toName(stack, id),
+    handler: "index.default",
+    code: Code.fromInline("export default () => {}"),
+    ...props,
+    memorySize: props.memorySize.toMebibytes()
+  });
+  assets.add({
+    stack: stackConfig,
+    resource: "function",
+    resourceName: id,
+    async build() {
+      const result = await defaultBuild(props.file);
+      const bundle = await writeBuildFiles(config2, stack, id, result.files);
+      await writeBuildHash(config2, stack, id, result.hash);
+      const func = lambda.node.defaultChild;
+      func.handler = result.handler;
+      return {
+        fileSize: style.attr(filesize2(bundle.size))
+      };
+    },
+    async publish() {
+      const version2 = await publishFunctionAsset(config2, stack, id);
+      const func = lambda.node.defaultChild;
+      func.code = {
+        s3Bucket: assetBucketName(config2),
+        s3Key: `${config2.name}/${stack.artifactId}/function/${id}.zip`,
+        s3ObjectVersion: version2
+      };
+    }
+  });
+  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
+  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
+  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
+  return lambda;
+};
+
+// src/plugins/cron.ts
+import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
+var cronPlugin = definePlugin({
+  name: "cron",
+  schema: z10.object({
+    stacks: z10.object({
+      crons: z10.record(ResourceIdSchema, z10.object({
+        consumer: FunctionSchema,
+        schedule: ScheduleExpressionSchema,
+        description: z10.string().max(512).optional()
+      })).optional()
+    }).array()
+  }),
+  onStack(context) {
+    return Object.entries(context.stackConfig.crons || {}).map(([id, props]) => {
+      const lambda = toFunction(context, id, props.consumer);
+      const target = new LambdaFunction(lambda);
+      new Rule(context.stack, toId("cron", id), {
+        ruleName: toName(context.stack, id),
+        schedule: props.schedule,
+        description: props.description,
+        targets: [target]
+      });
+      return lambda;
+    });
+  }
+});
+
+// src/plugins/queue.ts
+import { z as z11 } from "zod";
+import { Queue } from "aws-cdk-lib/aws-sqs";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+var queuePlugin = definePlugin({
+  name: "queue",
+  schema: z11.object({
+    defaults: z11.object({
+      queue: z11.object({
+        fifo: z11.boolean().default(false),
+        retentionPeriod: DurationSchema.default("7 days"),
+        visibilityTimeout: DurationSchema.default("30 seconds"),
+        deliveryDelay: DurationSchema.default("0 seconds"),
+        receiveMessageWaitTime: DurationSchema.default("0 seconds"),
+        maxMessageSize: SizeSchema.default("256 KB")
+      }).default({})
+    }).default({}),
+    stacks: z11.object({
+      queues: z11.record(ResourceIdSchema, z11.union([
+        LocalFileSchema,
+        z11.object({
+          consumer: FunctionSchema,
+          fifo: z11.boolean().optional(),
+          retentionPeriod: DurationSchema.optional(),
+          visibilityTimeout: DurationSchema.optional(),
+          deliveryDelay: DurationSchema.optional(),
+          receiveMessageWaitTime: DurationSchema.optional(),
+          maxMessageSize: SizeSchema.optional()
+        })
+      ])).optional()
+    }).array()
+  }),
+  onStack(context) {
+    const { stack, config: config2 } = context;
+    return Object.entries(context.stackConfig.queues || {}).map(([id, functionOrProps]) => {
+      const props = typeof functionOrProps === "string" ? { ...config2.defaults.queue, consumer: functionOrProps } : { ...config2.defaults.queue, ...functionOrProps };
+      const queue2 = new Queue(stack, toId("queue", id), {
+        queueName: toName(stack, id),
+        ...props,
+        maxMessageSizeBytes: props.maxMessageSize.toBytes()
+      });
+      const lambda = toFunction(context, id, props.consumer);
+      lambda.addEventSource(new SqsEventSource(queue2));
+      context.bind((lambda2) => {
+        queue2.grantSendMessages(lambda2);
+        addResourceEnvironment(stack, "queue", id, lambda2);
+      });
+      return lambda;
+    });
+  }
+});
+
+// src/plugins/table.ts
+import { z as z12 } from "zod";
+import { AttributeType, BillingMode, ProjectionType, Table, TableClass } from "aws-cdk-lib/aws-dynamodb";
+var types = {
+  string: AttributeType.STRING,
+  number: AttributeType.NUMBER,
+  binary: AttributeType.BINARY
+};
+var tablePlugin = definePlugin({
+  name: "table",
+  schema: z12.object({
+    // defaults: z.object({
+    // 	table: z.object({
+    // 	}).default({}),
+    // }).default({}),
+    stacks: z12.object({
+      tables: z12.record(
+        ResourceIdSchema,
+        z12.object({
+          hash: z12.string(),
+          sort: z12.string().optional(),
+          fields: z12.record(z12.string(), z12.enum(["string", "number", "binary"])),
+          pointInTimeRecovery: z12.boolean().default(false),
+          timeToLiveAttribute: z12.string().optional(),
+          indexes: z12.record(z12.string(), z12.object({
+            hash: z12.string(),
+            sort: z12.string().optional()
+            // projection: z.enum(['ALL', 'KEYS_ONLY']),
+          })).optional()
+        }).refine((props) => props.fields.hasOwnProperty(props.hash), "Hash key must be defined inside the table fields").refine((props) => !props.sort || props.fields.hasOwnProperty(props.sort), "Sort key must be defined inside the table fields")
+      ).optional()
+    }).array()
+  }),
+  onStack({ stack, stackConfig, bind }) {
+    Object.entries(stackConfig.tables || {}).map(([id, props]) => {
+      const buildKey = (attr) => {
+        return { name: attr, type: types[props.fields[attr]] };
+      };
+      const table = new Table(stack, toId("table", id), {
+        tableName: toName(stack, id),
+        partitionKey: buildKey(props.hash),
+        sortKey: props.sort ? buildKey(props.sort) : void 0,
+        billingMode: BillingMode.PAY_PER_REQUEST,
+        pointInTimeRecovery: props.pointInTimeRecovery,
+        timeToLiveAttribute: props.timeToLiveAttribute,
+        tableClass: TableClass.STANDARD
+      });
+      Object.entries(props.indexes || {}).forEach(([indexName, entry]) => {
+        table.addGlobalSecondaryIndex({
+          indexName,
+          partitionKey: buildKey(entry.hash),
+          sortKey: entry.sort ? buildKey(entry.sort) : void 0,
+          projectionType: ProjectionType.ALL
+        });
+      });
+      bind((lambda) => {
+        table.grantReadWriteData(lambda);
+        addResourceEnvironment(stack, "table", id, lambda);
+      });
+    });
+  }
+});
+
+// src/plugins/store.ts
+import { z as z13 } from "zod";
+import { Bucket as Bucket2, BucketAccessControl as BucketAccessControl2 } from "aws-cdk-lib/aws-s3";
+var storePlugin = definePlugin({
+  name: "store",
+  schema: z13.object({
+    stacks: z13.object({
+      stores: z13.array(ResourceIdSchema).optional()
+    }).array()
+  }),
+  onStack({ stack, stackConfig, bind }) {
+    (stackConfig.stores || []).forEach((id) => {
+      const bucket = new Bucket2(stack, toId("store", id), {
+        bucketName: toName(stack, id),
+        accessControl: BucketAccessControl2.PRIVATE
+      });
+      bind((lambda) => {
+        bucket.grantReadWrite(lambda), addResourceEnvironment(stack, "store", id, lambda);
+      });
+    });
+  }
+});
+
+// src/plugins/topic.ts
+import { z as z14 } from "zod";
+import { Topic } from "aws-cdk-lib/aws-sns";
+import { SnsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
+var topicPlugin = definePlugin({
+  name: "topic",
+  schema: z14.object({
+    stacks: z14.object({
+      topics: z14.record(ResourceIdSchema, FunctionSchema).optional()
+    }).array()
+  }),
+  onBootstrap({ config: config2, stack }) {
+    const allTopicNames = config2.stacks.map((stack2) => {
+      return Object.keys(stack2.topics || {});
+    }).flat();
+    const uniqueTopicNames = [...new Set(allTopicNames)];
+    uniqueTopicNames.forEach((id) => {
+      new Topic(stack, toId("topic", id), {
+        topicName: id,
+        displayName: id
+      });
+    });
+  },
+  onStack(ctx) {
+    return Object.entries(ctx.stackConfig.topics || {}).map(([id, props]) => {
+      const lambda = toFunction(ctx, id, props);
+      const topic = Topic.fromTopicArn(
+        ctx.stack,
+        toId("topic", id),
+        toArn(ctx.stack, "sns", "topic", id)
+      );
+      lambda.addEventSource(new SnsEventSource(topic));
+      return lambda;
+    });
+  }
+});
+
+// src/plugins/index.ts
+var defaultPlugins = [
+  functionPlugin,
+  cronPlugin,
+  queuePlugin,
+  tablePlugin,
+  storePlugin,
+  topicPlugin
+];
+
+// src/stack/app-bootstrap.ts
+var appBootstrapStack = ({ config: config2, app, assets }) => {
+  const stack = new Stack4(app, "bootstrap", {
+    stackName: `${config2.name}-bootstrap`
+  });
+  const plugins = [
+    ...defaultPlugins,
+    ...config2.plugins || []
+  ];
+  debug("Run plugin onBootstrap listeners");
+  plugins.forEach((plugin) => plugin.onBootstrap?.({ config: config2, stack, app, assets }));
+  return stack;
 };
 
 // src/util/deployment.ts
@@ -355,167 +936,7 @@ var Assets = class {
   }
 };
 
-// src/plugin.ts
-var definePlugin = (plugin) => plugin;
-
-// src/resource/function/index.ts
-import { z as z7 } from "zod";
-
-// src/schema/duration.ts
-import { z } from "zod";
-import { Duration as CDKDuration } from "aws-cdk-lib/core";
-function toDuration(duration) {
-  const [count, unit] = duration.split(" ");
-  const countNum = parseInt(count);
-  const unitLower = unit.toLowerCase();
-  if (unitLower.startsWith("second")) {
-    return CDKDuration.seconds(countNum);
-  } else if (unitLower.startsWith("minute")) {
-    return CDKDuration.minutes(countNum);
-  } else if (unitLower.startsWith("hour")) {
-    return CDKDuration.hours(countNum);
-  } else if (unitLower.startsWith("day")) {
-    return CDKDuration.days(countNum);
-  }
-  return CDKDuration.days(0);
-}
-var DurationSchema = z.custom((value) => {
-  return z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/, "Invalid duration").refine((duration) => {
-    const [str] = duration.split(" ");
-    const number = parseInt(str);
-    return number > 0;
-  }, "Duration must be greater then zero").parse(value);
-}).transform(toDuration);
-
-// src/schema/local-file.ts
-import { z as z2 } from "zod";
-var LocalFileSchema = z2.string().refine(async () => {
-  return true;
-}, `File doesn't exist`);
-
-// src/resource/function/index.ts
-import { Code, Function } from "aws-cdk-lib/aws-lambda";
-
-// src/resource/function/schema/runtime.ts
-import { Runtime as CdkRuntime } from "aws-cdk-lib/aws-lambda";
-import { z as z3 } from "zod";
-var runtimes = {
-  "container": CdkRuntime.FROM_IMAGE,
-  "rust": CdkRuntime.PROVIDED_AL2,
-  "nodejs16.x": CdkRuntime.NODEJS_16_X,
-  "nodejs18.x": CdkRuntime.NODEJS_18_X,
-  "python3.9": CdkRuntime.PYTHON_3_9,
-  "python3.10": CdkRuntime.PYTHON_3_10,
-  "go1.x": CdkRuntime.PROVIDED_AL2,
-  "go": CdkRuntime.PROVIDED_AL2
-};
-var toRuntime = (runtime) => {
-  return runtimes[runtime];
-};
-var RuntimeSchema = z3.enum(Object.keys(runtimes)).transform(toRuntime);
-
-// src/resource/function/schema/architecture.ts
-import { Architecture as CdkArchitecture } from "aws-cdk-lib/aws-lambda";
-import { z as z4 } from "zod";
-var toArchitecture = (architecture) => {
-  return architecture === "x86_64" ? CdkArchitecture.X86_64 : CdkArchitecture.ARM_64;
-};
-var ArchitectureSchema = z4.enum(["x86_64", "arm_64"]).transform(toArchitecture);
-
-// src/schema/resource-id.ts
-import { z as z5 } from "zod";
-var ResourceIdSchema = z5.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
-
-// src/schema/size.ts
-import { Size as CDKSize } from "aws-cdk-lib/core";
-import { z as z6 } from "zod";
-function toSize(size) {
-  const [count, unit] = size.split(" ");
-  const countNum = parseInt(count);
-  if (unit === "KB") {
-    return CDKSize.kibibytes(countNum);
-  } else if (unit === "MB") {
-    return CDKSize.mebibytes(countNum);
-  } else if (unit === "GB") {
-    return CDKSize.gibibytes(countNum);
-  }
-  throw new TypeError(`Invalid size ${size}`);
-}
-var SizeSchema = z6.custom((value) => {
-  return z6.string().regex(/[0-9]+ (KB|MB|GB)/, "Invalid size").refine((size) => {
-    const [str] = size.split(" ");
-    const number = parseInt(str);
-    return number > 0;
-  }, "Size must be greater then zero").parse(value);
-}).transform(toSize);
-
-// src/resource/function/index.ts
-var FunctionSchema = z7.union([
-  LocalFileSchema,
-  z7.object({
-    file: LocalFileSchema,
-    timeout: DurationSchema.optional(),
-    runtime: RuntimeSchema.optional(),
-    memorySize: SizeSchema.optional(),
-    architecture: ArchitectureSchema.optional(),
-    ephemeralStorageSize: SizeSchema.optional(),
-    environment: z7.record(z7.string(), z7.string()).optional()
-  }).strict()
-]);
-var schema = z7.object({
-  defaults: z7.object({
-    function: z7.object({
-      timeout: DurationSchema.optional(),
-      runtime: RuntimeSchema.optional(),
-      memorySize: SizeSchema.optional(),
-      architecture: ArchitectureSchema.optional(),
-      ephemeralStorageSize: SizeSchema.optional(),
-      environment: z7.record(z7.string(), z7.string()).optional()
-      // timeout: DurationSchema.default('10 seconds'),
-      // runtime: RuntimeSchema.default('nodejs18.x'),
-      // memorySize: SizeSchema.default('124 MB'),
-      // architecture: ArchitectureSchema.default('arm_64'),
-      // ephemeralStorageSize: SizeSchema.default('512 MB'),
-      // environment: z.record(z.string(), z.string()).optional(),
-    }).optional()
-  }).optional(),
-  stacks: z7.object({
-    functions: z7.record(
-      ResourceIdSchema,
-      FunctionSchema
-    ).optional()
-  }).array()
-});
-var functionPlugin = definePlugin({
-  name: "function",
-  schema,
-  onStack(context) {
-    return Object.entries(context.stackConfig.functions || {}).map(([id, fileOrProps]) => {
-      return toFunction(context, id, fileOrProps);
-    });
-  }
-});
-var toFunction = ({ config: config2, stack, stackConfig }, id, fileOrProps) => {
-  const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
-  const lambda = new Function(stack, toId("function", id), {
-    functionName: toName(stack, id),
-    handler: "index.default",
-    code: Code.fromInline("export default () => {}"),
-    timeout: props.timeout ?? toDuration("10 seconds"),
-    runtime: props.runtime ?? toRuntime("nodejs18.x"),
-    memorySize: (props.memorySize ?? toSize("124 MB")).toMebibytes(),
-    architecture: props.architecture ?? toArchitecture("arm_64"),
-    ephemeralStorageSize: props.ephemeralStorageSize ?? toSize("512 MB"),
-    environment: props.environment
-  });
-  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
-  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
-  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
-  return lambda;
-};
-
 // src/app.ts
-import deepmerge from "deepmerge";
 var makeApp = (config2) => {
   return new App4({
     outdir: assemblyDir,
@@ -537,26 +958,15 @@ var getAllDepends = (filters) => {
   walk(filters);
   return list3;
 };
-var toApp = async (appConfig, filters) => {
+var toApp = async (config2, filters) => {
   const assets = new Assets();
-  const app = makeApp(appConfig);
+  const app = makeApp(config2);
   const stacks = [];
   const plugins = [
-    functionPlugin,
-    // cronPlugin,
-    // queuePlugin,
-    ...appConfig.plugins || []
+    ...defaultPlugins,
+    ...config2.plugins || []
   ];
   debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
-  debug("Run plugin validation schema");
-  let config2 = appConfig;
-  for (const plugin of plugins) {
-    if (plugin.schema) {
-      const partialConfig = await plugin.schema.parseAsync(config2);
-      config2 = deepmerge(config2, partialConfig);
-    }
-  }
-  debug("Merged config", config2);
   debug("Run plugin onApp listeners");
   plugins.forEach((plugin) => plugin.onApp?.({ config: config2, app, assets }));
   debug("Stack filters:", filters.map((filter) => style.info(filter)).join(", "));
@@ -564,7 +974,6 @@ var toApp = async (appConfig, filters) => {
     // config.stacks,
     config2.stacks.filter((stack) => filters.includes(stack.name))
   );
-  debug("Found stacks:", filterdStacks);
   for (const stackConfig of filterdStacks) {
     const { stack } = toStack({
       config: config2,
@@ -575,19 +984,23 @@ var toApp = async (appConfig, filters) => {
     });
     stacks.push({ stack, config: stackConfig });
   }
-  const dependencyTree = [{
-    stack: globalStack(config2, app),
-    level: 0,
-    children: createDependencyTree(stacks)
-  }];
+  let dependencyTree;
+  const bootstrap2 = appBootstrapStack({ config: config2, app, assets });
+  if (bootstrap2.node.children.length === 0) {
+    dependencyTree = createDependencyTree(stacks);
+  } else {
+    dependencyTree = [{
+      stack: bootstrap2,
+      level: 0,
+      children: createDependencyTree(stacks)
+    }];
+  }
   return {
     app,
     assets,
-    // stacks: stacks.map(({ stack }) => stack),
     plugins,
     stackNames: filterdStacks.map((stack) => stack.name),
     dependencyTree
-    // deploymentTree: createDeploymentTree(stacks)
   };
 };
 
@@ -686,7 +1099,7 @@ var loadingDialog = (message) => {
       const end = /* @__PURE__ */ new Date();
       const diff = end.getTime() - start.getTime();
       description.set(message2);
-      time.set(style.time(diff) + style.time.dim("ms"));
+      time.set(style.attr(diff) + style.attr.dim("ms"));
       stop();
       icon.set(style.success(symbol.success));
     };
@@ -712,7 +1125,7 @@ var logs = () => {
       const time = `+${diff}`.padStart(7);
       previous = log.date;
       return [
-        style.time(`${time}${style.time.dim("ms")}`),
+        style.attr(`${time}${style.attr.dim("ms")}`),
         " [ ",
         log.type,
         " ] ",
@@ -735,7 +1148,7 @@ var footer = () => {
 };
 
 // src/config.ts
-import { join as join2 } from "path";
+import { join as join4 } from "path";
 
 // src/util/account.ts
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
@@ -755,23 +1168,82 @@ var getCredentials = (profile) => {
 
 // src/config.ts
 import { load } from "ts-import";
+
+// src/schema/app.ts
+import { z as z18 } from "zod";
+
+// src/schema/stack.ts
+import { z as z15 } from "zod";
+var StackSchema = z15.object({
+  name: ResourceIdSchema,
+  depends: z15.array(z15.lazy(() => StackSchema)).optional()
+});
+
+// src/schema/region.ts
+import { z as z16 } from "zod";
+var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
+var AF = ["af-south-1"];
+var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
+var CA = ["ca-central-1"];
+var EU = ["eu-central-1", "eu-west-1", "eu-west-2", "eu-south-1", "eu-west-3", "eu-south-2", "eu-north-1", "eu-central-2"];
+var ME = ["me-south-1", "me-central-1"];
+var SA = ["sa-east-1"];
+var regions = [...US, ...AF, ...AP, ...CA, ...EU, ...ME, ...SA];
+var RegionSchema = z16.enum(regions);
+
+// src/schema/plugin.ts
+import { z as z17 } from "zod";
+var PluginSchema = z17.object({
+  name: z17.string(),
+  schema: z17.custom().optional(),
+  depends: z17.array(z17.lazy(() => PluginSchema)).optional(),
+  onBootstrap: z17.function().optional(),
+  onStack: z17.function().returns(z17.any()).optional(),
+  onApp: z17.function().optional()
+  // bind: z.function().optional(),
+});
+
+// src/schema/app.ts
+var AppSchema = z18.object({
+  name: ResourceIdSchema,
+  region: RegionSchema,
+  profile: z18.string(),
+  stage: z18.string().regex(/[a-z]+/).default("prod"),
+  defaults: z18.object({}).default({}),
+  stacks: z18.array(StackSchema).min(1),
+  plugins: z18.array(PluginSchema).optional()
+});
+
+// src/config.ts
 var importConfig = async (options) => {
   debug("Import config file");
-  const fileName = join2(process.cwd(), options.configFile || "awsless.config.ts");
+  const fileName = join4(process.cwd(), options.configFile || "awsless.config.ts");
   const module = await load(fileName);
   const appConfig = typeof module.default === "function" ? await module.default({
     profile: options.profile,
     region: options.region,
     stage: options.stage
   }) : module.default;
-  debug("Load credentials", style.info(appConfig.profile));
-  const credentials = getCredentials(appConfig.profile);
+  debug("Validate config file");
+  const plugins = [
+    ...defaultPlugins,
+    ...appConfig.plugins || []
+  ];
+  let schema2 = AppSchema;
+  for (const plugin of plugins) {
+    if (plugin.schema) {
+      schema2 = schema2.and(plugin.schema);
+    }
+  }
+  const config2 = await schema2.parseAsync(appConfig);
+  debug("Final config:", config2.stacks);
+  debug("Load credentials", style.info(config2.profile));
+  const credentials = getCredentials(config2.profile);
   debug("Load AWS account ID");
-  const account = await getAccountId(credentials, appConfig.region);
+  const account = await getAccountId(credentials, config2.region);
   debug("Account ID:", style.info(account));
   return {
-    ...appConfig,
-    stage: appConfig.stage ?? "prod",
+    ...config2,
     account,
     credentials
   };
@@ -1060,7 +1532,7 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
 var build = (program2) => {
   program2.command("build").argument("[stack...]", "Optionally filter stacks to build").description("Build your app").action(async (filters) => {
     await layout(async (config2, write, term) => {
-      const { app, assets } = toApp(config2, filters);
+      const { app, assets } = await toApp(config2, filters);
       const done = write(loadingDialog("Building stack assets..."));
       const groups = new Signal([]);
       write(groups);
@@ -1078,7 +1550,7 @@ var build = (program2) => {
           const start = /* @__PURE__ */ new Date();
           const time = new Signal("");
           const details = new Signal("");
-          const status2 = new Signal("building");
+          const status2 = new Signal(style.info("building"));
           const line = flexLine(term, [
             icon,
             "  ",
@@ -1092,19 +1564,19 @@ var build = (program2) => {
             // hr,
             " [ ",
             status2,
-            " ]",
             details,
             time,
+            " ]",
             br()
           ]);
           group.update((group2) => [...group2, line]);
           const data = await asset.build?.();
           const diff = (/* @__PURE__ */ new Date()).getTime() - start.getTime();
-          time.set(" " + style.time(diff) + style.time.dim("ms"));
+          time.set(" / " + style.attr(diff) + style.attr.dim("ms"));
           if (data) {
-            details.set(" " + Object.entries(data).map(([key, value]) => {
-              return `[ ${style.label(key)}: ${style.info(value)} ]`;
-            }).join(" "));
+            details.set(Object.entries(data).map(([key, value]) => {
+              return ` / ${style.label(key)}: ${style.info(value)}`;
+            }).join(" / "));
           }
           status2.set(style.success("done"));
           icon.set(style.success(symbol.success));
@@ -1118,7 +1590,7 @@ var build = (program2) => {
 
 // src/stack/client.ts
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from "@aws-sdk/client-cloudformation";
-import { S3Client, PutObjectCommand, ObjectCannedACL, StorageClass } from "@aws-sdk/client-s3";
+import { S3Client as S3Client2, PutObjectCommand as PutObjectCommand2, ObjectCannedACL as ObjectCannedACL2, StorageClass as StorageClass2 } from "@aws-sdk/client-s3";
 var StackClient = class {
   // 30 seconds
   constructor(config2) {
@@ -1146,16 +1618,16 @@ var StackClient = class {
   }
   async upload(stack) {
     debug("Upload the", style.info(stack.id), "stack to awsless assets bucket");
-    const client = new S3Client({
+    const client = new S3Client2({
       credentials: this.config.credentials,
       region: this.config.region
     });
-    await client.send(new PutObjectCommand({
+    await client.send(new PutObjectCommand2({
       Bucket: assetBucketName(this.config),
       Key: `${stack.stackName}/cloudformation.json`,
       Body: JSON.stringify(stack.template),
-      ACL: ObjectCannedACL.private,
-      StorageClass: StorageClass.STANDARD_IA
+      ACL: ObjectCannedACL2.private,
+      StorageClass: StorageClass2.STANDARD_IA
     }));
   }
   async create(stack, capabilities) {
@@ -1390,13 +1862,6 @@ var bootstrap = (program2) => {
 };
 
 // src/cli/ui/complex/stack-tree.ts
-var stripEscapeCode2 = (str) => {
-  return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
-};
-var getLine = (windowWidth, name, status2, deep) => {
-  const usedWidth = stripEscapeCode2(name).length + stripEscapeCode2(status2).length + deep * 3 + 9;
-  return style.placeholder("\u2500".repeat(windowWidth - usedWidth));
-};
 var stackTree = (nodes, statuses) => {
   return (term) => {
     const render = (nodes2, deep = 0, parents = []) => {
@@ -1407,27 +1872,25 @@ var stackTree = (nodes, statuses) => {
         const first = i === 0 && deep === 0;
         const last = i === size;
         const more = i < size;
-        parents.forEach((parent) => {
-          term.out.write(style.label(
-            parent ? "\u2502".padEnd(3) : " ".repeat(3)
-          ));
-        });
-        const hr2 = derive([status2], (status3) => {
-          return getLine(term.out.width(), id, status3, deep);
-        });
-        term.out.write(style.label(
-          first && size === 0 ? "  " : first ? "\u250C\u2500" : last ? "\u2514\u2500" : "\u251C\u2500"
-        ));
-        term.out.write([
+        const line = flexLine(term, [
+          ...parents.map((parent) => {
+            return style.label(
+              parent ? "\u2502".padEnd(3) : " ".repeat(3)
+            );
+          }),
+          style.label(
+            first && size === 0 ? "  " : first ? "\u250C\u2500" : last ? "\u2514\u2500" : "\u251C\u2500"
+          ),
           " ",
           style.info(id),
-          " ",
-          hr2,
+          " "
+        ], [
           style.placeholder(" [ "),
           status2,
           style.placeholder(" ] "),
           br()
         ]);
+        term.out.write(line);
         render(node.children, deep + 1, [...parents, more]);
       });
     };
@@ -1486,7 +1949,7 @@ var deploy = (program2) => {
   program2.command("deploy").argument("[stacks...]", "Optionally filter stacks to deploy").description("Deploy your app to AWS").action(async (filters) => {
     await layout(async (config2, write) => {
       await write(bootstrapDeployer(config2));
-      const { app, stackNames, assets, dependencyTree } = toApp(config2, filters);
+      const { app, stackNames, assets, dependencyTree } = await toApp(config2, filters);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to deploy", formattedFilter);
       const deployAll = filters.length === 0;
@@ -1600,16 +2063,6 @@ var textPrompt = (label, options = {}) => {
   };
 };
 
-// src/cli/ui/prompt/password.ts
-var passwordPrompt = (label, options = {}) => {
-  return textPrompt(label, {
-    ...options,
-    renderer(value) {
-      return value.map(() => "*");
-    }
-  });
-};
-
 // src/cli/command/config/set.ts
 var set = (program2) => {
   program2.command("set <name>").description("Set a config value").action(async (name) => {
@@ -1619,7 +2072,7 @@ var set = (program2) => {
         "Set config parameter": style.info(name)
       }));
       write(br());
-      const value = await write(passwordPrompt("Enter config value"));
+      const value = await write(textPrompt("Enter config value"));
       if (value === "") {
         write(dialog("error", [`Provided config value can't be empty`]));
       } else {
@@ -1701,6 +2154,14 @@ var config = (program2) => {
   commands.forEach((cb) => cb(command));
 };
 
+// src/cli/command/test.ts
+var test = (program2) => {
+  program2.command("test").description("Test").action(async () => {
+    await layout(async (config2, write) => {
+    });
+  });
+};
+
 // src/cli/program.ts
 var program = new Command();
 program.name("awsless");
@@ -1720,7 +2181,8 @@ var commands2 = [
   deploy,
   // diff,
   // remove,
-  config
+  config,
+  test
 ];
 commands2.forEach((command) => command(program));
 

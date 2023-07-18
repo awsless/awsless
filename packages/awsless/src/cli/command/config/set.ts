@@ -6,7 +6,6 @@ import { br } from "../../ui/layout/basic";
 import { textPrompt } from "../../ui/prompt/text";
 import { style } from "../../style";
 import { layout } from "../../ui/layout/layout";
-import { passwordPrompt } from "../../ui/prompt/password";
 
 export const set = (program: Command) => {
 	program
@@ -23,7 +22,7 @@ export const set = (program: Command) => {
 
 				write(br())
 
-				const value = await write(passwordPrompt('Enter config value'))
+				const value = await write(textPrompt('Enter config value'))
 
 				if(value === '') {
 					write(dialog('error', [`Provided config value can't be empty`]))

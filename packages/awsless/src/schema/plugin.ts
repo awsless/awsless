@@ -1,9 +1,9 @@
-import { Schema, z } from "zod"
+import { AnyZodObject, z } from "zod"
 import { Plugin } from "../plugin"
 
-export const PluginSchema: z.ZodType<Plugin<Schema | undefined>, z.ZodTypeDef, Plugin<Schema | undefined>> = z.object({
+export const PluginSchema: z.ZodType<Plugin<AnyZodObject | undefined>, z.ZodTypeDef, Plugin<AnyZodObject | undefined>> = z.object({
 	name: z.string(),
-	schema: z.custom<Schema>().optional(),
+	schema: z.custom<AnyZodObject>().optional(),
 	depends: z.array(z.lazy(() => PluginSchema)).optional(),
 	onBootstrap: z.function().optional(),
 	onStack: z.function().returns(z.any()).optional(),

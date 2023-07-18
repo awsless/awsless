@@ -40,7 +40,7 @@ export const loadingDialog = (message: string): RenderFactory<(message:string) =
 			const diff = end.getTime() - start.getTime()
 
 			description.set(message)
-			time.set(style.time(diff) + style.time.dim('ms'))
+			time.set(style.attr(diff) + style.attr.dim('ms'))
 
 			stop()
 			icon.set(style.success(symbol.success))
