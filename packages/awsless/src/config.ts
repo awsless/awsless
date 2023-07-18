@@ -1,14 +1,14 @@
 import { join } from "path"
 import { ProgramOptions } from "./cli/program"
-import { AppConfig } from "./app"
+// import { AppConfig } from "./app"
 import { getAccountId } from "./util/account"
 import { Credentials, getCredentials } from "./util/credentials"
 import { debug } from "./cli/logger"
 import { load } from 'ts-import'
 import { style } from "./cli/style"
+import { AppConfig } from "./schema/app"
 
 export type Config = AppConfig & {
-	stage: string
 	account: string
 	credentials: Credentials
 }

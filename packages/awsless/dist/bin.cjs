@@ -30,79 +30,8 @@ var import_commander = require("commander");
 var import_aws_cdk_lib5 = require("aws-cdk-lib");
 
 // src/stack.ts
-var import_aws_cdk_lib4 = require("aws-cdk-lib");
-
-// src/resource/function/index.ts
-var import_aws_lambda3 = require("aws-cdk-lib/aws-lambda");
-
-// src/util/duration.ts
-var import_core = require("aws-cdk-lib/core");
-function toDuration(duration) {
-  const [count, unit] = duration.split(" ");
-  const countNum = parseInt(count);
-  const unitLower = unit.toLowerCase();
-  if (unitLower.startsWith("second")) {
-    return import_core.Duration.seconds(countNum);
-  } else if (unitLower.startsWith("minute")) {
-    return import_core.Duration.minutes(countNum);
-  } else if (unitLower.startsWith("hour")) {
-    return import_core.Duration.hours(countNum);
-  } else if (unitLower.startsWith("day")) {
-    return import_core.Duration.days(countNum);
-  }
-  return import_core.Duration.days(0);
-}
-
-// src/resource/function/runtime.ts
-var import_aws_lambda = require("aws-cdk-lib/aws-lambda");
-var runtimes = {
-  "container": import_aws_lambda.Runtime.FROM_IMAGE,
-  "rust": import_aws_lambda.Runtime.PROVIDED_AL2,
-  "nodejs16.x": import_aws_lambda.Runtime.NODEJS_16_X,
-  "nodejs18.x": import_aws_lambda.Runtime.NODEJS_18_X,
-  "python3.9": import_aws_lambda.Runtime.PYTHON_3_9,
-  "python3.10": import_aws_lambda.Runtime.PYTHON_3_10,
-  "go1.x": import_aws_lambda.Runtime.PROVIDED_AL2,
-  "go": import_aws_lambda.Runtime.PROVIDED_AL2
-};
-var toRuntime = (runtime) => {
-  return runtimes[runtime];
-};
-
-// src/resource/function/architecture.ts
-var import_aws_lambda2 = require("aws-cdk-lib/aws-lambda");
-var toArchitecture = (architecture) => {
-  return architecture === "x86_64" ? import_aws_lambda2.Architecture.X86_64 : import_aws_lambda2.Architecture.ARM_64;
-};
-
-// src/util/size.ts
-var import_core2 = require("aws-cdk-lib/core");
-function toSize(size) {
-  const [count, unit] = size.split(" ");
-  const countNum = parseInt(count);
-  if (unit === "KB") {
-    return import_core2.Size.kibibytes(countNum);
-  } else if (unit === "MB") {
-    return import_core2.Size.mebibytes(countNum);
-  } else if (unit === "GB") {
-    return import_core2.Size.gibibytes(countNum);
-  }
-  throw new TypeError(`Invalid size ${size}`);
-}
-
-// src/resource/function/build.ts
-var import_jszip = __toESM(require("jszip"), 1);
-
-// src/util/path.ts
-var import_path = require("path");
-var rootDir = process.cwd();
-var outDir = (0, import_path.join)(rootDir, ".awsless");
-var assemblyDir = (0, import_path.join)(outDir, "assembly");
-var functionDir = (0, import_path.join)(outDir, "function");
-
-// src/resource/function/build.ts
-var import_path3 = require("path");
-var import_promises = require("fs/promises");
+var import_aws_cdk_lib = require("aws-cdk-lib");
+var import_aws_iam = require("aws-cdk-lib/aws-iam");
 
 // src/cli/style.ts
 var import_chalk = __toESM(require("chalk"), 1);
@@ -125,8 +54,8 @@ var symbol = {
   // arrowDown: '↓',
   // arrowLeft: '←',
   // arrowRight: '→',
-  radioOn: "\u25C9",
-  radioOff: "\u25EF",
+  // radioOn: '◉',
+  // radioOff: '◯',
   info: "\u2139",
   success: "\u2714",
   warning: "\u26A0",
@@ -161,430 +90,6 @@ var debug = (...parts) => {
 };
 var flushDebug = () => {
   return queue.splice(0, queue.length);
-};
-
-// src/resource/function/build.ts
-var import_filesize = require("filesize");
-var zipFiles = (files) => {
-  const zip = new import_jszip.default();
-  for (const file of files) {
-    zip.file(file.name, file.code, {
-      compression: "DEFLATE",
-      compressionOptions: {
-        level: 9
-      }
-    });
-  }
-  return zip.generateAsync({
-    type: "nodebuffer"
-  });
-};
-var writeBuildHash = async (config2, stack, id, hash) => {
-  const funcPath = (0, import_path3.join)(functionDir, config2.name, stack.artifactId, id);
-  const versionFile = (0, import_path3.join)(funcPath, "HASH");
-  await (0, import_promises.writeFile)(versionFile, hash);
-};
-var writeBuildFiles = async (config2, stack, id, files) => {
-  const bundle = await zipFiles(files);
-  const funcPath = (0, import_path3.join)(functionDir, config2.name, stack.artifactId, id);
-  const filesPath = (0, import_path3.join)(funcPath, "files");
-  const bundleFile = (0, import_path3.join)(funcPath, "bundle.zip");
-  debug("Bundle size of", style.info((0, import_path3.join)(config2.name, stack.artifactId, id)), "is", style.time((0, import_filesize.filesize)(bundle.byteLength)));
-  await (0, import_promises.mkdir)(filesPath, { recursive: true });
-  await (0, import_promises.writeFile)(bundleFile, bundle);
-  await Promise.all(files.map(async (file) => {
-    const fileName = (0, import_path3.join)(filesPath, file.name);
-    await (0, import_promises.mkdir)((0, import_path3.basename)(fileName), { recursive: true });
-    await (0, import_promises.writeFile)(fileName, file.code);
-    if (file.map) {
-      const mapName = (0, import_path3.join)(filesPath, `${file.name}.map`);
-      await (0, import_promises.writeFile)(mapName, file.map);
-    }
-  }));
-  return bundleFile;
-};
-
-// src/resource/function/index.ts
-var import_aws_lambda_destinations = require("aws-cdk-lib/aws-lambda-destinations");
-var import_aws_sns2 = require("aws-cdk-lib/aws-sns");
-
-// src/util/resource.ts
-var import_aws_cdk_lib = require("aws-cdk-lib");
-var import_change_case = require("change-case");
-var toId = (resource, id) => {
-  return (0, import_change_case.pascalCase)(`${resource}-${id}`);
-};
-var toName = (stack, id) => {
-  return (0, import_change_case.paramCase)(`${stack.stackName}-${id}`);
-};
-var toEnvKey = (resource, id) => {
-  return (0, import_change_case.constantCase)(`RESOURCE_${resource}_${id}`);
-};
-var toArn = (stack, service, resource, id) => {
-  return import_aws_cdk_lib.Arn.format({
-    service,
-    resource,
-    resourceName: toName(stack, id)
-  }, stack);
-};
-var addResourceEnvironment = (stack, resource, id, lambda) => {
-  const key = toEnvKey(resource, id);
-  const value = toName(stack, id);
-  lambda.addEnvironment(key, value, {
-    removeInEdge: true
-  });
-};
-
-// src/stack/global.ts
-var import_aws_cdk_lib2 = require("aws-cdk-lib");
-var import_aws_sns = require("aws-cdk-lib/aws-sns");
-var findAllTopicIds = (config2) => {
-  return [...new Set(config2.stacks.map(
-    (stack) => Object.keys(stack.topics || {})
-  ).flat())];
-};
-var globalStack = (config2, app) => {
-  const stack = new import_aws_cdk_lib2.Stack(app, "global", {
-    stackName: `${config2.name}-global`
-  });
-  findAllTopicIds(config2).map((id) => {
-    new import_aws_sns.Topic(stack, toId("topic", id), {
-      topicName: id,
-      displayName: id
-    });
-  });
-  return stack;
-};
-
-// src/resource/function/publish.ts
-var import_path5 = require("path");
-var import_promises2 = require("fs/promises");
-var import_client_s3 = require("@aws-sdk/client-s3");
-
-// src/stack/bootstrap.ts
-var import_aws_cdk_lib3 = require("aws-cdk-lib");
-var import_aws_s3 = require("aws-cdk-lib/aws-s3");
-var assetBucketName = (config2) => {
-  return `awsless-bootstrap-${config2.account}-${config2.region}`;
-};
-var assetBucketUrl = (config2, stackName) => {
-  const bucket = assetBucketName(config2);
-  return `https://s3-${config2.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
-};
-var version = "2";
-var bootstrapStack = (config2, app) => {
-  const stack = new import_aws_cdk_lib3.Stack(app, "bootstrap", {
-    stackName: `awsless-bootstrap`
-  });
-  new import_aws_s3.Bucket(stack, "assets", {
-    bucketName: assetBucketName(config2),
-    versioned: true,
-    accessControl: import_aws_s3.BucketAccessControl.PRIVATE,
-    removalPolicy: import_aws_cdk_lib3.RemovalPolicy.DESTROY
-  });
-  new import_aws_cdk_lib3.CfnOutput(stack, "version", {
-    exportName: "version",
-    value: version
-  });
-  return stack;
-};
-var shouldDeployBootstrap = async (client, name) => {
-  debug("Check bootstrap status");
-  const info = await client.get(name);
-  return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
-};
-
-// src/resource/function/publish.ts
-var publishFunctionAsset = async (config2, stack, id) => {
-  const bucket = assetBucketName(config2);
-  const key = `${config2.name}/${stack.artifactId}/function/${id}.zip`;
-  const funcPath = (0, import_path5.join)(functionDir, config2.name, stack.artifactId, id);
-  const bundleFile = (0, import_path5.join)(funcPath, "bundle.zip");
-  const hashFile = (0, import_path5.join)(funcPath, "HASH");
-  const hash = await (0, import_promises2.readFile)(hashFile, "utf8");
-  const file = await (0, import_promises2.readFile)(bundleFile, "utf8");
-  const client = new import_client_s3.S3Client({
-    credentials: config2.credentials,
-    region: config2.region
-  });
-  let getResult;
-  try {
-    getResult = await client.send(new import_client_s3.GetObjectCommand({
-      Bucket: bucket,
-      Key: key
-    }));
-  } catch (error) {
-    if (error instanceof Error && error.name === "NoSuchKey") {
-    } else {
-      throw error;
-    }
-  }
-  if (getResult?.Metadata?.hash === hash) {
-    return getResult.VersionId;
-  }
-  const putResult = await client.send(new import_client_s3.PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    Body: file,
-    ACL: import_client_s3.ObjectCannedACL.private,
-    StorageClass: import_client_s3.StorageClass.STANDARD,
-    Metadata: {
-      hash
-    }
-  }));
-  return putResult.VersionId;
-};
-
-// src/resource/function/build-worker.ts
-var import_worker_threads = require("worker_threads");
-var cjs = typeof require !== "undefined";
-var importESM = `
-import { bundle } from "@awsless/code";
-import { createHash } from "crypto";
-import { parentPort, workerData } from "worker_threads";
-`;
-var importCJS = `
-const { bundle } = require("@awsless/code");
-const { createHash } = require("crypto");
-const { parentPort, workerData } = require("worker_threads");
-`;
-var workerCode = `
-${cjs ? importCJS : importESM}
-
-const build = async (file) => {
-	const { code, map } = await bundle(file, {
-		format: 'esm',
-		sourceMap: true,
-		minimize: true,
-		onwarn: () => {},
-		moduleSideEffects: (id) => file === id,
-		external: (importee) => (
-			importee.startsWith('aws-sdk') ||
-			importee.startsWith('@aws-sdk')
-		),
-	})
-
-	const hash = createHash('sha1').update(code).digest('hex')
-
-    parentPort.postMessage(JSON.stringify({
-		handler: 'index.default',
-		hash,
-		files: [
-			{ name: 'index.js', code, map: map?.toString() }
-		]
-	}))
-}
-
-build(workerData)
-`;
-var defaultBuild = async (file) => {
-  return new Promise((resolve, reject) => {
-    const worker = new import_worker_threads.Worker(workerCode, { workerData: file, eval: true });
-    const cleanUp = () => {
-      worker.removeAllListeners();
-      worker.terminate();
-    };
-    worker.on("message", (data) => {
-      resolve(JSON.parse(data.toString("utf8")));
-      cleanUp();
-    });
-    worker.on("error", (data) => {
-      reject(data);
-      cleanUp();
-    });
-    worker.on("exit", (code) => {
-      if (code !== 0) {
-        reject(new Error(`Worker exited with code ${code}`));
-        cleanUp();
-      }
-    });
-  });
-};
-
-// src/resource/function/index.ts
-var toFunction = ({ stack, stackConfig, config: config2, assets }, id, file) => {
-  const props = typeof file === "string" ? { ...config2.defaults?.function, file } : file;
-  const lambda = new import_aws_lambda3.Function(stack, toId("function", id), {
-    functionName: toName(stack, id),
-    runtime: toRuntime(props.runtime ?? "nodejs18.x"),
-    handler: "index.default",
-    code: import_aws_lambda3.Code.fromInline("export default () => {}"),
-    timeout: toDuration(props.timeout ?? "30 seconds"),
-    architecture: toArchitecture(props.architecture ?? "arm_64"),
-    ephemeralStorageSize: toSize(props.ephemeralStorageSize ?? "512 MB"),
-    environment: props.environment
-  });
-  assets.add({
-    stack: stackConfig,
-    resource: "function",
-    resourceName: id,
-    async build() {
-      const result = await defaultBuild(props.file);
-      await writeBuildFiles(config2, stack, id, result.files);
-      await writeBuildHash(config2, stack, id, result.hash);
-      const func = lambda.node.defaultChild;
-      func.handler = result.handler;
-      return {
-        size: "SMALL"
-      };
-    },
-    async publish() {
-      const version2 = await publishFunctionAsset(config2, stack, id);
-      const func = lambda.node.defaultChild;
-      func.code = {
-        s3Bucket: assetBucketName(config2),
-        s3Key: `${config2.name}/${stack.artifactId}/function/${id}.zip`,
-        s3ObjectVersion: version2
-      };
-    }
-  });
-  const topicIds = findAllTopicIds(config2);
-  const eventInvokeConfig = {
-    retryAttempts: props.retryAttempts ?? 2
-  };
-  if (topicIds.includes("failure")) {
-    const arn = toArn(stack, "sns", "topic", "failure");
-    const failure = import_aws_sns2.Topic.fromTopicArn(stack, toId("topic", "failure"), arn);
-    eventInvokeConfig.onFailure = new import_aws_lambda_destinations.SnsDestination(failure);
-  }
-  lambda.configureAsyncInvoke(eventInvokeConfig);
-  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
-  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
-  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
-  if (lambda.runtime.toString().startsWith("nodejs")) {
-    lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1", {
-      removeInEdge: true
-    });
-  }
-  return {
-    lambda,
-    bind: (other) => {
-      lambda.grantInvoke(other);
-      addResourceEnvironment(stack, "function", id, other);
-    }
-  };
-};
-
-// src/resource/queue.ts
-var import_aws_sqs = require("aws-cdk-lib/aws-sqs");
-var import_aws_lambda_event_sources = require("aws-cdk-lib/aws-lambda-event-sources");
-var toQueue = (ctx, id, params) => {
-  const props = typeof params !== "string" ? { ...ctx.config.defaults?.queue, ...params } : ctx.config.defaults?.queue || {};
-  const functionProps = typeof params === "string" ? params : params.consumer;
-  const { stack } = ctx;
-  const { lambda } = toFunction(ctx, id, functionProps);
-  const queue2 = new import_aws_sqs.Queue(stack, toId("queue", id), {
-    queueName: toName(stack, id),
-    fifo: props.fifo,
-    retentionPeriod: toDuration(props.retentionPeriod || "7 days"),
-    visibilityTimeout: toDuration(props.visibilityTimeout || "30 seconds"),
-    deliveryDelay: toDuration(props.deliveryDelay || "0 seconds"),
-    receiveMessageWaitTime: toDuration(props.receiveMessageWaitTime || "0 seconds"),
-    maxMessageSizeBytes: toSize(props.maxMessageSizeBytes || "256 KB").toBytes()
-  });
-  lambda.addEventSource(new import_aws_lambda_event_sources.SqsEventSource(queue2));
-  return {
-    queue: queue2,
-    lambda,
-    bind(lambda2) {
-      queue2.grantSendMessages(lambda2);
-      addResourceEnvironment(stack, "queue", id, lambda2);
-    }
-  };
-};
-
-// src/resource/topic.ts
-var import_aws_sns3 = require("aws-cdk-lib/aws-sns");
-var import_aws_lambda_event_sources2 = require("aws-cdk-lib/aws-lambda-event-sources");
-var toTopic = (ctx, id, props) => {
-  const { stack } = ctx;
-  const { lambda } = toFunction(ctx, id, props);
-  const topic = import_aws_sns3.Topic.fromTopicArn(
-    stack,
-    toId("topic", id),
-    toArn(stack, "sns", "topic", id)
-  );
-  lambda.addEventSource(new import_aws_lambda_event_sources2.SnsEventSource(topic));
-  return {
-    topic,
-    lambda
-  };
-};
-
-// src/stack.ts
-var import_aws_iam = require("aws-cdk-lib/aws-iam");
-
-// src/resource/cron.ts
-var import_aws_events = require("aws-cdk-lib/aws-events");
-var import_aws_events_targets = require("aws-cdk-lib/aws-events-targets");
-var toCron = (ctx, id, props) => {
-  const { stack } = ctx;
-  const { lambda } = toFunction(ctx, id, props.consumer);
-  const target = new import_aws_events_targets.LambdaFunction(lambda);
-  const rule = new import_aws_events.Rule(stack, toId("cron", id), {
-    ruleName: toName(stack, id),
-    schedule: import_aws_events.Schedule.expression(props.schedule),
-    description: props.description,
-    targets: [target]
-  });
-  return {
-    rule,
-    lambda
-  };
-};
-
-// src/resource/table.ts
-var import_aws_dynamodb = require("aws-cdk-lib/aws-dynamodb");
-var types = {
-  string: import_aws_dynamodb.AttributeType.STRING,
-  number: import_aws_dynamodb.AttributeType.NUMBER,
-  binary: import_aws_dynamodb.AttributeType.BINARY
-};
-var buildAttribute = (fields, name) => {
-  return {
-    name,
-    type: types[fields[name]]
-  };
-};
-var toTable = ({ stack }, id, props) => {
-  const table = new import_aws_dynamodb.Table(stack, toId("table", id), {
-    tableName: toName(stack, id),
-    partitionKey: buildAttribute(props.fields, props.hashKey),
-    sortKey: props.sortKey ? buildAttribute(props.fields, props.sortKey) : void 0,
-    billingMode: import_aws_dynamodb.BillingMode.PAY_PER_REQUEST,
-    pointInTimeRecovery: props.pointInTimeRecovery,
-    timeToLiveAttribute: props.timeToLiveAttribute,
-    tableClass: import_aws_dynamodb.TableClass.STANDARD
-  });
-  Object.entries(props.indexes || {}).forEach(([indexName, entry]) => {
-    table.addGlobalSecondaryIndex({
-      indexName,
-      partitionKey: buildAttribute(props.fields, entry.hashKey),
-      sortKey: entry.sortKey ? buildAttribute(props.fields, entry.sortKey) : void 0
-    });
-  });
-  return {
-    table,
-    bind(lambda) {
-      table.grantReadWriteData(lambda);
-      addResourceEnvironment(stack, "table", id, lambda);
-    }
-  };
-};
-
-// src/resource/store.ts
-var import_aws_s32 = require("aws-cdk-lib/aws-s3");
-var toStore = ({ stack }, id) => {
-  const bucket = new import_aws_s32.Bucket(stack, toId("store", id), {
-    bucketName: toName(stack, id),
-    accessControl: import_aws_s32.BucketAccessControl.PRIVATE
-  });
-  return {
-    bucket,
-    bind(lambda) {
-      bucket.grantReadWrite(lambda), addResourceEnvironment(stack, "store", id, lambda);
-    }
-  };
 };
 
 // src/util/param.ts
@@ -672,44 +177,30 @@ var Params = class {
 };
 
 // src/stack.ts
-var toStack = (config2, app, assets, props) => {
-  const stackName = `${config2.name}-${props.name}`;
-  const stack = new import_aws_cdk_lib4.Stack(app, props.name, {
+var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
+  const stackName = `${config2.name}-${stackConfig.name}`;
+  const stack = new import_aws_cdk_lib.Stack(app, stackConfig.name, {
     stackName,
     tags: {
       APP: config2.name,
-      STACK: props.name
+      STAGE: config2.stage,
+      STACK: stackConfig.name
     }
   });
-  const context = { config: config2, assets, app, stack, stackConfig: props };
-  const functions = [];
-  const binds = [];
-  for (const [name, entry] of Object.entries(props.functions || {})) {
-    const { lambda, bind } = toFunction(context, name, entry);
-    functions.push(lambda);
-    binds.push(bind);
-  }
-  for (const [name, entry] of Object.entries(props.topics || {})) {
-    const { lambda } = toTopic(context, name, entry);
-    functions.push(lambda);
-  }
-  for (const [name, entry] of Object.entries(props.queues || {})) {
-    const { lambda, bind } = toQueue(context, name, entry);
-    functions.push(lambda);
-    binds.push(bind);
-  }
-  for (const [name, entry] of Object.entries(props.tables || {})) {
-    const { bind } = toTable(context, name, entry);
-    binds.push(bind);
-  }
-  for (const name of props.stores || []) {
-    const { bind } = toStore(context, name);
-    binds.push(bind);
-  }
-  for (const [name, entry] of Object.entries(props.crons || {})) {
-    const { lambda } = toCron(context, name, entry);
-    functions.push(lambda);
-  }
+  debug("Define stack:", style.info(stackConfig.name));
+  const bindings = [];
+  const bind = (cb) => {
+    bindings.push(cb);
+  };
+  const functions = plugins.map((plugin) => plugin.onStack?.({
+    config: config2,
+    assets,
+    app,
+    stack,
+    stackConfig,
+    bind
+  })).flat().filter((lambda) => !!lambda);
+  bindings.forEach((cb) => functions.forEach(cb));
   const allowTopicPublish = new import_aws_iam.PolicyStatement({
     actions: ["sns:publish"],
     resources: ["*"]
@@ -722,15 +213,87 @@ var toStack = (config2, app, assets, props) => {
       "ssm:GetParametersByPath"
     ],
     resources: [
-      import_aws_cdk_lib4.Fn.sub("arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter" + configParameterPrefix(config2))
+      import_aws_cdk_lib.Fn.sub("arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter" + configParameterPrefix(config2))
     ]
   });
   functions.forEach((lambda) => lambda.addToRolePolicy(allowConfigParameters));
-  binds.forEach((bind) => functions.forEach((lambda) => bind(lambda)));
   return {
     stack,
-    depends: props.depends
+    depends: stackConfig.depends
   };
+};
+
+// src/util/path.ts
+var import_path = require("path");
+var rootDir = process.cwd();
+var outDir = (0, import_path.join)(rootDir, ".awsless");
+var assemblyDir = (0, import_path.join)(outDir, "assembly");
+var functionDir = (0, import_path.join)(outDir, "function");
+
+// src/stack/global.ts
+var import_aws_cdk_lib3 = require("aws-cdk-lib");
+var import_aws_sns = require("aws-cdk-lib/aws-sns");
+
+// src/util/resource.ts
+var import_aws_cdk_lib2 = require("aws-cdk-lib");
+var import_change_case = require("change-case");
+var toId = (resource, id) => {
+  return (0, import_change_case.pascalCase)(`${resource}-${id}`);
+};
+var toName = (stack, id) => {
+  return (0, import_change_case.paramCase)(`${stack.stackName}-${id}`);
+};
+
+// src/stack/global.ts
+var findAllTopicIds = (config2) => {
+  return [...new Set(config2.stacks.map(
+    (stack) => Object.keys(stack.topics || {})
+  ).flat())];
+};
+var globalStack = (config2, app) => {
+  const stack = new import_aws_cdk_lib3.Stack(app, "global", {
+    stackName: `${config2.name}-global`
+  });
+  findAllTopicIds(config2).map((id) => {
+    new import_aws_sns.Topic(stack, toId("topic", id), {
+      topicName: id,
+      displayName: id
+    });
+  });
+  return stack;
+};
+
+// src/stack/bootstrap.ts
+var import_aws_cdk_lib4 = require("aws-cdk-lib");
+var import_aws_s3 = require("aws-cdk-lib/aws-s3");
+var assetBucketName = (config2) => {
+  return `awsless-bootstrap-${config2.account}-${config2.region}`;
+};
+var assetBucketUrl = (config2, stackName) => {
+  const bucket = assetBucketName(config2);
+  return `https://s3-${config2.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
+};
+var version = "2";
+var bootstrapStack = (config2, app) => {
+  const stack = new import_aws_cdk_lib4.Stack(app, "bootstrap", {
+    stackName: `awsless-bootstrap`
+  });
+  new import_aws_s3.Bucket(stack, "assets", {
+    bucketName: assetBucketName(config2),
+    versioned: true,
+    accessControl: import_aws_s3.BucketAccessControl.PRIVATE,
+    removalPolicy: import_aws_cdk_lib4.RemovalPolicy.DESTROY
+  });
+  new import_aws_cdk_lib4.CfnOutput(stack, "version", {
+    exportName: "version",
+    value: version
+  });
+  return stack;
+};
+var shouldDeployBootstrap = async (client, name) => {
+  debug("Check bootstrap status");
+  const info = await client.get(name);
+  return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
 };
 
 // src/util/deployment.ts
@@ -815,7 +378,167 @@ var Assets = class {
   }
 };
 
+// src/plugin.ts
+var definePlugin = (plugin) => plugin;
+
+// src/resource/function/index.ts
+var import_zod7 = require("zod");
+
+// src/schema/duration.ts
+var import_zod = require("zod");
+var import_core = require("aws-cdk-lib/core");
+function toDuration(duration) {
+  const [count, unit] = duration.split(" ");
+  const countNum = parseInt(count);
+  const unitLower = unit.toLowerCase();
+  if (unitLower.startsWith("second")) {
+    return import_core.Duration.seconds(countNum);
+  } else if (unitLower.startsWith("minute")) {
+    return import_core.Duration.minutes(countNum);
+  } else if (unitLower.startsWith("hour")) {
+    return import_core.Duration.hours(countNum);
+  } else if (unitLower.startsWith("day")) {
+    return import_core.Duration.days(countNum);
+  }
+  return import_core.Duration.days(0);
+}
+var DurationSchema = import_zod.z.custom((value) => {
+  return import_zod.z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/, "Invalid duration").refine((duration) => {
+    const [str] = duration.split(" ");
+    const number = parseInt(str);
+    return number > 0;
+  }, "Duration must be greater then zero").parse(value);
+}).transform(toDuration);
+
+// src/schema/local-file.ts
+var import_zod2 = require("zod");
+var LocalFileSchema = import_zod2.z.string().refine(async () => {
+  return true;
+}, `File doesn't exist`);
+
+// src/resource/function/index.ts
+var import_aws_lambda3 = require("aws-cdk-lib/aws-lambda");
+
+// src/resource/function/schema/runtime.ts
+var import_aws_lambda = require("aws-cdk-lib/aws-lambda");
+var import_zod3 = require("zod");
+var runtimes = {
+  "container": import_aws_lambda.Runtime.FROM_IMAGE,
+  "rust": import_aws_lambda.Runtime.PROVIDED_AL2,
+  "nodejs16.x": import_aws_lambda.Runtime.NODEJS_16_X,
+  "nodejs18.x": import_aws_lambda.Runtime.NODEJS_18_X,
+  "python3.9": import_aws_lambda.Runtime.PYTHON_3_9,
+  "python3.10": import_aws_lambda.Runtime.PYTHON_3_10,
+  "go1.x": import_aws_lambda.Runtime.PROVIDED_AL2,
+  "go": import_aws_lambda.Runtime.PROVIDED_AL2
+};
+var toRuntime = (runtime) => {
+  return runtimes[runtime];
+};
+var RuntimeSchema = import_zod3.z.enum(Object.keys(runtimes)).transform(toRuntime);
+
+// src/resource/function/schema/architecture.ts
+var import_aws_lambda2 = require("aws-cdk-lib/aws-lambda");
+var import_zod4 = require("zod");
+var toArchitecture = (architecture) => {
+  return architecture === "x86_64" ? import_aws_lambda2.Architecture.X86_64 : import_aws_lambda2.Architecture.ARM_64;
+};
+var ArchitectureSchema = import_zod4.z.enum(["x86_64", "arm_64"]).transform(toArchitecture);
+
+// src/schema/resource-id.ts
+var import_zod5 = require("zod");
+var ResourceIdSchema = import_zod5.z.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
+
+// src/schema/size.ts
+var import_core2 = require("aws-cdk-lib/core");
+var import_zod6 = require("zod");
+function toSize(size) {
+  const [count, unit] = size.split(" ");
+  const countNum = parseInt(count);
+  if (unit === "KB") {
+    return import_core2.Size.kibibytes(countNum);
+  } else if (unit === "MB") {
+    return import_core2.Size.mebibytes(countNum);
+  } else if (unit === "GB") {
+    return import_core2.Size.gibibytes(countNum);
+  }
+  throw new TypeError(`Invalid size ${size}`);
+}
+var SizeSchema = import_zod6.z.custom((value) => {
+  return import_zod6.z.string().regex(/[0-9]+ (KB|MB|GB)/, "Invalid size").refine((size) => {
+    const [str] = size.split(" ");
+    const number = parseInt(str);
+    return number > 0;
+  }, "Size must be greater then zero").parse(value);
+}).transform(toSize);
+
+// src/resource/function/index.ts
+var FunctionSchema = import_zod7.z.union([
+  LocalFileSchema,
+  import_zod7.z.object({
+    file: LocalFileSchema,
+    timeout: DurationSchema.optional(),
+    runtime: RuntimeSchema.optional(),
+    memorySize: SizeSchema.optional(),
+    architecture: ArchitectureSchema.optional(),
+    ephemeralStorageSize: SizeSchema.optional(),
+    environment: import_zod7.z.record(import_zod7.z.string(), import_zod7.z.string()).optional()
+  }).strict()
+]);
+var schema = import_zod7.z.object({
+  defaults: import_zod7.z.object({
+    function: import_zod7.z.object({
+      timeout: DurationSchema.optional(),
+      runtime: RuntimeSchema.optional(),
+      memorySize: SizeSchema.optional(),
+      architecture: ArchitectureSchema.optional(),
+      ephemeralStorageSize: SizeSchema.optional(),
+      environment: import_zod7.z.record(import_zod7.z.string(), import_zod7.z.string()).optional()
+      // timeout: DurationSchema.default('10 seconds'),
+      // runtime: RuntimeSchema.default('nodejs18.x'),
+      // memorySize: SizeSchema.default('124 MB'),
+      // architecture: ArchitectureSchema.default('arm_64'),
+      // ephemeralStorageSize: SizeSchema.default('512 MB'),
+      // environment: z.record(z.string(), z.string()).optional(),
+    }).optional()
+  }).optional(),
+  stacks: import_zod7.z.object({
+    functions: import_zod7.z.record(
+      ResourceIdSchema,
+      FunctionSchema
+    ).optional()
+  }).array()
+});
+var functionPlugin = definePlugin({
+  name: "function",
+  schema,
+  onStack(context) {
+    return Object.entries(context.stackConfig.functions || {}).map(([id, fileOrProps]) => {
+      return toFunction(context, id, fileOrProps);
+    });
+  }
+});
+var toFunction = ({ config: config2, stack, stackConfig }, id, fileOrProps) => {
+  const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
+  const lambda = new import_aws_lambda3.Function(stack, toId("function", id), {
+    functionName: toName(stack, id),
+    handler: "index.default",
+    code: import_aws_lambda3.Code.fromInline("export default () => {}"),
+    timeout: props.timeout ?? toDuration("10 seconds"),
+    runtime: props.runtime ?? toRuntime("nodejs18.x"),
+    memorySize: (props.memorySize ?? toSize("124 MB")).toMebibytes(),
+    architecture: props.architecture ?? toArchitecture("arm_64"),
+    ephemeralStorageSize: props.ephemeralStorageSize ?? toSize("512 MB"),
+    environment: props.environment
+  });
+  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
+  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
+  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
+  return lambda;
+};
+
 // src/app.ts
+var import_deepmerge = __toESM(require("deepmerge"), 1);
 var makeApp = (config2) => {
   return new import_aws_cdk_lib5.App({
     outdir: assemblyDir,
@@ -837,17 +560,42 @@ var getAllDepends = (filters) => {
   walk(filters);
   return list3;
 };
-var toApp = (config2, filters) => {
+var toApp = async (appConfig, filters) => {
   const assets = new Assets();
-  const app = makeApp(config2);
+  const app = makeApp(appConfig);
   const stacks = [];
+  const plugins = [
+    functionPlugin,
+    // cronPlugin,
+    // queuePlugin,
+    ...appConfig.plugins || []
+  ];
+  debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
+  debug("Run plugin validation schema");
+  let config2 = appConfig;
+  for (const plugin of plugins) {
+    if (plugin.schema) {
+      const partialConfig = await plugin.schema.parseAsync(config2);
+      config2 = (0, import_deepmerge.default)(config2, partialConfig);
+    }
+  }
+  debug("Merged config", config2);
+  debug("Run plugin onApp listeners");
+  plugins.forEach((plugin) => plugin.onApp?.({ config: config2, app, assets }));
   debug("Stack filters:", filters.map((filter) => style.info(filter)).join(", "));
   const filterdStacks = filters.length === 0 ? config2.stacks : getAllDepends(
     // config.stacks,
     config2.stacks.filter((stack) => filters.includes(stack.name))
   );
+  debug("Found stacks:", filterdStacks);
   for (const stackConfig of filterdStacks) {
-    const { stack } = toStack(config2, app, assets, stackConfig);
+    const { stack } = toStack({
+      config: config2,
+      stackConfig,
+      assets,
+      plugins,
+      app
+    });
     stacks.push({ stack, config: stackConfig });
   }
   const dependencyTree = [{
@@ -859,6 +607,7 @@ var toApp = (config2, filters) => {
     app,
     assets,
     // stacks: stacks.map(({ stack }) => stack),
+    plugins,
     stackNames: filterdStacks.map((stack) => stack.name),
     dependencyTree
     // deploymentTree: createDeploymentTree(stacks)
@@ -1009,7 +758,7 @@ var footer = () => {
 };
 
 // src/config.ts
-var import_path7 = require("path");
+var import_path3 = require("path");
 
 // src/util/account.ts
 var import_client_sts = require("@aws-sdk/client-sts");
@@ -1031,7 +780,7 @@ var getCredentials = (profile) => {
 var import_ts_import = require("ts-import");
 var importConfig = async (options) => {
   debug("Import config file");
-  const fileName = (0, import_path7.join)(process.cwd(), options.configFile || "awsless.config.ts");
+  const fileName = (0, import_path3.join)(process.cwd(), options.configFile || "awsless.config.ts");
   const module2 = await (0, import_ts_import.load)(fileName);
   const appConfig = typeof module2.default === "function" ? await module2.default({
     profile: options.profile,
@@ -1392,7 +1141,7 @@ var build = (program2) => {
 
 // src/stack/client.ts
 var import_client_cloudformation = require("@aws-sdk/client-cloudformation");
-var import_client_s32 = require("@aws-sdk/client-s3");
+var import_client_s3 = require("@aws-sdk/client-s3");
 var StackClient = class {
   // 30 seconds
   constructor(config2) {
@@ -1420,16 +1169,16 @@ var StackClient = class {
   }
   async upload(stack) {
     debug("Upload the", style.info(stack.id), "stack to awsless assets bucket");
-    const client = new import_client_s32.S3Client({
+    const client = new import_client_s3.S3Client({
       credentials: this.config.credentials,
       region: this.config.region
     });
-    await client.send(new import_client_s32.PutObjectCommand({
+    await client.send(new import_client_s3.PutObjectCommand({
       Bucket: assetBucketName(this.config),
       Key: `${stack.stackName}/cloudformation.json`,
       Body: JSON.stringify(stack.template),
-      ACL: import_client_s32.ObjectCannedACL.private,
-      StorageClass: import_client_s32.StorageClass.STANDARD_IA
+      ACL: import_client_s3.ObjectCannedACL.private,
+      StorageClass: import_client_s3.StorageClass.STANDARD_IA
     }));
   }
   async create(stack, capabilities) {
@@ -1713,7 +1462,7 @@ var stackTree = (nodes, statuses) => {
 var status = (program2) => {
   program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
     await layout(async (config2, write) => {
-      const { app, assets, dependencyTree } = toApp(config2, filters);
+      const { app, assets, dependencyTree } = await toApp(config2, filters);
       const doneBuilding = write(loadingDialog("Building stack assets..."));
       const assembly = app.synth();
       doneBuilding("Done building stack assets");

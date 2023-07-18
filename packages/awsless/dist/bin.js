@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-  get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-}) : x)(function(x) {
-  if (typeof require !== "undefined")
-    return require.apply(this, arguments);
-  throw new Error('Dynamic require of "' + x + '" is not supported');
-});
 
 // src/cli/program.ts
 import { Command } from "commander";
@@ -14,79 +7,8 @@ import { Command } from "commander";
 import { App as App4, DefaultStackSynthesizer } from "aws-cdk-lib";
 
 // src/stack.ts
-import { Fn, Stack as Stack4 } from "aws-cdk-lib";
-
-// src/resource/function/index.ts
-import { Function, Code } from "aws-cdk-lib/aws-lambda";
-
-// src/util/duration.ts
-import { Duration as CDKDuration } from "aws-cdk-lib/core";
-function toDuration(duration) {
-  const [count, unit] = duration.split(" ");
-  const countNum = parseInt(count);
-  const unitLower = unit.toLowerCase();
-  if (unitLower.startsWith("second")) {
-    return CDKDuration.seconds(countNum);
-  } else if (unitLower.startsWith("minute")) {
-    return CDKDuration.minutes(countNum);
-  } else if (unitLower.startsWith("hour")) {
-    return CDKDuration.hours(countNum);
-  } else if (unitLower.startsWith("day")) {
-    return CDKDuration.days(countNum);
-  }
-  return CDKDuration.days(0);
-}
-
-// src/resource/function/runtime.ts
-import { Runtime as CdkRuntime } from "aws-cdk-lib/aws-lambda";
-var runtimes = {
-  "container": CdkRuntime.FROM_IMAGE,
-  "rust": CdkRuntime.PROVIDED_AL2,
-  "nodejs16.x": CdkRuntime.NODEJS_16_X,
-  "nodejs18.x": CdkRuntime.NODEJS_18_X,
-  "python3.9": CdkRuntime.PYTHON_3_9,
-  "python3.10": CdkRuntime.PYTHON_3_10,
-  "go1.x": CdkRuntime.PROVIDED_AL2,
-  "go": CdkRuntime.PROVIDED_AL2
-};
-var toRuntime = (runtime) => {
-  return runtimes[runtime];
-};
-
-// src/resource/function/architecture.ts
-import { Architecture as CdkArchitecture } from "aws-cdk-lib/aws-lambda";
-var toArchitecture = (architecture) => {
-  return architecture === "x86_64" ? CdkArchitecture.X86_64 : CdkArchitecture.ARM_64;
-};
-
-// src/util/size.ts
-import { Size as CDKSize } from "aws-cdk-lib/core";
-function toSize(size) {
-  const [count, unit] = size.split(" ");
-  const countNum = parseInt(count);
-  if (unit === "KB") {
-    return CDKSize.kibibytes(countNum);
-  } else if (unit === "MB") {
-    return CDKSize.mebibytes(countNum);
-  } else if (unit === "GB") {
-    return CDKSize.gibibytes(countNum);
-  }
-  throw new TypeError(`Invalid size ${size}`);
-}
-
-// src/resource/function/build.ts
-import JSZip from "jszip";
-
-// src/util/path.ts
-import { join } from "path";
-var rootDir = process.cwd();
-var outDir = join(rootDir, ".awsless");
-var assemblyDir = join(outDir, "assembly");
-var functionDir = join(outDir, "function");
-
-// src/resource/function/build.ts
-import { basename, join as join2 } from "path";
-import { mkdir, writeFile } from "fs/promises";
+import { Fn, Stack } from "aws-cdk-lib";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 
 // src/cli/style.ts
 import chalk from "chalk";
@@ -109,8 +31,8 @@ var symbol = {
   // arrowDown: '↓',
   // arrowLeft: '←',
   // arrowRight: '→',
-  radioOn: "\u25C9",
-  radioOff: "\u25EF",
+  // radioOn: '◉',
+  // radioOff: '◯',
   info: "\u2139",
   success: "\u2714",
   warning: "\u26A0",
@@ -145,430 +67,6 @@ var debug = (...parts) => {
 };
 var flushDebug = () => {
   return queue.splice(0, queue.length);
-};
-
-// src/resource/function/build.ts
-import { filesize } from "filesize";
-var zipFiles = (files) => {
-  const zip = new JSZip();
-  for (const file of files) {
-    zip.file(file.name, file.code, {
-      compression: "DEFLATE",
-      compressionOptions: {
-        level: 9
-      }
-    });
-  }
-  return zip.generateAsync({
-    type: "nodebuffer"
-  });
-};
-var writeBuildHash = async (config2, stack, id, hash) => {
-  const funcPath = join2(functionDir, config2.name, stack.artifactId, id);
-  const versionFile = join2(funcPath, "HASH");
-  await writeFile(versionFile, hash);
-};
-var writeBuildFiles = async (config2, stack, id, files) => {
-  const bundle = await zipFiles(files);
-  const funcPath = join2(functionDir, config2.name, stack.artifactId, id);
-  const filesPath = join2(funcPath, "files");
-  const bundleFile = join2(funcPath, "bundle.zip");
-  debug("Bundle size of", style.info(join2(config2.name, stack.artifactId, id)), "is", style.time(filesize(bundle.byteLength)));
-  await mkdir(filesPath, { recursive: true });
-  await writeFile(bundleFile, bundle);
-  await Promise.all(files.map(async (file) => {
-    const fileName = join2(filesPath, file.name);
-    await mkdir(basename(fileName), { recursive: true });
-    await writeFile(fileName, file.code);
-    if (file.map) {
-      const mapName = join2(filesPath, `${file.name}.map`);
-      await writeFile(mapName, file.map);
-    }
-  }));
-  return bundleFile;
-};
-
-// src/resource/function/index.ts
-import { SnsDestination } from "aws-cdk-lib/aws-lambda-destinations";
-import { Topic as Topic2 } from "aws-cdk-lib/aws-sns";
-
-// src/util/resource.ts
-import { Arn } from "aws-cdk-lib";
-import { constantCase, paramCase, pascalCase } from "change-case";
-var toId = (resource, id) => {
-  return pascalCase(`${resource}-${id}`);
-};
-var toName = (stack, id) => {
-  return paramCase(`${stack.stackName}-${id}`);
-};
-var toEnvKey = (resource, id) => {
-  return constantCase(`RESOURCE_${resource}_${id}`);
-};
-var toArn = (stack, service, resource, id) => {
-  return Arn.format({
-    service,
-    resource,
-    resourceName: toName(stack, id)
-  }, stack);
-};
-var addResourceEnvironment = (stack, resource, id, lambda) => {
-  const key = toEnvKey(resource, id);
-  const value = toName(stack, id);
-  lambda.addEnvironment(key, value, {
-    removeInEdge: true
-  });
-};
-
-// src/stack/global.ts
-import { Stack as Stack2 } from "aws-cdk-lib";
-import { Topic } from "aws-cdk-lib/aws-sns";
-var findAllTopicIds = (config2) => {
-  return [...new Set(config2.stacks.map(
-    (stack) => Object.keys(stack.topics || {})
-  ).flat())];
-};
-var globalStack = (config2, app) => {
-  const stack = new Stack2(app, "global", {
-    stackName: `${config2.name}-global`
-  });
-  findAllTopicIds(config2).map((id) => {
-    new Topic(stack, toId("topic", id), {
-      topicName: id,
-      displayName: id
-    });
-  });
-  return stack;
-};
-
-// src/resource/function/publish.ts
-import { join as join3 } from "path";
-import { readFile } from "fs/promises";
-import { GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client, StorageClass } from "@aws-sdk/client-s3";
-
-// src/stack/bootstrap.ts
-import { CfnOutput, RemovalPolicy, Stack as Stack3 } from "aws-cdk-lib";
-import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
-var assetBucketName = (config2) => {
-  return `awsless-bootstrap-${config2.account}-${config2.region}`;
-};
-var assetBucketUrl = (config2, stackName) => {
-  const bucket = assetBucketName(config2);
-  return `https://s3-${config2.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
-};
-var version = "2";
-var bootstrapStack = (config2, app) => {
-  const stack = new Stack3(app, "bootstrap", {
-    stackName: `awsless-bootstrap`
-  });
-  new Bucket(stack, "assets", {
-    bucketName: assetBucketName(config2),
-    versioned: true,
-    accessControl: BucketAccessControl.PRIVATE,
-    removalPolicy: RemovalPolicy.DESTROY
-  });
-  new CfnOutput(stack, "version", {
-    exportName: "version",
-    value: version
-  });
-  return stack;
-};
-var shouldDeployBootstrap = async (client, name) => {
-  debug("Check bootstrap status");
-  const info = await client.get(name);
-  return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
-};
-
-// src/resource/function/publish.ts
-var publishFunctionAsset = async (config2, stack, id) => {
-  const bucket = assetBucketName(config2);
-  const key = `${config2.name}/${stack.artifactId}/function/${id}.zip`;
-  const funcPath = join3(functionDir, config2.name, stack.artifactId, id);
-  const bundleFile = join3(funcPath, "bundle.zip");
-  const hashFile = join3(funcPath, "HASH");
-  const hash = await readFile(hashFile, "utf8");
-  const file = await readFile(bundleFile, "utf8");
-  const client = new S3Client({
-    credentials: config2.credentials,
-    region: config2.region
-  });
-  let getResult;
-  try {
-    getResult = await client.send(new GetObjectCommand({
-      Bucket: bucket,
-      Key: key
-    }));
-  } catch (error) {
-    if (error instanceof Error && error.name === "NoSuchKey") {
-    } else {
-      throw error;
-    }
-  }
-  if (getResult?.Metadata?.hash === hash) {
-    return getResult.VersionId;
-  }
-  const putResult = await client.send(new PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    Body: file,
-    ACL: ObjectCannedACL.private,
-    StorageClass: StorageClass.STANDARD,
-    Metadata: {
-      hash
-    }
-  }));
-  return putResult.VersionId;
-};
-
-// src/resource/function/build-worker.ts
-import { Worker } from "worker_threads";
-var cjs = typeof __require !== "undefined";
-var importESM = `
-import { bundle } from "@awsless/code";
-import { createHash } from "crypto";
-import { parentPort, workerData } from "worker_threads";
-`;
-var importCJS = `
-const { bundle } = require("@awsless/code");
-const { createHash } = require("crypto");
-const { parentPort, workerData } = require("worker_threads");
-`;
-var workerCode = `
-${cjs ? importCJS : importESM}
-
-const build = async (file) => {
-	const { code, map } = await bundle(file, {
-		format: 'esm',
-		sourceMap: true,
-		minimize: true,
-		onwarn: () => {},
-		moduleSideEffects: (id) => file === id,
-		external: (importee) => (
-			importee.startsWith('aws-sdk') ||
-			importee.startsWith('@aws-sdk')
-		),
-	})
-
-	const hash = createHash('sha1').update(code).digest('hex')
-
-    parentPort.postMessage(JSON.stringify({
-		handler: 'index.default',
-		hash,
-		files: [
-			{ name: 'index.js', code, map: map?.toString() }
-		]
-	}))
-}
-
-build(workerData)
-`;
-var defaultBuild = async (file) => {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(workerCode, { workerData: file, eval: true });
-    const cleanUp = () => {
-      worker.removeAllListeners();
-      worker.terminate();
-    };
-    worker.on("message", (data) => {
-      resolve(JSON.parse(data.toString("utf8")));
-      cleanUp();
-    });
-    worker.on("error", (data) => {
-      reject(data);
-      cleanUp();
-    });
-    worker.on("exit", (code) => {
-      if (code !== 0) {
-        reject(new Error(`Worker exited with code ${code}`));
-        cleanUp();
-      }
-    });
-  });
-};
-
-// src/resource/function/index.ts
-var toFunction = ({ stack, stackConfig, config: config2, assets }, id, file) => {
-  const props = typeof file === "string" ? { ...config2.defaults?.function, file } : file;
-  const lambda = new Function(stack, toId("function", id), {
-    functionName: toName(stack, id),
-    runtime: toRuntime(props.runtime ?? "nodejs18.x"),
-    handler: "index.default",
-    code: Code.fromInline("export default () => {}"),
-    timeout: toDuration(props.timeout ?? "30 seconds"),
-    architecture: toArchitecture(props.architecture ?? "arm_64"),
-    ephemeralStorageSize: toSize(props.ephemeralStorageSize ?? "512 MB"),
-    environment: props.environment
-  });
-  assets.add({
-    stack: stackConfig,
-    resource: "function",
-    resourceName: id,
-    async build() {
-      const result = await defaultBuild(props.file);
-      await writeBuildFiles(config2, stack, id, result.files);
-      await writeBuildHash(config2, stack, id, result.hash);
-      const func = lambda.node.defaultChild;
-      func.handler = result.handler;
-      return {
-        size: "SMALL"
-      };
-    },
-    async publish() {
-      const version2 = await publishFunctionAsset(config2, stack, id);
-      const func = lambda.node.defaultChild;
-      func.code = {
-        s3Bucket: assetBucketName(config2),
-        s3Key: `${config2.name}/${stack.artifactId}/function/${id}.zip`,
-        s3ObjectVersion: version2
-      };
-    }
-  });
-  const topicIds = findAllTopicIds(config2);
-  const eventInvokeConfig = {
-    retryAttempts: props.retryAttempts ?? 2
-  };
-  if (topicIds.includes("failure")) {
-    const arn = toArn(stack, "sns", "topic", "failure");
-    const failure = Topic2.fromTopicArn(stack, toId("topic", "failure"), arn);
-    eventInvokeConfig.onFailure = new SnsDestination(failure);
-  }
-  lambda.configureAsyncInvoke(eventInvokeConfig);
-  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
-  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
-  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
-  if (lambda.runtime.toString().startsWith("nodejs")) {
-    lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1", {
-      removeInEdge: true
-    });
-  }
-  return {
-    lambda,
-    bind: (other) => {
-      lambda.grantInvoke(other);
-      addResourceEnvironment(stack, "function", id, other);
-    }
-  };
-};
-
-// src/resource/queue.ts
-import { Queue } from "aws-cdk-lib/aws-sqs";
-import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
-var toQueue = (ctx, id, params) => {
-  const props = typeof params !== "string" ? { ...ctx.config.defaults?.queue, ...params } : ctx.config.defaults?.queue || {};
-  const functionProps = typeof params === "string" ? params : params.consumer;
-  const { stack } = ctx;
-  const { lambda } = toFunction(ctx, id, functionProps);
-  const queue2 = new Queue(stack, toId("queue", id), {
-    queueName: toName(stack, id),
-    fifo: props.fifo,
-    retentionPeriod: toDuration(props.retentionPeriod || "7 days"),
-    visibilityTimeout: toDuration(props.visibilityTimeout || "30 seconds"),
-    deliveryDelay: toDuration(props.deliveryDelay || "0 seconds"),
-    receiveMessageWaitTime: toDuration(props.receiveMessageWaitTime || "0 seconds"),
-    maxMessageSizeBytes: toSize(props.maxMessageSizeBytes || "256 KB").toBytes()
-  });
-  lambda.addEventSource(new SqsEventSource(queue2));
-  return {
-    queue: queue2,
-    lambda,
-    bind(lambda2) {
-      queue2.grantSendMessages(lambda2);
-      addResourceEnvironment(stack, "queue", id, lambda2);
-    }
-  };
-};
-
-// src/resource/topic.ts
-import { Topic as Topic3 } from "aws-cdk-lib/aws-sns";
-import { SnsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
-var toTopic = (ctx, id, props) => {
-  const { stack } = ctx;
-  const { lambda } = toFunction(ctx, id, props);
-  const topic = Topic3.fromTopicArn(
-    stack,
-    toId("topic", id),
-    toArn(stack, "sns", "topic", id)
-  );
-  lambda.addEventSource(new SnsEventSource(topic));
-  return {
-    topic,
-    lambda
-  };
-};
-
-// src/stack.ts
-import { PolicyStatement } from "aws-cdk-lib/aws-iam";
-
-// src/resource/cron.ts
-import { Rule, Schedule } from "aws-cdk-lib/aws-events";
-import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
-var toCron = (ctx, id, props) => {
-  const { stack } = ctx;
-  const { lambda } = toFunction(ctx, id, props.consumer);
-  const target = new LambdaFunction(lambda);
-  const rule = new Rule(stack, toId("cron", id), {
-    ruleName: toName(stack, id),
-    schedule: Schedule.expression(props.schedule),
-    description: props.description,
-    targets: [target]
-  });
-  return {
-    rule,
-    lambda
-  };
-};
-
-// src/resource/table.ts
-import { AttributeType, BillingMode, Table, TableClass } from "aws-cdk-lib/aws-dynamodb";
-var types = {
-  string: AttributeType.STRING,
-  number: AttributeType.NUMBER,
-  binary: AttributeType.BINARY
-};
-var buildAttribute = (fields, name) => {
-  return {
-    name,
-    type: types[fields[name]]
-  };
-};
-var toTable = ({ stack }, id, props) => {
-  const table = new Table(stack, toId("table", id), {
-    tableName: toName(stack, id),
-    partitionKey: buildAttribute(props.fields, props.hashKey),
-    sortKey: props.sortKey ? buildAttribute(props.fields, props.sortKey) : void 0,
-    billingMode: BillingMode.PAY_PER_REQUEST,
-    pointInTimeRecovery: props.pointInTimeRecovery,
-    timeToLiveAttribute: props.timeToLiveAttribute,
-    tableClass: TableClass.STANDARD
-  });
-  Object.entries(props.indexes || {}).forEach(([indexName, entry]) => {
-    table.addGlobalSecondaryIndex({
-      indexName,
-      partitionKey: buildAttribute(props.fields, entry.hashKey),
-      sortKey: entry.sortKey ? buildAttribute(props.fields, entry.sortKey) : void 0
-    });
-  });
-  return {
-    table,
-    bind(lambda) {
-      table.grantReadWriteData(lambda);
-      addResourceEnvironment(stack, "table", id, lambda);
-    }
-  };
-};
-
-// src/resource/store.ts
-import { Bucket as Bucket2, BucketAccessControl as BucketAccessControl2 } from "aws-cdk-lib/aws-s3";
-var toStore = ({ stack }, id) => {
-  const bucket = new Bucket2(stack, toId("store", id), {
-    bucketName: toName(stack, id),
-    accessControl: BucketAccessControl2.PRIVATE
-  });
-  return {
-    bucket,
-    bind(lambda) {
-      bucket.grantReadWrite(lambda), addResourceEnvironment(stack, "store", id, lambda);
-    }
-  };
 };
 
 // src/util/param.ts
@@ -656,44 +154,30 @@ var Params = class {
 };
 
 // src/stack.ts
-var toStack = (config2, app, assets, props) => {
-  const stackName = `${config2.name}-${props.name}`;
-  const stack = new Stack4(app, props.name, {
+var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
+  const stackName = `${config2.name}-${stackConfig.name}`;
+  const stack = new Stack(app, stackConfig.name, {
     stackName,
     tags: {
       APP: config2.name,
-      STACK: props.name
+      STAGE: config2.stage,
+      STACK: stackConfig.name
     }
   });
-  const context = { config: config2, assets, app, stack, stackConfig: props };
-  const functions = [];
-  const binds = [];
-  for (const [name, entry] of Object.entries(props.functions || {})) {
-    const { lambda, bind } = toFunction(context, name, entry);
-    functions.push(lambda);
-    binds.push(bind);
-  }
-  for (const [name, entry] of Object.entries(props.topics || {})) {
-    const { lambda } = toTopic(context, name, entry);
-    functions.push(lambda);
-  }
-  for (const [name, entry] of Object.entries(props.queues || {})) {
-    const { lambda, bind } = toQueue(context, name, entry);
-    functions.push(lambda);
-    binds.push(bind);
-  }
-  for (const [name, entry] of Object.entries(props.tables || {})) {
-    const { bind } = toTable(context, name, entry);
-    binds.push(bind);
-  }
-  for (const name of props.stores || []) {
-    const { bind } = toStore(context, name);
-    binds.push(bind);
-  }
-  for (const [name, entry] of Object.entries(props.crons || {})) {
-    const { lambda } = toCron(context, name, entry);
-    functions.push(lambda);
-  }
+  debug("Define stack:", style.info(stackConfig.name));
+  const bindings = [];
+  const bind = (cb) => {
+    bindings.push(cb);
+  };
+  const functions = plugins.map((plugin) => plugin.onStack?.({
+    config: config2,
+    assets,
+    app,
+    stack,
+    stackConfig,
+    bind
+  })).flat().filter((lambda) => !!lambda);
+  bindings.forEach((cb) => functions.forEach(cb));
   const allowTopicPublish = new PolicyStatement({
     actions: ["sns:publish"],
     resources: ["*"]
@@ -710,11 +194,83 @@ var toStack = (config2, app, assets, props) => {
     ]
   });
   functions.forEach((lambda) => lambda.addToRolePolicy(allowConfigParameters));
-  binds.forEach((bind) => functions.forEach((lambda) => bind(lambda)));
   return {
     stack,
-    depends: props.depends
+    depends: stackConfig.depends
   };
+};
+
+// src/util/path.ts
+import { join } from "path";
+var rootDir = process.cwd();
+var outDir = join(rootDir, ".awsless");
+var assemblyDir = join(outDir, "assembly");
+var functionDir = join(outDir, "function");
+
+// src/stack/global.ts
+import { Stack as Stack3 } from "aws-cdk-lib";
+import { Topic } from "aws-cdk-lib/aws-sns";
+
+// src/util/resource.ts
+import { Arn } from "aws-cdk-lib";
+import { constantCase, paramCase, pascalCase } from "change-case";
+var toId = (resource, id) => {
+  return pascalCase(`${resource}-${id}`);
+};
+var toName = (stack, id) => {
+  return paramCase(`${stack.stackName}-${id}`);
+};
+
+// src/stack/global.ts
+var findAllTopicIds = (config2) => {
+  return [...new Set(config2.stacks.map(
+    (stack) => Object.keys(stack.topics || {})
+  ).flat())];
+};
+var globalStack = (config2, app) => {
+  const stack = new Stack3(app, "global", {
+    stackName: `${config2.name}-global`
+  });
+  findAllTopicIds(config2).map((id) => {
+    new Topic(stack, toId("topic", id), {
+      topicName: id,
+      displayName: id
+    });
+  });
+  return stack;
+};
+
+// src/stack/bootstrap.ts
+import { CfnOutput, RemovalPolicy, Stack as Stack4 } from "aws-cdk-lib";
+import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
+var assetBucketName = (config2) => {
+  return `awsless-bootstrap-${config2.account}-${config2.region}`;
+};
+var assetBucketUrl = (config2, stackName) => {
+  const bucket = assetBucketName(config2);
+  return `https://s3-${config2.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
+};
+var version = "2";
+var bootstrapStack = (config2, app) => {
+  const stack = new Stack4(app, "bootstrap", {
+    stackName: `awsless-bootstrap`
+  });
+  new Bucket(stack, "assets", {
+    bucketName: assetBucketName(config2),
+    versioned: true,
+    accessControl: BucketAccessControl.PRIVATE,
+    removalPolicy: RemovalPolicy.DESTROY
+  });
+  new CfnOutput(stack, "version", {
+    exportName: "version",
+    value: version
+  });
+  return stack;
+};
+var shouldDeployBootstrap = async (client, name) => {
+  debug("Check bootstrap status");
+  const info = await client.get(name);
+  return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
 };
 
 // src/util/deployment.ts
@@ -799,7 +355,167 @@ var Assets = class {
   }
 };
 
+// src/plugin.ts
+var definePlugin = (plugin) => plugin;
+
+// src/resource/function/index.ts
+import { z as z7 } from "zod";
+
+// src/schema/duration.ts
+import { z } from "zod";
+import { Duration as CDKDuration } from "aws-cdk-lib/core";
+function toDuration(duration) {
+  const [count, unit] = duration.split(" ");
+  const countNum = parseInt(count);
+  const unitLower = unit.toLowerCase();
+  if (unitLower.startsWith("second")) {
+    return CDKDuration.seconds(countNum);
+  } else if (unitLower.startsWith("minute")) {
+    return CDKDuration.minutes(countNum);
+  } else if (unitLower.startsWith("hour")) {
+    return CDKDuration.hours(countNum);
+  } else if (unitLower.startsWith("day")) {
+    return CDKDuration.days(countNum);
+  }
+  return CDKDuration.days(0);
+}
+var DurationSchema = z.custom((value) => {
+  return z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/, "Invalid duration").refine((duration) => {
+    const [str] = duration.split(" ");
+    const number = parseInt(str);
+    return number > 0;
+  }, "Duration must be greater then zero").parse(value);
+}).transform(toDuration);
+
+// src/schema/local-file.ts
+import { z as z2 } from "zod";
+var LocalFileSchema = z2.string().refine(async () => {
+  return true;
+}, `File doesn't exist`);
+
+// src/resource/function/index.ts
+import { Code, Function } from "aws-cdk-lib/aws-lambda";
+
+// src/resource/function/schema/runtime.ts
+import { Runtime as CdkRuntime } from "aws-cdk-lib/aws-lambda";
+import { z as z3 } from "zod";
+var runtimes = {
+  "container": CdkRuntime.FROM_IMAGE,
+  "rust": CdkRuntime.PROVIDED_AL2,
+  "nodejs16.x": CdkRuntime.NODEJS_16_X,
+  "nodejs18.x": CdkRuntime.NODEJS_18_X,
+  "python3.9": CdkRuntime.PYTHON_3_9,
+  "python3.10": CdkRuntime.PYTHON_3_10,
+  "go1.x": CdkRuntime.PROVIDED_AL2,
+  "go": CdkRuntime.PROVIDED_AL2
+};
+var toRuntime = (runtime) => {
+  return runtimes[runtime];
+};
+var RuntimeSchema = z3.enum(Object.keys(runtimes)).transform(toRuntime);
+
+// src/resource/function/schema/architecture.ts
+import { Architecture as CdkArchitecture } from "aws-cdk-lib/aws-lambda";
+import { z as z4 } from "zod";
+var toArchitecture = (architecture) => {
+  return architecture === "x86_64" ? CdkArchitecture.X86_64 : CdkArchitecture.ARM_64;
+};
+var ArchitectureSchema = z4.enum(["x86_64", "arm_64"]).transform(toArchitecture);
+
+// src/schema/resource-id.ts
+import { z as z5 } from "zod";
+var ResourceIdSchema = z5.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
+
+// src/schema/size.ts
+import { Size as CDKSize } from "aws-cdk-lib/core";
+import { z as z6 } from "zod";
+function toSize(size) {
+  const [count, unit] = size.split(" ");
+  const countNum = parseInt(count);
+  if (unit === "KB") {
+    return CDKSize.kibibytes(countNum);
+  } else if (unit === "MB") {
+    return CDKSize.mebibytes(countNum);
+  } else if (unit === "GB") {
+    return CDKSize.gibibytes(countNum);
+  }
+  throw new TypeError(`Invalid size ${size}`);
+}
+var SizeSchema = z6.custom((value) => {
+  return z6.string().regex(/[0-9]+ (KB|MB|GB)/, "Invalid size").refine((size) => {
+    const [str] = size.split(" ");
+    const number = parseInt(str);
+    return number > 0;
+  }, "Size must be greater then zero").parse(value);
+}).transform(toSize);
+
+// src/resource/function/index.ts
+var FunctionSchema = z7.union([
+  LocalFileSchema,
+  z7.object({
+    file: LocalFileSchema,
+    timeout: DurationSchema.optional(),
+    runtime: RuntimeSchema.optional(),
+    memorySize: SizeSchema.optional(),
+    architecture: ArchitectureSchema.optional(),
+    ephemeralStorageSize: SizeSchema.optional(),
+    environment: z7.record(z7.string(), z7.string()).optional()
+  }).strict()
+]);
+var schema = z7.object({
+  defaults: z7.object({
+    function: z7.object({
+      timeout: DurationSchema.optional(),
+      runtime: RuntimeSchema.optional(),
+      memorySize: SizeSchema.optional(),
+      architecture: ArchitectureSchema.optional(),
+      ephemeralStorageSize: SizeSchema.optional(),
+      environment: z7.record(z7.string(), z7.string()).optional()
+      // timeout: DurationSchema.default('10 seconds'),
+      // runtime: RuntimeSchema.default('nodejs18.x'),
+      // memorySize: SizeSchema.default('124 MB'),
+      // architecture: ArchitectureSchema.default('arm_64'),
+      // ephemeralStorageSize: SizeSchema.default('512 MB'),
+      // environment: z.record(z.string(), z.string()).optional(),
+    }).optional()
+  }).optional(),
+  stacks: z7.object({
+    functions: z7.record(
+      ResourceIdSchema,
+      FunctionSchema
+    ).optional()
+  }).array()
+});
+var functionPlugin = definePlugin({
+  name: "function",
+  schema,
+  onStack(context) {
+    return Object.entries(context.stackConfig.functions || {}).map(([id, fileOrProps]) => {
+      return toFunction(context, id, fileOrProps);
+    });
+  }
+});
+var toFunction = ({ config: config2, stack, stackConfig }, id, fileOrProps) => {
+  const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
+  const lambda = new Function(stack, toId("function", id), {
+    functionName: toName(stack, id),
+    handler: "index.default",
+    code: Code.fromInline("export default () => {}"),
+    timeout: props.timeout ?? toDuration("10 seconds"),
+    runtime: props.runtime ?? toRuntime("nodejs18.x"),
+    memorySize: (props.memorySize ?? toSize("124 MB")).toMebibytes(),
+    architecture: props.architecture ?? toArchitecture("arm_64"),
+    ephemeralStorageSize: props.ephemeralStorageSize ?? toSize("512 MB"),
+    environment: props.environment
+  });
+  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
+  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
+  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
+  return lambda;
+};
+
 // src/app.ts
+import deepmerge from "deepmerge";
 var makeApp = (config2) => {
   return new App4({
     outdir: assemblyDir,
@@ -821,17 +537,42 @@ var getAllDepends = (filters) => {
   walk(filters);
   return list3;
 };
-var toApp = (config2, filters) => {
+var toApp = async (appConfig, filters) => {
   const assets = new Assets();
-  const app = makeApp(config2);
+  const app = makeApp(appConfig);
   const stacks = [];
+  const plugins = [
+    functionPlugin,
+    // cronPlugin,
+    // queuePlugin,
+    ...appConfig.plugins || []
+  ];
+  debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
+  debug("Run plugin validation schema");
+  let config2 = appConfig;
+  for (const plugin of plugins) {
+    if (plugin.schema) {
+      const partialConfig = await plugin.schema.parseAsync(config2);
+      config2 = deepmerge(config2, partialConfig);
+    }
+  }
+  debug("Merged config", config2);
+  debug("Run plugin onApp listeners");
+  plugins.forEach((plugin) => plugin.onApp?.({ config: config2, app, assets }));
   debug("Stack filters:", filters.map((filter) => style.info(filter)).join(", "));
   const filterdStacks = filters.length === 0 ? config2.stacks : getAllDepends(
     // config.stacks,
     config2.stacks.filter((stack) => filters.includes(stack.name))
   );
+  debug("Found stacks:", filterdStacks);
   for (const stackConfig of filterdStacks) {
-    const { stack } = toStack(config2, app, assets, stackConfig);
+    const { stack } = toStack({
+      config: config2,
+      stackConfig,
+      assets,
+      plugins,
+      app
+    });
     stacks.push({ stack, config: stackConfig });
   }
   const dependencyTree = [{
@@ -843,6 +584,7 @@ var toApp = (config2, filters) => {
     app,
     assets,
     // stacks: stacks.map(({ stack }) => stack),
+    plugins,
     stackNames: filterdStacks.map((stack) => stack.name),
     dependencyTree
     // deploymentTree: createDeploymentTree(stacks)
@@ -993,7 +735,7 @@ var footer = () => {
 };
 
 // src/config.ts
-import { join as join4 } from "path";
+import { join as join2 } from "path";
 
 // src/util/account.ts
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
@@ -1015,7 +757,7 @@ var getCredentials = (profile) => {
 import { load } from "ts-import";
 var importConfig = async (options) => {
   debug("Import config file");
-  const fileName = join4(process.cwd(), options.configFile || "awsless.config.ts");
+  const fileName = join2(process.cwd(), options.configFile || "awsless.config.ts");
   const module = await load(fileName);
   const appConfig = typeof module.default === "function" ? await module.default({
     profile: options.profile,
@@ -1376,7 +1118,7 @@ var build = (program2) => {
 
 // src/stack/client.ts
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from "@aws-sdk/client-cloudformation";
-import { S3Client as S3Client2, PutObjectCommand as PutObjectCommand2, ObjectCannedACL as ObjectCannedACL2, StorageClass as StorageClass2 } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, ObjectCannedACL, StorageClass } from "@aws-sdk/client-s3";
 var StackClient = class {
   // 30 seconds
   constructor(config2) {
@@ -1404,16 +1146,16 @@ var StackClient = class {
   }
   async upload(stack) {
     debug("Upload the", style.info(stack.id), "stack to awsless assets bucket");
-    const client = new S3Client2({
+    const client = new S3Client({
       credentials: this.config.credentials,
       region: this.config.region
     });
-    await client.send(new PutObjectCommand2({
+    await client.send(new PutObjectCommand({
       Bucket: assetBucketName(this.config),
       Key: `${stack.stackName}/cloudformation.json`,
       Body: JSON.stringify(stack.template),
-      ACL: ObjectCannedACL2.private,
-      StorageClass: StorageClass2.STANDARD_IA
+      ACL: ObjectCannedACL.private,
+      StorageClass: StorageClass.STANDARD_IA
     }));
   }
   async create(stack, capabilities) {
@@ -1697,7 +1439,7 @@ var stackTree = (nodes, statuses) => {
 var status = (program2) => {
   program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
     await layout(async (config2, write) => {
-      const { app, assets, dependencyTree } = toApp(config2, filters);
+      const { app, assets, dependencyTree } = await toApp(config2, filters);
       const doneBuilding = write(loadingDialog("Building stack assets..."));
       const assembly = app.synth();
       doneBuilding("Done building stack assets");
