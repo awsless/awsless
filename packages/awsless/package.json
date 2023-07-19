@@ -44,6 +44,7 @@
 		"change-case": "^4.1.2",
 		"commander": "^9.4.1",
 		"constructs": "^10.1.246",
+		"cron-validate": "^1.4.5",
 		"deepmerge": "^4.3.1",
 		"filesize": "^10.0.7",
 		"jszip": "^3.10.1",

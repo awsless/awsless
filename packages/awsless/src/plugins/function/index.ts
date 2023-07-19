@@ -87,6 +87,16 @@ export const toFunction = (
 		memorySize: props.memorySize.toMebibytes(),
 	})
 
+	lambda.addEnvironment('APP', config.name, { removeInEdge: true })
+	lambda.addEnvironment('STAGE', config.stage, { removeInEdge: true })
+	lambda.addEnvironment('STACK', stackConfig.name, { removeInEdge: true })
+
+	if (lambda.runtime.toString().startsWith('nodejs')) {
+		lambda.addEnvironment('AWS_NODEJS_CONNECTION_REUSE_ENABLED', '1', {
+			removeInEdge: true,
+		})
+	}
+
 	assets.add({
 		stack: stackConfig,
 		resource: 'function',
@@ -115,10 +125,6 @@ export const toFunction = (
 			}
 		}
 	})
-
-	lambda.addEnvironment('APP', config.name, { removeInEdge: true })
-	lambda.addEnvironment('STAGE', config.stage, { removeInEdge: true })
-	lambda.addEnvironment('STACK', stackConfig.name, { removeInEdge: true })
 
 	return lambda
 }

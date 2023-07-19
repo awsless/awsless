@@ -1,3 +1,4 @@
+
 // import { AppConfig } from "../../src/app";
 // import { StackConfig } from "../../src/stack";
 
@@ -27,9 +28,9 @@ const diceStack = {
 	name: 'dice',
 	depends: [ statsStack, betStack ],
 	stores: [ 'files' ],
-	// topics: {
-	// 	event: 'test/_data/function.ts'
-	// }
+	topics: {
+		event: 'test/_data/function.ts'
+	}
 } satisfies StackConfig
 
 const walletStack = {
@@ -43,10 +44,10 @@ const walletStack = {
 const siteStack = {
 	name: 'site',
 	crons: {
-		// name: {
-		// 	consumer:
-		// 	schedule: 'cron(* * * * * *)'
-		// }
+		cron: {
+			consumer: 'test/_data/function.ts',
+			schedule: 'cron(* * * * * *)'
+		}
 	},
 } satisfies StackConfig
 
@@ -55,13 +56,11 @@ export default {
 	profile: 'jacksclub',
 	region: 'eu-west-1',
 	stage: 'asd',
-	// defaults: {
-
-	// },
 	stacks: [
 		statsStack,
 		betStack,
 		diceStack,
 		walletStack,
+		siteStack,
 	]
 } satisfies AppConfig

@@ -1,3 +1,4 @@
+import * as aws_cdk_lib_aws_dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as aws_cdk_lib_aws_events from 'aws-cdk-lib/aws-events';
 import * as aws_cdk_lib from 'aws-cdk-lib';
 import { Stack, App } from 'aws-cdk-lib';
@@ -55,6 +56,7 @@ declare const AppSchema: z.ZodObject<{
     defaults?: {} | undefined;
     plugins?: Plugin<z.AnyZodObject | undefined>[] | undefined;
 }>;
+type AppConfigInput = z.input<typeof AppSchema>;
 type AppConfigOutput = z.output<typeof AppSchema>;
 
 type BaseConfig = AppConfigOutput & {
@@ -65,7 +67,7 @@ type BaseConfig = AppConfigOutput & {
 type Binding = (lambda: Function) => void;
 
 type ExtendedConfigOutput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? BaseConfig & z.output<S> : BaseConfig);
-type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? BaseConfig & z.input<S> : BaseConfig);
+type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? AppConfigInput & z.input<S> : AppConfigInput);
 type StackContext<S extends AnyZodObject | undefined = undefined> = {
     config: ExtendedConfigOutput<S>;
     stack: Stack;
@@ -692,92 +694,131 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     } | undefined;
 }>> | Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
-        tables: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodEffects<zod.ZodEffects<zod.ZodObject<{
+        tables: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodEffects<zod.ZodObject<{
             hash: zod.ZodString;
             sort: zod.ZodOptional<zod.ZodString>;
-            fields: zod.ZodRecord<zod.ZodString, zod.ZodEnum<["string", "number", "binary"]>>;
+            fields: zod.ZodRecord<zod.ZodString, zod.ZodEffects<zod.ZodEnum<["string" | "number" | "binary"]>, aws_cdk_lib_aws_dynamodb.AttributeType, "string" | "number" | "binary">>;
+            class: zod.ZodDefault<zod.ZodEffects<zod.ZodEnum<["standard" | "standard-infrequent-access"]>, aws_cdk_lib_aws_dynamodb.TableClass, "standard" | "standard-infrequent-access">>;
             pointInTimeRecovery: zod.ZodDefault<zod.ZodBoolean>;
             timeToLiveAttribute: zod.ZodOptional<zod.ZodString>;
             indexes: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
                 hash: zod.ZodString;
                 sort: zod.ZodOptional<zod.ZodString>;
+                projection: zod.ZodDefault<zod.ZodUnion<[zod.ZodEffects<zod.ZodEnum<["all" | "keys-only"]>, {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                }, "all" | "keys-only">, zod.ZodEffects<zod.ZodArray<zod.ZodString, "many">, {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                }, string[]>]>>;
             }, "strip", zod.ZodTypeAny, {
                 hash: string;
+                projection: ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                }) & ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                } | undefined);
                 sort?: string | undefined;
             }, {
                 hash: string;
                 sort?: string | undefined;
+                projection?: string[] | "all" | "keys-only" | undefined;
             }>>>;
         }, "strip", zod.ZodTypeAny, {
             hash: string;
-            fields: Record<string, "string" | "number" | "binary">;
+            fields: Record<string, aws_cdk_lib_aws_dynamodb.AttributeType>;
+            class: aws_cdk_lib_aws_dynamodb.TableClass;
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
+                projection: ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                }) & ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                } | undefined);
                 sort?: string | undefined;
             }> | undefined;
         }, {
             hash: string;
             fields: Record<string, "string" | "number" | "binary">;
             sort?: string | undefined;
+            class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
+                projection?: string[] | "all" | "keys-only" | undefined;
             }> | undefined;
         }>, {
             hash: string;
-            fields: Record<string, "string" | "number" | "binary">;
+            fields: Record<string, aws_cdk_lib_aws_dynamodb.AttributeType>;
+            class: aws_cdk_lib_aws_dynamodb.TableClass;
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
+                projection: ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                }) & ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                } | undefined);
                 sort?: string | undefined;
             }> | undefined;
         }, {
             hash: string;
             fields: Record<string, "string" | "number" | "binary">;
             sort?: string | undefined;
+            class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
-            }> | undefined;
-        }>, {
-            hash: string;
-            fields: Record<string, "string" | "number" | "binary">;
-            pointInTimeRecovery: boolean;
-            sort?: string | undefined;
-            timeToLiveAttribute?: string | undefined;
-            indexes?: Record<string, {
-                hash: string;
-                sort?: string | undefined;
-            }> | undefined;
-        }, {
-            hash: string;
-            fields: Record<string, "string" | "number" | "binary">;
-            sort?: string | undefined;
-            pointInTimeRecovery?: boolean | undefined;
-            timeToLiveAttribute?: string | undefined;
-            indexes?: Record<string, {
-                hash: string;
-                sort?: string | undefined;
+                projection?: string[] | "all" | "keys-only" | undefined;
             }> | undefined;
         }>>>;
     }, "strip", zod.ZodTypeAny, {
         tables?: Record<string, {
             hash: string;
-            fields: Record<string, "string" | "number" | "binary">;
+            fields: Record<string, aws_cdk_lib_aws_dynamodb.AttributeType>;
+            class: aws_cdk_lib_aws_dynamodb.TableClass;
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
+                projection: ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                }) & ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                } | undefined);
                 sort?: string | undefined;
             }> | undefined;
         }> | undefined;
@@ -786,11 +827,13 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             hash: string;
             fields: Record<string, "string" | "number" | "binary">;
             sort?: string | undefined;
+            class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
+                projection?: string[] | "all" | "keys-only" | undefined;
             }> | undefined;
         }> | undefined;
     }>, "many">;
@@ -798,12 +841,24 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         tables?: Record<string, {
             hash: string;
-            fields: Record<string, "string" | "number" | "binary">;
+            fields: Record<string, aws_cdk_lib_aws_dynamodb.AttributeType>;
+            class: aws_cdk_lib_aws_dynamodb.TableClass;
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
+                projection: ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                }) & ({
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                } | {
+                    ProjectionType: aws_cdk_lib_aws_dynamodb.ProjectionType;
+                    NonKeyAttributes: string[];
+                } | undefined);
                 sort?: string | undefined;
             }> | undefined;
         }> | undefined;
@@ -814,11 +869,13 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             hash: string;
             fields: Record<string, "string" | "number" | "binary">;
             sort?: string | undefined;
+            class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
+                projection?: string[] | "all" | "keys-only" | undefined;
             }> | undefined;
         }> | undefined;
     }[];

@@ -3,6 +3,7 @@ import { definePlugin } from "../plugin";
 import { addResourceEnvironment, toId, toName } from "../util/resource";
 import { ResourceIdSchema } from "../schema/resource-id";
 import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
+import { RemovalPolicy } from 'aws-cdk-lib';
 
 export const storePlugin = definePlugin({
 	name: 'store',
@@ -16,6 +17,7 @@ export const storePlugin = definePlugin({
 			const bucket = new Bucket(stack, toId('store', id), {
 				bucketName: toName(stack, id),
 				accessControl: BucketAccessControl.PRIVATE,
+				removalPolicy: RemovalPolicy.DESTROY,
 			})
 
 			bind((lambda) => {

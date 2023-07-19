@@ -26,7 +26,7 @@ export const flattenDependencyTree = (stacks: StackNode[]) => {
 	return list
 }
 
-export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }[]) => {
+export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }[], startingLevel:number) => {
 	const list: FlatStack[] = stacks.map(({ stack, config }) => ({
 		stack,
 		depends: config?.depends?.map(dep => dep.name) || []
@@ -65,7 +65,7 @@ export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }
 		})
 	}
 
-	return findChildren(list, [], 1)
+	return findChildren(list, [], startingLevel)
 }
 
 export const createDeploymentLine = (stacks:StackNode[]) => {

@@ -91,6 +91,8 @@ export const deploy = (program: Command) => {
 				const client = new StackClient(config)
 				const deploymentLine = createDeploymentLine(dependencyTree)
 
+				// debug('TEST', deploymentLine.map(stacks => stacks.length))
+
 				for(const stacks of deploymentLine) {
 					await Promise.allSettled(stacks.map(async stack => {
 						const stackArtifect = assembly.stacks.find((item) => item.id === stack.artifactId)!

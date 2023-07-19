@@ -1,5 +1,5 @@
 import { StackNode } from "../../../util/deployment";
-import { Signal, derive } from "../../lib/signal";
+import { Signal } from "../../lib/signal";
 import { Terminal } from "../../lib/terminal";
 import { style } from "../../style";
 import { br } from "../layout/basic";

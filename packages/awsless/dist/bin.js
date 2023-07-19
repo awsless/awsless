@@ -218,25 +218,30 @@ var functionDir = join(outDir, "function");
 // src/stack/app-bootstrap.ts
 import { Stack as Stack4 } from "aws-cdk-lib";
 
-// src/plugins/cron.ts
+// src/plugins/cron/index.ts
 import { z as z10 } from "zod";
 
-// src/schema/schedule.ts
+// src/plugins/cron/schema/schedule.ts
 import { Schedule } from "aws-cdk-lib/aws-events";
+import cron from "cron-validate";
 import { z } from "zod";
 var RateExpressionSchema = z.custom((value) => {
-  return z.string().regex(/rate\([0-9]+ (seconds?|minutes?|hours?|days?)\)/, "Invalid rate expression").refine((rate) => {
+  return z.string().regex(/rate\([0-9]+ (seconds?|minutes?|hours?|days?)\)/).refine((rate) => {
     const [str] = rate.substring(5).split(" ");
     const number = parseInt(str);
     return number > 0;
-  }, "Rate duration must be greater then zero").parse(value);
-}).transform(Schedule.expression);
+  }).safeParse(value);
+}, "Invalid rate expression").transform(Schedule.expression);
 var CronExpressionSchema = z.custom((value) => {
-  return z.string().refine((cron) => !!cron).parse(value);
-}).transform((cron) => Schedule.expression(cron));
-var ScheduleExpressionSchema = z.union([RateExpressionSchema, CronExpressionSchema]);
+  return z.string().startsWith("cron(").endsWith(")").refine((value2) => {
+    return cron(value2.substring(5, -1), {
+      preset: "aws-cloud-watch"
+    }).isValid;
+  }).safeParse(value);
+}, "Invalid cron expression").transform((value) => Schedule.expression(value));
+var ScheduleExpressionSchema = RateExpressionSchema.or(CronExpressionSchema);
 
-// src/plugins/cron.ts
+// src/plugins/cron/index.ts
 import { Rule } from "aws-cdk-lib/aws-events";
 
 // src/util/resource.ts
@@ -288,12 +293,18 @@ function toDuration(duration) {
   return CDKDuration.days(0);
 }
 var DurationSchema = z2.custom((value) => {
-  return z2.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/, "Invalid duration").parse(value);
-}).transform(toDuration);
+  return z2.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/).safeParse(value);
+}, "Invalid duration").transform(toDuration);
 
 // src/schema/local-file.ts
+import { access, constants } from "fs/promises";
 import { z as z3 } from "zod";
-var LocalFileSchema = z3.string().refine(async () => {
+var LocalFileSchema = z3.string().refine(async (path) => {
+  try {
+    await access(path, constants.R_OK);
+  } catch (error) {
+    return false;
+  }
   return true;
 }, `File doesn't exist`);
 
@@ -346,8 +357,8 @@ function toSize(size) {
   throw new TypeError(`Invalid size ${size}`);
 }
 var SizeSchema = z7.custom((value) => {
-  return z7.string().regex(/[0-9]+ (KB|MB|GB)/, "Invalid size").parse(value);
-}).transform(toSize);
+  return z7.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value);
+}, "Invalid size").transform(toSize);
 
 // src/plugins/function/util/build-worker.ts
 import { Worker } from "worker_threads";
@@ -597,6 +608,14 @@ var toFunction = ({ config: config2, stack, stackConfig, assets }, id, fileOrPro
     ...props,
     memorySize: props.memorySize.toMebibytes()
   });
+  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
+  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
+  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
+  if (lambda.runtime.toString().startsWith("nodejs")) {
+    lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1", {
+      removeInEdge: true
+    });
+  }
   assets.add({
     stack: stackConfig,
     resource: "function",
@@ -621,13 +640,10 @@ var toFunction = ({ config: config2, stack, stackConfig, assets }, id, fileOrPro
       };
     }
   });
-  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
-  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
-  lambda.addEnvironment("STACK", stackConfig.name, { removeInEdge: true });
   return lambda;
 };
 
-// src/plugins/cron.ts
+// src/plugins/cron/index.ts
 import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
 var cronPlugin = definePlugin({
   name: "cron",
@@ -707,43 +723,90 @@ var queuePlugin = definePlugin({
   }
 });
 
-// src/plugins/table.ts
+// src/plugins/table/index.ts
+import { z as z16 } from "zod";
+import { BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
+
+// src/plugins/table/schema/class-type.ts
+import { TableClass } from "aws-cdk-lib/aws-dynamodb";
 import { z as z12 } from "zod";
-import { AttributeType, BillingMode, ProjectionType, Table, TableClass } from "aws-cdk-lib/aws-dynamodb";
 var types = {
+  "standard": TableClass.STANDARD,
+  "standard-infrequent-access": TableClass.STANDARD_INFREQUENT_ACCESS
+};
+var TableClassSchema = z12.enum(Object.keys(types)).transform((value) => {
+  return types[value];
+});
+
+// src/plugins/table/schema/attribute.ts
+import { AttributeType } from "aws-cdk-lib/aws-dynamodb";
+import { z as z13 } from "zod";
+var types2 = {
   string: AttributeType.STRING,
   number: AttributeType.NUMBER,
   binary: AttributeType.BINARY
 };
+var AttributeSchema = z13.enum(Object.keys(types2)).transform((value) => types2[value]);
+
+// src/plugins/table/schema/key.ts
+import { z as z14 } from "zod";
+var KeySchema = z14.string().min(1).max(255);
+
+// src/plugins/table/schema/projection-type.ts
+import { ProjectionType } from "aws-cdk-lib/aws-dynamodb";
+import { z as z15 } from "zod";
+var types3 = {
+  "all": ProjectionType.ALL,
+  "keys-only": ProjectionType.KEYS_ONLY
+};
+var ProjectionTypeSchema = z15.union([
+  z15.enum(Object.keys(types3)).transform((value) => ({
+    ProjectionType: types3[value]
+  })),
+  z15.array(KeySchema).min(0).max(20).transform((keys) => ({
+    ProjectionType: ProjectionType.INCLUDE,
+    NonKeyAttributes: keys
+  }))
+]);
+
+// src/plugins/table/index.ts
 var tablePlugin = definePlugin({
   name: "table",
-  schema: z12.object({
-    // defaults: z.object({
-    // 	table: z.object({
-    // 	}).default({}),
-    // }).default({}),
-    stacks: z12.object({
-      tables: z12.record(
+  schema: z16.object({
+    stacks: z16.object({
+      tables: z16.record(
         ResourceIdSchema,
-        z12.object({
-          hash: z12.string(),
-          sort: z12.string().optional(),
-          fields: z12.record(z12.string(), z12.enum(["string", "number", "binary"])),
-          pointInTimeRecovery: z12.boolean().default(false),
-          timeToLiveAttribute: z12.string().optional(),
-          indexes: z12.record(z12.string(), z12.object({
-            hash: z12.string(),
-            sort: z12.string().optional()
-            // projection: z.enum(['ALL', 'KEYS_ONLY']),
+        z16.object({
+          hash: KeySchema,
+          sort: KeySchema.optional(),
+          fields: z16.record(z16.string(), AttributeSchema),
+          class: TableClassSchema.default("standard"),
+          pointInTimeRecovery: z16.boolean().default(false),
+          timeToLiveAttribute: z16.string().optional(),
+          indexes: z16.record(z16.string(), z16.object({
+            hash: KeySchema,
+            sort: KeySchema.optional(),
+            projection: ProjectionTypeSchema.default("all")
           })).optional()
-        }).refine((props) => props.fields.hasOwnProperty(props.hash), "Hash key must be defined inside the table fields").refine((props) => !props.sort || props.fields.hasOwnProperty(props.sort), "Sort key must be defined inside the table fields")
+        }).refine((props) => {
+          return (
+            // Check the hash key
+            props.fields.hasOwnProperty(props.hash) && // Check the sort key
+            (!props.sort || props.fields.hasOwnProperty(props.sort)) && // Check all indexes
+            !Object.values(props.indexes || {}).map((index) => (
+              // Check the index hash key
+              props.fields.hasOwnProperty(index.hash) && // Check the index sort key
+              (!index.sort || props.fields.hasOwnProperty(index.sort))
+            )).includes(false)
+          );
+        }, "Hash & Sort keys must be defined inside the table fields")
       ).optional()
     }).array()
   }),
   onStack({ stack, stackConfig, bind }) {
     Object.entries(stackConfig.tables || {}).map(([id, props]) => {
       const buildKey = (attr) => {
-        return { name: attr, type: types[props.fields[attr]] };
+        return { name: attr, type: props.fields[attr] };
       };
       const table = new Table(stack, toId("table", id), {
         tableName: toName(stack, id),
@@ -752,14 +815,14 @@ var tablePlugin = definePlugin({
         billingMode: BillingMode.PAY_PER_REQUEST,
         pointInTimeRecovery: props.pointInTimeRecovery,
         timeToLiveAttribute: props.timeToLiveAttribute,
-        tableClass: TableClass.STANDARD
+        tableClass: props.class
       });
       Object.entries(props.indexes || {}).forEach(([indexName, entry]) => {
         table.addGlobalSecondaryIndex({
           indexName,
           partitionKey: buildKey(entry.hash),
           sortKey: entry.sort ? buildKey(entry.sort) : void 0,
-          projectionType: ProjectionType.ALL
+          ...entry.projection
         });
       });
       bind((lambda) => {
@@ -771,20 +834,22 @@ var tablePlugin = definePlugin({
 });
 
 // src/plugins/store.ts
-import { z as z13 } from "zod";
+import { z as z17 } from "zod";
 import { Bucket as Bucket2, BucketAccessControl as BucketAccessControl2 } from "aws-cdk-lib/aws-s3";
+import { RemovalPolicy as RemovalPolicy2 } from "aws-cdk-lib";
 var storePlugin = definePlugin({
   name: "store",
-  schema: z13.object({
-    stacks: z13.object({
-      stores: z13.array(ResourceIdSchema).optional()
+  schema: z17.object({
+    stacks: z17.object({
+      stores: z17.array(ResourceIdSchema).optional()
     }).array()
   }),
   onStack({ stack, stackConfig, bind }) {
     (stackConfig.stores || []).forEach((id) => {
       const bucket = new Bucket2(stack, toId("store", id), {
         bucketName: toName(stack, id),
-        accessControl: BucketAccessControl2.PRIVATE
+        accessControl: BucketAccessControl2.PRIVATE,
+        removalPolicy: RemovalPolicy2.DESTROY
       });
       bind((lambda) => {
         bucket.grantReadWrite(lambda), addResourceEnvironment(stack, "store", id, lambda);
@@ -794,14 +859,14 @@ var storePlugin = definePlugin({
 });
 
 // src/plugins/topic.ts
-import { z as z14 } from "zod";
+import { z as z18 } from "zod";
 import { Topic } from "aws-cdk-lib/aws-sns";
 import { SnsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 var topicPlugin = definePlugin({
   name: "topic",
-  schema: z14.object({
-    stacks: z14.object({
-      topics: z14.record(ResourceIdSchema, FunctionSchema).optional()
+  schema: z18.object({
+    stacks: z18.object({
+      topics: z18.record(ResourceIdSchema, FunctionSchema).optional()
     }).array()
   }),
   onBootstrap({ config: config2, stack }) {
@@ -866,7 +931,7 @@ var flattenDependencyTree = (stacks) => {
   walk(stacks);
   return list3;
 };
-var createDependencyTree = (stacks) => {
+var createDependencyTree = (stacks, startingLevel) => {
   const list3 = stacks.map(({ stack, config: config2 }) => ({
     stack,
     depends: config2?.depends?.map((dep) => dep.name) || []
@@ -897,7 +962,7 @@ var createDependencyTree = (stacks) => {
       };
     });
   };
-  return findChildren(list3, [], 1);
+  return findChildren(list3, [], startingLevel);
 };
 var createDeploymentLine = (stacks) => {
   const flat = flattenDependencyTree(stacks);
@@ -987,12 +1052,12 @@ var toApp = async (config2, filters) => {
   let dependencyTree;
   const bootstrap2 = appBootstrapStack({ config: config2, app, assets });
   if (bootstrap2.node.children.length === 0) {
-    dependencyTree = createDependencyTree(stacks);
+    dependencyTree = createDependencyTree(stacks, 0);
   } else {
     dependencyTree = [{
       stack: bootstrap2,
       level: 0,
-      children: createDependencyTree(stacks)
+      children: createDependencyTree(stacks, 1)
     }];
   }
   return {
@@ -1170,17 +1235,17 @@ var getCredentials = (profile) => {
 import { load } from "ts-import";
 
 // src/schema/app.ts
-import { z as z18 } from "zod";
+import { z as z22 } from "zod";
 
 // src/schema/stack.ts
-import { z as z15 } from "zod";
-var StackSchema = z15.object({
+import { z as z19 } from "zod";
+var StackSchema = z19.object({
   name: ResourceIdSchema,
-  depends: z15.array(z15.lazy(() => StackSchema)).optional()
+  depends: z19.array(z19.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z16 } from "zod";
+import { z as z20 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -1189,29 +1254,29 @@ var EU = ["eu-central-1", "eu-west-1", "eu-west-2", "eu-south-1", "eu-west-3", "
 var ME = ["me-south-1", "me-central-1"];
 var SA = ["sa-east-1"];
 var regions = [...US, ...AF, ...AP, ...CA, ...EU, ...ME, ...SA];
-var RegionSchema = z16.enum(regions);
+var RegionSchema = z20.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z17 } from "zod";
-var PluginSchema = z17.object({
-  name: z17.string(),
-  schema: z17.custom().optional(),
-  depends: z17.array(z17.lazy(() => PluginSchema)).optional(),
-  onBootstrap: z17.function().optional(),
-  onStack: z17.function().returns(z17.any()).optional(),
-  onApp: z17.function().optional()
+import { z as z21 } from "zod";
+var PluginSchema = z21.object({
+  name: z21.string(),
+  schema: z21.custom().optional(),
+  depends: z21.array(z21.lazy(() => PluginSchema)).optional(),
+  onBootstrap: z21.function().optional(),
+  onStack: z21.function().returns(z21.any()).optional(),
+  onApp: z21.function().optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z18.object({
+var AppSchema = z22.object({
   name: ResourceIdSchema,
   region: RegionSchema,
-  profile: z18.string(),
-  stage: z18.string().regex(/[a-z]+/).default("prod"),
-  defaults: z18.object({}).default({}),
-  stacks: z18.array(StackSchema).min(1),
-  plugins: z18.array(PluginSchema).optional()
+  profile: z22.string(),
+  stage: z22.string().regex(/[a-z]+/).default("prod"),
+  defaults: z22.object({}).default({}),
+  stacks: z22.array(StackSchema).min(1),
+  plugins: z22.array(PluginSchema).optional()
 });
 
 // src/config.ts

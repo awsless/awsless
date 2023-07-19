@@ -2,10 +2,9 @@ import { Command } from "commander";
 import { toApp } from "../../app";
 import { loadingDialog } from "../ui/layout/dialog";
 import { layout } from "../ui/layout/layout";
-import { Signal, derive } from "../lib/signal";
+import { Signal } from "../lib/signal";
 import { style, symbol } from "../style";
 import { br } from "../ui/layout/basic";
-import { capitalCase } from "change-case";
 import { createSpinner } from "../ui/layout/spinner";
 import { flexLine } from "../ui/layout/flex-line";
 

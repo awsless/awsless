@@ -88,12 +88,12 @@ export const toApp = async (config:Config, filters:string[]) => {
 	const bootstrap = appBootstrapStack({ config, app, assets })
 
 	if(bootstrap.node.children.length === 0) {
-		dependencyTree = createDependencyTree(stacks)
+		dependencyTree = createDependencyTree(stacks, 0)
 	} else {
 		dependencyTree = [{
 			stack: bootstrap,
 			level: 0,
-			children: createDependencyTree(stacks)
+			children: createDependencyTree(stacks, 1)
 		}]
 	}
 

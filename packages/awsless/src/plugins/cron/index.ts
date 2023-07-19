@@ -1,11 +1,11 @@
-import { definePlugin } from "../plugin";
+import { definePlugin } from "../../plugin";
 import { z } from 'zod'
-import { ScheduleExpressionSchema } from "../schema/schedule";
+import { ScheduleExpressionSchema } from "./schema/schedule";
 import { Rule } from "aws-cdk-lib/aws-events";
-import { toId, toName } from "../util/resource";
-import { FunctionSchema, toFunction } from "./function";
+import { toId, toName } from "../../util/resource";
+import { FunctionSchema, toFunction } from "../function";
 import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
-import { ResourceIdSchema } from "../schema/resource-id";
+import { ResourceIdSchema } from "../../schema/resource-id";
 
 export const cronPlugin = definePlugin({
 	name: 'cron',

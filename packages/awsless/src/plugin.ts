@@ -4,6 +4,7 @@ import { AnyZodObject, z } from "zod"
 import { BaseConfig } from "./config"
 import { Function } from "aws-cdk-lib/aws-lambda"
 import { Binding } from "./stack"
+import { AppConfigInput } from "./schema/app"
 
 export type PluginSchema = AnyZodObject | undefined
 export type PluginDepends = Plugin[] | undefined
@@ -16,8 +17,8 @@ export type ExtendedConfigOutput<S extends AnyZodObject | undefined = undefined>
 
 export type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = (
 	S extends AnyZodObject
-		? BaseConfig & z.input<S>
-		: BaseConfig
+		? AppConfigInput & z.input<S>
+		: AppConfigInput
 )
 
 export type StackContext<S extends AnyZodObject | undefined = undefined> = {

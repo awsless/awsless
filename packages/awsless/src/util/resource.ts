@@ -13,6 +13,10 @@ export const toName = (stack: Stack, id: string) => {
 	return paramCase(`${stack.stackName}-${id}`)
 }
 
+// export const toResourceName = (config:Config, stack: Stack, id: string) => {
+// 	return paramCase(`${config.name}-${config.stage}-${stack.artifactId}-${id}`)
+// }
+
 export const toEnvKey = (resource: ResourceType, id: string) => {
 	return constantCase(`RESOURCE_${resource}_${id}`)
 }

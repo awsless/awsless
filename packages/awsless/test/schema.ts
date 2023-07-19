@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Duration, DurationSchema } from "../src/schema/duration"
 import { Duration as CDKDuration } from 'aws-cdk-lib/core'
-import { CronExpression, CronExpressionSchema, RateExpression, RateExpressionSchema } from "../src/schema/schedule";
+import { CronExpression, CronExpressionSchema, RateExpression, RateExpressionSchema } from "../src/plugins/cron/schema/schedule";
 import { Schedule } from "aws-cdk-lib/aws-events";
 import { AppSchema } from "../src/schema/app";
 
