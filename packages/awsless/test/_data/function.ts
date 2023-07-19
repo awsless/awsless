@@ -1,4 +1,4 @@
 
-export default (event:string) => {
-	return event
+export default (value:number) => {
+	return value + 2
 }

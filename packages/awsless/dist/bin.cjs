@@ -457,14 +457,19 @@ var zipFiles = (files) => {
   const zip = new import_jszip.default();
   for (const file of files) {
     zip.file(file.name, file.code, {
-      compression: "DEFLATE",
-      compressionOptions: {
-        level: 9
-      }
+      // compression: ''
+      // compression: 'DEFLATE',
+      // compressionOptions: {
+      // 	level: 9
+      // }
     });
   }
   return zip.generateAsync({
-    type: "nodebuffer"
+    type: "nodebuffer",
+    compression: "DEFLATE",
+    compressionOptions: {
+      level: 9
+    }
   });
 };
 var writeBuildHash = async (config2, stack, id, hash) => {
@@ -702,7 +707,7 @@ var queuePlugin = definePlugin({
   schema: import_zod11.z.object({
     defaults: import_zod11.z.object({
       queue: import_zod11.z.object({
-        fifo: import_zod11.z.boolean().default(false),
+        // fifo: z.boolean().default(false),
         retentionPeriod: DurationSchema.default("7 days"),
         visibilityTimeout: DurationSchema.default("30 seconds"),
         deliveryDelay: DurationSchema.default("0 seconds"),
@@ -715,7 +720,7 @@ var queuePlugin = definePlugin({
         LocalFileSchema,
         import_zod11.z.object({
           consumer: FunctionSchema,
-          fifo: import_zod11.z.boolean().optional(),
+          // fifo: z.boolean().optional(),
           retentionPeriod: DurationSchema.optional(),
           visibilityTimeout: DurationSchema.optional(),
           deliveryDelay: DurationSchema.optional(),
@@ -1275,7 +1280,15 @@ var CA = ["ca-central-1"];
 var EU = ["eu-central-1", "eu-west-1", "eu-west-2", "eu-south-1", "eu-west-3", "eu-south-2", "eu-north-1", "eu-central-2"];
 var ME = ["me-south-1", "me-central-1"];
 var SA = ["sa-east-1"];
-var regions = [...US, ...AF, ...AP, ...CA, ...EU, ...ME, ...SA];
+var regions = [
+  ...US,
+  ...AF,
+  ...AP,
+  ...CA,
+  ...EU,
+  ...ME,
+  ...SA
+];
 var RegionSchema = import_zod20.z.enum(regions);
 
 // src/schema/plugin.ts
@@ -1305,7 +1318,13 @@ var AppSchema = import_zod22.z.object({
 var importConfig = async (options) => {
   debug("Import config file");
   const fileName = (0, import_path7.join)(process.cwd(), options.configFile || "awsless.config.ts");
-  const module2 = await (0, import_ts_import.load)(fileName);
+  const module2 = await (0, import_ts_import.load)(fileName, {
+    transpileOptions: {
+      cache: {
+        dir: (0, import_path7.join)(outDir, "config")
+      }
+    }
+  });
   const appConfig = typeof module2.default === "function" ? await module2.default({
     profile: options.profile,
     region: options.region,

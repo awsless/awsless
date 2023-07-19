@@ -9,6 +9,7 @@ import { style } from "./cli/style"
 import { AppConfigInput, AppConfigOutput, AppSchema } from "./schema/app"
 import { ExtendedConfigOutput } from "./plugin"
 import { defaultPlugins } from "./plugins"
+import { outDir } from "./util/path"
 
 export type BaseConfig = AppConfigOutput & {
 	account: string
@@ -28,7 +29,14 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 	debug('Import config file')
 
 	const fileName = join(process.cwd(), options.configFile || 'awsless.config.ts')
-	const module: Module = await load(fileName)
+	const module: Module = await load(fileName, {
+		transpileOptions: {
+			cache: {
+				dir: join(outDir, 'config')
+			}
+		}
+	})
+
 	const appConfig = typeof module.default === 'function' ? (await module.default({
 		profile: options.profile,
 		region: options.region,

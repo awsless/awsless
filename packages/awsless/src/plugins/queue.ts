@@ -15,7 +15,7 @@ export const queuePlugin = definePlugin({
 	schema: z.object({
 		defaults: z.object({
 			queue: z.object({
-				fifo: z.boolean().default(false),
+				// fifo: z.boolean().default(false),
 				retentionPeriod: DurationSchema.default('7 days'),
 				visibilityTimeout: DurationSchema.default('30 seconds'),
 				deliveryDelay: DurationSchema.default('0 seconds'),
@@ -28,7 +28,7 @@ export const queuePlugin = definePlugin({
 				LocalFileSchema,
 				z.object({
 					consumer: FunctionSchema,
-					fifo: z.boolean().optional(),
+					// fifo: z.boolean().optional(),
 					retentionPeriod: DurationSchema.optional(),
 					visibilityTimeout: DurationSchema.optional(),
 					deliveryDelay: DurationSchema.optional(),

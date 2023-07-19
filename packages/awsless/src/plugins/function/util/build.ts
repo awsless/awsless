@@ -26,15 +26,20 @@ const zipFiles = (files: File[]) => {
 
 	for(const file of files) {
 		zip.file(file.name, file.code, {
-			compression: 'DEFLATE',
-			compressionOptions: {
-				level: 9
-			}
+			// compression: ''
+			// compression: 'DEFLATE',
+			// compressionOptions: {
+			// 	level: 9
+			// }
 		})
 	}
 
 	return zip.generateAsync({
-		type: 'nodebuffer'
+		type: 'nodebuffer',
+		compression: 'DEFLATE',
+		compressionOptions: {
+			level: 9
+		}
 	})
 }
 
