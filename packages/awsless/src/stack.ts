@@ -1,111 +1,91 @@
 import { App, Fn, Stack } from "aws-cdk-lib"
 import { Config } from "./config"
 import { Function } from "aws-cdk-lib/aws-lambda"
-import { toFunction, FunctionConfig } from "./__resource/function"
-import { QueueConfig, toQueue } from "./__resource/queue"
-import { TopicConfig, toTopic } from "./__resource/topic"
+// import { toFunction, FunctionConfig } from "./__resource/function"
+// import { QueueConfig, toQueue } from "./__resource/queue"
+// import { TopicConfig, toTopic } from "./__resource/topic"
 import { PolicyStatement } from "aws-cdk-lib/aws-iam"
-import { CronConfig, toCron } from "./__resource/cron"
-import { TableConfig, TableFields, toTable } from "./__resource/table"
-import { toStore } from "./__resource/store"
+// import { CronConfig, toCron } from "./__resource/cron"
+// import { TableConfig, TableFields, toTable } from "./__resource/table"
+// import { toStore } from "./__resource/store"
 import { configParameterPrefix } from "./util/param"
 import { Assets } from "./util/assets"
+import { StackConfigOutput } from "./schema/stack"
+import { Plugin } from "./plugin"
+import { AnyZodObject } from "zod"
+import { debug } from "./cli/logger"
+import { style } from "./cli/style"
 
-export type StackConfig = {
-	name: string
-	depends?: Array<StackConfig>
-	plugins?: Array<(context:Context) => void>
+// export type StackConfig = {
+// 	name: string
+// 	depends?: Array<StackConfig>
+// 	// plugins?: Array<(context:Context) => void>
 
-	// resources
-	functions?: Record<string, FunctionConfig>
-	queues?: Record<string, QueueConfig>
-	topics?: Record<string, TopicConfig>
-	tables?: Record<string, TableConfig<TableFields>>
-	stores?: string[]
-	crons?: Record<string, CronConfig>
-}
+// 	// resources
+// 	// functions?: Record<string, FunctionConfig>
+// 	// queues?: Record<string, QueueConfig>
+// 	// topics?: Record<string, TopicConfig>
+// 	// tables?: Record<string, TableConfig<TableFields>>
+// 	// stores?: string[]
+// 	// crons?: Record<string, CronConfig>
+// }
 
-export type Context = {
+export type Binding = (lambda:Function) => void
+
+type Context = {
 	config: Config
 	assets: Assets
 	app: App
-	stack: Stack
-	stackConfig: StackConfig
+	stackConfig: StackConfigOutput
+	plugins: Plugin<AnyZodObject | undefined>[]
 }
 
-export const toStack = (config: Config, app: App, assets:Assets, props:StackConfig) => {
-	const stackName = `${config.name}-${props.name}`
-	const stack = new Stack(app, props.name, {
+export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) => {
+	const stackName = `${config.name}-${stackConfig.name}`
+	const stack = new Stack(app, stackConfig.name, {
 		stackName,
 		tags: {
 			APP: config.name,
-			STACK: props.name,
+			STAGE: config.stage,
+			STACK: stackConfig.name,
 		},
 	})
 
-	stack.node.children
-
-	const context: Context = { config, assets, app, stack, stackConfig: props }
-	const functions: Function[] = []
-	const binds: Array<(lambda: Function) => void> = []
+	debug('Define stack:', style.info(stackConfig.name))
 
 	// ------------------------------------------------------
-	// Create all available resources
+	// Create all available resources from all plugins
 	// ------------------------------------------------------
 
-	// ------------------------------------------------------
-	// functions
-
-	for(const [ name, entry ] of Object.entries(props.functions || {})) {
-		const { lambda, bind } = toFunction(context, name, entry)
-		functions.push(lambda)
-		binds.push(bind)
+	const bindings:Array<(lambda:Function) => void> = []
+	const bind = (cb:Binding) => {
+		bindings.push(cb)
 	}
 
-	// ------------------------------------------------------
-	// topics
-
-	for(const [ name, entry ] of Object.entries(props.topics || {})) {
-		const { lambda } = toTopic(context, name, entry)
-		functions.push(lambda)
-	}
-
-	// ------------------------------------------------------
-	// queues
-
-	for(const [ name, entry ] of Object.entries(props.queues || {})) {
-		const { lambda, bind } = toQueue(context, name, entry)
-		functions.push(lambda)
-		binds.push(bind)
-	}
+	debug('Run plugin onStack listeners')
+	const functions = plugins.map(plugin => plugin.onStack?.({
+		config,
+		assets,
+		app,
+		stack,
+		stackConfig,
+		bind,
+	})).filter(Boolean).flat().filter(Boolean) as Function[]
 
 	// ------------------------------------------------------
-	// tables
+	// Check if stack has resources
 
-	for(const [ name, entry ] of Object.entries(props.tables || {})) {
-		const { bind } = toTable(context, name, entry)
-		binds.push(bind)
+	if(stack.node.children.length === 0) {
+		throw new Error(`Stack ${style.info(stackConfig.name)} has no resources defined`)
 	}
 
-	// ------------------------------------------------------
-	// stores
-
-	for(const name of props.stores || []) {
-		const { bind } = toStore(context, name)
-		binds.push(bind)
-	}
-
-	// ------------------------------------------------------
-	// crons
-
-	for(const [ name, entry ] of Object.entries(props.crons || {})) {
-		const { lambda } = toCron(context, name, entry)
-		functions.push(lambda)
-	}
+	// debug('STACK STUFF', stackConfig.name, stack.node.children.length)
 
 	// ------------------------------------------------------
 	// Grant access to all lambda functions
 	// ------------------------------------------------------
+
+	bindings.forEach(cb => functions.forEach(cb))
 
 	// ------------------------------------------------------
 	// Give global access to all sns topics
@@ -133,13 +113,8 @@ export const toStack = (config: Config, app: App, assets:Assets, props:StackConf
 
 	functions.forEach(lambda => lambda.addToRolePolicy(allowConfigParameters))
 
-	// ------------------------------------------------------
-	// Bind all lambda functions to our resources
-
-	binds.forEach(bind => functions.forEach(lambda => bind(lambda)))
-
 	return {
 		stack,
-		depends: props.depends,
+		depends: stackConfig.depends,
 	}
 }

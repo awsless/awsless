@@ -1,32 +1,15 @@
 import { App, DefaultStackSynthesizer, Stack } from "aws-cdk-lib"
 import { Config } from "./config"
-import { StackConfig, toStack } from "./stack"
+import { toStack } from "./stack"
 import { assemblyDir } from "./util/path"
-import { globalStack } from "./stack/global"
+import { appBootstrapStack } from "./stack/app-bootstrap"
 import { assetBucketName } from "./stack/bootstrap"
-import { Region } from "./util/region"
-import { FunctionDefaults } from "./__resource/function"
-import { QueueDefaults } from "./__resource/queue"
-import { TableDefaults, TableFields } from "./__resource/table"
 import { StackNode, createDependencyTree } from "./util/deployment"
 import { debug } from "./cli/logger"
 import { style } from "./cli/style"
 import { Assets } from "./util/assets"
-
-export type Defaults = {
-	function?: FunctionDefaults
-	queue?: QueueDefaults
-	table?: TableDefaults<TableFields>
-}
-
-export type AppConfig = {
-	name: string
-	region: Region
-	profile: string
-	stage?: string
-	defaults?: Defaults
-	stacks: StackConfig[]
-}
+import { StackConfig } from "./schema/stack"
+import { defaultPlugins } from "./plugins"
 
 export const makeApp = (config:Config) => {
 	return new App({
@@ -52,17 +35,25 @@ const getAllDepends = (filters:StackConfig[]) => {
 	return list
 }
 
-export const toApp = (config:Config, filters:string[]) => {
+export const toApp = async (config:Config, filters:string[]) => {
 	const assets = new Assets()
 	const app = makeApp(config)
-	// const global = {
-	// 	config: { name: 'global' },
-	// 	stack: globalStack(config, app),
-	// }
-
 	const stacks:{ stack:Stack, config:StackConfig }[] = []
+	const plugins = [
+		...defaultPlugins,
+		...(config.plugins || [])
+	]
 
-	// const global = globalStack(config, app)
+	debug('Plugins detected:', plugins.map(plugin => style.info(plugin.name)).join(', '))
+
+	// ---------------------------------------------------------------
+	// Run all onApp listeners for every plugin
+
+	debug('Run plugin onApp listeners')
+
+	plugins.forEach(plugin => plugin.onApp?.({ config, app, assets }))
+
+	// ---------------------------------------------------------------
 
 	debug('Stack filters:', filters.map(filter => style.info(filter)).join(', '))
 
@@ -75,34 +66,48 @@ export const toApp = (config:Config, filters:string[]) => {
 		)
 	)
 
-	// debug('Stack filters', filterdStacks)
+	// debug('Found stacks:', filterdStacks)
 
 	for(const stackConfig of filterdStacks) {
-		// stackConfig.depends = [
-		// 	...(sta
-		// 	global.config,ckConfig.depends || []),
-		// ]
+		const { stack } = toStack({
+			config,
+			stackConfig,
+			assets,
+			plugins,
+			app,
+		})
 
-		const { stack } = toStack(config, app, assets, stackConfig)
 		stacks.push({ stack, config: stackConfig })
 	}
 
-	// const deploymentTree = createDeploymentTree(stacks)
+	// ---------------------------------------------------------------
+	// Make a bootstrap stack if needed and add it to the
+	// dependency tree
 
-	const dependencyTree:StackNode[] = [{
-		stack: globalStack(config, app),
-		level: 0,
-		children: createDependencyTree(stacks)
-	}]
+	let dependencyTree:StackNode[]
+	const bootstrap = appBootstrapStack({ config, app, assets })
 
-	// debug('Stack Tree', deploymentTree[0].children)
+	if(bootstrap.node.children.length === 0) {
+		dependencyTree = createDependencyTree(stacks, 0)
+	} else {
+		dependencyTree = [{
+			stack: bootstrap,
+			level: 0,
+			children: createDependencyTree(stacks, 1)
+		}]
+	}
+
+	// dependencyTree = [{
+	// 	stack: bootstrap,
+	// 	level: 0,
+	// 	children: createDependencyTree(stacks)
+	// }]
 
 	return {
 		app,
 		assets,
-		// stacks: stacks.map(({ stack }) => stack),
+		plugins,
 		stackNames: filterdStacks.map(stack => stack.name),
 		dependencyTree,
-		// deploymentTree: createDeploymentTree(stacks)
 	}
 }

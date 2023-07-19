@@ -1,4 +1,4 @@
-import { StackConfig } from "../stack"
+import { StackConfig } from "../schema/stack"
 
 export type AssetDetails = Record<string, string>
 export type AssetOptions = {

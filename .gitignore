@@ -11,4 +11,6 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 .directory
+.cache
+.awsless
 *~

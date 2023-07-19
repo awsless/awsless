@@ -16,7 +16,7 @@ export const status = (program: Command) => {
 		.description('View the application status')
 		.action(async (filters: string[]) => {
 			await layout(async (config, write) => {
-				const { app, assets, dependencyTree } = toApp(config, filters)
+				const { app, assets, dependencyTree } = await toApp(config, filters)
 
 				// --------------------------------------------------------
 				// Build stack assets

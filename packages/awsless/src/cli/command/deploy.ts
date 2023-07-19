@@ -29,7 +29,7 @@ export const deploy = (program: Command) => {
 				// ---------------------------------------------------
 
 				// const tasks = new Tasks()
-				const { app, stackNames, assets, dependencyTree } = toApp(config, filters)
+				const { app, stackNames, assets, dependencyTree } = await toApp(config, filters)
 
 				const formattedFilter = stackNames.map(i => style.info(i)).join(style.placeholder(', '))
 				debug('Stacks to deploy', formattedFilter)
@@ -90,6 +90,8 @@ export const deploy = (program: Command) => {
 
 				const client = new StackClient(config)
 				const deploymentLine = createDeploymentLine(dependencyTree)
+
+				// debug('TEST', deploymentLine.map(stacks => stacks.length))
 
 				for(const stacks of deploymentLine) {
 					await Promise.allSettled(stacks.map(async stack => {
