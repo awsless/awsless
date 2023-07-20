@@ -4,8 +4,8 @@
 
 import { AppConfig, StackConfig } from "../../src"
 
-const statsStack = {
-	name: 'stats',
+const tableStack = {
+	name: 'table',
 	tables: {
 		stats: {
 			hash: 'id',
@@ -16,33 +16,30 @@ const statsStack = {
 	}
 } satisfies StackConfig
 
-const betStack = {
-	name: 'bet',
-	depends: [ statsStack ],
+const queueStack = {
+	name: 'queue',
 	queues: {
 		process: 'test/_data/function.ts'
 	}
 } satisfies StackConfig
 
-const diceStack = {
-	name: 'dice',
-	depends: [ statsStack, betStack ],
+const storeStack = {
+	name: 'store',
 	stores: [ 'files' ],
-	topics: {
-		event: 'test/_data/function.ts'
-	}
 } satisfies StackConfig
 
-const walletStack = {
-	name: 'wallet',
-	depends: [ statsStack ],
+const functionStack = {
+	name: 'function',
 	functions: {
 		bet: 'test/_data/function.ts'
-	}
+	},
+	topics: {
+		event: 'test/_data/function.ts'
+	},
 } satisfies StackConfig
 
-const siteStack = {
-	name: 'site',
+const cronStack = {
+	name: 'cron',
 	crons: {
 		cron: {
 			consumer: 'test/_data/function.ts',
@@ -57,10 +54,10 @@ export default {
 	region: 'eu-west-1',
 	stage: 'asd',
 	stacks: [
-		statsStack,
-		betStack,
-		diceStack,
-		walletStack,
-		siteStack,
+		tableStack,
+		queueStack,
+		storeStack,
+		functionStack,
+		cronStack,
 	]
 } satisfies AppConfig

@@ -426,21 +426,18 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
 }>> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
         queue: zod.ZodDefault<zod.ZodObject<{
-            fifo: zod.ZodDefault<zod.ZodBoolean>;
             retentionPeriod: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             visibilityTimeout: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             deliveryDelay: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             receiveMessageWaitTime: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             maxMessageSize: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, aws_cdk_lib.Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
         }, "strip", zod.ZodTypeAny, {
-            fifo: boolean;
             retentionPeriod: aws_cdk_lib.Duration;
             visibilityTimeout: aws_cdk_lib.Duration;
             deliveryDelay: aws_cdk_lib.Duration;
             receiveMessageWaitTime: aws_cdk_lib.Duration;
             maxMessageSize: aws_cdk_lib.Size;
         }, {
-            fifo?: boolean | undefined;
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             deliveryDelay?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -449,7 +446,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }>>;
     }, "strip", zod.ZodTypeAny, {
         queue: {
-            fifo: boolean;
             retentionPeriod: aws_cdk_lib.Duration;
             visibilityTimeout: aws_cdk_lib.Duration;
             deliveryDelay: aws_cdk_lib.Duration;
@@ -458,7 +454,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         };
     }, {
         queue?: {
-            fifo?: boolean | undefined;
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             deliveryDelay?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -496,7 +491,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 environment?: Record<string, string> | undefined;
             }>]>;
-            fifo: zod.ZodOptional<zod.ZodBoolean>;
             retentionPeriod: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             visibilityTimeout: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             deliveryDelay: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -522,7 +516,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
                 environment?: Record<string, string> | undefined;
             } | undefined);
-            fifo?: boolean | undefined;
             retentionPeriod?: aws_cdk_lib.Duration | undefined;
             visibilityTimeout?: aws_cdk_lib.Duration | undefined;
             deliveryDelay?: aws_cdk_lib.Duration | undefined;
@@ -548,7 +541,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 environment?: Record<string, string> | undefined;
             } | undefined);
-            fifo?: boolean | undefined;
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             deliveryDelay?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -576,7 +568,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
                 environment?: Record<string, string> | undefined;
             } | undefined);
-            fifo?: boolean | undefined;
             retentionPeriod?: aws_cdk_lib.Duration | undefined;
             visibilityTimeout?: aws_cdk_lib.Duration | undefined;
             deliveryDelay?: aws_cdk_lib.Duration | undefined;
@@ -604,7 +595,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 environment?: Record<string, string> | undefined;
             } | undefined);
-            fifo?: boolean | undefined;
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             deliveryDelay?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -615,7 +605,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
 }, "strip", zod.ZodTypeAny, {
     defaults: {
         queue: {
-            fifo: boolean;
             retentionPeriod: aws_cdk_lib.Duration;
             visibilityTimeout: aws_cdk_lib.Duration;
             deliveryDelay: aws_cdk_lib.Duration;
@@ -644,7 +633,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
                 environment?: Record<string, string> | undefined;
             } | undefined);
-            fifo?: boolean | undefined;
             retentionPeriod?: aws_cdk_lib.Duration | undefined;
             visibilityTimeout?: aws_cdk_lib.Duration | undefined;
             deliveryDelay?: aws_cdk_lib.Duration | undefined;
@@ -674,7 +662,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 environment?: Record<string, string> | undefined;
             } | undefined);
-            fifo?: boolean | undefined;
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             deliveryDelay?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -684,7 +671,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
     defaults?: {
         queue?: {
-            fifo?: boolean | undefined;
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             deliveryDelay?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
