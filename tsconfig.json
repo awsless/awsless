@@ -6,13 +6,12 @@
 		"noImplicitReturns": true,
 		"noFallthroughCasesInSwitch": true,
 		"target": "es2022",
-		"types": ["node", "vitest/globals"],
+		"types": ["node", "vitest/globals", "vitest"],
 		"lib": ["es2022"],
 		"esModuleInterop": true,
 		"moduleResolution": "Node",
 		"skipLibCheck": true,
 		"declaration": true,
-
 		"outDir": "dist"
 	},
 	"exclude": ["packages/**/dist"]
