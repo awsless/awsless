@@ -18,7 +18,7 @@ describe('S3 Commands', () => {
 			bucket: 'test',
 			name: 'test',
 		})
-		expect(result.body).toBe('hello world')
+		expect(result?.body).toBe('hello world')
 		expect(mock).toBeCalledTimes(1)
 	})
 
@@ -35,6 +35,6 @@ describe('S3 Commands', () => {
 			bucket: 'test',
 			name: 'test',
 		})
-		expect(result.body).toBe(undefined)
+		expect(result).toBe(undefined)
 	})
 })

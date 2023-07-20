@@ -7,6 +7,8 @@ import {
 } from "@aws-sdk/client-s3";
 import { nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";
+import { sdkStreamMixin } from "@aws-sdk/util-stream-node";
+import { Readable } from "stream";
 var mockS3 = () => {
   const fn = vi.fn();
   const cache = {};
@@ -18,7 +20,14 @@ var mockS3 = () => {
   });
   s3ClientMock.on(GetObjectCommand).callsFake(async (input) => {
     await nextTick(fn);
-    return { Body: cache[input.Key] };
+    const file = cache[input.Key];
+    if (file) {
+      const stream = new Readable();
+      stream.push(file);
+      stream.push(null);
+      return { Body: sdkStreamMixin(stream) };
+    }
+    return;
   });
   s3ClientMock.on(DeleteObjectCommand).callsFake(async (input) => {
     await nextTick(fn);
@@ -46,7 +55,7 @@ var putObject = ({
   name,
   body,
   metaData,
-  storageClass = "STANDARD_IA"
+  storageClass = "STANDARD"
 }) => {
   const command = new PutObjectCommand2({
     Bucket: bucket,
@@ -63,8 +72,11 @@ var getObject = async ({ client = s3Client(), bucket, name }) => {
     Key: name
   });
   const result = await client.send(command);
+  if (!result || !result.Body) {
+    return;
+  }
   return {
-    body: result.Body
+    body: await result.Body.transformToString()
   };
 };
 var deleteObject = ({ client = s3Client(), bucket, name }) => {

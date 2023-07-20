@@ -32,6 +32,8 @@ module.exports = __toCommonJS(src_exports);
 var import_client_s3 = require("@aws-sdk/client-s3");
 var import_utils = require("@awsless/utils");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_util_stream_node = require("@aws-sdk/util-stream-node");
+var import_stream = require("stream");
 var mockS3 = () => {
   const fn = vi.fn();
   const cache = {};
@@ -43,7 +45,14 @@ var mockS3 = () => {
   });
   s3ClientMock.on(import_client_s3.GetObjectCommand).callsFake(async (input) => {
     await (0, import_utils.nextTick)(fn);
-    return { Body: cache[input.Key] };
+    const file = cache[input.Key];
+    if (file) {
+      const stream = new import_stream.Readable();
+      stream.push(file);
+      stream.push(null);
+      return { Body: (0, import_util_stream_node.sdkStreamMixin)(stream) };
+    }
+    return;
   });
   s3ClientMock.on(import_client_s3.DeleteObjectCommand).callsFake(async (input) => {
     await (0, import_utils.nextTick)(fn);
@@ -71,7 +80,7 @@ var putObject = ({
   name,
   body,
   metaData,
-  storageClass = "STANDARD_IA"
+  storageClass = "STANDARD"
 }) => {
   const command = new import_client_s33.PutObjectCommand({
     Bucket: bucket,
@@ -88,8 +97,11 @@ var getObject = async ({ client = s3Client(), bucket, name }) => {
     Key: name
   });
   const result = await client.send(command);
+  if (!result || !result.Body) {
+    return;
+  }
   return {
-    body: result.Body
+    body: await result.Body.transformToString()
   };
 };
 var deleteObject = ({ client = s3Client(), bucket, name }) => {

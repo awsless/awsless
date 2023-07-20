@@ -26,7 +26,7 @@ describe('S3 Mock', () => {
 			})
 		)
 
-		expect(result.Body).toEqual('hello world')
+		expect(await result.Body?.transformToString()).toEqual('hello world')
 		expect(s3).toBeCalledTimes(1)
 	})
 
@@ -50,6 +50,6 @@ describe('S3 Mock', () => {
 			})
 		)
 
-		expect(result.Body).toBeUndefined()
+		expect(result).toBeUndefined()
 	})
 })

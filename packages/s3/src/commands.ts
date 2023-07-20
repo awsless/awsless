@@ -8,7 +8,7 @@ export const putObject = ({
 	name,
 	body,
 	metaData,
-	storageClass = 'STANDARD_IA',
+	storageClass = 'STANDARD',
 }: PutObject) => {
 	const command = new PutObjectCommand({
 		Bucket: bucket,
@@ -29,8 +29,12 @@ export const getObject = async ({ client = s3Client(), bucket, name }: GetObject
 
 	const result = await client.send(command)
 
+	if (!result || !result.Body) {
+		return
+	}
+
 	return {
-		body: result.Body,
+		body: await result.Body.transformToString(),
 	}
 }
 

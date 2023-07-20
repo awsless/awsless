@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/s3",
-	"version": "0.0.2",
+	"version": "0.0.5",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -30,6 +30,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "3.329.0",
+		"@aws-sdk/util-stream-node": "^3.370.0",
 		"@awsless/utils": "workspace:^",
 		"aws-sdk-client-mock": "^2.1.1"
 	}

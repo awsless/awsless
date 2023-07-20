@@ -5,7 +5,7 @@ export type PutObject = {
 	client?: S3Client
 	bucket: string
 	name: string
-	body: Readable | ReadableStream | Blob
+	body: string | Readable | ReadableStream | Blob
 	metaData?: Record<string, string>
 	storageClass?: StorageClass
 }

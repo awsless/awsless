@@ -9,29 +9,41 @@ import {
 } from '@aws-sdk/client-s3'
 import { nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
+import { sdkStreamMixin } from '@aws-sdk/util-stream-node'
 // @ts-ignore
 import { Mock } from 'vitest'
+import { Readable } from 'stream'
 
 export const mockS3 = () => {
 	const fn = vi.fn()
-	const cache: Record<string, string> = {}
+	const store: Record<string, string> = {}
 
 	const s3ClientMock = mockClient(S3Client)
 
 	s3ClientMock.on(PutObjectCommand).callsFake(async (input: PutObjectCommandInput) => {
 		await nextTick(fn)
-		cache[input.Key!] = input.Body as string
+		store[input.Key!] = input.Body as string
 		return {}
 	})
 
 	s3ClientMock.on(GetObjectCommand).callsFake(async (input: GetObjectCommandInput) => {
 		await nextTick(fn)
-		return { Body: cache[input.Key!] }
+
+		const file = store[input.Key!]
+
+		if (file) {
+			const stream = new Readable()
+			stream.push(file)
+			stream.push(null)
+			return { Body: sdkStreamMixin(stream) }
+		}
+
+		return
 	})
 
 	s3ClientMock.on(DeleteObjectCommand).callsFake(async (input: DeleteObjectCommandInput) => {
 		await nextTick(fn)
-		delete cache[input.Key!]
+		delete store[input.Key!]
 		return {}
 	})
 
