@@ -82,12 +82,15 @@ var putObject = ({
   });
   return client.send(command);
 };
-var getObject = ({ client = s3Client(), bucket, name }) => {
+var getObject = async ({ client = s3Client(), bucket, name }) => {
   const command = new import_client_s33.GetObjectCommand({
     Bucket: bucket,
     Key: name
   });
-  return client.send(command);
+  const result = await client.send(command);
+  return {
+    body: result.Body
+  };
 };
 var deleteObject = ({ client = s3Client(), bucket, name }) => {
   const command = new import_client_s33.DeleteObjectCommand({

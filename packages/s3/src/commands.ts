@@ -21,13 +21,17 @@ export const putObject = ({
 	return client.send(command)
 }
 
-export const getObject = ({ client = s3Client(), bucket, name }: GetObject) => {
+export const getObject = async ({ client = s3Client(), bucket, name }: GetObject) => {
 	const command = new GetObjectCommand({
 		Bucket: bucket,
 		Key: name,
 	})
 
-	return client.send(command)
+	const result = await client.send(command)
+
+	return {
+		body: result.Body,
+	}
 }
 
 export const deleteObject = ({ client = s3Client(), bucket, name }: DeleteObject) => {
