@@ -1,10 +1,10 @@
 import { Command } from "commander";
-import { Params } from "../../../util/param";
-import { list } from "../../ui/layout/list";
-import { loadingDialog } from "../../ui/layout/dialog";
-import { br } from "../../ui/layout/basic";
-import { style } from "../../style";
-import { layout } from "../../ui/layout/layout";
+import { Params } from '../../../util/param.js';
+import { list } from '../../ui/layout/list.js';
+import { loadingDialog } from '../../ui/layout/dialog.js';
+import { br } from '../../ui/layout/basic.js';
+import { style } from '../../style.js';
+import { layout } from '../../ui/layout/layout.js';
 
 export const get = (program: Command) => {
 	program

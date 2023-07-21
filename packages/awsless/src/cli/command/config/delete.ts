@@ -1,13 +1,13 @@
 
 import { Command } from "commander";
-import { Params } from "../../../util/param";
-import { list } from "../../ui/layout/list";
-import { dialog, loadingDialog } from "../../ui/layout/dialog";
-import { br } from "../../ui/layout/basic";
-import { style } from "../../style";
-import { layout } from "../../ui/layout/layout";
-import { confirmPrompt } from "../../ui/prompt/confirm";
-import { Cancelled } from "../../error";
+import { Params } from '../../../util/param.js';
+import { list } from '../../ui/layout/list.js';
+import { dialog, loadingDialog } from '../../ui/layout/dialog.js';
+import { br } from '../../ui/layout/basic.js';
+import { style } from '../../style.js';
+import { layout } from '../../ui/layout/layout.js';
+import { confirmPrompt } from '../../ui/prompt/confirm.js';
+import { Cancelled } from '../../error.js';
 
 export const del = (program: Command) => {
 	program

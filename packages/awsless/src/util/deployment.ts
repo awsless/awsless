@@ -1,5 +1,5 @@
 import { Stack } from "aws-cdk-lib";
-import { StackConfig } from "../schema/stack";
+import { StackConfig } from '../schema/stack.js';
 
 export type StackNode = {
 	stack: Stack

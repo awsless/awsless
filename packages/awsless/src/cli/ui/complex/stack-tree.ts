@@ -1,9 +1,9 @@
-import { StackNode } from "../../../util/deployment";
-import { Signal } from "../../lib/signal";
-import { Terminal } from "../../lib/terminal";
-import { style } from "../../style";
-import { br } from "../layout/basic";
-import { flexLine } from "../layout/flex-line";
+import { StackNode } from '../../../util/deployment.js';
+import { Signal } from '../../lib/signal.js';
+import { Terminal } from '../../lib/terminal.js';
+import { style } from '../../style.js';
+import { br } from '../layout/basic.js';
+import { flexLine } from '../layout/flex-line.js';
 
 // const stripEscapeCode = (str:string) => {
 // 	return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
@@ -48,9 +48,10 @@ export const stackTree = (nodes:StackNode[], statuses:Record<string, Signal<stri
 					style.info(id),
 					' ',
 				],[
-					style.placeholder(' [ '),
+					// style.placeholder(' [ '),
+					' ',
 					status,
-					style.placeholder(' ] '),
+					// style.placeholder(' ] '),
 					br(),
 				])
 

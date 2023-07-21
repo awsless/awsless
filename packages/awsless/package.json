@@ -28,8 +28,8 @@
 		"test": "pnpm code test",
 		"term": "zsh -c 'node dist/bin.js ${*} --config-file=./test/_data/config.ts' --",
 		"berm": "zsh -c 'pnpm build; node dist/bin.js ${*} --config-file=./test/_data/config.ts' --",
-		"build": "pnpm tsup src/bin.ts src/index.ts --format cjs,esm --dts --clean",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+		"build": "pnpm tsup src/index.ts src/bin.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test schema; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
 		"@aws-sdk/client-cloudformation": "^3.369.0",
@@ -38,17 +38,19 @@
 		"@aws-sdk/client-sts": "^3.369.0",
 		"@aws-sdk/credential-providers": "^3.369.0",
 		"@awsless/code": "workspace:^",
-		"@types/prompts": "^2.4.4",
+		"@types/react": "^18.2.15",
 		"aws-cdk-lib": "^2.87.0",
+		"aws-cron-expression-validator": "^1.0.5",
 		"chalk": "^5.3.0",
 		"change-case": "^4.1.2",
 		"commander": "^9.4.1",
-		"constructs": "^10.1.246",
-		"cron-validate": "^1.4.5",
-		"deepmerge": "^4.3.1",
 		"filesize": "^10.0.7",
+		"ink": "^4.3.0",
+		"ink-spinner": "^5.0.0",
+		"ink-table": "^3.0.0",
+		"ink-text-input": "^5.0.1",
 		"jszip": "^3.10.1",
-		"prompts": "^2.4.2",
+		"react": "^18.2.0",
 		"ts-import": "5.0.0-beta.0",
 		"zod": "^3.21.4"
 	}

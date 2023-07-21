@@ -1,4 +1,4 @@
-import { TextPromptOptions, textPrompt } from "./text"
+import { TextPromptOptions, textPrompt } from './text.js'
 
 export type PasswordPromptOptions = Omit<TextPromptOptions, 'renderer'>
 

@@ -1,12 +1,12 @@
-import { makeApp } from "../../../app"
-import { Config } from "../../../config"
-import { bootstrapStack, shouldDeployBootstrap } from "../../../stack/bootstrap"
-import { StackClient } from "../../../stack/client"
-import { Cancelled } from "../../error"
-import { Terminal } from "../../lib/terminal"
-import { debug } from "../../logger"
-import { dialog, loadingDialog } from "../layout/dialog"
-import { confirmPrompt } from "../prompt/confirm"
+import { makeApp } from '../../../app.js'
+import { Config } from '../../../config.js'
+import { bootstrapStack, shouldDeployBootstrap } from '../../../stack/bootstrap.js'
+import { StackClient } from '../../../stack/client.js'
+import { Cancelled } from '../../error.js'
+import { Terminal } from '../../lib/terminal.js'
+import { debug } from '../../logger.js'
+import { dialog, loadingDialog } from '../layout/dialog.js'
+import { confirmPrompt } from '../prompt/confirm.js'
 
 export const bootstrapDeployer = (config:Config) => {
 	return async (term:Terminal) => {

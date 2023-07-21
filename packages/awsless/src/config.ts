@@ -1,15 +1,15 @@
 import { join } from "path"
-import { ProgramOptions } from "./cli/program"
-// import { AppConfig } from "./app"
-import { getAccountId } from "./util/account"
-import { Credentials, getCredentials } from "./util/credentials"
-import { debug } from "./cli/logger"
+import { ProgramOptions } from './cli/program.js'
+// import { AppConfig } from './app.js'
+import { getAccountId } from './util/account.js'
+import { Credentials, getCredentials } from './util/credentials.js'
+import { debug } from './cli/logger.js'
 import { load } from 'ts-import'
-import { style } from "./cli/style"
-import { AppConfigInput, AppConfigOutput, AppSchema } from "./schema/app"
-import { ExtendedConfigOutput } from "./plugin"
-import { defaultPlugins } from "./plugins"
-import { outDir } from "./util/path"
+import { style } from './cli/style.js'
+import { AppConfigInput, AppConfigOutput, AppSchema } from './schema/app.js'
+import { ExtendedConfigOutput } from './plugin.js'
+import { defaultPlugins } from './plugins/index.js'
+import { outDir } from './util/path.js'
 
 export type BaseConfig = AppConfigOutput & {
 	account: string

@@ -1,7 +1,8 @@
+
 import { z } from 'zod'
-import { definePlugin } from "../plugin";
-import { addResourceEnvironment, toId, toName } from "../util/resource";
-import { ResourceIdSchema } from "../schema/resource-id";
+import { definePlugin } from '../plugin.js';
+import { addResourceEnvironment, toId, toName } from '../util/resource.js';
+import { ResourceIdSchema } from '../schema/resource-id.js';
 import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
 import { RemovalPolicy } from 'aws-cdk-lib';
 

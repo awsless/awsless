@@ -1,10 +1,13 @@
+
 import { z } from 'zod'
-import { definePlugin } from "../plugin";
-import { toArn, toId } from "../util/resource";
-import { ResourceIdSchema } from "../schema/resource-id";
-import { FunctionSchema, toFunction } from './function';
+import { definePlugin } from '../plugin.js';
+import { toId } from '../util/resource.js';
+import { ResourceIdSchema } from '../schema/resource-id.js';
+import { FunctionSchema, toFunction } from './function/index.js';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
+import { Arn, ArnFormat } from 'aws-cdk-lib';
+import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 export const topicPlugin = definePlugin({
 	name: 'topic',
@@ -23,33 +26,47 @@ export const topicPlugin = definePlugin({
 
 		uniqueTopicNames.forEach(id => {
 			new Topic(stack, toId('topic', id), {
-				topicName: id,
+				topicName: `${config.name}-${id}`,
 				displayName: id,
 			})
 		})
 	},
 	onStack(ctx) {
-		return Object.entries(ctx.stackConfig.topics || {}).map(([ id, props ]) => {
+		const { config, stack, stackConfig, bind } = ctx
+
+		bind(lambda => {
+			lambda.addToRolePolicy(new PolicyStatement({
+				actions: [ 'sns:publish' ],
+				resources: [ '*' ],
+			}))
+		})
+
+		return Object.entries(stackConfig.topics || {}).map(([ id, props ]) => {
 			const lambda = toFunction(ctx as any, id, props)
 
 			const topic = Topic.fromTopicArn(
-				ctx.stack,
+				stack,
 				toId('topic', id),
-				toArn(ctx.stack, 'sns', 'topic', id)
+				Arn.format({
+					arnFormat: ArnFormat.NO_RESOURCE_NAME,
+					service: 'sns',
+					resource: `${config.name}-${id}`,
+				}, stack)
 			)
 
 			lambda.addEventSource(new SnsEventSource(topic))
 
+			// topic.grantPublish(lambda)
 			return lambda
 		})
 	},
 })
 
-// import { FunctionConfig, toFunction } from './function'
-// import { Context } from '../stack'
+// import { FunctionConfig, toFunction } from './function.js'
+// import { Context } from '../stack.js'
 // import { Topic } from 'aws-cdk-lib/aws-sns'
 // import { SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
-// import { toArn, toId } from '../util/resource'
+// import { toArn, toId } from '../util/resource.js'
 
 // export type TopicConfig = FunctionConfig
 

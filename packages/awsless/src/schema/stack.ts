@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ResourceIdSchema } from "./resource-id";
+import { ResourceIdSchema } from './resource-id.js';
 
 export type StackConfig = {
 	name: string

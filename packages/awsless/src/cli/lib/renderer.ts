@@ -1,6 +1,6 @@
-import { Interface } from "./interface"
-import { Signal } from "./signal"
-import { Terminal } from "./terminal"
+import { Interface } from './interface.js'
+import { Signal } from './signal.js'
+import { Terminal } from './terminal.js'
 
 type VisibleValue = string | Array<string | VisibleSignal> | VisibleSignal
 type VisibleSignal = Signal<any>
@@ -139,16 +139,13 @@ export class Renderer {
 				if(y > oldSize) {
 					// force new line
 					const x = (this.screen[y - 1]?.length || 0) - 1
-					this.output.cursorTo?.(x, y - 1)
+					this.output.cursorTo?.(x, y - 1 - start)
 					this.output.write?.('\n' + line)
 				} else {
-					this.output.cursorTo?.(0, y)
+					this.output.cursorTo?.(0, y - start)
 					this.output.write?.(line)
 				}
 				this.output.clearLine?.(1)
-				// this.output.write?.('---')
-				// this.output.write?.(y.toString())
-				// this.output.clearLine?.(1)
 			}
 		}
 

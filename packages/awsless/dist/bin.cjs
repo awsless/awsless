@@ -35,6 +35,17 @@ var import_aws_iam = require("aws-cdk-lib/aws-iam");
 
 // src/cli/style.ts
 var import_chalk = __toESM(require("chalk"), 1);
+var symbol = {
+  info: "\u2139",
+  success: "\u2714",
+  warning: "\u26A0",
+  question: "?",
+  error: "\u2716",
+  ellipsis: "\u2026",
+  pointerSmall: "\u203A",
+  // line: '─',
+  pointer: "\u276F"
+};
 var style = {
   primary: import_chalk.default.bold.hex("#FF9000"),
   // title: chalk.white,
@@ -49,28 +60,6 @@ var style = {
   attr: import_chalk.default.yellow,
   cursor: import_chalk.default.bgWhite.blackBright
 };
-var symbol = {
-  // arrowUp: '↑',
-  // arrowDown: '↓',
-  // arrowLeft: '←',
-  // arrowRight: '→',
-  // radioOn: '◉',
-  // radioOff: '◯',
-  info: "\u2139",
-  success: "\u2714",
-  warning: "\u26A0",
-  question: "?",
-  error: "\u2716",
-  ellipsis: "\u2026",
-  pointerSmall: "\u203A",
-  // line: '─',
-  pointer: "\u276F"
-  // info: style.info('ℹ'),
-  // success: style.success('✔'),
-  // warning: style.warning('⚠'),
-  // error: style.error('✖'),
-  // input: style.success('?')
-};
 
 // src/cli/logger.ts
 var queue = [];
@@ -78,6 +67,8 @@ var debugError = (error) => {
   queue.push({
     date: /* @__PURE__ */ new Date(),
     type: style.error.dim("error"),
+    // color: 'red',
+    // type: 'error',
     message: typeof error === "string" ? error : error instanceof Error ? style.error(error.message || "") : JSON.stringify(error)
   });
 };
@@ -85,6 +76,8 @@ var debug = (...parts) => {
   queue.push({
     date: /* @__PURE__ */ new Date(),
     type: style.warning.dim("debug"),
+    // color: 'yellow',
+    // type: 'debug',
     message: parts.map((part) => typeof part === "string" ? part : JSON.stringify(part)).join(" ")
   });
 };
@@ -205,11 +198,6 @@ var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
     throw new Error(`Stack ${style.info(stackConfig.name)} has no resources defined`);
   }
   bindings.forEach((cb) => functions.forEach(cb));
-  const allowTopicPublish = new import_aws_iam.PolicyStatement({
-    actions: ["sns:publish"],
-    resources: ["*"]
-  });
-  functions.forEach((lambda) => lambda.addToRolePolicy(allowTopicPublish));
   const allowConfigParameters = new import_aws_iam.PolicyStatement({
     actions: [
       "ssm:GetParameter",
@@ -217,7 +205,12 @@ var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
       "ssm:GetParametersByPath"
     ],
     resources: [
-      import_aws_cdk_lib.Fn.sub("arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter" + configParameterPrefix(config2))
+      import_aws_cdk_lib.Arn.format({
+        service: "ssm",
+        resource: "parameter",
+        resourceName: configParameterPrefix(config2)
+      })
+      // Fn.sub('arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config)),
     ]
   });
   functions.forEach((lambda) => lambda.addToRolePolicy(allowConfigParameters));
@@ -245,29 +238,41 @@ var import_zod10 = require("zod");
 
 // src/plugins/cron/schema/schedule.ts
 var import_aws_events = require("aws-cdk-lib/aws-events");
-var import_cron_validate = __toESM(require("cron-validate"), 1);
 var import_zod = require("zod");
+var import_aws_cron_expression_validator = require("aws-cron-expression-validator");
 var RateExpressionSchema = import_zod.z.custom((value) => {
   return import_zod.z.string().regex(/rate\([0-9]+ (seconds?|minutes?|hours?|days?)\)/).refine((rate) => {
     const [str] = rate.substring(5).split(" ");
     const number = parseInt(str);
     return number > 0;
-  }).safeParse(value);
+  }).safeParse(value).success;
 }, "Invalid rate expression").transform(import_aws_events.Schedule.expression);
 var CronExpressionSchema = import_zod.z.custom((value) => {
-  return import_zod.z.string().startsWith("cron(").endsWith(")").refine((value2) => {
-    return (0, import_cron_validate.default)(value2.substring(5, -1), {
-      preset: "aws-cloud-watch"
-    }).isValid;
-  }).safeParse(value);
-}, "Invalid cron expression").transform((value) => import_aws_events.Schedule.expression(value));
+  return import_zod.z.string().startsWith("cron(").endsWith(")").safeParse(value).success;
+}, "Invalid cron expression").superRefine((value, ctx) => {
+  const cron = value.substring(5, value.length - 1);
+  try {
+    (0, import_aws_cron_expression_validator.awsCronExpressionValidator)(cron);
+  } catch (error) {
+    if (error instanceof Error) {
+      ctx.addIssue({
+        code: import_zod.z.ZodIssueCode.custom,
+        message: error.message
+      });
+    } else {
+      ctx.addIssue({
+        code: import_zod.z.ZodIssueCode.custom,
+        message: "Invalid cron expression"
+      });
+    }
+  }
+}).transform(import_aws_events.Schedule.expression);
 var ScheduleExpressionSchema = RateExpressionSchema.or(CronExpressionSchema);
 
 // src/plugins/cron/index.ts
 var import_aws_events2 = require("aws-cdk-lib/aws-events");
 
 // src/util/resource.ts
-var import_aws_cdk_lib2 = require("aws-cdk-lib");
 var import_change_case = require("change-case");
 var toId = (resource, id) => {
   return (0, import_change_case.pascalCase)(`${resource}-${id}`);
@@ -277,13 +282,6 @@ var toName = (stack, id) => {
 };
 var toEnvKey = (resource, id) => {
   return (0, import_change_case.constantCase)(`RESOURCE_${resource}_${id}`);
-};
-var toArn = (stack, service, resource, id) => {
-  return import_aws_cdk_lib2.Arn.format({
-    service,
-    resource,
-    resourceName: toName(stack, id)
-  }, stack);
 };
 var addResourceEnvironment = (stack, resource, id, lambda) => {
   const key = toEnvKey(resource, id);
@@ -315,7 +313,7 @@ function toDuration(duration) {
   return import_core.Duration.days(0);
 }
 var DurationSchema = import_zod2.z.custom((value) => {
-  return import_zod2.z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/).safeParse(value);
+  return import_zod2.z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/).safeParse(value).success;
 }, "Invalid duration").transform(toDuration);
 
 // src/schema/local-file.ts
@@ -379,7 +377,7 @@ function toSize(size) {
   throw new TypeError(`Invalid size ${size}`);
 }
 var SizeSchema = import_zod7.z.custom((value) => {
-  return import_zod7.z.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value);
+  return import_zod7.z.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value).success;
 }, "Invalid size").transform(toSize);
 
 // src/plugins/function/util/build-worker.ts
@@ -427,22 +425,22 @@ build(workerData)
 var defaultBuild = async (file) => {
   return new Promise((resolve, reject) => {
     const worker = new import_worker_threads.Worker(workerCode, { workerData: file, eval: true });
-    const cleanUp = () => {
+    const cleanUp2 = () => {
       worker.removeAllListeners();
       worker.terminate();
     };
     worker.on("message", (data) => {
       resolve(JSON.parse(data.toString("utf8")));
-      cleanUp();
+      cleanUp2();
     });
     worker.on("error", (data) => {
       reject(data);
-      cleanUp();
+      cleanUp2();
     });
     worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker exited with code ${code}`));
-        cleanUp();
+        cleanUp2();
       }
     });
   });
@@ -456,13 +454,7 @@ var import_filesize = require("filesize");
 var zipFiles = (files) => {
   const zip = new import_jszip.default();
   for (const file of files) {
-    zip.file(file.name, file.code, {
-      // compression: ''
-      // compression: 'DEFLATE',
-      // compressionOptions: {
-      // 	level: 9
-      // }
-    });
+    zip.file(file.name, file.code);
   }
   return zip.generateAsync({
     type: "nodebuffer",
@@ -506,7 +498,7 @@ var import_promises3 = require("fs/promises");
 var import_client_s3 = require("@aws-sdk/client-s3");
 
 // src/stack/bootstrap.ts
-var import_aws_cdk_lib3 = require("aws-cdk-lib");
+var import_aws_cdk_lib2 = require("aws-cdk-lib");
 var import_aws_s3 = require("aws-cdk-lib/aws-s3");
 var assetBucketName = (config2) => {
   return `awsless-bootstrap-${config2.account}-${config2.region}`;
@@ -517,16 +509,16 @@ var assetBucketUrl = (config2, stackName) => {
 };
 var version = "2";
 var bootstrapStack = (config2, app) => {
-  const stack = new import_aws_cdk_lib3.Stack(app, "bootstrap", {
+  const stack = new import_aws_cdk_lib2.Stack(app, "bootstrap", {
     stackName: `awsless-bootstrap`
   });
   new import_aws_s3.Bucket(stack, "assets", {
     bucketName: assetBucketName(config2),
     versioned: true,
     accessControl: import_aws_s3.BucketAccessControl.PRIVATE,
-    removalPolicy: import_aws_cdk_lib3.RemovalPolicy.DESTROY
+    removalPolicy: import_aws_cdk_lib2.RemovalPolicy.DESTROY
   });
-  new import_aws_cdk_lib3.CfnOutput(stack, "version", {
+  new import_aws_cdk_lib2.CfnOutput(stack, "version", {
     exportName: "version",
     value: version
   });
@@ -546,7 +538,7 @@ var publishFunctionAsset = async (config2, stack, id) => {
   const bundleFile = (0, import_path5.join)(funcPath, "bundle.zip");
   const hashFile = (0, import_path5.join)(funcPath, "HASH");
   const hash = await (0, import_promises3.readFile)(hashFile, "utf8");
-  const file = await (0, import_promises3.readFile)(bundleFile, "utf8");
+  const file = await (0, import_promises3.readFile)(bundleFile);
   const client = new import_client_s3.S3Client({
     credentials: config2.credentials,
     region: config2.region
@@ -583,8 +575,14 @@ var publishFunctionAsset = async (config2, stack, id) => {
 var import_zod8 = require("zod");
 var RetryAttempts = import_zod8.z.number().int().min(0).max(2);
 
-// src/plugins/function/index.ts
+// src/util/byte-size.ts
 var import_filesize2 = require("filesize");
+var formatByteSize = (size) => {
+  const [number, unit] = (0, import_filesize2.filesize)(size).toString().split(" ");
+  return style.attr(number) + style.attr.dim(unit);
+};
+
+// src/plugins/function/index.ts
 var FunctionSchema = import_zod9.z.union([
   LocalFileSchema,
   import_zod9.z.object({
@@ -654,7 +652,7 @@ var toFunction = ({ config: config2, stack, stackConfig, assets }, id, fileOrPro
       const func = lambda.node.defaultChild;
       func.handler = result.handler;
       return {
-        fileSize: style.attr((0, import_filesize2.filesize)(bundle.size))
+        size: formatByteSize(bundle.size)
       };
     },
     async publish() {
@@ -730,18 +728,18 @@ var queuePlugin = definePlugin({
       ])).optional()
     }).array()
   }),
-  onStack(context) {
-    const { stack, config: config2 } = context;
-    return Object.entries(context.stackConfig.queues || {}).map(([id, functionOrProps]) => {
+  onStack(ctx) {
+    const { stack, config: config2, stackConfig, bind } = ctx;
+    return Object.entries(stackConfig.queues || {}).map(([id, functionOrProps]) => {
       const props = typeof functionOrProps === "string" ? { ...config2.defaults.queue, consumer: functionOrProps } : { ...config2.defaults.queue, ...functionOrProps };
       const queue2 = new import_aws_sqs.Queue(stack, toId("queue", id), {
         queueName: toName(stack, id),
         ...props,
         maxMessageSizeBytes: props.maxMessageSize.toBytes()
       });
-      const lambda = toFunction(context, id, props.consumer);
+      const lambda = toFunction(ctx, id, props.consumer);
       lambda.addEventSource(new import_aws_lambda_event_sources.SqsEventSource(queue2));
-      context.bind((lambda2) => {
+      bind((lambda2) => {
         queue2.grantSendMessages(lambda2);
         addResourceEnvironment(stack, "queue", id, lambda2);
       });
@@ -863,7 +861,7 @@ var tablePlugin = definePlugin({
 // src/plugins/store.ts
 var import_zod17 = require("zod");
 var import_aws_s32 = require("aws-cdk-lib/aws-s3");
-var import_aws_cdk_lib4 = require("aws-cdk-lib");
+var import_aws_cdk_lib3 = require("aws-cdk-lib");
 var storePlugin = definePlugin({
   name: "store",
   schema: import_zod17.z.object({
@@ -876,7 +874,7 @@ var storePlugin = definePlugin({
       const bucket = new import_aws_s32.Bucket(stack, toId("store", id), {
         bucketName: toName(stack, id),
         accessControl: import_aws_s32.BucketAccessControl.PRIVATE,
-        removalPolicy: import_aws_cdk_lib4.RemovalPolicy.DESTROY
+        removalPolicy: import_aws_cdk_lib3.RemovalPolicy.DESTROY
       });
       bind((lambda) => {
         bucket.grantReadWrite(lambda), addResourceEnvironment(stack, "store", id, lambda);
@@ -889,6 +887,8 @@ var storePlugin = definePlugin({
 var import_zod18 = require("zod");
 var import_aws_sns = require("aws-cdk-lib/aws-sns");
 var import_aws_lambda_event_sources2 = require("aws-cdk-lib/aws-lambda-event-sources");
+var import_aws_cdk_lib4 = require("aws-cdk-lib");
+var import_aws_iam2 = require("aws-cdk-lib/aws-iam");
 var topicPlugin = definePlugin({
   name: "topic",
   schema: import_zod18.z.object({
@@ -903,21 +903,59 @@ var topicPlugin = definePlugin({
     const uniqueTopicNames = [...new Set(allTopicNames)];
     uniqueTopicNames.forEach((id) => {
       new import_aws_sns.Topic(stack, toId("topic", id), {
-        topicName: id,
+        topicName: `${config2.name}-${id}`,
         displayName: id
       });
     });
   },
   onStack(ctx) {
-    return Object.entries(ctx.stackConfig.topics || {}).map(([id, props]) => {
+    const { config: config2, stack, stackConfig, bind } = ctx;
+    bind((lambda) => {
+      lambda.addToRolePolicy(new import_aws_iam2.PolicyStatement({
+        actions: ["sns:publish"],
+        resources: ["*"]
+      }));
+    });
+    return Object.entries(stackConfig.topics || {}).map(([id, props]) => {
       const lambda = toFunction(ctx, id, props);
       const topic = import_aws_sns.Topic.fromTopicArn(
-        ctx.stack,
+        stack,
         toId("topic", id),
-        toArn(ctx.stack, "sns", "topic", id)
+        import_aws_cdk_lib4.Arn.format({
+          arnFormat: import_aws_cdk_lib4.ArnFormat.NO_RESOURCE_NAME,
+          service: "sns",
+          resource: `${config2.name}-${id}`
+        }, stack)
       );
       lambda.addEventSource(new import_aws_lambda_event_sources2.SnsEventSource(topic));
       return lambda;
+    });
+  }
+});
+
+// src/plugins/search.ts
+var import_zod19 = require("zod");
+var import_aws_opensearchserverless = require("aws-cdk-lib/aws-opensearchserverless");
+var import_aws_iam3 = require("aws-cdk-lib/aws-iam");
+var searchPlugin = definePlugin({
+  name: "search",
+  schema: import_zod19.z.object({
+    stacks: import_zod19.z.object({
+      searchs: import_zod19.z.array(ResourceIdSchema).optional()
+    }).array()
+  }),
+  onStack({ stack, stackConfig, bind }) {
+    (stackConfig.searchs || []).forEach((id) => {
+      const collection = new import_aws_opensearchserverless.CfnCollection(stack, toId("search", id), {
+        name: toName(stack, id),
+        type: "SEARCH"
+      });
+      bind((lambda) => {
+        lambda.addToRolePolicy(new import_aws_iam3.PolicyStatement({
+          actions: ["aoss:APIAccessAll"],
+          resources: [collection.attrArn]
+        }));
+      });
     });
   }
 });
@@ -929,7 +967,8 @@ var defaultPlugins = [
   queuePlugin,
   tablePlugin,
   storePlugin,
-  topicPlugin
+  topicPlugin,
+  searchPlugin
 ];
 
 // src/stack/app-bootstrap.ts
@@ -1007,11 +1046,15 @@ var createDeploymentLine = (stacks) => {
 // src/util/assets.ts
 var Assets = class {
   assets = {};
+  id = 0;
   add(opts) {
     if (!this.assets[opts.stack.name]) {
       this.assets[opts.stack.name] = [];
     }
-    this.assets[opts.stack.name].push(opts);
+    this.assets[opts.stack.name].push({
+      ...opts,
+      id: this.id++
+    });
   }
   list() {
     return this.assets;
@@ -1096,41 +1139,6 @@ var toApp = async (config2, filters) => {
   };
 };
 
-// src/cli/lib/signal.ts
-var Signal = class {
-  constructor(value) {
-    this.value = value;
-  }
-  subs = /* @__PURE__ */ new Set();
-  get() {
-    return this.value;
-  }
-  set(value) {
-    this.value = value;
-    this.subs.forEach((sub) => sub(value));
-  }
-  update(cb) {
-    this.set(cb(this.value));
-  }
-  subscribe(cb) {
-    this.subs.add(cb);
-    return () => {
-      this.subs.delete(cb);
-    };
-  }
-};
-var derive = (deps, factory) => {
-  const values = deps.map((dep) => dep.get());
-  const signal = new Signal(factory(...values));
-  deps.forEach((dep) => {
-    dep.subscribe(() => {
-      const values2 = deps.map((dep2) => dep2.get());
-      signal.set(factory(...values2));
-    });
-  });
-  return signal;
-};
-
 // src/cli/ui/layout/basic.ts
 var br = () => {
   return "\n";
@@ -1141,60 +1149,6 @@ var hr = () => {
       style.placeholder("\u2500".repeat(term.out.width())),
       br()
     ]);
-  };
-};
-
-// src/cli/ui/layout/spinner.ts
-var frames = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
-var length = frames.length;
-var createSpinner = () => {
-  const index = new Signal(0);
-  const frame = derive([index], (index2) => style.info(frames[index2 % length]));
-  const interval = setInterval(() => {
-    index.update((i) => i + 1);
-  }, 80);
-  return [
-    frame,
-    () => {
-      clearInterval(interval);
-    }
-  ];
-};
-
-// src/cli/ui/layout/dialog.ts
-var dialog = (type, lines) => {
-  const padding = 3;
-  const icon = style[type](symbol[type].padEnd(padding));
-  return lines.map((line, i) => {
-    if (i === 0) {
-      return icon + line;
-    } else {
-      return " ".repeat(padding) + line;
-    }
-  }).join(br()) + br();
-};
-var loadingDialog = (message) => {
-  const [icon, stop] = createSpinner();
-  const description = new Signal(message);
-  const time = new Signal("");
-  const start = /* @__PURE__ */ new Date();
-  return (term) => {
-    term.out.write([
-      icon,
-      "  ",
-      description,
-      " ",
-      time,
-      br()
-    ]);
-    return (message2) => {
-      const end = /* @__PURE__ */ new Date();
-      const diff = end.getTime() - start.getTime();
-      description.set(message2);
-      time.set(style.attr(diff) + style.attr.dim("ms"));
-      stop();
-      icon.set(style.success(symbol.success));
-    };
   };
 };
 
@@ -1262,17 +1216,17 @@ var getCredentials = (profile) => {
 var import_ts_import = require("ts-import");
 
 // src/schema/app.ts
-var import_zod22 = require("zod");
+var import_zod23 = require("zod");
 
 // src/schema/stack.ts
-var import_zod19 = require("zod");
-var StackSchema = import_zod19.z.object({
+var import_zod20 = require("zod");
+var StackSchema = import_zod20.z.object({
   name: ResourceIdSchema,
-  depends: import_zod19.z.array(import_zod19.z.lazy(() => StackSchema)).optional()
+  depends: import_zod20.z.array(import_zod20.z.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-var import_zod20 = require("zod");
+var import_zod21 = require("zod");
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -1289,29 +1243,29 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = import_zod20.z.enum(regions);
+var RegionSchema = import_zod21.z.enum(regions);
 
 // src/schema/plugin.ts
-var import_zod21 = require("zod");
-var PluginSchema = import_zod21.z.object({
-  name: import_zod21.z.string(),
-  schema: import_zod21.z.custom().optional(),
-  depends: import_zod21.z.array(import_zod21.z.lazy(() => PluginSchema)).optional(),
-  onBootstrap: import_zod21.z.function().optional(),
-  onStack: import_zod21.z.function().returns(import_zod21.z.any()).optional(),
-  onApp: import_zod21.z.function().optional()
+var import_zod22 = require("zod");
+var PluginSchema = import_zod22.z.object({
+  name: import_zod22.z.string(),
+  schema: import_zod22.z.custom().optional(),
+  depends: import_zod22.z.array(import_zod22.z.lazy(() => PluginSchema)).optional(),
+  onBootstrap: import_zod22.z.function().optional(),
+  onStack: import_zod22.z.function().returns(import_zod22.z.any()).optional(),
+  onApp: import_zod22.z.function().optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = import_zod22.z.object({
+var AppSchema = import_zod23.z.object({
   name: ResourceIdSchema,
   region: RegionSchema,
-  profile: import_zod22.z.string(),
-  stage: import_zod22.z.string().regex(/[a-z]+/).default("prod"),
-  defaults: import_zod22.z.object({}).default({}),
-  stacks: import_zod22.z.array(StackSchema).min(1),
-  plugins: import_zod22.z.array(PluginSchema).optional()
+  profile: import_zod23.z.string(),
+  stage: import_zod23.z.string().regex(/[a-z]+/).default("prod"),
+  defaults: import_zod23.z.object({}).default({}),
+  stacks: import_zod23.z.array(StackSchema).min(1),
+  plugins: import_zod23.z.array(PluginSchema).optional()
 });
 
 // src/config.ts
@@ -1370,20 +1324,9 @@ var list = (data) => {
   ]);
 };
 
-// src/cli/ui/layout/logo.ts
-var logo = () => {
-  return [
-    style.warning("\u26A1\uFE0F "),
-    style.primary("AWS"),
-    style.primary.dim("LESS"),
-    br()
-  ];
-};
-
 // src/cli/ui/layout/header.ts
 var header = (config2) => {
   return [
-    logo(),
     br(),
     list({
       App: config2.name,
@@ -1393,6 +1336,95 @@ var header = (config2) => {
     }),
     br()
   ];
+};
+
+// src/cli/lib/signal.ts
+var Signal = class {
+  constructor(value) {
+    this.value = value;
+  }
+  subs = /* @__PURE__ */ new Set();
+  get() {
+    return this.value;
+  }
+  set(value) {
+    this.value = value;
+    this.subs.forEach((sub) => sub(value));
+  }
+  update(cb) {
+    this.set(cb(this.value));
+  }
+  subscribe(cb) {
+    this.subs.add(cb);
+    return () => {
+      this.subs.delete(cb);
+    };
+  }
+};
+var derive = (deps, factory) => {
+  const values = deps.map((dep) => dep.get());
+  const signal = new Signal(factory(...values));
+  deps.forEach((dep) => {
+    dep.subscribe(() => {
+      const values2 = deps.map((dep2) => dep2.get());
+      signal.set(factory(...values2));
+    });
+  });
+  return signal;
+};
+
+// src/cli/ui/layout/spinner.ts
+var frames = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
+var length = frames.length;
+var createSpinner = () => {
+  const index = new Signal(0);
+  const frame = derive([index], (index2) => style.info(frames[index2 % length]));
+  const interval = setInterval(() => {
+    index.update((i) => i + 1);
+  }, 80);
+  return [
+    frame,
+    () => {
+      clearInterval(interval);
+    }
+  ];
+};
+
+// src/cli/ui/layout/dialog.ts
+var dialog = (type, lines) => {
+  const padding = 3;
+  const icon = style[type](symbol[type].padEnd(padding));
+  return lines.map((line, i) => {
+    if (i === 0) {
+      return icon + line;
+    } else {
+      return " ".repeat(padding) + line;
+    }
+  }).join(br()) + br();
+};
+var loadingDialog = (message) => {
+  const [icon, stop] = createSpinner();
+  const description = new Signal(message);
+  const time = new Signal("");
+  const start = /* @__PURE__ */ new Date();
+  return (term) => {
+    term.out.write([
+      icon,
+      "  ",
+      description,
+      " ",
+      time,
+      br()
+    ]);
+    return (message2) => {
+      const end = /* @__PURE__ */ new Date();
+      const diff = end.getTime() - start.getTime();
+      description.set(message2);
+      time.set(style.attr(diff) + style.attr.dim("ms"));
+      stop();
+      icon.set(style.success(symbol.success));
+    };
+  };
 };
 
 // src/cli/lib/interface.ts
@@ -1558,10 +1590,10 @@ var Renderer = class {
       if (line !== this.screen[y]) {
         if (y > oldSize) {
           const x = (this.screen[y - 1]?.length || 0) - 1;
-          this.output.cursorTo?.(x, y - 1);
+          this.output.cursorTo?.(x, y - 1 - start);
           this.output.write?.("\n" + line);
         } else {
-          this.output.cursorTo?.(0, y);
+          this.output.cursorTo?.(0, y - start);
           this.output.write?.(line);
         }
         this.output.clearLine?.(1);
@@ -1586,10 +1618,21 @@ var createTerminal = (input = process.stdin, output = process.stdout) => {
   return { in: ins, out: outs };
 };
 
+// src/cli/ui/layout/logo.ts
+var logo = () => {
+  return [
+    style.warning("\u26A1\uFE0F "),
+    style.primary("AWS"),
+    style.primary.dim("LESS"),
+    br()
+  ];
+};
+
 // src/cli/ui/layout/layout.ts
 var layout = async (cb) => {
   const term = createTerminal();
   term.out.clear();
+  term.out.write(logo());
   try {
     const options = program.optsWithGlobals();
     const config2 = await importConfig(options);
@@ -1634,62 +1677,84 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
   ]);
 };
 
+// src/cli/ui/complex/asset.ts
+var assetBuilder = (assets) => {
+  return async (term) => {
+    const done = term.out.write(loadingDialog("Building stack assets..."));
+    const groups = new Signal([br()]);
+    term.out.write(groups);
+    const stackNameSize = Math.max(...Object.keys(assets.list()).map((stack) => stack.length));
+    await Promise.all(assets.map(async (stack, assets2) => {
+      const group = new Signal([]);
+      groups.update((groups2) => [...groups2, group]);
+      await Promise.all(assets2.map(async (asset) => {
+        const [icon, stop] = createSpinner();
+        const start = /* @__PURE__ */ new Date();
+        const details = new Signal({});
+        const line = flexLine(term, [
+          icon,
+          "  ",
+          style.label(stack.name),
+          " ".repeat(stackNameSize - stack.name.length),
+          " ",
+          style.placeholder(symbol.pointerSmall),
+          " ",
+          style.warning(asset.resource),
+          " ",
+          style.placeholder(symbol.pointerSmall),
+          " ",
+          style.info(asset.resourceName),
+          " "
+        ], [
+          " ",
+          derive([details], (details2) => {
+            return Object.entries(details2).map(([key, value]) => {
+              return `${style.label(key)}: ${value}`;
+            }).join(" / ");
+          }),
+          br()
+        ]);
+        group.update((group2) => [...group2, line]);
+        const data = await asset.build?.();
+        const time = (/* @__PURE__ */ new Date()).getTime() - start.getTime();
+        details.set({
+          ...data,
+          time: style.attr(time) + style.attr.dim("ms")
+        });
+        icon.set(style.success(symbol.success));
+        stop();
+      }));
+    }));
+    done("Done building stack assets");
+  };
+};
+
+// src/util/cleanup.ts
+var import_promises4 = require("fs/promises");
+var cleanUp = async () => {
+  debug("Clean up assembly & asset files");
+  const paths = [
+    assemblyDir,
+    functionDir
+  ];
+  await Promise.all(paths.map((path) => (0, import_promises4.rm)(path, {
+    recursive: true,
+    force: true,
+    maxRetries: 2
+  })));
+  await Promise.all(paths.map((path) => (0, import_promises4.mkdir)(path, {
+    recursive: true
+  })));
+};
+
 // src/cli/command/build.ts
 var build = (program2) => {
   program2.command("build").argument("[stack...]", "Optionally filter stacks to build").description("Build your app").action(async (filters) => {
-    await layout(async (config2, write, term) => {
+    await layout(async (config2, write) => {
       const { app, assets } = await toApp(config2, filters);
-      const done = write(loadingDialog("Building stack assets..."));
-      const groups = new Signal([]);
-      write(groups);
-      await Promise.all(assets.map(async (stack, assets2) => {
-        const group = new Signal([
-          br(),
-          // symbol.pointerSmall,
-          "   ",
-          style.label(stack.name),
-          br()
-        ]);
-        groups.update((groups2) => [...groups2, group]);
-        await Promise.all(assets2.map(async (asset) => {
-          const [icon, stop] = createSpinner();
-          const start = /* @__PURE__ */ new Date();
-          const time = new Signal("");
-          const details = new Signal("");
-          const status2 = new Signal(style.info("building"));
-          const line = flexLine(term, [
-            icon,
-            "  ",
-            style.warning(asset.resource),
-            " ",
-            style.placeholder(symbol.pointerSmall),
-            " ",
-            style.info(asset.resourceName),
-            " "
-          ], [
-            // hr,
-            " [ ",
-            status2,
-            details,
-            time,
-            " ]",
-            br()
-          ]);
-          group.update((group2) => [...group2, line]);
-          const data = await asset.build?.();
-          const diff = (/* @__PURE__ */ new Date()).getTime() - start.getTime();
-          time.set(" / " + style.attr(diff) + style.attr.dim("ms"));
-          if (data) {
-            details.set(Object.entries(data).map(([key, value]) => {
-              return ` / ${style.label(key)}: ${style.info(value)}`;
-            }).join(" / "));
-          }
-          status2.set(style.success("done"));
-          icon.set(style.success(symbol.success));
-          stop();
-        }));
-      }));
-      done("Done building stack assets");
+      await cleanUp();
+      await write(assetBuilder(assets));
+      app.synth();
     });
   });
 };
@@ -1991,9 +2056,10 @@ var stackTree = (nodes, statuses) => {
           style.info(id),
           " "
         ], [
-          style.placeholder(" [ "),
+          // style.placeholder(' [ '),
+          " ",
           status2,
-          style.placeholder(" ] "),
+          // style.placeholder(' ] '),
           br()
         ]);
         term.out.write(line);
@@ -2004,24 +2070,84 @@ var stackTree = (nodes, statuses) => {
   };
 };
 
+// src/cli/ui/__components/basic.ts
+var br2 = () => {
+  return "\n";
+};
+
+// src/cli/ui/__components/spinner.ts
+var frames2 = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"];
+var length2 = frames2.length;
+var createSpinner2 = () => {
+  const index = new Signal(0);
+  const frame = derive([index], (index2) => style.info(frames2[index2 % length2]));
+  const interval = setInterval(() => {
+    index.update((i) => i + 1);
+  }, 80);
+  return [
+    frame,
+    () => {
+      clearInterval(interval);
+    }
+  ];
+};
+
+// src/cli/ui/__components/dialog.ts
+var dialog2 = (type, lines) => {
+  const padding = 3;
+  const icon = style[type](symbol[type].padEnd(padding));
+  return lines.map((line, i) => {
+    if (i === 0) {
+      return icon + line;
+    } else {
+      return " ".repeat(padding) + line;
+    }
+  }).join(br2()) + br2();
+};
+var loadingDialog2 = (message) => {
+  const [icon, stop] = createSpinner2();
+  const description = new Signal(message);
+  const time = new Signal("");
+  const start = /* @__PURE__ */ new Date();
+  return (term) => {
+    term.out.write([
+      icon,
+      "  ",
+      description,
+      " ",
+      time,
+      br2()
+    ]);
+    return (message2) => {
+      const end = /* @__PURE__ */ new Date();
+      const diff = end.getTime() - start.getTime();
+      description.set(message2);
+      time.set(style.attr(diff) + style.attr.dim("ms"));
+      stop();
+      icon.set(style.success(symbol.success));
+    };
+  };
+};
+
 // src/cli/command/status.ts
 var status = (program2) => {
   program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
     await layout(async (config2, write) => {
       const { app, assets, dependencyTree } = await toApp(config2, filters);
-      const doneBuilding = write(loadingDialog("Building stack assets..."));
+      await cleanUp();
+      await write(assetBuilder(assets));
+      write(br2());
       const assembly = app.synth();
-      doneBuilding("Done building stack assets");
-      const doneLoading = write(loadingDialog("Loading stack information..."));
+      const doneLoading = write(loadingDialog2("Loading stack information..."));
       const client = new StackClient(config2);
       const statuses = [];
       const stackStatuses = {};
       assembly.stacks.forEach((stack) => {
         stackStatuses[stack.id] = new Signal(style.info("Loading..."));
       });
-      write(br());
+      write(br2());
       write(stackTree(dependencyTree, stackStatuses));
-      write(br());
+      write(br2());
       debug("Load metadata for all deployed stacks on AWS");
       await Promise.all(assembly.stacks.map(async (stack, i) => {
         const info = await client.get(stack.stackName);
@@ -2042,9 +2168,9 @@ var status = (program2) => {
       doneLoading("Done loading stack information");
       debug("Done loading data for all deployed stacks on AWS");
       if (statuses.includes("non-existent") || statuses.includes("out-of-date")) {
-        write(dialog("warning", ["Your app has undeployed changes !!!"]));
+        write(dialog2("warning", ["Your app has undeployed changes !!!"]));
       } else {
-        write(dialog("success", ["Your app has not been changed"]));
+        write(dialog2("success", ["Your app has not been changed"]));
       }
     });
   });
@@ -2064,13 +2190,9 @@ var deploy = (program2) => {
       if (!confirm) {
         throw new Cancelled();
       }
-      const doneBuilding = write(loadingDialog("Building stack assets..."));
-      await Promise.all(assets.map(async (_, assets2) => {
-        await Promise.all(assets2.map(async (asset) => {
-          await asset.build?.();
-        }));
-      }));
-      doneBuilding("Done building stack assets");
+      await cleanUp();
+      await write(assetBuilder(assets));
+      write(br());
       const donePublishing = write(loadingDialog("Publishing stack assets to AWS..."));
       await Promise.all(assets.map(async (_, assets2) => {
         await Promise.all(assets2.map(async (asset) => {
@@ -2260,14 +2382,6 @@ var config = (program2) => {
   commands.forEach((cb) => cb(command));
 };
 
-// src/cli/command/test.ts
-var test = (program2) => {
-  program2.command("test").description("Test").action(async () => {
-    await layout(async (config2, write) => {
-    });
-  });
-};
-
 // src/cli/program.ts
 var program = new import_commander.Command();
 program.name("awsless");
@@ -2285,10 +2399,11 @@ var commands2 = [
   status,
   build,
   deploy,
+  config
   // diff,
   // remove,
-  config,
-  test
+  // test,
+  // test2,
 ];
 commands2.forEach((command) => command(program));
 

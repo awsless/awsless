@@ -1,9 +1,9 @@
 import { Command } from "commander";
-import { Params } from "../../../util/param";
-import { dialog, loadingDialog } from "../../ui/layout/dialog";
-import { list as listUI } from "../../ui/layout/list";
-import { br } from "../../ui/layout/basic";
-import { layout } from "../../ui/layout/layout";
+import { Params } from '../../../util/param.js';
+import { dialog, loadingDialog } from '../../ui/layout/dialog.js';
+import { list as listUI } from '../../ui/layout/list.js';
+import { br } from '../../ui/layout/basic.js';
+import { layout } from '../../ui/layout/layout.js';
 
 export const list = (program: Command) => {
 	program

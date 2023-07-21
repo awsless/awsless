@@ -1,34 +1,14 @@
-import { App, Fn, Stack } from "aws-cdk-lib"
-import { Config } from "./config"
+import { App, Arn, Stack } from "aws-cdk-lib"
+import { Config } from './config.js'
 import { Function } from "aws-cdk-lib/aws-lambda"
-// import { toFunction, FunctionConfig } from "./__resource/function"
-// import { QueueConfig, toQueue } from "./__resource/queue"
-// import { TopicConfig, toTopic } from "./__resource/topic"
 import { PolicyStatement } from "aws-cdk-lib/aws-iam"
-// import { CronConfig, toCron } from "./__resource/cron"
-// import { TableConfig, TableFields, toTable } from "./__resource/table"
-// import { toStore } from "./__resource/store"
-import { configParameterPrefix } from "./util/param"
-import { Assets } from "./util/assets"
-import { StackConfigOutput } from "./schema/stack"
-import { Plugin } from "./plugin"
+import { configParameterPrefix } from './util/param.js'
+import { Assets } from './util/assets.js'
+import { StackConfigOutput } from './schema/stack.js'
+import { Plugin } from './plugin.js'
 import { AnyZodObject } from "zod"
-import { debug } from "./cli/logger"
-import { style } from "./cli/style"
-
-// export type StackConfig = {
-// 	name: string
-// 	depends?: Array<StackConfig>
-// 	// plugins?: Array<(context:Context) => void>
-
-// 	// resources
-// 	// functions?: Record<string, FunctionConfig>
-// 	// queues?: Record<string, QueueConfig>
-// 	// topics?: Record<string, TopicConfig>
-// 	// tables?: Record<string, TableConfig<TableFields>>
-// 	// stores?: string[]
-// 	// crons?: Record<string, CronConfig>
-// }
+import { debug } from './cli/logger.js'
+import { style } from './cli/style.js'
 
 export type Binding = (lambda:Function) => void
 
@@ -88,16 +68,6 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 	bindings.forEach(cb => functions.forEach(cb))
 
 	// ------------------------------------------------------
-	// Give global access to all sns topics
-
-	const allowTopicPublish = new PolicyStatement({
-		actions: [ 'sns:publish' ],
-		resources: [ '*' ],
-	})
-
-	functions.forEach(lambda => lambda.addToRolePolicy(allowTopicPublish))
-
-	// ------------------------------------------------------
 	// Give app/stage access to all config parameters
 
 	const allowConfigParameters = new PolicyStatement({
@@ -107,7 +77,12 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 			'ssm:GetParametersByPath',
 		],
 		resources: [
-			Fn.sub('arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config)),
+			Arn.format({
+				service: 'ssm',
+				resource: 'parameter',
+				resourceName: configParameterPrefix(config),
+			}),
+			// Fn.sub('arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config)),
 		],
 	})
 

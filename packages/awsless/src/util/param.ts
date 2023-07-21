@@ -1,6 +1,6 @@
-import { debug } from '../cli/logger'
-import { style } from '../cli/style'
-import { Config } from '../config'
+import { debug } from '../cli/logger.js'
+import { style } from '../cli/style.js'
+import { Config } from '../config.js'
 import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterType, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
 
 export const configParameterPrefix = (config: Config) => {

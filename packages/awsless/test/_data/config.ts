@@ -1,7 +1,4 @@
 
-// import { AppConfig } from "../../src/app";
-// import { StackConfig } from "../../src/stack";
-
 import { AppConfig, StackConfig } from "../../src"
 
 const tableStack = {
@@ -33,6 +30,10 @@ const functionStack = {
 	functions: {
 		bet: 'test/_data/function.ts'
 	},
+} satisfies StackConfig
+
+const topicStack = {
+	name: 'topic',
 	topics: {
 		event: 'test/_data/function.ts'
 	},
@@ -43,9 +44,16 @@ const cronStack = {
 	crons: {
 		cron: {
 			consumer: 'test/_data/function.ts',
-			schedule: 'cron(* * * * * *)'
+			schedule: 'rate(1 day)',
 		}
 	},
+} satisfies StackConfig
+
+const searchStack = {
+	name: 'search',
+	searchs: [
+		'games'
+	]
 } satisfies StackConfig
 
 export default {
@@ -58,6 +66,8 @@ export default {
 		queueStack,
 		storeStack,
 		functionStack,
+		topicStack,
 		cronStack,
+		searchStack,
 	]
 } satisfies AppConfig

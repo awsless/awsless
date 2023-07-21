@@ -1,11 +1,11 @@
 
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from '@aws-sdk/client-cloudformation'
 import { S3Client, PutObjectCommand, ObjectCannedACL, StorageClass } from '@aws-sdk/client-s3'
-import { Config } from '../config'
+import { Config } from '../config.js'
 import { CloudFormationStackArtifact } from 'aws-cdk-lib/cx-api'
-import { assetBucketName, assetBucketUrl } from './bootstrap'
-import { debug } from '../cli/logger'
-import { style } from '../cli/style'
+import { assetBucketName, assetBucketUrl } from './bootstrap.js'
+import { debug } from '../cli/logger.js'
+import { style } from '../cli/style.js'
 
 export class StackClient {
 	private client: CloudFormationClient

@@ -1,6 +1,6 @@
 
-import { style } from "../../style"
-import { br } from "./basic"
+import { style } from "../../style.js"
+import { br } from "./basic.js"
 
 export const logo = () => {
 	return [

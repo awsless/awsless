@@ -1,8 +1,8 @@
 import { App, Stack } from "aws-cdk-lib";
-import { Config } from "../config";
-import { defaultPlugins } from "../plugins";
-import { Assets } from "../util/assets";
-import { debug } from "../cli/logger";
+import { Config } from '../config.js';
+import { defaultPlugins } from '../plugins/index.js';
+import { Assets } from '../util/assets.js';
+import { debug } from '../cli/logger.js';
 
 export const appBootstrapStack = ({ config, app, assets }: { config:Config, app:App, assets: Assets }) => {
 	const stack = new Stack(app, 'bootstrap', {

@@ -1,15 +1,15 @@
 import { App, DefaultStackSynthesizer, Stack } from "aws-cdk-lib"
-import { Config } from "./config"
-import { toStack } from "./stack"
-import { assemblyDir } from "./util/path"
-import { appBootstrapStack } from "./stack/app-bootstrap"
-import { assetBucketName } from "./stack/bootstrap"
-import { StackNode, createDependencyTree } from "./util/deployment"
-import { debug } from "./cli/logger"
-import { style } from "./cli/style"
-import { Assets } from "./util/assets"
-import { StackConfig } from "./schema/stack"
-import { defaultPlugins } from "./plugins"
+import { Config } from './config.js'
+import { toStack } from './stack.js'
+import { assemblyDir } from './util/path.js'
+import { appBootstrapStack } from './stack/app-bootstrap.js'
+import { assetBucketName } from './stack/bootstrap.js'
+import { StackNode, createDependencyTree } from './util/deployment.js'
+import { debug } from './cli/logger.js'
+import { style } from './cli/style.js'
+import { Assets } from './util/assets.js'
+import { StackConfig } from './schema/stack.js'
+import { defaultPlugins } from './plugins/index.js'
 
 export const makeApp = (config:Config) => {
 	return new App({

@@ -1,11 +1,12 @@
 
 import { Command } from 'commander'
-import { build } from './command/build'
-import { bootstrap } from './command/bootstrap'
-import { status } from './command/status'
-import { deploy } from './command/deploy'
-import { config } from './command/config'
-import { test } from './command/test'
+import { build } from './command/build.js'
+import { bootstrap } from './command/bootstrap.js'
+import { status } from './command/status.js'
+import { deploy } from './command/deploy.js'
+import { config } from './command/config/index.js'
+// import { test } from './command/test.js'
+// import { test2 } from './command/test2.js'
 
 export type ProgramOptions = {
 	configFile?: string
@@ -36,10 +37,11 @@ const commands = [
 	status,
 	build,
 	deploy,
+	config,
 	// diff,
 	// remove,
-	config,
-	test,
+	// test,
+	// test2,
 ]
 
 commands.forEach(command => command(program))

@@ -1,10 +1,10 @@
 import { App, Stack } from "aws-cdk-lib"
-import { Assets } from "./util/assets"
+import { Assets } from './util/assets.js'
 import { AnyZodObject, z } from "zod"
-import { BaseConfig } from "./config"
+import { BaseConfig } from './config.js'
 import { Function } from "aws-cdk-lib/aws-lambda"
-import { Binding } from "./stack"
-import { AppConfigInput } from "./schema/app"
+import { Binding } from './stack.js'
+import { AppConfigInput } from './schema/app.js'
 
 export type PluginSchema = AnyZodObject | undefined
 export type PluginDepends = Plugin[] | undefined

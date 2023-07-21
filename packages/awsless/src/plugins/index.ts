@@ -1,10 +1,12 @@
-import { cronPlugin } from "./cron";
-import { functionPlugin } from "./function";
-import { queuePlugin } from "./queue";
-import { ExtendedConfigInput, ExtendedConfigOutput } from "../plugin";
-import { tablePlugin } from "./table";
-import { storePlugin } from "./store";
-import { topicPlugin } from "./topic";
+
+import { cronPlugin } from './cron/index.js';
+import { functionPlugin } from './function/index.js';
+import { queuePlugin } from './queue.js';
+import { ExtendedConfigInput, ExtendedConfigOutput } from '../plugin.js';
+import { tablePlugin } from './table/index.js';
+import { storePlugin } from './store.js';
+import { topicPlugin } from './topic.js';
+import { searchPlugin } from './search.js';
 
 export const defaultPlugins = [
 	functionPlugin,
@@ -13,6 +15,7 @@ export const defaultPlugins = [
 	tablePlugin,
 	storePlugin,
 	topicPlugin,
+	searchPlugin,
 ]
 
 export type CombinedDefaultPluginsConfigOutput = ExtendedConfigOutput<typeof defaultPlugins[number]['schema']>

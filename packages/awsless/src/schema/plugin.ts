@@ -1,5 +1,5 @@
 import { AnyZodObject, z } from "zod"
-import { Plugin } from "../plugin"
+import { Plugin } from '../plugin.js'
 
 export const PluginSchema: z.ZodType<Plugin<AnyZodObject | undefined>, z.ZodTypeDef, Plugin<AnyZodObject | undefined>> = z.object({
 	name: z.string(),

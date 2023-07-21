@@ -1,13 +1,13 @@
 import { App, CfnOutput, RemovalPolicy, Stack } from "aws-cdk-lib"
-import { Config } from "../config"
+import { Config } from '../config.js'
 import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3"
-import { StackClient } from "./client"
-import { debug } from "../cli/logger"
+import { StackClient } from './client.js'
+import { debug } from '../cli/logger.js'
 // import { Architecture, Code, Function, Runtime } from "aws-cdk-lib/aws-lambda"
-// import { toDuration } from "../util/duration"
-// import { toSize } from "../util/size"
-// import { toRuntime } from "../resource/function/runtime"
-// import { toArchitecture } from "../resource/function/architecture"
+// import { toDuration } from '../util/duration.js'
+// import { toSize } from '../util/size.js'
+// import { toRuntime } from '../resource/function/runtime.js'
+// import { toArchitecture } from '../resource/function/architecture.js'
 // import { PolicyStatement } from "aws-cdk-lib/aws-iam"
 // import { LambdaFunction } from "aws-cdk-lib/aws-events-targets"
 // import { Rule } from "aws-cdk-lib/aws-events"

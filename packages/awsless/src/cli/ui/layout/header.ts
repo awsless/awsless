@@ -1,11 +1,10 @@
-import { Config } from "../../../config"
-import { list } from "./list"
-import { br } from "./basic"
-import { logo } from "./logo"
+import { Config } from "../../../config.js"
+import { list } from "./list.js"
+import { br } from "./basic.js"
+// import { logo } from "./logo.js"
 
 export const header = (config:Config) => {
 	return [
-		logo(),
 		br(),
 		list({
 			App: config.name,

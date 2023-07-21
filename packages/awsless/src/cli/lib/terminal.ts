@@ -1,5 +1,5 @@
-import { Interface } from "./interface"
-import { Renderer } from "./renderer"
+import { Interface } from './interface.js'
+import { Renderer } from './renderer.js'
 
 export type Terminal = {
 	in: Interface

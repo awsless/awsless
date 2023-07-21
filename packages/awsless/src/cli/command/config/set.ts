@@ -1,11 +1,11 @@
 import { Command } from "commander";
-import { Params } from "../../../util/param";
-import { dialog, loadingDialog } from "../../ui/layout/dialog";
-import { list } from "../../ui/layout/list";
-import { br } from "../../ui/layout/basic";
-import { textPrompt } from "../../ui/prompt/text";
-import { style } from "../../style";
-import { layout } from "../../ui/layout/layout";
+import { Params } from '../../../util/param.js';
+import { dialog, loadingDialog } from '../../ui/layout/dialog.js';
+import { list } from '../../ui/layout/list.js';
+import { br } from '../../ui/layout/basic.js';
+import { textPrompt } from '../../ui/prompt/text.js';
+import { style } from '../../style.js';
+import { layout } from '../../ui/layout/layout.js';
 
 export const set = (program: Command) => {
 	program

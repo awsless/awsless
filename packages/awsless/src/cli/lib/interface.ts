@@ -1,5 +1,5 @@
 import { ReadLine, createInterface, emitKeypressEvents } from "readline";
-import { debug } from "../logger";
+import { debug } from '../logger.js';
 import { exec } from "child_process";
 
 type Key = {

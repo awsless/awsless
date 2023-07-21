@@ -1,5 +1,5 @@
 import { Worker } from "worker_threads"
-import { Build } from "./build"
+import { Build } from './build.js'
 
 const cjs = typeof(require) !== 'undefined'
 const importESM = `

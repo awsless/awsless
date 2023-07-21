@@ -26,5 +26,5 @@ export const SizeSchema = z.custom<Size>((value) => {
 		// 	const number = parseInt(str)
 		// 	return number > 0
 		// }, 'Size must be greater then zero')
-		.safeParse(value)
+		.safeParse(value).success
 }, 'Invalid size').transform<CDKSize>(toSize)

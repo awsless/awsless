@@ -1,4 +1,4 @@
 
 export default (value:number) => {
-	return value + 2
+	return value + 3
 }

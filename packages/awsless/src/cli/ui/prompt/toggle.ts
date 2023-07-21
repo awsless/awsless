@@ -1,7 +1,7 @@
-import { RenderFactory } from "../../lib/renderer"
-import { Signal } from "../../lib/signal"
-import { style, symbol } from "../../style"
-import { br } from "../layout/basic"
+import { RenderFactory } from '../../lib/renderer.js'
+import { Signal } from '../../lib/signal.js'
+import { style, symbol } from '../../style.js'
+import { br } from '../layout/basic.js'
 
 export type TogglePromptOptions = {
 	initial?: boolean

@@ -1,5 +1,5 @@
 
-import { togglePrompt } from "./toggle"
+import { togglePrompt } from './toggle.js'
 
 export type ConfirmPromptOptions = {
 	initial?: boolean

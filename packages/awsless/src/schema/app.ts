@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { ResourceIdSchema } from "./resource-id";
-import { StackSchema } from "./stack";
-import { RegionSchema } from "./region";
-import { PluginSchema } from "./plugin";
+import { ResourceIdSchema } from './resource-id.js';
+import { StackSchema } from './stack.js';
+import { RegionSchema } from './region.js';
+import { PluginSchema } from './plugin.js';
 
 export const AppSchema = z.object({
 	name: ResourceIdSchema,

@@ -1,11 +1,11 @@
-import { definePlugin } from "../../plugin";
+import { definePlugin } from '../../plugin.js';
 import { z } from 'zod'
-import { ScheduleExpressionSchema } from "./schema/schedule";
+import { ScheduleExpressionSchema } from './schema/schedule.js';
 import { Rule } from "aws-cdk-lib/aws-events";
-import { toId, toName } from "../../util/resource";
-import { FunctionSchema, toFunction } from "../function";
+import { toId, toName } from '../../util/resource.js';
+import { FunctionSchema, toFunction } from '../function/index.js';
 import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
-import { ResourceIdSchema } from "../../schema/resource-id";
+import { ResourceIdSchema } from '../../schema/resource-id.js';
 
 export const cronPlugin = definePlugin({
 	name: 'cron',
@@ -36,12 +36,12 @@ export const cronPlugin = definePlugin({
 })
 
 
-// import { FunctionConfig, toFunction } from './function'
-// import { Context } from '../stack'
+// import { FunctionConfig, toFunction } from './function.js'
+// import { Context } from '../stack.js'
 // import { Rule, Schedule } from 'aws-cdk-lib/aws-events'
-// import { Duration } from '../util/duration'
+// import { Duration } from '../util/duration.js'
 // import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets'
-// import { toId, toName } from '../util/resource'
+// import { toId, toName } from '../util/resource.js'
 
 //
 // export const toCron = (ctx:Context, id:string, props:CronConfig) => {

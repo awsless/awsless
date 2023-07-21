@@ -1,7 +1,8 @@
 import { Schedule } from "aws-cdk-lib/aws-events"
-import { Duration } from "../../../schema/duration"
-import cron from 'cron-validate'
+import { Duration } from '../../../schema/duration.js'
 import { z } from "zod"
+// @ts-ignore
+import { awsCronExpressionValidator } from 'aws-cron-expression-validator'
 
 export type RateExpression = `rate(${ Duration })`
 export type CronExpression = `cron(${string} ${string} ${string} ${string} ${string} ${string})`
@@ -17,7 +18,7 @@ export const RateExpressionSchema = z.custom<RateExpression>((value) => {
 			const number = parseInt(str)
 			return number > 0
 		})
-		.safeParse(value)
+		.safeParse(value).success
 }, 'Invalid rate expression').transform(Schedule.expression)
 
 // TODO make a validation rule for cron expressions
@@ -25,12 +26,25 @@ export const CronExpressionSchema = z.custom<CronExpression>((value) => {
 	return z.string()
 		.startsWith('cron(')
 		.endsWith(')')
-		.refine(value => {
-			return cron(value.substring(5, -1), {
-				preset: 'aws-cloud-watch',
-			}).isValid
-		})
-		.safeParse(value)
-}, 'Invalid cron expression').transform((value) => Schedule.expression(value))
+		.safeParse(value).success
+}, 'Invalid cron expression').superRefine((value, ctx) => {
+	const cron = value.substring(5, value.length - 1)
+
+	try {
+		awsCronExpressionValidator(cron)
+	} catch(error) {
+		if(error instanceof Error) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: error.message,
+			})
+		} else {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: 'Invalid cron expression',
+			})
+		}
+	}
+}).transform(Schedule.expression)
 
 export const ScheduleExpressionSchema = RateExpressionSchema.or(CronExpressionSchema)

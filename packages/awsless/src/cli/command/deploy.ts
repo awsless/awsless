@@ -1,17 +1,19 @@
 import { Command } from "commander";
-import { toApp } from "../../app";
-import { debug, debugError } from "../logger";
-import { bootstrapDeployer } from "../ui/complex/bootstrap";
-import { layout } from "../ui/layout/layout";
-import { br } from "../ui/layout/basic";
-import { loadingDialog } from "../ui/layout/dialog";
-import { confirmPrompt } from "../ui/prompt/confirm";
-import { style } from "../style";
-import { Cancelled } from "../error";
-import { StackClient } from "../../stack/client";
-import { stackTree } from "../ui/complex/stack-tree";
-import { createDeploymentLine } from "../../util/deployment";
-import { Signal } from "../lib/signal";
+import { toApp } from '../../app.js';
+import { debug, debugError } from '../logger.js';
+import { bootstrapDeployer } from '../ui/complex/bootstrap.js';
+import { layout } from '../ui/layout/layout.js';
+import { br } from '../ui/layout/basic.js';
+import { loadingDialog } from '../ui/layout/dialog.js';
+import { confirmPrompt } from '../ui/prompt/confirm.js';
+import { style } from '../style.js';
+import { Cancelled } from '../error.js';
+import { StackClient } from '../../stack/client.js';
+import { stackTree } from '../ui/complex/stack-tree.js';
+import { createDeploymentLine } from '../../util/deployment.js';
+import { Signal } from '../lib/signal.js';
+import { assetBuilder } from "../ui/complex/asset.js";
+import { cleanUp } from "../../util/cleanup.js";
 
 export const deploy = (program: Command) => {
 	program
@@ -51,15 +53,19 @@ export const deploy = (program: Command) => {
 				// ---------------------------------------------------
 				// Building stack assets
 
-				const doneBuilding = write(loadingDialog('Building stack assets...'))
+				await cleanUp()
+				await write(assetBuilder(assets))
+				write(br())
 
-				await Promise.all(assets.map(async (_, assets) => {
-					await Promise.all(assets.map(async (asset) => {
-						await asset.build?.()
-					}))
-				}))
+				// const doneBuilding = write(loadingDialog('Building stack assets...'))
 
-				doneBuilding('Done building stack assets')
+				// await Promise.all(assets.map(async (_, assets) => {
+				// 	await Promise.all(assets.map(async (asset) => {
+				// 		await asset.build?.()
+				// 	}))
+				// }))
+
+				// doneBuilding('Done building stack assets')
 
 				// ---------------------------------------------------
 				// Publishing stack assets

@@ -1,7 +1,7 @@
-import { RenderFactory } from "../../lib/renderer"
-import { Signal, derive } from "../../lib/signal"
-import { style, symbol } from "../../style"
-import { br } from "../layout/basic"
+import { RenderFactory } from '../../lib/renderer.js'
+import { Signal, derive } from '../../lib/signal.js'
+import { style, symbol } from '../../style.js'
+import { br } from '../layout/basic.js'
 
 export type TextPromptOptions = {
 	// defaultValue?: string

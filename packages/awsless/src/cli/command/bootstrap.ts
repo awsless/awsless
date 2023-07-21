@@ -1,6 +1,6 @@
 import { Command } from "commander";
-import { bootstrapDeployer } from "../ui/complex/bootstrap";
-import { layout } from "../ui/layout/layout";
+import { bootstrapDeployer } from '../ui/complex/bootstrap.js';
+import { layout } from '../ui/layout/layout.js';
 
 export const bootstrap = (program: Command) => {
 	program

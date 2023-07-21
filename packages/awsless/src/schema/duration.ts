@@ -39,5 +39,5 @@ export const DurationSchema = z.custom<Duration>((value) => {
 		// 	const number = parseInt(str)
 		// 	return number > 0
 		// }, 'Duration must be greater then zero')
-		.safeParse(value)
+		.safeParse(value).success
 }, 'Invalid duration').transform<CDKDuration>(toDuration)

@@ -1,13 +1,13 @@
 
 import JSZip from 'jszip'
-import { functionDir } from '../../../util/path'
+import { functionDir } from '../../../util/path.js'
 import { Stack } from 'aws-cdk-lib'
 import { basename, join } from 'path'
 import { mkdir, writeFile } from 'fs/promises'
-import { Config } from '../../../config'
-import { debug } from '../../../cli/logger'
+import { Config } from '../../../config.js'
+import { debug } from '../../../cli/logger.js'
 import { filesize } from 'filesize'
-import { style } from '../../../cli/style'
+import { style } from '../../../cli/style.js'
 
 export type File = {
 	name: string
@@ -25,13 +25,7 @@ const zipFiles = (files: File[]) => {
 	const zip = new JSZip()
 
 	for(const file of files) {
-		zip.file(file.name, file.code, {
-			// compression: ''
-			// compression: 'DEFLATE',
-			// compressionOptions: {
-			// 	level: 9
-			// }
-		})
+		zip.file(file.name, file.code)
 	}
 
 	return zip.generateAsync({

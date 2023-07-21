@@ -1,7 +1,8 @@
-import { StackConfig } from "../schema/stack"
+import { StackConfig } from '../schema/stack.js'
 
 export type AssetDetails = Record<string, string>
 export type AssetOptions = {
+	id:	number
 	stack: StackConfig
 	resource: string
 	resourceName: string
@@ -10,14 +11,18 @@ export type AssetOptions = {
 }
 
 export class Assets {
-	private assets: Record<string, AssetOptions[]> = {}
+	private assets: Record<string, (AssetOptions & {id:number})[]> = {}
+	private id = 0
 
-	add(opts:AssetOptions) {
+	add(opts:Omit<AssetOptions, 'id'>) {
 		if(!this.assets[opts.stack.name]) {
 			this.assets[opts.stack.name] = []
 		}
 
-		this.assets[opts.stack.name].push(opts)
+		this.assets[opts.stack.name].push({
+			...opts,
+			id: this.id++,
+		})
 	}
 
 	list() {

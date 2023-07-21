@@ -1,21 +1,20 @@
 
-import { StackContext, definePlugin } from "../../plugin";
+import { StackContext, definePlugin } from '../../plugin.js';
 import { z } from 'zod'
-import { toId, toName } from "../../util/resource";
-import { DurationSchema } from "../../schema/duration";
-import { LocalFileSchema } from "../../schema/local-file";
+import { toId, toName } from '../../util/resource.js';
+import { DurationSchema } from '../../schema/duration.js';
+import { LocalFileSchema } from '../../schema/local-file.js';
 import { CfnFunction, Code, Function } from "aws-cdk-lib/aws-lambda";
-import { RuntimeSchema } from "./schema/runtime";
-import { ArchitectureSchema } from "./schema/architecture";
-import { ResourceIdSchema } from "../../schema/resource-id";
-import { SizeSchema } from "../../schema/size";
-import { defaultBuild } from "./util/build-worker";
-import { writeBuildFiles, writeBuildHash } from "./util/build";
-import { publishFunctionAsset } from "./util/publish";
-import { assetBucketName } from "../../stack/bootstrap";
-import { RetryAttempts } from "./schema/retry-attempts";
-import { filesize } from "filesize";
-import { style } from "../../cli/style";
+import { RuntimeSchema } from './schema/runtime.js';
+import { ArchitectureSchema } from './schema/architecture.js';
+import { ResourceIdSchema } from '../../schema/resource-id.js';
+import { SizeSchema } from '../../schema/size.js';
+import { defaultBuild } from './util/build-worker.js';
+import { writeBuildFiles, writeBuildHash } from './util/build.js';
+import { publishFunctionAsset } from './util/publish.js';
+import { assetBucketName } from '../../stack/bootstrap.js';
+import { RetryAttempts } from './schema/retry-attempts.js';
+import { formatByteSize } from '../../util/byte-size.js';
 
 	// timeout?: Duration
 	// runtime?: Runtime
@@ -111,7 +110,7 @@ export const toFunction = (
 			func.handler = result.handler
 
 			return {
-				fileSize: style.attr(filesize(bundle.size))
+				size: formatByteSize(bundle.size)
 			}
 		},
 		async publish() {
@@ -132,21 +131,21 @@ export const toFunction = (
 
 
 // import { Architecture, Function, CfnFunction, Code, EventInvokeConfigOptions } from 'aws-cdk-lib/aws-lambda'
-// import { Duration, toDuration } from '../../util/duration'
-// import { Runtime, toRuntime } from './runtime'
-// import { toArchitecture } from './architecture'
-// import { Size, toSize } from '../../util/size'
-// import { Build, writeBuildFiles, writeBuildHash } from './build'
-// import { Context } from '../../stack'
+// import { Duration, toDuration } from '../../util/duration.js'
+// import { Runtime, toRuntime } from './runtime.js'
+// import { toArchitecture } from './architecture.js'
+// import { Size, toSize } from '../../util/size.js'
+// import { Build, writeBuildFiles, writeBuildHash } from './build.js'
+// import { Context } from '../../stack.js'
 // import { SnsDestination } from 'aws-cdk-lib/aws-lambda-destinations'
 // import { Topic } from 'aws-cdk-lib/aws-sns'
-// import { addResourceEnvironment, toArn, toId, toName } from '../../util/resource'
-// import { findAllTopicIds } from '../../stack/global'
-// import { publishFunctionAsset } from './publish'
-// import { assetBucketName } from '../../stack/bootstrap'
-// import { defaultBuild } from './build-worker'
-// // import { debug } from '../../cli/logger'
-// // import { style } from '../../cli/style'
+// import { addResourceEnvironment, toArn, toId, toName } from '../../util/resource.js'
+// import { findAllTopicIds } from '../../stack/global.js'
+// import { publishFunctionAsset } from './publish.js'
+// import { assetBucketName } from '../../stack/bootstrap.js'
+// import { defaultBuild } from './build-worker.js'
+// // import { debug } from '../../cli/logger.js'
+// // import { style } from '../../cli/style.js'
 
 // export type FunctionDefaults = {
 // 	timeout?: Duration

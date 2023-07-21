@@ -1,14 +1,14 @@
 
-import { definePlugin } from "../plugin";
+import { definePlugin } from '../plugin.js';
 import { z } from 'zod'
-import { addResourceEnvironment, toId, toName } from "../util/resource";
-import { FunctionSchema, toFunction } from "./function";
-import { ResourceIdSchema } from "../schema/resource-id";
-import { DurationSchema } from "../schema/duration";
-import { SizeSchema } from "../schema/size";
+import { addResourceEnvironment, toId, toName } from '../util/resource.js';
+import { FunctionSchema, toFunction } from './function/index.js';
+import { ResourceIdSchema } from '../schema/resource-id.js';
+import { DurationSchema } from '../schema/duration.js';
+import { SizeSchema } from '../schema/size.js';
 import { Queue } from "aws-cdk-lib/aws-sqs";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
-import { LocalFileSchema } from "../schema/local-file";
+import { LocalFileSchema } from '../schema/local-file.js';
 
 export const queuePlugin = definePlugin({
 	name: 'queue',
@@ -38,9 +38,9 @@ export const queuePlugin = definePlugin({
 			])).optional()
 		}).array()
 	}),
-	onStack(context) {
-		const { stack, config } = context
-		return Object.entries(context.stackConfig.queues || {}).map(([ id, functionOrProps ]) => {
+	onStack(ctx) {
+		const { stack, config, stackConfig, bind } = ctx
+		return Object.entries(stackConfig.queues || {}).map(([ id, functionOrProps ]) => {
 
 			const props = typeof functionOrProps === 'string'
 				? { ...config.defaults.queue, consumer: functionOrProps }
@@ -52,11 +52,11 @@ export const queuePlugin = definePlugin({
 				maxMessageSizeBytes: props.maxMessageSize.toBytes()
 			})
 
-			const lambda = toFunction(context as any, id, props.consumer)
+			const lambda = toFunction(ctx as any, id, props.consumer)
 			lambda.addEventSource(new SqsEventSource(queue))
 			// queue.grantConsumeMessages(lambda)
 
-			context.bind(lambda => {
+			bind(lambda => {
 				queue.grantSendMessages(lambda)
 				addResourceEnvironment(stack, 'queue', id, lambda)
 			})
@@ -67,14 +67,14 @@ export const queuePlugin = definePlugin({
 })
 
 
-// import { Duration, toDuration } from '../util/duration'
-// import { FunctionConfig, toFunction } from './function'
+// import { Duration, toDuration } from '../util/duration.js'
+// import { FunctionConfig, toFunction } from './function.js'
 // import { Queue } from 'aws-cdk-lib/aws-sqs'
-// import { Size, toSize } from '../util/size'
-// import { Context } from '../stack'
+// import { Size, toSize } from '../util/size.js'
+// import { Context } from '../stack.js'
 // import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
 // import { Function } from 'aws-cdk-lib/aws-lambda'
-// import { addResourceEnvironment, toId, toName } from '../util/resource'
+// import { addResourceEnvironment, toId, toName } from '../util/resource.js'
 
 // export type QueueDefaults = {
 // 	fifo?: boolean

@@ -1,13 +1,15 @@
 import { Command } from "commander";
-import { toApp } from "../../app";
-import { StackClient } from "../../stack/client";
-import { debug } from "../logger";
-import { stackTree } from "../ui/complex/stack-tree";
-import { dialog, loadingDialog } from "../ui/layout/dialog";
-import { br } from "../ui/layout/basic";
-import { style } from "../style";
-import { layout } from "../ui/layout/layout";
-import { Signal } from "../lib/signal";
+import { toApp } from "../../app.js";
+import { StackClient } from "../../stack/client.js";
+import { debug } from "../logger.js";
+import { stackTree } from "../ui/complex/stack-tree.js";
+import { dialog, loadingDialog } from "../ui/__components/dialog.js";
+import { br } from "../ui/__components/basic.js";
+import { style } from "../style.js";
+import { layout } from "../ui/layout/layout.js";
+import { Signal } from "../lib/signal.js";
+import { assetBuilder } from "../ui/complex/asset.js";
+import { cleanUp } from "../../util/cleanup.js";
 
 export const status = (program: Command) => {
 	program
@@ -21,12 +23,24 @@ export const status = (program: Command) => {
 				// --------------------------------------------------------
 				// Build stack assets
 
-				const doneBuilding = write(loadingDialog('Building stack assets...'))
+				await cleanUp()
+				await write(assetBuilder(assets))
 
-				// await tasks.run('build')
+				write(br())
+
 				const assembly = app.synth()
 
-				doneBuilding('Done building stack assets')
+				// const doneBuilding = write(loadingDialog('Building stack assets...'))
+
+				// await Promise.all(assets.map(async (stack, assets) => {
+				// 	await Promise.all(assets.map(async asset => {
+				// 		await asset.build?.()
+				// 	}))
+				// }))
+
+				// const assembly = app.synth()
+
+				// doneBuilding('Done building stack assets')
 
 				// --------------------------------------------------------
 				// Get stack statuses

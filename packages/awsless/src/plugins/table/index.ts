@@ -1,13 +1,13 @@
 
-import { definePlugin } from "../../plugin";
+import { definePlugin } from '../../plugin.js';
 import { z } from 'zod'
-import { addResourceEnvironment, toId, toName } from "../../util/resource";
-import { ResourceIdSchema } from "../../schema/resource-id";
+import { addResourceEnvironment, toId, toName } from '../../util/resource.js';
+import { ResourceIdSchema } from '../../schema/resource-id.js';
 import { BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
-import { TableClassSchema } from "./schema/class-type";
-import { AttributeSchema } from "./schema/attribute";
-import { KeySchema } from "./schema/key";
-import { ProjectionTypeSchema } from "./schema/projection-type";
+import { TableClassSchema } from './schema/class-type.js';
+import { AttributeSchema } from './schema/attribute.js';
+import { KeySchema } from './schema/key.js';
+import { ProjectionTypeSchema } from './schema/projection-type.js';
 
 export const tablePlugin = definePlugin({
 	name: 'table',

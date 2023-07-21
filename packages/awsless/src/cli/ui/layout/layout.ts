@@ -1,15 +1,17 @@
-import { footer } from "./footer"
-import { ProgramOptions, program } from "../../program"
-import { Config, importConfig } from "../../../config"
-import { header } from "./header"
-import { dialog } from "./dialog"
-import { debug, debugError } from "../../logger"
-import { Terminal, createTerminal } from "../../lib/terminal"
-import { Renderer } from "../../lib/renderer"
+import { footer } from "./footer.js"
+import { ProgramOptions, program } from "../../program.js"
+import { Config, importConfig } from "../../../config.js"
+import { header } from "./header.js"
+import { dialog } from "./dialog.js"
+import { debug, debugError } from "../../logger.js"
+import { Terminal, createTerminal } from "../../lib/terminal.js"
+import { Renderer } from "../../lib/renderer.js"
+import { logo } from "./logo.js"
 
 export const layout = async (cb:(config:Config, write: Renderer['write'], term: Terminal) => Promise<void> | void) => {
 	const term = createTerminal()
 	term.out.clear()
+	term.out.write(logo())
 
 	try {
 		const options = program.optsWithGlobals() as ProgramOptions

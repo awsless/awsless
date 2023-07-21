@@ -1,10 +1,10 @@
 import { Stack } from "aws-cdk-lib";
-import { Config } from "../../../config";
-import { functionDir } from "../../../util/path";
+import { Config } from '../../../config.js';
+import { functionDir } from '../../../util/path.js';
 import { join } from "path";
 import { readFile } from "fs/promises";
 import { GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client, StorageClass } from "@aws-sdk/client-s3";
-import { assetBucketName } from "../../../stack/bootstrap";
+import { assetBucketName } from '../../../stack/bootstrap.js';
 
 export const publishFunctionAsset = async (config: Config, stack: Stack, id: string) => {
 	const bucket = assetBucketName(config)
@@ -15,7 +15,7 @@ export const publishFunctionAsset = async (config: Config, stack: Stack, id: str
 	const hashFile = join(funcPath, 'HASH')
 
 	const hash = await readFile(hashFile, 'utf8')
-	const file = await readFile(bundleFile, 'utf8')
+	const file = await readFile(bundleFile)
 
 	const client = new S3Client({
 		credentials: config.credentials,

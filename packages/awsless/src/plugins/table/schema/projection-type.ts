@@ -1,6 +1,6 @@
 import { ProjectionType } from "aws-cdk-lib/aws-dynamodb"
 import { z } from "zod"
-import { KeySchema } from "./key"
+import { KeySchema } from './key.js'
 
 const types = {
 	'all': ProjectionType.ALL,
