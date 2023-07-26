@@ -24,6 +24,7 @@ export class Params {
 	async get(name: string) {
 		debug('Get remote config value')
 		debug('Name:', style.info(name))
+
 		let result
 		try {
 			result = await this.client.send(new GetParameterCommand({

@@ -47,9 +47,10 @@ export type Plugin<S extends AnyZodObject | undefined = undefined> = {
 	name: string
 	schema?: S
 	// depends?: D
-	onBootstrap?: (config: BootstrapContext<S>) => void
+	// onAssets?: (context: BootstrapContext<S>) => Promise<void> | void
+	onBootstrap?: (context: BootstrapContext<S>) => Function[] | void
 	onStack?: (context: StackContext<S>) => Function[] | void
-	onApp?: (config:AppContext<S>) => void
+	onApp?: (context:AppContext<S>) => void
 }
 
 export const definePlugin = <

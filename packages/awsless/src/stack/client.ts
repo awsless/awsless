@@ -138,7 +138,7 @@ export class StackClient {
 			outputs[output.OutputKey!] = output.OutputValue!
 		})
 
-		debug('Status for: ', style.info(name), 'is', stack.StackStatus!)
+		debug('Status for:', style.info(name), 'is', style.attr(stack.StackStatus!))
 
 		return {
 			status: stack.StackStatus!,

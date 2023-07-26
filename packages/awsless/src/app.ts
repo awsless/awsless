@@ -55,6 +55,10 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 	// ---------------------------------------------------------------
 
+	const bootstrap = appBootstrapStack({ config, app, assets })
+
+	// ---------------------------------------------------------------
+
 	debug('Stack filters:', filters.map(filter => style.info(filter)).join(', '))
 
 	const filterdStacks = (
@@ -66,10 +70,8 @@ export const toApp = async (config:Config, filters:string[]) => {
 		)
 	)
 
-	// debug('Found stacks:', filterdStacks)
-
 	for(const stackConfig of filterdStacks) {
-		const { stack } = toStack({
+		const { stack, bindings } = toStack({
 			config,
 			stackConfig,
 			assets,
@@ -78,6 +80,11 @@ export const toApp = async (config:Config, filters:string[]) => {
 		})
 
 		stacks.push({ stack, config: stackConfig })
+
+		// ---------------------------------------------------------------
+		// Link all stack resources to our bootstrap lambda function's
+
+		bindings.forEach(cb => bootstrap.functions.forEach(cb))
 	}
 
 	// ---------------------------------------------------------------
@@ -85,23 +92,16 @@ export const toApp = async (config:Config, filters:string[]) => {
 	// dependency tree
 
 	let dependencyTree:StackNode[]
-	const bootstrap = appBootstrapStack({ config, app, assets })
 
-	if(bootstrap.node.children.length === 0) {
+	if(bootstrap.stack.node.children.length === 0) {
 		dependencyTree = createDependencyTree(stacks, 0)
 	} else {
 		dependencyTree = [{
-			stack: bootstrap,
+			stack: bootstrap.stack,
 			level: 0,
 			children: createDependencyTree(stacks, 1)
 		}]
 	}
-
-	// dependencyTree = [{
-	// 	stack: bootstrap,
-	// 	level: 0,
-	// 	children: createDependencyTree(stacks)
-	// }]
 
 	return {
 		app,

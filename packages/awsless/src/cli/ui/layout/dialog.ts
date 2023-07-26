@@ -1,29 +1,36 @@
+import { createTimer } from "../../../util/timer.js"
 import { RenderFactory } from "../../lib/renderer.js"
 import { Signal } from "../../lib/signal.js"
 import { style, symbol } from "../../style.js"
 import { br } from "./basic.js"
 import { createSpinner } from "./spinner.js"
+import wrapAnsi from 'wrap-ansi'
 
 type Type = keyof typeof symbol & keyof typeof style
 
-export const dialog = (type: Type, lines: string[]) => {
+export const dialog = (type: Type, lines: string[]):RenderFactory => {
 	const padding = 3
 	const icon = style[type](symbol[type].padEnd(padding))
+	// const value = [
+	// 	icon, ' '
+	// ]
 
-	return lines.map((line, i) => {
-		if(i === 0) {
-			return icon + line
-		} else {
-			return ' '.repeat(padding) + line
-		}
-	}).join(br()) + br()
+	return (term) => {
+		term.out.write(lines.map((line, i) => {
+			if(i === 0) {
+				return icon + wrapAnsi(line, term.out.width(), { hard: true })
+			}
+
+			return wrapAnsi(' '.repeat(padding) + line, term.out.width(), { hard: true })
+		}).join(br()) + br())
+	}
 }
 
 export const loadingDialog = (message: string): RenderFactory<(message:string) => void> => {
 	const [ icon, stop ] = createSpinner()
 	const description = new Signal(message)
 	const time = new Signal<string>('')
-	const start = new Date()
+	const timer = createTimer()
 
 	return (term) => {
 		term.out.write([
@@ -36,11 +43,8 @@ export const loadingDialog = (message: string): RenderFactory<(message:string) =
 		])
 
 		return (message) => {
-			const end = new Date()
-			const diff = end.getTime() - start.getTime()
-
 			description.set(message)
-			time.set(style.attr(diff) + style.attr.dim('ms'))
+			time.set(timer())
 
 			stop()
 			icon.set(style.success(symbol.success))

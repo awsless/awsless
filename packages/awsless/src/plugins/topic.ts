@@ -1,13 +1,13 @@
 
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js';
-import { toId } from '../util/resource.js';
+import { addResourceEnvironment, toId } from '../util/resource.js';
 import { ResourceIdSchema } from '../schema/resource-id.js';
 import { FunctionSchema, toFunction } from './function/index.js';
 import { Topic } from 'aws-cdk-lib/aws-sns';
 import { SnsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import { Arn, ArnFormat } from 'aws-cdk-lib';
-import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+// import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 export const topicPlugin = definePlugin({
 	name: 'topic',
@@ -34,13 +34,6 @@ export const topicPlugin = definePlugin({
 	onStack(ctx) {
 		const { config, stack, stackConfig, bind } = ctx
 
-		bind(lambda => {
-			lambda.addToRolePolicy(new PolicyStatement({
-				actions: [ 'sns:publish' ],
-				resources: [ '*' ],
-			}))
-		})
-
 		return Object.entries(stackConfig.topics || {}).map(([ id, props ]) => {
 			const lambda = toFunction(ctx as any, id, props)
 
@@ -55,6 +48,15 @@ export const topicPlugin = definePlugin({
 			)
 
 			lambda.addEventSource(new SnsEventSource(topic))
+
+			bind(lambda => {
+				addResourceEnvironment(stack, 'topic', id, lambda)
+				topic.grantPublish(lambda)
+				// lambda.addToRolePolicy(new PolicyStatement({
+				// 	actions: [ 'sns:publish' ],
+				// 	resources: [ '*' ],
+				// }))
+			})
 
 			// topic.grantPublish(lambda)
 			return lambda

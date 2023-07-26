@@ -71,6 +71,15 @@ export class Interface {
 		if(this.input.isTTY) {
 			this.input.setRawMode(true)
 		}
+
+		this.input.on('keypress', (_, key:Key) => {
+			const action = parseAction(key)
+
+			if(action === 'abort') {
+				this.unref()
+				process.exit(1)
+			}
+		})
 	}
 
 	unref() {
@@ -87,11 +96,6 @@ export class Interface {
 			if(typeof action === 'undefined') {
 				// do something ???
 				this.bell()
-			}
-			else if(action === 'abort') {
-				this.showCursor()
-				// this.renderer.output.write('\n')
-				process.exit(1)
 			}
 			else {
 				const cb = actions[action]

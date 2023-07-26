@@ -1,5 +1,5 @@
 
-import { StackContext, definePlugin } from '../../plugin.js';
+import { ExtendedConfigOutput, definePlugin } from '../../plugin.js';
 import { z } from 'zod'
 import { toId, toName } from '../../util/resource.js';
 import { DurationSchema } from '../../schema/duration.js';
@@ -9,12 +9,14 @@ import { RuntimeSchema } from './schema/runtime.js';
 import { ArchitectureSchema } from './schema/architecture.js';
 import { ResourceIdSchema } from '../../schema/resource-id.js';
 import { SizeSchema } from '../../schema/size.js';
-import { defaultBuild } from './util/build-worker.js';
+import { defaultBuild } from './util/esbuild-build-worker.js';
 import { writeBuildFiles, writeBuildHash } from './util/build.js';
 import { publishFunctionAsset } from './util/publish.js';
 import { assetBucketName } from '../../stack/bootstrap.js';
 import { RetryAttempts } from './schema/retry-attempts.js';
 import { formatByteSize } from '../../util/byte-size.js';
+import { Stack } from 'aws-cdk-lib';
+import { Assets } from '../../util/assets.js';
 
 	// timeout?: Duration
 	// runtime?: Runtime
@@ -70,7 +72,7 @@ export const functionPlugin = definePlugin({
 })
 
 export const toFunction = (
-	{ config, stack, stackConfig, assets }: StackContext<typeof schema>,
+	{ config, stack, assets }: { config: ExtendedConfigOutput<typeof schema>, stack: Stack, assets: Assets },
 	id: string,
 	fileOrProps:z.infer<typeof FunctionSchema>
 ) => {
@@ -88,7 +90,7 @@ export const toFunction = (
 
 	lambda.addEnvironment('APP', config.name, { removeInEdge: true })
 	lambda.addEnvironment('STAGE', config.stage, { removeInEdge: true })
-	lambda.addEnvironment('STACK', stackConfig.name, { removeInEdge: true })
+	lambda.addEnvironment('STACK', stack.artifactId, { removeInEdge: true })
 
 	if (lambda.runtime.toString().startsWith('nodejs')) {
 		lambda.addEnvironment('AWS_NODEJS_CONNECTION_REUSE_ENABLED', '1', {
@@ -97,7 +99,7 @@ export const toFunction = (
 	}
 
 	assets.add({
-		stack: stackConfig,
+		stackName: stack.artifactId,
 		resource: 'function',
 		resourceName: id,
 		async build() {

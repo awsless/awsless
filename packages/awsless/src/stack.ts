@@ -62,7 +62,7 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 	// debug('STACK STUFF', stackConfig.name, stack.node.children.length)
 
 	// ------------------------------------------------------
-	// Grant access to all lambda functions
+	// Grant access to all stack lambda functions
 	// ------------------------------------------------------
 
 	bindings.forEach(cb => functions.forEach(cb))
@@ -78,6 +78,9 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 		],
 		resources: [
 			Arn.format({
+				region: config.region,
+				account: config.account,
+				partition: 'aws',
 				service: 'ssm',
 				resource: 'parameter',
 				resourceName: configParameterPrefix(config),
@@ -90,6 +93,8 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 
 	return {
 		stack,
+		functions,
+		bindings,
 		depends: stackConfig.depends,
 	}
 }

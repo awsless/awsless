@@ -4,10 +4,10 @@ import { Plugin } from '../plugin.js'
 export const PluginSchema: z.ZodType<Plugin<AnyZodObject | undefined>, z.ZodTypeDef, Plugin<AnyZodObject | undefined>> = z.object({
 	name: z.string(),
 	schema: z.custom<AnyZodObject>().optional(),
-	depends: z.array(z.lazy(() => PluginSchema)).optional(),
-	onBootstrap: z.function().optional(),
+	// depends: z.array(z.lazy(() => PluginSchema)).optional(),
+	onBootstrap: z.function().returns(z.any()).optional(),
 	onStack: z.function().returns(z.any()).optional(),
-	onApp: z.function().optional(),
+	onApp: z.function().returns(z.void()).optional(),
 	// bind: z.function().optional(),
 })
 

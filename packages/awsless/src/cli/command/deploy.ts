@@ -55,6 +55,8 @@ export const deploy = (program: Command) => {
 
 				await cleanUp()
 				await write(assetBuilder(assets))
+
+				write(br())
 				write(br())
 
 				// const doneBuilding = write(loadingDialog('Building stack assets...'))
@@ -93,6 +95,7 @@ export const deploy = (program: Command) => {
 
 				write(br())
 				write(stackTree(dependencyTree, statuses))
+				write(br())
 
 				const client = new StackClient(config)
 				const deploymentLine = createDeploymentLine(dependencyTree)
@@ -100,20 +103,27 @@ export const deploy = (program: Command) => {
 				// debug('TEST', deploymentLine.map(stacks => stacks.length))
 
 				for(const stacks of deploymentLine) {
-					await Promise.allSettled(stacks.map(async stack => {
+					const results = await Promise.allSettled(stacks.map(async stack => {
+						const signal = statuses[stack.artifactId]
 						const stackArtifect = assembly.stacks.find((item) => item.id === stack.artifactId)!
-						statuses[stack.artifactId].set(style.warning('deploying'))
+						signal.set(style.warning('deploying'))
 
 						try {
 							await client.deploy(stackArtifect)
 						} catch(error) {
 							debugError(error)
-							statuses[stack.artifactId].set(style.error('failed'))
+							signal.set(style.error('failed'))
 							throw error
 						}
 
-						statuses[stack.artifactId].set(style.success('deployed'))
+						signal.set(style.success('deployed'))
 					}))
+
+					for(const result of results) {
+						if(result.status === 'rejected') {
+							throw result.reason
+						}
+					}
 				}
 
 				doneDeploying('Done deploying stacks to AWS')

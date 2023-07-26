@@ -4,12 +4,16 @@ import { ProgramOptions } from './cli/program.js'
 import { getAccountId } from './util/account.js'
 import { Credentials, getCredentials } from './util/credentials.js'
 import { debug } from './cli/logger.js'
-import { load } from 'ts-import'
+// import { LoadMode, load } from 'ts-import'
 import { style } from './cli/style.js'
 import { AppConfigInput, AppConfigOutput, AppSchema } from './schema/app.js'
 import { ExtendedConfigOutput } from './plugin.js'
 import { defaultPlugins } from './plugins/index.js'
-import { outDir } from './util/path.js'
+// import { LoadMode, load } from "ts-import"
+// import { outDir } from './util/path.js'
+// import { transformFile } from '@swc/core'
+import { importFile } from "./util/import.js"
+// import { outDir } from "./util/path.js"
 
 export type BaseConfig = AppConfigOutput & {
 	account: string
@@ -29,13 +33,7 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 	debug('Import config file')
 
 	const fileName = join(process.cwd(), options.configFile || 'awsless.config.ts')
-	const module: Module = await load(fileName, {
-		transpileOptions: {
-			cache: {
-				dir: join(outDir, 'config')
-			}
-		}
-	})
+	const module: Module = await importFile(fileName)
 
 	const appConfig = typeof module.default === 'function' ? (await module.default({
 		profile: options.profile,
@@ -60,7 +58,7 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 	}
 
 	const config = await schema.parseAsync(appConfig)
-	debug('Final config:', config.stacks);
+	// debug('Final config:', config.stacks);
 
 	debug('Load credentials', style.info(config.profile))
 	const credentials = getCredentials(config.profile)

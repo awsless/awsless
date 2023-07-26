@@ -1,4 +1,5 @@
 import { Assets } from "../../../util/assets.js"
+import { createTimer } from "../../../util/timer.js"
 import { RenderFactory } from "../../lib/renderer.js"
 import { Signal, derive } from "../../lib/signal.js"
 import { style, symbol } from "../../style.js"
@@ -15,26 +16,27 @@ export const assetBuilder = (assets:Assets):RenderFactory => {
 		term.out.write(groups)
 
 		const stackNameSize = Math.max(...Object.keys(assets.list()).map(stack => stack.length))
+		const resourceSize = Math.max(...Object.values(assets.list()).map(assets => assets.map(asset => asset.resource.length)).flat())
 
-		await Promise.all(assets.map(async (stack, assets) => {
+		await Promise.all(assets.map(async (stackName, assets) => {
 			const group = new Signal<Array<string | Signal>>([])
 
 			groups.update(groups => [ ...groups, group ])
 
 			await Promise.all(assets.map(async (asset) => {
 				const [ icon, stop ] = createSpinner()
-				const start = new Date()
 				const details = new Signal<Record<string, string>>({})
 
 				const line = flexLine(term, [
 					icon,
 					'  ',
-					style.label(stack.name),
-					' '.repeat(stackNameSize - stack.name.length),
+					style.label(stackName),
+					' '.repeat(stackNameSize - stackName.length),
 					' ',
 					style.placeholder(symbol.pointerSmall),
 					' ',
 					style.warning(asset.resource),
+					' '.repeat(resourceSize - asset.resource.length),
 					' ',
 					style.placeholder(symbol.pointerSmall),
 					' ',
@@ -44,7 +46,7 @@ export const assetBuilder = (assets:Assets):RenderFactory => {
 					' ',
 					derive([ details ], (details) => {
 						return Object.entries(details).map(([key, value]) => {
-							return `${style.label(key)}: ${value}`
+							return `${style.label(key)} ${value}`
 						}).join(' / ')
 					}),
 					br(),
@@ -52,24 +54,14 @@ export const assetBuilder = (assets:Assets):RenderFactory => {
 
 				group.update(group => [...group, line])
 
+				const timer = createTimer()
 				const data = await asset.build?.()
-				const time = new Date().getTime() - start.getTime()
 
 				details.set({
 					...data,
-					time: style.attr(time) + style.attr.dim('ms')
+					time: timer()
 				})
 
-
-				// time.set(' / ' + style.attr(diff) + style.attr.dim('ms'))
-
-				// if(data) {
-				// 	details.set(Object.entries(data).map(([key, value]) => {
-				// 		return ` / ${style.label(key)}: ${style.info(value)}`
-				// 	}).join(' / '))
-				// }
-
-				// status.set(style.success('done'))
 				icon.set(style.success(symbol.success))
 				stop()
 			}))

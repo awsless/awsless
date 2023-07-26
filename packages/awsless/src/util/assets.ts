@@ -1,13 +1,13 @@
-import { StackConfig } from '../schema/stack.js'
 
 export type AssetDetails = Record<string, string>
 export type AssetOptions = {
 	id:	number
-	stack: StackConfig
+	stackName: string
 	resource: string
 	resourceName: string
 	build?: () => Promise<AssetDetails | void> | AssetDetails | void
 	publish?: () => Promise<AssetDetails | void> | AssetDetails | void
+	clean?: () => Promise<void> | void
 }
 
 export class Assets {
@@ -15,11 +15,11 @@ export class Assets {
 	private id = 0
 
 	add(opts:Omit<AssetOptions, 'id'>) {
-		if(!this.assets[opts.stack.name]) {
-			this.assets[opts.stack.name] = []
+		if(!this.assets[opts.stackName]) {
+			this.assets[opts.stackName] = []
 		}
 
-		this.assets[opts.stack.name].push({
+		this.assets[opts.stackName].push({
 			...opts,
 			id: this.id++,
 		})
@@ -29,15 +29,15 @@ export class Assets {
 		return this.assets
 	}
 
-	forEach(cb:(stack:StackConfig, assets:AssetOptions[]) => void) {
+	forEach(cb:(stackName:string, assets:AssetOptions[]) => void) {
 		Object.values(this.assets).forEach(assets => {
-			cb(assets[0].stack, assets)
+			cb(assets[0].stackName, assets)
 		})
 	}
 
-	map(cb:(stack:StackConfig, assets:AssetOptions[]) => Promise<void>) {
+	map(cb:(stackName:string, assets:AssetOptions[]) => Promise<void>) {
 		return Object.values(this.assets).map(assets => {
-			return cb(assets[0].stack, assets)
+			return cb(assets[0].stackName, assets)
 		})
 	}
 }

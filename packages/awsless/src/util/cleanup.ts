@@ -1,5 +1,5 @@
 import { mkdir, rm } from "fs/promises"
-import { assemblyDir, functionDir } from "./path.js"
+import { assemblyDir, assetDir, cacheDir } from "./path.js"
 import { debug } from "../cli/logger.js"
 
 export const cleanUp = async () => {
@@ -8,7 +8,8 @@ export const cleanUp = async () => {
 
 	const paths = [
 		assemblyDir,
-		functionDir,
+		assetDir,
+		cacheDir,
 	]
 
 	// remove

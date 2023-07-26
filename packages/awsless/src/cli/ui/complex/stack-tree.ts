@@ -48,10 +48,8 @@ export const stackTree = (nodes:StackNode[], statuses:Record<string, Signal<stri
 					style.info(id),
 					' ',
 				],[
-					// style.placeholder(' [ '),
 					' ',
 					status,
-					// style.placeholder(' ] '),
 					br(),
 				])
 

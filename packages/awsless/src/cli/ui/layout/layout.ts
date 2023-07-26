@@ -42,6 +42,6 @@ export const layout = async (cb:(config:Config, write: Renderer['write'], term: 
 
 		setTimeout(() => {
 			process.exit(0)
-		}, 50)
+		}, 100)
 	}
 }

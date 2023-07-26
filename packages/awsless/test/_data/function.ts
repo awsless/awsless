@@ -1,4 +1,5 @@
+import { add } from "./lib/include"
 
 export default (value:number) => {
-	return value + 3
+	return add(value)
 }

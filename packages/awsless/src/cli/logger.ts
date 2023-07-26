@@ -11,8 +11,6 @@ export const debugError = (error:unknown) => {
 	queue.push({
 		date: new Date(),
 		type: style.error.dim('error'),
-		// color: 'red',
-		// type: 'error',
 		message: (
 			typeof error === 'string'
 			? error
@@ -27,8 +25,6 @@ export const debug = (...parts:unknown[]) => {
 	queue.push({
 		date: new Date(),
 		type: style.warning.dim('debug'),
-		// color: 'yellow',
-		// type: 'debug',
 		message: parts.map(part => typeof part === 'string' ? part : JSON.stringify(part)).join(' '),
 	})
 }
