@@ -12,10 +12,10 @@ const commands = [
 	list,
 ]
 
-export const config = (program: Command) => {
+export const secrets = (program: Command) => {
 	const command = program
-		.command('config')
-		.description('Manage config values')
+		.command('secrets')
+		.description(`Manage app secrets`)
 
 	commands.forEach(cb => cb(command))
 }

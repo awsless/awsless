@@ -43,6 +43,36 @@ export class Renderer {
 		return fragment
 	}
 
+	gap() {
+		const walk = (fragment: VisibleValue): string => {
+			if(typeof fragment === 'string') {
+				return fragment
+			}
+
+			if(Array.isArray(fragment)) {
+				return fragment.map(walk).join('')
+			}
+
+			return walk(fragment.get())
+		}
+
+		const end = walk(this.fragments.slice(-2))
+
+		if(end.endsWith('\n\n')) {
+			// gap already filled
+		} else if(end.endsWith('\n')) {
+			// this.write('\n')
+			this.fragments.push('\n')
+		} else {
+			// this.write('\n\n\n')
+			this.fragments.push('\n\n')
+			// this.fragments.push('\n')
+			// this.fragments.push('\n')
+		}
+
+		this.update()
+	}
+
 	update() {
 		clearTimeout(this.timeout)
 		this.timeout = setTimeout(() => {
@@ -50,7 +80,41 @@ export class Renderer {
 		}, 0)
 	}
 
-	flush() {
+	async end() {
+		this.gap()
+		await this.flush()
+
+		const y = this.screen.length - 1
+		await this.setCursor(0, y)
+
+
+		// this.output.cursorTo?.(0, y)
+		// this.output.write?.(' ')
+		// this.output.cursorTo?.(0, y)
+
+		// console.log(this.screen);
+
+	}
+
+	private setCursor(x:number, y:number) {
+		return new Promise(resolve => {
+			this.output.cursorTo?.(x, y, () => resolve(undefined))
+		})
+	}
+
+	private writeString(value:string) {
+		return new Promise(resolve => {
+			this.output.write?.(value, () => resolve(undefined))
+		})
+	}
+
+	private clearLine() {
+		return new Promise(resolve => {
+			this.output.clearLine?.(1, () => resolve(undefined))
+		})
+	}
+
+	async flush() {
 		clearTimeout(this.timeout)
 
 		const walk = (fragment: VisibleValue): string => {
@@ -72,101 +136,44 @@ export class Renderer {
 		this.unsubs.forEach(unsub => unsub())
 		this.unsubs = []
 
-		// const screen = walk(this.fragments).split('\n')
-		// const height = Math.max(this.screen.length, screen.length)
-
-		// for(let y = 0; y < height; y++) {
-		// 	const newLine = screen[y] || ''
-		// 	const oldLine = this.screen[y] || ''
-
-		// 	if(oldLine === newLine) {
-		// 		continue
-		// 	}
-
-		// 	const width = Math.max(newLine.length, oldLine.length)
-
-		// 	let start:number | undefined
-
-		// 	for(let x = 0; x < width; x++) {
-		// 		const char = newLine[x]
-		// 		if(char !== oldLine[y]) {
-		// 			if(typeof start === 'undefined') {
-		// 				start = x
-		// 			}
-		// 		} else if(typeof start === 'number') {
-		// 			this.output.cursorTo?.(start, y)
-		// 			this.output.write?.(newLine.substring(start, x))
-		// 			start = undefined
-		// 		}
-		// 	}
-
-		// 	if(typeof start === 'number') {
-		// 		this.output.cursorTo?.(start, y)
-		// 		this.output.write?.(newLine.substring(start, width))
-		// 		this.output.clearLine(1)
-		// 	}
-		// }
-
-		// this.output.cursorTo?.(screen[height-1].length - 1, height)
-		// this.screen = screen
-
 		// ------------------------------------------------
 
 		const screen	= walk(this.fragments).split('\n')
+		const height	= this.height()
 		const oldSize	= this.screen.length
 		const newSize	= screen.length
 		const size		= Math.max(oldSize, newSize)
-		const height	= this.height()
 		const start 	= Math.max(oldSize - height, 0)
 
 		// ------------------------------------------------
 		// Extend the screen buffer
 
-		// console.log(oldSize);
-		// console.log(newSize);
-		// process.exit(0)
-
-		// let count = 0
-
-		// console.log(oldSize, height, start);
-
-		// process.exit(0)
-
 		for(let y = start; y < size; y++) {
-			const line = screen[y]
-			if(line !== this.screen[y]) {
+			const newLine = screen[y]
+			const oldLine = this.screen[y]
+
+			if(newLine !== oldLine) {
 				// Force a new line when we get over our viewport...
-				if(y > oldSize) {
+				if(y >= oldSize && y !== 0) {
 					// force new line
-					const x = (this.screen[y - 1]?.length || 0) - 1
-					this.output.cursorTo?.(x, y - 1 - start)
-					this.output.write?.('\n' + line)
+					const p = y - start - 1
+					const x = screen[y - 1]?.length || 0
+					// this.output.cursorTo?.(x, p)
+					// this.output.write?.('\n' + line)
+					await this.setCursor(x, p)
+					await this.writeString('\n' + newLine)
+					// await this.writeString('\n' + y)
+					// await this.clearLine()
 				} else {
-					this.output.cursorTo?.(0, y - start)
-					this.output.write?.(line)
+					// this.output.cursorTo?.(0, y - start)
+					// this.output.write?.(line)
+					await this.setCursor(0, y - start)
+					await this.writeString(newLine)
+					// await this.writeString(y + '')
+					await this.clearLine()
 				}
-				this.output.clearLine?.(1)
 			}
 		}
-
-		// process.exit(0)
-
-		// if(oldSize < newSize) {
-		// 	const x = this.screen[oldSize - 1]?.length || 0
-		// 	// console.log(x, oldSize);
-		// 	this.output.cursorTo?.(x, oldSize)
-
-		// 	for(let y = oldSize; y < newSize; y++) {
-		// 		console.log('-----------' + y)
-		// 		// this.output.write?.('\n ' + y)
-		// 		// this.output.write?.((++count)+'\n')
-		// 		// count++
-		// 	}
-		// }
-
-		// console.log(count)
-		// process.exit(0)
-		// return
 
 		// ------------------------------------------------
 		// Write to updated lines
@@ -186,14 +193,15 @@ export class Renderer {
 		this.screen = screen
 	}
 
-	clear() {
-		let count = this.output.rows
+	async clear() {
+		await this.setCursor(0, 0)
+		await this.writeString('\n'.repeat(this.height()))
+		await this.setCursor(0, 0)
 
-		while(count--) {
-			this.output.write('\n')
+		if(this.output.clearScreenDown) {
+			await new Promise(resolve => {
+				this.output.clearScreenDown(() => resolve(undefined))
+			})
 		}
-
-		this.output.cursorTo?.(0, 0)
-		this.output.clearScreenDown?.()
 	}
 }

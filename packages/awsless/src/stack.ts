@@ -24,6 +24,10 @@ export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) 
 	const stackName = `${config.name}-${stackConfig.name}`
 	const stack = new Stack(app, stackConfig.name, {
 		stackName,
+		env: {
+			account: config.account,
+			region: config.region,
+		},
 		tags: {
 			APP: config.name,
 			STAGE: config.stage,

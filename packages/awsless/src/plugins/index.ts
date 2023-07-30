@@ -1,13 +1,17 @@
 
+import { ExtendedConfigInput, ExtendedConfigOutput } from '../plugin.js';
+
 import { cronPlugin } from './cron/index.js';
 import { functionPlugin } from './function/index.js';
 import { queuePlugin } from './queue.js';
-import { ExtendedConfigInput, ExtendedConfigOutput } from '../plugin.js';
 import { tablePlugin } from './table/index.js';
 import { storePlugin } from './store.js';
 import { topicPlugin } from './topic.js';
-import { searchPlugin } from './search.js';
+// import { searchPlugin } from './__search.js';
 import { graphqlPlugin } from './graphql/index.js';
+import { pubsubPlugin } from './pubsub.js';
+import { httpPlugin } from './http.js';
+import { domainPlugin } from './domain/index.js';
 
 export const defaultPlugins = [
 	functionPlugin,
@@ -16,8 +20,11 @@ export const defaultPlugins = [
 	tablePlugin,
 	storePlugin,
 	topicPlugin,
-	searchPlugin,
+	// searchPlugin,
 	graphqlPlugin,
+	pubsubPlugin,
+	domainPlugin,
+	httpPlugin,
 ]
 
 export type CombinedDefaultPluginsConfigOutput = ExtendedConfigOutput<typeof defaultPlugins[number]['schema']>

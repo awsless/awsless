@@ -2,7 +2,7 @@
 import JSZip from 'jszip'
 import { assetDir } from '../../../util/path.js'
 import { Stack } from 'aws-cdk-lib'
-import { basename, join } from 'path'
+import { dirname, join } from 'path'
 import { mkdir, writeFile } from 'fs/promises'
 import { Config } from '../../../config.js'
 import { debug } from '../../../cli/logger.js'
@@ -57,7 +57,7 @@ export const writeBuildFiles = async (config:Config, stack: Stack, id: string, f
 
 	await Promise.all(files.map(async file => {
 		const fileName = join(filesPath, file.name)
-		await mkdir(basename(fileName), { recursive: true })
+		await mkdir(dirname(fileName), { recursive: true })
 		await writeFile(fileName, file.code)
 
 		if(file.map) {

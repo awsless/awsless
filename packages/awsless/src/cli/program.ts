@@ -4,7 +4,7 @@ import { build } from './command/build.js'
 import { bootstrap } from './command/bootstrap.js'
 import { status } from './command/status.js'
 import { deploy } from './command/deploy.js'
-import { config } from './command/config/index.js'
+import { secrets } from './command/secrets/index.js'
 // import { test } from './command/test.js'
 // import { test2 } from './command/test2.js'
 
@@ -37,7 +37,7 @@ const commands = [
 	status,
 	build,
 	deploy,
-	config,
+	secrets,
 	// diff,
 	// remove,
 	// test,

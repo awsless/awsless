@@ -21,7 +21,7 @@ export const deploy = (program: Command) => {
 		.argument('[stacks...]', 'Optionally filter stacks to deploy')
 		.description('Deploy your app to AWS')
 		.action(async (filters: string[]) => {
-			await layout(async (config, write) => {
+			await layout(async (config, write, term) => {
 
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
@@ -56,23 +56,17 @@ export const deploy = (program: Command) => {
 				await cleanUp()
 				await write(assetBuilder(assets))
 
-				write(br())
-				write(br())
-
-				// const doneBuilding = write(loadingDialog('Building stack assets...'))
-
-				// await Promise.all(assets.map(async (_, assets) => {
-				// 	await Promise.all(assets.map(async (asset) => {
-				// 		await asset.build?.()
-				// 	}))
-				// }))
-
-				// doneBuilding('Done building stack assets')
+				// term.out.gap()
+				// term.out.gap()
 
 				// ---------------------------------------------------
 				// Publishing stack assets
 
+				// term.out.gap()
+
 				const donePublishing = write(loadingDialog('Publishing stack assets to AWS...'))
+
+				// term.out.gap()
 
 				await Promise.all(assets.map(async (_, assets) => {
 					await Promise.all(assets.map(async (asset) => {
@@ -93,9 +87,7 @@ export const deploy = (program: Command) => {
 
 				const doneDeploying = write(loadingDialog('Deploying stacks to AWS...'))
 
-				write(br())
 				write(stackTree(dependencyTree, statuses))
-				write(br())
 
 				const client = new StackClient(config)
 				const deploymentLine = createDeploymentLine(dependencyTree)

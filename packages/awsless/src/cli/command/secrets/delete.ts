@@ -12,24 +12,24 @@ import { Cancelled } from '../../error.js';
 export const del = (program: Command) => {
 	program
 		.command('delete <name>')
-		.description('Delete a config value')
+		.description('Delete a secret value')
 		.action(async (name: string) => {
 			await layout(async (config, write) => {
 				const params = new Params(config)
 
-				write(dialog('warning', [`Your deleting the ${style.info(name)} config parameter`]))
+				write(dialog('warning', [`Your deleting the ${style.info(name)} secret parameter`]))
 				const confirm = await write(confirmPrompt('Are you sure?'))
 
 				if(!confirm) {
 					throw new Cancelled()
 				}
 
-				const done = write(loadingDialog(`Deleting remote config parameter`))
+				const done = write(loadingDialog(`Deleting remote secret parameter`))
 
 				const value = await params.get(name)
 				await params.delete(name)
 
-				done(`Done deleting remote config parameter`)
+				done(`Done deleting remote secret parameter`)
 
 				write(br())
 				write(list({

@@ -9,7 +9,7 @@ import { RuntimeSchema } from './schema/runtime.js';
 import { ArchitectureSchema } from './schema/architecture.js';
 import { ResourceIdSchema } from '../../schema/resource-id.js';
 import { SizeSchema } from '../../schema/size.js';
-import { defaultBuild } from './util/esbuild-build-worker.js';
+// import { esBuild } from './util/bundler/esbuild.js';
 import { writeBuildFiles, writeBuildHash } from './util/build.js';
 import { publishFunctionAsset } from './util/publish.js';
 import { assetBucketName } from '../../stack/bootstrap.js';
@@ -17,6 +17,8 @@ import { RetryAttempts } from './schema/retry-attempts.js';
 import { formatByteSize } from '../../util/byte-size.js';
 import { Stack } from 'aws-cdk-lib';
 import { Assets } from '../../util/assets.js';
+// import { awslessBuild } from './util/bundler/awsless-code.js';
+import { rollupBuild } from './util/bundler/rollup.js';
 
 	// timeout?: Duration
 	// runtime?: Runtime
@@ -103,7 +105,7 @@ export const toFunction = (
 		resource: 'function',
 		resourceName: id,
 		async build() {
-			const result = await defaultBuild(props.file)
+			const result = await rollupBuild(props.file)
 
 			const bundle = await writeBuildFiles(config, stack, id, result.files)
 			await writeBuildHash(config, stack, id, result.hash)

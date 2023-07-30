@@ -59,6 +59,8 @@ export const stackTree = (nodes:StackNode[], statuses:Record<string, Signal<stri
 			})
 		}
 
+		term.out.gap()
 		render(nodes)
+		term.out.gap()
 	}
 }

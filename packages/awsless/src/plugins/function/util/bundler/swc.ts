@@ -1,9 +1,9 @@
 
-import { Build } from './build.js'
+import { Build } from '../build.js'
 import { bundle } from "@swc/core"
 import { createHash } from "crypto"
 
-export const defaultBuild:Build = async (file) => {
+export const swcBuild:Build = async (file) => {
 	const output = await bundle({
 		entry: {
 			file,

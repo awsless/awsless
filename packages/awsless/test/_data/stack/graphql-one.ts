@@ -4,7 +4,7 @@ export const graphqlOneStack:StackConfig = {
 	name: 'graphql',
 	graphql: {
 		api: {
-			schema: __dirname + '/../lib/schema.gql',
+			schema: __dirname + '/../schema/schema.gql',
 			resolvers: {
 				'Query list': __dirname + '/../function.ts',
 			}

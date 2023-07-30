@@ -8,13 +8,24 @@ import { graphqlOneStack } from "./stack/graphql-one"
 import { graphqlTwoStack } from "./stack/graphql-two"
 import { topicStack } from "./stack/topic"
 import { cronStack } from "./stack/cron"
+import { pubsubStack } from "./stack/pubsub"
+import { httpStack } from "./stack/http"
 
 export default {
 	name: 'app',
 	profile: 'jacksclub',
 	region: 'eu-west-1',
 	// stage: 'asd',
+	domains: {
+		'jacksclub.dev': [],
+	},
 	defaults: {
+		http: {
+			api: {
+				domain: 'jacksclub.dev',
+				subDomain: 'test',
+			}
+		},
 		function: {
 			environment: {
 				BUGSNAG_API_KEY: 'test'
@@ -37,6 +48,8 @@ export default {
 		graphqlTwoStack,
 		topicStack,
 		cronStack,
+		pubsubStack,
+		httpStack,
 		// searchStack,
 	]
 } satisfies AppConfig

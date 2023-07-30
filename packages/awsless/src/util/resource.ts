@@ -1,6 +1,6 @@
 import { Stack } from "aws-cdk-lib"
 import { Function } from "aws-cdk-lib/aws-lambda"
-import { constantCase, paramCase, pascalCase } from "change-case"
+import { paramCase, pascalCase } from "change-case"
 import { Config } from '../config.js'
 
 // export type ResourceType = 'function' | 'topic' | 'table' | 'store' | 'queue' | 'cron' | 'search' | 'graphql' | 'schema' | 'data-source' | 'resolver' | 'output'
@@ -17,10 +17,13 @@ export const toName = (stack: Stack, id: string) => {
 // 	return paramCase(`${config.name}-${config.stage}-${stack.artifactId}-${id}`)
 // }
 
+export const toExportName = (name: string) => {
+	return paramCase(name)
+}
+
 export const toEnvKey = (resource: string, id: string) => {
 	return `RESOURCE_${resource.toUpperCase()}_${id}`
 }
-
 
 export const toBucketName = (config: Config, id: string) => {
 	return paramCase(`${config.name}-${config.account}-${id}`)

@@ -3,29 +3,31 @@ import {
 } from "./chunk-PFTL6L4F.js";
 
 // src/node/resource.ts
-var getResourceName = (type, id) => {
-  const key = `RESOURCE_${type.toUpperCase()}_${id}`;
+var getResourceName = (type, id, stack = process.env.STACK || "default") => {
+  const key = `RESOURCE_${type.toUpperCase()}_${stack}_${id}`;
   const value = process.env[key];
   if (!value) {
-    throw new TypeError(`Resource type: "${type}" id: "${id}" doesn't exist.`);
+    throw new TypeError(`Resource type: "${type}" stack: "${stack}" id: "${id}" doesn't exist.`);
   }
   return value;
 };
-var getResourceProxy = (type) => {
-  return new Proxy({}, {
-    get(_, id) {
-      return getResourceName(type, id);
-    }
-  });
+var getFunctionName = (id, stack) => {
+  return getResourceName("function", id, stack);
 };
-var Table = getResourceProxy("TABLE");
-var Queue = getResourceProxy("QUEUE");
-var Store = getResourceProxy("STORE");
+var getTableName = (id, stack) => {
+  return getResourceName("table", id, stack);
+};
+var getQueueName = (id, stack) => {
+  return getResourceName("queue", id, stack);
+};
+var getStoreName = (id, stack) => {
+  return getResourceName("store", id, stack);
+};
 export {
-  Queue,
-  Store,
-  Table,
   definePlugin,
+  getFunctionName,
+  getQueueName,
   getResourceName,
-  getResourceProxy
+  getStoreName,
+  getTableName
 };

@@ -10,28 +10,28 @@ import { layout } from '../../ui/layout/layout.js';
 export const set = (program: Command) => {
 	program
 		.command('set <name>')
-		.description('Set a config value')
+		.description('Set a secret value')
 		// .option('-e --encrypt', 'Encrypt the config value')
 		.action(async (name: string) => {
 			await layout(async (config, write) => {
 				const params = new Params(config)
 
 				write(list({
-					'Set config parameter': style.info(name),
+					'Set secret parameter': style.info(name),
 				}))
 
 				write(br())
 
-				const value = await write(textPrompt('Enter config value'))
+				const value = await write(textPrompt('Enter secret value'))
 
 				if(value === '') {
-					write(dialog('error', [`Provided config value can't be empty`]))
+					write(dialog('error', [`Provided secret value can't be empty`]))
 				} else {
-					const done = write(loadingDialog(`Saving remote config parameter`))
+					const done = write(loadingDialog(`Saving remote secret parameter`))
 
 					await params.set(name, value)
 
-					done(`Done saving remote config parameter`)
+					done(`Done saving remote secret parameter`)
 				}
 			})
 		})

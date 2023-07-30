@@ -1,5 +1,5 @@
 import { add } from "./lib/include"
 
-export default (value:number) => {
+export default async (value:number) => {
 	return add(value)
 }

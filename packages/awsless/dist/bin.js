@@ -63,15 +63,15 @@ var flushDebug = () => {
 
 // src/util/param.ts
 import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterType, PutParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
-var configParameterPrefix = (config2) => {
-  return `/${config2.stage}/awsless/${config2.name}`;
+var configParameterPrefix = (config) => {
+  return `/${config.stage}/awsless/${config.name}`;
 };
 var Params = class {
-  constructor(config2) {
-    this.config = config2;
+  constructor(config) {
+    this.config = config;
     this.client = new SSMClient({
-      credentials: config2.credentials,
-      region: config2.region
+      credentials: config.credentials,
+      region: config.region
     });
   }
   client;
@@ -146,13 +146,17 @@ var Params = class {
 };
 
 // src/stack.ts
-var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
-  const stackName = `${config2.name}-${stackConfig.name}`;
+var toStack = ({ config, assets, app, stackConfig, plugins }) => {
+  const stackName = `${config.name}-${stackConfig.name}`;
   const stack = new Stack(app, stackConfig.name, {
     stackName,
+    env: {
+      account: config.account,
+      region: config.region
+    },
     tags: {
-      APP: config2.name,
-      STAGE: config2.stage,
+      APP: config.name,
+      STAGE: config.stage,
       STACK: stackConfig.name
     }
   });
@@ -163,7 +167,7 @@ var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
   };
   debug("Run plugin onStack listeners");
   const functions = plugins.map((plugin) => plugin.onStack?.({
-    config: config2,
+    config,
     assets,
     app,
     stack,
@@ -182,12 +186,12 @@ var toStack = ({ config: config2, assets, app, stackConfig, plugins }) => {
     ],
     resources: [
       Arn.format({
-        region: config2.region,
-        account: config2.account,
+        region: config.region,
+        account: config.account,
         partition: "aws",
         service: "ssm",
         resource: "parameter",
-        resourceName: configParameterPrefix(config2)
+        resourceName: configParameterPrefix(config)
       })
       // Fn.sub('arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config)),
     ]
@@ -258,6 +262,9 @@ var toId = (resource, id) => {
 };
 var toName = (stack, id) => {
   return paramCase(`${stack.stackName}-${id}`);
+};
+var toExportName = (name) => {
+  return paramCase(name);
 };
 var toEnvKey = (resource, id) => {
   return `RESOURCE_${resource.toUpperCase()}_${id}`;
@@ -359,53 +366,9 @@ var SizeSchema = z7.custom((value) => {
   return z7.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value).success;
 }, "Invalid size").transform(toSize);
 
-// src/plugins/function/util/esbuild-build-worker.ts
-import { build } from "esbuild";
-import { createHash, randomUUID } from "crypto";
-import { join as join2 } from "path";
-import { readFile, rm } from "fs/promises";
-var defaultBuild = async (file) => {
-  const random = randomUUID();
-  const codeFile = join2(cacheDir, `${random}.mjs`);
-  const mapFile = join2(cacheDir, `${random}.mjs.map`);
-  await build({
-    entryPoints: [file],
-    minify: true,
-    bundle: true,
-    external: [
-      "@aws-sdk/*",
-      "@aws-sdk",
-      "aws-sdk"
-    ],
-    sourcemap: "external",
-    target: "esnext",
-    treeShaking: true,
-    // jsxSideEffects:
-    format: "esm",
-    platform: "node",
-    outfile: codeFile
-  });
-  const code = await readFile(codeFile, "utf8");
-  const map = await readFile(mapFile, "utf8");
-  await rm(codeFile);
-  await rm(mapFile);
-  const hash = createHash("sha1").update(code).digest("hex");
-  return {
-    handler: "index.default",
-    hash,
-    files: [
-      {
-        name: "index.mjs",
-        code,
-        map
-      }
-    ]
-  };
-};
-
 // src/plugins/function/util/build.ts
 import JSZip from "jszip";
-import { basename, join as join3 } from "path";
+import { dirname, join as join2 } from "path";
 import { mkdir, writeFile } from "fs/promises";
 import { filesize } from "filesize";
 var zipFiles = (files) => {
@@ -421,25 +384,25 @@ var zipFiles = (files) => {
     }
   });
 };
-var writeBuildHash = async (config2, stack, id, hash) => {
-  const funcPath = join3(assetDir, "function", config2.name, stack.artifactId, id);
-  const versionFile = join3(funcPath, "HASH");
+var writeBuildHash = async (config, stack, id, hash) => {
+  const funcPath = join2(assetDir, "function", config.name, stack.artifactId, id);
+  const versionFile = join2(funcPath, "HASH");
   await writeFile(versionFile, hash);
 };
-var writeBuildFiles = async (config2, stack, id, files) => {
+var writeBuildFiles = async (config, stack, id, files) => {
   const bundle = await zipFiles(files);
-  const funcPath = join3(assetDir, "function", config2.name, stack.artifactId, id);
-  const filesPath = join3(funcPath, "files");
-  const bundleFile = join3(funcPath, "bundle.zip");
-  debug("Bundle size of", style.info(join3(config2.name, stack.artifactId, id)), "is", style.attr(filesize(bundle.byteLength)));
+  const funcPath = join2(assetDir, "function", config.name, stack.artifactId, id);
+  const filesPath = join2(funcPath, "files");
+  const bundleFile = join2(funcPath, "bundle.zip");
+  debug("Bundle size of", style.info(join2(config.name, stack.artifactId, id)), "is", style.attr(filesize(bundle.byteLength)));
   await mkdir(filesPath, { recursive: true });
   await writeFile(bundleFile, bundle);
   await Promise.all(files.map(async (file) => {
-    const fileName = join3(filesPath, file.name);
-    await mkdir(basename(fileName), { recursive: true });
+    const fileName = join2(filesPath, file.name);
+    await mkdir(dirname(fileName), { recursive: true });
     await writeFile(fileName, file.code);
     if (file.map) {
-      const mapName = join3(filesPath, `${file.name}.map`);
+      const mapName = join2(filesPath, `${file.name}.map`);
       await writeFile(mapName, file.map);
     }
   }));
@@ -450,27 +413,27 @@ var writeBuildFiles = async (config2, stack, id, files) => {
 };
 
 // src/plugins/function/util/publish.ts
-import { join as join4 } from "path";
-import { readFile as readFile2 } from "fs/promises";
+import { join as join3 } from "path";
+import { readFile } from "fs/promises";
 import { GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client, StorageClass } from "@aws-sdk/client-s3";
 
 // src/stack/bootstrap.ts
 import { CfnOutput, RemovalPolicy, Stack as Stack2 } from "aws-cdk-lib";
 import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
-var assetBucketName = (config2) => {
-  return `awsless-bootstrap-${config2.account}-${config2.region}`;
+var assetBucketName = (config) => {
+  return `awsless-bootstrap-${config.account}-${config.region}`;
 };
-var assetBucketUrl = (config2, stackName) => {
-  const bucket = assetBucketName(config2);
-  return `https://s3-${config2.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
+var assetBucketUrl = (config, stackName) => {
+  const bucket = assetBucketName(config);
+  return `https://s3-${config.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
 };
 var version = "2";
-var bootstrapStack = (config2, app) => {
+var bootstrapStack = (config, app) => {
   const stack = new Stack2(app, "bootstrap", {
     stackName: `awsless-bootstrap`
   });
   new Bucket(stack, "assets", {
-    bucketName: assetBucketName(config2),
+    bucketName: assetBucketName(config),
     versioned: true,
     accessControl: BucketAccessControl.PRIVATE,
     removalPolicy: RemovalPolicy.DESTROY
@@ -488,17 +451,17 @@ var shouldDeployBootstrap = async (client, name) => {
 };
 
 // src/plugins/function/util/publish.ts
-var publishFunctionAsset = async (config2, stack, id) => {
-  const bucket = assetBucketName(config2);
-  const key = `${config2.name}/${stack.artifactId}/function/${id}.zip`;
-  const funcPath = join4(assetDir, "function", config2.name, stack.artifactId, id);
-  const bundleFile = join4(funcPath, "bundle.zip");
-  const hashFile = join4(funcPath, "HASH");
-  const hash = await readFile2(hashFile, "utf8");
-  const file = await readFile2(bundleFile);
+var publishFunctionAsset = async (config, stack, id) => {
+  const bucket = assetBucketName(config);
+  const key = `${config.name}/${stack.artifactId}/function/${id}.zip`;
+  const funcPath = join3(assetDir, "function", config.name, stack.artifactId, id);
+  const bundleFile = join3(funcPath, "bundle.zip");
+  const hashFile = join3(funcPath, "HASH");
+  const hash = await readFile(hashFile, "utf8");
+  const file = await readFile(bundleFile);
   const client = new S3Client({
-    credentials: config2.credentials,
-    region: config2.region
+    credentials: config.credentials,
+    region: config.region
   });
   let getResult;
   try {
@@ -537,6 +500,58 @@ import { filesize as filesize2 } from "filesize";
 var formatByteSize = (size) => {
   const [number, unit] = filesize2(size).toString().split(" ");
   return style.attr(number) + style.attr.dim(unit);
+};
+
+// src/plugins/function/util/bundler/rollup.ts
+import { rollup } from "rollup";
+import { createHash } from "crypto";
+import { swc } from "rollup-plugin-swc3";
+import json from "@rollup/plugin-json";
+import commonjs from "@rollup/plugin-commonjs";
+import nodeResolve from "@rollup/plugin-node-resolve";
+var rollupBuild = async (input) => {
+  const bundle = await rollup({
+    input,
+    external: (importee) => {
+      return importee.startsWith("@aws-sdk") || importee.startsWith("aws-sdk");
+    },
+    onwarn: (error) => {
+      debugError(error.message);
+    },
+    treeshake: {
+      moduleSideEffects: (id) => input === id
+    },
+    plugins: [
+      commonjs({ sourceMap: true }),
+      nodeResolve({
+        preferBuiltins: true
+      }),
+      swc({
+        minify: true,
+        jsc: { minify: { sourceMap: true } },
+        sourceMaps: true
+      }),
+      json()
+    ]
+  });
+  const result = await bundle.generate({
+    format: "esm",
+    sourcemap: "hidden",
+    exports: "default"
+  });
+  const output = result.output[0];
+  const code = output.code;
+  const map = output.map?.toString();
+  const hash = createHash("sha1").update(code).digest("hex");
+  return {
+    handler: "index.default",
+    hash,
+    files: [{
+      name: "index.mjs",
+      code,
+      map
+    }]
+  };
 };
 
 // src/plugins/function/index.ts
@@ -581,8 +596,8 @@ var functionPlugin = definePlugin({
     });
   }
 });
-var toFunction = ({ config: config2, stack, assets }, id, fileOrProps) => {
-  const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
+var toFunction = ({ config, stack, assets }, id, fileOrProps) => {
+  const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
   const lambda = new Function(stack, toId("function", id), {
     functionName: toName(stack, id),
     handler: "index.default",
@@ -590,8 +605,8 @@ var toFunction = ({ config: config2, stack, assets }, id, fileOrProps) => {
     ...props,
     memorySize: props.memorySize.toMebibytes()
   });
-  lambda.addEnvironment("APP", config2.name, { removeInEdge: true });
-  lambda.addEnvironment("STAGE", config2.stage, { removeInEdge: true });
+  lambda.addEnvironment("APP", config.name, { removeInEdge: true });
+  lambda.addEnvironment("STAGE", config.stage, { removeInEdge: true });
   lambda.addEnvironment("STACK", stack.artifactId, { removeInEdge: true });
   if (lambda.runtime.toString().startsWith("nodejs")) {
     lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1", {
@@ -603,9 +618,9 @@ var toFunction = ({ config: config2, stack, assets }, id, fileOrProps) => {
     resource: "function",
     resourceName: id,
     async build() {
-      const result = await defaultBuild(props.file);
-      const bundle = await writeBuildFiles(config2, stack, id, result.files);
-      await writeBuildHash(config2, stack, id, result.hash);
+      const result = await rollupBuild(props.file);
+      const bundle = await writeBuildFiles(config, stack, id, result.files);
+      await writeBuildHash(config, stack, id, result.hash);
       const func = lambda.node.defaultChild;
       func.handler = result.handler;
       return {
@@ -613,11 +628,11 @@ var toFunction = ({ config: config2, stack, assets }, id, fileOrProps) => {
       };
     },
     async publish() {
-      const version2 = await publishFunctionAsset(config2, stack, id);
+      const version2 = await publishFunctionAsset(config, stack, id);
       const func = lambda.node.defaultChild;
       func.code = {
-        s3Bucket: assetBucketName(config2),
-        s3Key: `${config2.name}/${stack.artifactId}/function/${id}.zip`,
+        s3Bucket: assetBucketName(config),
+        s3Key: `${config.name}/${stack.artifactId}/function/${id}.zip`,
         s3ObjectVersion: version2
       };
     }
@@ -686,9 +701,9 @@ var queuePlugin = definePlugin({
     }).array()
   }),
   onStack(ctx) {
-    const { stack, config: config2, stackConfig, bind } = ctx;
+    const { stack, config, stackConfig, bind } = ctx;
     return Object.entries(stackConfig.queues || {}).map(([id, functionOrProps]) => {
-      const props = typeof functionOrProps === "string" ? { ...config2.defaults.queue, consumer: functionOrProps } : { ...config2.defaults.queue, ...functionOrProps };
+      const props = typeof functionOrProps === "string" ? { ...config.defaults.queue, consumer: functionOrProps } : { ...config.defaults.queue, ...functionOrProps };
       const queue2 = new Queue(stack, toId("queue", id), {
         queueName: toName(stack, id),
         ...props,
@@ -852,20 +867,20 @@ var topicPlugin = definePlugin({
       topics: z18.record(ResourceIdSchema, FunctionSchema).optional()
     }).array()
   }),
-  onBootstrap({ config: config2, stack }) {
-    const allTopicNames = config2.stacks.map((stack2) => {
+  onBootstrap({ config, stack }) {
+    const allTopicNames = config.stacks.map((stack2) => {
       return Object.keys(stack2.topics || {});
     }).flat();
     const uniqueTopicNames = [...new Set(allTopicNames)];
     uniqueTopicNames.forEach((id) => {
       new Topic(stack, toId("topic", id), {
-        topicName: `${config2.name}-${id}`,
+        topicName: `${config.name}-${id}`,
         displayName: id
       });
     });
   },
   onStack(ctx) {
-    const { config: config2, stack, stackConfig, bind } = ctx;
+    const { config, stack, stackConfig, bind } = ctx;
     return Object.entries(stackConfig.topics || {}).map(([id, props]) => {
       const lambda = toFunction(ctx, id, props);
       const topic = Topic.fromTopicArn(
@@ -874,7 +889,7 @@ var topicPlugin = definePlugin({
         Arn2.format({
           arnFormat: ArnFormat.NO_RESOURCE_NAME,
           service: "sns",
-          resource: `${config2.name}-${id}`
+          resource: `${config.name}-${id}`
         }, stack)
       );
       lambda.addEventSource(new SnsEventSource(topic));
@@ -887,38 +902,11 @@ var topicPlugin = definePlugin({
   }
 });
 
-// src/plugins/search.ts
-import { z as z19 } from "zod";
-import { CfnCollection } from "aws-cdk-lib/aws-opensearchserverless";
-import { PolicyStatement as PolicyStatement2 } from "aws-cdk-lib/aws-iam";
-var searchPlugin = definePlugin({
-  name: "search",
-  schema: z19.object({
-    stacks: z19.object({
-      searchs: z19.array(ResourceIdSchema).optional()
-    }).array()
-  }),
-  onStack({ stack, stackConfig, bind }) {
-    (stackConfig.searchs || []).forEach((id) => {
-      const collection = new CfnCollection(stack, toId("search", id), {
-        name: toName(stack, id),
-        type: "SEARCH"
-      });
-      bind((lambda) => {
-        lambda.addToRolePolicy(new PolicyStatement2({
-          actions: ["aoss:APIAccessAll"],
-          resources: [collection.attrArn]
-        }));
-      });
-    });
-  }
-});
-
 // src/plugins/graphql/index.ts
-import { z as z21 } from "zod";
+import { z as z20 } from "zod";
 import { AuthorizationType, CfnGraphQLApi, CfnGraphQLSchema, GraphqlApi, MappingTemplate } from "aws-cdk-lib/aws-appsync";
 import { mergeTypeDefs } from "@graphql-tools/merge";
-import { mkdir as mkdir2, readFile as readFile3, writeFile as writeFile2 } from "fs/promises";
+import { mkdir as mkdir2, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
 
 // src/util/array.ts
 var toArray = (value) => {
@@ -929,56 +917,56 @@ var toArray = (value) => {
 };
 
 // src/plugins/graphql/index.ts
-import { dirname, join as join5 } from "path";
+import { dirname as dirname2, join as join4 } from "path";
 import { print } from "graphql";
 import { paramCase as paramCase2 } from "change-case";
 
 // src/plugins/graphql/schema/resolver-field.ts
-import { z as z20 } from "zod";
-var ResolverFieldSchema = z20.custom((value) => {
-  return z20.string().regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi).safeParse(value).success;
+import { z as z19 } from "zod";
+var ResolverFieldSchema = z19.custom((value) => {
+  return z19.string().regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi).safeParse(value).success;
 }, `Invalid resolver field. Valid example: "Query list"`);
 
 // src/plugins/graphql/index.ts
 import { CfnOutput as CfnOutput2, Fn } from "aws-cdk-lib";
 var graphqlPlugin = definePlugin({
   name: "graphql",
-  schema: z21.object({
-    defaults: z21.object({
-      graphql: z21.record(ResourceIdSchema, z21.object({
-        authorization: z21.object({
+  schema: z20.object({
+    defaults: z20.object({
+      graphql: z20.record(ResourceIdSchema, z20.object({
+        authorization: z20.object({
           authorizer: FunctionSchema,
           ttl: DurationSchema.default("1 hour")
         }).optional(),
-        mappingTemplate: z21.object({
+        mappingTemplate: z20.object({
           request: LocalFileSchema.optional(),
           response: LocalFileSchema.optional()
         }).optional()
       })).optional()
     }).default({}),
-    stacks: z21.object({
-      graphql: z21.record(ResourceIdSchema, z21.object({
-        schema: z21.union([
+    stacks: z20.object({
+      graphql: z20.record(ResourceIdSchema, z20.object({
+        schema: z20.union([
           LocalFileSchema,
-          z21.array(LocalFileSchema).min(1)
+          z20.array(LocalFileSchema).min(1)
         ]).optional(),
-        resolvers: z21.record(ResolverFieldSchema, FunctionSchema).optional()
+        resolvers: z20.record(ResolverFieldSchema, FunctionSchema).optional()
       })).optional()
     }).array()
   }),
-  onBootstrap({ config: config2, stack, assets }) {
+  onBootstrap({ config, stack, assets }) {
     const list3 = /* @__PURE__ */ new Set();
-    Object.values(config2.stacks).forEach((stackConfig) => {
+    Object.values(config.stacks).forEach((stackConfig) => {
       Object.keys(stackConfig.graphql || {}).forEach((id) => {
         list3.add(id);
       });
     });
     list3.forEach((id) => {
-      const file = join5(assetDir, "graphql", config2.name, id, "schema.graphql");
-      const authorization = config2.defaults.graphql?.[id]?.authorization;
+      const file = join4(assetDir, "graphql", config.name, id, "schema.graphql");
+      const authorization = config.defaults.graphql?.[id]?.authorization;
       const authProps = {};
       if (authorization) {
-        const authorizer = toFunction({ config: config2, assets, stack }, `${id}-authorizer`, authorization.authorizer);
+        const authorizer = toFunction({ config, assets, stack }, `${id}-authorizer`, authorization.authorizer);
         authProps.additionalAuthenticationProviders = [{
           authenticationType: AuthorizationType.LAMBDA,
           lambdaAuthorizerConfig: {
@@ -1002,15 +990,15 @@ var graphqlPlugin = definePlugin({
         resourceName: id,
         async build() {
           const schemas = [];
-          await Promise.all(Object.values(config2.stacks).map(async (stackConfig) => {
+          await Promise.all(Object.values(config.stacks).map(async (stackConfig) => {
             const schemaFiles = toArray(stackConfig.graphql?.[id].schema || []);
             await Promise.all(schemaFiles.map(async (schemaFile) => {
-              const schema3 = await readFile3(schemaFile, "utf8");
+              const schema3 = await readFile2(schemaFile, "utf8");
               schemas.push(schema3);
             }));
           }));
           const schema2 = print(mergeTypeDefs(schemas));
-          await mkdir2(dirname(file), { recursive: true });
+          await mkdir2(dirname2(file), { recursive: true });
           await writeFile2(file, schema2);
           new CfnGraphQLSchema(stack, toId("schema", id), {
             apiId: api.attrApiId,
@@ -1021,9 +1009,9 @@ var graphqlPlugin = definePlugin({
     });
   },
   onStack(ctx) {
-    const { config: config2, stack, stackConfig } = ctx;
+    const { config, stack, stackConfig } = ctx;
     return Object.entries(stackConfig.graphql || {}).map(([id, props]) => {
-      const defaults = config2.defaults.graphql?.[id] || {};
+      const defaults = config.defaults.graphql?.[id] || {};
       return Object.entries(props.resolvers || {}).map(([typeAndField, functionProps]) => {
         const api = GraphqlApi.fromGraphqlApiAttributes(stack, toId("graphql", id), {
           graphqlApiId: Fn.importValue(toId("graphql", id))
@@ -1046,6 +1034,262 @@ var graphqlPlugin = definePlugin({
   }
 });
 
+// src/plugins/pubsub.ts
+import { z as z21 } from "zod";
+import { CfnTopicRule } from "aws-cdk-lib/aws-iot";
+import { PolicyStatement as PolicyStatement2 } from "aws-cdk-lib/aws-iam";
+import { snakeCase } from "change-case";
+var pubsubPlugin = definePlugin({
+  name: "pubsub",
+  schema: z21.object({
+    stacks: z21.object({
+      pubsub: z21.record(ResourceIdSchema, z21.object({
+        sql: z21.string(),
+        sqlVersion: z21.enum(["2015-10-08", "2016-03-23", "beta"]).default("2016-03-23"),
+        consumer: FunctionSchema
+      })).optional()
+    }).array()
+  }),
+  onStack(ctx) {
+    const { stack, stackConfig, bind } = ctx;
+    bind((lambda) => {
+      lambda.addToRolePolicy(new PolicyStatement2({
+        actions: ["iot:publish"],
+        resources: ["*"]
+      }));
+    });
+    return Object.entries(stackConfig.pubsub || {}).map(([id, props]) => {
+      const lambda = toFunction(ctx, id, props.consumer);
+      new CfnTopicRule(stack, toId("pubsub", id), {
+        ruleName: snakeCase(toName(stack, id)),
+        topicRulePayload: {
+          sql: props.sql,
+          awsIotSqlVersion: props.sqlVersion,
+          actions: [{
+            lambda: {
+              functionArn: lambda.functionArn
+            }
+          }]
+        }
+      });
+      return lambda;
+    });
+  }
+});
+
+// src/plugins/http.ts
+import { z as z22 } from "zod";
+import { Peer, Port, SecurityGroup, SubnetType, Vpc } from "aws-cdk-lib/aws-ec2";
+import { ApplicationListener, ApplicationListenerRule, ApplicationLoadBalancer, ApplicationProtocol, ApplicationTargetGroup, ListenerAction, ListenerCondition } from "aws-cdk-lib/aws-elasticloadbalancingv2";
+import { HostedZone, RecordSet, RecordType, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { LoadBalancerTarget } from "aws-cdk-lib/aws-route53-targets";
+import { LambdaTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
+import { CfnOutput as CfnOutput3, Fn as Fn2, Token } from "aws-cdk-lib";
+import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
+import { paramCase as paramCase3 } from "change-case";
+var RouteSchema = z22.custom((route) => {
+  return z22.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS|\*)(\s\/[a-z0-9\+\_\-\/]*)?$/ig).safeParse(route).success;
+}, "Invalid route");
+var httpPlugin = definePlugin({
+  name: "http",
+  schema: z22.object({
+    defaults: z22.object({
+      http: z22.record(
+        ResourceIdSchema,
+        z22.object({
+          domain: z22.string(),
+          subDomain: z22.string()
+        })
+      ).optional()
+    }).default({}),
+    stacks: z22.object({
+      http: z22.record(
+        ResourceIdSchema,
+        z22.record(RouteSchema, FunctionSchema)
+      ).optional()
+    }).array()
+  }),
+  onBootstrap({ stack, config }) {
+    const vpc = new Vpc(stack, toId("vpc", "http"), {
+      subnetConfiguration: [{
+        name: "public",
+        subnetType: SubnetType.PUBLIC,
+        cidrMask: 24
+      }],
+      availabilityZones: [
+        config.region + "a",
+        config.region + "b",
+        config.region + "c"
+      ]
+    });
+    const securityGroup = new SecurityGroup(stack, toId("security-group", "http"), {
+      vpc
+    });
+    securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(443));
+    securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(443));
+    new CfnOutput3(stack, toId("output", "http-vpc"), {
+      exportName: "http-vpc-id",
+      value: vpc.vpcId
+    });
+    new CfnOutput3(stack, toId("output", "http-security-group"), {
+      exportName: "http-security-group-id",
+      value: securityGroup.securityGroupId
+    });
+    Object.entries(config.defaults?.http || {}).forEach(([id, props]) => {
+      const loadBalancer = new ApplicationLoadBalancer(stack, toId("load-balancer", id), {
+        vpc,
+        securityGroup
+      });
+      const zone = HostedZone.fromHostedZoneAttributes(
+        stack,
+        toId("hosted-zone", id),
+        {
+          // hostedZoneId: Fn.importValue(toExportName(`hosted-zone-${props.domain}-id`)),
+          // hostedZoneId: Token.asString(Fn.ref(toId('hosted-zone', props.domain))),
+          hostedZoneId: Token.asString(Fn2.ref(toId("hosted-zone", props.domain))),
+          zoneName: props.domain + "."
+        }
+      );
+      const certificate = Certificate.fromCertificateArn(
+        stack,
+        toId("certificate", id),
+        Token.asString(Fn2.ref(toId("certificate", props.domain)))
+      );
+      const target = RecordTarget.fromAlias(new LoadBalancerTarget(loadBalancer));
+      const recordName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
+      new RecordSet(stack, toId("record-set", id), {
+        zone,
+        target,
+        recordName,
+        recordType: RecordType.A
+      });
+      const listener = loadBalancer.addListener(toId("listener", id), {
+        port: 443,
+        protocol: ApplicationProtocol.HTTPS,
+        certificates: [certificate],
+        defaultAction: ListenerAction.fixedResponse(404, {
+          contentType: "application/json",
+          messageBody: JSON.stringify({
+            message: "Route not found"
+          })
+        })
+      });
+      new CfnOutput3(stack, toId("output", `http-${id}-listener`), {
+        exportName: `http-${id}-listener-arn`,
+        value: listener.listenerArn
+      });
+    });
+  },
+  onStack(ctx) {
+    const { config, stack, stackConfig } = ctx;
+    return Object.entries(stackConfig.http || {}).map(([id, routes]) => {
+      return Object.entries(routes).map(([route, props]) => {
+        const lambda = toFunction(ctx, paramCase3(route), props);
+        const [method, ...paths] = route.split(" ");
+        const path = paths.join(" ");
+        new ApplicationListenerRule(stack, toId("listener-rule", route), {
+          listener: ApplicationListener.fromApplicationListenerAttributes(stack, toId("listener", id), {
+            listenerArn: Fn2.importValue(`http-${id}-listener-arn`),
+            securityGroup: SecurityGroup.fromLookupById(
+              stack,
+              toId("security-group", id),
+              "http-security-group-id"
+            )
+          }),
+          priority: 1,
+          action: ListenerAction.forward([
+            new ApplicationTargetGroup(stack, toId("target-group", route), {
+              targets: [new LambdaTarget(lambda)]
+              // vpc: Vpc.fromVpcAttributes(stack, toId('vpc', id), {
+              // 	vpcId: Fn.importValue('http-vpc-id'),
+              // 	availabilityZones: [
+              // 		config.region + 'a',
+              // 		config.region + 'b',
+              // 		config.region + 'c',
+              // 	]
+              // }),
+            })
+          ]),
+          conditions: [
+            ListenerCondition.httpRequestMethods([method]),
+            ListenerCondition.pathPatterns([path])
+          ]
+        });
+        return lambda;
+      });
+    }).flat();
+  }
+});
+
+// src/plugins/domain/index.ts
+import { z as z25 } from "zod";
+import { HostedZone as HostedZone2, CfnRecordSetGroup } from "aws-cdk-lib/aws-route53";
+import { Certificate as Certificate2, CertificateValidation } from "aws-cdk-lib/aws-certificatemanager";
+
+// src/plugins/domain/schema/record-type.ts
+import { RecordType as RecordType2 } from "aws-cdk-lib/aws-route53";
+import { z as z23 } from "zod";
+var types4 = {
+  "A": RecordType2.A,
+  "AAAA": RecordType2.AAAA,
+  "MX": RecordType2.MX,
+  "TXT": RecordType2.TXT,
+  "CNAME": RecordType2.CNAME
+};
+var RecordTypeSchema = z23.enum(Object.keys(types4)).transform((value) => types4[value]);
+
+// src/plugins/domain/schema/domain-name.ts
+import { z as z24 } from "zod";
+var DomainNameSchema = z24.string().regex(/[a-z\-\_\.]/g, "Invalid domain name");
+
+// src/plugins/domain/index.ts
+import { CfnOutput as CfnOutput4 } from "aws-cdk-lib";
+var domainPlugin = definePlugin({
+  name: "domain",
+  schema: z25.object({
+    domains: z25.record(DomainNameSchema, z25.object({
+      name: DomainNameSchema.optional(),
+      type: RecordTypeSchema,
+      ttl: DurationSchema,
+      records: z25.string().array()
+    }).array()).optional()
+  }),
+  onBootstrap({ config, stack }) {
+    Object.entries(config.domains || {}).forEach(([domain, dnsRecords]) => {
+      const hostedZone = new HostedZone2(stack, toId("hosted-zone", domain), {
+        zoneName: domain,
+        addTrailingDot: true
+      });
+      hostedZone.node.defaultChild.overrideLogicalId(toId("hosted-zone", domain));
+      const certificate = new Certificate2(stack, toId("certificate", domain), {
+        domainName: domain,
+        validation: CertificateValidation.fromDns(hostedZone),
+        subjectAlternativeNames: [`*.${domain}`]
+      });
+      certificate.node.defaultChild.overrideLogicalId(toId("certificate", domain));
+      new CfnOutput4(stack, toId("output-hosted-zone", domain), {
+        exportName: toExportName(`hosted-zone-${domain}-id`),
+        value: hostedZone.hostedZoneId
+      });
+      new CfnOutput4(stack, toId("output-certificate", domain), {
+        exportName: toExportName(`certificate-${domain}-arn`),
+        value: certificate.certificateArn
+      });
+      if (dnsRecords.length > 0) {
+        new CfnRecordSetGroup(stack, toId("record-set-group", domain), {
+          hostedZoneId: hostedZone.hostedZoneId,
+          recordSets: dnsRecords.map((props) => ({
+            name: props.name || "",
+            type: props.type,
+            ttl: props.ttl.toSeconds().toString(),
+            resourceRecords: props.records
+          }))
+        });
+      }
+    });
+  }
+});
+
 // src/plugins/index.ts
 var defaultPlugins = [
   functionPlugin,
@@ -1054,22 +1298,25 @@ var defaultPlugins = [
   tablePlugin,
   storePlugin,
   topicPlugin,
-  searchPlugin,
-  graphqlPlugin
+  // searchPlugin,
+  graphqlPlugin,
+  pubsubPlugin,
+  domainPlugin,
+  httpPlugin
 ];
 
 // src/stack/app-bootstrap.ts
-var appBootstrapStack = ({ config: config2, app, assets }) => {
+var appBootstrapStack = ({ config, app, assets }) => {
   const stack = new Stack3(app, "bootstrap", {
-    stackName: `${config2.name}-bootstrap`
+    stackName: `${config.name}-bootstrap`
   });
   const plugins = [
     ...defaultPlugins,
-    ...config2.plugins || []
+    ...config.plugins || []
   ];
   debug("Run plugin onBootstrap listeners");
   const functions = plugins.map((plugin) => plugin.onBootstrap?.({
-    config: config2,
+    config,
     app,
     stack,
     assets
@@ -1093,9 +1340,9 @@ var flattenDependencyTree = (stacks) => {
   return list3;
 };
 var createDependencyTree = (stacks, startingLevel) => {
-  const list3 = stacks.map(({ stack, config: config2 }) => ({
+  const list3 = stacks.map(({ stack, config }) => ({
     stack,
-    depends: config2?.depends?.map((dep) => dep.name) || []
+    depends: config?.depends?.map((dep) => dep.name) || []
   }));
   const findChildren = (list4, parents, level) => {
     const children = [];
@@ -1167,11 +1414,11 @@ var Assets = class {
 };
 
 // src/app.ts
-var makeApp = (config2) => {
+var makeApp = (config) => {
   return new App4({
     outdir: assemblyDir,
     defaultStackSynthesizer: new DefaultStackSynthesizer({
-      fileAssetsBucketName: assetBucketName(config2),
+      fileAssetsBucketName: assetBucketName(config),
       fileAssetPublishingRoleArn: "",
       generateBootstrapVersionRule: false
     })
@@ -1188,26 +1435,26 @@ var getAllDepends = (filters) => {
   walk(filters);
   return list3;
 };
-var toApp = async (config2, filters) => {
+var toApp = async (config, filters) => {
   const assets = new Assets();
-  const app = makeApp(config2);
+  const app = makeApp(config);
   const stacks = [];
   const plugins = [
     ...defaultPlugins,
-    ...config2.plugins || []
+    ...config.plugins || []
   ];
   debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
   debug("Run plugin onApp listeners");
-  plugins.forEach((plugin) => plugin.onApp?.({ config: config2, app, assets }));
-  const bootstrap2 = appBootstrapStack({ config: config2, app, assets });
+  plugins.forEach((plugin) => plugin.onApp?.({ config, app, assets }));
+  const bootstrap2 = appBootstrapStack({ config, app, assets });
   debug("Stack filters:", filters.map((filter) => style.info(filter)).join(", "));
-  const filterdStacks = filters.length === 0 ? config2.stacks : getAllDepends(
+  const filterdStacks = filters.length === 0 ? config.stacks : getAllDepends(
     // config.stacks,
-    config2.stacks.filter((stack) => filters.includes(stack.name))
+    config.stacks.filter((stack) => filters.includes(stack.name))
   );
   for (const stackConfig of filterdStacks) {
     const { stack, bindings } = toStack({
-      config: config2,
+      config,
       stackConfig,
       assets,
       plugins,
@@ -1235,65 +1482,8 @@ var toApp = async (config2, filters) => {
   };
 };
 
-// src/cli/ui/layout/basic.ts
-var br = () => {
-  return "\n";
-};
-var hr = () => {
-  return (term) => {
-    term.out.write([
-      style.placeholder("\u2500".repeat(term.out.width())),
-      br()
-    ]);
-  };
-};
-
-// src/cli/ui/layout/logs.ts
-import wrapAnsi from "wrap-ansi";
-var previous = /* @__PURE__ */ new Date();
-var logs = () => {
-  if (!process.env.VERBOSE) {
-    return [];
-  }
-  const logs2 = flushDebug();
-  return (term) => {
-    term.out.write([
-      hr(),
-      br(),
-      " ".repeat(3),
-      style.label("Debug Logs:"),
-      br(),
-      br(),
-      logs2.map((log) => {
-        const diff = log.date.getTime() - previous.getTime();
-        const time = `+${diff}`.padStart(8);
-        previous = log.date;
-        return wrapAnsi([
-          style.attr(`${time}${style.attr.dim("ms")}`),
-          " [ ",
-          log.type,
-          " ] ",
-          log.message,
-          br(),
-          log.type === "error" ? br() : ""
-        ].join(""), term.out.width(), { hard: true, trim: false });
-      }),
-      br(),
-      hr()
-    ]);
-  };
-};
-
-// src/cli/ui/layout/footer.ts
-var footer = () => {
-  return [
-    br(),
-    logs()
-  ];
-};
-
 // src/config.ts
-import { join as join7 } from "path";
+import { join as join6 } from "path";
 
 // src/util/account.ts
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
@@ -1312,17 +1502,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-import { z as z25 } from "zod";
+import { z as z29 } from "zod";
 
 // src/schema/stack.ts
-import { z as z22 } from "zod";
-var StackSchema = z22.object({
+import { z as z26 } from "zod";
+var StackSchema = z26.object({
   name: ResourceIdSchema,
-  depends: z22.array(z22.lazy(() => StackSchema)).optional()
+  depends: z26.array(z26.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z23 } from "zod";
+import { z as z27 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -1339,34 +1529,34 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = z23.enum(regions);
+var RegionSchema = z27.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z24 } from "zod";
-var PluginSchema = z24.object({
-  name: z24.string(),
-  schema: z24.custom().optional(),
+import { z as z28 } from "zod";
+var PluginSchema = z28.object({
+  name: z28.string(),
+  schema: z28.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onBootstrap: z24.function().returns(z24.any()).optional(),
-  onStack: z24.function().returns(z24.any()).optional(),
-  onApp: z24.function().returns(z24.void()).optional()
+  onBootstrap: z28.function().returns(z28.any()).optional(),
+  onStack: z28.function().returns(z28.any()).optional(),
+  onApp: z28.function().returns(z28.void()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z25.object({
+var AppSchema = z29.object({
   name: ResourceIdSchema,
   region: RegionSchema,
-  profile: z25.string(),
-  stage: z25.string().regex(/[a-z]+/).default("prod"),
-  defaults: z25.object({}).default({}),
-  stacks: z25.array(StackSchema).min(1),
-  plugins: z25.array(PluginSchema).optional()
+  profile: z29.string(),
+  stage: z29.string().regex(/[a-z]+/).default("prod"),
+  defaults: z29.object({}).default({}),
+  stacks: z29.array(StackSchema).min(1),
+  plugins: z29.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
 import { transformFile } from "@swc/core";
-import { dirname as dirname2, join as join6 } from "path";
+import { dirname as dirname3, join as join5 } from "path";
 import { lstat, mkdir as mkdir3, writeFile as writeFile3 } from "fs/promises";
 var resolveFileNameExtension = async (path) => {
   const options = [
@@ -1391,14 +1581,14 @@ var resolveFileNameExtension = async (path) => {
   throw new Error(`Failed to load file: ${path}`);
 };
 var resolveDir = (path) => {
-  return dirname2(path).replace(rootDir + "/", "");
+  return dirname3(path).replace(rootDir + "/", "");
 };
 var importFile = async (path) => {
   const load = async (file) => {
     let { code: code2 } = await transformFile(file, {
       isModule: true
     });
-    const path2 = dirname2(file);
+    const path2 = dirname3(file);
     const dir = resolveDir(file);
     code2 = code2.replaceAll("__dirname", `"${dir}"`);
     const matches = code2.match(/import\s*{\s*[a-z0-9\_]+\s*}\s*from\s*('|")(\.[\/a-z0-9\_\-]+)('|");?/ig);
@@ -1407,14 +1597,14 @@ var importFile = async (path) => {
     await Promise.all(matches?.map(async (match) => {
       const parts = /('|")(\.[\/a-z0-9\_\-]+)('|")/ig.exec(match);
       const from = parts[2];
-      const file2 = await resolveFileNameExtension(join6(path2, from));
+      const file2 = await resolveFileNameExtension(join5(path2, from));
       const result = await load(file2);
       code2 = code2.replace(match, result);
     }));
     return code2;
   };
   const code = await load(path);
-  const outputFile = join6(outDir, "config.js");
+  const outputFile = join5(outDir, "config.js");
   await mkdir3(outDir, { recursive: true });
   await writeFile3(outputFile, code);
   return import(outputFile);
@@ -1423,7 +1613,7 @@ var importFile = async (path) => {
 // src/config.ts
 var importConfig = async (options) => {
   debug("Import config file");
-  const fileName = join7(process.cwd(), options.configFile || "awsless.config.ts");
+  const fileName = join6(process.cwd(), options.configFile || "awsless.config.ts");
   const module = await importFile(fileName);
   const appConfig = typeof module.default === "function" ? await module.default({
     profile: options.profile,
@@ -1441,16 +1631,29 @@ var importConfig = async (options) => {
       schema2 = schema2.and(plugin.schema);
     }
   }
-  const config2 = await schema2.parseAsync(appConfig);
-  debug("Load credentials", style.info(config2.profile));
-  const credentials = getCredentials(config2.profile);
+  const config = await schema2.parseAsync(appConfig);
+  debug("Load credentials", style.info(config.profile));
+  const credentials = getCredentials(config.profile);
   debug("Load AWS account ID");
-  const account = await getAccountId(credentials, config2.region);
+  const account = await getAccountId(credentials, config.region);
   debug("Account ID:", style.info(account));
   return {
-    ...config2,
+    ...config,
     account,
     credentials
+  };
+};
+
+// src/cli/ui/layout/basic.ts
+var br = () => {
+  return "\n";
+};
+var hr = () => {
+  return (term) => {
+    term.out.write([
+      style.placeholder("\u2500".repeat(term.out.width())),
+      br()
+    ]);
   };
 };
 
@@ -1470,17 +1673,13 @@ var list = (data) => {
 };
 
 // src/cli/ui/layout/header.ts
-var header = (config2) => {
-  return [
-    br(),
-    list({
-      App: config2.name,
-      Stage: config2.stage,
-      Region: config2.region,
-      Profile: config2.profile
-    }),
-    br()
-  ];
+var header = (config) => {
+  return list({
+    App: config.name,
+    Stage: config.stage,
+    Region: config.region,
+    Profile: config.profile
+  });
 };
 
 // src/util/timer.ts
@@ -1547,16 +1746,16 @@ var createSpinner = () => {
 };
 
 // src/cli/ui/layout/dialog.ts
-import wrapAnsi2 from "wrap-ansi";
+import wrapAnsi from "wrap-ansi";
 var dialog = (type, lines) => {
   const padding = 3;
   const icon = style[type](symbol[type].padEnd(padding));
   return (term) => {
     term.out.write(lines.map((line, i) => {
       if (i === 0) {
-        return icon + wrapAnsi2(line, term.out.width(), { hard: true });
+        return icon + wrapAnsi(line, term.out.width(), { hard: true });
       }
-      return wrapAnsi2(" ".repeat(padding) + line, term.out.width(), { hard: true });
+      return wrapAnsi(" ".repeat(padding) + line, term.out.width(), { hard: true });
     }).join(br()) + br());
   };
 };
@@ -1717,13 +1916,53 @@ var Renderer = class {
     this.update();
     return fragment;
   }
+  gap() {
+    const walk = (fragment) => {
+      if (typeof fragment === "string") {
+        return fragment;
+      }
+      if (Array.isArray(fragment)) {
+        return fragment.map(walk).join("");
+      }
+      return walk(fragment.get());
+    };
+    const end = walk(this.fragments.slice(-2));
+    if (end.endsWith("\n\n")) {
+    } else if (end.endsWith("\n")) {
+      this.fragments.push("\n");
+    } else {
+      this.fragments.push("\n\n");
+    }
+    this.update();
+  }
   update() {
     clearTimeout(this.timeout);
     this.timeout = setTimeout(() => {
       this.flush();
     }, 0);
   }
-  flush() {
+  async end() {
+    this.gap();
+    await this.flush();
+    const y = this.screen.length - 1;
+    await this.setCursor(0, y);
+  }
+  setCursor(x, y) {
+    return new Promise((resolve) => {
+      this.output.cursorTo?.(x, y, () => resolve(void 0));
+    });
+  }
+  writeString(value) {
+    return new Promise((resolve) => {
+      this.output.write?.(value, () => resolve(void 0));
+    });
+  }
+  clearLine() {
+    return new Promise((resolve) => {
+      this.output.clearLine?.(1, () => resolve(void 0));
+    });
+  }
+  async flush() {
     clearTimeout(this.timeout);
     const walk = (fragment) => {
       if (typeof fragment === "string") {
@@ -1740,34 +1979,38 @@ var Renderer = class {
     this.unsubs.forEach((unsub) => unsub());
     this.unsubs = [];
     const screen = walk(this.fragments).split("\n");
+    const height = this.height();
     const oldSize = this.screen.length;
     const newSize = screen.length;
     const size = Math.max(oldSize, newSize);
-    const height = this.height();
     const start = Math.max(oldSize - height, 0);
     for (let y = start; y < size; y++) {
-      const line = screen[y];
-      if (line !== this.screen[y]) {
-        if (y > oldSize) {
-          const x = (this.screen[y - 1]?.length || 0) - 1;
-          this.output.cursorTo?.(x, y - 1 - start);
-          this.output.write?.("\n" + line);
+      const newLine = screen[y];
+      const oldLine = this.screen[y];
+      if (newLine !== oldLine) {
+        if (y >= oldSize && y !== 0) {
+          const p = y - start - 1;
+          const x = screen[y - 1]?.length || 0;
+          await this.setCursor(x, p);
+          await this.writeString("\n" + newLine);
         } else {
-          this.output.cursorTo?.(0, y - start);
-          this.output.write?.(line);
+          await this.setCursor(0, y - start);
+          await this.writeString(newLine);
+          await this.clearLine();
         }
-        this.output.clearLine?.(1);
       }
     }
     this.screen = screen;
   }
-  clear() {
-    let count = this.output.rows;
-    while (count--) {
-      this.output.write("\n");
+  async clear() {
+    await this.setCursor(0, 0);
+    await this.writeString("\n".repeat(this.height()));
+    await this.setCursor(0, 0);
+    if (this.output.clearScreenDown) {
+      await new Promise((resolve) => {
+        this.output.clearScreenDown(() => resolve(void 0));
+      });
     }
-    this.output.cursorTo?.(0, 0);
-    this.output.clearScreenDown?.();
   }
 };
 
@@ -1783,22 +2026,61 @@ var logo = () => {
   return [
     style.warning("\u26A1\uFE0F "),
     style.primary("AWS"),
-    style.primary.dim("LESS"),
-    br()
+    style.primary.dim("LESS")
   ];
+};
+
+// src/cli/ui/layout/logs.ts
+import wrapAnsi2 from "wrap-ansi";
+var previous = /* @__PURE__ */ new Date();
+var logs = () => {
+  if (!process.env.VERBOSE) {
+    return [];
+  }
+  const logs2 = flushDebug();
+  return (term) => {
+    term.out.write(hr());
+    term.out.write([
+      hr(),
+      br(),
+      " ".repeat(3),
+      style.label("Debug Logs:"),
+      br(),
+      br(),
+      logs2.map((log) => {
+        const diff = log.date.getTime() - previous.getTime();
+        const time = `+${diff}`.padStart(8);
+        previous = log.date;
+        return wrapAnsi2([
+          style.attr(`${time}${style.attr.dim("ms")}`),
+          " [ ",
+          log.type,
+          " ] ",
+          log.message,
+          br(),
+          log.type === "error" ? br() : ""
+        ].join(""), term.out.width(), { hard: true, trim: false });
+      }),
+      br(),
+      hr()
+    ]);
+  };
 };
 
 // src/cli/ui/layout/layout.ts
 var layout = async (cb) => {
   const term = createTerminal();
-  term.out.clear();
+  await term.out.clear();
   term.out.write(logo());
+  term.out.gap();
   try {
     const options = program.optsWithGlobals();
-    const config2 = await importConfig(options);
-    term.out.write(header(config2));
-    await cb(config2, term.out.write.bind(term.out), term);
+    const config = await importConfig(options);
+    term.out.write(header(config));
+    term.out.gap();
+    await cb(config, term.out.write.bind(term.out), term);
   } catch (error) {
+    term.out.gap();
     if (error instanceof Error) {
       term.out.write(dialog("error", [error.message]));
     } else if (typeof error === "string") {
@@ -1809,7 +2091,9 @@ var layout = async (cb) => {
     debugError(error);
   } finally {
     debug("Exit");
-    term.out.write(footer());
+    term.out.gap();
+    term.out.write(logs());
+    await term.out.end();
     term.in.unref();
     setTimeout(() => {
       process.exit(0);
@@ -1841,7 +2125,8 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
 var assetBuilder = (assets) => {
   return async (term) => {
     const done = term.out.write(loadingDialog("Building stack assets..."));
-    const groups = new Signal([br()]);
+    const groups = new Signal([""]);
+    term.out.gap();
     term.out.write(groups);
     const stackNameSize = Math.max(...Object.keys(assets.list()).map((stack) => stack.length));
     const resourceSize = Math.max(...Object.values(assets.list()).map((assets2) => assets2.map((asset) => asset.resource.length)).flat());
@@ -1887,11 +2172,12 @@ var assetBuilder = (assets) => {
       }));
     }));
     done("Done building stack assets");
+    term.out.gap();
   };
 };
 
 // src/util/cleanup.ts
-import { mkdir as mkdir4, rm as rm2 } from "fs/promises";
+import { mkdir as mkdir4, rm } from "fs/promises";
 var cleanUp = async () => {
   debug("Clean up assembly & asset files");
   const paths = [
@@ -1899,7 +2185,7 @@ var cleanUp = async () => {
     assetDir,
     cacheDir
   ];
-  await Promise.all(paths.map((path) => rm2(path, {
+  await Promise.all(paths.map((path) => rm(path, {
     recursive: true,
     force: true,
     maxRetries: 2
@@ -1910,10 +2196,10 @@ var cleanUp = async () => {
 };
 
 // src/cli/command/build.ts
-var build2 = (program2) => {
+var build = (program2) => {
   program2.command("build").argument("[stack...]", "Optionally filter stacks to build").description("Build your app").action(async (filters) => {
-    await layout(async (config2, write) => {
-      const { app, assets } = await toApp(config2, filters);
+    await layout(async (config, write) => {
+      const { app, assets } = await toApp(config, filters);
       await cleanUp();
       await write(assetBuilder(assets));
       app.synth();
@@ -1926,11 +2212,11 @@ import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeS
 import { S3Client as S3Client2, PutObjectCommand as PutObjectCommand2, ObjectCannedACL as ObjectCannedACL2, StorageClass as StorageClass2 } from "@aws-sdk/client-s3";
 var StackClient = class {
   // 30 seconds
-  constructor(config2) {
-    this.config = config2;
+  constructor(config) {
+    this.config = config;
     this.client = new CloudFormationClient({
-      credentials: config2.credentials,
-      region: config2.region
+      credentials: config.credentials,
+      region: config.region
     });
   }
   client;
@@ -2159,12 +2445,12 @@ var confirmPrompt = (label, options = {}) => {
 };
 
 // src/cli/ui/complex/bootstrap.ts
-var bootstrapDeployer = (config2) => {
+var bootstrapDeployer = (config) => {
   return async (term) => {
     debug("Initializing bootstrap");
-    const app = makeApp(config2);
-    const client = new StackClient(config2);
-    const bootstrap2 = bootstrapStack(config2, app);
+    const app = makeApp(config);
+    const client = new StackClient(config);
+    const bootstrap2 = bootstrapStack(config, app);
     const shouldDeploy = await shouldDeployBootstrap(client, bootstrap2.stackName);
     if (shouldDeploy) {
       term.out.write(dialog("warning", [`Your app hasn't been bootstrapped yet`]));
@@ -2188,8 +2474,8 @@ var bootstrapDeployer = (config2) => {
 // src/cli/command/bootstrap.ts
 var bootstrap = (program2) => {
   program2.command("bootstrap").description("Create the awsless bootstrap stack").action(async () => {
-    await layout(async (config2, write) => {
-      await write(bootstrapDeployer(config2));
+    await layout(async (config, write) => {
+      await write(bootstrapDeployer(config));
     });
   });
 };
@@ -2226,21 +2512,23 @@ var stackTree = (nodes, statuses) => {
         render(node.children, deep + 1, [...parents, more]);
       });
     };
+    term.out.gap();
     render(nodes);
+    term.out.gap();
   };
 };
 
 // src/cli/command/status.ts
 var status = (program2) => {
   program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
-    await layout(async (config2, write) => {
-      const { app, assets, dependencyTree } = await toApp(config2, filters);
+    await layout(async (config, write) => {
+      const { app, assets, dependencyTree } = await toApp(config, filters);
       await cleanUp();
       await write(assetBuilder(assets));
       write(br());
       const assembly = app.synth();
       const doneLoading = write(loadingDialog("Loading stack information..."));
-      const client = new StackClient(config2);
+      const client = new StackClient(config);
       const statuses = [];
       const stackStatuses = {};
       assembly.stacks.forEach((stack) => {
@@ -2280,9 +2568,9 @@ var status = (program2) => {
 // src/cli/command/deploy.ts
 var deploy = (program2) => {
   program2.command("deploy").argument("[stacks...]", "Optionally filter stacks to deploy").description("Deploy your app to AWS").action(async (filters) => {
-    await layout(async (config2, write) => {
-      await write(bootstrapDeployer(config2));
-      const { app, stackNames, assets, dependencyTree } = await toApp(config2, filters);
+    await layout(async (config, write, term) => {
+      await write(bootstrapDeployer(config));
+      const { app, stackNames, assets, dependencyTree } = await toApp(config, filters);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to deploy", formattedFilter);
       const deployAll = filters.length === 0;
@@ -2293,8 +2581,6 @@ var deploy = (program2) => {
       }
       await cleanUp();
       await write(assetBuilder(assets));
-      write(br());
-      write(br());
       const donePublishing = write(loadingDialog("Publishing stack assets to AWS..."));
       await Promise.all(assets.map(async (_, assets2) => {
         await Promise.all(assets2.map(async (asset) => {
@@ -2308,10 +2594,8 @@ var deploy = (program2) => {
         statuses[stack.id] = new Signal(style.info("waiting"));
       });
       const doneDeploying = write(loadingDialog("Deploying stacks to AWS..."));
-      write(br());
       write(stackTree(dependencyTree, statuses));
-      write(br());
-      const client = new StackClient(config2);
+      const client = new StackClient(config);
       const deploymentLine = createDeploymentLine(dependencyTree);
       for (const stacks of deploymentLine) {
         const results = await Promise.allSettled(stacks.map(async (stack) => {
@@ -2400,35 +2684,35 @@ var textPrompt = (label, options = {}) => {
   };
 };
 
-// src/cli/command/config/set.ts
+// src/cli/command/secrets/set.ts
 var set = (program2) => {
-  program2.command("set <name>").description("Set a config value").action(async (name) => {
-    await layout(async (config2, write) => {
-      const params = new Params(config2);
+  program2.command("set <name>").description("Set a secret value").action(async (name) => {
+    await layout(async (config, write) => {
+      const params = new Params(config);
       write(list({
-        "Set config parameter": style.info(name)
+        "Set secret parameter": style.info(name)
       }));
       write(br());
-      const value = await write(textPrompt("Enter config value"));
+      const value = await write(textPrompt("Enter secret value"));
       if (value === "") {
-        write(dialog("error", [`Provided config value can't be empty`]));
+        write(dialog("error", [`Provided secret value can't be empty`]));
       } else {
-        const done = write(loadingDialog(`Saving remote config parameter`));
+        const done = write(loadingDialog(`Saving remote secret parameter`));
         await params.set(name, value);
-        done(`Done saving remote config parameter`);
+        done(`Done saving remote secret parameter`);
       }
     });
   });
 };
 
-// src/cli/command/config/get.ts
+// src/cli/command/secrets/get.ts
 var get = (program2) => {
-  program2.command("get <name>").description("Get a config value").action(async (name) => {
-    await layout(async (config2, write) => {
-      const params = new Params(config2);
-      const done = write(loadingDialog(`Getting remote config parameter`));
+  program2.command("get <name>").description("Get a secret value").action(async (name) => {
+    await layout(async (config, write) => {
+      const params = new Params(config);
+      const done = write(loadingDialog(`Getting remote secret parameter`));
       const value = await params.get(name);
-      done(`Done getting remote config parameter`);
+      done(`Done getting remote secret parameter`);
       write(br());
       write(list({
         Name: name,
@@ -2438,20 +2722,20 @@ var get = (program2) => {
   });
 };
 
-// src/cli/command/config/delete.ts
+// src/cli/command/secrets/delete.ts
 var del = (program2) => {
-  program2.command("delete <name>").description("Delete a config value").action(async (name) => {
-    await layout(async (config2, write) => {
-      const params = new Params(config2);
-      write(dialog("warning", [`Your deleting the ${style.info(name)} config parameter`]));
+  program2.command("delete <name>").description("Delete a secret value").action(async (name) => {
+    await layout(async (config, write) => {
+      const params = new Params(config);
+      write(dialog("warning", [`Your deleting the ${style.info(name)} secret parameter`]));
       const confirm = await write(confirmPrompt("Are you sure?"));
       if (!confirm) {
         throw new Cancelled();
       }
-      const done = write(loadingDialog(`Deleting remote config parameter`));
+      const done = write(loadingDialog(`Deleting remote secret parameter`));
       const value = await params.get(name);
       await params.delete(name);
-      done(`Done deleting remote config parameter`);
+      done(`Done deleting remote secret parameter`);
       write(br());
       write(list({
         Name: name,
@@ -2461,33 +2745,33 @@ var del = (program2) => {
   });
 };
 
-// src/cli/command/config/list.ts
+// src/cli/command/secrets/list.ts
 var list2 = (program2) => {
-  program2.command("list").description(`List all config value's`).action(async () => {
-    await layout(async (config2, write) => {
-      const params = new Params(config2);
-      const done = write(loadingDialog("Loading config parameters..."));
+  program2.command("list").description(`List all secret value's`).action(async () => {
+    await layout(async (config, write) => {
+      const params = new Params(config);
+      const done = write(loadingDialog("Loading secret parameters..."));
       const values = await params.list();
-      done("Done loading config values");
+      done("Done loading secret values");
       if (Object.keys(values).length > 0) {
         write(br());
         write(list(values));
       } else {
-        write(dialog("warning", ["No config parameters found"]));
+        write(dialog("warning", ["No secret parameters found"]));
       }
     });
   });
 };
 
-// src/cli/command/config/index.ts
+// src/cli/command/secrets/index.ts
 var commands = [
   set,
   get,
   del,
   list2
 ];
-var config = (program2) => {
-  const command = program2.command("config").description("Manage config values");
+var secrets = (program2) => {
+  const command = program2.command("secrets").description(`Manage app secrets`);
   commands.forEach((cb) => cb(command));
 };
 
@@ -2506,9 +2790,9 @@ program.on("option:verbose", () => {
 var commands2 = [
   bootstrap,
   status,
-  build2,
+  build,
   deploy,
-  config
+  secrets
   // diff,
   // remove,
   // test,

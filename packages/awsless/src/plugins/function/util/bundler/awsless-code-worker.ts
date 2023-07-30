@@ -1,5 +1,5 @@
 import { Worker } from "worker_threads"
-import { Build } from './build.js'
+import { Build } from '../build.js'
 
 const cjs = typeof(require) !== 'undefined'
 const importESM = `
@@ -44,7 +44,7 @@ const build = async (file) => {
 build(workerData)
 `
 
-export const defaultBuild:Build = async (file) => {
+export const awslessWorkerBuild:Build = async (file) => {
 	return new Promise((resolve, reject) => {
 		const worker = new Worker(workerCode, { workerData: file, eval: true });
 		const cleanUp = () => {

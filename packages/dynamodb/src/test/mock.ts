@@ -19,7 +19,7 @@ export type StartDynamoDBOptions<T extends Tables> = {
 	seed?: SeedTable<AnyTableDefinition>[]
 }
 
-export const mockDynamoDB = <T extends Tables>(configOrServer:StartDynamoDBOptions<T> | DynamoDBServer) => {
+export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(configOrServer:StartDynamoDBOptions<T> | DynamoDBServer) => {
 
 	let server:DynamoDBServer;
 

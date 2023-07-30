@@ -17,7 +17,7 @@ import { paramCase } from 'change-case';
 import { ResolverFieldSchema } from './schema/resolver-field.js';
 import { CfnOutput, Fn } from 'aws-cdk-lib';
 import { DurationSchema } from '../../schema/duration.js';
-import { Function } from 'aws-cdk-lib/aws-lambda';
+// import { Function } from 'aws-cdk-lib/aws-lambda';
 // import { debug } from '../../cli/logger.js';
 
 export const graphqlPlugin = definePlugin({

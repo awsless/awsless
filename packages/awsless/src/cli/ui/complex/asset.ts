@@ -11,9 +11,11 @@ import { createSpinner } from "../layout/spinner.js"
 export const assetBuilder = (assets:Assets):RenderFactory => {
 	return async (term) => {
 		const done = term.out.write(loadingDialog('Building stack assets...'))
-		const groups = new Signal<any[]>([ br() ])
+		const groups = new Signal<any[]>([''])
 
+		term.out.gap()
 		term.out.write(groups)
+		// term.out.write(br())
 
 		const stackNameSize = Math.max(...Object.keys(assets.list()).map(stack => stack.length))
 		const resourceSize = Math.max(...Object.values(assets.list()).map(assets => assets.map(asset => asset.resource.length)).flat())
@@ -68,5 +70,6 @@ export const assetBuilder = (assets:Assets):RenderFactory => {
 		}))
 
 		done('Done building stack assets')
+		term.out.gap()
 	}
 }

@@ -1,3 +1,4 @@
+import * as aws_cdk_lib_aws_route53_index_js from 'aws-cdk-lib/aws-route53/index.js';
 import * as aws_cdk_lib_aws_dynamodb_index_js from 'aws-cdk-lib/aws-dynamodb/index.js';
 import * as aws_cdk_lib_aws_events_index_js from 'aws-cdk-lib/aws-events/index.js';
 import * as aws_cdk_lib from 'aws-cdk-lib';
@@ -966,22 +967,6 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }> | undefined;
     }[];
 }>> | Plugin<zod.ZodObject<{
-    stacks: zod.ZodArray<zod.ZodObject<{
-        searchs: zod.ZodOptional<zod.ZodArray<zod.ZodString, "many">>;
-    }, "strip", zod.ZodTypeAny, {
-        searchs?: string[] | undefined;
-    }, {
-        searchs?: string[] | undefined;
-    }>, "many">;
-}, "strip", zod.ZodTypeAny, {
-    stacks: {
-        searchs?: string[] | undefined;
-    }[];
-}, {
-    stacks: {
-        searchs?: string[] | undefined;
-    }[];
-}>> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
         graphql: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
             authorization: zod.ZodOptional<zod.ZodObject<{
@@ -1358,16 +1343,339 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | undefined;
         }> | undefined;
     } | undefined;
+}>> | Plugin<zod.ZodObject<{
+    stacks: zod.ZodArray<zod.ZodObject<{
+        pubsub: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
+            sql: zod.ZodString;
+            sqlVersion: zod.ZodDefault<zod.ZodEnum<["2015-10-08", "2016-03-23", "beta"]>>;
+            consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                file: zod.ZodEffects<zod.ZodString, string, string>;
+                timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                runtime: zod.ZodOptional<zod.ZodEffects<zod.ZodEnum<["container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go"]>, aws_cdk_lib_aws_lambda_index_js.Runtime, "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go">>;
+                memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, aws_cdk_lib.Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                architecture: zod.ZodOptional<zod.ZodEffects<zod.ZodEnum<["x86_64", "arm_64"]>, aws_cdk_lib_aws_lambda_index_js.Architecture, "x86_64" | "arm_64">>;
+                ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, aws_cdk_lib.Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                retryAttempts: zod.ZodNumber;
+                environment: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>;
+            }, "strip", zod.ZodTypeAny, {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            }, {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            }>]>;
+        }, "strip", zod.ZodTypeAny, {
+            consumer: (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            }) & (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            } | undefined);
+            sql: string;
+            sqlVersion: "2015-10-08" | "2016-03-23" | "beta";
+        }, {
+            consumer: (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            }) & (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            } | undefined);
+            sql: string;
+            sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
+        }>>>;
+    }, "strip", zod.ZodTypeAny, {
+        pubsub?: Record<string, {
+            consumer: (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            }) & (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            } | undefined);
+            sql: string;
+            sqlVersion: "2015-10-08" | "2016-03-23" | "beta";
+        }> | undefined;
+    }, {
+        pubsub?: Record<string, {
+            consumer: (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            }) & (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            } | undefined);
+            sql: string;
+            sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
+        }> | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    stacks: {
+        pubsub?: Record<string, {
+            consumer: (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            }) & (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: aws_cdk_lib.Duration | undefined;
+                runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+                memorySize?: aws_cdk_lib.Size | undefined;
+                architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+                ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+                environment?: Record<string, string> | undefined;
+            } | undefined);
+            sql: string;
+            sqlVersion: "2015-10-08" | "2016-03-23" | "beta";
+        }> | undefined;
+    }[];
+}, {
+    stacks: {
+        pubsub?: Record<string, {
+            consumer: (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            }) & (string | {
+                retryAttempts: number;
+                file: string;
+                timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+                memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                architecture?: "x86_64" | "arm_64" | undefined;
+                ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                environment?: Record<string, string> | undefined;
+            } | undefined);
+            sql: string;
+            sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
+        }> | undefined;
+    }[];
+}>> | Plugin<zod.ZodObject<{
+    domains: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodArray<zod.ZodObject<{
+        name: zod.ZodOptional<zod.ZodString>;
+        type: zod.ZodEffects<zod.ZodEnum<["A" | "AAAA" | "MX" | "TXT" | "CNAME"]>, aws_cdk_lib_aws_route53_index_js.RecordType, "A" | "AAAA" | "MX" | "TXT" | "CNAME">;
+        ttl: zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>;
+        records: zod.ZodArray<zod.ZodString, "many">;
+    }, "strip", zod.ZodTypeAny, {
+        type: aws_cdk_lib_aws_route53_index_js.RecordType;
+        ttl: aws_cdk_lib.Duration;
+        records: string[];
+        name?: string | undefined;
+    }, {
+        type: "A" | "AAAA" | "MX" | "TXT" | "CNAME";
+        ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
+        records: string[];
+        name?: string | undefined;
+    }>, "many">>>;
+}, "strip", zod.ZodTypeAny, {
+    domains?: Record<string, {
+        type: aws_cdk_lib_aws_route53_index_js.RecordType;
+        ttl: aws_cdk_lib.Duration;
+        records: string[];
+        name?: string | undefined;
+    }[]> | undefined;
+}, {
+    domains?: Record<string, {
+        type: "A" | "AAAA" | "MX" | "TXT" | "CNAME";
+        ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
+        records: string[];
+        name?: string | undefined;
+    }[]> | undefined;
+}>> | Plugin<zod.ZodObject<{
+    defaults: zod.ZodDefault<zod.ZodObject<{
+        http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
+            domain: zod.ZodString;
+            subDomain: zod.ZodString;
+        }, "strip", zod.ZodTypeAny, {
+            domain: string;
+            subDomain: string;
+        }, {
+            domain: string;
+            subDomain: string;
+        }>>>;
+    }, "strip", zod.ZodTypeAny, {
+        http?: Record<string, {
+            domain: string;
+            subDomain: string;
+        }> | undefined;
+    }, {
+        http?: Record<string, {
+            domain: string;
+            subDomain: string;
+        }> | undefined;
+    }>>;
+    stacks: zod.ZodArray<zod.ZodObject<{
+        http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodRecord<zod.ZodType<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, zod.ZodTypeDef, ("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+            file: zod.ZodEffects<zod.ZodString, string, string>;
+            timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+            runtime: zod.ZodOptional<zod.ZodEffects<zod.ZodEnum<["container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go"]>, aws_cdk_lib_aws_lambda_index_js.Runtime, "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go">>;
+            memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, aws_cdk_lib.Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+            architecture: zod.ZodOptional<zod.ZodEffects<zod.ZodEnum<["x86_64", "arm_64"]>, aws_cdk_lib_aws_lambda_index_js.Architecture, "x86_64" | "arm_64">>;
+            ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, aws_cdk_lib.Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+            retryAttempts: zod.ZodNumber;
+            environment: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>;
+        }, "strip", zod.ZodTypeAny, {
+            retryAttempts: number;
+            file: string;
+            timeout?: aws_cdk_lib.Duration | undefined;
+            runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+            memorySize?: aws_cdk_lib.Size | undefined;
+            architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+            ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+            environment?: Record<string, string> | undefined;
+        }, {
+            retryAttempts: number;
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm_64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            environment?: Record<string, string> | undefined;
+        }>]>>>>;
+    }, "strip", zod.ZodTypeAny, {
+        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+            retryAttempts: number;
+            file: string;
+            timeout?: aws_cdk_lib.Duration | undefined;
+            runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+            memorySize?: aws_cdk_lib.Size | undefined;
+            architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+            ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }, {
+        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+            retryAttempts: number;
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm_64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    defaults: {
+        http?: Record<string, {
+            domain: string;
+            subDomain: string;
+        }> | undefined;
+    };
+    stacks: {
+        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+            retryAttempts: number;
+            file: string;
+            timeout?: aws_cdk_lib.Duration | undefined;
+            runtime?: aws_cdk_lib_aws_lambda_index_js.Runtime | undefined;
+            memorySize?: aws_cdk_lib.Size | undefined;
+            architecture?: aws_cdk_lib_aws_lambda_index_js.Architecture | undefined;
+            ephemeralStorageSize?: aws_cdk_lib.Size | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }[];
+}, {
+    stacks: {
+        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+            retryAttempts: number;
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm_64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }[];
+    defaults?: {
+        http?: Record<string, {
+            domain: string;
+            subDomain: string;
+        }> | undefined;
+    } | undefined;
 }>>)[];
 type CombinedDefaultPluginsConfigInput = ExtendedConfigInput<typeof defaultPlugins[number]['schema']>;
 
-declare const getResourceName: (type: string, id: string) => string;
-declare const getResourceProxy: (type: string) => {};
-declare const Table: {};
-declare const Queue: {};
-declare const Store: {};
+declare const getResourceName: (type: string, id: string, stack?: string) => string;
+declare const getFunctionName: (id: string, stack?: string) => string;
+declare const getTableName: (id: string, stack?: string) => string;
+declare const getQueueName: (id: string, stack?: string) => string;
+declare const getStoreName: (id: string, stack?: string) => string;
 
 type AppConfig = CombinedDefaultPluginsConfigInput;
 type StackConfig = CombinedDefaultPluginsConfigInput['stacks'][number];
 
-export { AppConfig, Plugin, Queue, StackConfig, Store, Table, definePlugin, getResourceName, getResourceProxy };
+export { AppConfig, Plugin, StackConfig, definePlugin, getFunctionName, getQueueName, getResourceName, getStoreName, getTableName };
