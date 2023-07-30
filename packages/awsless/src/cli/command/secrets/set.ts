@@ -20,8 +20,6 @@ export const set = (program: Command) => {
 					'Set secret parameter': style.info(name),
 				}))
 
-				write(br())
-
 				const value = await write(textPrompt('Enter secret value'))
 
 				if(value === '') {

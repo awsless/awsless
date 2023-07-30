@@ -1577,7 +1577,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }> | undefined;
     }>>;
     stacks: zod.ZodArray<zod.ZodObject<{
-        http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodRecord<zod.ZodType<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, zod.ZodTypeDef, ("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+        http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodRecord<zod.ZodType<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, zod.ZodTypeDef, `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, aws_cdk_lib.Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             runtime: zod.ZodOptional<zod.ZodEffects<zod.ZodEnum<["container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go"]>, aws_cdk_lib_aws_lambda_index_js.Runtime, "container" | "rust" | "nodejs16.x" | "nodejs18.x" | "python3.9" | "python3.10" | "go1.x" | "go">>;
@@ -1606,7 +1606,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }>]>>>>;
     }, "strip", zod.ZodTypeAny, {
-        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             retryAttempts: number;
             file: string;
             timeout?: aws_cdk_lib.Duration | undefined;
@@ -1617,7 +1617,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }>>> | undefined;
     }, {
-        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             retryAttempts: number;
             file: string;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1636,7 +1636,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }> | undefined;
     };
     stacks: {
-        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             retryAttempts: number;
             file: string;
             timeout?: aws_cdk_lib.Duration | undefined;
@@ -1649,7 +1649,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
 }, {
     stacks: {
-        http?: Record<string, Partial<Record<("POST" | "GET" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | "*") | `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}` | `* /${string}`, string | {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             retryAttempts: number;
             file: string;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;

@@ -20,7 +20,6 @@ export const get = (program: Command) => {
 
 				done(`Done getting remote secret parameter`)
 
-				write(br())
 				write(list({
 					Name: name,
 					Value: value || style.error('(empty)'),

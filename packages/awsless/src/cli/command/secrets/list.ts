@@ -20,7 +20,6 @@ export const list = (program: Command) => {
 				done('Done loading secret values')
 
 				if(Object.keys(values).length > 0) {
-					write(br())
 					write(listUI(values))
 				} else {
 					write(dialog('warning', [ 'No secret parameters found' ]))

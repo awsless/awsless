@@ -12,15 +12,26 @@ import { LambdaTarget } from 'aws-cdk-lib/aws-elasticloadbalancingv2-targets';
 import { CfnOutput, Fn, Token } from 'aws-cdk-lib';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import { paramCase } from 'change-case';
+import { debug } from '../cli/logger.js';
 
-type Method = 'POST' | 'GET' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*'
-type Route = Method | `${Method} /${string}`
+type Method = 'POST' | 'GET' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS'
+type Route = `${Method} /${string}`
 
 const RouteSchema = z.custom<Route>((route) => {
 	return z.string()
-		.regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS|\*)(\s\/[a-z0-9\+\_\-\/]*)?$/ig)
+		.regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/]*)$/ig)
 		.safeParse(route).success
 }, 'Invalid route')
+
+const generatePriority = (id: string, route: string) => {
+	const start = parseInt(Buffer.from(id, 'utf8').toString('hex'), 16) % 500 + 1
+	const end = parseInt(Buffer.from(route, 'utf8').toString('hex'), 16) % 100
+
+	debug('PRIORITY', id, start, route, end, parseInt(`${start}${end}`, 10))
+
+	return parseInt(`${start}${end}`, 10)
+	// (499 % 500) + (499 % 1000)
+}
 
 export const httpPlugin = definePlugin({
 	name: 'http',
@@ -138,6 +149,15 @@ export const httpPlugin = definePlugin({
 
 		return Object.entries(stackConfig.http || {}).map(([ id, routes ]) => {
 
+			const listener = ApplicationListener.fromApplicationListenerAttributes(stack, toId('listener', id), {
+				listenerArn: Fn.importValue(`http-${id}-listener-arn`),
+				securityGroup: SecurityGroup.fromLookupById(
+					stack,
+					toId('security-group', id),
+					'http-security-group-id'
+				),
+			})
+
 			return Object.entries(routes).map(([ route, props ]) => {
 				const lambda = toFunction(ctx as any, paramCase(route), props!)
 
@@ -145,26 +165,11 @@ export const httpPlugin = definePlugin({
 				const path = paths.join(' ')
 
 				new ApplicationListenerRule(stack, toId('listener-rule', route), {
-					listener: ApplicationListener.fromApplicationListenerAttributes(stack, toId('listener', id), {
-						listenerArn: Fn.importValue(`http-${id}-listener-arn`),
-						securityGroup: SecurityGroup.fromLookupById(
-							stack,
-							toId('security-group', id),
-							'http-security-group-id'
-						),
-					}),
-					priority: 1,
+					listener,
+					priority: generatePriority(id, route),
 					action: ListenerAction.forward([
 						new ApplicationTargetGroup(stack, toId('target-group', route), {
 							targets: [ new LambdaTarget(lambda) ],
-							// vpc: Vpc.fromVpcAttributes(stack, toId('vpc', id), {
-							// 	vpcId: Fn.importValue('http-vpc-id'),
-							// 	availabilityZones: [
-							// 		config.region + 'a',
-							// 		config.region + 'b',
-							// 		config.region + 'c',
-							// 	]
-							// }),
 						})
 					]),
 					conditions: [

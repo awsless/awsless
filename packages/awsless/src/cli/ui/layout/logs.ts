@@ -14,8 +14,7 @@ export const logs = () => {
 	const logs = flushDebug()
 
 	return (term:Terminal) => {
-		// term.out.gap()
-		term.out.write(hr())
+		term.out.gap()
 		term.out.write([
 			hr(),
 			br(),

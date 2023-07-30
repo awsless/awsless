@@ -26,21 +26,7 @@ export const status = (program: Command) => {
 				await cleanUp()
 				await write(assetBuilder(assets))
 
-				write(br())
-
 				const assembly = app.synth()
-
-				// const doneBuilding = write(loadingDialog('Building stack assets...'))
-
-				// await Promise.all(assets.map(async (stack, assets) => {
-				// 	await Promise.all(assets.map(async asset => {
-				// 		await asset.build?.()
-				// 	}))
-				// }))
-
-				// const assembly = app.synth()
-
-				// doneBuilding('Done building stack assets')
 
 				// --------------------------------------------------------
 				// Get stack statuses
@@ -56,9 +42,7 @@ export const status = (program: Command) => {
 				})
 
 				// render the stacks with a loading state
-				write(br())
 				write(stackTree(dependencyTree, stackStatuses))
-				write(br())
 
 				debug('Load metadata for all deployed stacks on AWS')
 

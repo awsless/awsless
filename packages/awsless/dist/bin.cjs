@@ -1111,8 +1111,14 @@ var import_aws_cdk_lib6 = require("aws-cdk-lib");
 var import_aws_certificatemanager = require("aws-cdk-lib/aws-certificatemanager");
 var import_change_case4 = require("change-case");
 var RouteSchema = import_zod22.z.custom((route) => {
-  return import_zod22.z.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS|\*)(\s\/[a-z0-9\+\_\-\/]*)?$/ig).safeParse(route).success;
+  return import_zod22.z.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/]*)$/ig).safeParse(route).success;
 }, "Invalid route");
+var generatePriority = (id, route) => {
+  const start = parseInt(Buffer.from(id, "utf8").toString("hex"), 16) % 500 + 1;
+  const end = parseInt(Buffer.from(route, "utf8").toString("hex"), 16) % 100;
+  debug("PRIORITY", id, start, route, end, parseInt(`${start}${end}`, 10));
+  return parseInt(`${start}${end}`, 10);
+};
 var httpPlugin = definePlugin({
   name: "http",
   schema: import_zod22.z.object({
@@ -1206,31 +1212,24 @@ var httpPlugin = definePlugin({
   onStack(ctx) {
     const { config, stack, stackConfig } = ctx;
     return Object.entries(stackConfig.http || {}).map(([id, routes]) => {
+      const listener = import_aws_elasticloadbalancingv2.ApplicationListener.fromApplicationListenerAttributes(stack, toId("listener", id), {
+        listenerArn: import_aws_cdk_lib6.Fn.importValue(`http-${id}-listener-arn`),
+        securityGroup: import_aws_ec2.SecurityGroup.fromLookupById(
+          stack,
+          toId("security-group", id),
+          "http-security-group-id"
+        )
+      });
       return Object.entries(routes).map(([route, props]) => {
         const lambda = toFunction(ctx, (0, import_change_case4.paramCase)(route), props);
         const [method, ...paths] = route.split(" ");
         const path = paths.join(" ");
         new import_aws_elasticloadbalancingv2.ApplicationListenerRule(stack, toId("listener-rule", route), {
-          listener: import_aws_elasticloadbalancingv2.ApplicationListener.fromApplicationListenerAttributes(stack, toId("listener", id), {
-            listenerArn: import_aws_cdk_lib6.Fn.importValue(`http-${id}-listener-arn`),
-            securityGroup: import_aws_ec2.SecurityGroup.fromLookupById(
-              stack,
-              toId("security-group", id),
-              "http-security-group-id"
-            )
-          }),
-          priority: 1,
+          listener,
+          priority: generatePriority(id, route),
           action: import_aws_elasticloadbalancingv2.ListenerAction.forward([
             new import_aws_elasticloadbalancingv2.ApplicationTargetGroup(stack, toId("target-group", route), {
               targets: [new import_aws_elasticloadbalancingv2_targets.LambdaTarget(lambda)]
-              // vpc: Vpc.fromVpcAttributes(stack, toId('vpc', id), {
-              // 	vpcId: Fn.importValue('http-vpc-id'),
-              // 	availabilityZones: [
-              // 		config.region + 'a',
-              // 		config.region + 'b',
-              // 		config.region + 'c',
-              // 	]
-              // }),
             })
           ]),
           conditions: [
@@ -1687,12 +1686,16 @@ var list = (data) => {
   const size = Object.keys(data).reduce((total, name) => {
     return name.length > total ? name.length : total;
   }, 0);
-  return Object.entries(data).map(([name, value]) => [
-    " ".repeat(padding),
-    style.label((name + ":").padEnd(size + gap + 1)),
-    value,
-    br()
-  ]);
+  return (term) => {
+    term.out.gap();
+    term.out.write(Object.entries(data).map(([name, value]) => [
+      " ".repeat(padding),
+      style.label((name + ":").padEnd(size + gap + 1)),
+      value,
+      br()
+    ]));
+    term.out.gap();
+  };
 };
 
 // src/cli/ui/layout/header.ts
@@ -2062,7 +2065,7 @@ var logs = () => {
   }
   const logs2 = flushDebug();
   return (term) => {
-    term.out.write(hr());
+    term.out.gap();
     term.out.write([
       hr(),
       br(),
@@ -2548,7 +2551,6 @@ var status = (program2) => {
       const { app, assets, dependencyTree } = await toApp(config, filters);
       await cleanUp();
       await write(assetBuilder(assets));
-      write(br());
       const assembly = app.synth();
       const doneLoading = write(loadingDialog("Loading stack information..."));
       const client = new StackClient(config);
@@ -2557,9 +2559,7 @@ var status = (program2) => {
       assembly.stacks.forEach((stack) => {
         stackStatuses[stack.id] = new Signal(style.info("Loading..."));
       });
-      write(br());
       write(stackTree(dependencyTree, stackStatuses));
-      write(br());
       debug("Load metadata for all deployed stacks on AWS");
       await Promise.all(assembly.stacks.map(async (stack, i) => {
         const info = await client.get(stack.stackName);
@@ -2715,7 +2715,6 @@ var set = (program2) => {
       write(list({
         "Set secret parameter": style.info(name)
       }));
-      write(br());
       const value = await write(textPrompt("Enter secret value"));
       if (value === "") {
         write(dialog("error", [`Provided secret value can't be empty`]));
@@ -2736,7 +2735,6 @@ var get = (program2) => {
       const done = write(loadingDialog(`Getting remote secret parameter`));
       const value = await params.get(name);
       done(`Done getting remote secret parameter`);
-      write(br());
       write(list({
         Name: name,
         Value: value || style.error("(empty)")
@@ -2759,7 +2757,6 @@ var del = (program2) => {
       const value = await params.get(name);
       await params.delete(name);
       done(`Done deleting remote secret parameter`);
-      write(br());
       write(list({
         Name: name,
         Value: value || style.error("(empty)")
@@ -2777,7 +2774,6 @@ var list2 = (program2) => {
       const values = await params.list();
       done("Done loading secret values");
       if (Object.keys(values).length > 0) {
-        write(br());
         write(list(values));
       } else {
         write(dialog("warning", ["No secret parameters found"]));
