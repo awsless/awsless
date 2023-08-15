@@ -1,13 +1,13 @@
 import { mkdir, rm } from "fs/promises"
-import { assemblyDir, assetDir, cacheDir } from "./path.js"
+import { templateDir, assetDir, cacheDir } from "./path.js"
 import { debug } from "../cli/logger.js"
 
 export const cleanUp = async () => {
 
-	debug('Clean up assembly & asset files')
+	debug('Clean up template, cache, and asset files')
 
 	const paths = [
-		assemblyDir,
+		templateDir,
 		assetDir,
 		cacheDir,
 	]

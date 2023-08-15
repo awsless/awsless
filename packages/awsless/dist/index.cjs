@@ -20,12 +20,15 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  defineAppConfig: () => defineAppConfig,
   definePlugin: () => definePlugin,
   getFunctionName: () => getFunctionName,
+  getGlobalResourceName: () => getGlobalResourceName,
+  getLocalResourceName: () => getLocalResourceName,
   getQueueName: () => getQueueName,
-  getResourceName: () => getResourceName,
   getStoreName: () => getStoreName,
-  getTableName: () => getTableName
+  getTableName: () => getTableName,
+  getTopicName: () => getTopicName
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -33,32 +36,33 @@ module.exports = __toCommonJS(src_exports);
 var definePlugin = (plugin) => plugin;
 
 // src/node/resource.ts
-var getResourceName = (type, id, stack = process.env.STACK || "default") => {
-  const key = `RESOURCE_${type.toUpperCase()}_${stack}_${id}`;
-  const value = process.env[key];
-  if (!value) {
-    throw new TypeError(`Resource type: "${type}" stack: "${stack}" id: "${id}" doesn't exist.`);
-  }
-  return value;
+var APP = process.env.APP || "app";
+var STACK = process.env.STACK || "stack";
+var getLocalResourceName = (id, stack = STACK) => {
+  return `${APP}-${stack}-${id}`;
 };
-var getFunctionName = (id, stack) => {
-  return getResourceName("function", id, stack);
+var getGlobalResourceName = (id) => {
+  return `${APP}-${id}`;
 };
-var getTableName = (id, stack) => {
-  return getResourceName("table", id, stack);
-};
-var getQueueName = (id, stack) => {
-  return getResourceName("queue", id, stack);
-};
-var getStoreName = (id, stack) => {
-  return getResourceName("store", id, stack);
+var getFunctionName = getLocalResourceName;
+var getTableName = getLocalResourceName;
+var getStoreName = getLocalResourceName;
+var getQueueName = getLocalResourceName;
+var getTopicName = getGlobalResourceName;
+
+// src/index.ts
+var defineAppConfig = (config) => {
+  return config;
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  defineAppConfig,
   definePlugin,
   getFunctionName,
+  getGlobalResourceName,
+  getLocalResourceName,
   getQueueName,
-  getResourceName,
   getStoreName,
-  getTableName
+  getTableName,
+  getTopicName
 });

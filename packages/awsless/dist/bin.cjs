@@ -26,13 +26,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/cli/program.ts
 var import_commander = require("commander");
 
-// src/app.ts
-var import_aws_cdk_lib9 = require("aws-cdk-lib");
-
-// src/stack.ts
-var import_aws_cdk_lib = require("aws-cdk-lib");
-var import_aws_iam = require("aws-cdk-lib/aws-iam");
-
 // src/cli/style.ts
 var import_chalk = __toESM(require("chalk"), 1);
 var symbol = {
@@ -84,7 +77,7 @@ var flushDebug = () => {
 // src/util/param.ts
 var import_client_ssm = require("@aws-sdk/client-ssm");
 var configParameterPrefix = (config) => {
-  return `/${config.stage}/awsless/${config.name}`;
+  return `/awsless/${config.name}/${config.stage}`;
 };
 var Params = class {
   constructor(config) {
@@ -165,85 +158,411 @@ var Params = class {
   }
 };
 
-// src/stack.ts
-var toStack = ({ config, assets, app, stackConfig, plugins }) => {
-  const stackName = `${config.name}-${stackConfig.name}`;
-  const stack = new import_aws_cdk_lib.Stack(app, stackConfig.name, {
-    stackName,
-    env: {
-      account: config.account,
-      region: config.region
-    },
-    tags: {
-      APP: config.name,
-      STAGE: config.stage,
-      STACK: stackConfig.name
+// src/formation/util.ts
+var import_change_case = require("change-case");
+var ref = (logicalId) => {
+  return { Ref: logicalId };
+};
+var sub = (value, params) => {
+  if (params) {
+    return { "Fn::Sub": [value, params] };
+  }
+  return { "Fn::Sub": value };
+};
+var getAtt = (logicalId, attr) => {
+  return { "Fn::GetAtt": [logicalId, attr] };
+};
+var importValue = (name) => {
+  return { "Fn::ImportValue": name };
+};
+var formatLogicalId = (id) => {
+  return (0, import_change_case.pascalCase)(id);
+};
+var formatName = (name) => {
+  return (0, import_change_case.paramCase)(name);
+};
+
+// src/formation/resource.ts
+var Resource = class {
+  constructor(type, logicalId, children = []) {
+    this.type = type;
+    this.children = children;
+    this.logicalId = formatLogicalId(`${logicalId}-${type.replace(/^AWS::/, "")}`);
+  }
+  logicalId;
+  deps = /* @__PURE__ */ new Set();
+  dependsOn(...dependencies) {
+    for (const dependency of dependencies) {
+      this.deps.add(dependency);
     }
-  });
-  debug("Define stack:", style.info(stackConfig.name));
+    return this;
+  }
+  attr(name, value) {
+    if (typeof value === "undefined") {
+      return {};
+    }
+    return {
+      [name]: value
+    };
+  }
+  toJSON() {
+    return {
+      [this.logicalId]: {
+        Type: this.type,
+        DependsOn: [...this.deps].map((dep) => dep.logicalId),
+        Properties: this.properties()
+      }
+    };
+  }
+};
+var Group = class {
+  constructor(children) {
+    this.children = children;
+  }
+};
+
+// src/formation/resource/iam/inline-policy.ts
+var InlinePolicy = class {
+  constructor(name, props = {}) {
+    this.name = name;
+    this.statements = props.statements || [];
+  }
+  statements;
+  addStatement(...statements) {
+    this.statements.push(...statements.flat());
+    return this;
+  }
+  toJSON() {
+    return {
+      PolicyName: this.name,
+      PolicyDocument: {
+        Version: "2012-10-17",
+        Statement: this.statements.map((statement) => ({
+          Effect: statement.effect || "Allow",
+          Action: statement.actions,
+          Resource: statement.resources
+        }))
+      }
+    };
+  }
+};
+
+// src/formation/resource/iam/managed-policy.ts
+var ManagedPolicy = class {
+  constructor(arn) {
+    this.arn = arn;
+  }
+  static fromAwsManagedPolicyName(name) {
+    const arn = sub("arn:${AWS::Partition}:iam::aws:policy/service-role/" + name);
+    return new ManagedPolicy(arn);
+  }
+  static fromManagedPolicyArn(arn) {
+    return new ManagedPolicy(arn);
+  }
+};
+
+// src/formation/resource/iam/role.ts
+var Role = class extends Resource {
+  constructor(logicalId, props = {}) {
+    super("AWS::IAM::Role", logicalId);
+    this.props = props;
+    this.name = formatName(logicalId);
+  }
+  name;
+  inlinePolicies = /* @__PURE__ */ new Set();
+  managedPolicies = /* @__PURE__ */ new Set();
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  addManagedPolicy(...policies) {
+    for (const policy of policies) {
+      this.managedPolicies.add(policy);
+    }
+    return this;
+  }
+  addInlinePolicy(...policies) {
+    for (const policy of policies) {
+      this.inlinePolicies.add(policy);
+    }
+    return this;
+  }
+  properties() {
+    return {
+      ...this.props.assumedBy ? {
+        AssumeRolePolicyDocument: {
+          Version: "2012-10-17",
+          Statement: [{
+            Action: "sts:AssumeRole",
+            Effect: "Allow",
+            Principal: {
+              Service: this.props.assumedBy
+            }
+          }]
+        }
+      } : {},
+      ManagedPolicyArns: [...this.managedPolicies].map((policy) => policy.arn),
+      Policies: [...this.inlinePolicies].map((policy) => policy.toJSON())
+    };
+  }
+};
+
+// src/formation/resource/lambda/function.ts
+var Function = class extends Resource {
+  constructor(logicalId, props) {
+    const policy = new InlinePolicy(logicalId);
+    const role = new Role(logicalId, {
+      assumedBy: "lambda.amazonaws.com"
+    });
+    role.addInlinePolicy(policy);
+    role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName("AWSLambdaBasicExecutionRole"));
+    super("AWS::Lambda::Function", logicalId, [
+      role,
+      props.code
+    ]);
+    this.props = props;
+    this.dependsOn(role);
+    this.role = role;
+    this.policy = policy;
+    this.name = formatName(this.props.name || logicalId);
+    this.environmentVariables = props.environment ? { ...props.environment } : {};
+  }
+  name;
+  role;
+  policy;
+  environmentVariables;
+  addPermissions(...permissions) {
+    this.policy.addStatement(...permissions);
+    return this;
+  }
+  addEnvironment(name, value) {
+    this.environmentVariables[name] = value;
+    return this;
+  }
+  get id() {
+    return ref(this.logicalId);
+  }
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  get permissions() {
+    return {
+      actions: [
+        "lambda:InvokeFunction",
+        "lambda:InvokeAsync"
+      ],
+      resources: [this.arn]
+    };
+  }
+  properties() {
+    return {
+      FunctionName: this.name,
+      MemorySize: this.props.memorySize?.toMegaBytes() ?? 128,
+      Runtime: this.props.runtime ?? "nodejs18.x",
+      Timeout: this.props.timeout?.toSeconds() ?? 10,
+      Architectures: [this.props.architecture ?? "arm64"],
+      Role: this.role.arn,
+      ...this.props.code.toCodeJson(),
+      EphemeralStorage: {
+        Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512
+      },
+      Environment: {
+        Variables: this.environmentVariables
+      }
+    };
+  }
+};
+
+// src/formation/asset.ts
+var import_change_case2 = require("change-case");
+var Asset = class {
+  constructor(type, id) {
+    this.type = type;
+    this.id = (0, import_change_case2.paramCase)(id);
+  }
+  id;
+};
+
+// src/formation/stack.ts
+var Stack = class {
+  constructor(name, region) {
+    this.name = name;
+    this.region = region;
+  }
+  exports = /* @__PURE__ */ new Map();
+  resources = /* @__PURE__ */ new Set();
+  tags = /* @__PURE__ */ new Map();
+  assets = /* @__PURE__ */ new Set();
+  add(...resources) {
+    for (const item of resources) {
+      if (item instanceof Asset) {
+        this.assets.add(item);
+      } else {
+        this.add(...item.children);
+        if (item instanceof Resource) {
+          this.resources.add(item);
+        }
+      }
+    }
+    return this;
+  }
+  export(name, value) {
+    name = formatName(name);
+    this.exports.set(name, value);
+    return this;
+  }
+  import(name) {
+    name = formatName(name);
+    if (!this.exports.has(name)) {
+      throw new Error(`Undefined export value: ${name}`);
+    }
+    return importValue(name);
+  }
+  tag(name, value) {
+    this.tags.set(name, value);
+    return this;
+  }
+  find(resourceType) {
+    return [...this.resources].filter((resource) => resource instanceof resourceType);
+  }
+  [Symbol.iterator]() {
+    return this.resources.values();
+  }
+  // get resources() {
+  // 	return [ ...this.list.values() ]
+  // }
+  get size() {
+    return this.resources.size;
+  }
+  toJSON() {
+    const resources = {};
+    const outputs = {};
+    for (const resource of this) {
+      Object.assign(resources, resource.toJSON());
+    }
+    for (const [name, value] of this.exports.entries()) {
+      Object.assign(outputs, {
+        [formatLogicalId(name)]: {
+          Export: { Name: name },
+          Value: value
+        }
+      });
+    }
+    return {
+      Resources: resources,
+      Outputs: outputs
+    };
+  }
+  toString(pretty = false) {
+    return JSON.stringify(
+      this.toJSON(),
+      void 0,
+      pretty ? 4 : void 0
+    );
+  }
+};
+
+// src/stack.ts
+var toStack = ({ config, app, stackConfig, bootstrap: bootstrap2, usEastBootstrap, plugins }) => {
+  const name = stackConfig.name;
+  const stack = new Stack(name, config.region).tag("app", config.name).tag("stage", config.stage).tag("stack", name);
+  debug("Define stack:", style.info(name));
+  debug("Run plugin onStack listeners");
   const bindings = [];
   const bind = (cb) => {
     bindings.push(cb);
   };
-  debug("Run plugin onStack listeners");
-  const functions = plugins.map((plugin) => plugin.onStack?.({
-    config,
-    assets,
-    app,
-    stack,
-    stackConfig,
-    bind
-  })).filter(Boolean).flat().filter(Boolean);
-  if (stack.node.children.length === 0) {
-    throw new Error(`Stack ${style.info(stackConfig.name)} has no resources defined`);
+  for (const plugin of plugins) {
+    plugin.onStack?.({
+      config,
+      app,
+      stack,
+      stackConfig,
+      bootstrap: bootstrap2,
+      usEastBootstrap,
+      bind
+    });
   }
-  bindings.forEach((cb) => functions.forEach(cb));
-  const allowConfigParameters = new import_aws_iam.PolicyStatement({
-    actions: [
-      "ssm:GetParameter",
-      "ssm:GetParameters",
-      "ssm:GetParametersByPath"
-    ],
-    resources: [
-      import_aws_cdk_lib.Arn.format({
-        region: config.region,
-        account: config.account,
-        partition: "aws",
-        service: "ssm",
-        resource: "parameter",
-        resourceName: configParameterPrefix(config)
-      })
-      // Fn.sub('arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config)),
-    ]
-  });
-  functions.forEach((lambda) => lambda.addToRolePolicy(allowConfigParameters));
+  if (stack.size === 0) {
+    throw new Error(`Stack ${style.info(name)} has no resources defined`);
+  }
+  const functions = stack.find(Function);
+  for (const bind2 of bindings) {
+    for (const fn of functions) {
+      bind2(fn);
+    }
+  }
+  for (const fn of functions) {
+    fn.addPermissions({
+      actions: [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      resources: [
+        sub("arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter" + configParameterPrefix(config))
+      ]
+    });
+  }
   return {
     stack,
-    functions,
-    bindings,
     depends: stackConfig.depends
   };
 };
 
-// src/util/path.ts
-var import_path = require("path");
-var rootDir = process.cwd();
-var outDir = (0, import_path.join)(rootDir, ".awsless");
-var assemblyDir = (0, import_path.join)(outDir, "assembly");
-var assetDir = (0, import_path.join)(outDir, "asset");
-var cacheDir = (0, import_path.join)(outDir, "cache");
+// src/util/deployment.ts
+var createDependencyTree = (stacks) => {
+  const list3 = stacks.map(({ stack, config }) => ({
+    stack,
+    depends: config?.depends?.map((dep) => dep.name) || []
+  }));
+  const findChildren = (list4, parents) => {
+    const children = [];
+    const rests = [];
+    for (const item of list4) {
+      const isChild = item.depends.filter((dep) => !parents.includes(dep)).length === 0;
+      if (isChild) {
+        children.push(item);
+      } else {
+        rests.push(item);
+      }
+    }
+    if (!rests.length) {
+      return children.map(({ stack }) => ({
+        stack,
+        children: []
+      }));
+    }
+    return children.map(({ stack }) => {
+      return {
+        stack,
+        children: findChildren(rests, [...parents, stack.name])
+      };
+    });
+  };
+  return findChildren(list3, []);
+};
+var createDeploymentLine = (stacks) => {
+  const line = [];
+  const walk = (stacks2, level) => {
+    stacks2.forEach((node) => {
+      if (!line[level]) {
+        line[level] = [];
+      }
+      line[level].push(node.stack);
+      walk(node.children, level + 1);
+    });
+  };
+  walk(stacks, 0);
+  return line;
+};
 
-// src/stack/app-bootstrap.ts
-var import_aws_cdk_lib8 = require("aws-cdk-lib");
+// src/plugins/cron/index.ts
+var import_zod7 = require("zod");
 
 // src/plugin.ts
 var definePlugin = (plugin) => plugin;
 
-// src/plugins/cron/index.ts
-var import_zod10 = require("zod");
-
 // src/plugins/cron/schema/schedule.ts
-var import_aws_events = require("aws-cdk-lib/aws-events");
 var import_zod = require("zod");
 var import_aws_cron_expression_validator = require("aws-cron-expression-validator");
 var RateExpressionSchema = import_zod.z.custom((value) => {
@@ -252,7 +571,7 @@ var RateExpressionSchema = import_zod.z.custom((value) => {
     const number = parseInt(str);
     return number > 0;
   }).safeParse(value).success;
-}, "Invalid rate expression").transform(import_aws_events.Schedule.expression);
+}, "Invalid rate expression");
 var CronExpressionSchema = import_zod.z.custom((value) => {
   return import_zod.z.string().startsWith("cron(").endsWith(")").safeParse(value).success;
 }, "Invalid cron expression").superRefine((value, ctx) => {
@@ -272,58 +591,81 @@ var CronExpressionSchema = import_zod.z.custom((value) => {
       });
     }
   }
-}).transform(import_aws_events.Schedule.expression);
+});
 var ScheduleExpressionSchema = RateExpressionSchema.or(CronExpressionSchema);
 
-// src/plugins/cron/index.ts
-var import_aws_events2 = require("aws-cdk-lib/aws-events");
-
-// src/util/resource.ts
-var import_change_case = require("change-case");
-var toId = (resource, id) => {
-  return (0, import_change_case.pascalCase)(`${resource}-${id}`);
-};
-var toName = (stack, id) => {
-  return (0, import_change_case.paramCase)(`${stack.stackName}-${id}`);
-};
-var toExportName = (name) => {
-  return (0, import_change_case.paramCase)(name);
-};
-var toEnvKey = (resource, id) => {
-  return `RESOURCE_${resource.toUpperCase()}_${id}`;
-};
-var addResourceEnvironment = (stack, resource, id, lambda) => {
-  const key = toEnvKey(resource, id);
-  const value = toName(stack, id);
-  lambda.addEnvironment(key, value, {
-    removeInEdge: true
-  });
-};
-
-// src/plugins/function/index.ts
-var import_zod9 = require("zod");
+// src/plugins/function.ts
+var import_zod6 = require("zod");
 
 // src/schema/duration.ts
 var import_zod2 = require("zod");
-var import_core = require("aws-cdk-lib/core");
+
+// src/formation/property/duration.ts
+var Duration = class {
+  constructor(value) {
+    this.value = value;
+  }
+  static milliseconds(value) {
+    return new Duration(value);
+  }
+  static seconds(value) {
+    return new Duration(value * 1e3 /* seconds */);
+  }
+  static minutes(value) {
+    return new Duration(value * 6e4 /* minutes */);
+  }
+  static hours(value) {
+    return new Duration(value * 36e5 /* hours */);
+  }
+  static days(value) {
+    return new Duration(value * 864e5 /* days */);
+  }
+  toMilliseconds() {
+    return this.value;
+  }
+  toSeconds() {
+    return Math.floor(this.value / 1e3 /* seconds */);
+  }
+  toMinutes() {
+    return Math.floor(this.value / 6e4 /* minutes */);
+  }
+  toHours() {
+    return Math.floor(this.value / 36e5 /* hours */);
+  }
+  toDays() {
+    return Math.floor(this.value / 864e5 /* days */);
+  }
+};
+
+// src/schema/duration.ts
 function toDuration(duration) {
   const [count, unit] = duration.split(" ");
   const countNum = parseInt(count);
   const unitLower = unit.toLowerCase();
   if (unitLower.startsWith("second")) {
-    return import_core.Duration.seconds(countNum);
+    return Duration.seconds(countNum);
   } else if (unitLower.startsWith("minute")) {
-    return import_core.Duration.minutes(countNum);
+    return Duration.minutes(countNum);
   } else if (unitLower.startsWith("hour")) {
-    return import_core.Duration.hours(countNum);
+    return Duration.hours(countNum);
   } else if (unitLower.startsWith("day")) {
-    return import_core.Duration.days(countNum);
+    return Duration.days(countNum);
   }
-  return import_core.Duration.days(0);
+  return Duration.days(0);
 }
 var DurationSchema = import_zod2.z.custom((value) => {
   return import_zod2.z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/).safeParse(value).success;
 }, "Invalid duration").transform(toDuration);
+var durationMin = (min) => {
+  return (duration) => {
+    return duration.toSeconds() >= min.toSeconds();
+  };
+};
+var durationMax = (max) => {
+  return (duration) => {
+    return duration.toSeconds() <= max.toSeconds();
+  };
+};
 
 // src/schema/local-file.ts
 var import_promises = require("fs/promises");
@@ -337,202 +679,86 @@ var LocalFileSchema = import_zod3.z.string().refine(async (path) => {
   return true;
 }, `File doesn't exist`);
 
-// src/plugins/function/index.ts
-var import_aws_lambda3 = require("aws-cdk-lib/aws-lambda");
-
-// src/plugins/function/schema/runtime.ts
-var import_aws_lambda = require("aws-cdk-lib/aws-lambda");
-var import_zod4 = require("zod");
-var runtimes = {
-  "container": import_aws_lambda.Runtime.FROM_IMAGE,
-  "rust": import_aws_lambda.Runtime.PROVIDED_AL2,
-  "nodejs16.x": import_aws_lambda.Runtime.NODEJS_16_X,
-  "nodejs18.x": import_aws_lambda.Runtime.NODEJS_18_X,
-  "python3.9": import_aws_lambda.Runtime.PYTHON_3_9,
-  "python3.10": import_aws_lambda.Runtime.PYTHON_3_10,
-  "go1.x": import_aws_lambda.Runtime.PROVIDED_AL2,
-  "go": import_aws_lambda.Runtime.PROVIDED_AL2
-};
-var toRuntime = (runtime) => {
-  return runtimes[runtime];
-};
-var RuntimeSchema = import_zod4.z.enum(Object.keys(runtimes)).transform(toRuntime);
-
-// src/plugins/function/schema/architecture.ts
-var import_aws_lambda2 = require("aws-cdk-lib/aws-lambda");
-var import_zod5 = require("zod");
-var toArchitecture = (architecture) => {
-  return architecture === "x86_64" ? import_aws_lambda2.Architecture.X86_64 : import_aws_lambda2.Architecture.ARM_64;
-};
-var ArchitectureSchema = import_zod5.z.enum(["x86_64", "arm_64"]).transform(toArchitecture);
-
 // src/schema/resource-id.ts
-var import_zod6 = require("zod");
-var ResourceIdSchema = import_zod6.z.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
+var import_zod4 = require("zod");
+var ResourceIdSchema = import_zod4.z.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
 
 // src/schema/size.ts
-var import_core2 = require("aws-cdk-lib/core");
-var import_zod7 = require("zod");
+var import_zod5 = require("zod");
+
+// src/formation/property/size.ts
+var Size = class {
+  constructor(bytes) {
+    this.bytes = bytes;
+  }
+  static bytes(value) {
+    return new Size(value);
+  }
+  static kiloBytes(value) {
+    return new Size(value * 1024 /* kilo */);
+  }
+  static megaBytes(value) {
+    return new Size(value * 1048576 /* mega */);
+  }
+  static gigaBytes(value) {
+    return new Size(value * 1073741824 /* giga */);
+  }
+  toBytes() {
+    return this.bytes;
+  }
+  toKiloBytes() {
+    return Math.floor(this.bytes / 1024 /* kilo */);
+  }
+  toMegaBytes() {
+    return Math.floor(this.bytes / 1048576 /* mega */);
+  }
+  toGigaBytes() {
+    return Math.floor(this.bytes / 1073741824 /* giga */);
+  }
+};
+
+// src/schema/size.ts
 function toSize(size) {
   const [count, unit] = size.split(" ");
   const countNum = parseInt(count);
   if (unit === "KB") {
-    return import_core2.Size.kibibytes(countNum);
+    return Size.kiloBytes(countNum);
   } else if (unit === "MB") {
-    return import_core2.Size.mebibytes(countNum);
+    return Size.megaBytes(countNum);
   } else if (unit === "GB") {
-    return import_core2.Size.gibibytes(countNum);
+    return Size.gigaBytes(countNum);
   }
   throw new TypeError(`Invalid size ${size}`);
 }
-var SizeSchema = import_zod7.z.custom((value) => {
-  return import_zod7.z.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value).success;
+var SizeSchema = import_zod5.z.custom((value) => {
+  return import_zod5.z.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value).success;
 }, "Invalid size").transform(toSize);
-
-// src/plugins/function/util/build.ts
-var import_jszip = __toESM(require("jszip"), 1);
-var import_path3 = require("path");
-var import_promises2 = require("fs/promises");
-var import_filesize = require("filesize");
-var zipFiles = (files) => {
-  const zip = new import_jszip.default();
-  for (const file of files) {
-    zip.file(file.name, file.code);
-  }
-  return zip.generateAsync({
-    type: "nodebuffer",
-    compression: "DEFLATE",
-    compressionOptions: {
-      level: 9
-    }
-  });
+var sizeMin = (min) => {
+  return (size) => {
+    return size.toBytes() >= min.toBytes();
+  };
 };
-var writeBuildHash = async (config, stack, id, hash) => {
-  const funcPath = (0, import_path3.join)(assetDir, "function", config.name, stack.artifactId, id);
-  const versionFile = (0, import_path3.join)(funcPath, "HASH");
-  await (0, import_promises2.writeFile)(versionFile, hash);
-};
-var writeBuildFiles = async (config, stack, id, files) => {
-  const bundle = await zipFiles(files);
-  const funcPath = (0, import_path3.join)(assetDir, "function", config.name, stack.artifactId, id);
-  const filesPath = (0, import_path3.join)(funcPath, "files");
-  const bundleFile = (0, import_path3.join)(funcPath, "bundle.zip");
-  debug("Bundle size of", style.info((0, import_path3.join)(config.name, stack.artifactId, id)), "is", style.attr((0, import_filesize.filesize)(bundle.byteLength)));
-  await (0, import_promises2.mkdir)(filesPath, { recursive: true });
-  await (0, import_promises2.writeFile)(bundleFile, bundle);
-  await Promise.all(files.map(async (file) => {
-    const fileName = (0, import_path3.join)(filesPath, file.name);
-    await (0, import_promises2.mkdir)((0, import_path3.dirname)(fileName), { recursive: true });
-    await (0, import_promises2.writeFile)(fileName, file.code);
-    if (file.map) {
-      const mapName = (0, import_path3.join)(filesPath, `${file.name}.map`);
-      await (0, import_promises2.writeFile)(mapName, file.map);
-    }
-  }));
-  return {
-    file: bundleFile,
-    size: bundle.byteLength
+var sizeMax = (max) => {
+  return (size) => {
+    return size.toBytes() <= max.toBytes();
   };
 };
 
-// src/plugins/function/util/publish.ts
-var import_path5 = require("path");
-var import_promises3 = require("fs/promises");
-var import_client_s3 = require("@aws-sdk/client-s3");
-
-// src/stack/bootstrap.ts
-var import_aws_cdk_lib2 = require("aws-cdk-lib");
-var import_aws_s3 = require("aws-cdk-lib/aws-s3");
-var assetBucketName = (config) => {
-  return `awsless-bootstrap-${config.account}-${config.region}`;
-};
-var assetBucketUrl = (config, stackName) => {
-  const bucket = assetBucketName(config);
-  return `https://s3-${config.region}.amazonaws.com/${bucket}/${stackName}/cloudformation.json`;
-};
-var version = "2";
-var bootstrapStack = (config, app) => {
-  const stack = new import_aws_cdk_lib2.Stack(app, "bootstrap", {
-    stackName: `awsless-bootstrap`
-  });
-  new import_aws_s3.Bucket(stack, "assets", {
-    bucketName: assetBucketName(config),
-    versioned: true,
-    accessControl: import_aws_s3.BucketAccessControl.PRIVATE,
-    removalPolicy: import_aws_cdk_lib2.RemovalPolicy.DESTROY
-  });
-  new import_aws_cdk_lib2.CfnOutput(stack, "version", {
-    exportName: "version",
-    value: version
-  });
-  return stack;
-};
-var shouldDeployBootstrap = async (client, name) => {
-  debug("Check bootstrap status");
-  const info = await client.get(name);
-  return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
-};
-
-// src/plugins/function/util/publish.ts
-var publishFunctionAsset = async (config, stack, id) => {
-  const bucket = assetBucketName(config);
-  const key = `${config.name}/${stack.artifactId}/function/${id}.zip`;
-  const funcPath = (0, import_path5.join)(assetDir, "function", config.name, stack.artifactId, id);
-  const bundleFile = (0, import_path5.join)(funcPath, "bundle.zip");
-  const hashFile = (0, import_path5.join)(funcPath, "HASH");
-  const hash = await (0, import_promises3.readFile)(hashFile, "utf8");
-  const file = await (0, import_promises3.readFile)(bundleFile);
-  const client = new import_client_s3.S3Client({
-    credentials: config.credentials,
-    region: config.region
-  });
-  let getResult;
-  try {
-    getResult = await client.send(new import_client_s3.GetObjectCommand({
-      Bucket: bucket,
-      Key: key
-    }));
-  } catch (error) {
-    if (error instanceof Error && error.name === "NoSuchKey") {
-    } else {
-      throw error;
-    }
-  }
-  if (getResult?.Metadata?.hash === hash) {
-    return getResult.VersionId;
-  }
-  const putResult = await client.send(new import_client_s3.PutObjectCommand({
-    Bucket: bucket,
-    Key: key,
-    Body: file,
-    ACL: import_client_s3.ObjectCannedACL.private,
-    StorageClass: import_client_s3.StorageClass.STANDARD,
-    Metadata: {
-      hash
-    }
-  }));
-  return putResult.VersionId;
-};
-
-// src/plugins/function/schema/retry-attempts.ts
-var import_zod8 = require("zod");
-var RetryAttempts = import_zod8.z.number().int().min(0).max(2);
-
 // src/util/byte-size.ts
-var import_filesize2 = require("filesize");
+var import_filesize = require("filesize");
 var formatByteSize = (size) => {
-  const [number, unit] = (0, import_filesize2.filesize)(size).toString().split(" ");
+  const [number, unit] = (0, import_filesize.filesize)(size).toString().split(" ");
   return style.attr(number) + style.attr.dim(unit);
 };
 
-// src/plugins/function/util/bundler/rollup.ts
+// src/formation/resource/lambda/util/rollup.ts
 var import_rollup = require("rollup");
 var import_crypto = require("crypto");
 var import_rollup_plugin_swc3 = require("rollup-plugin-swc3");
 var import_plugin_json = __toESM(require("@rollup/plugin-json"), 1);
 var import_plugin_commonjs = __toESM(require("@rollup/plugin-commonjs"), 1);
 var import_plugin_node_resolve = __toESM(require("@rollup/plugin-node-resolve"), 1);
-var rollupBuild = async (input) => {
+var rollupBundle = async (input) => {
   const bundle = await (0, import_rollup.rollup)({
     input,
     external: (importee) => {
@@ -577,34 +803,160 @@ var rollupBuild = async (input) => {
   };
 };
 
-// src/plugins/function/index.ts
-var FunctionSchema = import_zod9.z.union([
+// src/formation/resource/lambda/util/zip.ts
+var import_jszip = __toESM(require("jszip"), 1);
+var zipFiles = (files) => {
+  const zip = new import_jszip.default();
+  for (const file of files) {
+    zip.file(file.name, file.code);
+  }
+  return zip.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+    compressionOptions: {
+      level: 9
+    }
+  });
+};
+
+// src/formation/resource/lambda/code.ts
+var import_crypto2 = require("crypto");
+var Code = class {
+  static fromFile(id, file, bundler) {
+    return new FileCode(id, file, bundler);
+  }
+  static fromInline(id, code, handler) {
+    return new InlineCode(id, code, handler);
+  }
+};
+var InlineCode = class extends Asset {
+  constructor(id, code, handler = "index.default") {
+    super("function", id);
+    this.code = code;
+    this.handler = handler;
+  }
+  hash;
+  bundle;
+  s3;
+  async build({ write }) {
+    const hash = (0, import_crypto2.createHash)("sha1").update(this.code).digest("hex");
+    const bundle = await zipFiles([{
+      name: "index.js",
+      code: this.code
+    }]);
+    await Promise.all([
+      write("HASH", hash),
+      write("bundle.zip", bundle),
+      write("files/inline.js", this.code)
+    ]);
+    this.bundle = bundle;
+    this.hash = hash;
+    return {
+      size: formatByteSize(bundle.byteLength)
+    };
+  }
+  async publish({ publish }) {
+    this.s3 = await publish(
+      `${this.id}.zip`,
+      this.bundle,
+      this.hash
+    );
+  }
+  toCodeJson() {
+    return {
+      Handler: this.handler,
+      Code: {
+        S3Bucket: this.s3.bucket,
+        S3Key: this.s3.key,
+        S3ObjectVersion: this.s3.version
+      }
+    };
+  }
+};
+var FileCode = class extends Asset {
+  constructor(id, file, bundler) {
+    super("function", id);
+    this.file = file;
+    this.bundler = bundler;
+  }
+  handler;
+  hash;
+  bundle;
+  s3;
+  async build({ write }) {
+    const bundler = this.bundler ?? rollupBundle;
+    const { hash, files, handler } = await bundler(this.file);
+    const bundle = await zipFiles(files);
+    await Promise.all([
+      write("HASH", hash),
+      write("bundle.zip", bundle),
+      ...files.map((file) => write(`files/${file.name}`, file.code)),
+      ...files.map((file) => file.map ? write(`files/${file.name}.map`, file.map) : void 0)
+    ]);
+    this.handler = handler;
+    this.bundle = bundle;
+    this.hash = hash;
+    return {
+      size: formatByteSize(bundle.byteLength)
+    };
+  }
+  async publish({ publish }) {
+    this.s3 = await publish(
+      `${this.id}.zip`,
+      this.bundle,
+      this.hash
+    );
+  }
+  toCodeJson() {
+    return {
+      Handler: this.handler,
+      Code: {
+        S3Bucket: this.s3?.bucket ?? "",
+        S3Key: this.s3?.key ?? "",
+        S3ObjectVersion: this.s3?.version ?? ""
+      }
+    };
+  }
+};
+
+// src/plugins/function.ts
+var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum memory size is 10 GB");
+var TimeoutSchema = DurationSchema.refine(durationMin(Duration.seconds(10)), "Minimum timeout duration is 10 seconds").refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
+var EphemeralStorageSizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(512)), "Minimum ephemeral storage size is 512 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum ephemeral storage size is 10 GB");
+var EnvironmentSchema = import_zod6.z.record(import_zod6.z.string(), import_zod6.z.string()).optional();
+var ArchitectureSchema = import_zod6.z.enum(["x86_64", "arm64"]);
+var RetryAttemptsSchema = import_zod6.z.number().int().min(0).max(2);
+var RuntimeSchema = import_zod6.z.enum([
+  "nodejs16.x",
+  "nodejs18.x"
+]);
+var FunctionSchema = import_zod6.z.union([
   LocalFileSchema,
-  import_zod9.z.object({
+  import_zod6.z.object({
     file: LocalFileSchema,
-    timeout: DurationSchema.optional(),
+    timeout: TimeoutSchema.optional(),
     runtime: RuntimeSchema.optional(),
-    memorySize: SizeSchema.optional(),
+    memorySize: MemorySizeSchema.optional(),
     architecture: ArchitectureSchema.optional(),
-    ephemeralStorageSize: SizeSchema.optional(),
-    retryAttempts: RetryAttempts,
-    environment: import_zod9.z.record(import_zod9.z.string(), import_zod9.z.string()).optional()
+    ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
+    retryAttempts: RetryAttemptsSchema.optional(),
+    environment: EnvironmentSchema.optional()
   })
 ]);
-var schema = import_zod9.z.object({
-  defaults: import_zod9.z.object({
-    function: import_zod9.z.object({
-      timeout: DurationSchema.default("10 seconds"),
+var schema = import_zod6.z.object({
+  defaults: import_zod6.z.object({
+    function: import_zod6.z.object({
+      timeout: TimeoutSchema.default("10 seconds"),
       runtime: RuntimeSchema.default("nodejs18.x"),
-      memorySize: SizeSchema.default("128 MB"),
-      architecture: ArchitectureSchema.default("arm_64"),
-      ephemeralStorageSize: SizeSchema.default("512 MB"),
-      retryAttempts: RetryAttempts.default(2),
-      environment: import_zod9.z.record(import_zod9.z.string(), import_zod9.z.string()).optional()
+      memorySize: MemorySizeSchema.default("128 MB"),
+      architecture: ArchitectureSchema.default("arm64"),
+      ephemeralStorageSize: EphemeralStorageSizeSchema.default("512 MB"),
+      retryAttempts: RetryAttemptsSchema.default(2),
+      environment: EnvironmentSchema.optional()
     }).default({})
   }).default({}),
-  stacks: import_zod9.z.object({
-    functions: import_zod9.z.record(
+  stacks: import_zod6.z.object({
+    functions: import_zod6.z.record(
       ResourceIdSchema,
       FunctionSchema
     ).optional()
@@ -613,200 +965,466 @@ var schema = import_zod9.z.object({
 var functionPlugin = definePlugin({
   name: "function",
   schema,
-  onStack(context) {
-    return Object.entries(context.stackConfig.functions || {}).map(([id, fileOrProps]) => {
-      return toFunction(context, id, fileOrProps);
-    });
+  onStack(ctx) {
+    for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {
+      const lambda = toLambdaFunction(ctx, id, props);
+      ctx.stack.add(lambda);
+    }
   }
 });
-var toFunction = ({ config, stack, assets }, id, fileOrProps) => {
+var toLambdaFunction = (ctx, id, fileOrProps) => {
+  const config = ctx.config;
+  const stack = ctx.stack;
   const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
-  const lambda = new import_aws_lambda3.Function(stack, toId("function", id), {
-    functionName: toName(stack, id),
-    handler: "index.default",
-    code: import_aws_lambda3.Code.fromInline("export default () => {}"),
-    ...props,
-    memorySize: props.memorySize.toMebibytes()
+  const lambda = new Function(id, {
+    name: `${config.name}-${stack.name}-${id}`,
+    code: Code.fromFile(id, props.file),
+    ...props
   });
-  lambda.addEnvironment("APP", config.name, { removeInEdge: true });
-  lambda.addEnvironment("STAGE", config.stage, { removeInEdge: true });
-  lambda.addEnvironment("STACK", stack.artifactId, { removeInEdge: true });
-  if (lambda.runtime.toString().startsWith("nodejs")) {
-    lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1", {
-      removeInEdge: true
-    });
+  lambda.addEnvironment("APP", config.name);
+  lambda.addEnvironment("STAGE", config.stage);
+  lambda.addEnvironment("STACK", stack.name);
+  if (props.runtime.startsWith("nodejs")) {
+    lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1");
   }
-  assets.add({
-    stackName: stack.artifactId,
-    resource: "function",
-    resourceName: id,
-    async build() {
-      const result = await rollupBuild(props.file);
-      const bundle = await writeBuildFiles(config, stack, id, result.files);
-      await writeBuildHash(config, stack, id, result.hash);
-      const func = lambda.node.defaultChild;
-      func.handler = result.handler;
-      return {
-        size: formatByteSize(bundle.size)
-      };
-    },
-    async publish() {
-      const version2 = await publishFunctionAsset(config, stack, id);
-      const func = lambda.node.defaultChild;
-      func.code = {
-        s3Bucket: assetBucketName(config),
-        s3Key: `${config.name}/${stack.artifactId}/function/${id}.zip`,
-        s3ObjectVersion: version2
-      };
-    }
-  });
   return lambda;
 };
 
+// src/formation/resource/events/rule.ts
+var Rule = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Events::Rule", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      Name: this.name,
+      ...this.attr("State", "ENABLED"),
+      ...this.attr("Description", this.props.description),
+      ...this.attr("ScheduleExpression", this.props.schedule),
+      ...this.attr("RoleArn", this.props.roleArn),
+      ...this.attr("EventBusName", this.props.eventBusName),
+      ...this.attr("EventPattern", this.props.eventPattern),
+      Targets: this.props.targets.map((target) => ({
+        Arn: target.arn,
+        Id: target.id,
+        ...this.attr("Input", target.input && JSON.stringify(target.input))
+      }))
+    };
+  }
+};
+
+// src/formation/resource/lambda/permission.ts
+var Permission2 = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Lambda::Permission", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      FunctionName: this.props.functionArn,
+      Action: this.props.action || "lambda:InvokeFunction",
+      Principal: this.props.principal,
+      SourceArn: this.props.sourceArn
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/events.ts
+var EventsEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const rule = new Rule(id, {
+      schedule: props.schedule,
+      targets: [{
+        id,
+        arn: lambda.arn,
+        input: props.payload
+      }]
+    });
+    const permission = new Permission2(id, {
+      action: "lambda:InvokeFunction",
+      principal: "events.amazonaws.com",
+      functionArn: lambda.arn,
+      sourceArn: rule.arn
+    });
+    super([rule, permission]);
+  }
+};
+
 // src/plugins/cron/index.ts
-var import_aws_events_targets = require("aws-cdk-lib/aws-events-targets");
 var cronPlugin = definePlugin({
   name: "cron",
-  schema: import_zod10.z.object({
-    stacks: import_zod10.z.object({
-      crons: import_zod10.z.record(ResourceIdSchema, import_zod10.z.object({
+  schema: import_zod7.z.object({
+    stacks: import_zod7.z.object({
+      crons: import_zod7.z.record(ResourceIdSchema, import_zod7.z.object({
         consumer: FunctionSchema,
         schedule: ScheduleExpressionSchema,
-        description: import_zod10.z.string().max(512).optional()
+        payload: import_zod7.z.unknown().optional()
       })).optional()
     }).array()
   }),
-  onStack(context) {
-    return Object.entries(context.stackConfig.crons || {}).map(([id, props]) => {
-      const lambda = toFunction(context, id, props.consumer);
-      const target = new import_aws_events_targets.LambdaFunction(lambda);
-      new import_aws_events2.Rule(context.stack, toId("cron", id), {
-        ruleName: toName(context.stack, id),
+  onStack(ctx) {
+    const { stack, stackConfig } = ctx;
+    for (const [id, props] of Object.entries(stackConfig.crons || {})) {
+      const lambda = toLambdaFunction(ctx, id, props.consumer);
+      const source = new EventsEventSource(id, lambda, {
         schedule: props.schedule,
-        description: props.description,
-        targets: [target]
+        payload: props.payload
       });
-      return lambda;
-    });
+      stack.add(lambda, source);
+    }
   }
 });
 
 // src/plugins/queue.ts
-var import_zod11 = require("zod");
-var import_aws_sqs = require("aws-cdk-lib/aws-sqs");
-var import_aws_lambda_event_sources = require("aws-cdk-lib/aws-lambda-event-sources");
+var import_zod8 = require("zod");
+
+// src/formation/resource/sqs/queue.ts
+var Queue = class extends Resource {
+  constructor(logicalId, props = {}) {
+    super("AWS::SQS::Queue", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  get url() {
+    return getAtt(this.logicalId, "QueueUrl");
+  }
+  get permissions() {
+    return {
+      actions: [
+        "sqs:SendMessage",
+        "sqs:ReceiveMessage",
+        "sqs:GetQueueUrl",
+        "sqs:GetQueueAttributes"
+      ],
+      resources: [this.arn]
+    };
+  }
+  properties() {
+    return {
+      QueueName: this.name,
+      DelaySeconds: this.props.deliveryDelay?.toSeconds() ?? 0,
+      MaximumMessageSize: this.props.maxMessageSize?.toBytes() ?? Size.kiloBytes(256).toBytes(),
+      MessageRetentionPeriod: this.props.retentionPeriod?.toSeconds() ?? Duration.days(4).toSeconds(),
+      ReceiveMessageWaitTimeSeconds: this.props.receiveMessageWaitTime?.toSeconds() ?? 0,
+      VisibilityTimeout: this.props.visibilityTimeout?.toSeconds() ?? 30
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source-mapping.ts
+var import_change_case3 = require("change-case");
+var EventSourceMapping = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Lambda::EventSourceMapping", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      Enabled: true,
+      FunctionName: this.props.functionArn,
+      EventSourceArn: this.props.sourceArn,
+      ...this.attr("BatchSize", this.props.batchSize),
+      ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow?.toSeconds()),
+      ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge?.toSeconds()),
+      ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
+      ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
+      ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow?.toSeconds()),
+      ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
+      ...this.attr("StartingPosition", this.props.startingPosition && (0, import_change_case3.constantCase)(this.props.startingPosition)),
+      ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
+      ...this.props.maxConcurrency ? {
+        ScalingConfig: {
+          MaximumConcurrency: this.props.maxConcurrency
+        }
+      } : {},
+      ...this.props.onFailure ? {
+        DestinationConfig: {
+          OnFailure: {
+            Destination: this.props.onFailure
+          }
+        }
+      } : {}
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/sqs.ts
+var SqsEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const source = new EventSourceMapping(id, {
+      functionArn: lambda.arn,
+      sourceArn: props.queueArn,
+      batchSize: props.batchSize ?? 10,
+      maxBatchingWindow: props.maxBatchingWindow,
+      maxConcurrency: props.maxConcurrency,
+      onFailure: props.onFailure
+    });
+    lambda.addPermissions({
+      actions: [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+      ],
+      resources: [props.queueArn]
+    });
+    super([source]);
+  }
+};
+
+// src/plugins/queue.ts
 var queuePlugin = definePlugin({
   name: "queue",
-  schema: import_zod11.z.object({
-    defaults: import_zod11.z.object({
-      queue: import_zod11.z.object({
-        // fifo: z.boolean().default(false),
+  schema: import_zod8.z.object({
+    defaults: import_zod8.z.object({
+      /** Define the defaults properties for all queue's in your app */
+      queue: import_zod8.z.object({
+        /** The number of seconds that Amazon SQS retains a message.
+         * You can specify a duration value from 1 minute to 14 days.
+         * @default '7 days' */
         retentionPeriod: DurationSchema.default("7 days"),
+        /** The length of time during which a message will be unavailable after a message is delivered from the queue.
+         * This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue.
+         * You can specify a duration value from 0 to 12 hours.
+         * @default '30 seconds' */
         visibilityTimeout: DurationSchema.default("30 seconds"),
+        /** The time in seconds for which the delivery of all messages in the queue is delayed.
+         * You can specify a duration value from 0 to 15 minutes.
+         * @default '0 seconds' */
         deliveryDelay: DurationSchema.default("0 seconds"),
+        /** Specifies the duration, in seconds,
+         * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
+         * rather than returning an empty response if a message isn't yet available.
+         * You can specify an integer from 1 to 20.
+         * You can specify a duration value from 1 to 20 seconds.
+         * @default '0 seconds' */
         receiveMessageWaitTime: DurationSchema.default("0 seconds"),
+        /** The limit of how many bytes that a message can contain before Amazon SQS rejects it.
+         * You can specify an size value from 1 KB to 256 KB.
+         * @default '256 KB' */
         maxMessageSize: SizeSchema.default("256 KB")
       }).default({})
     }).default({}),
-    stacks: import_zod11.z.object({
-      queues: import_zod11.z.record(ResourceIdSchema, import_zod11.z.union([
-        LocalFileSchema,
-        import_zod11.z.object({
-          consumer: FunctionSchema,
-          // fifo: z.boolean().optional(),
-          retentionPeriod: DurationSchema.optional(),
-          visibilityTimeout: DurationSchema.optional(),
-          deliveryDelay: DurationSchema.optional(),
-          receiveMessageWaitTime: DurationSchema.optional(),
-          maxMessageSize: SizeSchema.optional()
-        })
-      ])).optional()
+    stacks: import_zod8.z.object({
+      /** Define the queues in your stack
+       * @example
+       * {
+       *   queues: {
+       *     QUEUE_NAME: 'function.ts'
+       *   }
+       * }
+       * */
+      queues: import_zod8.z.record(
+        ResourceIdSchema,
+        import_zod8.z.union([
+          LocalFileSchema,
+          import_zod8.z.object({
+            /** The consuming lambda function properties */
+            consumer: FunctionSchema,
+            /** The number of seconds that Amazon SQS retains a message.
+             * You can specify a duration value from 1 minute to 14 days.
+             * @default '7 days' */
+            retentionPeriod: DurationSchema.optional(),
+            /** The length of time during which a message will be unavailable after a message is delivered from the queue.
+             * This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue.
+             * You can specify a duration value from 0 to 12 hours.
+             * @default '30 seconds' */
+            visibilityTimeout: DurationSchema.optional(),
+            /** The time in seconds for which the delivery of all messages in the queue is delayed.
+             * You can specify a duration value from 0 to 15 minutes.
+             * @default '0 seconds' */
+            deliveryDelay: DurationSchema.optional(),
+            /** Specifies the duration, in seconds,
+             * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
+             * rather than returning an empty response if a message isn't yet available.
+             * You can specify an integer from 1 to 20.
+             * You can specify a duration value from 1 to 20 seconds.
+             * @default '0 seconds' */
+            receiveMessageWaitTime: DurationSchema.optional(),
+            /** The limit of how many bytes that a message can contain before Amazon SQS rejects it.
+             * You can specify an size value from 1 KB to 256 KB.
+             * @default '256 KB' */
+            maxMessageSize: SizeSchema.optional()
+          })
+        ])
+      ).optional()
     }).array()
   }),
   onStack(ctx) {
     const { stack, config, stackConfig, bind } = ctx;
-    return Object.entries(stackConfig.queues || {}).map(([id, functionOrProps]) => {
+    for (const [id, functionOrProps] of Object.entries(stackConfig.queues || {})) {
       const props = typeof functionOrProps === "string" ? { ...config.defaults.queue, consumer: functionOrProps } : { ...config.defaults.queue, ...functionOrProps };
-      const queue2 = new import_aws_sqs.Queue(stack, toId("queue", id), {
-        queueName: toName(stack, id),
-        ...props,
-        maxMessageSizeBytes: props.maxMessageSize.toBytes()
+      const queue2 = new Queue(id, {
+        name: `${config.name}-${stack.name}-${id}`,
+        ...props
       });
-      const lambda = toFunction(ctx, id, props.consumer);
-      lambda.addEventSource(new import_aws_lambda_event_sources.SqsEventSource(queue2));
+      const lambda = toLambdaFunction(ctx, id, props.consumer);
+      const source = new SqsEventSource(id, lambda, {
+        queueArn: queue2.arn
+      });
+      stack.add(queue2, lambda, source);
       bind((lambda2) => {
-        queue2.grantSendMessages(lambda2);
-        addResourceEnvironment(stack, "queue", id, lambda2);
+        lambda2.addPermissions(queue2.permissions);
       });
-      return lambda;
-    });
+    }
   }
 });
 
-// src/plugins/table/index.ts
-var import_zod16 = require("zod");
-var import_aws_dynamodb4 = require("aws-cdk-lib/aws-dynamodb");
+// src/plugins/table.ts
+var import_zod9 = require("zod");
 
-// src/plugins/table/schema/class-type.ts
-var import_aws_dynamodb = require("aws-cdk-lib/aws-dynamodb");
-var import_zod12 = require("zod");
-var types = {
-  "standard": import_aws_dynamodb.TableClass.STANDARD,
-  "standard-infrequent-access": import_aws_dynamodb.TableClass.STANDARD_INFREQUENT_ACCESS
+// src/formation/resource/dynamodb/table.ts
+var import_change_case4 = require("change-case");
+var Table = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::DynamoDB::Table", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+    this.indexes = { ...this.props.indexes || {} };
+  }
+  name;
+  indexes;
+  addIndex(name, props) {
+    this.indexes[name] = props;
+  }
+  get arn() {
+    return ref(this.logicalId);
+  }
+  get permissions() {
+    return {
+      actions: [
+        "dynamodb:DescribeTable",
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:TransactWrite",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:BatchGetItem",
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:Query",
+        "dynamodb:Scan"
+      ],
+      resources: [this.arn]
+    };
+  }
+  properties() {
+    return {
+      TableName: this.name,
+      BillingMode: "PAY_PER_REQUEST",
+      TableClass: (0, import_change_case4.constantCase)(this.props.class || "standard"),
+      PointInTimeRecoverySpecification: {
+        PointInTimeRecoveryEnabled: this.props.pointInTimeRecovery || false
+      },
+      KeySchema: [
+        { KeyType: "HASH", AttributeName: this.props.hash },
+        ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
+      ],
+      AttributeDefinitions: Object.entries(this.props.fields).map(([name, type]) => ({
+        AttributeName: name,
+        AttributeType: type[0].toUpperCase()
+      })),
+      ...this.props.timeToLiveAttribute ? {
+        TimeToLiveSpecification: {
+          AttributeName: this.props.timeToLiveAttribute,
+          Enabled: true
+        }
+      } : {},
+      ...Object.keys(this.indexes).length ? {
+        GlobalSecondaryIndexes: Object.entries(this.indexes).map(([name, props]) => ({
+          IndexName: name,
+          KeySchema: [
+            { KeyType: "HASH", AttributeName: props.hash },
+            ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
+          ],
+          Projection: {
+            ProjectionType: (0, import_change_case4.constantCase)(props.projection || "all")
+          }
+        }))
+      } : {}
+    };
+  }
 };
-var TableClassSchema = import_zod12.z.enum(Object.keys(types)).transform((value) => {
-  return types[value];
-});
 
-// src/plugins/table/schema/attribute.ts
-var import_aws_dynamodb2 = require("aws-cdk-lib/aws-dynamodb");
-var import_zod13 = require("zod");
-var types2 = {
-  string: import_aws_dynamodb2.AttributeType.STRING,
-  number: import_aws_dynamodb2.AttributeType.NUMBER,
-  binary: import_aws_dynamodb2.AttributeType.BINARY
-};
-var AttributeSchema = import_zod13.z.enum(Object.keys(types2)).transform((value) => types2[value]);
-
-// src/plugins/table/schema/key.ts
-var import_zod14 = require("zod");
-var KeySchema = import_zod14.z.string().min(1).max(255);
-
-// src/plugins/table/schema/projection-type.ts
-var import_aws_dynamodb3 = require("aws-cdk-lib/aws-dynamodb");
-var import_zod15 = require("zod");
-var types3 = {
-  "all": import_aws_dynamodb3.ProjectionType.ALL,
-  "keys-only": import_aws_dynamodb3.ProjectionType.KEYS_ONLY
-};
-var ProjectionTypeSchema = import_zod15.z.union([
-  import_zod15.z.enum(Object.keys(types3)).transform((value) => ({
-    ProjectionType: types3[value]
-  })),
-  import_zod15.z.array(KeySchema).min(0).max(20).transform((keys) => ({
-    ProjectionType: import_aws_dynamodb3.ProjectionType.INCLUDE,
-    NonKeyAttributes: keys
-  }))
-]);
-
-// src/plugins/table/index.ts
+// src/plugins/table.ts
+var KeySchema = import_zod9.z.string().min(1).max(255);
 var tablePlugin = definePlugin({
   name: "table",
-  schema: import_zod16.z.object({
-    stacks: import_zod16.z.object({
-      tables: import_zod16.z.record(
+  schema: import_zod9.z.object({
+    stacks: import_zod9.z.object({
+      /** Define the tables in your stack
+       * @example
+       * {
+       *   tables: {
+       *     TABLE_NAME: {
+       *       hash: 'id',
+       *       fields: {
+       *         id: 'number'
+       *       }
+       *     }
+       *   }
+       * }
+       * */
+      tables: import_zod9.z.record(
         ResourceIdSchema,
-        import_zod16.z.object({
+        import_zod9.z.object({
+          /** Specifies the name of the partition / hash key that makes up the primary key for the table. */
           hash: KeySchema,
+          /** Specifies the name of the range / sort key that makes up the primary key for the table. */
           sort: KeySchema.optional(),
-          fields: import_zod16.z.record(import_zod16.z.string(), AttributeSchema),
-          class: TableClassSchema.default("standard"),
-          pointInTimeRecovery: import_zod16.z.boolean().default(false),
-          timeToLiveAttribute: import_zod16.z.string().optional(),
-          indexes: import_zod16.z.record(import_zod16.z.string(), import_zod16.z.object({
+          /** A list of attributes that describe the key schema for the table and indexes.
+           * @example
+           * {
+           *   fields: {
+           *     id: 'string'
+           *   }
+           * }
+          */
+          fields: import_zod9.z.record(import_zod9.z.string(), import_zod9.z.enum(["string", "number", "binary"])),
+          /** The table class of the table.
+           * @default 'standard'
+          */
+          class: import_zod9.z.enum(["standard", "standard-infrequent-access"]).default("standard"),
+          /** Indicates whether point in time recovery is enabled on the table.
+           * @default false
+          */
+          pointInTimeRecovery: import_zod9.z.boolean().default(false),
+          /** The name of the TTL attribute used to store the expiration time for items in the table.
+           * - To update this property, you must first disable TTL and then enable TTL with the new attribute name.
+          */
+          timeToLiveAttribute: KeySchema.optional(),
+          /** Specifies the global secondary indexes to be created on the table.
+           * @example
+           * {
+           *   indexes: {
+           *     INDEX_NAME: {
+           *       hash: 'other'
+           *     }
+           *   }
+           * }
+          */
+          indexes: import_zod9.z.record(import_zod9.z.string(), import_zod9.z.object({
+            /** Specifies the name of the partition / hash key that makes up the primary key for the global secondary index. */
             hash: KeySchema,
+            /** Specifies the name of the range / sort key that makes up the primary key for the global secondary index. */
             sort: KeySchema.optional(),
-            projection: ProjectionTypeSchema.default("all")
+            /** The set of attributes that are projected into the index:
+             * - all - All of the table attributes are projected into the index.
+             * - keys-only - Only the index and primary keys are projected into the index.
+             * @default 'all'
+             */
+            projection: import_zod9.z.enum(["all", "keys-only"]).default("all")
           })).optional()
         }).refine((props) => {
           return (
@@ -823,113 +1441,321 @@ var tablePlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onStack({ stack, stackConfig, bind }) {
-    Object.entries(stackConfig.tables || {}).map(([id, props]) => {
-      const buildKey = (attr) => {
-        return { name: attr, type: props.fields[attr] };
-      };
-      const table = new import_aws_dynamodb4.Table(stack, toId("table", id), {
-        tableName: toName(stack, id),
-        partitionKey: buildKey(props.hash),
-        sortKey: props.sort ? buildKey(props.sort) : void 0,
-        billingMode: import_aws_dynamodb4.BillingMode.PAY_PER_REQUEST,
-        pointInTimeRecovery: props.pointInTimeRecovery,
-        timeToLiveAttribute: props.timeToLiveAttribute,
-        tableClass: props.class
+  onStack({ config, stack, stackConfig, bind }) {
+    for (const [id, props] of Object.entries(stackConfig.tables || {})) {
+      const table = new Table(id, {
+        name: `${config.name}-${stack.name}-${id}`,
+        ...props
       });
-      Object.entries(props.indexes || {}).forEach(([indexName, entry]) => {
-        table.addGlobalSecondaryIndex({
-          indexName,
-          partitionKey: buildKey(entry.hash),
-          sortKey: entry.sort ? buildKey(entry.sort) : void 0,
-          ...entry.projection
-        });
-      });
+      stack.add(table);
       bind((lambda) => {
-        table.grantReadWriteData(lambda);
-        addResourceEnvironment(stack, "table", id, lambda);
+        lambda.addPermissions(table.permissions);
       });
-    });
+    }
   }
 });
 
 // src/plugins/store.ts
-var import_zod17 = require("zod");
-var import_aws_s32 = require("aws-cdk-lib/aws-s3");
-var import_aws_cdk_lib3 = require("aws-cdk-lib");
+var import_zod10 = require("zod");
+
+// src/formation/resource/s3/bucket.ts
+var import_change_case5 = require("change-case");
+var Bucket = class extends Resource {
+  constructor(logicalId, props = {}) {
+    super("AWS::S3::Bucket", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get arn() {
+    return ref(this.logicalId);
+  }
+  get domainName() {
+    return getAtt(this.logicalId, "DomainName");
+  }
+  get permissions() {
+    return {
+      actions: [
+        "s3:SendMessage",
+        "s3:ReceiveMessage",
+        "s3:GetQueueUrl",
+        "s3:GetQueueAttributes"
+      ],
+      resources: [this.arn]
+    };
+  }
+  properties() {
+    return {
+      BucketName: this.name,
+      AccessControl: (0, import_change_case5.pascalCase)(this.props.accessControl ?? "private"),
+      ...this.props.versioned ? {
+        VersioningConfiguration: {
+          Status: "Enabled"
+        }
+      } : {}
+    };
+  }
+};
+
+// src/plugins/store.ts
 var storePlugin = definePlugin({
   name: "store",
-  schema: import_zod17.z.object({
-    stacks: import_zod17.z.object({
-      stores: import_zod17.z.array(ResourceIdSchema).optional()
+  schema: import_zod10.z.object({
+    stacks: import_zod10.z.object({
+      /** Define the stores in your stack
+       * @example
+       * {
+       *   stores: [ 'STORE_NAME' ]
+       * }
+       * */
+      stores: import_zod10.z.array(ResourceIdSchema).optional()
     }).array()
   }),
-  onStack({ stack, stackConfig, bind }) {
-    (stackConfig.stores || []).forEach((id) => {
-      const bucket = new import_aws_s32.Bucket(stack, toId("store", id), {
-        bucketName: toName(stack, id),
-        accessControl: import_aws_s32.BucketAccessControl.PRIVATE,
-        removalPolicy: import_aws_cdk_lib3.RemovalPolicy.DESTROY
+  onStack({ config, stack, stackConfig, bind }) {
+    for (const id of stackConfig.stores || []) {
+      const bucket = new Bucket(id, {
+        name: `${config.name}-${stack.name}-${id}`,
+        accessControl: "private"
       });
+      stack.add(bucket);
       bind((lambda) => {
-        bucket.grantReadWrite(lambda), addResourceEnvironment(stack, "store", id, lambda);
+        lambda.addPermissions(bucket.permissions);
       });
-    });
+    }
   }
 });
 
 // src/plugins/topic.ts
-var import_zod18 = require("zod");
-var import_aws_sns = require("aws-cdk-lib/aws-sns");
-var import_aws_lambda_event_sources2 = require("aws-cdk-lib/aws-lambda-event-sources");
-var import_aws_cdk_lib4 = require("aws-cdk-lib");
+var import_zod11 = require("zod");
+
+// src/formation/resource/sns/topic.ts
+var Topic = class extends Resource {
+  constructor(logicalId, props = {}) {
+    super("AWS::SNS::Topic", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get arn() {
+    return ref(this.logicalId);
+  }
+  get permissions() {
+    return {
+      actions: ["sns:Publish"],
+      resources: [this.arn]
+    };
+  }
+  properties() {
+    return {
+      TopicName: this.name,
+      DisplayName: this.name
+    };
+  }
+};
+
+// src/formation/resource/sns/subscription.ts
+var Subscription = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::SNS::Subscription", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      TopicArn: this.props.topicArn,
+      Protocol: this.props.protocol,
+      Endpoint: this.props.endpoint
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/sns.ts
+var SnsEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const topic = new Subscription(id, {
+      topicArn: props.topicArn,
+      protocol: "lambda",
+      endpoint: lambda.arn
+    });
+    const permission = new Permission2(id, {
+      action: "lambda:InvokeFunction",
+      principal: "sns.amazonaws.com",
+      functionArn: lambda.arn,
+      sourceArn: props.topicArn
+    });
+    super([topic, permission]);
+  }
+};
+
+// src/plugins/topic.ts
 var topicPlugin = definePlugin({
   name: "topic",
-  schema: import_zod18.z.object({
-    stacks: import_zod18.z.object({
-      topics: import_zod18.z.record(ResourceIdSchema, FunctionSchema).optional()
+  schema: import_zod11.z.object({
+    stacks: import_zod11.z.object({
+      /** Define the topics to listen too in your stack
+       * @example
+       * {
+       *   topics: {
+       *     TOPIC_NAME: 'function.ts'
+       *   }
+       * }
+       * */
+      topics: import_zod11.z.record(ResourceIdSchema, FunctionSchema).optional()
     }).array()
   }),
-  onBootstrap({ config, stack }) {
-    const allTopicNames = config.stacks.map((stack2) => {
-      return Object.keys(stack2.topics || {});
+  onApp({ config, bootstrap: bootstrap2, bind }) {
+    const allTopicNames = config.stacks.map((stack) => {
+      return Object.keys(stack.topics || {});
     }).flat();
     const uniqueTopicNames = [...new Set(allTopicNames)];
-    uniqueTopicNames.forEach((id) => {
-      new import_aws_sns.Topic(stack, toId("topic", id), {
-        topicName: `${config.name}-${id}`,
-        displayName: id
+    for (const id of uniqueTopicNames) {
+      const topic = new Topic(id, {
+        name: `${config.name}-${id}`
+      });
+      bootstrap2.add(topic);
+      bootstrap2.export(`topic-${id}-arn`, topic.arn);
+    }
+    bind((lambda) => {
+      lambda.addPermissions({
+        actions: ["sns:Publish"],
+        resources: [
+          sub("arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${app}-*", {
+            app: config.name
+          })
+        ]
       });
     });
   },
   onStack(ctx) {
-    const { config, stack, stackConfig, bind } = ctx;
-    return Object.entries(stackConfig.topics || {}).map(([id, props]) => {
-      const lambda = toFunction(ctx, id, props);
-      const topic = import_aws_sns.Topic.fromTopicArn(
-        stack,
-        toId("topic", id),
-        import_aws_cdk_lib4.Arn.format({
-          arnFormat: import_aws_cdk_lib4.ArnFormat.NO_RESOURCE_NAME,
-          service: "sns",
-          resource: `${config.name}-${id}`
-        }, stack)
-      );
-      lambda.addEventSource(new import_aws_lambda_event_sources2.SnsEventSource(topic));
-      bind((lambda2) => {
-        addResourceEnvironment(stack, "topic", id, lambda2);
-        topic.grantPublish(lambda2);
+    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    for (const [id, props] of Object.entries(stackConfig.topics || {})) {
+      const lambda = toLambdaFunction(ctx, id, props);
+      const source = new SnsEventSource(id, lambda, {
+        topicArn: bootstrap2.import(`topic-${id}-arn`)
       });
-      return lambda;
-    });
+      stack.add(lambda, source);
+    }
   }
 });
 
-// src/plugins/graphql/index.ts
-var import_zod20 = require("zod");
-var import_aws_appsync = require("aws-cdk-lib/aws-appsync");
-var import_merge = require("@graphql-tools/merge");
-var import_promises4 = require("fs/promises");
+// src/plugins/extend.ts
+var import_zod12 = require("zod");
+var extendPlugin = definePlugin({
+  name: "extend",
+  schema: import_zod12.z.object({
+    /** Extend your app with custom resources */
+    extend: import_zod12.z.custom().optional(),
+    stacks: import_zod12.z.object({
+      /** Extend your stack with custom resources */
+      extend: import_zod12.z.custom().optional()
+    }).array()
+  }),
+  onApp(ctx) {
+    ctx.config.extend?.(ctx);
+  },
+  onStack(ctx) {
+    ctx.stackConfig.extend?.(ctx);
+  }
+});
+
+// src/plugins/pubsub.ts
+var import_zod13 = require("zod");
+
+// src/formation/resource/iot/topic-rule.ts
+var import_change_case6 = require("change-case");
+var TopicRule = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::IoT::TopicRule", logicalId);
+    this.props = props;
+    this.name = (0, import_change_case6.snakeCase)(this.props.name || logicalId);
+  }
+  name;
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      RuleName: this.name,
+      TopicRulePayload: {
+        Sql: this.props.sql,
+        AwsIotSqlVersion: this.props.sqlVersion ?? "2016-03-23",
+        RuleDisabled: false,
+        Actions: this.props.actions.map((action) => ({
+          Lambda: { FunctionArn: action.lambda.functionArn }
+        }))
+      }
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/iot.ts
+var IotEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const topic = new TopicRule(id, {
+      name: props.name,
+      sql: props.sql,
+      sqlVersion: props.sqlVersion,
+      actions: [{ lambda: { functionArn: lambda.arn } }]
+    });
+    const permission = new Permission2(id, {
+      action: "lambda:InvokeFunction",
+      principal: "iot.amazonaws.com",
+      functionArn: lambda.arn,
+      sourceArn: topic.arn
+    });
+    super([topic, permission]);
+  }
+};
+
+// src/plugins/pubsub.ts
+var pubsubPlugin = definePlugin({
+  name: "pubsub",
+  schema: import_zod13.z.object({
+    stacks: import_zod13.z.object({
+      /** Define the pubsub subscriber in your stack
+       * @example
+       * {
+       *   pubsub: {
+       *     NAME: {
+       *       sql: 'SELECT * FROM "table"',
+       *       consumer: 'function.ts',
+       *     }
+       *   }
+       * }
+       */
+      pubsub: import_zod13.z.record(ResourceIdSchema, import_zod13.z.object({
+        /** The SQL statement used to query the iot topic */
+        sql: import_zod13.z.string(),
+        /** The version of the SQL rules engine to use when evaluating the rule */
+        sqlVersion: import_zod13.z.enum(["2015-10-08", "2016-03-23", "beta"]).default("2016-03-23"),
+        /** The consuming lambda function properties */
+        consumer: FunctionSchema
+      })).optional()
+    }).array()
+  }),
+  onApp({ bind }) {
+    bind((lambda) => {
+      lambda.addPermissions({
+        actions: ["iot:publish"],
+        resources: ["*"]
+      });
+    });
+  },
+  onStack(ctx) {
+    const { config, stack, stackConfig } = ctx;
+    for (const [id, props] of Object.entries(stackConfig.pubsub || {})) {
+      const lambda = toLambdaFunction(ctx, id, props.consumer);
+      const source = new IotEventSource(id, lambda, {
+        name: `${config.name}-${stack.name}-${id}`,
+        sql: props.sql,
+        sqlVersion: props.sqlVersion
+      });
+      stack.add(lambda, source);
+    }
+  }
+});
+
+// src/plugins/graphql.ts
+var import_zod14 = require("zod");
 
 // src/util/array.ts
 var toArray = (value) => {
@@ -939,513 +1765,707 @@ var toArray = (value) => {
   return [value];
 };
 
-// src/plugins/graphql/index.ts
-var import_path6 = require("path");
+// src/plugins/graphql.ts
+var import_change_case10 = require("change-case");
+
+// src/formation/resource/appsync/graphql-api.ts
+var import_change_case7 = require("change-case");
+var GraphQL = class extends Group {
+  constructor(logicalId, props) {
+    const api = new GraphQLApi(logicalId, props);
+    const schema2 = new GraphQLSchema(logicalId, {
+      apiId: api.id,
+      definition: props.schema
+    }).dependsOn(api);
+    super([api, schema2]);
+    this.logicalId = logicalId;
+    this.api = api;
+    this.schema = schema2;
+  }
+  api;
+  schema;
+  attachDomainName(domainName, certificateArn) {
+    const id = this.logicalId + domainName;
+    const domain = new DomainName(id, {
+      domainName,
+      certificateArn
+    });
+    const association = new DomainNameApiAssociation(id, {
+      apiId: this.api.id,
+      domainName
+    }).dependsOn(this.api, domain);
+    this.children.push(domain, association);
+    return this;
+  }
+};
+var GraphQLApi = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::GraphQLApi", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  lambdaAuthProviders = [];
+  get arn() {
+    return ref(this.logicalId);
+  }
+  get id() {
+    return getAtt(this.logicalId, "ApiId");
+  }
+  get url() {
+    return getAtt(this.logicalId, "GraphQLUrl");
+  }
+  get dns() {
+    return getAtt(this.logicalId, "GraphQLDns");
+  }
+  addLambdaAuthProvider(lambdaAuthorizerArn, resultTTL = Duration.seconds(0)) {
+    this.lambdaAuthProviders.push({
+      arn: lambdaAuthorizerArn,
+      ttl: resultTTL
+    });
+    return this;
+  }
+  properties() {
+    return {
+      Name: this.name,
+      AuthenticationType: (0, import_change_case7.constantCase)(this.props.authenticationType || "api-key"),
+      AdditionalAuthenticationProviders: this.lambdaAuthProviders.map((provider) => ({
+        AuthenticationType: "AWS_LAMBDA",
+        LambdaAuthorizerConfig: {
+          AuthorizerUri: provider.arn,
+          AuthorizerResultTtlInSeconds: provider.ttl.toSeconds()
+        }
+      }))
+    };
+  }
+};
+var GraphQLSchema = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::GraphQLSchema", logicalId, [
+      props.definition
+    ]);
+    this.props = props;
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      Definition: this.props.definition.toDefinition()
+    };
+  }
+};
+var DomainName = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::DomainName", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      DomainName: this.props.domainName,
+      CertificateArn: this.props.certificateArn
+    };
+  }
+};
+var DomainNameApiAssociation = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::DomainNameApiAssociation", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      DomainName: this.props.domainName
+    };
+  }
+};
+
+// src/formation/resource/route53/record-set.ts
+var RecordSet = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Route53::RecordSet", logicalId);
+    this.props = props;
+    this.name = this.props.name || this.logicalId;
+  }
+  name;
+  properties() {
+    return {
+      HostedZoneId: this.props.hostedZoneId,
+      Name: this.name + ".",
+      Type: this.props.type,
+      TTL: this.props.ttl,
+      ...this.props.records ? {
+        ResourceRecords: this.props.records
+      } : {},
+      ...this.props.alias ? {
+        AliasTarget: {
+          DNSName: this.props.alias,
+          HostedZoneId: this.props.hostedZoneId
+        }
+      } : {}
+    };
+  }
+};
+
+// src/formation/resource/appsync/schema.ts
 var import_graphql = require("graphql");
-var import_change_case2 = require("change-case");
+var import_promises2 = require("fs/promises");
+var import_merge = require("@graphql-tools/merge");
+var Schema = class extends Asset {
+  constructor(id, files) {
+    super("graphql", id);
+    this.files = files;
+  }
+  schema;
+  async build({ write }) {
+    const files = [this.files].flat();
+    const schemas = await Promise.all(files.map((file) => {
+      return (0, import_promises2.readFile)(file, "utf8");
+    }));
+    const defs = (0, import_merge.mergeTypeDefs)(schemas);
+    const schema2 = (0, import_graphql.print)(defs);
+    await write("schema.gql", schema2);
+    this.schema = schema2;
+  }
+  toDefinition() {
+    return this.schema;
+  }
+};
 
-// src/plugins/graphql/schema/resolver-field.ts
-var import_zod19 = require("zod");
-var ResolverFieldSchema = import_zod19.z.custom((value) => {
-  return import_zod19.z.string().regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi).safeParse(value).success;
+// src/formation/resource/appsync/code.ts
+var import_promises3 = require("fs/promises");
+var Code2 = class {
+  static fromFile(id, file) {
+    return new FileCode2(id, file);
+  }
+  static fromInline(id, code) {
+    return new InlineCode2(id, code);
+  }
+};
+var InlineCode2 = class extends Asset {
+  constructor(id, code) {
+    super("resolver", id);
+    this.code = code;
+  }
+  toCodeJson() {
+    return {
+      Code: this.code
+    };
+  }
+};
+var FileCode2 = class extends Asset {
+  constructor(id, file) {
+    super("resolver", id);
+    this.file = file;
+  }
+  code;
+  async build() {
+    const code = await (0, import_promises3.readFile)(this.file);
+    this.code = code.toString("utf8");
+    return {
+      size: formatByteSize(code.byteLength)
+    };
+  }
+  toCodeJson() {
+    return {
+      Code: this.code
+    };
+  }
+};
+
+// src/formation/resource/appsync/data-source.ts
+var import_change_case8 = require("change-case");
+var DataSource = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::DataSource", logicalId);
+    this.props = props;
+    this.name = (0, import_change_case8.snakeCase)(this.props.name || logicalId);
+  }
+  static fromLambda(logicalId, apiId, props) {
+    return new DataSource(logicalId, {
+      apiId,
+      type: "AWS_LAMBDA",
+      serviceRoleArn: props.serviceRoleArn,
+      config: {
+        lambda: {
+          functionArn: props.functionArn
+        }
+      }
+    });
+  }
+  static fromNone(logicalId, apiId) {
+    return new DataSource(logicalId, {
+      apiId,
+      type: "NONE"
+    });
+  }
+  name;
+  get arn() {
+    return ref(this.logicalId);
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      Name: this.name,
+      Type: this.props.type,
+      ServiceRoleArn: this.props.serviceRoleArn,
+      ...this.props.config?.lambda ? {
+        LambdaConfig: {
+          LambdaFunctionArn: this.props.config.lambda.functionArn
+        }
+      } : {}
+    };
+  }
+};
+
+// src/formation/resource/appsync/function-configuration.ts
+var import_change_case9 = require("change-case");
+var FunctionConfiguration = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::FunctionConfiguration", logicalId, [
+      props.code
+    ]);
+    this.props = props;
+    this.name = (0, import_change_case9.snakeCase)(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return getAtt(this.logicalId, "FunctionId");
+  }
+  get arn() {
+    return ref(this.logicalId);
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      Name: this.name,
+      DataSourceName: this.props.dataSourceName,
+      ...this.props.code.toCodeJson(),
+      FunctionVersion: "2018-05-29",
+      Runtime: {
+        Name: "APPSYNC_JS",
+        RuntimeVersion: "1.0.0"
+      }
+    };
+  }
+};
+
+// src/formation/resource/appsync/resolver.ts
+var Resolver = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::AppSync::Resolver", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      Kind: "PIPELINE",
+      TypeName: this.props.typeName,
+      FieldName: this.props.fieldName,
+      PipelineConfig: {
+        Functions: this.props.functions
+      },
+      // DataSourceName: this.props.dataSourceName,
+      ...this.props.code.toCodeJson(),
+      Runtime: {
+        Name: "APPSYNC_JS",
+        RuntimeVersion: "1.0.0"
+      }
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/appsync.ts
+var AppsyncEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const role = new Role(id + "AppSync", {
+      assumedBy: "appsync.amazonaws.com"
+    }).dependsOn(lambda);
+    role.addInlinePolicy(new InlinePolicy(id, {
+      statements: [{
+        actions: ["lambda:InvokeFunction"],
+        resources: [lambda.arn]
+      }]
+    }));
+    const source = DataSource.fromLambda(id, props.apiId, {
+      functionArn: lambda.arn,
+      serviceRoleArn: role.arn
+    }).dependsOn(role).dependsOn(lambda);
+    const config = new FunctionConfiguration(id, {
+      apiId: props.apiId,
+      code: props.code,
+      dataSourceName: source.name
+    }).dependsOn(source);
+    const resolver = new Resolver(id, {
+      apiId: props.apiId,
+      typeName: props.typeName,
+      fieldName: props.fieldName,
+      functions: [config.id],
+      code: props.code
+    }).dependsOn(config);
+    super([role, source, config, resolver]);
+  }
+};
+
+// src/plugins/graphql.ts
+var defaultResolver = `
+export function request(ctx) {
+	return {
+		operation: 'Invoke',
+		payload: ctx,
+	};
+}
+
+export function response(ctx) {
+	return ctx.result
+}
+`;
+var ResolverFieldSchema = import_zod14.z.custom((value) => {
+  return import_zod14.z.string().regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi).safeParse(value).success;
 }, `Invalid resolver field. Valid example: "Query list"`);
-
-// src/plugins/graphql/index.ts
-var import_aws_cdk_lib5 = require("aws-cdk-lib");
 var graphqlPlugin = definePlugin({
   name: "graphql",
-  schema: import_zod20.z.object({
-    defaults: import_zod20.z.object({
-      graphql: import_zod20.z.record(ResourceIdSchema, import_zod20.z.object({
-        authorization: import_zod20.z.object({
+  schema: import_zod14.z.object({
+    defaults: import_zod14.z.object({
+      graphql: import_zod14.z.record(ResourceIdSchema, import_zod14.z.object({
+        domain: import_zod14.z.string().optional(),
+        subDomain: import_zod14.z.string().optional(),
+        authorization: import_zod14.z.object({
           authorizer: FunctionSchema,
           ttl: DurationSchema.default("1 hour")
         }).optional(),
-        mappingTemplate: import_zod20.z.object({
-          request: LocalFileSchema.optional(),
-          response: LocalFileSchema.optional()
-        }).optional()
+        resolver: LocalFileSchema.optional()
       })).optional()
     }).default({}),
-    stacks: import_zod20.z.object({
-      graphql: import_zod20.z.record(ResourceIdSchema, import_zod20.z.object({
-        schema: import_zod20.z.union([
+    stacks: import_zod14.z.object({
+      graphql: import_zod14.z.record(ResourceIdSchema, import_zod14.z.object({
+        schema: import_zod14.z.union([
           LocalFileSchema,
-          import_zod20.z.array(LocalFileSchema).min(1)
+          import_zod14.z.array(LocalFileSchema).min(1)
         ]).optional(),
-        resolvers: import_zod20.z.record(ResolverFieldSchema, FunctionSchema).optional()
+        resolvers: import_zod14.z.record(ResolverFieldSchema, FunctionSchema).optional()
       })).optional()
     }).array()
   }),
-  onBootstrap({ config, stack, assets }) {
-    const list3 = /* @__PURE__ */ new Set();
-    Object.values(config.stacks).forEach((stackConfig) => {
-      Object.keys(stackConfig.graphql || {}).forEach((id) => {
-        list3.add(id);
-      });
-    });
-    list3.forEach((id) => {
-      const file = (0, import_path6.join)(assetDir, "graphql", config.name, id, "schema.graphql");
-      const authorization = config.defaults.graphql?.[id]?.authorization;
-      const authProps = {};
-      if (authorization) {
-        const authorizer = toFunction({ config, assets, stack }, `${id}-authorizer`, authorization.authorizer);
-        authProps.additionalAuthenticationProviders = [{
-          authenticationType: import_aws_appsync.AuthorizationType.LAMBDA,
-          lambdaAuthorizerConfig: {
-            authorizerUri: authorizer.functionArn,
-            authorizerResultTtlInSeconds: authorization.ttl.toSeconds()
-          }
-        }];
+  onApp(ctx) {
+    const { config, bootstrap: bootstrap2, usEastBootstrap } = ctx;
+    const apis = /* @__PURE__ */ new Set();
+    for (const stackConfig of config.stacks) {
+      for (const id of Object.keys(stackConfig.graphql || {})) {
+        apis.add(id);
       }
-      const api = new import_aws_appsync.CfnGraphQLApi(stack, toId("graphql", id), {
-        ...authProps,
-        name: toName(stack, id),
-        authenticationType: import_aws_appsync.AuthorizationType.API_KEY
+    }
+    for (const id of apis) {
+      const schema2 = [];
+      for (const stack of config.stacks) {
+        const files = toArray(stack.graphql?.[id]?.schema || []);
+        schema2.push(...files);
+      }
+      const graphql = new GraphQL(id, {
+        name: `${config.name}-${id}`,
+        authenticationType: "api-key",
+        schema: new Schema(id, schema2)
       });
-      new import_aws_cdk_lib5.CfnOutput(stack, toId("output", id), {
-        exportName: toId("graphql", id),
-        value: api.attrApiId
-      });
-      assets.add({
-        stackName: stack.artifactId,
-        resource: "schema",
-        resourceName: id,
-        async build() {
-          const schemas = [];
-          await Promise.all(Object.values(config.stacks).map(async (stackConfig) => {
-            const schemaFiles = toArray(stackConfig.graphql?.[id].schema || []);
-            await Promise.all(schemaFiles.map(async (schemaFile) => {
-              const schema3 = await (0, import_promises4.readFile)(schemaFile, "utf8");
-              schemas.push(schema3);
-            }));
-          }));
-          const schema2 = (0, import_graphql.print)((0, import_merge.mergeTypeDefs)(schemas));
-          await (0, import_promises4.mkdir)((0, import_path6.dirname)(file), { recursive: true });
-          await (0, import_promises4.writeFile)(file, schema2);
-          new import_aws_appsync.CfnGraphQLSchema(stack, toId("schema", id), {
-            apiId: api.attrApiId,
-            definition: schema2
-          });
-        }
-      });
-    });
+      bootstrap2.add(graphql).export(`graphql-${id}`, graphql.api.id);
+      const props = config.defaults.graphql?.[id];
+      if (!props) {
+        continue;
+      }
+      if (props.authorization) {
+        const lambda = toLambdaFunction(ctx, `${id}-authorizer`, props.authorization.authorizer);
+        graphql.api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl);
+        bootstrap2.add(lambda);
+      }
+      if (props.domain) {
+        const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
+        const hostedZoneId = ref(`${props.domain}Route53HostedZone`);
+        const certificateArn = usEastBootstrap.import(`certificate-${props.domain}-arn`);
+        graphql.attachDomainName(domainName, certificateArn);
+        const record = new RecordSet(id, {
+          hostedZoneId,
+          type: "A",
+          name: domainName,
+          alias: graphql.api.dns
+        });
+        bootstrap2.add(record);
+      }
+    }
   },
   onStack(ctx) {
-    const { config, stack, stackConfig } = ctx;
-    return Object.entries(stackConfig.graphql || {}).map(([id, props]) => {
-      const defaults = config.defaults.graphql?.[id] || {};
-      return Object.entries(props.resolvers || {}).map(([typeAndField, functionProps]) => {
-        const api = import_aws_appsync.GraphqlApi.fromGraphqlApiAttributes(stack, toId("graphql", id), {
-          graphqlApiId: import_aws_cdk_lib5.Fn.importValue(toId("graphql", id))
-        });
+    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    for (const [id, props] of Object.entries(stackConfig.graphql || {})) {
+      const apiId = bootstrap2.import(`graphql-${id}`);
+      for (const [typeAndField, functionProps] of Object.entries(props.resolvers || {})) {
         const [typeName, fieldName] = typeAndField.split(/[\s]+/g);
-        const functionId = (0, import_change_case2.paramCase)(`${id}-${typeName}-${fieldName}`);
-        const lambda = toFunction(ctx, functionId, functionProps);
-        const source = api.addLambdaDataSource(toId("data-source", functionId), lambda, {
-          name: toId("data-source", functionId)
-        });
-        source.createResolver(toId("resolver", functionId), {
+        const entryId = (0, import_change_case10.paramCase)(`${id}-${typeName}-${fieldName}`);
+        const lambda = toLambdaFunction(ctx, entryId, functionProps);
+        const source = new AppsyncEventSource(entryId, lambda, {
+          apiId,
           typeName,
           fieldName,
-          requestMappingTemplate: defaults.mappingTemplate?.request ? import_aws_appsync.MappingTemplate.fromFile(defaults.mappingTemplate.request) : import_aws_appsync.MappingTemplate.lambdaRequest(),
-          responseMappingTemplate: defaults.mappingTemplate?.response ? import_aws_appsync.MappingTemplate.fromFile(defaults.mappingTemplate.response) : import_aws_appsync.MappingTemplate.lambdaResult()
+          code: Code2.fromInline(entryId, defaultResolver)
         });
-        return lambda;
-      });
-    }).flat();
+        stack.add(lambda, source);
+      }
+    }
   }
 });
 
-// src/plugins/pubsub.ts
-var import_zod21 = require("zod");
-var import_aws_iot = require("aws-cdk-lib/aws-iot");
-var import_aws_iam2 = require("aws-cdk-lib/aws-iam");
-var import_change_case3 = require("change-case");
-var pubsubPlugin = definePlugin({
-  name: "pubsub",
-  schema: import_zod21.z.object({
-    stacks: import_zod21.z.object({
-      pubsub: import_zod21.z.record(ResourceIdSchema, import_zod21.z.object({
-        sql: import_zod21.z.string(),
-        sqlVersion: import_zod21.z.enum(["2015-10-08", "2016-03-23", "beta"]).default("2016-03-23"),
-        consumer: FunctionSchema
-      })).optional()
-    }).array()
-  }),
-  onStack(ctx) {
-    const { stack, stackConfig, bind } = ctx;
-    bind((lambda) => {
-      lambda.addToRolePolicy(new import_aws_iam2.PolicyStatement({
-        actions: ["iot:publish"],
-        resources: ["*"]
-      }));
-    });
-    return Object.entries(stackConfig.pubsub || {}).map(([id, props]) => {
-      const lambda = toFunction(ctx, id, props.consumer);
-      new import_aws_iot.CfnTopicRule(stack, toId("pubsub", id), {
-        ruleName: (0, import_change_case3.snakeCase)(toName(stack, id)),
-        topicRulePayload: {
-          sql: props.sql,
-          awsIotSqlVersion: props.sqlVersion,
-          actions: [{
-            lambda: {
-              functionArn: lambda.functionArn
-            }
-          }]
-        }
-      });
-      return lambda;
-    });
-  }
-});
+// src/plugins/domain.ts
+var import_zod15 = require("zod");
 
-// src/plugins/http.ts
-var import_zod22 = require("zod");
-var import_aws_ec2 = require("aws-cdk-lib/aws-ec2");
-var import_aws_elasticloadbalancingv2 = require("aws-cdk-lib/aws-elasticloadbalancingv2");
-var import_aws_route53 = require("aws-cdk-lib/aws-route53");
-var import_aws_route53_targets = require("aws-cdk-lib/aws-route53-targets");
-var import_aws_elasticloadbalancingv2_targets = require("aws-cdk-lib/aws-elasticloadbalancingv2-targets");
-var import_aws_cdk_lib6 = require("aws-cdk-lib");
-var import_aws_certificatemanager = require("aws-cdk-lib/aws-certificatemanager");
-var import_change_case4 = require("change-case");
-var RouteSchema = import_zod22.z.custom((route) => {
-  return import_zod22.z.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/]*)$/ig).safeParse(route).success;
-}, "Invalid route");
-var generatePriority = (id, route) => {
-  const start = parseInt(Buffer.from(id, "utf8").toString("hex"), 16) % 500 + 1;
-  const end = parseInt(Buffer.from(route, "utf8").toString("hex"), 16) % 100;
-  debug("PRIORITY", id, start, route, end, parseInt(`${start}${end}`, 10));
-  return parseInt(`${start}${end}`, 10);
+// src/formation/resource/route53/hosted-zone.ts
+var HostedZone = class extends Resource {
+  constructor(logicalId, props = {}) {
+    super("AWS::Route53::HostedZone", logicalId);
+    this.props = props;
+    this.name = this.props.domainName || logicalId;
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  properties() {
+    return {
+      Name: this.name + "."
+    };
+  }
 };
-var httpPlugin = definePlugin({
-  name: "http",
-  schema: import_zod22.z.object({
-    defaults: import_zod22.z.object({
-      http: import_zod22.z.record(
-        ResourceIdSchema,
-        import_zod22.z.object({
-          domain: import_zod22.z.string(),
-          subDomain: import_zod22.z.string()
-        })
-      ).optional()
-    }).default({}),
-    stacks: import_zod22.z.object({
-      http: import_zod22.z.record(
-        ResourceIdSchema,
-        import_zod22.z.record(RouteSchema, FunctionSchema)
-      ).optional()
-    }).array()
-  }),
-  onBootstrap({ stack, config }) {
-    const vpc = new import_aws_ec2.Vpc(stack, toId("vpc", "http"), {
-      subnetConfiguration: [{
-        name: "public",
-        subnetType: import_aws_ec2.SubnetType.PUBLIC,
-        cidrMask: 24
-      }],
-      availabilityZones: [
-        config.region + "a",
-        config.region + "b",
-        config.region + "c"
-      ]
-    });
-    const securityGroup = new import_aws_ec2.SecurityGroup(stack, toId("security-group", "http"), {
-      vpc
-    });
-    securityGroup.addIngressRule(import_aws_ec2.Peer.anyIpv4(), import_aws_ec2.Port.tcp(443));
-    securityGroup.addIngressRule(import_aws_ec2.Peer.anyIpv6(), import_aws_ec2.Port.tcp(443));
-    new import_aws_cdk_lib6.CfnOutput(stack, toId("output", "http-vpc"), {
-      exportName: "http-vpc-id",
-      value: vpc.vpcId
-    });
-    new import_aws_cdk_lib6.CfnOutput(stack, toId("output", "http-security-group"), {
-      exportName: "http-security-group-id",
-      value: securityGroup.securityGroupId
-    });
-    Object.entries(config.defaults?.http || {}).forEach(([id, props]) => {
-      const loadBalancer = new import_aws_elasticloadbalancingv2.ApplicationLoadBalancer(stack, toId("load-balancer", id), {
-        vpc,
-        securityGroup
-      });
-      const zone = import_aws_route53.HostedZone.fromHostedZoneAttributes(
-        stack,
-        toId("hosted-zone", id),
-        {
-          // hostedZoneId: Fn.importValue(toExportName(`hosted-zone-${props.domain}-id`)),
-          // hostedZoneId: Token.asString(Fn.ref(toId('hosted-zone', props.domain))),
-          hostedZoneId: import_aws_cdk_lib6.Token.asString(import_aws_cdk_lib6.Fn.ref(toId("hosted-zone", props.domain))),
-          zoneName: props.domain + "."
-        }
-      );
-      const certificate = import_aws_certificatemanager.Certificate.fromCertificateArn(
-        stack,
-        toId("certificate", id),
-        import_aws_cdk_lib6.Token.asString(import_aws_cdk_lib6.Fn.ref(toId("certificate", props.domain)))
-      );
-      const target = import_aws_route53.RecordTarget.fromAlias(new import_aws_route53_targets.LoadBalancerTarget(loadBalancer));
-      const recordName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
-      new import_aws_route53.RecordSet(stack, toId("record-set", id), {
-        zone,
-        target,
-        recordName,
-        recordType: import_aws_route53.RecordType.A
-      });
-      const listener = loadBalancer.addListener(toId("listener", id), {
-        port: 443,
-        protocol: import_aws_elasticloadbalancingv2.ApplicationProtocol.HTTPS,
-        certificates: [certificate],
-        defaultAction: import_aws_elasticloadbalancingv2.ListenerAction.fixedResponse(404, {
-          contentType: "application/json",
-          messageBody: JSON.stringify({
-            message: "Route not found"
-          })
-        })
-      });
-      new import_aws_cdk_lib6.CfnOutput(stack, toId("output", `http-${id}-listener`), {
-        exportName: `http-${id}-listener-arn`,
-        value: listener.listenerArn
-      });
-    });
-  },
-  onStack(ctx) {
-    const { config, stack, stackConfig } = ctx;
-    return Object.entries(stackConfig.http || {}).map(([id, routes]) => {
-      const listener = import_aws_elasticloadbalancingv2.ApplicationListener.fromApplicationListenerAttributes(stack, toId("listener", id), {
-        listenerArn: import_aws_cdk_lib6.Fn.importValue(`http-${id}-listener-arn`),
-        securityGroup: import_aws_ec2.SecurityGroup.fromLookupById(
-          stack,
-          toId("security-group", id),
-          "http-security-group-id"
-        )
-      });
-      return Object.entries(routes).map(([route, props]) => {
-        const lambda = toFunction(ctx, (0, import_change_case4.paramCase)(route), props);
-        const [method, ...paths] = route.split(" ");
-        const path = paths.join(" ");
-        new import_aws_elasticloadbalancingv2.ApplicationListenerRule(stack, toId("listener-rule", route), {
-          listener,
-          priority: generatePriority(id, route),
-          action: import_aws_elasticloadbalancingv2.ListenerAction.forward([
-            new import_aws_elasticloadbalancingv2.ApplicationTargetGroup(stack, toId("target-group", route), {
-              targets: [new import_aws_elasticloadbalancingv2_targets.LambdaTarget(lambda)]
-            })
-          ]),
-          conditions: [
-            import_aws_elasticloadbalancingv2.ListenerCondition.httpRequestMethods([method]),
-            import_aws_elasticloadbalancingv2.ListenerCondition.pathPatterns([path])
-          ]
-        });
-        return lambda;
-      });
-    }).flat();
+
+// src/formation/resource/certificate-manager/certificate.ts
+var Certificate = class extends Resource {
+  constructor(logicalId, props = {}) {
+    super("AWS::CertificateManager::Certificate", logicalId);
+    this.props = props;
+    this.name = this.props.domainName || logicalId;
   }
-});
-
-// src/plugins/domain/index.ts
-var import_zod25 = require("zod");
-var import_aws_route533 = require("aws-cdk-lib/aws-route53");
-var import_aws_certificatemanager2 = require("aws-cdk-lib/aws-certificatemanager");
-
-// src/plugins/domain/schema/record-type.ts
-var import_aws_route532 = require("aws-cdk-lib/aws-route53");
-var import_zod23 = require("zod");
-var types4 = {
-  "A": import_aws_route532.RecordType.A,
-  "AAAA": import_aws_route532.RecordType.AAAA,
-  "MX": import_aws_route532.RecordType.MX,
-  "TXT": import_aws_route532.RecordType.TXT,
-  "CNAME": import_aws_route532.RecordType.CNAME
+  name;
+  get arn() {
+    return ref(this.logicalId);
+  }
+  properties() {
+    return {
+      DomainName: this.name,
+      ValidationMethod: "DNS",
+      SubjectAlternativeNames: this.props.alternativeNames || []
+    };
+  }
 };
-var RecordTypeSchema = import_zod23.z.enum(Object.keys(types4)).transform((value) => types4[value]);
 
-// src/plugins/domain/schema/domain-name.ts
-var import_zod24 = require("zod");
-var DomainNameSchema = import_zod24.z.string().regex(/[a-z\-\_\.]/g, "Invalid domain name");
+// src/formation/resource/route53/record-set-group.ts
+var RecordSetGroup = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Route53::RecordSetGroup", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      HostedZoneId: this.props.hostedZoneId,
+      RecordSets: this.props.records.map((props) => ({
+        Name: props.name + ".",
+        Type: props.type,
+        TTL: props.ttl,
+        ...props.records ? {
+          ResourceRecords: props.records
+        } : {},
+        ...props.alias ? {
+          AliasTarget: {
+            DNSName: props.alias,
+            HostedZoneId: this.props.hostedZoneId
+          }
+        } : {}
+      }))
+    };
+  }
+};
 
-// src/plugins/domain/index.ts
-var import_aws_cdk_lib7 = require("aws-cdk-lib");
+// src/plugins/domain.ts
+var DomainNameSchema = import_zod15.z.string().regex(/[a-z\-\_\.]/g, "Invalid domain name");
 var domainPlugin = definePlugin({
   name: "domain",
-  schema: import_zod25.z.object({
-    domains: import_zod25.z.record(DomainNameSchema, import_zod25.z.object({
+  schema: import_zod15.z.object({
+    domains: import_zod15.z.record(DomainNameSchema, import_zod15.z.object({
       name: DomainNameSchema.optional(),
-      type: RecordTypeSchema,
+      type: import_zod15.z.enum(["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]),
       ttl: DurationSchema,
-      records: import_zod25.z.string().array()
+      records: import_zod15.z.string().array()
     }).array()).optional()
   }),
-  onBootstrap({ config, stack }) {
-    Object.entries(config.domains || {}).forEach(([domain, dnsRecords]) => {
-      const hostedZone = new import_aws_route533.HostedZone(stack, toId("hosted-zone", domain), {
-        zoneName: domain,
-        addTrailingDot: true
+  onApp({ config, bootstrap: bootstrap2, usEastBootstrap }) {
+    for (const [domain, records] of Object.entries(config.domains || {})) {
+      const hostedZone = new HostedZone(domain);
+      const certificate = new Certificate(domain, {
+        alternativeNames: [`*.${domain}`]
       });
-      hostedZone.node.defaultChild.overrideLogicalId(toId("hosted-zone", domain));
-      const certificate = new import_aws_certificatemanager2.Certificate(stack, toId("certificate", domain), {
-        domainName: domain,
-        validation: import_aws_certificatemanager2.CertificateValidation.fromDns(hostedZone),
-        subjectAlternativeNames: [`*.${domain}`]
-      });
-      certificate.node.defaultChild.overrideLogicalId(toId("certificate", domain));
-      new import_aws_cdk_lib7.CfnOutput(stack, toId("output-hosted-zone", domain), {
-        exportName: toExportName(`hosted-zone-${domain}-id`),
-        value: hostedZone.hostedZoneId
-      });
-      new import_aws_cdk_lib7.CfnOutput(stack, toId("output-certificate", domain), {
-        exportName: toExportName(`certificate-${domain}-arn`),
-        value: certificate.certificateArn
-      });
-      if (dnsRecords.length > 0) {
-        new import_aws_route533.CfnRecordSetGroup(stack, toId("record-set-group", domain), {
-          hostedZoneId: hostedZone.hostedZoneId,
-          recordSets: dnsRecords.map((props) => ({
-            name: props.name || "",
-            type: props.type,
-            ttl: props.ttl.toSeconds().toString(),
-            resourceRecords: props.records
-          }))
-        });
+      bootstrap2.add(hostedZone, certificate);
+      usEastBootstrap.add(certificate).export(`certificate-${domain}-arn`, certificate.arn);
+      if (records.length > 0) {
+        const group = new RecordSetGroup(domain, {
+          hostedZoneId: hostedZone.id,
+          records
+        }).dependsOn(hostedZone);
+        bootstrap2.add(group);
       }
-    });
+    }
   }
 });
 
 // src/plugins/index.ts
 var defaultPlugins = [
+  extendPlugin,
   functionPlugin,
   cronPlugin,
   queuePlugin,
   tablePlugin,
   storePlugin,
   topicPlugin,
-  // searchPlugin,
-  graphqlPlugin,
   pubsubPlugin,
+  // searchPlugin,
   domainPlugin,
-  httpPlugin
+  graphqlPlugin
+  // httpPlugin,
 ];
 
-// src/stack/app-bootstrap.ts
-var appBootstrapStack = ({ config, app, assets }) => {
-  const stack = new import_aws_cdk_lib8.Stack(app, "bootstrap", {
-    stackName: `${config.name}-bootstrap`
-  });
-  const plugins = [
-    ...defaultPlugins,
-    ...config.plugins || []
-  ];
-  debug("Run plugin onBootstrap listeners");
-  const functions = plugins.map((plugin) => plugin.onBootstrap?.({
-    config,
-    app,
-    stack,
-    assets
-  })).filter(Boolean).flat().filter(Boolean);
-  return {
-    stack,
-    functions
-  };
+// src/formation/app.ts
+var App = class {
+  constructor(name) {
+    this.name = name;
+  }
+  list = /* @__PURE__ */ new Map();
+  add(...stacks) {
+    stacks.forEach((stack) => this.list.set(stack.name, stack));
+    return this;
+  }
+  find(resourceType) {
+    return this.stacks.map((stack) => stack.find(resourceType)).flat();
+  }
+  [Symbol.iterator]() {
+    return this.list.values();
+  }
+  get stacks() {
+    return [...this.list.values()];
+  }
+  // get resources() {
+  // 	return this.stacks.map(stack => stack.resources).flat()
+  // }
 };
 
-// src/util/deployment.ts
-var flattenDependencyTree = (stacks) => {
-  const list3 = [];
-  const walk = (stacks2) => {
-    stacks2.forEach((node) => {
-      list3.push(node);
-      walk(node.children);
-    });
-  };
-  walk(stacks);
-  return list3;
-};
-var createDependencyTree = (stacks, startingLevel) => {
-  const list3 = stacks.map(({ stack, config }) => ({
-    stack,
-    depends: config?.depends?.map((dep) => dep.name) || []
-  }));
-  const findChildren = (list4, parents, level) => {
-    const children = [];
-    const rests = [];
-    for (const item of list4) {
-      const isChild = item.depends.filter((dep) => !parents.includes(dep)).length === 0;
-      if (isChild) {
-        children.push(item);
-      } else {
-        rests.push(item);
-      }
-    }
-    if (!rests.length) {
-      return children.map(({ stack }) => ({
-        stack,
-        level,
-        children: []
-      }));
-    }
-    return children.map(({ stack }) => {
-      return {
-        stack,
-        level,
-        children: findChildren(rests, [...parents, stack.artifactId], level + 1)
-      };
-    });
-  };
-  return findChildren(list3, [], startingLevel);
-};
-var createDeploymentLine = (stacks) => {
-  const flat = flattenDependencyTree(stacks);
-  const line = [];
-  flat.forEach((node) => {
-    const level = node.level;
-    if (!line[level]) {
-      line[level] = [];
-    }
-    line[level].push(node.stack);
-  });
-  return line;
+// src/formation/resource/cloud-formation/custom-resource.ts
+var CustomResource = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::CloudFormation::CustomResource", logicalId);
+    this.props = props;
+  }
+  getAtt(name) {
+    return getAtt(this.logicalId, name);
+  }
+  properties() {
+    return {
+      ServiceToken: this.props.serviceToken,
+      ...this.props.properties
+    };
+  }
 };
 
-// src/util/assets.ts
-var Assets = class {
-  assets = {};
-  id = 0;
-  add(opts) {
-    if (!this.assets[opts.stackName]) {
-      this.assets[opts.stackName] = [];
+// src/global-export/handler.ts
+var globalExportsHandlerCode = (
+  /* JS */
+  `
+
+const { CloudFormationClient, ListExportsCommand } = require('@aws-sdk/client-cloudformation')
+
+exports.handler = async (event) => {
+	const region = event.ResourceProperties.region
+
+	try {
+		const data = await listExports(region)
+
+		await send(event, region, 'SUCCESS', data)
+	} catch(error) {
+		if (error instanceof Error) {
+			await send(event, region, 'FAILED', {}, error.message)
+		} else {
+			await send(event, region, 'FAILED', {}, 'Unknown error')
+		}
+	}
+}
+
+const send = async (event, id, status, data, reason = '') => {
+	const body = JSON.stringify({
+		Status: status,
+		Reason: reason,
+		PhysicalResourceId: id,
+		StackId: event.StackId,
+		RequestId: event.RequestId,
+		LogicalResourceId: event.LogicalResourceId,
+		NoEcho: false,
+		Data: data
+	})
+
+	await fetch(event.ResponseURL, {
+		method: 'PUT',
+		port: 443,
+		body,
+		headers: {
+			'content-type': '',
+            'content-length': Buffer.from(body).byteLength,
+		},
+	})
+}
+
+const listExports = async (region) => {
+	const client = new CloudFormationClient({ region })
+	const data = {}
+
+	let token
+
+	while(true) {
+		const result = await client.send(new ListExportsCommand({
+			NextToken: token
+		}))
+
+		result.Exports?.forEach(item => {
+			data[item.Name] = item.Value
+		})
+
+		if(result.NextToken) {
+			token = result.NextToken
+		} else {
+			return data
+		}
+	}
+}
+`
+);
+
+// src/global-export/extend.ts
+var extendWithGlobalExports = (appName, importable, exportable) => {
+  let crossRegionExports;
+  importable.import = (name) => {
+    name = formatName(name);
+    if (!importable.exports.has(name)) {
+      throw new TypeError(`Undefined global export value: ${name}`);
     }
-    this.assets[opts.stackName].push({
-      ...opts,
-      id: this.id++
-    });
-  }
-  list() {
-    return this.assets;
-  }
-  forEach(cb) {
-    Object.values(this.assets).forEach((assets) => {
-      cb(assets[0].stackName, assets);
-    });
-  }
-  map(cb) {
-    return Object.values(this.assets).map((assets) => {
-      return cb(assets[0].stackName, assets);
-    });
-  }
+    if (!crossRegionExports) {
+      const lambda = new Function("global-exports", {
+        name: `${appName}-global-exports`,
+        code: Code.fromInline(globalExportsHandlerCode, "index.handler")
+      });
+      lambda.addPermissions({
+        actions: ["cloudformation:ListExports"],
+        resources: ["*"]
+      });
+      crossRegionExports = new CustomResource("global-exports", {
+        serviceToken: lambda.arn,
+        properties: {
+          region: importable.region
+        }
+      });
+      exportable.add(crossRegionExports);
+    }
+    return crossRegionExports.getAtt(name);
+  };
 };
 
 // src/app.ts
-var makeApp = (config) => {
-  return new import_aws_cdk_lib9.App({
-    outdir: assemblyDir,
-    defaultStackSynthesizer: new import_aws_cdk_lib9.DefaultStackSynthesizer({
-      fileAssetsBucketName: assetBucketName(config),
-      fileAssetPublishingRoleArn: "",
-      generateBootstrapVersionRule: false
-    })
-  });
-};
 var getAllDepends = (filters) => {
   const list3 = [];
   const walk = (deps) => {
@@ -1458,54 +2478,76 @@ var getAllDepends = (filters) => {
   return list3;
 };
 var toApp = async (config, filters) => {
-  const assets = new Assets();
-  const app = makeApp(config);
+  const app = new App(config.name);
   const stacks = [];
   const plugins = [
     ...defaultPlugins,
     ...config.plugins || []
   ];
   debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
+  const bootstrap2 = new Stack("bootstrap", config.region);
+  const usEastBootstrap = new Stack("us-east-bootstrap", "us-east-1");
+  extendWithGlobalExports(config.name, usEastBootstrap, bootstrap2);
+  app.add(bootstrap2, usEastBootstrap);
   debug("Run plugin onApp listeners");
-  plugins.forEach((plugin) => plugin.onApp?.({ config, app, assets }));
-  const bootstrap2 = appBootstrapStack({ config, app, assets });
+  const bindings = [];
+  const bind = (cb) => {
+    bindings.push(cb);
+  };
+  for (const plugin of plugins) {
+    plugin.onApp?.({
+      config,
+      app,
+      bootstrap: bootstrap2,
+      usEastBootstrap,
+      bind
+    });
+  }
   debug("Stack filters:", filters.map((filter) => style.info(filter)).join(", "));
   const filterdStacks = filters.length === 0 ? config.stacks : getAllDepends(
     // config.stacks,
     config.stacks.filter((stack) => filters.includes(stack.name))
   );
   for (const stackConfig of filterdStacks) {
-    const { stack, bindings } = toStack({
+    const { stack } = toStack({
       config,
       stackConfig,
-      assets,
+      bootstrap: bootstrap2,
+      usEastBootstrap,
       plugins,
       app
     });
+    app.add(stack);
     stacks.push({ stack, config: stackConfig });
-    bindings.forEach((cb) => bootstrap2.functions.forEach(cb));
   }
-  let dependencyTree;
-  if (bootstrap2.stack.node.children.length === 0) {
-    dependencyTree = createDependencyTree(stacks, 0);
-  } else {
+  const functions = app.find(Function);
+  for (const bind2 of bindings) {
+    for (const fn of functions) {
+      bind2(fn);
+    }
+  }
+  let dependencyTree = createDependencyTree(stacks);
+  if (bootstrap2.size > 0) {
     dependencyTree = [{
-      stack: bootstrap2.stack,
-      level: 0,
-      children: createDependencyTree(stacks, 1)
+      stack: bootstrap2,
+      children: dependencyTree
+    }];
+  }
+  if (usEastBootstrap.size > 0) {
+    dependencyTree = [{
+      stack: usEastBootstrap,
+      children: dependencyTree
     }];
   }
   return {
     app,
-    assets,
     plugins,
-    stackNames: filterdStacks.map((stack) => stack.name),
     dependencyTree
   };
 };
 
 // src/config.ts
-var import_path11 = require("path");
+var import_path4 = require("path");
 
 // src/util/account.ts
 var import_client_sts = require("@aws-sdk/client-sts");
@@ -1524,17 +2566,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-var import_zod29 = require("zod");
+var import_zod19 = require("zod");
 
 // src/schema/stack.ts
-var import_zod26 = require("zod");
-var StackSchema = import_zod26.z.object({
+var import_zod16 = require("zod");
+var StackSchema = import_zod16.z.object({
   name: ResourceIdSchema,
-  depends: import_zod26.z.array(import_zod26.z.lazy(() => StackSchema)).optional()
+  depends: import_zod16.z.array(import_zod16.z.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-var import_zod27 = require("zod");
+var import_zod17 = require("zod");
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -1551,35 +2593,48 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = import_zod27.z.enum(regions);
+var RegionSchema = import_zod17.z.enum(regions);
 
 // src/schema/plugin.ts
-var import_zod28 = require("zod");
-var PluginSchema = import_zod28.z.object({
-  name: import_zod28.z.string(),
-  schema: import_zod28.z.custom().optional(),
+var import_zod18 = require("zod");
+var PluginSchema = import_zod18.z.object({
+  name: import_zod18.z.string(),
+  schema: import_zod18.z.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onBootstrap: import_zod28.z.function().returns(import_zod28.z.any()).optional(),
-  onStack: import_zod28.z.function().returns(import_zod28.z.any()).optional(),
-  onApp: import_zod28.z.function().returns(import_zod28.z.void()).optional()
+  onBootstrap: import_zod18.z.function().returns(import_zod18.z.any()).optional(),
+  onStack: import_zod18.z.function().returns(import_zod18.z.any()).optional(),
+  onApp: import_zod18.z.function().returns(import_zod18.z.void()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = import_zod29.z.object({
+var AppSchema = import_zod19.z.object({
   name: ResourceIdSchema,
   region: RegionSchema,
-  profile: import_zod29.z.string(),
-  stage: import_zod29.z.string().regex(/[a-z]+/).default("prod"),
-  defaults: import_zod29.z.object({}).default({}),
-  stacks: import_zod29.z.array(StackSchema).min(1),
-  plugins: import_zod29.z.array(PluginSchema).optional()
+  profile: import_zod19.z.string(),
+  stage: import_zod19.z.string().regex(/[a-z]+/).default("prod"),
+  defaults: import_zod19.z.object({}).default({}),
+  stacks: import_zod19.z.array(StackSchema).min(1).refine((stacks) => {
+    const unique = new Set(stacks.map((stack) => stack.name));
+    return unique.size === stacks.length;
+  }, "Must be an array of unique stacks"),
+  plugins: import_zod19.z.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
-var import_core3 = require("@swc/core");
-var import_path9 = require("path");
-var import_promises5 = require("fs/promises");
+var import_core = require("@swc/core");
+var import_path2 = require("path");
+var import_promises4 = require("fs/promises");
+
+// src/util/path.ts
+var import_path = require("path");
+var rootDir = process.cwd();
+var outDir = (0, import_path.join)(rootDir, ".awsless");
+var templateDir = (0, import_path.join)(outDir, "template");
+var assetDir = (0, import_path.join)(outDir, "asset");
+var cacheDir = (0, import_path.join)(outDir, "cache");
+
+// src/util/import.ts
 var resolveFileNameExtension = async (path) => {
   const options = [
     "",
@@ -1589,10 +2644,10 @@ var resolveFileNameExtension = async (path) => {
     "/index.js"
   ];
   for (const option of options) {
-    const file = path + option;
+    const file = path.replace(/\.js$/, "") + option;
     let stat;
     try {
-      stat = await (0, import_promises5.lstat)(file);
+      stat = await (0, import_promises4.lstat)(file);
     } catch (error) {
       continue;
     }
@@ -1603,45 +2658,42 @@ var resolveFileNameExtension = async (path) => {
   throw new Error(`Failed to load file: ${path}`);
 };
 var resolveDir = (path) => {
-  return (0, import_path9.dirname)(path).replace(rootDir + "/", "");
+  return (0, import_path2.dirname)(path).replace(rootDir + "/", "");
 };
 var importFile = async (path) => {
   const load = async (file) => {
-    let { code: code2 } = await (0, import_core3.transformFile)(file, {
+    debug("Load file", file);
+    let { code: code2 } = await (0, import_core.transformFile)(file, {
       isModule: true
     });
-    const path2 = (0, import_path9.dirname)(file);
+    const path2 = (0, import_path2.dirname)(file);
     const dir = resolveDir(file);
     code2 = code2.replaceAll("__dirname", `"${dir}"`);
-    const matches = code2.match(/import\s*{\s*[a-z0-9\_]+\s*}\s*from\s*('|")(\.[\/a-z0-9\_\-]+)('|");?/ig);
+    const matches = code2.match(/(import|export)\s*{\s*[a-z0-9\_\,\s\*]+\s*}\s*from\s*('|")(\.\.?[\/a-z0-9\_\-\.]+)('|");?/ig);
     if (!matches)
       return code2;
     await Promise.all(matches?.map(async (match) => {
-      const parts = /('|")(\.[\/a-z0-9\_\-]+)('|")/ig.exec(match);
+      const parts = /('|")(\.\.?[\/a-z0-9\_\-\.]+)('|")/ig.exec(match);
       const from = parts[2];
-      const file2 = await resolveFileNameExtension((0, import_path9.join)(path2, from));
+      const file2 = await resolveFileNameExtension((0, import_path2.join)(path2, from));
       const result = await load(file2);
       code2 = code2.replace(match, result);
     }));
     return code2;
   };
   const code = await load(path);
-  const outputFile = (0, import_path9.join)(outDir, "config.js");
-  await (0, import_promises5.mkdir)(outDir, { recursive: true });
-  await (0, import_promises5.writeFile)(outputFile, code);
+  const outputFile = (0, import_path2.join)(outDir, "config.js");
+  await (0, import_promises4.mkdir)(outDir, { recursive: true });
+  await (0, import_promises4.writeFile)(outputFile, code);
   return import(outputFile);
 };
 
 // src/config.ts
 var importConfig = async (options) => {
   debug("Import config file");
-  const fileName = (0, import_path11.join)(process.cwd(), options.configFile || "awsless.config.ts");
+  const fileName = (0, import_path4.join)(process.cwd(), options.configFile || "awsless.config.ts");
   const module2 = await importFile(fileName);
-  const appConfig = typeof module2.default === "function" ? await module2.default({
-    profile: options.profile,
-    region: options.region,
-    stage: options.stage
-  }) : module2.default;
+  const appConfig = typeof module2.default === "function" ? await module2.default(options) : module2.default;
   debug("Validate config file");
   const plugins = [
     ...defaultPlugins,
@@ -1730,7 +2782,7 @@ var Signal = class {
   }
   set(value) {
     this.value = value;
-    this.subs.forEach((sub) => sub(value));
+    this.subs.forEach((sub2) => sub2(value));
   }
   update(cb) {
     this.set(cb(this.value));
@@ -1923,6 +2975,7 @@ var Renderer = class {
   fragments = [];
   unsubs = [];
   timeout;
+  flushing = false;
   screen = [];
   width() {
     return this.output.columns;
@@ -1970,6 +3023,9 @@ var Renderer = class {
   async end() {
     this.gap();
     await this.flush();
+    clearTimeout(this.timeout);
+    this.unsubs.forEach((unsub) => unsub());
+    this.unsubs = [];
     const y = this.screen.length - 1;
     await this.setCursor(0, y);
   }
@@ -1990,6 +3046,10 @@ var Renderer = class {
   }
   async flush() {
     clearTimeout(this.timeout);
+    if (this.flushing) {
+      this.update();
+      return;
+    }
     const walk = (fragment) => {
       if (typeof fragment === "string") {
         return fragment;
@@ -2010,6 +3070,7 @@ var Renderer = class {
     const newSize = screen.length;
     const size = Math.max(oldSize, newSize);
     const start = Math.max(oldSize - height, 0);
+    this.flushing = true;
     for (let y = start; y < size; y++) {
       const newLine = screen[y];
       const oldLine = this.screen[y];
@@ -2027,6 +3088,7 @@ var Renderer = class {
       }
     }
     this.screen = screen;
+    this.flushing = false;
   }
   async clear() {
     await this.setCursor(0, 0);
@@ -2097,6 +3159,7 @@ var logs = () => {
 var layout = async (cb) => {
   const term = createTerminal();
   await term.out.clear();
+  term.out.write(br());
   term.out.write(logo());
   term.out.gap();
   try {
@@ -2127,6 +3190,9 @@ var layout = async (cb) => {
   }
 };
 
+// src/cli/ui/complex/builder.ts
+var import_promises5 = require("fs/promises");
+
 // src/cli/ui/layout/flex-line.ts
 var stripEscapeCode = (str) => {
   return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
@@ -2147,35 +3213,52 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
   ]);
 };
 
-// src/cli/ui/complex/asset.ts
-var assetBuilder = (assets) => {
+// src/cli/ui/complex/builder.ts
+var import_path6 = require("path");
+var assetBuilder = (app) => {
   return async (term) => {
+    const assets = [];
+    const stacks = [];
+    for (const stack of app) {
+      for (const asset of stack.assets) {
+        if (asset.build) {
+          assets.push(asset);
+          stacks.push(stack);
+        }
+      }
+    }
+    if (assets.length === 0) {
+      return;
+    }
     const done = term.out.write(loadingDialog("Building stack assets..."));
     const groups = new Signal([""]);
     term.out.gap();
     term.out.write(groups);
-    const stackNameSize = Math.max(...Object.keys(assets.list()).map((stack) => stack.length));
-    const resourceSize = Math.max(...Object.values(assets.list()).map((assets2) => assets2.map((asset) => asset.resource.length)).flat());
-    await Promise.all(assets.map(async (stackName, assets2) => {
+    const stackNameSize = Math.max(...stacks.map((stack) => stack.name.length));
+    const assetTypeSize = Math.max(...assets.map((asset) => asset.type.length));
+    await Promise.all(app.stacks.map(async (stack) => {
       const group = new Signal([]);
       groups.update((groups2) => [...groups2, group]);
-      await Promise.all(assets2.map(async (asset) => {
+      await Promise.all([...stack.assets].map(async (asset) => {
+        if (!asset.build) {
+          return;
+        }
         const [icon, stop] = createSpinner();
         const details = new Signal({});
         const line = flexLine(term, [
           icon,
           "  ",
-          style.label(stackName),
-          " ".repeat(stackNameSize - stackName.length),
+          style.label(stack.name),
+          " ".repeat(stackNameSize - stack.name.length),
           " ",
           style.placeholder(symbol.pointerSmall),
           " ",
-          style.warning(asset.resource),
-          " ".repeat(resourceSize - asset.resource.length),
+          style.warning(asset.type),
+          " ".repeat(assetTypeSize - asset.type.length),
           " ",
           style.placeholder(symbol.pointerSmall),
           " ",
-          style.info(asset.resourceName),
+          style.info(asset.id),
           " "
         ], [
           " ",
@@ -2188,7 +3271,14 @@ var assetBuilder = (assets) => {
         ]);
         group.update((group2) => [...group2, line]);
         const timer = createTimer();
-        const data = await asset.build?.();
+        const data = await asset.build({
+          async write(file, data2) {
+            const fullpath = (0, import_path6.join)(assetDir, asset.type, app.name, stack.name, asset.id, file);
+            const basepath = (0, import_path6.dirname)(fullpath);
+            await (0, import_promises5.mkdir)(basepath, { recursive: true });
+            await (0, import_promises5.writeFile)(fullpath, data2);
+          }
+        });
         details.set({
           ...data,
           time: timer()
@@ -2205,9 +3295,9 @@ var assetBuilder = (assets) => {
 // src/util/cleanup.ts
 var import_promises6 = require("fs/promises");
 var cleanUp = async () => {
-  debug("Clean up assembly & asset files");
+  debug("Clean up template, cache, and asset files");
   const paths = [
-    assemblyDir,
+    templateDir,
     assetDir,
     cacheDir
   ];
@@ -2221,108 +3311,176 @@ var cleanUp = async () => {
   })));
 };
 
+// src/cli/ui/complex/template.ts
+var import_promises7 = require("fs/promises");
+var import_path9 = require("path");
+var templateBuilder = (app) => {
+  return async (term) => {
+    const done = term.out.write(loadingDialog("Building stack templates..."));
+    await Promise.all(app.stacks.map(async (stack) => {
+      const template = stack.toString(true);
+      const path = (0, import_path9.join)(templateDir, app.name);
+      const file = (0, import_path9.join)(path, `${stack.name}.json`);
+      await (0, import_promises7.mkdir)(path, { recursive: true });
+      await (0, import_promises7.writeFile)(file, template);
+    }));
+    done("Done building stack templates");
+  };
+};
+
 // src/cli/command/build.ts
 var build = (program2) => {
   program2.command("build").argument("[stack...]", "Optionally filter stacks to build").description("Build your app").action(async (filters) => {
     await layout(async (config, write) => {
-      const { app, assets } = await toApp(config, filters);
+      const { app } = await toApp(config, filters);
       await cleanUp();
-      await write(assetBuilder(assets));
-      app.synth();
+      await write(assetBuilder(app));
+      await write(templateBuilder(app));
     });
   });
 };
 
-// src/stack/client.ts
+// src/formation/bootstrap.ts
+var assetBucketName = (account, region) => {
+  return `awsless-bootstrap-${account}-${region}`;
+};
+var assetBucketUrl = (account, region, stack) => {
+  const bucket = assetBucketName(account, region);
+  return `https://s3-${region}.amazonaws.com/${bucket}/${stack.name}/cloudformation.json`;
+};
+var version = "1";
+var bootstrapStack = (account, region) => {
+  const app = new App("awsless");
+  const stack = new Stack("bootstrap", region);
+  stack.add(new Bucket("assets", {
+    name: assetBucketName(account, region),
+    accessControl: "private",
+    versioned: true
+  }));
+  stack.export("version", version);
+  app.add(stack);
+  return { app, stack };
+};
+var shouldDeployBootstrap = async (client, stack) => {
+  debug("Check bootstrap status");
+  const info = await client.get(stack.name, stack.region);
+  return !info || info.outputs.version !== version || !["CREATE_COMPLETE", "UPDATE_COMPLETE"].includes(info.status);
+};
+
+// src/formation/client.ts
 var import_client_cloudformation = require("@aws-sdk/client-cloudformation");
-var import_client_s32 = require("@aws-sdk/client-s3");
+var import_client_s3 = require("@aws-sdk/client-s3");
+var import_change_case11 = require("change-case");
 var StackClient = class {
-  // 30 seconds
-  constructor(config) {
-    this.config = config;
-    this.client = new import_client_cloudformation.CloudFormationClient({
-      credentials: config.credentials,
-      region: config.region
-    });
+  constructor(app, account, region, credentials) {
+    this.app = app;
+    this.account = account;
+    this.region = region;
+    this.credentials = credentials;
+    this.assetBucketName = assetBucketName(this.account, this.region);
   }
-  client;
   maxWaitTime = 60 * 30;
   // 30 minutes
   maxDelay = 30;
-  shouldUploadTemplate(stack) {
-    const body = JSON.stringify(stack.template);
-    const size = Buffer.byteLength(body, "utf8");
+  // 30 seconds
+  assetBucketName;
+  getClient(region) {
+    return new import_client_cloudformation.CloudFormationClient({
+      credentials: this.credentials,
+      region
+    });
+  }
+  shouldUploadTemplate(template) {
+    const size = Buffer.byteLength(template, "utf8");
     return size > 5e4;
   }
   templateProp(stack) {
-    return this.shouldUploadTemplate(stack) ? {
-      TemplateUrl: assetBucketUrl(this.config, stack.stackName)
+    const template = stack.toString();
+    return this.shouldUploadTemplate(template) ? {
+      TemplateUrl: assetBucketUrl(this.account, this.region, stack)
     } : {
-      TemplateBody: JSON.stringify(stack.template)
+      TemplateBody: template
     };
   }
-  async upload(stack) {
-    debug("Upload the", style.info(stack.id), "stack to awsless assets bucket");
-    const client = new import_client_s32.S3Client({
-      credentials: this.config.credentials,
-      region: this.config.region
+  stackName(stackName) {
+    return (0, import_change_case11.paramCase)(`${this.app.name}-${stackName}`);
+  }
+  tags(stack) {
+    const tags = [];
+    for (const [name, value] of stack.tags.entries()) {
+      tags.push({ Key: name, Value: value });
+    }
+    return tags;
+  }
+  async upload(stack, template) {
+    debug("Upload the", style.info(stack.name), "stack to awsless assets bucket");
+    const client = new import_client_s3.S3Client({
+      credentials: this.credentials,
+      region: stack.region
     });
-    await client.send(new import_client_s32.PutObjectCommand({
-      Bucket: assetBucketName(this.config),
-      Key: `${stack.stackName}/cloudformation.json`,
-      Body: JSON.stringify(stack.template),
-      ACL: import_client_s32.ObjectCannedACL.private,
-      StorageClass: import_client_s32.StorageClass.STANDARD_IA
+    await client.send(new import_client_s3.PutObjectCommand({
+      Bucket: this.assetBucketName,
+      Key: `${this.app.name}/${stack.name}/cloudformation.json`,
+      Body: template,
+      ACL: import_client_s3.ObjectCannedACL.private,
+      StorageClass: import_client_s3.StorageClass.STANDARD_IA
     }));
   }
   async create(stack, capabilities) {
-    debug("Create the", style.info(stack.id), "stack");
-    await this.client.send(new import_client_cloudformation.CreateStackCommand({
-      StackName: stack.stackName,
+    debug("Create the", style.info(stack.name), "stack");
+    const client = this.getClient(stack.region);
+    await client.send(new import_client_cloudformation.CreateStackCommand({
+      StackName: this.stackName(stack.name),
       EnableTerminationProtection: false,
       OnFailure: import_client_cloudformation.OnFailure.DELETE,
       Capabilities: capabilities,
+      Tags: this.tags(stack),
       ...this.templateProp(stack)
     }));
     await (0, import_client_cloudformation.waitUntilStackCreateComplete)({
-      client: this.client,
+      client,
       maxWaitTime: this.maxWaitTime,
       maxDelay: this.maxDelay
     }, {
-      StackName: stack.stackName
+      StackName: this.stackName(stack.name)
     });
   }
   async update(stack, capabilities) {
-    debug("Update the", style.info(stack.id), "stack");
-    await this.client.send(new import_client_cloudformation.UpdateStackCommand({
-      StackName: stack.stackName,
+    debug("Update the", style.info(stack.name), "stack");
+    const client = this.getClient(stack.region);
+    await client.send(new import_client_cloudformation.UpdateStackCommand({
+      StackName: this.stackName(stack.name),
       Capabilities: capabilities,
+      Tags: this.tags(stack),
       ...this.templateProp(stack)
     }));
     await (0, import_client_cloudformation.waitUntilStackUpdateComplete)({
-      client: this.client,
+      client,
       maxWaitTime: this.maxWaitTime,
       maxDelay: this.maxDelay
     }, {
-      StackName: stack.stackName
+      StackName: this.stackName(stack.name)
     });
   }
   async validate(stack) {
-    debug("Validate the", style.info(stack.id), "stack");
-    const result = await this.client.send(new import_client_cloudformation.ValidateTemplateCommand({
+    debug("Validate the", style.info(stack.name), "stack");
+    const client = this.getClient(stack.region);
+    const result = await client.send(new import_client_cloudformation.ValidateTemplateCommand({
       ...this.templateProp(stack)
     }));
     return result.Capabilities;
   }
-  async get(name) {
+  async get(name, region) {
     debug("Get stack info for:", style.info(name));
+    const client = this.getClient(region);
     let result;
     try {
-      result = await this.client.send(new import_client_cloudformation.DescribeStacksCommand({
-        StackName: name
+      result = await client.send(new import_client_cloudformation.DescribeStacksCommand({
+        StackName: this.stackName(name)
       }));
     } catch (error) {
       if (error instanceof Error && error.name === "ValidationError" && error.message.includes("does not exist")) {
+        debug("Stack not found");
         return;
       }
       throw error;
@@ -2332,8 +3490,8 @@ var StackClient = class {
       debug("Stack not found");
       return;
     }
-    const resultTemplate = await this.client.send(new import_client_cloudformation.GetTemplateCommand({
-      StackName: name,
+    const resultTemplate = await client.send(new import_client_cloudformation.GetTemplateCommand({
+      StackName: this.stackName(name),
       TemplateStage: import_client_cloudformation.TemplateStage.Original
     }));
     const outputs = {};
@@ -2351,14 +3509,15 @@ var StackClient = class {
     };
   }
   async deploy(stack) {
-    const data = await this.get(stack.stackName);
-    debug("Deploy:", style.info(stack.stackName));
-    if (data?.template === JSON.stringify(stack.template)) {
+    const template = stack.toString();
+    const data = await this.get(stack.name, stack.region);
+    debug("Deploy:", style.info(stack.name));
+    if (data?.template === template) {
       debug("No stack changes");
       return false;
     }
-    if (this.shouldUploadTemplate(stack)) {
-      await this.upload(stack);
+    if (this.shouldUploadTemplate(template)) {
+      await this.upload(stack, template);
     }
     const capabilities = await this.validate(stack);
     if (!data) {
@@ -2370,22 +3529,23 @@ var StackClient = class {
     }
     return true;
   }
-  async delete(name) {
-    const data = await this.get(name);
+  async delete(name, region) {
+    const data = await this.get(name, region);
+    const client = this.getClient(region);
     debug("Delete the", style.info(name), "stack");
     if (!data) {
       debug("Already deleted");
       return;
     }
-    await this.client.send(new import_client_cloudformation.DeleteStackCommand({
-      StackName: name
+    await client.send(new import_client_cloudformation.DeleteStackCommand({
+      StackName: this.stackName(name)
     }));
     await (0, import_client_cloudformation.waitUntilStackDeleteComplete)({
-      client: this.client,
+      client,
       maxWaitTime: this.maxWaitTime,
       maxDelay: this.maxDelay
     }, {
-      StackName: name
+      StackName: this.stackName(name)
     });
   }
 };
@@ -2474,10 +3634,9 @@ var confirmPrompt = (label, options = {}) => {
 var bootstrapDeployer = (config) => {
   return async (term) => {
     debug("Initializing bootstrap");
-    const app = makeApp(config);
-    const client = new StackClient(config);
-    const bootstrap2 = bootstrapStack(config, app);
-    const shouldDeploy = await shouldDeployBootstrap(client, bootstrap2.stackName);
+    const { app, stack } = bootstrapStack(config.account, config.region);
+    const client = new StackClient(app, config.account, config.region, config.credentials);
+    const shouldDeploy = await shouldDeployBootstrap(client, stack);
     if (shouldDeploy) {
       term.out.write(dialog("warning", [`Your app hasn't been bootstrapped yet`]));
       const confirmed = await term.out.write(confirmPrompt("Would you like to bootstrap?"));
@@ -2485,8 +3644,7 @@ var bootstrapDeployer = (config) => {
         throw new Cancelled();
       }
       const done = term.out.write(loadingDialog("Bootstrapping..."));
-      const assembly = app.synth();
-      await client.deploy(assembly.stacks[0]);
+      await client.deploy(stack);
       done("Done deploying the bootstrap stack");
     } else {
       term.out.write(dialog("success", [
@@ -2512,8 +3670,8 @@ var stackTree = (nodes, statuses) => {
     const render = (nodes2, deep = 0, parents = []) => {
       const size = nodes2.length - 1;
       nodes2.forEach((node, i) => {
-        const id = node.stack.artifactId;
-        const status2 = statuses[id];
+        const name = node.stack.name;
+        const status2 = statuses[name];
         const first = i === 0 && deep === 0;
         const last = i === size;
         const more = i < size;
@@ -2527,7 +3685,7 @@ var stackTree = (nodes, statuses) => {
             first && size === 0 ? "  " : first ? "\u250C\u2500" : last ? "\u2514\u2500" : "\u251C\u2500"
           ),
           " ",
-          style.info(id),
+          style.info(name),
           " "
         ], [
           " ",
@@ -2548,28 +3706,27 @@ var stackTree = (nodes, statuses) => {
 var status = (program2) => {
   program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
     await layout(async (config, write) => {
-      const { app, assets, dependencyTree } = await toApp(config, filters);
+      const { app, dependencyTree } = await toApp(config, filters);
       await cleanUp();
-      await write(assetBuilder(assets));
-      const assembly = app.synth();
+      await write(assetBuilder(app));
+      await write(templateBuilder(app));
       const doneLoading = write(loadingDialog("Loading stack information..."));
-      const client = new StackClient(config);
+      const client = new StackClient(app, config.account, config.region, config.credentials);
       const statuses = [];
       const stackStatuses = {};
-      assembly.stacks.forEach((stack) => {
-        stackStatuses[stack.id] = new Signal(style.info("Loading..."));
-      });
+      for (const stack of app) {
+        stackStatuses[stack.name] = new Signal(style.info("Loading..."));
+      }
       write(stackTree(dependencyTree, stackStatuses));
       debug("Load metadata for all deployed stacks on AWS");
-      await Promise.all(assembly.stacks.map(async (stack, i) => {
-        const info = await client.get(stack.stackName);
-        const name = stack.id;
-        const signal = stackStatuses[name];
+      await Promise.all(app.stacks.map(async (stack, i) => {
+        const info = await client.get(stack.name, stack.region);
+        const signal = stackStatuses[stack.name];
         await new Promise((resolve) => setTimeout(resolve, i * 1e3));
         if (!info) {
           signal.set(style.error("non-existent"));
           statuses.push("non-existent");
-        } else if (info.template !== JSON.stringify(stack.template)) {
+        } else if (info.template !== stack.toString()) {
           signal.set(style.warning("out-of-date"));
           statuses.push("out-of-date");
         } else {
@@ -2588,12 +3745,77 @@ var status = (program2) => {
   });
 };
 
+// src/cli/ui/complex/publisher.ts
+var import_promises8 = require("fs/promises");
+var import_path11 = require("path");
+var import_client_s32 = require("@aws-sdk/client-s3");
+var assetPublisher = (config, app) => {
+  const client = new import_client_s32.S3Client({
+    credentials: config.credentials,
+    region: config.region
+  });
+  return async (term) => {
+    const done = term.out.write(loadingDialog("Publishing stack assets to AWS..."));
+    await Promise.all(app.stacks.map(async (stack) => {
+      await Promise.all([...stack.assets].map(async (asset) => {
+        await asset.publish?.({
+          async read(file) {
+            const path = (0, import_path11.join)(assetDir, asset.type, app.name, stack.name, asset.id, file);
+            const data = await (0, import_promises8.readFile)(path);
+            return data;
+          },
+          async publish(name, data, hash) {
+            const key = `${app.name}/${stack.name}/function/${name}`;
+            const bucket = assetBucketName(config.account, config.region);
+            let getResult;
+            try {
+              getResult = await client.send(new import_client_s32.GetObjectCommand({
+                Bucket: bucket,
+                Key: key
+              }));
+            } catch (error) {
+              if (error instanceof Error && error.name === "NoSuchKey") {
+              } else {
+                throw error;
+              }
+            }
+            if (getResult?.Metadata?.hash === hash) {
+              return {
+                bucket,
+                key,
+                version: getResult.VersionId
+              };
+            }
+            const putResult = await client.send(new import_client_s32.PutObjectCommand({
+              Bucket: bucket,
+              Key: key,
+              Body: data,
+              ACL: import_client_s32.ObjectCannedACL.private,
+              StorageClass: import_client_s32.StorageClass.STANDARD,
+              Metadata: {
+                hash
+              }
+            }));
+            return {
+              bucket,
+              key,
+              version: putResult.VersionId
+            };
+          }
+        });
+      }));
+    }));
+    done("Done publishing stack assets to AWS");
+  };
+};
+
 // src/cli/command/deploy.ts
 var deploy = (program2) => {
   program2.command("deploy").argument("[stacks...]", "Optionally filter stacks to deploy").description("Deploy your app to AWS").action(async (filters) => {
-    await layout(async (config, write, term) => {
+    await layout(async (config, write) => {
       await write(bootstrapDeployer(config));
-      const { app, stackNames, assets, dependencyTree } = await toApp(config, filters);
+      const { app, dependencyTree } = await toApp(config, filters);
+      const stackNames = app.stacks.map((stack) => stack.name);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to deploy", formattedFilter);
       const deployAll = filters.length === 0;
@@ -2603,30 +3825,23 @@ var deploy = (program2) => {
         throw new Cancelled();
       }
       await cleanUp();
-      await write(assetBuilder(assets));
-      const donePublishing = write(loadingDialog("Publishing stack assets to AWS..."));
-      await Promise.all(assets.map(async (_, assets2) => {
-        await Promise.all(assets2.map(async (asset) => {
-          await asset.publish?.();
-        }));
-      }));
-      donePublishing("Done publishing stack assets to AWS");
-      const assembly = app.synth();
+      await write(assetBuilder(app));
+      await write(assetPublisher(config, app));
+      await write(templateBuilder(app));
       const statuses = {};
-      assembly.stacks.map((stack) => {
-        statuses[stack.id] = new Signal(style.info("waiting"));
-      });
+      for (const stack of app) {
+        statuses[stack.name] = new Signal(style.info("waiting"));
+      }
       const doneDeploying = write(loadingDialog("Deploying stacks to AWS..."));
       write(stackTree(dependencyTree, statuses));
-      const client = new StackClient(config);
+      const client = new StackClient(app, config.account, config.region, config.credentials);
       const deploymentLine = createDeploymentLine(dependencyTree);
       for (const stacks of deploymentLine) {
         const results = await Promise.allSettled(stacks.map(async (stack) => {
-          const signal = statuses[stack.artifactId];
-          const stackArtifect = assembly.stacks.find((item) => item.id === stack.artifactId);
+          const signal = statuses[stack.name];
           signal.set(style.warning("deploying"));
           try {
-            await client.deploy(stackArtifect);
+            await client.deploy(stack);
           } catch (error) {
             debugError(error);
             signal.set(style.error("failed"));
@@ -2794,15 +4009,28 @@ var secrets = (program2) => {
   commands.forEach((cb) => cb(command));
 };
 
+// src/cli/command/test.ts
+var test = (program2) => {
+  program2.command("test").action(async () => {
+    await layout(async (config) => {
+      const app = new App("test");
+      const name = "test5";
+    });
+  });
+};
+
 // src/cli/program.ts
 var program = new import_commander.Command();
-program.name("awsless");
+program.name(logo().join("").replace(/\s+/, ""));
 program.option("--config-file <string>", "The config file location");
 program.option("--stage <string>", "The stage to use, defaults to prod stage", "prod");
 program.option("--profile <string>", "The AWS profile to use");
 program.option("--region <string>", "The AWS region to use");
 program.option("-m --mute", "Mute sound effects");
 program.option("-v --verbose", "Print verbose logs");
+program.exitOverride(() => {
+  process.exit(0);
+});
 program.on("option:verbose", () => {
   process.env.VERBOSE = program.opts().verbose ? "1" : void 0;
 });
@@ -2811,13 +4039,12 @@ var commands2 = [
   status,
   build,
   deploy,
-  secrets
+  secrets,
+  test
   // diff,
   // remove,
-  // test,
-  // test2,
 ];
-commands2.forEach((command) => command(program));
+commands2.forEach((fn) => fn(program));
 
 // src/bin.ts
 program.parse(process.argv);

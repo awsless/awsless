@@ -1,5 +1,5 @@
 
-import { AppConfig } from "../../src"
+import { defineAppConfig } from "../../src/index.js"
 import { storeStack } from "./stack/store"
 import { queueStack } from "./stack/queue"
 import { tableStack } from "./stack/table"
@@ -11,45 +11,52 @@ import { cronStack } from "./stack/cron"
 import { pubsubStack } from "./stack/pubsub"
 import { httpStack } from "./stack/http"
 
-export default {
+export default defineAppConfig((input) => ({
 	name: 'app',
-	profile: 'jacksclub',
+	// stage: input.stage || 'prod',
 	region: 'eu-west-1',
-	// stage: 'asd',
+	profile: input.profile || 'jacksclub',
 	domains: {
-		'jacksclub.dev': [],
+		'getblockalert.com': [],
 	},
 	defaults: {
-		http: {
-			api: {
-				domain: 'jacksclub.dev',
-				subDomain: 'test',
-			}
-		},
-		function: {
-			environment: {
-				BUGSNAG_API_KEY: 'test'
-			}
-		},
 		graphql: {
 			api: {
-				authorization: {
-					authorizer: __dirname + '/function.ts',
-				}
-			}
-		}
+				domain: 'getblockalert.com',
+				subDomain: 'graphql',
+			},
+		},
+		// queue: {
+		// 	''
+		// }
+		// queue: {
+		// 	''
+		// }
+		// http: {
+		// 	api: {
+		// 		domain: 'getblockalert.com',
+		// 		subDomain: 'http',
+		// 	}
+		// },
+		// function: {
+		// 	environment: {
+		// 		BUGSNAG_API_KEY: 'test'
+		// 	}
+		// },
 	},
 	stacks: [
-		tableStack,
-		queueStack,
-		storeStack,
-		functionStack,
+		// tableStack,
+		// queueStack,
+		// storeStack,
+		// functionStack,
+		// topicStack,
+		// cronStack,
+		// pubsubStack,
+
+		// httpStack,
+		// searchStack,
+
 		graphqlOneStack,
 		graphqlTwoStack,
-		topicStack,
-		cronStack,
-		pubsubStack,
-		httpStack,
-		// searchStack,
 	]
-} satisfies AppConfig
+}))

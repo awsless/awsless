@@ -1,7 +1,7 @@
 import { makeApp } from "../../../../src/app"
 import { Config } from "../../../../src/config"
 import { bootstrapStack, shouldDeployBootstrap } from "../../../../src/stack/bootstrap"
-import { StackClient } from "../../../../src/stack/client"
+import { StackClient } from "../../../../src/formation/client"
 import { Cancelled } from "../../../../src/cli/error"
 import { debug } from "../../../../src/cli/logger"
 import { Terminal } from "../terminal"

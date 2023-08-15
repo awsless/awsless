@@ -1,10 +1,9 @@
-import { App, Stack } from "aws-cdk-lib"
-import { Assets } from './util/assets.js'
 import { AnyZodObject, z } from "zod"
 import { BaseConfig } from './config.js'
-import { Function } from "aws-cdk-lib/aws-lambda"
 import { Binding } from './stack.js'
 import { AppConfigInput } from './schema/app.js'
+import { Stack } from './formation/stack.js'
+import { App } from './formation/app.js'
 
 export type PluginSchema = AnyZodObject | undefined
 export type PluginDepends = Plugin[] | undefined
@@ -25,32 +24,26 @@ export type StackContext<S extends AnyZodObject | undefined = undefined> = {
 	config: ExtendedConfigOutput<S>
 	stack: Stack
 	stackConfig: ExtendedConfigOutput<S>['stacks'][number]
-	assets: Assets
+	bootstrap: Stack
+	usEastBootstrap: Stack
 	app: App
 	bind: (cb: Binding) => void
 }
 
-export type BootstrapContext<S extends AnyZodObject | undefined = undefined> = {
-	config: ExtendedConfigOutput<S>
-	assets: Assets
-	stack: Stack
-	app: App
-}
-
 export type AppContext<S extends AnyZodObject | undefined = undefined> = {
 	config: ExtendedConfigOutput<S>
-	assets: Assets
+	bootstrap: Stack
+	usEastBootstrap: Stack
 	app: App
+	bind: (cb: Binding) => void
 }
 
 export type Plugin<S extends AnyZodObject | undefined = undefined> = {
 	name: string
 	schema?: S
 	// depends?: D
-	// onAssets?: (context: BootstrapContext<S>) => Promise<void> | void
-	onBootstrap?: (context: BootstrapContext<S>) => Function[] | void
-	onStack?: (context: StackContext<S>) => Function[] | void
-	onApp?: (context:AppContext<S>) => void
+	onApp?: (context: AppContext<S>) => void
+	onStack?: (context: StackContext<S>) => void
 }
 
 export const definePlugin = <

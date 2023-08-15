@@ -1,51 +1,57 @@
 
 import { z } from 'zod'
-import { definePlugin } from '../plugin.js';
-import { toId, toName } from '../util/resource.js';
-import { ResourceIdSchema } from '../schema/resource-id.js';
-import { FunctionSchema, toFunction } from './function/index.js';
-import { CfnTopicRule } from 'aws-cdk-lib/aws-iot';
-import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
-import { snakeCase } from 'change-case';
+import { definePlugin } from '../plugin';
+import { ResourceIdSchema } from '../schema/resource-id';
+import { FunctionSchema, toLambdaFunction } from './function';
+import { IotEventSource } from '../formation/resource/lambda/event-source/iot';
 
 export const pubsubPlugin = definePlugin({
 	name: 'pubsub',
 	schema: z.object({
 		stacks: z.object({
+			/** Define the pubsub subscriber in your stack
+			 * @example
+			 * {
+			 *   pubsub: {
+			 *     NAME: {
+			 *       sql: 'SELECT * FROM "table"',
+			 *       consumer: 'function.ts',
+			 *     }
+			 *   }
+			 * }
+			 */
 			pubsub: z.record(ResourceIdSchema, z.object({
+				/** The SQL statement used to query the iot topic */
 				sql: z.string(),
+
+				/** The version of the SQL rules engine to use when evaluating the rule */
 				sqlVersion: z.enum(['2015-10-08', '2016-03-23', 'beta']).default('2016-03-23'),
+
+				/** The consuming lambda function properties */
 				consumer: FunctionSchema,
 			})).optional()
 		}).array()
 	}),
-	onStack(ctx) {
-		const { stack, stackConfig, bind } = ctx
-
+	onApp({bind}) {
 		bind(lambda => {
-			lambda.addToRolePolicy(new PolicyStatement({
+			lambda.addPermissions({
 				actions: [ 'iot:publish' ],
 				resources: [ '*' ],
-			}))
+			})
 		})
+	},
+	onStack(ctx) {
+		const { config, stack, stackConfig } = ctx
 
-		return Object.entries(stackConfig.pubsub || {}).map(([ id, props ]) => {
-			const lambda = toFunction(ctx as any, id, props.consumer)
-
-			new CfnTopicRule(stack, toId('pubsub', id), {
-				ruleName: snakeCase(toName(stack, id)),
-				topicRulePayload: {
-					sql: props.sql,
-					awsIotSqlVersion: props.sqlVersion,
-					actions: [{
-						lambda: {
-							functionArn: lambda.functionArn
-						}
-					}]
-				}
+		for(const [ id, props ] of Object.entries(stackConfig.pubsub || {})) {
+			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const source = new IotEventSource(id, lambda, {
+				name: `${config.name}-${stack.name}-${id}`,
+				sql: props.sql,
+				sqlVersion: props.sqlVersion,
 			})
 
-			return lambda
-		})
+			stack.add(lambda, source)
+		}
 	},
 })

@@ -12,6 +12,7 @@ export class Renderer {
 	private fragments: Array<string | VisibleSignal> = []
 	private unsubs: Array<() => void> = []
 	private timeout: NodeJS.Timeout | undefined
+	private flushing: boolean = false
 	private screen: string[] = []
 
 	constructor(readonly output:NodeJS.WriteStream, private ins: Interface) {}
@@ -82,11 +83,14 @@ export class Renderer {
 
 	async end() {
 		this.gap()
+
 		await this.flush()
+		clearTimeout(this.timeout)
+		this.unsubs.forEach(unsub => unsub())
+		this.unsubs = []
 
 		const y = this.screen.length - 1
 		await this.setCursor(0, y)
-
 
 		// this.output.cursorTo?.(0, y)
 		// this.output.write?.(' ')
@@ -116,6 +120,11 @@ export class Renderer {
 
 	async flush() {
 		clearTimeout(this.timeout)
+
+		if(this.flushing) {
+			this.update()
+			return
+		}
 
 		const walk = (fragment: VisibleValue): string => {
 			if(typeof fragment === 'string') {
@@ -148,6 +157,8 @@ export class Renderer {
 		// ------------------------------------------------
 		// Extend the screen buffer
 
+		this.flushing = true
+
 		for(let y = start; y < size; y++) {
 			const newLine = screen[y]
 			const oldLine = this.screen[y]
@@ -158,39 +169,21 @@ export class Renderer {
 					// force new line
 					const p = y - start - 1
 					const x = screen[y - 1]?.length || 0
-					// this.output.cursorTo?.(x, p)
-					// this.output.write?.('\n' + line)
+
 					await this.setCursor(x, p)
 					await this.writeString('\n' + newLine)
-					// await this.writeString('\n' + y)
-					// await this.clearLine()
 				} else {
-					// this.output.cursorTo?.(0, y - start)
-					// this.output.write?.(line)
 					await this.setCursor(0, y - start)
 					await this.writeString(newLine)
-					// await this.writeString(y + '')
 					await this.clearLine()
 				}
 			}
 		}
 
 		// ------------------------------------------------
-		// Write to updated lines
 
-		// for(let y = 0; y < size; y++) {
-		// 	const line = screen[y]
-		// 	if(line !== this.screen[y]) {
-		// 		this.output.cursorTo?.(0, y)
-		// 		this.output.write?.(line)
-		// 		this.output.write?.('---')
-		// 		this.output.write?.(y.toString())
-		// 		// this.output.clearLine?.(1)
-		// 	}
-		// }
-
-		// this.output.cursorTo?.(screen[height-1].length - 1, height)
 		this.screen = screen
+		this.flushing = false
 	}
 
 	async clear() {

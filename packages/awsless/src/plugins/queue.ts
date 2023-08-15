@@ -1,123 +1,124 @@
 
 import { definePlugin } from '../plugin.js';
 import { z } from 'zod'
-import { addResourceEnvironment, toId, toName } from '../util/resource.js';
-import { FunctionSchema, toFunction } from './function/index.js';
+import { FunctionSchema, toLambdaFunction } from './function.js';
 import { ResourceIdSchema } from '../schema/resource-id.js';
 import { DurationSchema } from '../schema/duration.js';
 import { SizeSchema } from '../schema/size.js';
-import { Queue } from "aws-cdk-lib/aws-sqs";
-import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 import { LocalFileSchema } from '../schema/local-file.js';
+import { Queue } from '../formation/resource/sqs/queue.js';
+import { SqsEventSource } from '../formation/resource/lambda/event-source/sqs.js';
 
 export const queuePlugin = definePlugin({
 	name: 'queue',
 	schema: z.object({
 		defaults: z.object({
+			/** Define the defaults properties for all queue's in your app */
 			queue: z.object({
-				// fifo: z.boolean().default(false),
+				/** The number of seconds that Amazon SQS retains a message.
+				 * You can specify a duration value from 1 minute to 14 days.
+				 * @default '7 days' */
 				retentionPeriod: DurationSchema.default('7 days'),
+
+				/** The length of time during which a message will be unavailable after a message is delivered from the queue.
+				 * This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue.
+				 * You can specify a duration value from 0 to 12 hours.
+				 * @default '30 seconds' */
 				visibilityTimeout: DurationSchema.default('30 seconds'),
+
+				/** The time in seconds for which the delivery of all messages in the queue is delayed.
+				 * You can specify a duration value from 0 to 15 minutes.
+				 * @default '0 seconds' */
 				deliveryDelay: DurationSchema.default('0 seconds'),
+
+				/** Specifies the duration, in seconds,
+				 * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
+				 * rather than returning an empty response if a message isn't yet available.
+				 * You can specify an integer from 1 to 20.
+				 * You can specify a duration value from 1 to 20 seconds.
+				 * @default '0 seconds' */
 				receiveMessageWaitTime: DurationSchema.default('0 seconds'),
+
+				/** The limit of how many bytes that a message can contain before Amazon SQS rejects it.
+				 * You can specify an size value from 1 KB to 256 KB.
+				 * @default '256 KB' */
 				maxMessageSize: SizeSchema.default('256 KB'),
 			}).default({}),
 		}).default({}),
 		stacks: z.object({
-			queues: z.record(ResourceIdSchema, z.union([
-				LocalFileSchema,
-				z.object({
-					consumer: FunctionSchema,
-					// fifo: z.boolean().optional(),
-					retentionPeriod: DurationSchema.optional(),
-					visibilityTimeout: DurationSchema.optional(),
-					deliveryDelay: DurationSchema.optional(),
-					receiveMessageWaitTime: DurationSchema.optional(),
-					maxMessageSize: SizeSchema.optional(),
-				})
-			])).optional()
+			/** Define the queues in your stack
+			 * @example
+			 * {
+			 *   queues: {
+			 *     QUEUE_NAME: 'function.ts'
+			 *   }
+			 * }
+			 * */
+			queues: z.record(
+				ResourceIdSchema,
+				z.union([
+					LocalFileSchema,
+					z.object({
+						/** The consuming lambda function properties */
+						consumer: FunctionSchema,
+
+						/** The number of seconds that Amazon SQS retains a message.
+						 * You can specify a duration value from 1 minute to 14 days.
+						 * @default '7 days' */
+						retentionPeriod: DurationSchema.optional(),
+
+						/** The length of time during which a message will be unavailable after a message is delivered from the queue.
+						 * This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue.
+						 * You can specify a duration value from 0 to 12 hours.
+						 * @default '30 seconds' */
+						visibilityTimeout: DurationSchema.optional(),
+
+						/** The time in seconds for which the delivery of all messages in the queue is delayed.
+						 * You can specify a duration value from 0 to 15 minutes.
+						 * @default '0 seconds' */
+						deliveryDelay: DurationSchema.optional(),
+
+						/** Specifies the duration, in seconds,
+						 * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
+						 * rather than returning an empty response if a message isn't yet available.
+						 * You can specify an integer from 1 to 20.
+						 * You can specify a duration value from 1 to 20 seconds.
+						 * @default '0 seconds' */
+						receiveMessageWaitTime: DurationSchema.optional(),
+
+						/** The limit of how many bytes that a message can contain before Amazon SQS rejects it.
+						 * You can specify an size value from 1 KB to 256 KB.
+						 * @default '256 KB' */
+						maxMessageSize: SizeSchema.optional(),
+					})
+				])
+			).optional()
 		}).array()
 	}),
 	onStack(ctx) {
 		const { stack, config, stackConfig, bind } = ctx
-		return Object.entries(stackConfig.queues || {}).map(([ id, functionOrProps ]) => {
 
+		for(const [ id, functionOrProps ] of Object.entries(stackConfig.queues || {})) {
 			const props = typeof functionOrProps === 'string'
 				? { ...config.defaults.queue, consumer: functionOrProps }
 				: { ...config.defaults.queue, ...functionOrProps }
 
-			const queue = new Queue(stack, toId('queue', id), {
-				queueName: toName(stack, id),
+			const queue = new Queue(id, {
+				name: `${config.name}-${stack.name}-${id}`,
 				...props,
-				maxMessageSizeBytes: props.maxMessageSize.toBytes()
 			})
 
-			const lambda = toFunction(ctx as any, id, props.consumer)
-			lambda.addEventSource(new SqsEventSource(queue))
-			// queue.grantConsumeMessages(lambda)
-
-			bind(lambda => {
-				queue.grantSendMessages(lambda)
-				addResourceEnvironment(stack, 'queue', id, lambda)
+			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const source = new SqsEventSource(id, lambda, {
+				queueArn: queue.arn,
 			})
 
-			return lambda
-		})
+			stack.add(queue, lambda, source)
+
+			bind((lambda) => {
+				lambda.addPermissions(queue.permissions)
+				// lambda.addEnvironment(`RESOURCE_QUEUE_${stack.name}_${id}`, queue.url)
+			})
+		}
 	},
 })
-
-
-// import { Duration, toDuration } from '../util/duration.js'
-// import { FunctionConfig, toFunction } from './function.js'
-// import { Queue } from 'aws-cdk-lib/aws-sqs'
-// import { Size, toSize } from '../util/size.js'
-// import { Context } from '../stack.js'
-// import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources'
-// import { Function } from 'aws-cdk-lib/aws-lambda'
-// import { addResourceEnvironment, toId, toName } from '../util/resource.js'
-
-// export type QueueDefaults = {
-// 	fifo?: boolean
-// 	retentionPeriod?: Duration
-// 	visibilityTimeout?: Duration
-// 	deliveryDelay?: Duration
-// 	receiveMessageWaitTime?: Duration
-// 	maxMessageSizeBytes?: Size
-// }
-
-// export type QueueConfig = string | {
-// 	consumer: FunctionConfig
-// } & QueueDefaults
-
-// type Props = Omit<Exclude<QueueConfig, string>, 'consumer'>
-
-// export const toQueue = (ctx:Context, id:string, params:QueueConfig) => {
-
-// 	const props:Props = typeof params !== 'string' ? { ...ctx.config.defaults?.queue, ...params } : ctx.config.defaults?.queue || {}
-// 	const functionProps = typeof params === 'string' ? params : params.consumer
-
-// 	const { stack } = ctx
-// 	const { lambda } = toFunction(ctx, id, functionProps)
-
-// 	const queue = new Queue(stack, toId('queue', id), {
-// 		queueName: toName(stack, id),
-// 		fifo: props.fifo,
-// 		retentionPeriod: toDuration(props.retentionPeriod || '7 days'),
-// 		visibilityTimeout: toDuration(props.visibilityTimeout || '30 seconds'),
-// 		deliveryDelay: toDuration(props.deliveryDelay || '0 seconds'),
-// 		receiveMessageWaitTime: toDuration(props.receiveMessageWaitTime || '0 seconds'),
-// 		maxMessageSizeBytes: toSize(props.maxMessageSizeBytes || '256 KB').toBytes(),
-// 	})
-
-// 	lambda.addEventSource(new SqsEventSource(queue))
-// 	// queue.grantConsumeMessages(lambda)
-
-// 	return {
-// 		queue,
-// 		lambda,
-// 		bind(lambda: Function) {
-// 			queue.grantSendMessages(lambda)
-// 			addResourceEnvironment(stack, 'queue', id, lambda)
-// 		}
-// 	}
-// }

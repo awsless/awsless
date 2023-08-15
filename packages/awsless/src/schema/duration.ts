@@ -1,8 +1,8 @@
 
 import { z } from "zod";
-import { Duration as CDKDuration } from 'aws-cdk-lib/core'
+import { Duration } from "../formation/property/duration";
 
-export type Duration = `${number} ${
+export type DurationFormat = `${number} ${
 	| 'second'
 	| 'seconds'
 	| 'minute'
@@ -13,31 +13,38 @@ export type Duration = `${number} ${
 	| 'days'
 }`
 
-export function toDuration(duration: Duration): CDKDuration {
+export function toDuration(duration: DurationFormat) {
 	const [count, unit] = duration.split(' ')
 	const countNum = parseInt(count)
 	const unitLower = unit.toLowerCase()
 
 	if (unitLower.startsWith('second')) {
-		return CDKDuration.seconds(countNum)
+		return Duration.seconds(countNum)
 	} else if (unitLower.startsWith('minute')) {
-		return CDKDuration.minutes(countNum)
+		return Duration.minutes(countNum)
 	} else if (unitLower.startsWith('hour')) {
-		return CDKDuration.hours(countNum)
+		return Duration.hours(countNum)
 	} else if (unitLower.startsWith('day')) {
-		return CDKDuration.days(countNum)
+		return Duration.days(countNum)
 	}
 
-	return CDKDuration.days(0)
+	return Duration.days(0)
 }
 
-export const DurationSchema = z.custom<Duration>((value) => {
+export const DurationSchema = z.custom<DurationFormat>((value) => {
 	return z.string()
 		.regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/)
-		// .refine<Duration>((duration): duration is Duration => {
-		// 	const [ str ] = duration.split(' ')
-		// 	const number = parseInt(str)
-		// 	return number > 0
-		// }, 'Duration must be greater then zero')
 		.safeParse(value).success
-}, 'Invalid duration').transform<CDKDuration>(toDuration)
+}, 'Invalid duration').transform<Duration>(toDuration)
+
+export const durationMin = (min: Duration) => {
+	return (duration: Duration) => {
+		return duration.toSeconds() >= min.toSeconds()
+	}
+}
+
+export const durationMax = (max: Duration) => {
+	return (duration: Duration) => {
+		return duration.toSeconds() <= max.toSeconds()
+	}
+}

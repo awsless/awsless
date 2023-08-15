@@ -3,17 +3,18 @@ import { toApp } from '../../app.js';
 import { debug, debugError } from '../logger.js';
 import { bootstrapDeployer } from '../ui/complex/bootstrap.js';
 import { layout } from '../ui/layout/layout.js';
-import { br } from '../ui/layout/basic.js';
 import { loadingDialog } from '../ui/layout/dialog.js';
 import { confirmPrompt } from '../ui/prompt/confirm.js';
 import { style } from '../style.js';
 import { Cancelled } from '../error.js';
-import { StackClient } from '../../stack/client.js';
+import { StackClient } from '../../formation/client.js';
 import { stackTree } from '../ui/complex/stack-tree.js';
 import { createDeploymentLine } from '../../util/deployment.js';
 import { Signal } from '../lib/signal.js';
-import { assetBuilder } from "../ui/complex/asset.js";
+import { assetBuilder } from "../ui/complex/builder.js";
 import { cleanUp } from "../../util/cleanup.js";
+import { templateBuilder } from "../ui/complex/template.js";
+import { assetPublisher } from "../ui/complex/publisher.js";
 
 export const deploy = (program: Command) => {
 	program
@@ -21,7 +22,7 @@ export const deploy = (program: Command) => {
 		.argument('[stacks...]', 'Optionally filter stacks to deploy')
 		.description('Deploy your app to AWS')
 		.action(async (filters: string[]) => {
-			await layout(async (config, write, term) => {
+			await layout(async (config, write) => {
 
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
@@ -30,9 +31,9 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				// const tasks = new Tasks()
-				const { app, stackNames, assets, dependencyTree } = await toApp(config, filters)
+				const { app, dependencyTree } = await toApp(config, filters)
 
+				const stackNames = app.stacks.map(stack => stack.name)
 				const formattedFilter = stackNames.map(i => style.info(i)).join(style.placeholder(', '))
 				debug('Stacks to deploy', formattedFilter)
 
@@ -51,57 +52,36 @@ export const deploy = (program: Command) => {
 				}
 
 				// ---------------------------------------------------
-				// Building stack assets
+				// Building stack assets & templates
 
 				await cleanUp()
-				await write(assetBuilder(assets))
-
-				// term.out.gap()
-				// term.out.gap()
-
-				// ---------------------------------------------------
-				// Publishing stack assets
-
-				// term.out.gap()
-
-				const donePublishing = write(loadingDialog('Publishing stack assets to AWS...'))
-
-				// term.out.gap()
-
-				await Promise.all(assets.map(async (_, assets) => {
-					await Promise.all(assets.map(async (asset) => {
-						await asset.publish?.()
-					}))
-				}))
-
-				donePublishing('Done publishing stack assets to AWS')
+				await write(assetBuilder(app))
+				await write(assetPublisher(config, app))
+				await write(templateBuilder(app))
 
 				// ---------------------------------------------------
 
-				const assembly = app.synth()
 				const statuses:Record<string, Signal<string>> = {}
 
-				assembly.stacks.map((stack) => {
-					statuses[stack.id] = new Signal(style.info('waiting'))
-				})
+				for(const stack of app) {
+					statuses[stack.name] = new Signal(style.info('waiting'))
+				}
 
 				const doneDeploying = write(loadingDialog('Deploying stacks to AWS...'))
 
 				write(stackTree(dependencyTree, statuses))
 
-				const client = new StackClient(config)
+				const client = new StackClient(app, config.account, config.region, config.credentials)
 				const deploymentLine = createDeploymentLine(dependencyTree)
-
-				// debug('TEST', deploymentLine.map(stacks => stacks.length))
 
 				for(const stacks of deploymentLine) {
 					const results = await Promise.allSettled(stacks.map(async stack => {
-						const signal = statuses[stack.artifactId]
-						const stackArtifect = assembly.stacks.find((item) => item.id === stack.artifactId)!
+						const signal = statuses[stack.name]
+
 						signal.set(style.warning('deploying'))
 
 						try {
-							await client.deploy(stackArtifect)
+							await client.deploy(stack)
 						} catch(error) {
 							debugError(error)
 							signal.set(style.error('failed'))

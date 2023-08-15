@@ -4,7 +4,7 @@ import { Config } from '../config.js'
 import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterType, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
 
 export const configParameterPrefix = (config: Config) => {
-	return `/${config.stage}/awsless/${config.name}`
+	return `/awsless/${config.name}/${config.stage}`
 }
 
 export class Params {

@@ -1,10 +1,10 @@
 
 import { z } from 'zod'
 import { definePlugin } from '../../plugin.js';
-import { toId, toName } from '../../util/resource.js';
-import { FunctionSchema, toFunction } from '../function/index.js';
+import { toExportName, toId, toName } from '../../util/__resource.js';
+import { FunctionSchema, toFunction } from '../function.js';
 import { LocalFileSchema } from '../../schema/local-file.js';
-import { AuthorizationType, CfnGraphQLApi, CfnGraphQLSchema, GraphqlApi, MappingTemplate } from 'aws-cdk-lib/aws-appsync';
+import { AuthorizationType, CfnDomainName, CfnGraphQLApi, CfnGraphQLSchema, GraphqlApi, MappingTemplate } from 'aws-cdk-lib/aws-appsync';
 import { mergeTypeDefs } from '@graphql-tools/merge'
 
 import { ResourceIdSchema } from '../../schema/resource-id.js';
@@ -14,17 +14,30 @@ import { dirname, join } from 'path';
 import { assetDir } from '../../util/path.js';
 import { print } from 'graphql';
 import { paramCase } from 'change-case';
-import { ResolverFieldSchema } from './schema/resolver-field.js';
-import { CfnOutput, Fn } from 'aws-cdk-lib';
+// import { ResolverFieldSchema } from './schema/resolver-field.js';
+import { CfnOutput, Fn, Token } from 'aws-cdk-lib';
 import { DurationSchema } from '../../schema/duration.js';
+import { HostedZone, RecordSet, RecordTarget, RecordType } from 'aws-cdk-lib/aws-route53';
+// import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
+import { CfnGraphqlApiDomainTarget } from './util/target.js';
+import { GlobalExports } from '../../__custom-resource/global-exports/construct.js';
+// import { debug } from '../../cli/logger.js';
 // import { Function } from 'aws-cdk-lib/aws-lambda';
 // import { debug } from '../../cli/logger.js';
+
+const ResolverFieldSchema = z.custom<`${string} ${string}`>((value) => {
+	return z.string()
+		.regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi)
+		.safeParse(value).success
+}, `Invalid resolver field. Valid example: "Query list"`)
 
 export const graphqlPlugin = definePlugin({
 	name: 'graphql',
 	schema: z.object({
 		defaults: z.object({
 			graphql: z.record(ResourceIdSchema, z.object({
+				domain: z.string(),
+				subDomain: z.string().optional(),
 				authorization: z.object({
 					authorizer: FunctionSchema,
 					ttl: DurationSchema.default('1 hour'),
@@ -49,6 +62,9 @@ export const graphqlPlugin = definePlugin({
 	}),
 	onBootstrap({ config, stack, assets }) {
 
+		// debug('NAME', paramCase('zoé da. sil'))
+
+
 		const list:Set<string> = new Set()
 		// const lambdas:Function[] = []
 
@@ -61,14 +77,17 @@ export const graphqlPlugin = definePlugin({
 		list.forEach(id => {
 			const file = join(assetDir, 'graphql', config.name, id, 'schema.graphql')
 
-			const authorization = config.defaults.graphql?.[id]?.authorization
-			const authProps:{ additionalAuthenticationProviders?:{
-				authenticationType: AuthorizationType.LAMBDA
-				lambdaAuthorizerConfig: {
-					authorizerUri: string
-					authorizerResultTtlInSeconds: number
-				}
-			}[] } = {}
+			const props = config.defaults.graphql?.[id]!
+			const authorization = props.authorization
+			const authProps:{
+				additionalAuthenticationProviders?:{
+					authenticationType: AuthorizationType.LAMBDA
+					lambdaAuthorizerConfig: {
+						authorizerUri: string
+						authorizerResultTtlInSeconds: number
+					}
+				}[]
+			} = {}
 
 			if(authorization) {
 				const authorizer = toFunction({ config, assets, stack } as any, `${id}-authorizer`, authorization.authorizer)
@@ -90,17 +109,45 @@ export const graphqlPlugin = definePlugin({
 				authenticationType: AuthorizationType.API_KEY,
 			})
 
-			// new CfnDomainName(stack, toId('domain', id), {
-			// 	domainName: '',
-			// 	certificateArn:
-			// })
-
-			// CfnDomainName
-
 			new CfnOutput(stack, toId('output', id), {
 				exportName: toId('graphql', id),
 				value: api.attrApiId,
 			})
+
+			if(props.domain) {
+				const exports = new GlobalExports(stack, toId('global-exports', id), 'us-east-1')
+				const hostedZoneId = exports.importValue(toExportName(`hosted-zone-${props.domain}-id`))
+				const certificateArn = exports.importValue(toExportName(`certificate-${props.domain}-arn`))
+				const target = RecordTarget.fromAlias(new CfnGraphqlApiDomainTarget(api))
+				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
+
+				const zone = HostedZone.fromHostedZoneAttributes(
+					stack,
+					toId('hosted-zone-graphql', id),
+					{
+						hostedZoneId,
+						zoneName: props.domain + '.',
+					}
+				)
+
+				// const certificate = Certificate.fromCertificateArn(
+				// 	stack,
+				// 	toId('certificate-graphql', id),
+				// 	certificateArn,
+				// )
+
+				new CfnDomainName(stack, toId('domain-name-graphql', id), {
+					domainName,
+					certificateArn,
+				})
+
+				new RecordSet(stack, toId('record-set-graphql', id), {
+					zone,
+					target,
+					recordName: domainName,
+					recordType: RecordType.A,
+				})
+			}
 
 			assets.add({
 				stackName: stack.artifactId,
@@ -136,7 +183,7 @@ export const graphqlPlugin = definePlugin({
 		const { config, stack, stackConfig } = ctx
 
 		return Object.entries(stackConfig.graphql || {}).map(([ id, props ]) => {
-			const defaults = config.defaults.graphql?.[id] || {}
+			const defaults = config.defaults.graphql?.[id]! || {}
 
 			return Object.entries(props.resolvers || {}).map(([ typeAndField, functionProps ]) => {
 

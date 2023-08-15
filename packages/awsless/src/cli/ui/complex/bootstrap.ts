@@ -1,22 +1,20 @@
-import { makeApp } from '../../../app.js'
-import { Config } from '../../../config.js'
-import { bootstrapStack, shouldDeployBootstrap } from '../../../stack/bootstrap.js'
-import { StackClient } from '../../../stack/client.js'
-import { Cancelled } from '../../error.js'
-import { Terminal } from '../../lib/terminal.js'
-import { debug } from '../../logger.js'
-import { dialog, loadingDialog } from '../layout/dialog.js'
-import { confirmPrompt } from '../prompt/confirm.js'
+import { Config } from '../../../config'
+import { bootstrapStack, shouldDeployBootstrap } from '../../../formation/bootstrap'
+import { StackClient } from '../../../formation/client'
+import { Cancelled } from '../../error'
+import { Terminal } from '../../lib/terminal'
+import { debug } from '../../logger'
+import { dialog, loadingDialog } from '../layout/dialog'
+import { confirmPrompt } from '../prompt/confirm'
 
 export const bootstrapDeployer = (config:Config) => {
 	return async (term:Terminal) => {
 		debug('Initializing bootstrap')
 
-		const app = makeApp(config)
-		const client = new StackClient(config)
-		const bootstrap = bootstrapStack(config, app)
+		const { app, stack } = bootstrapStack(config.account, config.region)
+		const client = new StackClient(app, config.account, config.region, config.credentials)
 
-		const shouldDeploy = await shouldDeployBootstrap(client, bootstrap.stackName)
+		const shouldDeploy = await shouldDeployBootstrap(client, stack)
 
 		if(shouldDeploy) {
 			term.out.write(dialog('warning', [ `Your app hasn't been bootstrapped yet` ]))
@@ -29,8 +27,7 @@ export const bootstrapDeployer = (config:Config) => {
 
 			const done = term.out.write(loadingDialog('Bootstrapping...'))
 
-			const assembly = app.synth()
-			await client.deploy(assembly.stacks[0])
+			await client.deploy(stack)
 
 			done('Done deploying the bootstrap stack')
 

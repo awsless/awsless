@@ -3,16 +3,13 @@ import { StackConfig } from "../../../src";
 export const tableStack: StackConfig = {
 	name: 'table',
 
-	functions: {
-		log: __dirname + '/../log.ts',
-	},
-
 	tables: {
 		stats: {
 			hash: 'id',
+			sort: 'lol',
 			fields: {
 				id: 'string'
-			}
+			},
 		}
 	}
 }

@@ -1,7 +1,7 @@
 
 import { z } from 'zod'
 import { definePlugin } from '../../plugin.js';
-import { toExportName, toId } from '../../util/resource.js';
+import { toExportName, toId } from '../../util/__resource.js';
 import { HostedZone, CfnRecordSetGroup } from 'aws-cdk-lib/aws-route53';
 import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
 import { DurationSchema } from '../../schema/duration.js';
@@ -46,7 +46,7 @@ export const domainPlugin = definePlugin({
 			records: z.string().array(),
 		}).array()).optional(),
 	}),
-	onBootstrap({ config, stack }) {
+	onApp({ config, bootstrap, usEastBootstrap }) {
 
 		Object.entries(config.domains || {}).forEach(([ domain, dnsRecords ]) => {
 			const hostedZone = new HostedZone(stack, toId('hosted-zone', domain), {
@@ -72,6 +72,27 @@ export const domainPlugin = definePlugin({
 			new CfnOutput(stack, toId('output-certificate', domain), {
 				exportName: toExportName(`certificate-${domain}-arn`),
 				value: certificate.certificateArn,
+			})
+
+			const usEastHostedZone = new HostedZone(usEastStack, toId('hosted-zone', domain), {
+				zoneName: domain,
+				addTrailingDot: true,
+			})
+
+			const usEastCertificate = new Certificate(usEastStack, toId('certificate', domain), {
+				domainName: domain,
+				validation: CertificateValidation.fromDns(usEastHostedZone),
+				subjectAlternativeNames: [ `*.${domain}` ]
+			})
+
+			new CfnOutput(usEastStack, toId('output-hosted-zone', domain), {
+				exportName: toExportName(`hosted-zone-${domain}-id`),
+				value: usEastHostedZone.hostedZoneId,
+			})
+
+			new CfnOutput(usEastStack, toId('output-certificate', domain), {
+				exportName: toExportName(`certificate-${domain}-arn`),
+				value: usEastCertificate.certificateArn,
 			})
 
 			if(dnsRecords.length > 0) {

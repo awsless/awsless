@@ -3,6 +3,8 @@ import { StackConfig } from "../../../src";
 export const queueStack: StackConfig = {
 	name: 'queue',
 	queues: {
-		process: 'test/_data/function.ts'
+		process: {
+			consumer: 'test/_data/function.ts',
+		}
 	}
 }

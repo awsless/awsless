@@ -1,9 +1,8 @@
-import { Stack } from "aws-cdk-lib";
+import { Stack } from '../formation/stack.js';
 import { StackConfig } from '../schema/stack.js';
 
 export type StackNode = {
 	stack: Stack
-	level: number
 	children: StackNode[]
 }
 
@@ -12,27 +11,27 @@ type FlatStack = {
 	depends: string[]
 }
 
-export const flattenDependencyTree = (stacks: StackNode[]) => {
-	const list:StackNode[] = []
-	const walk = (stacks: StackNode[]) => {
-		stacks.forEach(node => {
-			list.push(node)
-			walk(node.children)
-		})
-	}
+// export const flattenDependencyTree = (stacks: StackNode[]) => {
+// 	const list:StackNode[] = []
+// 	const walk = (stacks: StackNode[]) => {
+// 		stacks.forEach(node => {
+// 			list.push(node)
+// 			walk(node.children)
+// 		})
+// 	}
 
-	walk(stacks)
+// 	walk(stacks)
 
-	return list
-}
+// 	return list
+// }
 
-export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }[], startingLevel:number) => {
+export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }[]) => {
 	const list: FlatStack[] = stacks.map(({ stack, config }) => ({
 		stack,
 		depends: config?.depends?.map(dep => dep.name) || []
 	}))
 
-	const findChildren = (list:FlatStack[], parents:string[], level:number): StackNode[] => {
+	const findChildren = (list:FlatStack[], parents:string[]): StackNode[] => {
 
 		// debug('STACKS', list.map(item => ({ name: item.stack.artifactId, depends: item.depends })))
 
@@ -51,7 +50,6 @@ export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }
 		if(!rests.length) {
 			return children.map(({ stack }) => ({
 				stack,
-				level,
 				children: [],
 			}))
 		}
@@ -59,28 +57,29 @@ export const createDependencyTree = (stacks:{ stack:Stack, config?:StackConfig }
 		return children.map(({ stack }) => {
 			return {
 				stack,
-				level,
-				children: findChildren(rests, [ ...parents, stack.artifactId ], level + 1)
+				children: findChildren(rests, [ ...parents, stack.name ])
 			}
 		})
 	}
 
-	return findChildren(list, [], startingLevel)
+	return findChildren(list, [])
 }
 
 export const createDeploymentLine = (stacks:StackNode[]) => {
-	const flat = flattenDependencyTree(stacks)
+	// const flat = flattenDependencyTree(stacks)
 	const line:Stack[][] = []
+	const walk = (stacks: StackNode[], level: number) => {
+		stacks.forEach(node => {
+			if(!line[level]) {
+				line[level] = []
+			}
 
-	flat.forEach(node => {
-		const level = node.level
+			line[level].push(node.stack)
+			walk(node.children, level + 1)
+		})
+	}
 
-		if(!line[level]) {
-			line[level] = []
-		}
-
-		line[level].push(node.stack)
-	})
+	walk(stacks, 0)
 
 	return line
 }

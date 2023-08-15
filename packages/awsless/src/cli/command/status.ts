@@ -1,15 +1,15 @@
 import { Command } from "commander";
 import { toApp } from "../../app.js";
-import { StackClient } from "../../stack/client.js";
+import { StackClient } from "../../formation/client.js";
 import { debug } from "../logger.js";
 import { stackTree } from "../ui/complex/stack-tree.js";
 import { style } from "../style.js";
 import { layout } from "../ui/layout/layout.js";
 import { Signal } from "../lib/signal.js";
-import { assetBuilder } from "../ui/complex/asset.js";
+import { assetBuilder } from "../ui/complex/builder.js";
 import { cleanUp } from "../../util/cleanup.js";
-import { br } from "../ui/layout/basic.js";
 import { dialog, loadingDialog } from "../ui/layout/dialog.js";
+import { templateBuilder } from "../ui/complex/template.js";
 
 export const status = (program: Command) => {
 	program
@@ -18,38 +18,36 @@ export const status = (program: Command) => {
 		.description('View the application status')
 		.action(async (filters: string[]) => {
 			await layout(async (config, write) => {
-				const { app, assets, dependencyTree } = await toApp(config, filters)
+				const { app, dependencyTree } = await toApp(config, filters)
 
 				// --------------------------------------------------------
 				// Build stack assets
 
 				await cleanUp()
-				await write(assetBuilder(assets))
-
-				const assembly = app.synth()
+				await write(assetBuilder(app))
+				await write(templateBuilder(app))
 
 				// --------------------------------------------------------
 				// Get stack statuses
 
 				const doneLoading = write(loadingDialog('Loading stack information...'))
 
-				const client = new StackClient(config)
+				const client = new StackClient(app, config.account, config.region, config.credentials)
 				const statuses: Array<'non-existent' | 'out-of-date' | 'up-to-date'> = []
 				const stackStatuses: Record<string, Signal<string>> = {}
 
-				assembly.stacks.forEach(stack => {
-					stackStatuses[stack.id] = new Signal(style.info('Loading...'))
-				})
+				for(const stack of app) {
+					stackStatuses[stack.name] = new Signal(style.info('Loading...'))
+				}
 
 				// render the stacks with a loading state
 				write(stackTree(dependencyTree, stackStatuses))
 
 				debug('Load metadata for all deployed stacks on AWS')
 
-				await Promise.all(assembly.stacks.map(async (stack, i) => {
-					const info = await client.get(stack.stackName)
-					const name = stack.id
-					const signal = stackStatuses[name]
+				await Promise.all(app.stacks.map(async (stack, i) => {
+					const info = await client.get(stack.name, stack.region)
+					const signal = stackStatuses[stack.name]
 
 					await new Promise(resolve => setTimeout(resolve, i * 1000))
 
@@ -57,7 +55,7 @@ export const status = (program: Command) => {
 						signal.set(style.error('non-existent'))
 						statuses.push('non-existent')
 					}
-					else if(info.template !== JSON.stringify(stack.template)) {
+					else if(info.template !== stack.toString()) {
 						signal.set(style.warning('out-of-date'))
 						statuses.push('out-of-date')
 					} else {

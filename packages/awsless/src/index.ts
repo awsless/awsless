@@ -1,9 +1,22 @@
 
-import { CombinedDefaultPluginsConfigInput } from './plugins/index.js'
+import { AppConfigFactory } from './config'
+import { CombinedDefaultPluginsConfigInput } from './plugins/index'
 
-export { definePlugin, Plugin } from './plugin.js'
+export { definePlugin, Plugin } from './plugin'
 
 export type AppConfig = CombinedDefaultPluginsConfigInput
 export type StackConfig = CombinedDefaultPluginsConfigInput['stacks'][number]
 
-export { getResourceName, getFunctionName, getQueueName, getStoreName, getTableName } from './node/resource.js'
+export const defineAppConfig = (config:AppConfig | AppConfigFactory<AppConfig>) => {
+	return config
+}
+
+export {
+	getLocalResourceName,
+	getGlobalResourceName,
+	getFunctionName,
+	getQueueName,
+	getStoreName,
+	getTableName,
+	getTopicName
+} from './node/resource'

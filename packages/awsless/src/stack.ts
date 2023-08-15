@@ -1,104 +1,108 @@
-import { App, Arn, Stack } from "aws-cdk-lib"
-import { Config } from './config.js'
-import { Function } from "aws-cdk-lib/aws-lambda"
-import { PolicyStatement } from "aws-cdk-lib/aws-iam"
-import { configParameterPrefix } from './util/param.js'
-import { Assets } from './util/assets.js'
-import { StackConfigOutput } from './schema/stack.js'
-import { Plugin } from './plugin.js'
+
+import { Config } from './config'
+import { configParameterPrefix } from './util/param'
+import { StackConfigOutput } from './schema/stack'
+import { Plugin } from './plugin'
 import { AnyZodObject } from "zod"
-import { debug } from './cli/logger.js'
-import { style } from './cli/style.js'
+import { debug } from './cli/logger'
+import { style } from './cli/style'
+import { App } from "./formation/app"
+import { Function } from "./formation/resource/lambda/function"
+import { sub } from "./formation/util"
+import { Stack } from './formation/stack'
 
 export type Binding = (lambda:Function) => void
 
 type Context = {
 	config: Config
-	assets: Assets
 	app: App
+	bootstrap: Stack
+	usEastBootstrap: Stack
 	stackConfig: StackConfigOutput
 	plugins: Plugin<AnyZodObject | undefined>[]
 }
 
-export const toStack = ({ config, assets, app, stackConfig, plugins }: Context) => {
-	const stackName = `${config.name}-${stackConfig.name}`
-	const stack = new Stack(app, stackConfig.name, {
-		stackName,
-		env: {
-			account: config.account,
-			region: config.region,
-		},
-		tags: {
-			APP: config.name,
-			STAGE: config.stage,
-			STACK: stackConfig.name,
-		},
-	})
+export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, plugins }: Context) => {
+	const name = stackConfig.name
+	const stack = new Stack(name, config.region)
+		.tag('app', config.name)
+		.tag('stage', config.stage)
+		.tag('stack', name)
 
-	debug('Define stack:', style.info(stackConfig.name))
+	debug('Define stack:', style.info(name))
 
 	// ------------------------------------------------------
 	// Create all available resources from all plugins
 	// ------------------------------------------------------
 
-	const bindings:Array<(lambda:Function) => void> = []
+	debug('Run plugin onStack listeners')
+
+	const bindings:Binding[] = []
 	const bind = (cb:Binding) => {
 		bindings.push(cb)
 	}
 
-	debug('Run plugin onStack listeners')
-	const functions = plugins.map(plugin => plugin.onStack?.({
-		config,
-		assets,
-		app,
-		stack,
-		stackConfig,
-		bind,
-	})).filter(Boolean).flat().filter(Boolean) as Function[]
+	for(const plugin of plugins) {
+		plugin.onStack?.({
+			config,
+			app,
+			stack,
+			stackConfig,
+			bootstrap,
+			usEastBootstrap,
+			bind,
+		})
+	}
 
 	// ------------------------------------------------------
 	// Check if stack has resources
 
-	if(stack.node.children.length === 0) {
-		throw new Error(`Stack ${style.info(stackConfig.name)} has no resources defined`)
+	if(stack.size === 0) {
+		throw new Error(`Stack ${style.info(name)} has no resources defined`)
 	}
-
-	// debug('STACK STUFF', stackConfig.name, stack.node.children.length)
 
 	// ------------------------------------------------------
 	// Grant access to all stack lambda functions
 	// ------------------------------------------------------
 
-	bindings.forEach(cb => functions.forEach(cb))
+	const functions = stack.find(Function)
+
+	for(const bind of bindings) {
+		for(const fn of functions) {
+			bind(fn)
+		}
+	}
+
+	// const resources = stack.all()
+
+	// for(const fn of functions) {
+	// 	for(const resource of resources) {
+	// 		const permissions = resource.permissions
+
+	// 		if(permissions) {
+	// 			fn.addPermissions(permissions)
+	// 		}
+	// 	}
+	// }
 
 	// ------------------------------------------------------
 	// Give app/stage access to all config parameters
 
-	const allowConfigParameters = new PolicyStatement({
-		actions: [
-			'ssm:GetParameter',
-			'ssm:GetParameters',
-			'ssm:GetParametersByPath',
-		],
-		resources: [
-			Arn.format({
-				region: config.region,
-				account: config.account,
-				partition: 'aws',
-				service: 'ssm',
-				resource: 'parameter',
-				resourceName: configParameterPrefix(config),
-			}),
-			// Fn.sub('arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config)),
-		],
-	})
-
-	functions.forEach(lambda => lambda.addToRolePolicy(allowConfigParameters))
+	for(const fn of functions) {
+		fn.addPermissions({
+			actions: [
+				'ssm:GetParameter',
+				'ssm:GetParameters',
+				'ssm:GetParametersByPath',
+			],
+			resources: [
+				sub('arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config))
+			]
+		})
+	}
 
 	return {
 		stack,
-		functions,
-		bindings,
 		depends: stackConfig.depends,
 	}
 }

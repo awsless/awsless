@@ -1,12 +1,12 @@
 import { StackConfig } from "../../../src";
 
 export const graphqlTwoStack:StackConfig = {
-	name: 'graphql-other',
+	name: 'graphql-two',
 	graphql: {
 		api: {
-			schema: __dirname + '/../schema/other.gql',
+			schema: __dirname + '/../schema/two.gql',
 			resolvers: {
-				'Query get': __dirname + '/../function.ts',
+				'Query two': __dirname + '/../function/graphql.ts',
 			}
 		}
 	},

@@ -1,30 +1,37 @@
 
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js';
-import { addResourceEnvironment, toId, toName } from '../util/resource.js';
+// import { addResourceEnvironment, toId, toName } from '../util/resource.js';
 import { ResourceIdSchema } from '../schema/resource-id.js';
-import { Bucket, BucketAccessControl } from "aws-cdk-lib/aws-s3";
-import { RemovalPolicy } from 'aws-cdk-lib';
+import { Bucket } from '../formation/resource/s3/bucket.js';
 
 export const storePlugin = definePlugin({
 	name: 'store',
 	schema: z.object({
 		stacks: z.object({
+			/** Define the stores in your stack
+			 * @example
+			 * {
+			 *   stores: [ 'STORE_NAME' ]
+			 * }
+			 * */
 			stores: z.array(ResourceIdSchema).optional()
 		}).array()
 	}),
-	onStack({ stack, stackConfig, bind }) {
-		(stackConfig.stores || []).forEach(id => {
-			const bucket = new Bucket(stack, toId('store', id), {
-				bucketName: toName(stack, id),
-				accessControl: BucketAccessControl.PRIVATE,
-				removalPolicy: RemovalPolicy.DESTROY,
+	onStack({ config, stack, stackConfig, bind }) {
+
+		for(const id of stackConfig.stores || []) {
+			const bucket = new Bucket(id, {
+				name: `${config.name}-${stack.name}-${id}`,
+				accessControl: 'private',
 			})
 
-			bind((lambda) => {
-				bucket.grantReadWrite(lambda),
-				addResourceEnvironment(stack, 'store', id, lambda)
+			stack.add(bucket)
+
+			bind(lambda => {
+				lambda.addPermissions(bucket.permissions)
+				// lambda.addEnvironment(`RESOURCE_STORE_${stack.name}_${id}`, bucket.name)
 			})
-		})
+		}
 	},
 })

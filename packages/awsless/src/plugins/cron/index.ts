@@ -1,11 +1,10 @@
-import { definePlugin } from '../../plugin.js';
+
 import { z } from 'zod'
+import { definePlugin } from '../../plugin.js';
 import { ScheduleExpressionSchema } from './schema/schedule.js';
-import { Rule } from "aws-cdk-lib/aws-events";
-import { toId, toName } from '../../util/resource.js';
-import { FunctionSchema, toFunction } from '../function/index.js';
-import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
+import { FunctionSchema, toLambdaFunction } from '../function.js';
 import { ResourceIdSchema } from '../../schema/resource-id.js';
+import { EventsEventSource } from '../../formation/resource/lambda/event-source/events.js';
 
 export const cronPlugin = definePlugin({
 	name: 'cron',
@@ -14,51 +13,21 @@ export const cronPlugin = definePlugin({
 			crons: z.record(ResourceIdSchema, z.object({
 				consumer: FunctionSchema,
 				schedule: ScheduleExpressionSchema,
-				description: z.string().max(512).optional()
+				payload: z.unknown().optional(),
 			})).optional()
 		}).array()
 	}),
-	onStack(context) {
-		return Object.entries(context.stackConfig.crons || {}).map(([ id, props ]) => {
-			const lambda = toFunction(context as any, id, props.consumer)
-			const target = new LambdaFunction(lambda)
+	onStack(ctx) {
+		const { stack, stackConfig } = ctx
 
-			new Rule(context.stack, toId('cron', id), {
-				ruleName: toName(context.stack, id),
+		for(const [ id, props ] of Object.entries(stackConfig.crons || {})) {
+			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const source = new EventsEventSource(id, lambda, {
 				schedule: props.schedule,
-				description: props.description,
-				targets: [ target ],
-			});
+				payload: props.payload,
+			})
 
-			return lambda
-		})
+			stack.add(lambda, source)
+		}
 	},
 })
-
-
-// import { FunctionConfig, toFunction } from './function.js'
-// import { Context } from '../stack.js'
-// import { Rule, Schedule } from 'aws-cdk-lib/aws-events'
-// import { Duration } from '../util/duration.js'
-// import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets'
-// import { toId, toName } from '../util/resource.js'
-
-//
-// export const toCron = (ctx:Context, id:string, props:CronConfig) => {
-
-// 	const { stack } = ctx
-// 	const { lambda } = toFunction(ctx, id, props.consumer)
-// 	const target = new LambdaFunction(lambda)
-
-// 	const rule = new Rule(stack, toId('cron', id), {
-// 		ruleName: toName(stack, id),
-// 		schedule: Schedule.expression(props.schedule),
-// 		description: props.description,
-// 		targets: [ target ],
-// 	});
-
-// 	return {
-// 		rule,
-// 		lambda,
-// 	}
-// }
