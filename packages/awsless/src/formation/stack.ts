@@ -29,10 +29,18 @@ export class Stack {
 	}
 
 	export(name: string, value: string) {
+		this.exports.set(formatName(name), value)
+		return this
+	}
+
+	get(name: string) {
 		name = formatName(name)
 
-		this.exports.set(name, value)
-		return this
+		if(!this.exports.has(name)) {
+			throw new Error(`Undefined export value: ${name}`)
+		}
+
+		return this.exports.get(name)!
 	}
 
 	import(name: string) {

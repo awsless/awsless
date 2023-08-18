@@ -42,7 +42,7 @@ export class Peer {
 	toRuleJson() {
 		switch(this.type) {
 			case 'v4': return { CidrIp: this.ip }
-			case 'v6': return { CidrIpV6: this.ip }
+			case 'v6': return { CidrIpv6: this.ip }
 		}
 	}
 

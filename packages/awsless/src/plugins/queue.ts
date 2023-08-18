@@ -13,7 +13,7 @@ export const queuePlugin = definePlugin({
 	name: 'queue',
 	schema: z.object({
 		defaults: z.object({
-			/** Define the defaults properties for all queue's in your app */
+			/** Define the defaults properties for all queue's in your app. */
 			queue: z.object({
 				/** The number of seconds that Amazon SQS retains a message.
 				 * You can specify a duration value from 1 minute to 14 days.
@@ -46,20 +46,20 @@ export const queuePlugin = definePlugin({
 			}).default({}),
 		}).default({}),
 		stacks: z.object({
-			/** Define the queues in your stack
+			/** Define the queues in your stack.
 			 * @example
 			 * {
 			 *   queues: {
 			 *     QUEUE_NAME: 'function.ts'
 			 *   }
 			 * }
-			 * */
+			 */
 			queues: z.record(
 				ResourceIdSchema,
 				z.union([
 					LocalFileSchema,
 					z.object({
-						/** The consuming lambda function properties */
+						/** The consuming lambda function properties. */
 						consumer: FunctionSchema,
 
 						/** The number of seconds that Amazon SQS retains a message.
@@ -81,7 +81,6 @@ export const queuePlugin = definePlugin({
 						/** Specifies the duration, in seconds,
 						 * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
 						 * rather than returning an empty response if a message isn't yet available.
-						 * You can specify an integer from 1 to 20.
 						 * You can specify a duration value from 1 to 20 seconds.
 						 * @default '0 seconds' */
 						receiveMessageWaitTime: DurationSchema.optional(),
@@ -108,7 +107,7 @@ export const queuePlugin = definePlugin({
 				...props,
 			})
 
-			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const lambda = toLambdaFunction(ctx, `queue-${id}`, props.consumer)
 			const source = new SqsEventSource(id, lambda, {
 				queueArn: queue.arn,
 			})

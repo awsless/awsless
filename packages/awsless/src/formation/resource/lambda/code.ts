@@ -2,7 +2,6 @@ import { formatByteSize } from "../../../util/byte-size"
 import { BuildProps, PublishProps } from "../../asset"
 import { rollupBundle } from "./util/rollup"
 import { zipFiles } from "./util/zip"
-import { createHash } from "crypto"
 import { Asset } from "../../asset"
 
 export type CodeBundle = (file:string) => Promise<{
@@ -24,6 +23,8 @@ export interface ICode {
 			S3Bucket: string
 			S3Key: string
 			S3ObjectVersion: string
+		} | {
+			ZipFile: string
 		}
 	}
 }
@@ -33,60 +34,19 @@ export class Code {
 		return new FileCode(id, file, bundler)
 	}
 
-	static fromInline(id:string, code: string, handler?: string) {
-		return new InlineCode(id, code, handler)
+	static fromInline(code: string, handler?: string) {
+		return new InlineCode(code, handler)
 	}
 }
 
-export class InlineCode extends Asset implements ICode {
-	private hash?: string
-	private bundle?: Buffer
-	private s3?: {
-		bucket: string
-		key: string
-		version: string
-	}
-
-	constructor(id: string, private code: string, private handler: string = 'index.default') {
-		super('function', id)
-	}
-
-	async build({ write }:BuildProps) {
-		const hash = createHash('sha1').update(this.code).digest('hex')
-		const bundle = await zipFiles([{
-			name: 'index.js',
-			code: this.code,
-		}])
-
-		await Promise.all([
-			write('HASH', hash),
-			write('bundle.zip', bundle),
-			write('files/inline.js', this.code),
-		])
-
-		this.bundle = bundle
-		this.hash = hash
-
-		return {
-			size: formatByteSize(bundle.byteLength)
-		}
-	}
-
-	async publish({ publish }:PublishProps) {
-		this.s3 = await publish(
-			`${ this.id }.zip`,
-			this.bundle!,
-			this.hash!
-		)
-	}
+export class InlineCode implements ICode {
+	constructor(private code: string, private handler: string = 'index.default') {}
 
 	toCodeJson() {
 		return {
-			Handler: this.handler!,
+			Handler: this.handler,
 			Code: {
-				S3Bucket: this.s3!.bucket,
-				S3Key: this.s3!.key,
-				S3ObjectVersion: this.s3!.version,
+				ZipFile: this.code,
 			},
 		}
 	}

@@ -1,5 +1,5 @@
 import { mkdir, rm } from "fs/promises"
-import { templateDir, assetDir, cacheDir } from "./path.js"
+import { directories } from "./path.js"
 import { debug } from "../cli/logger.js"
 
 export const cleanUp = async () => {
@@ -7,9 +7,9 @@ export const cleanUp = async () => {
 	debug('Clean up template, cache, and asset files')
 
 	const paths = [
-		templateDir,
-		assetDir,
-		cacheDir,
+		directories.asset,
+		directories.cache,
+		directories.template,
 	]
 
 	// remove

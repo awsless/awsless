@@ -4,7 +4,7 @@ export const queueStack: StackConfig = {
 	name: 'queue',
 	queues: {
 		process: {
-			consumer: 'test/_data/function.ts',
+			consumer: __dirname + '/../function/simple.ts'
 		}
 	}
 }

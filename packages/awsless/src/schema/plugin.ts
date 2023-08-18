@@ -5,9 +5,9 @@ export const PluginSchema: z.ZodType<Plugin<AnyZodObject | undefined>, z.ZodType
 	name: z.string(),
 	schema: z.custom<AnyZodObject>().optional(),
 	// depends: z.array(z.lazy(() => PluginSchema)).optional(),
-	onBootstrap: z.function().returns(z.any()).optional(),
-	onStack: z.function().returns(z.any()).optional(),
 	onApp: z.function().returns(z.void()).optional(),
+	onStack: z.function().returns(z.any()).optional(),
+	onResource: z.function().returns(z.any()).optional(),
 	// bind: z.function().optional(),
 })
 

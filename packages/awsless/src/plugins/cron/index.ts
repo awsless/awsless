@@ -10,9 +10,28 @@ export const cronPlugin = definePlugin({
 	name: 'cron',
 	schema: z.object({
 		stacks: z.object({
+			/** Define the crons in your stack
+			 * @example
+			 * {
+			 *   crons: {
+			 *     CRON_NAME: {
+			 *       consumer: 'function.ts',
+			 *       schedule: 'rate(5 minutes)',
+			 *     }
+			 *   }
+			 * }
+			 * */
 			crons: z.record(ResourceIdSchema, z.object({
+				/** The consuming lambda function properties */
 				consumer: FunctionSchema,
+
+				/** The scheduling expression.
+				 * @example 'cron(0 20 * * ? *)'
+				 * @example 'rate(5 minutes)'
+				 */
 				schedule: ScheduleExpressionSchema,
+
+				// Valid JSON passed to the consumer.
 				payload: z.unknown().optional(),
 			})).optional()
 		}).array()

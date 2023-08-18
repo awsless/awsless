@@ -1,152 +1,284 @@
 
-import { pascalCase } from "change-case";
 import { Resource } from "../../resource";
-import { ref } from "../../util";
+import { formatName, ref } from "../../util";
+import { Peer } from "./peer";
 
-export type VpcProps = {
-	availabilityZones: string[]
-	subnetConfiguration: {
-		subnetType: 'public' | 'private'
-		cidrMask: 18 | 19 | 20 | 21 | 22 | 23 | 24,
-	}[]
-}
+// export type VpcProps = {
+// 	availabilityZones: string[]
+// 	subnetConfiguration: {
+// 		subnetType: 'public' | 'private'
+// 		cidrMask: 18 | 19 | 20 | 21 | 22 | 23 | 24,
+// 	}[]
+// }
 
 export class Vpc extends Resource {
-
-	constructor(logicalId: string, private props: VpcProps) {
-		super(logicalId)
+	constructor(logicalId: string, private props: {
+		cidrBlock: Peer
+	}) {
+		super('AWS::EC2::VPC', logicalId)
 	}
 
 	get id() {
-		return ref(`${ this.logicalId }Vpc`)
+		return ref(this.logicalId)
 	}
 
-	get privateSubnetIds() {
-		return this.props.availabilityZones.map((_, x) => {
-			return this.props.subnetConfiguration
-				.filter(config => config.subnetType === 'private')
-				.map((_, y) => {
-					return ref(`${ this.logicalId }Subnet${x + y}`)
-				})
-		})
-	}
-
-	get publicSubnets() {
-		return this.props.availabilityZones.map((_, x) => {
-			return this.props.subnetConfiguration
-				.filter(config => config.subnetType === 'public')
-				.map((_, y) => {
-					return ref(`${ this.logicalId }Subnet${x + y}`)
-				})
-		})
-	}
-
-	// return this.props.availabilityZones.map((_, x) => {
-	// 	return this.props.subnetConfiguration
-	// 		.filter(config => config.subnetType === 'public')
-	// 		.map((_, y) => {
-	// 			return ref(`${ this.logicalId }Subnet${x + y}`)
-	// 		})
-	// })
-
-	// return this.props.availabilityZones.map((_, x) => {
-	// 	return this.props.subnetConfiguration
-	// 		.filter(config => config.subnetType === 'public')
-	// 		.map((_, y) => {
-	// 			return ref(`${ this.logicalId }Subnet${x + y}`)
-	// 		})
-	// })
-
-	private hasPublicSubnets() {
-		return this.props.subnetConfiguration.filter(config => config.subnetType === 'public').length > 0
-	}
-
-	private hasPrivateSubnets() {
-		return this.props.subnetConfiguration.filter(config => config.subnetType === 'private').length > 0
-	}
-
-	template() {
+	properties() {
 		return {
-			[ `${ this.logicalId }Vpc` ]: {
-				Type: 'AWS::EC2::VPC',
-				Properties: {
-					CidrBlock: '10.0.0.0/16',
-				}
-			},
-
-			...(this.hasPrivateSubnets() ? {
-				[ `${ this.logicalId }PrivateRouteTable` ]: {
-					Type: 'AWS::EC2::RouteTable',
-					Properties: {
-						VpcId: this.id,
-						Tags: [{
-							Key: 'type',
-							Value: 'private',
-						}]
-					}
-				},
-			} : {}),
-
-			...(this.hasPublicSubnets() ? {
-				[ `${ this.logicalId }PublicRouteTable` ]: {
-					Type: 'AWS::EC2::RouteTable',
-					Properties: {
-						VpcId: this.id,
-						Tags: [{
-							Key: 'type',
-							Value: 'public',
-						}],
-					}
-				},
-
-				[ `${ this.logicalId }InternetGateway` ]: {
-					Type: 'AWS::EC2::InternetGateway',
-				},
-
-				[ `${ this.logicalId }VPCGatewayAttachment` ]: {
-					Type: 'AWS::EC2::VPCGatewayAttachment',
-					Properties: {
-						VpcId: this.id,
-						InternetGatewayId: ref(`${this.logicalId}InternetGateway`)
-					}
-				},
-
-				[ `${ this.logicalId }Route` ]: {
-					Type: 'AWS::EC2::Route',
-					Properties: {
-						GatewayId: ref(`${this.logicalId}InternetGateway`),
-						RouteTableId: ref(`${this.logicalId}PublicRouteTable`),
-						DestinationCidrBlock: '0.0.0.0/0',
-					}
-				},
-			} : {}),
-
-			...(this.props.availabilityZones.map((availabilityZone, x) => {
-				return this.props.subnetConfiguration.map((config, y) => ({
-					[ `${ this.logicalId }Subnet${x + y}` ]: {
-						Type: 'AWS::EC2::Subnet',
-						Properties: {
-							VpcId: this.id,
-							CidrBlock: `10.0.${x + y}.0/${config.cidrMask}`,
-							AvailabilityZone: availabilityZone,
-							Tags: [{
-								Key: 'type',
-								Value: config.subnetType,
-							}]
-						}
-					},
-					[ `${ this.logicalId }SubnetRouteTableAssociation${x + y}` ]: {
-						Type: 'AWS::EC2::SubnetRouteTableAssociation',
-						Properties: {
-							SubnetId: ref(`${ this.logicalId }Subnet${x + y}`),
-							RouteTableId: ref(`${ this.logicalId }${ pascalCase(config.subnetType) }RouteTable`),
-						}
-					},
-				}))
-			}))
+			CidrBlock: this.props.cidrBlock.ip
 		}
 	}
 }
+
+export class RouteTable extends Resource {
+	readonly name: string
+	constructor(logicalId: string, private props: {
+		vpcId: string
+		name: string
+	}) {
+		super('AWS::EC2::RouteTable', logicalId)
+		this.name = formatName(props.name || logicalId)
+	}
+
+	get id() {
+		return ref(this.logicalId)
+	}
+
+	properties() {
+		return {
+			VpcId: this.props.vpcId,
+			Tags: [{
+				Key: 'name',
+				Value: this.name,
+			}]
+		}
+	}
+}
+
+export class InternetGateway extends Resource {
+	constructor(logicalId: string) {
+		super('AWS::EC2::InternetGateway', logicalId)
+	}
+
+	get id() {
+		return ref(this.logicalId)
+	}
+
+	properties() {
+		return {}
+	}
+}
+
+export class VPCGatewayAttachment extends Resource {
+	constructor(logicalId: string, private props: {
+		vpcId: string
+		internetGatewayId: string
+	}) {
+		super('AWS::EC2::VPCGatewayAttachment', logicalId)
+	}
+
+	get id() {
+		return ref(this.logicalId)
+	}
+
+	properties() {
+		return {
+			VpcId: this.props.vpcId,
+			InternetGatewayId: this.props.internetGatewayId,
+		}
+	}
+}
+
+export class Route extends Resource {
+	constructor(logicalId: string, private props: {
+		gatewayId: string
+		routeTableId: string
+		destination: Peer
+	}) {
+		super('AWS::EC2::Route', logicalId)
+	}
+
+	get id() {
+		return ref(this.logicalId)
+	}
+
+	properties() {
+		return {
+			GatewayId: this.props.gatewayId,
+			RouteTableId: this.props.routeTableId,
+			DestinationCidrBlock: this.props.destination.ip,
+		}
+	}
+}
+
+export class Subnet extends Resource {
+	constructor(logicalId: string, private props: {
+		vpcId: string
+		cidrBlock: Peer
+		availabilityZone: string
+	}) {
+		super('AWS::EC2::Subnet', logicalId)
+	}
+
+	get id() {
+		return ref(this.logicalId)
+	}
+
+	properties() {
+		return {
+			VpcId: this.props.vpcId,
+			CidrBlock: this.props.cidrBlock.ip,
+			AvailabilityZone: this.props.availabilityZone,
+		}
+	}
+}
+
+export class SubnetRouteTableAssociation extends Resource {
+	constructor(logicalId: string, private props: {
+		subnetId: string
+		routeTableId: string
+	}) {
+		super('AWS::EC2::SubnetRouteTableAssociation', logicalId)
+	}
+
+	get id() {
+		return ref(this.logicalId)
+	}
+
+	properties() {
+		return {
+			SubnetId: this.props.subnetId,
+			RouteTableId: this.props.routeTableId,
+		}
+	}
+}
+
+
+	// get privateSubnetIds() {
+	// 	return this.props.availabilityZones.map((_, x) => {
+	// 		return this.props.subnetConfiguration
+	// 			.filter(config => config.subnetType === 'private')
+	// 			.map((_, y) => {
+	// 				return ref(`${ this.logicalId }Subnet${x + y}`)
+	// 			})
+	// 	})
+	// }
+
+	// get publicSubnets() {
+	// 	return this.props.availabilityZones.map((_, x) => {
+	// 		return this.props.subnetConfiguration
+	// 			.filter(config => config.subnetType === 'public')
+	// 			.map((_, y) => {
+	// 				return ref(`${ this.logicalId }Subnet${x + y}`)
+	// 			})
+	// 	})
+	// }
+
+	// private hasPublicSubnets() {
+	// 	return this.props.subnetConfiguration.filter(config => config.subnetType === 'public').length > 0
+	// }
+
+	// private hasPrivateSubnets() {
+	// 	return this.props.subnetConfiguration.filter(config => config.subnetType === 'private').length > 0
+	// }
+
+// 	template() {
+// 		return {
+// 			[ `${ this.logicalId }Vpc` ]: {
+// 				Type: 'AWS::EC2::VPC',
+// 				Properties: {
+// 					CidrBlock: '10.0.0.0/16',
+// 				}
+// 			},
+
+// 			...(this.hasPrivateSubnets() ? {
+// 				[ `${ this.logicalId }PrivateRouteTable` ]: {
+// 					Type: 'AWS::EC2::RouteTable',
+// 					Properties: {
+// 						VpcId: this.id,
+// 						Tags: [{
+// 							Key: 'type',
+// 							Value: 'private',
+// 						}]
+// 					}
+// 				},
+// 			} : {}),
+
+// 			...(this.hasPublicSubnets() ? {
+// 				[ `${ this.logicalId }PublicRouteTable` ]: {
+// 					Type: 'AWS::EC2::RouteTable',
+// 					Properties: {
+// 						VpcId: this.id,
+// 						Tags: [{
+// 							Key: 'type',
+// 							Value: 'public',
+// 						}],
+// 					}
+// 				},
+
+// 				[ `${ this.logicalId }InternetGateway` ]: {
+// 					Type: 'AWS::EC2::InternetGateway',
+// 				},
+
+// 				[ `${ this.logicalId }VPCGatewayAttachment` ]: {
+// 					Type: 'AWS::EC2::VPCGatewayAttachment',
+// 					Properties: {
+// 						VpcId: this.id,
+// 						InternetGatewayId: ref(`${this.logicalId}InternetGateway`)
+// 					}
+// 				},
+
+// 				[ `${ this.logicalId }Route` ]: {
+// 					Type: 'AWS::EC2::Route',
+// 					Properties: {
+// 						GatewayId: ref(`${this.logicalId}InternetGateway`),
+// 						RouteTableId: ref(`${this.logicalId}PublicRouteTable`),
+// 						DestinationCidrBlock: '0.0.0.0/0',
+// 					}
+// 				},
+// 			} : {}),
+
+// 			...(this.props.availabilityZones.map((availabilityZone, x) => {
+// 				return this.props.subnetConfiguration.map((config, y) => ({
+// 					[ `${ this.logicalId }Subnet${x + y}` ]: {
+// 						Type: 'AWS::EC2::Subnet',
+// 						Properties: {
+// 							VpcId: this.id,
+// 							CidrBlock: `10.0.${x + y}.0/${config.cidrMask}`,
+// 							AvailabilityZone: availabilityZone,
+// 							Tags: [{
+// 								Key: 'type',
+// 								Value: config.subnetType,
+// 							}]
+// 						}
+// 					},
+// 					[ `${ this.logicalId }SubnetRouteTableAssociation${x + y}` ]: {
+// 						Type: 'AWS::EC2::SubnetRouteTableAssociation',
+// 						Properties: {
+// 							SubnetId: ref(`${ this.logicalId }Subnet${x + y}`),
+// 							RouteTableId: ref(`${ this.logicalId }${ pascalCase(config.subnetType) }RouteTable`),
+// 						}
+// 					},
+// 				}))
+// 			}))
+// 		}
+// 	}
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // const vpc = new Vpc(stack, toId('vpc', 'http'), {
 // 	subnetConfiguration: [{

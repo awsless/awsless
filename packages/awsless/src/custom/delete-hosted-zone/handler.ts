@@ -1,5 +1,5 @@
 
-export const globalExportsHandlerCode = /* JS */ `
+export const deleteHostedZoneRecordsHandlerCode = /* JS */ `
 
 const { Route53Client, ListResourceRecordSetsCommand, ChangeResourceRecordSetsCommand } = require('@aws-sdk/client-route-53')
 
@@ -9,14 +9,26 @@ exports.handler = async (event) => {
 	const type = event.RequestType
 	const hostedZoneId = event.ResourceProperties.hostedZoneId
 
-	if(type === 'Delete') {
-		const records = await listHostedZoneRecords(hostedZoneId)
-		await deleteHostedZoneRecords(hostedZoneId, records)
-		await send()
+	try {
+		if(type === 'Delete') {
+			const records = await listHostedZoneRecords(hostedZoneId)
+			console.log(records)
+
+			await deleteHostedZoneRecords(hostedZoneId, records)
+		}
+
+		await send(event, hostedZoneId, 'SUCCESS')
+	}
+	catch(error) {
+		if (error instanceof Error) {
+			await send(event, hostedZoneId, 'FAILED', {}, error.message)
+		} else {
+			await send(event, hostedZoneId, 'FAILED', {}, 'Unknown error')
+		}
 	}
 }
 
-const send = async (event, id, status, data, reason = '') => {
+const send = async (event, id, status, data = {}, reason = '') => {
 	const body = JSON.stringify({
 		Status: status,
 		Reason: reason,
@@ -40,14 +52,19 @@ const send = async (event, id, status, data, reason = '') => {
 }
 
 const deleteHostedZoneRecords = async (hostedZoneId, records) => {
+	records = records.filter(record => ![ 'SOA', 'NS' ].includes(record.Type))
+	if(records.length === 0) {
+		return
+	}
+
 	const chunkSize = 100;
 	for (let i = 0; i < records.length; i += chunkSize) {
 		const chunk = records.slice(i, i + chunkSize);
 
-		const result = await client.send(new ChangeResourceRecordSetsCommand({
+		await client.send(new ChangeResourceRecordSetsCommand({
 			HostedZoneId: hostedZoneId,
 			ChangeBatch: {
-				Changes: chunk.map( record => ({
+				Changes: chunk.map(record => ({
 					Action: 'DELETE',
 					ResourceRecordSet: record
 				}))
@@ -70,25 +87,6 @@ const listHostedZoneRecords = async (hostedZoneId) => {
 		if(result.ResourceRecordSets && result.ResourceRecordSets.length) {
 			records.push(...result.ResourceRecordSets)
 		}
-
-		// result.ResourceRecordSets?.forEach(item => {
-		// 	if(item.Type === 'NS' || item.Type === 'SOA') {
-		// 		return
-		// 	}
-
-		// 	records.push({
-		// 		Action: 'DELETE',
-		// 		ResourceRecordSet: record,
-		// 		// ResourceRecordSet: {
-		// 		// 	'Name': record.Name,
-		// 		// 	'Type': record.Type,
-		// 		// 	'TTL': record.TTL,
-		// 		// 	'ResourceRecords': [{
-		// 		// 		'Value': record.ResourceRecords[0].Value
-		// 		// 	}]
-		// 		// }
-		// 	})
-		// })
 
 		if(result.NextRecordName) {
 			token = result.NextRecordName

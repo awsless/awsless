@@ -6,7 +6,7 @@ import { Peer } from "./peer";
 
 export type SecurityGroupProps = {
 	vpcId: string
-	description?: string
+	description: string
 }
 
 type Rule = {
@@ -52,7 +52,7 @@ export class SecurityGroup extends Resource {
 		return {
 			VpcId: this.props.vpcId,
 			GroupName: this.logicalId,
-			GroupDescription: this.props.description || '',
+			GroupDescription: this.props.description,
 			SecurityGroupIngress: this.ingress.map(rule => ({
 				Description: rule.description || '',
 				...rule.port.toRuleJson(),

@@ -7,5 +7,5 @@ export const httpStack: StackConfig = {
 			'GET /': __dirname + '/../function/route.ts',
 			'GET /path': __dirname + '/../function/route.ts',
 		}
-	}
+	},
 }

@@ -5,64 +5,100 @@ import { DurationSchema } from '../schema/duration.js';
 import { HostedZone } from '../formation/resource/route53/hosted-zone.js';
 import { Certificate } from '../formation/resource/certificate-manager/certificate.js';
 import { RecordSetGroup } from '../formation/resource/route53/record-set-group.js';
-
-// DomainCertificateEUWest:
-//   Type: AWS::CertificateManager::Certificate
-//   Region: eu-west-1
-//   Properties:
-//     DomainName: !ssm domain
-//     ValidationMethod: DNS
-//     DomainValidationOptions:
-//       - DomainName: !ssm domain
-//         HostedZoneId: !cf [ us-east-1, MainHostedZoneId ]
-//       - DomainName: !ssm mirror
-//         HostedZoneId: !cf [ us-east-1, MirrorHostedZoneId ]
-//     SubjectAlternativeNames:
-//       - '*.${ssm:domain}'
-//       - !ssm mirror
-//       - '*.${ssm:mirror}'
-
-
-// const lol = {
-// 	domains: {
-// 		'jacksclub.dev': [{
-// 			subdomain: 'mail',
-// 			type: 'MX',
-// 			records: [ '10 feedback-smtp.eu-west-1.amazonses.com.' ],
-// 		}]
-// 	}
-// }
+import { Function } from '../formation/resource/lambda/function.js';
+import { Code } from '../formation/resource/lambda/code.js';
+import { deleteHostedZoneRecordsHandlerCode } from '../custom/delete-hosted-zone/handler.js';
+import { CustomResource } from '../formation/resource/cloud-formation/custom-resource.js';
 
 const DomainNameSchema = z.string().regex(/[a-z\-\_\.]/g, 'Invalid domain name')
 
 export const domainPlugin = definePlugin({
 	name: 'domain',
 	schema: z.object({
+		/** Define the domains for your application.
+		 * @example
+		 * {
+		 *   domains: {
+		 *     'example.com': [{
+		 *       name: 'www',
+		 *       type: 'TXT',
+		 *       ttl: '60 seconds',
+		 *       records: [ 'value' ]
+		 *     }]
+		 *   }
+		 * }
+		 */
 		domains: z.record(DomainNameSchema, z.object({
+			/** Enter a fully qualified domain name, for example, www.example.com.
+			 * You can optionally include a trailing dot.
+			 * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
+			 * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+			 */
 			name: DomainNameSchema.optional(),
+
+			/** The DNS record type. */
 			type: z.enum([ 'A', 'AAAA', 'CAA', 'CNAME', 'DS', 'MX', 'NAPTR', 'NS', 'PTR', 'SOA', 'SPF', 'SRV', 'TXT' ]),
+
+			/** The resource record cache time to live (TTL) */
 			ttl: DurationSchema,
+
+			/** One or more values that correspond with the value that you specified for the Type property. */
 			records: z.string().array(),
 		}).array()).optional(),
 	}),
 	onApp({ config, bootstrap, usEastBootstrap }) {
 
-		for(const [ domain, records ] of Object.entries(config.domains || {})) {
+		const domains = Object.entries(config.domains || {})
+
+		if(domains.length === 0) {
+			return
+		}
+
+		const lambda = new Function('delete-hosted-zone', {
+			name: `${config.name}-delete-hosted-zone`,
+			code: Code.fromInline(deleteHostedZoneRecordsHandlerCode, 'index.handler'),
+		})
+
+		lambda.addPermissions({
+			actions: [
+				'route53:ListResourceRecordSets',
+				'route53:ChangeResourceRecordSets',
+			],
+			resources: [ '*' ]
+		})
+
+		usEastBootstrap.add(lambda)
+
+		for(const [ domain, records ] of domains) {
 			const hostedZone = new HostedZone(domain)
-			const certificate = new Certificate(domain, {
-				alternativeNames: [ `*.${domain}` ]
+
+			const usEastCertificate = new Certificate(domain, {
+				hostedZoneId: hostedZone.id,
+				alternativeNames: [ `*.${domain}` ],
 			})
 
-			// bootstrap.export(`certificate-${domain}-arn`, certificate.arn)
-			// bootstrap.export(`hosted-zone-${domain}-id`, hostedZone.id)
-
-			bootstrap.add(certificate)
+			const custom = new CustomResource(domain, {
+				serviceToken: lambda.arn,
+				properties: {
+					hostedZoneId: hostedZone.id,
+				}
+			}).dependsOn(hostedZone)
 
 			usEastBootstrap
+				.add(custom)
 				.add(hostedZone)
+				.add(usEastCertificate)
+				.export(`certificate-${domain}-arn`, usEastCertificate.arn)
+				.export(`hosted-zone-${domain}-id`, hostedZone.id)
+
+			const certificate = new Certificate(domain, {
+				hostedZoneId: usEastBootstrap.import(`hosted-zone-${domain}-id`),
+				alternativeNames: [ `*.${domain}` ],
+			})
+
+			bootstrap
 				.add(certificate)
 				.export(`certificate-${domain}-arn`, certificate.arn)
-				// .export(`hosted-zone-${domain}-id`, hostedZone.id)
 
 			if(records.length > 0) {
 				const group = new RecordSetGroup(domain, {
@@ -75,108 +111,3 @@ export const domainPlugin = definePlugin({
 		}
 	},
 })
-
-
-
-// ctx.addResource "#{ ctx.name }ElbLambdaPermission#{ postfix }", {
-// 	Type: 'AWS::Lambda::Permission'
-// 	Region
-// 	Properties: {
-// 		FunctionName: GetAtt ctx.name, 'Arn'
-// 		Action:		'lambda:InvokeFunction'
-// 		Principal:	'elasticloadbalancing.amazonaws.com'
-// 		SourceArn:	Sub "arn:${AWS::Partition}:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/#{ targetGroupName }/*"
-// 	}
-// }
-
-// ctx.addResource "#{ ctx.name }ElbListenerRule#{ postfix }", {
-// 	Type: 'AWS::ElasticLoadBalancingV2::ListenerRule'
-// 	Region
-// 	Properties: {
-// 		Actions: [{
-// 			Type: 'forward'
-// 			TargetGroupArn: Ref "#{ ctx.name }ElbTargetGroup#{ postfix }"
-// 		}]
-// 		Conditions: conditions ctx
-// 		ListenerArn: listener
-// 		Priority: priority
-// 	}
-// }
-
-// ctx.addResource "#{ ctx.name }ElbTargetGroup#{ postfix }", {
-// 	Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
-// 	Region
-// 	DependsOn: [
-// 		"#{ ctx.name }ElbLambdaPermission#{ postfix }"
-// 	]
-// 	Properties: {
-// 		Name: targetGroupName
-// 		TargetType: 'lambda'
-// 		Targets: [
-// 			{ Id: GetAtt ctx.name, 'Arn' }
-// 		]
-// 	}
-// }
-
-
-// LoadBalancer:
-//   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-//   Properties:
-//     Name: elb-api
-//     Scheme: internet-facing
-//     Type: application
-//     Subnets:
-//       - !ImportValue SubnetA
-//       - !ImportValue SubnetB
-//       - !ImportValue SubnetC
-//     SecurityGroups:
-//       - !Ref SecurityGroup
-
-// Listener:
-//   Type: AWS::ElasticLoadBalancingV2::Listener
-//   Properties:
-//     LoadBalancerArn: !Ref LoadBalancer
-//     Port: 443
-//     Protocol: HTTPS
-//     Certificates:
-//       - CertificateArn: !ImportValue Certifcate2Arn
-
-//     DefaultActions:
-//       - Type: fixed-response
-//         FixedResponseConfig:
-//           ContentType: application/json
-//           MessageBody: '"OK"'
-//           StatusCode: 200
-
-// SecurityGroup:
-// Type: AWS::EC2::SecurityGroup
-// Properties:
-//   GroupDescription: Allow http on port 443
-//   VpcId: !ImportValue VPC
-//   SecurityGroupIngress:
-// 	- IpProtocol: tcp
-// 	  FromPort: 443
-// 	  ToPort: 443
-// 	  CidrIp: 0.0.0.0/0
-
-
-
-// Route53Record:
-// 	Type: AWS::Route53::RecordSet
-// 	Properties:
-// 	HostedZoneName: ${ssm:domain}.
-// 	Name: elb.${ssm:domain}.
-// 	Type: A
-// 	AliasTarget:
-// 		DNSName: !GetAtt LoadBalancer.DNSName
-// 		HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
-
-// MirrorRoute53Record:
-// 	Type: AWS::Route53::RecordSet
-// 	Properties:
-// 	HostedZoneName: ${ssm:mirror}.
-// 	Name: elb.${ssm:mirror}.
-// 	Type: A
-// 	AliasTarget:
-// 		DNSName: !GetAtt LoadBalancer.DNSName
-// 		HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID

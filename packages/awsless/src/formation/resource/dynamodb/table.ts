@@ -1,12 +1,14 @@
 import { constantCase } from "change-case";
 import { Resource } from "../../resource";
-import { formatName, ref } from "../../util";
+import { formatName, getAtt, ref } from "../../util";
 
 export type IndexProps = {
 	hash: string
 	sort?: string
 	projection?: 'all' | 'keys-only'
 }
+
+export type StreamViewType = 'keys-only' | 'new-image' | 'old-image' | 'new-and-old-images'
 
 export type TableProps = {
 	name?: string
@@ -17,6 +19,7 @@ export type TableProps = {
 	class?: 'standard' | 'standard-infrequent-access'
 	pointInTimeRecovery?: boolean
 	timeToLiveAttribute?: string
+	stream?: StreamViewType
 	indexes?: Record<string, IndexProps>
 }
 
@@ -31,12 +34,24 @@ export class Table extends Resource {
 		this.indexes = { ...(this.props.indexes || {}) }
 	}
 
+	enableStream(viewType: StreamViewType) {
+		this.props.stream = viewType
+	}
+
 	addIndex(name:string, props: IndexProps) {
 		this.indexes[name] = props
 	}
 
-	get arn() {
+	get id() {
 		return ref(this.logicalId)
+	}
+
+	get arn() {
+		return getAtt(this.logicalId, 'Arn')
+	}
+
+	get streamArn() {
+		return getAtt(this.logicalId, 'StreamArn')
 	}
 
 	get permissions() {
@@ -73,6 +88,11 @@ export class Table extends Resource {
 				AttributeName: name,
 				AttributeType: type[0].toUpperCase(),
 			})),
+			...(this.props.stream ? {
+				StreamSpecification: {
+					StreamViewType: constantCase(this.props.stream),
+				},
+			} : {}),
 			...(this.props.timeToLiveAttribute ? {
 				TimeToLiveSpecification: {
 					AttributeName: this.props.timeToLiveAttribute,

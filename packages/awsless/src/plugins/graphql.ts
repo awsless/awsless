@@ -7,16 +7,12 @@ import { ResourceIdSchema } from '../schema/resource-id.js';
 import { toArray } from '../util/array.js';
 import { paramCase } from 'change-case';
 import { DurationSchema } from '../schema/duration.js';
-import { GlobalExports } from '../__custom-resource/global-exports/construct.js';
-import { GraphQL } from '../formation/resource/appsync/graphql-api.js';
+import { GraphQLApi } from '../formation/resource/appsync/graphql-api.js';
 import { RecordSet } from '../formation/resource/route53/record-set.js';
-import { ref } from '../formation/util.js';
-// import { DataSource } from '../formation/resource/appsync/data-source.js';
-// import { Resolver } from '../formation/resource/appsync/resolver.js';
-import { Schema } from '../formation/resource/appsync/schema.js';
+import { Definition, GraphQLSchema } from '../formation/resource/appsync/graphql-schema.js';
 import { Code } from '../formation/resource/appsync/code.js';
-// import { FunctionConfiguration } from '../formation/resource/appsync/function-configuration.js';
 import { AppsyncEventSource } from '../formation/resource/lambda/event-source/appsync.js';
+import { DomainName, DomainNameApiAssociation } from '../formation/resource/appsync/domain-name.js';
 
 const defaultResolver = `
 export function request(ctx) {
@@ -61,7 +57,6 @@ export const graphqlPlugin = definePlugin({
 				resolvers: z.record(ResolverFieldSchema, FunctionSchema).optional()
 			})).optional()
 		}).array()
-
 	}),
 	onApp(ctx) {
 		const { config, bootstrap, usEastBootstrap } = ctx
@@ -74,22 +69,27 @@ export const graphqlPlugin = definePlugin({
 		}
 
 		for(const id of apis) {
-			const schema:string[] = []
+			const schemaFiles:string[] = []
 
 			for(const stack of config.stacks) {
 				const files = toArray(stack.graphql?.[id]?.schema || [])
-				schema.push(...files)
+				schemaFiles.push(...files)
 			}
 
-			const graphql = new GraphQL(id, {
+			const api = new GraphQLApi(id, {
 				name: `${config.name}-${id}`,
 				authenticationType: 'api-key',
-				schema: new Schema(id, schema),
 			})
 
+			const schema = new GraphQLSchema(id, {
+				apiId: api.id,
+				definition: new Definition(id, schemaFiles),
+			}).dependsOn(api)
+
 			bootstrap
-				.add(graphql)
-				.export(`graphql-${id}`, graphql.api.id)
+				.add(api)
+				.add(schema)
+				.export(`graphql-${id}`, api.id)
 
 			const props = config.defaults.graphql?.[id]
 
@@ -99,26 +99,37 @@ export const graphqlPlugin = definePlugin({
 
 			if(props.authorization) {
 				const lambda = toLambdaFunction(ctx as any, `${id}-authorizer`, props.authorization.authorizer)
-				graphql.api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl)
+				api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl)
 
 				bootstrap.add(lambda)
 			}
 
 			if(props.domain) {
 				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
-				const hostedZoneId = ref(`${props.domain}Route53HostedZone`)
+				const hostedZoneId = usEastBootstrap.import(`hosted-zone-${props.domain}-id`)
 				const certificateArn = usEastBootstrap.import(`certificate-${props.domain}-arn`)
 
-				graphql.attachDomainName(domainName, certificateArn)
+				const domain = new DomainName(id, {
+					domainName,
+					certificateArn
+				})
 
-				const record = new RecordSet(id, {
+				const association = new DomainNameApiAssociation(id, {
+					apiId: api.id,
+					domainName: domain.domainName,
+				}).dependsOn(api, domain)
+
+				const record = new RecordSet(`${id}-graphql`, {
 					hostedZoneId,
 					type: 'A',
 					name: domainName,
-					alias: graphql.api.dns,
-				})
+					alias: {
+						dnsName: domain.appSyncDomainName,
+						hostedZoneId: domain.hostedZoneId,
+					}
+				}).dependsOn(domain, association)
 
-				bootstrap.add(record)
+				bootstrap.add(domain, association, record)
 			}
 		}
 	},
@@ -132,7 +143,7 @@ export const graphqlPlugin = definePlugin({
 			for(const [ typeAndField, functionProps ] of Object.entries(props.resolvers || {})) {
 				const [ typeName, fieldName ] = typeAndField.split(/[\s]+/g)
 				const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
-				const lambda = toLambdaFunction(ctx as any, entryId, functionProps!)
+				const lambda = toLambdaFunction(ctx as any, `graphql-${entryId}`, functionProps!)
 				const source = new AppsyncEventSource(entryId, lambda, {
 					apiId,
 					typeName,

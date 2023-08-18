@@ -90,6 +90,7 @@ declare class Stack {
     constructor(name: string, region: Region);
     add(...resources: (Resource | Asset | Group)[]): this;
     export(name: string, value: string): this;
+    get(name: string): string;
     import(name: string): string;
     tag(name: string, value: string): this;
     find<T>(resourceType: ConstructorOf<T>): T[];
@@ -104,7 +105,7 @@ declare class Stack {
 
 declare class App {
     readonly name: string;
-    readonly list: Map<string, Stack>;
+    private list;
     constructor(name: string);
     add(...stacks: Stack[]): this;
     find<T>(resourceType: ConstructorOf<T>): T[];
@@ -147,12 +148,14 @@ interface ICode {
             S3Bucket: string;
             S3Key: string;
             S3ObjectVersion: string;
+        } | {
+            ZipFile: string;
         };
     };
 }
 
 type FunctionProps = {
-    code: ICode & Asset;
+    code: ICode;
     name?: string;
     description?: string;
     runtime?: 'nodejs16.x' | 'nodejs18.x';
@@ -189,6 +192,8 @@ declare class Function extends Resource {
             S3Bucket: string;
             S3Key: string;
             S3ObjectVersion: string;
+        } | {
+            ZipFile: string;
         };
         FunctionName: string;
         MemorySize: number;
@@ -203,6 +208,14 @@ type Binding = (lambda: Function) => void;
 
 type ExtendedConfigOutput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? BaseConfig & z.output<S> : BaseConfig);
 type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? AppConfigInput & z.input<S> : AppConfigInput);
+type ResourceContext<S extends AnyZodObject | undefined = undefined> = {
+    config: ExtendedConfigOutput<S>;
+    app: App;
+    stack: Stack;
+    bootstrap: Stack;
+    usEastBootstrap: Stack;
+    resource: Resource;
+};
 type StackContext<S extends AnyZodObject | undefined = undefined> = {
     config: ExtendedConfigOutput<S>;
     stack: Stack;
@@ -224,16 +237,26 @@ type Plugin<S extends AnyZodObject | undefined = undefined> = {
     schema?: S;
     onApp?: (context: AppContext<S>) => void;
     onStack?: (context: StackContext<S>) => void;
+    onResource?: (context: ResourceContext<S>) => void;
 };
 declare const definePlugin: <S extends AnyZodObject | undefined = undefined>(plugin: Plugin<S>) => Plugin<S>;
 
 declare const AppSchema: z.ZodObject<{
+    /** App name */
     name: z.ZodString;
+    /** The AWS region to deploy to. */
     region: z.ZodEnum<["us-east-2", "us-east-1", "us-west-1", "us-west-2", "af-south-1", "ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1", "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-south-1", "eu-west-3", "eu-south-2", "eu-north-1", "eu-central-2", "me-south-1", "me-central-1", "sa-east-1"]>;
+    /** The AWS profile to deploy to. */
     profile: z.ZodString;
+    /** The deployment stage.
+     * @default 'prod'
+     */
     stage: z.ZodDefault<z.ZodString>;
+    /** Default properties. */
     defaults: z.ZodDefault<z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>>;
+    /** The application stacks. */
     stacks: z.ZodEffects<z.ZodArray<z.ZodType<StackConfig$1, z.ZodTypeDef, StackConfig$1>, "many">, StackConfig$1[], StackConfig$1[]>;
+    /** Custom plugins. */
     plugins: z.ZodOptional<z.ZodArray<z.ZodType<Plugin<z.AnyZodObject | undefined>, z.ZodTypeDef, Plugin<z.AnyZodObject | undefined>>, "many">>;
 }, "strip", z.ZodTypeAny, {
     stacks: StackConfig$1[];
@@ -274,7 +297,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         extend?: ((ctx: StackContext<undefined>) => void) | undefined;
     }[];
     extend?: ((ctx: AppContext<undefined>) => void) | undefined;
-}>> | Plugin<zod.ZodObject<{
+}>> | Plugin<undefined> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
         function: zod.ZodDefault<zod.ZodObject<{
             timeout: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -865,18 +888,91 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             class: zod.ZodDefault<zod.ZodEnum<["standard", "standard-infrequent-access"]>>;
             pointInTimeRecovery: zod.ZodDefault<zod.ZodBoolean>;
             timeToLiveAttribute: zod.ZodOptional<zod.ZodString>;
+            stream: zod.ZodOptional<zod.ZodObject<{
+                type: zod.ZodEnum<["keys-only", "new-image", "old-image", "new-and-old-images"]>;
+                consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }, {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }>]>;
+            }, "strip", zod.ZodTypeAny, {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            }, {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            }>>;
             indexes: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
                 hash: zod.ZodString;
                 sort: zod.ZodOptional<zod.ZodString>;
                 projection: zod.ZodDefault<zod.ZodEnum<["all", "keys-only"]>>;
             }, "strip", zod.ZodTypeAny, {
                 hash: string;
-                projection: "all" | "keys-only";
+                projection: "keys-only" | "all";
                 sort?: string | undefined;
             }, {
                 hash: string;
                 sort?: string | undefined;
-                projection?: "all" | "keys-only" | undefined;
+                projection?: "keys-only" | "all" | undefined;
             }>>>;
         }, "strip", zod.ZodTypeAny, {
             hash: string;
@@ -885,9 +981,31 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
-                projection: "all" | "keys-only";
+                projection: "keys-only" | "all";
                 sort?: string | undefined;
             }> | undefined;
         }, {
@@ -897,10 +1015,32 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
-                projection?: "all" | "keys-only" | undefined;
+                projection?: "keys-only" | "all" | undefined;
             }> | undefined;
         }>, {
             hash: string;
@@ -909,9 +1049,31 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
-                projection: "all" | "keys-only";
+                projection: "keys-only" | "all";
                 sort?: string | undefined;
             }> | undefined;
         }, {
@@ -921,10 +1083,32 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
-                projection?: "all" | "keys-only" | undefined;
+                projection?: "keys-only" | "all" | undefined;
             }> | undefined;
         }>>>;
     }, "strip", zod.ZodTypeAny, {
@@ -935,9 +1119,31 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
-                projection: "all" | "keys-only";
+                projection: "keys-only" | "all";
                 sort?: string | undefined;
             }> | undefined;
         }> | undefined;
@@ -949,10 +1155,32 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
-                projection?: "all" | "keys-only" | undefined;
+                projection?: "keys-only" | "all" | undefined;
             }> | undefined;
         }> | undefined;
     }>, "many">;
@@ -965,9 +1193,31 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             pointInTimeRecovery: boolean;
             sort?: string | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
-                projection: "all" | "keys-only";
+                projection: "keys-only" | "all";
                 sort?: string | undefined;
             }> | undefined;
         }> | undefined;
@@ -981,10 +1231,32 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             class?: "standard" | "standard-infrequent-access" | undefined;
             pointInTimeRecovery?: boolean | undefined;
             timeToLiveAttribute?: string | undefined;
+            stream?: {
+                type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
+                consumer: (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                }) & (string | {
+                    file: string;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                } | undefined);
+            } | undefined;
             indexes?: Record<string, {
                 hash: string;
                 sort?: string | undefined;
-                projection?: "all" | "keys-only" | undefined;
+                projection?: "keys-only" | "all" | undefined;
             }> | undefined;
         }> | undefined;
     }[];
@@ -1261,6 +1533,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             sql: string;
             sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
         }> | undefined;
+    }[];
+}>> | Plugin<zod.ZodObject<{
+    stacks: zod.ZodArray<zod.ZodObject<{
+        searchs: zod.ZodOptional<zod.ZodArray<zod.ZodString, "many">>;
+    }, "strip", zod.ZodTypeAny, {
+        searchs?: string[] | undefined;
+    }, {
+        searchs?: string[] | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    stacks: {
+        searchs?: string[] | undefined;
+    }[];
+}, {
+    stacks: {
+        searchs?: string[] | undefined;
     }[];
 }>> | Plugin<zod.ZodObject<{
     domains: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodArray<zod.ZodObject<{
@@ -1657,6 +1945,198 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             resolver?: string | undefined;
         }> | undefined;
     } | undefined;
+}>> | Plugin<zod.ZodObject<{
+    defaults: zod.ZodDefault<zod.ZodObject<{
+        http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
+            domain: zod.ZodString;
+            subDomain: zod.ZodOptional<zod.ZodString>;
+        }, "strip", zod.ZodTypeAny, {
+            domain: string;
+            subDomain?: string | undefined;
+        }, {
+            domain: string;
+            subDomain?: string | undefined;
+        }>>>;
+    }, "strip", zod.ZodTypeAny, {
+        http?: Record<string, {
+            domain: string;
+            subDomain?: string | undefined;
+        }> | undefined;
+    }, {
+        http?: Record<string, {
+            domain: string;
+            subDomain?: string | undefined;
+        }> | undefined;
+    }>>;
+    stacks: zod.ZodArray<zod.ZodObject<{
+        http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodRecord<zod.ZodType<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, zod.ZodTypeDef, `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+            file: zod.ZodEffects<zod.ZodString, string, string>;
+            timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
+            memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+            architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+            ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+            retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+            environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+        }, "strip", zod.ZodTypeAny, {
+            file: string;
+            timeout?: Duration | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: Size | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: Size | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }, {
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }>]>>>>;
+    }, "strip", zod.ZodTypeAny, {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
+            file: string;
+            timeout?: Duration | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: Size | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: Size | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }, {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    stacks: {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
+            file: string;
+            timeout?: Duration | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: Size | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: Size | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }[];
+    defaults: {
+        http?: Record<string, {
+            domain: string;
+            subDomain?: string | undefined;
+        }> | undefined;
+    };
+}, {
+    stacks: {
+        http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }>>> | undefined;
+    }[];
+    defaults?: {
+        http?: Record<string, {
+            domain: string;
+            subDomain?: string | undefined;
+        }> | undefined;
+    } | undefined;
+}>> | Plugin<zod.ZodObject<{
+    stacks: zod.ZodArray<zod.ZodObject<{
+        onFailure: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+            file: zod.ZodEffects<zod.ZodString, string, string>;
+            timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
+            memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+            architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+            ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+            retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+            environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+        }, "strip", zod.ZodTypeAny, {
+            file: string;
+            timeout?: Duration | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: Size | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: Size | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }, {
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        }>]>>;
+    }, "strip", zod.ZodTypeAny, {
+        onFailure?: string | {
+            file: string;
+            timeout?: Duration | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: Size | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: Size | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        } | undefined;
+    }, {
+        onFailure?: string | {
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        } | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    stacks: {
+        onFailure?: string | {
+            file: string;
+            timeout?: Duration | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: Size | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: Size | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        } | undefined;
+    }[];
+}, {
+    stacks: {
+        onFailure?: string | {
+            file: string;
+            timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
+            memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            architecture?: "x86_64" | "arm64" | undefined;
+            ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+            retryAttempts?: number | undefined;
+            environment?: Record<string, string> | undefined;
+        } | undefined;
+    }[];
 }>>)[];
 type CombinedDefaultPluginsConfigInput = ExtendedConfigInput<typeof defaultPlugins[number]['schema']>;
 

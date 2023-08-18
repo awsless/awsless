@@ -10,6 +10,10 @@ export const tableStack: StackConfig = {
 			fields: {
 				id: 'string'
 			},
+			stream: {
+				type: 'new-image',
+				consumer: __dirname + '/../function/stream.ts'
+			}
 		}
 	}
 }

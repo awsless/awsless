@@ -5,7 +5,7 @@ export const pubsubStack: StackConfig = {
 	pubsub: {
 		connect: {
 			sql: `SELECT * FROM '$aws/events/presence/connected/+'`,
-			consumer: 'test/_data/function.ts',
+			consumer: __dirname + '/../function/simple.ts'
 		}
 	}
 }

@@ -23,7 +23,7 @@ export const importValue = <T = string>(name: string): T => {
 }
 
 export const formatLogicalId = (id: string) => {
-	return pascalCase(id)
+	return pascalCase(id).replaceAll('_', '')
 }
 
 export const formatName = (name: string) => {

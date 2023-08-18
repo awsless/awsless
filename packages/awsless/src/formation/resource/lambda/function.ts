@@ -10,7 +10,7 @@ import { Role } from "../iam/role";
 import { ICode } from "./code";
 
 export type FunctionProps = {
-	code: ICode & Asset
+	code: ICode
 	name?: string
 	description?: string
 	runtime?: 'nodejs16.x' | 'nodejs18.x'
@@ -39,10 +39,11 @@ export class Function extends Resource {
 		role.addInlinePolicy(policy)
 		role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('AWSLambdaBasicExecutionRole'))
 
-		super('AWS::Lambda::Function', logicalId, [
-			role,
-			props.code
-		])
+		super('AWS::Lambda::Function', logicalId, [ role ])
+
+		if(props.code instanceof Asset) {
+			this.children.push(props.code)
+		}
 
 		this.dependsOn(role)
 

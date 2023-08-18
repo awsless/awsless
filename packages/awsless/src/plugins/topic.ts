@@ -15,14 +15,14 @@ export const topicPlugin = definePlugin({
 	name: 'topic',
 	schema: z.object({
 		stacks: z.object({
-			/** Define the topics to listen too in your stack
+			/** Define the topics to listen too in your stack.
 			 * @example
 			 * {
 			 *   topics: {
 			 *     TOPIC_NAME: 'function.ts'
 			 *   }
 			 * }
-			 * */
+			 */
 			topics: z.record(ResourceIdSchema, FunctionSchema).optional()
 		}).array()
 	}),
@@ -67,7 +67,7 @@ export const topicPlugin = definePlugin({
 		const { stack, stackConfig, bootstrap } = ctx
 
 		for(const [ id, props ] of Object.entries(stackConfig.topics || {})) {
-			const lambda = toLambdaFunction(ctx, id, props)
+			const lambda = toLambdaFunction(ctx, `topic-${id}`, props)
 			const source = new SnsEventSource(id, lambda, {
 				topicArn: bootstrap.import(`topic-${id}-arn`)
 			})

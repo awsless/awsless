@@ -1,6 +1,6 @@
 import { readFile } from "fs/promises"
 import { App } from "../../../formation/app.js"
-import { assetDir } from "../../../util/path.js"
+import { directories } from "../../../util/path.js"
 import { RenderFactory } from "../../lib/renderer.js"
 import { loadingDialog } from "../layout/dialog.js"
 import { join } from "path"
@@ -21,7 +21,7 @@ export const assetPublisher = (config:Config, app:App):RenderFactory => {
 			await Promise.all([ ...stack.assets ].map(async asset => {
 				await asset.publish?.({
 					async read(file) {
-						const path = join(assetDir, asset.type, app.name, stack.name, asset.id, file)
+						const path = join(directories.asset, asset.type, app.name, stack.name, asset.id, file)
 						const data = await readFile(path)
 
 						return data

@@ -1,8 +1,9 @@
 import { transformFile } from '@swc/core'
 import { dirname, join } from 'path';
 import { lstat, mkdir, writeFile } from 'fs/promises';
-import { outDir, rootDir } from './path';
+import { directories } from './path';
 import { debug } from '../cli/logger';
+import { style } from '../cli/style';
 
 const resolveFileNameExtension = async (path:string) => {
 	const options = [
@@ -31,14 +32,14 @@ const resolveFileNameExtension = async (path:string) => {
 }
 
 const resolveDir = (path: string) => {
-	return dirname(path).replace(rootDir + '/', '')
+	return dirname(path).replace(directories.root + '/', '')
 }
 
 export const importFile = async (path:string) => {
 
 	const load = async (file:string) => {
 
-		debug('Load file', file)
+		debug('Load file:', style.info(file))
 
 		let { code } = await transformFile(file, {
 			isModule: true,
@@ -46,8 +47,8 @@ export const importFile = async (path:string) => {
 
 		const path = dirname(file)
 		const dir = resolveDir(file)
-		code = code.replaceAll('__dirname', `"${ dir }"`)
 
+		code = code.replaceAll('__dirname', `"${ dir }"`)
 
 		// export { definePlugin, Plugin } from "./plugin.js";
 
@@ -59,7 +60,7 @@ export const importFile = async (path:string) => {
 		await Promise.all(matches?.map(async match => {
   			const parts = /('|")(\.\.?[\/a-z0-9\_\-\.]+)('|")/ig.exec(match)!
 			const from = parts[2]
-			// debug('Resolve', path, from)
+
 			const file = await resolveFileNameExtension(join(path, from))
 			const result = (await load(file))!
 
@@ -70,10 +71,12 @@ export const importFile = async (path:string) => {
 	}
 
 	const code = await load(path)
-	const outputFile = join(outDir, 'config.js')
+	const outputFile = join(directories.cache, 'config.js')
 
-	await mkdir(outDir, { recursive: true })
+	await mkdir(directories.cache, { recursive: true })
 	await writeFile(outputFile, code)
+
+	debug('Save config file:', style.info(outputFile))
 
 	return import(outputFile)
 }

@@ -11,7 +11,12 @@ export const getGlobalResourceName = (id: string) => {
 }
 
 export const getFunctionName = getLocalResourceName
+export const getSearchName = getLocalResourceName
 export const getTableName = getLocalResourceName
 export const getStoreName = getLocalResourceName
 export const getQueueName = getLocalResourceName
 export const getTopicName = getGlobalResourceName
+
+export const getSecretName = (name: string) => {
+	return `/.awsless/${APP}/${name}`
+}

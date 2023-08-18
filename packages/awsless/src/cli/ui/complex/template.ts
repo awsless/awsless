@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "fs/promises"
 import { App } from "../../../formation/app.js"
-import { templateDir } from "../../../util/path.js"
+import { directories } from "../../../util/path.js"
 import { RenderFactory } from "../../lib/renderer.js"
 import { loadingDialog } from "../layout/dialog.js"
 import { join } from "path"
@@ -11,7 +11,7 @@ export const templateBuilder = (app:App):RenderFactory => {
 
 		await Promise.all(app.stacks.map(async stack => {
 			const template = stack.toString(true)
-			const path = join(templateDir, app.name)
+			const path = join(directories.template, app.name)
 			const file = join(path, `${stack.name}.json`)
 
 			await mkdir(path, { recursive: true })

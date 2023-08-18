@@ -10,7 +10,10 @@ export type RecordSetProps = {
 	type: RecordType
 	ttl?: Duration
 	records?: string[]
-	alias?: string
+	alias?: {
+		dnsName: string
+		hostedZoneId: string
+	}
 }
 
 export class RecordSet extends Resource {
@@ -35,8 +38,8 @@ export class RecordSet extends Resource {
 
 			...(this.props.alias ? {
 				AliasTarget: {
-					DNSName: this.props.alias,
-					HostedZoneId: this.props.hostedZoneId,
+					DNSName: this.props.alias.dnsName,
+					HostedZoneId: this.props.alias.hostedZoneId,
 				}
 			} : {}),
 		}

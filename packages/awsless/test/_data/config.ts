@@ -11,7 +11,7 @@ import { cronStack } from "./stack/cron"
 import { pubsubStack } from "./stack/pubsub"
 import { httpStack } from "./stack/http"
 
-export default defineAppConfig((input) => ({
+export default defineAppConfig(input => ({
 	name: 'app',
 	// stage: input.stage || 'prod',
 	region: 'eu-west-1',
@@ -26,18 +26,12 @@ export default defineAppConfig((input) => ({
 				subDomain: 'graphql',
 			},
 		},
-		// queue: {
-		// 	''
-		// }
-		// queue: {
-		// 	''
-		// }
-		// http: {
-		// 	api: {
-		// 		domain: 'getblockalert.com',
-		// 		subDomain: 'http',
-		// 	}
-		// },
+		http: {
+			api: {
+				domain: 'getblockalert.com',
+				subDomain: 'api',
+			}
+		},
 		// function: {
 		// 	environment: {
 		// 		BUGSNAG_API_KEY: 'test'
@@ -53,7 +47,7 @@ export default defineAppConfig((input) => ({
 		// cronStack,
 		// pubsubStack,
 
-		// httpStack,
+		httpStack,
 		// searchStack,
 
 		graphqlOneStack,

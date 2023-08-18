@@ -93,6 +93,23 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 	// ---------------------------------------------------------------
 
+	for(const plugin of plugins) {
+		for(const stack of app.stacks) {
+			for(const resource of stack) {
+				plugin.onResource?.({
+					config,
+					app,
+					stack,
+					bootstrap,
+					usEastBootstrap,
+					resource,
+				})
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------
+
 	const functions = app.find(Function)
 
 	for(const bind of bindings) {

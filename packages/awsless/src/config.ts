@@ -13,6 +13,7 @@ import { defaultPlugins } from './plugins'
 // import { outDir } from './util/path'
 // import { transformFile } from '@swc/core'
 import { importFile } from "./util/import"
+import { findRootDir, setRoot } from "./util/path"
 // import { outDir } from "./util/path"
 
 export type BaseConfig = AppConfigOutput & {
@@ -30,12 +31,22 @@ type Module = {
 
 export const importConfig = async (options: ProgramOptions): Promise<Config> => {
 
+	debug('Find the root directory')
+
+	const configFile = options.configFile || 'awsless.config.ts'
+	const root = await findRootDir(process.cwd(), configFile)
+	setRoot(root)
+
+	debug('CWD:', style.info(root))
+
 	debug('Import config file')
 
-	const fileName = join(process.cwd(), options.configFile || 'awsless.config.ts')
+	const fileName = join(root, configFile)
 	const module: Module = await importFile(fileName)
 
-	const appConfig = typeof module.default === 'function' ? (await module.default(options)) : module.default
+	const appConfig = typeof module.default === 'function'
+		? (await module.default(options))
+		: module.default
 
 	debug('Validate config file')
 

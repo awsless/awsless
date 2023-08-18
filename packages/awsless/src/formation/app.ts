@@ -2,7 +2,7 @@ import { Stack } from "./stack"
 import { ConstructorOf } from "./util"
 
 export class App {
-	readonly list = new Map<string, Stack>()
+	private list = new Map<string, Stack>()
 
 	constructor(readonly name: string) {}
 

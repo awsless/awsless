@@ -103,20 +103,32 @@ export class StackClient {
 
 		const client = this.getClient(stack.region)
 
-		await client.send(new UpdateStackCommand({
-			StackName: this.stackName(stack.name),
-			Capabilities: capabilities,
-			Tags: this.tags(stack),
-			...this.templateProp(stack),
-		}))
+		try {
+			await client.send(new UpdateStackCommand({
+				StackName: this.stackName(stack.name),
+				Capabilities: capabilities,
+				Tags: this.tags(stack),
+				...this.templateProp(stack),
+			}))
 
-		await waitUntilStackUpdateComplete({
-			client,
-			maxWaitTime: this.maxWaitTime,
-			maxDelay: this.maxDelay,
-		}, {
-			StackName: this.stackName(stack.name),
-		})
+			await waitUntilStackUpdateComplete({
+				client,
+				maxWaitTime: this.maxWaitTime,
+				maxDelay: this.maxDelay,
+			}, {
+				StackName: this.stackName(stack.name),
+			})
+		} catch(error) {
+			if(
+				error instanceof Error &&
+				error.name === 'ValidationError' &&
+				error.message.toLowerCase().includes('no updates')
+			) {
+				return
+			}
+
+			throw error
+		}
 	}
 
 	private async validate(stack:Stack) {

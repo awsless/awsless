@@ -33,7 +33,7 @@ export const extendWithGlobalExports = (appName: string, importable:Stack, expor
 				}
 			})
 
-			exportable.add(crossRegionExports)
+			exportable.add(lambda, crossRegionExports)
 		}
 
 		return crossRegionExports.getAtt(name)

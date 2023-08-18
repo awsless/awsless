@@ -1,52 +1,51 @@
 import { constantCase } from "change-case";
-import { Group, Resource } from "../../resource";
+import { Resource } from "../../resource";
 import { formatName, getAtt, ref } from "../../util";
 import { Duration } from "../../property/duration";
-import { Schema } from "./schema";
+// import { GraphQLSchema, Definition } from "./graphql-schema";
 
-export type GraphQLProps = {
-	name?: string
-	authenticationType?: 'api-key'
-	schema: Schema
-}
+// export type GraphQLProps = {
+// 	name?: string
+// 	authenticationType?: 'api-key'
+// 	schema: Definition
+// }
 
-export class GraphQL extends Group {
-	readonly api: GraphQLApi
-	readonly schema: GraphQLSchema
+// export class GraphQL extends Group {
+// 	readonly api: GraphQLApi
+// 	readonly schema: GraphQLSchema
 
-	constructor(private logicalId: string, props: GraphQLProps) {
-		const api = new GraphQLApi(logicalId, props)
-		const schema = new GraphQLSchema(logicalId, {
-			apiId: api.id,
-			definition: props.schema,
-		}).dependsOn(api)
+// 	constructor(logicalId: string, props: GraphQLProps) {
+// 		const api = new GraphQLApi(logicalId, props)
+// 		const schema = new GraphQLSchema(logicalId, {
+// 			apiId: api.id,
+// 			definition: props.schema,
+// 		}).dependsOn(api)
 
-		super([ api, schema ])
+// 		super([ api, schema ])
 
-		this.api = api
-		this.schema = schema
-	}
+// 		this.api = api
+// 		this.schema = schema
+// 	}
 
-	attachDomainName(domainName: string, certificateArn: string) {
-		const id = this.logicalId + domainName
-		const domain = new DomainName(id, {
-			domainName,
-			certificateArn
-		})
+// 	// attachDomainName(domainName: string, certificateArn: string) {
+// 	// 	const id = this.logicalId + domainName
+// 	// 	const domain = new DomainName(id, {
+// 	// 		domainName,
+// 	// 		certificateArn
+// 	// 	})
 
-		const association = new DomainNameApiAssociation(id, {
-			apiId: this.api.id,
-			domainName,
-		}).dependsOn(this.api, domain)
+// 	// 	const association = new DomainNameApiAssociation(id, {
+// 	// 		apiId: this.api.id,
+// 	// 		domainName,
+// 	// 	}).dependsOn(this.api, domain)
 
-		this.children.push(domain, association)
+// 	// 	this.children.push(domain, association)
 
-		return this
-	}
-}
+// 	// 	return this
+// 	// }
+// }
 
-
-class GraphQLApi extends Resource {
+export class GraphQLApi extends Resource {
 
 	readonly name: string
 	private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
@@ -96,57 +95,6 @@ class GraphQLApi extends Resource {
 					AuthorizerResultTtlInSeconds: provider.ttl.toSeconds(),
 				}
 			}))
-		}
-	}
-}
-
-
-class GraphQLSchema extends Resource {
-	constructor(logicalId: string, private props: {
-		apiId: string
-		definition: Schema
-	}) {
-		super('AWS::AppSync::GraphQLSchema', logicalId, [
-			props.definition
-		])
-	}
-
-	properties() {
-		return {
-			ApiId: this.props.apiId,
-			Definition: this.props.definition.toDefinition(),
-		}
-	}
-}
-
-class DomainName extends Resource {
-	constructor(logicalId: string, private props: {
-		domainName: string
-		certificateArn: string
-	}) {
-		super('AWS::AppSync::DomainName', logicalId)
-	}
-
-	properties() {
-		return {
-			DomainName: this.props.domainName,
-			CertificateArn: this.props.certificateArn,
-		}
-	}
-}
-
-class DomainNameApiAssociation extends Resource {
-	constructor(logicalId: string, private props: {
-		apiId: string
-		domainName: string
-	}) {
-		super('AWS::AppSync::DomainNameApiAssociation', logicalId)
-	}
-
-	properties() {
-		return {
-			ApiId: this.props.apiId,
-			DomainName: this.props.domainName,
 		}
 	}
 }

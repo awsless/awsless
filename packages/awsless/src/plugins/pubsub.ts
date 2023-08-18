@@ -9,7 +9,7 @@ export const pubsubPlugin = definePlugin({
 	name: 'pubsub',
 	schema: z.object({
 		stacks: z.object({
-			/** Define the pubsub subscriber in your stack
+			/** Define the pubsub subscriber in your stack.
 			 * @example
 			 * {
 			 *   pubsub: {
@@ -21,13 +21,13 @@ export const pubsubPlugin = definePlugin({
 			 * }
 			 */
 			pubsub: z.record(ResourceIdSchema, z.object({
-				/** The SQL statement used to query the iot topic */
+				/** The SQL statement used to query the iot topic. */
 				sql: z.string(),
 
-				/** The version of the SQL rules engine to use when evaluating the rule */
+				/** The version of the SQL rules engine to use when evaluating the rule. */
 				sqlVersion: z.enum(['2015-10-08', '2016-03-23', 'beta']).default('2016-03-23'),
 
-				/** The consuming lambda function properties */
+				/** The consuming lambda function properties. */
 				consumer: FunctionSchema,
 			})).optional()
 		}).array()
@@ -44,7 +44,7 @@ export const pubsubPlugin = definePlugin({
 		const { config, stack, stackConfig } = ctx
 
 		for(const [ id, props ] of Object.entries(stackConfig.pubsub || {})) {
-			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const lambda = toLambdaFunction(ctx, `pubsub-${id}`, props.consumer)
 			const source = new IotEventSource(id, lambda, {
 				name: `${config.name}-${stack.name}-${id}`,
 				sql: props.sql,

@@ -10,6 +10,7 @@ export type QueueProps = {
 	deliveryDelay?: Duration
 	receiveMessageWaitTime?: Duration
 	maxMessageSize?: Size
+	deadLetterArn?: string
 }
 
 export class Queue extends Resource {
@@ -19,6 +20,11 @@ export class Queue extends Resource {
 		super('AWS::SQS::Queue', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
+	}
+
+	setDeadLetter(arn:string) {
+		this.props.deadLetterArn = arn
+		return this
 	}
 
 	get arn() {
@@ -49,6 +55,11 @@ export class Queue extends Resource {
 			MessageRetentionPeriod: this.props.retentionPeriod?.toSeconds() ?? Duration.days(4).toSeconds(),
 			ReceiveMessageWaitTimeSeconds: this.props.receiveMessageWaitTime?.toSeconds() ?? 0,
 			VisibilityTimeout: this.props.visibilityTimeout?.toSeconds() ?? 30,
+			...(this.props.deadLetterArn ? {
+				RedrivePolicy: {
+					deadLetterTargetArn: this.props.deadLetterArn,
+				}
+			} : {})
 		}
 	}
 }

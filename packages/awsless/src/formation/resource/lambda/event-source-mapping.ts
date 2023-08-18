@@ -27,6 +27,12 @@ export class EventSourceMapping extends Resource {
 		super('AWS::Lambda::EventSourceMapping', logicalId)
 	}
 
+	setOnFailure(arn: string) {
+		this.props.onFailure = arn
+
+		return this
+	}
+
 	properties() {
 		return {
 			Enabled: true,

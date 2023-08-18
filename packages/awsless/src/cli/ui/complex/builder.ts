@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "fs/promises"
 import { App } from "../../../formation/app.js"
-import { assetDir } from "../../../util/path.js"
+import { directories } from "../../../util/path.js"
 import { createTimer } from "../../../util/timer.js"
 import { RenderFactory } from "../../lib/renderer.js"
 import { Signal, derive } from "../../lib/signal.js"
@@ -73,7 +73,7 @@ export const assetBuilder = (app:App):RenderFactory => {
 					derive([ details ], (details) => {
 						return Object.entries(details).map(([key, value]) => {
 							return `${style.label(key)} ${value}`
-						}).join(' / ')
+						}).join(style.placeholder(' ─ '))
 					}),
 					br(),
 				])
@@ -83,7 +83,7 @@ export const assetBuilder = (app:App):RenderFactory => {
 				const timer = createTimer()
 				const data = await asset.build({
 					async write(file, data) {
-						const fullpath = join(assetDir, asset.type, app.name, stack.name, asset.id, file)
+						const fullpath = join(directories.asset, asset.type, app.name, stack.name, asset.id, file)
 						const basepath = dirname(fullpath)
 
 						await mkdir(basepath, { recursive: true })

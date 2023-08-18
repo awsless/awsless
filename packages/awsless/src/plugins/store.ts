@@ -9,12 +9,12 @@ export const storePlugin = definePlugin({
 	name: 'store',
 	schema: z.object({
 		stacks: z.object({
-			/** Define the stores in your stack
+			/** Define the stores in your stack.
 			 * @example
 			 * {
 			 *   stores: [ 'STORE_NAME' ]
 			 * }
-			 * */
+			 */
 			stores: z.array(ResourceIdSchema).optional()
 		}).array()
 	}),
