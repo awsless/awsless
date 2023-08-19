@@ -1,21 +1,10 @@
 
-import { definePlugin } from '../plugin.js';
+import { definePlugin } from '../../plugin.js';
 import { z } from 'zod'
-import { FunctionSchema, toLambdaFunction } from './function.js';
-import { SqsEventSource } from '../formation/resource/lambda/event-source/sqs.js';
-import { Queue } from '../formation/resource/sqs/queue.js';
-import { EventInvokeConfig } from '../formation/resource/lambda/event-invoke-config.js';
-import { EventSourceMapping } from '../formation/resource/lambda/event-source-mapping.js';
-import { Config } from '../config.js';
-
-const hasOnFailure = (config: Config) => {
-	const onFailure = config.stacks.find(stack => {
-		// @ts-ignore
-		return typeof stack.onFailure !== 'undefined'
-	})
-
-	return !!onFailure
-}
+import { FunctionSchema, toLambdaFunction } from '../function.js';
+import { SqsEventSource } from '../../formation/resource/lambda/event-source/sqs.js';
+import { Queue } from '../../formation/resource/sqs/queue.js';
+import { hasOnFailure } from './util.js';
 
 export const onFailurePlugin = definePlugin({
 	name: 'on-failure',
@@ -71,24 +60,5 @@ export const onFailurePlugin = definePlugin({
 		})
 
 		stack.add(lambda, source)
-	},
-	onResource({ config, resource, bootstrap }) {
-		if(!hasOnFailure(config)) {
-			return
-		}
-
-		const queueArn = bootstrap.import('on-failure-queue-arn')
-
-		if(resource instanceof Queue) {
-			resource.setDeadLetter(queueArn)
-		}
-
-		if(resource instanceof EventInvokeConfig) {
-			resource.setOnFailure(queueArn)
-		}
-
-		if(resource instanceof EventSourceMapping) {
-			resource.setOnFailure(queueArn)
-		}
 	}
 })

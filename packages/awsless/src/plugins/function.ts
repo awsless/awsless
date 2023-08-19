@@ -10,6 +10,7 @@ import { Duration } from '../formation/property/duration.js';
 import { Size } from '../formation/property/size.js';
 import { Code } from '../formation/resource/lambda/code.js';
 import { EventInvokeConfig } from '../formation/resource/lambda/event-invoke-config.js';
+import { getGlobalOnFailure } from './on-failure/util.js';
 
 const MemorySizeSchema = SizeSchema
 	.refine(sizeMin(Size.megaBytes(128)), 'Minimum memory size is 128 MB')
@@ -159,19 +160,22 @@ export const functionPlugin = definePlugin({
 	name: 'function',
 	schema,
 	onStack(ctx) {
-		// const { config, stack } = tx
-		for(const [ id, props ] of Object.entries(ctx.stackConfig.functions || {})) {
-			// const props = typeof fileOrProps === 'string'
-			// 	? { ...config.defaults?.function, file: fileOrProps }
-			// 	: { ...config.defaults?.function, ...fileOrProps }
+		const { config, stack } = ctx
 
-			const lambda = toLambdaFunction(ctx, id, props)
+		for(const [ id, fileOrProps ] of Object.entries(ctx.stackConfig.functions || {})) {
+			const props = typeof fileOrProps === 'string'
+				? { ...config.defaults?.function, file: fileOrProps }
+				: { ...config.defaults?.function, ...fileOrProps }
 
-			// const invoke = new EventInvokeConfig(id, {
-			// 	retryAttempts: props.
-			// })
+			const lambda = toLambdaFunction(ctx, id, fileOrProps)
 
-			ctx.stack.add(lambda)
+			const invoke = new EventInvokeConfig(id, {
+				functionName: lambda.name,
+				retryAttempts: props.retryAttempts,
+				onFailure: getGlobalOnFailure(ctx),
+			}).dependsOn(lambda)
+
+			stack.add(invoke, lambda)
 		}
 	},
 })
@@ -202,13 +206,6 @@ export const toLambdaFunction = (
 	if (props.runtime.startsWith('nodejs')) {
 		lambda.addEnvironment('AWS_NODEJS_CONNECTION_REUSE_ENABLED', '1')
 	}
-
-	const invoke = new EventInvokeConfig(id, {
-		functionName: lambda.name,
-		retryAttempts: props.retryAttempts,
-	}).dependsOn(lambda)
-
-	ctx.stack.add(invoke)
 
 	return lambda
 }

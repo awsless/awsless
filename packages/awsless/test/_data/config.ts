@@ -10,6 +10,7 @@ import { topicStack } from "./stack/topic"
 import { cronStack } from "./stack/cron"
 import { pubsubStack } from "./stack/pubsub"
 import { httpStack } from "./stack/http"
+import { failureStack } from "./stack/failure.js"
 
 export default defineAppConfig(input => ({
 	name: 'app',
@@ -46,7 +47,7 @@ export default defineAppConfig(input => ({
 		// topicStack,
 		// cronStack,
 		// pubsubStack,
-
+		failureStack,
 		httpStack,
 		// searchStack,
 

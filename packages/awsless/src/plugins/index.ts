@@ -11,7 +11,7 @@ import { extendPlugin } from './extend.js';
 import { pubsubPlugin } from './pubsub.js';
 import { graphqlPlugin } from './graphql.js';
 import { domainPlugin } from './domain.js';
-import { onFailurePlugin } from './on-failure.js';
+import { onFailurePlugin } from './on-failure/index.js';
 import { vpcPlugin } from './vpc.js';
 import { httpPlugin } from './http.js';
 import { searchPlugin } from './search.js';

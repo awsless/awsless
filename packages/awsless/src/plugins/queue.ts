@@ -8,6 +8,7 @@ import { SizeSchema } from '../schema/size.js';
 import { LocalFileSchema } from '../schema/local-file.js';
 import { Queue } from '../formation/resource/sqs/queue.js';
 import { SqsEventSource } from '../formation/resource/lambda/event-source/sqs.js';
+import { getGlobalOnFailure } from './on-failure/util.js';
 
 export const queuePlugin = definePlugin({
 	name: 'queue',
@@ -110,6 +111,7 @@ export const queuePlugin = definePlugin({
 			const lambda = toLambdaFunction(ctx, `queue-${id}`, props.consumer)
 			const source = new SqsEventSource(id, lambda, {
 				queueArn: queue.arn,
+				onFailure: getGlobalOnFailure(ctx),
 			})
 
 			stack.add(queue, lambda, source)

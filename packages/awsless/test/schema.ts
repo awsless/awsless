@@ -1,13 +1,27 @@
 import { z } from "zod";
-import { Duration, DurationSchema } from "../src/schema/duration"
-import { Duration as CDKDuration } from 'aws-cdk-lib/core'
+import { DurationFormat, DurationSchema } from "../src/schema/duration"
 import { CronExpression, CronExpressionSchema, RateExpression, RateExpressionSchema } from "../src/plugins/cron/schema/schedule";
-import { Schedule } from "aws-cdk-lib/aws-events";
+import { Duration } from "../src/formation/property/duration";
+import { SizeFormat, SizeSchema } from "../src/schema/size";
+import { Size } from "../src/formation/property/size";
 
 describe('schema', () => {
+	it('size', () => {
+		expectTypeOf<z.input<typeof SizeSchema>>().toEqualTypeOf<SizeFormat>()
+		expectTypeOf<z.output<typeof SizeSchema>>().toEqualTypeOf<Size>()
+
+		SizeSchema.parse('1 KB')
+		SizeSchema.parse('2 MB')
+		SizeSchema.parse('3 GB')
+
+		expect(() => SizeSchema.parse('KB')).toThrow()
+		expect(() => SizeSchema.parse('1')).toThrow()
+		expect(() => SizeSchema.parse('')).toThrow()
+	})
+
 	it('duration', () => {
-		expectTypeOf<z.input<typeof DurationSchema>>().toEqualTypeOf<Duration>()
-		expectTypeOf<z.output<typeof DurationSchema>>().toEqualTypeOf<CDKDuration>()
+		expectTypeOf<z.input<typeof DurationSchema>>().toEqualTypeOf<DurationFormat>()
+		expectTypeOf<z.output<typeof DurationSchema>>().toEqualTypeOf<Duration>()
 
 		DurationSchema.parse('1 minute')
 		DurationSchema.parse('99 minutes')
@@ -16,12 +30,11 @@ describe('schema', () => {
 		expect(() => DurationSchema.parse('hour')).toThrow()
 		expect(() => DurationSchema.parse('1')).toThrow()
 		expect(() => DurationSchema.parse('')).toThrow()
-		// expect(() => DurationSchema.parse('0 hour')).toThrow()
 	})
 
 	it('rate expression', () => {
 		expectTypeOf<z.input<typeof RateExpressionSchema>>().toEqualTypeOf<RateExpression>()
-		expectTypeOf<z.output<typeof RateExpressionSchema>>().toEqualTypeOf<Schedule>()
+		expectTypeOf<z.output<typeof RateExpressionSchema>>().toEqualTypeOf<RateExpression>()
 
 		RateExpressionSchema.parse('rate(1 minute)')
 		RateExpressionSchema.parse('rate(99 minutes)')
@@ -38,7 +51,7 @@ describe('schema', () => {
 
 	it('cron expression', () => {
 		expectTypeOf<z.input<typeof CronExpressionSchema>>().toEqualTypeOf<CronExpression>()
-		expectTypeOf<z.output<typeof CronExpressionSchema>>().toEqualTypeOf<Schedule>()
+		expectTypeOf<z.output<typeof CronExpressionSchema>>().toEqualTypeOf<CronExpression>()
 
 		CronExpressionSchema.parse('cron(* * * * ? *)')
 		CronExpressionSchema.parse('cron(5 * * * ? *)')

@@ -15,6 +15,7 @@ export class DynamoDBEventSource extends Group {
 		startingPosition?: StartingPosition
 		startingPositionTimestamp?: number
 		tumblingWindow?: Duration
+		onFailure?: string
 	}) {
 		const source = new EventSourceMapping(id, {
 			functionArn: lambda.arn,
@@ -28,6 +29,7 @@ export class DynamoDBEventSource extends Group {
 			startingPosition: props.startingPosition,
 			startingPositionTimestamp: props.startingPositionTimestamp,
 			tumblingWindow: props.tumblingWindow,
+			onFailure: props.onFailure,
 		})
 
 		lambda.addPermissions({

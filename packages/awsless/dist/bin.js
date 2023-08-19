@@ -909,6 +909,17 @@ var EventInvokeConfig = class extends Resource {
   }
 };
 
+// src/plugins/on-failure/util.ts
+var getGlobalOnFailure = ({ config, bootstrap: bootstrap2 }) => {
+  return hasOnFailure(config) ? bootstrap2.import("on-failure-queue-arn") : void 0;
+};
+var hasOnFailure = (config) => {
+  const onFailure = config.stacks.find((stack) => {
+    return typeof stack.onFailure !== "undefined";
+  });
+  return !!onFailure;
+};
+
 // src/plugins/function.ts
 var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum memory size is 10 GB");
 var TimeoutSchema = DurationSchema.refine(durationMin(Duration.seconds(10)), "Minimum timeout duration is 10 seconds").refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
@@ -1052,7 +1063,8 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
   }
   const invoke = new EventInvokeConfig(id, {
     functionName: lambda.name,
-    retryAttempts: props.retryAttempts
+    retryAttempts: props.retryAttempts,
+    onFailure: getGlobalOnFailure(ctx)
   }).dependsOn(lambda);
   ctx.stack.add(invoke);
   return lambda;
@@ -1369,7 +1381,8 @@ var queuePlugin = definePlugin({
       });
       const lambda = toLambdaFunction(ctx, `queue-${id}`, props.consumer);
       const source = new SqsEventSource(id, lambda, {
-        queueArn: queue2.arn
+        queueArn: queue2.arn,
+        onFailure: getGlobalOnFailure(ctx)
       });
       stack.add(queue2, lambda, source);
       bind((lambda2) => {
@@ -1482,7 +1495,8 @@ var DynamoDBEventSource = class extends Group {
       parallelizationFactor: props.parallelizationFactor ?? 1,
       startingPosition: props.startingPosition,
       startingPositionTimestamp: props.startingPositionTimestamp,
-      tumblingWindow: props.tumblingWindow
+      tumblingWindow: props.tumblingWindow,
+      onFailure: props.onFailure
     });
     lambda.addPermissions({
       actions: [
@@ -1608,6 +1622,7 @@ var tablePlugin = definePlugin({
         const lambda = toLambdaFunction(ctx, `stream-${id}`, props.stream.consumer);
         const source = new DynamoDBEventSource(id, lambda, {
           tableArn: table.arn,
+          onFailure: getGlobalOnFailure(ctx),
           ...props.stream
         });
         stack.add(lambda, source);
@@ -2643,14 +2658,8 @@ var domainPlugin = definePlugin({
   }
 });
 
-// src/plugins/on-failure.ts
+// src/plugins/on-failure/index.ts
 import { z as z16 } from "zod";
-var hasOnFailure = (config) => {
-  const onFailure = config.stacks.find((stack) => {
-    return typeof stack.onFailure !== "undefined";
-  });
-  return !!onFailure;
-};
 var onFailurePlugin = definePlugin({
   name: "on-failure",
   schema: z16.object({
@@ -2697,21 +2706,6 @@ var onFailurePlugin = definePlugin({
       resources: [queueArn]
     });
     stack.add(lambda, source);
-  },
-  onResource({ config, resource, bootstrap: bootstrap2 }) {
-    if (!hasOnFailure(config)) {
-      return;
-    }
-    const queueArn = bootstrap2.import("on-failure-queue-arn");
-    if (resource instanceof Queue) {
-      resource.setDeadLetter(queueArn);
-    }
-    if (resource instanceof EventInvokeConfig) {
-      resource.setOnFailure(queueArn);
-    }
-    if (resource instanceof EventSourceMapping) {
-      resource.setOnFailure(queueArn);
-    }
   }
 });
 

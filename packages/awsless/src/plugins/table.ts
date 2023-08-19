@@ -5,6 +5,7 @@ import { ResourceIdSchema } from '../schema/resource-id.js';
 import { Table } from '../formation/resource/dynamodb/table.js';
 import { FunctionSchema, toLambdaFunction } from './function.js';
 import { DynamoDBEventSource } from '../formation/resource/lambda/event-source/dynamodb.js';
+import { getGlobalOnFailure } from './on-failure/util.js';
 
 const KeySchema = z.string().min(1).max(255)
 
@@ -133,8 +134,11 @@ export const tablePlugin = definePlugin({
 				const lambda = toLambdaFunction(ctx, `stream-${id}`, props.stream.consumer)
 				const source = new DynamoDBEventSource(id, lambda, {
 					tableArn: table.arn,
+					onFailure: getGlobalOnFailure(ctx),
 					...props.stream,
 				})
+
+				// if(hasOnFailure(config)) {}
 
 				stack.add(lambda, source)
 			}
