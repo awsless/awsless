@@ -9,7 +9,6 @@ export class SqsEventSource extends Group {
 		batchSize?: number
 		maxBatchingWindow?: Duration
 		maxConcurrency?: number
-		onFailure?: string
 	}) {
 		const source = new EventSourceMapping(id, {
 			functionArn: lambda.arn,
@@ -17,7 +16,6 @@ export class SqsEventSource extends Group {
 			batchSize: props.batchSize ?? 10,
 			maxBatchingWindow: props.maxBatchingWindow,
 			maxConcurrency: props.maxConcurrency,
-			onFailure: props.onFailure,
 		})
 
 		lambda.addPermissions({

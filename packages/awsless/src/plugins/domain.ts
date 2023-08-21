@@ -39,7 +39,7 @@ export const domainPlugin = definePlugin({
 			/** The DNS record type. */
 			type: z.enum([ 'A', 'AAAA', 'CAA', 'CNAME', 'DS', 'MX', 'NAPTR', 'NS', 'PTR', 'SOA', 'SPF', 'SRV', 'TXT' ]),
 
-			/** The resource record cache time to live (TTL) */
+			/** The resource record cache time to live (TTL). */
 			ttl: DurationSchema,
 
 			/** One or more values that correspond with the value that you specified for the Type property. */

@@ -371,6 +371,7 @@ var Function = class extends Resource {
       Timeout: this.props.timeout?.toSeconds() ?? 10,
       Architectures: [this.props.architecture ?? "arm64"],
       Role: this.role.arn,
+      ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
       ...this.props.code.toCodeJson(),
       EphemeralStorage: {
         Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512
@@ -947,6 +948,7 @@ var hasOnFailure = (config) => {
 var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum memory size is 10 GB");
 var TimeoutSchema = DurationSchema.refine(durationMin(Duration.seconds(10)), "Minimum timeout duration is 10 seconds").refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
 var EphemeralStorageSizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(512)), "Minimum ephemeral storage size is 512 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum ephemeral storage size is 10 GB");
+var ReservedConcurrentExecutionsSchema = import_zod6.z.number().int().min(0);
 var EnvironmentSchema = import_zod6.z.record(import_zod6.z.string(), import_zod6.z.string()).optional();
 var ArchitectureSchema = import_zod6.z.enum(["x86_64", "arm64"]);
 var RetryAttemptsSchema = import_zod6.z.number().int().min(0).max(2);
@@ -989,6 +991,10 @@ var FunctionSchema = import_zod6.z.union([
      * @default 2
     */
     retryAttempts: RetryAttemptsSchema.optional(),
+    /** The number of simultaneous executions to reserve for the function.
+     * You can specify a number from 0.
+     */
+    reserved: ReservedConcurrentExecutionsSchema.optional(),
     /** Environment variable key-value pairs.
      * @example
      * {
@@ -1034,6 +1040,10 @@ var schema = import_zod6.z.object({
        * @default 2
       */
       retryAttempts: RetryAttemptsSchema.default(2),
+      /** The number of simultaneous executions to reserve for the function.
+       * You can specify a number from 0.
+       */
+      reserved: ReservedConcurrentExecutionsSchema.optional(),
       /** Environment variable key-value pairs.
        * @example
        * {
@@ -1065,9 +1075,22 @@ var functionPlugin = definePlugin({
   name: "function",
   schema,
   onStack(ctx) {
-    for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {
-      const lambda = toLambdaFunction(ctx, id, props);
-      ctx.stack.add(lambda);
+    const { config, stack } = ctx;
+    for (const [id, fileOrProps] of Object.entries(ctx.stackConfig.functions || {})) {
+      const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
+      const lambda = toLambdaFunction(ctx, id, fileOrProps);
+      const invoke = new EventInvokeConfig(id, {
+        functionName: lambda.name,
+        retryAttempts: props.retryAttempts,
+        onFailure: getGlobalOnFailure(ctx)
+      }).dependsOn(lambda);
+      if (hasOnFailure(ctx.config)) {
+        lambda.addPermissions({
+          actions: ["sqs:SendMessage"],
+          resources: [getGlobalOnFailure(ctx)]
+        });
+      }
+      stack.add(invoke, lambda);
     }
   }
 });
@@ -1084,12 +1107,6 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
   if (props.runtime.startsWith("nodejs")) {
     lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1");
   }
-  const invoke = new EventInvokeConfig(id, {
-    functionName: lambda.name,
-    retryAttempts: props.retryAttempts,
-    onFailure: getGlobalOnFailure(ctx)
-  }).dependsOn(lambda);
-  ctx.stack.add(invoke);
   return lambda;
 };
 
@@ -1167,7 +1184,7 @@ var cronPlugin = definePlugin({
   name: "cron",
   schema: import_zod7.z.object({
     stacks: import_zod7.z.object({
-      /** Define the crons in your stack
+      /** Define the crons in your stack.
        * @example
        * {
        *   crons: {
@@ -1179,7 +1196,7 @@ var cronPlugin = definePlugin({
        * }
        * */
       crons: import_zod7.z.record(ResourceIdSchema, import_zod7.z.object({
-        /** The consuming lambda function properties */
+        /** The consuming lambda function properties. */
         consumer: FunctionSchema,
         /** The scheduling expression.
          * @example 'cron(0 20 * * ? *)'
@@ -1246,7 +1263,8 @@ var Queue = class extends Resource {
       VisibilityTimeout: this.props.visibilityTimeout?.toSeconds() ?? 30,
       ...this.props.deadLetterArn ? {
         RedrivePolicy: {
-          deadLetterTargetArn: this.props.deadLetterArn
+          deadLetterTargetArn: this.props.deadLetterArn,
+          maxReceiveCount: this.props.maxReceiveCount ?? 100
         }
       } : {}
     };
@@ -1302,8 +1320,7 @@ var SqsEventSource = class extends Group {
       sourceArn: props.queueArn,
       batchSize: props.batchSize ?? 10,
       maxBatchingWindow: props.maxBatchingWindow,
-      maxConcurrency: props.maxConcurrency,
-      onFailure: props.onFailure
+      maxConcurrency: props.maxConcurrency
     });
     lambda.addPermissions({
       actions: [
@@ -1318,6 +1335,14 @@ var SqsEventSource = class extends Group {
 };
 
 // src/plugins/queue.ts
+var RetentionPeriodSchema = DurationSchema.refine(durationMin(Duration.minutes(1)), "Minimum retention period is 1 minute").refine(durationMax(Duration.days(14)), "Maximum retention period is 14 days");
+var VisibilityTimeoutSchema = DurationSchema.refine(durationMax(Duration.hours(12)), "Maximum visibility timeout is 12 hours");
+var DeliveryDelaySchema = DurationSchema.refine(durationMax(Duration.minutes(15)), "Maximum delivery delay is 15 minutes");
+var ReceiveMessageWaitTimeSchema = DurationSchema.refine(durationMin(Duration.seconds(1)), "Minimum receive message wait time is 1 second").refine(durationMax(Duration.seconds(20)), "Maximum receive message wait time is 20 seconds");
+var MaxMessageSizeSchema = SizeSchema.refine(sizeMin(Size.kiloBytes(1)), "Minimum max message size is 1 KB").refine(sizeMax(Size.kiloBytes(256)), "Maximum max message size is 256 KB");
+var BatchSizeSchema = import_zod8.z.number().int().min(1, "Minimum batch size is 1").max(1e4, "Maximum batch size is 10000");
+var MaxConcurrencySchema = import_zod8.z.number().int().min(2, "Minimum max concurrency is 2").max(1e3, "Maximum max concurrency is 1000");
+var MaxBatchingWindow = DurationSchema.refine(durationMax(Duration.minutes(5)), "Maximum max batching window is 5 minutes");
 var queuePlugin = definePlugin({
   name: "queue",
   schema: import_zod8.z.object({
@@ -1325,29 +1350,40 @@ var queuePlugin = definePlugin({
       /** Define the defaults properties for all queue's in your app. */
       queue: import_zod8.z.object({
         /** The number of seconds that Amazon SQS retains a message.
-         * You can specify a duration value from 1 minute to 14 days.
+         * You can specify a duration from 1 minute to 14 days.
          * @default '7 days' */
-        retentionPeriod: DurationSchema.default("7 days"),
+        retentionPeriod: RetentionPeriodSchema.default("7 days"),
         /** The length of time during which a message will be unavailable after a message is delivered from the queue.
          * This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue.
-         * You can specify a duration value from 0 to 12 hours.
+         * You can specify a duration from 0 to 12 hours.
          * @default '30 seconds' */
-        visibilityTimeout: DurationSchema.default("30 seconds"),
+        visibilityTimeout: VisibilityTimeoutSchema.default("30 seconds"),
         /** The time in seconds for which the delivery of all messages in the queue is delayed.
-         * You can specify a duration value from 0 to 15 minutes.
+         * You can specify a duration from 0 to 15 minutes.
          * @default '0 seconds' */
-        deliveryDelay: DurationSchema.default("0 seconds"),
+        deliveryDelay: DeliveryDelaySchema.default("0 seconds"),
         /** Specifies the duration, in seconds,
          * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
          * rather than returning an empty response if a message isn't yet available.
-         * You can specify an integer from 1 to 20.
-         * You can specify a duration value from 1 to 20 seconds.
-         * @default '0 seconds' */
-        receiveMessageWaitTime: DurationSchema.default("0 seconds"),
+         * You can specify a duration from 1 to 20 seconds.
+         * Short polling is used as the default. */
+        receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
         /** The limit of how many bytes that a message can contain before Amazon SQS rejects it.
-         * You can specify an size value from 1 KB to 256 KB.
+         * You can specify an size from 1 KB to 256 KB.
          * @default '256 KB' */
-        maxMessageSize: SizeSchema.default("256 KB")
+        maxMessageSize: MaxMessageSizeSchema.default("256 KB"),
+        /** The maximum number of records in each batch that Lambda pulls from your queue and sends to your function.
+         * Lambda passes all of the records in the batch to the function in a single call, up to the payload limit for synchronous invocation (6 MB).
+         * You can specify an integer from 1 to 10000.
+         * @default 10 */
+        batchSize: BatchSizeSchema.default(10),
+        /** Limits the number of concurrent instances that the queue worker can invoke.
+         * You can specify an integer from 2 to 1000. */
+        maxConcurrency: MaxConcurrencySchema.optional(),
+        /** The maximum amount of time, that Lambda spends gathering records before invoking the function.
+         * You can specify an duration from 0 seconds to 5 minutes.
+         * @default '0 seconds' */
+        maxBatchingWindow: MaxBatchingWindow.optional()
       }).default({})
     }).default({}),
     stacks: import_zod8.z.object({
@@ -1369,26 +1405,38 @@ var queuePlugin = definePlugin({
             /** The number of seconds that Amazon SQS retains a message.
              * You can specify a duration value from 1 minute to 14 days.
              * @default '7 days' */
-            retentionPeriod: DurationSchema.optional(),
+            retentionPeriod: RetentionPeriodSchema.optional(),
             /** The length of time during which a message will be unavailable after a message is delivered from the queue.
              * This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue.
              * You can specify a duration value from 0 to 12 hours.
              * @default '30 seconds' */
-            visibilityTimeout: DurationSchema.optional(),
+            visibilityTimeout: VisibilityTimeoutSchema.optional(),
             /** The time in seconds for which the delivery of all messages in the queue is delayed.
              * You can specify a duration value from 0 to 15 minutes.
              * @default '0 seconds' */
-            deliveryDelay: DurationSchema.optional(),
+            deliveryDelay: DeliveryDelaySchema.optional(),
             /** Specifies the duration, in seconds,
              * that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response,
              * rather than returning an empty response if a message isn't yet available.
              * You can specify a duration value from 1 to 20 seconds.
-             * @default '0 seconds' */
-            receiveMessageWaitTime: DurationSchema.optional(),
+             * Short polling is used as the default. */
+            receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
             /** The limit of how many bytes that a message can contain before Amazon SQS rejects it.
              * You can specify an size value from 1 KB to 256 KB.
              * @default '256 KB' */
-            maxMessageSize: SizeSchema.optional()
+            maxMessageSize: MaxMessageSizeSchema.optional(),
+            /** The maximum number of records in each batch that Lambda pulls from your queue and sends to your function.
+             * Lambda passes all of the records in the batch to the function in a single call, up to the payload limit for synchronous invocation (6 MB).
+             * You can specify an integer from 1 to 10000.
+             * @default 10 */
+            batchSize: BatchSizeSchema.optional(),
+            /** Limits the number of concurrent instances that the queue worker can invoke.
+             * You can specify an integer from 2 to 1000. */
+            maxConcurrency: MaxConcurrencySchema.optional(),
+            /** The maximum amount of time, that Lambda spends gathering records before invoking the function.
+             * You can specify an duration from 0 seconds to 5 minutes.
+             * @default '0 seconds' */
+            maxBatchingWindow: MaxBatchingWindow.optional()
           })
         ])
       ).optional()
@@ -1400,12 +1448,15 @@ var queuePlugin = definePlugin({
       const props = typeof functionOrProps === "string" ? { ...config.defaults.queue, consumer: functionOrProps } : { ...config.defaults.queue, ...functionOrProps };
       const queue2 = new Queue(id, {
         name: `${config.name}-${stack.name}-${id}`,
+        deadLetterArn: getGlobalOnFailure(ctx),
         ...props
       });
       const lambda = toLambdaFunction(ctx, `queue-${id}`, props.consumer);
       const source = new SqsEventSource(id, lambda, {
         queueArn: queue2.arn,
-        onFailure: getGlobalOnFailure(ctx)
+        batchSize: props.batchSize,
+        maxConcurrency: props.maxConcurrency,
+        maxBatchingWindow: props.maxBatchingWindow
       });
       stack.add(queue2, lambda, source);
       bind((lambda2) => {
@@ -1461,6 +1512,26 @@ var Table = class extends Resource {
       resources: [this.arn]
     };
   }
+  attributeDefinitions() {
+    const fields = this.props.fields || {};
+    const attributes = new Set([
+      this.props.hash,
+      this.props.sort,
+      ...Object.values(this.props.indexes || {}).map((index) => [
+        index.hash,
+        index.sort
+      ])
+    ].flat().filter(Boolean));
+    const types = {
+      string: "S",
+      number: "N",
+      binary: "B"
+    };
+    return [...attributes].map((name) => ({
+      AttributeName: name,
+      AttributeType: types[fields[name] || "string"]
+    }));
+  }
   properties() {
     return {
       TableName: this.name,
@@ -1473,10 +1544,7 @@ var Table = class extends Resource {
         { KeyType: "HASH", AttributeName: this.props.hash },
         ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
       ],
-      AttributeDefinitions: Object.entries(this.props.fields).map(([name, type]) => ({
-        AttributeName: name,
-        AttributeType: type[0].toUpperCase()
-      })),
+      AttributeDefinitions: this.attributeDefinitions(),
       ...this.props.stream ? {
         StreamSpecification: {
           StreamViewType: (0, import_change_case4.constantCase)(this.props.stream)
@@ -1561,6 +1629,7 @@ var tablePlugin = definePlugin({
           /** Specifies the name of the range / sort key that makes up the primary key for the table. */
           sort: KeySchema.optional(),
           /** A list of attributes that describe the key schema for the table and indexes.
+           * If no attribute field is defined we default to 'string'.
            * @example
            * {
            *   fields: {
@@ -1568,7 +1637,10 @@ var tablePlugin = definePlugin({
            *   }
            * }
            */
-          fields: import_zod9.z.record(import_zod9.z.string(), import_zod9.z.enum(["string", "number", "binary"])),
+          fields: import_zod9.z.record(
+            import_zod9.z.string(),
+            import_zod9.z.enum(["string", "number", "binary"])
+          ).optional(),
           /** The table class of the table.
            * @default 'standard'
            */
@@ -1617,18 +1689,22 @@ var tablePlugin = definePlugin({
              */
             projection: import_zod9.z.enum(["all", "keys-only"]).default("all")
           })).optional()
-        }).refine((props) => {
-          return (
-            // Check the hash key
-            props.fields.hasOwnProperty(props.hash) && // Check the sort key
-            (!props.sort || props.fields.hasOwnProperty(props.sort)) && // Check all indexes
-            !Object.values(props.indexes || {}).map((index) => (
-              // Check the index hash key
-              props.fields.hasOwnProperty(index.hash) && // Check the index sort key
-              (!index.sort || props.fields.hasOwnProperty(index.sort))
-            )).includes(false)
-          );
-        }, "Hash & Sort keys must be defined inside the table fields")
+        })
+        // .refine(props => {
+        // 	return (
+        // 		// Check the hash key
+        // 		props.fields.hasOwnProperty(props.hash) &&
+        // 		// Check the sort key
+        // 		(!props.sort || props.fields.hasOwnProperty(props.sort)) &&
+        // 		// Check all indexes
+        // 		!Object.values(props.indexes || {}).map(index => (
+        // 			// Check the index hash key
+        // 			props.fields.hasOwnProperty(index.hash) &&
+        // 			// Check the index sort key
+        // 			(!index.sort || props.fields.hasOwnProperty(index.sort))
+        // 		)).includes(false)
+        // 	)
+        // }, 'Hash & Sort keys must be defined inside the table fields')
       ).optional()
     }).array()
   }),
@@ -2629,7 +2705,7 @@ var domainPlugin = definePlugin({
       name: DomainNameSchema.optional(),
       /** The DNS record type. */
       type: import_zod15.z.enum(["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]),
-      /** The resource record cache time to live (TTL) */
+      /** The resource record cache time to live (TTL). */
       ttl: DurationSchema,
       /** One or more values that correspond with the value that you specified for the Type property. */
       records: import_zod15.z.string().array()

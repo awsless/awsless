@@ -40,10 +40,10 @@ export default defineAppConfig(input => ({
 		// },
 	},
 	stacks: [
-		// tableStack,
-		// queueStack,
+		tableStack,
+		queueStack,
 		// storeStack,
-		// functionStack,
+		functionStack,
 		// topicStack,
 		// cronStack,
 		// pubsubStack,

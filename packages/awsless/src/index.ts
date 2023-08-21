@@ -7,6 +7,10 @@ export { definePlugin, Plugin } from './plugin'
 export type AppConfig = CombinedDefaultPluginsConfigInput
 export type StackConfig = CombinedDefaultPluginsConfigInput['stacks'][number]
 
+export const defineStackConfig = (config:StackConfig) => {
+	return config
+}
+
 export const defineAppConfig = (config:AppConfig | AppConfigFactory<AppConfig>) => {
 	return config
 }

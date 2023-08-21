@@ -6,6 +6,9 @@
 		// "module": "CommonJS",
 		// "moduleResolution": "NodeNext",
 		// "preserveSymlinks": true
+
+		"declaration": true,
+		"removeComments": false,
 		"esModuleInterop": true,
 		// "allowImportingTsExtensions": true,
 		"jsx": "react-jsx"

@@ -30,7 +30,6 @@ export const storePlugin = definePlugin({
 
 			bind(lambda => {
 				lambda.addPermissions(bucket.permissions)
-				// lambda.addEnvironment(`RESOURCE_STORE_${stack.name}_${id}`, bucket.name)
 			})
 		}
 	},

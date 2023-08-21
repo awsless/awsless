@@ -18,12 +18,16 @@ var getQueueName = getLocalResourceName;
 var getTopicName = getGlobalResourceName;
 
 // src/index.ts
+var defineStackConfig = (config) => {
+  return config;
+};
 var defineAppConfig = (config) => {
   return config;
 };
 export {
   defineAppConfig,
   definePlugin,
+  defineStackConfig,
   getFunctionName,
   getGlobalResourceName,
   getLocalResourceName,

@@ -6,14 +6,14 @@ export const tableStack: StackConfig = {
 	tables: {
 		stats: {
 			hash: 'id',
-			sort: 'lol',
-			fields: {
-				id: 'string'
-			},
-			stream: {
-				type: 'new-image',
-				consumer: __dirname + '/../function/stream.ts'
-			}
+			// sort: 'lol',
+			// fields: {
+			// 	id: 'string'
+			// },
+			// stream: {
+			// 	type: 'new-image',
+			// 	consumer: __dirname + '/../function/stream.ts'
+			// }
 		}
 	}
 }

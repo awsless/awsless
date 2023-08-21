@@ -22,6 +22,7 @@ var src_exports = {};
 __export(src_exports, {
   defineAppConfig: () => defineAppConfig,
   definePlugin: () => definePlugin,
+  defineStackConfig: () => defineStackConfig,
   getFunctionName: () => getFunctionName,
   getGlobalResourceName: () => getGlobalResourceName,
   getLocalResourceName: () => getLocalResourceName,
@@ -51,6 +52,9 @@ var getQueueName = getLocalResourceName;
 var getTopicName = getGlobalResourceName;
 
 // src/index.ts
+var defineStackConfig = (config) => {
+  return config;
+};
 var defineAppConfig = (config) => {
   return config;
 };
@@ -58,6 +62,7 @@ var defineAppConfig = (config) => {
 0 && (module.exports = {
   defineAppConfig,
   definePlugin,
+  defineStackConfig,
   getFunctionName,
   getGlobalResourceName,
   getLocalResourceName,

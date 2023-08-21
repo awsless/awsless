@@ -15,7 +15,7 @@ export type TableProps = {
 
 	hash: string
 	sort?: string
-	fields: Record<string, 'string' | 'number' | 'binary'>
+	fields?: Record<string, 'string' | 'number' | 'binary'>
 	class?: 'standard' | 'standard-infrequent-access'
 	pointInTimeRecovery?: boolean
 	timeToLiveAttribute?: string
@@ -72,6 +72,29 @@ export class Table extends Resource {
 		}
 	}
 
+	private attributeDefinitions() {
+		const fields = this.props.fields || {}
+		const attributes = new Set([
+			this.props.hash,
+			this.props.sort,
+			...Object.values(this.props.indexes || {}).map(index => [
+				index.hash,
+				index.sort,
+			])
+		].flat().filter(Boolean) as string[])
+
+		const types = {
+			string: 'S',
+			number: 'N',
+			binary: 'B',
+		} as const
+
+		return [ ...attributes ].map(name => ({
+			AttributeName: name,
+			AttributeType: types[fields[name] || 'string']
+		}))
+	}
+
 	properties() {
 		return {
 			TableName: this.name,
@@ -84,10 +107,7 @@ export class Table extends Resource {
 				{ KeyType: 'HASH', AttributeName: this.props.hash },
 				...(this.props.sort ? [{ KeyType: 'RANGE', AttributeName: this.props.sort }] : [])
 			],
-			AttributeDefinitions: Object.entries(this.props.fields).map(([ name, type ]) => ({
-				AttributeName: name,
-				AttributeType: type[0].toUpperCase(),
-			})),
+			AttributeDefinitions: this.attributeDefinitions(),
 			...(this.props.stream ? {
 				StreamSpecification: {
 					StreamViewType: constantCase(this.props.stream),

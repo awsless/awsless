@@ -138,7 +138,6 @@ export const graphqlPlugin = definePlugin({
 
 		for(const [ id, props ] of Object.entries(stackConfig.graphql || {})) {
 			const apiId = bootstrap.import(`graphql-${id}`)
-			// const defaults = config.defaults.graphql?.[apiId] || {}
 
 			for(const [ typeAndField, functionProps ] of Object.entries(props.resolvers || {})) {
 				const [ typeName, fieldName ] = typeAndField.split(/[\s]+/g)
@@ -152,26 +151,6 @@ export const graphqlPlugin = definePlugin({
 				})
 
 				stack.add(lambda, source)
-
-				// const source = DataSource.fromLambda(resolverId, apiId, lambda.arn)
-				// const lambdaConf = new FunctionConfiguration(resolverId, {
-				// 	apiId,
-				// 	code: Code.fromInline(resolverId, defaultResolver),
-				// 	dataSourceName: source.name,
-				// })
-
-				// const resolver = new Resolver(resolverId, {
-				// 	apiId,
-				// 	typeName,
-				// 	fieldName,
-				// 	functions: [ lambdaConf.arn ]
-				// 	// dataSourceName: source.name,
-				// 	// code: Code.fromInline(resolverId, defaultResolver),
-				// 	// requestMappingTemplate: defaults.mappingTemplate?.request,
-				// 	// responseMappingTemplate: defaults.mappingTemplate?.response,
-				// })
-
-				// stack.add(lambda, source, lambdaConf, resolver)
 			}
 		}
 	},

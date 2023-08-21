@@ -11,6 +11,7 @@ export type QueueProps = {
 	receiveMessageWaitTime?: Duration
 	maxMessageSize?: Size
 	deadLetterArn?: string
+	maxReceiveCount?: number
 }
 
 export class Queue extends Resource {
@@ -58,6 +59,7 @@ export class Queue extends Resource {
 			...(this.props.deadLetterArn ? {
 				RedrivePolicy: {
 					deadLetterTargetArn: this.props.deadLetterArn,
+					maxReceiveCount: this.props.maxReceiveCount ?? 100,
 				}
 			} : {})
 		}

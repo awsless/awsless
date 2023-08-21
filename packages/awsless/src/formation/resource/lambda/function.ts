@@ -19,6 +19,7 @@ export type FunctionProps = {
 	timeout?: Duration
 	ephemeralStorageSize?: Size
 	environment?: Record<string, string>
+	reserved?: number
 
 	// retryAttempts
 	// role?: string
@@ -91,6 +92,7 @@ export class Function extends Resource {
 			Timeout: this.props.timeout?.toSeconds() ?? 10,
 			Architectures: [ this.props.architecture ?? 'arm64' ],
 			Role: this.role.arn,
+			...this.attr('ReservedConcurrentExecutions', this.props.reserved),
 			...this.props.code.toCodeJson(),
 			EphemeralStorage: {
 				Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512

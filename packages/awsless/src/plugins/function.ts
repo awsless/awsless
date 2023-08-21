@@ -10,7 +10,7 @@ import { Duration } from '../formation/property/duration.js';
 import { Size } from '../formation/property/size.js';
 import { Code } from '../formation/resource/lambda/code.js';
 import { EventInvokeConfig } from '../formation/resource/lambda/event-invoke-config.js';
-import { getGlobalOnFailure } from './on-failure/util.js';
+import { getGlobalOnFailure, hasOnFailure } from './on-failure/util.js';
 
 const MemorySizeSchema = SizeSchema
 	.refine(sizeMin(Size.megaBytes(128)), 'Minimum memory size is 128 MB')
@@ -24,6 +24,7 @@ const EphemeralStorageSizeSchema = SizeSchema
 	.refine(sizeMin(Size.megaBytes(512)), 'Minimum ephemeral storage size is 512 MB')
 	.refine(sizeMax(Size.gigaBytes(10)), 'Minimum ephemeral storage size is 10 GB')
 
+const ReservedConcurrentExecutionsSchema = z.number().int().min(0)
 const EnvironmentSchema = z.record(z.string(), z.string()).optional()
 const ArchitectureSchema = z.enum([ 'x86_64', 'arm64' ])
 const RetryAttemptsSchema = z.number().int().min(0).max(2)
@@ -73,6 +74,11 @@ export const FunctionSchema = z.union([
 		 * @default 2
 		*/
 		retryAttempts: RetryAttemptsSchema.optional(),
+
+		/** The number of simultaneous executions to reserve for the function.
+		 * You can specify a number from 0.
+		 */
+		reserved: ReservedConcurrentExecutionsSchema.optional(),
 
 		/** Environment variable key-value pairs.
 		 * @example
@@ -127,6 +133,11 @@ const schema = z.object({
 			*/
 			retryAttempts: RetryAttemptsSchema.default(2),
 
+			/** The number of simultaneous executions to reserve for the function.
+			 * You can specify a number from 0.
+			 */
+			reserved: ReservedConcurrentExecutionsSchema.optional(),
+
 			/** Environment variable key-value pairs.
 			 * @example
 			 * {
@@ -174,6 +185,13 @@ export const functionPlugin = definePlugin({
 				retryAttempts: props.retryAttempts,
 				onFailure: getGlobalOnFailure(ctx),
 			}).dependsOn(lambda)
+
+			if(hasOnFailure(ctx.config)) {
+				lambda.addPermissions({
+					actions: [ 'sqs:SendMessage' ],
+					resources: [ getGlobalOnFailure(ctx)! ]
+				})
+			}
 
 			stack.add(invoke, lambda)
 		}

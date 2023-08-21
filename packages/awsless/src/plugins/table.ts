@@ -36,6 +36,7 @@ export const tablePlugin = definePlugin({
 					sort: KeySchema.optional(),
 
 					/** A list of attributes that describe the key schema for the table and indexes.
+					 * If no attribute field is defined we default to 'string'.
 					 * @example
 					 * {
 					 *   fields: {
@@ -43,7 +44,10 @@ export const tablePlugin = definePlugin({
 					 *   }
 					 * }
 					 */
-					fields: z.record(z.string(), z.enum(['string', 'number', 'binary'])),
+					fields: z.record(
+						z.string(),
+						z.enum([ 'string', 'number', 'binary' ])
+					).optional(),
 
 					/** The table class of the table.
 					 * @default 'standard'
@@ -101,21 +105,21 @@ export const tablePlugin = definePlugin({
 						projection: z.enum(['all', 'keys-only']).default('all'),
 					})).optional(),
 				})
-				.refine(props => {
-					return (
-						// Check the hash key
-						props.fields.hasOwnProperty(props.hash) &&
-						// Check the sort key
-						(!props.sort || props.fields.hasOwnProperty(props.sort)) &&
-						// Check all indexes
-						!Object.values(props.indexes || {}).map(index => (
-							// Check the index hash key
-							props.fields.hasOwnProperty(index.hash) &&
-							// Check the index sort key
-							(!index.sort || props.fields.hasOwnProperty(index.sort))
-						)).includes(false)
-					)
-				}, 'Hash & Sort keys must be defined inside the table fields')
+				// .refine(props => {
+				// 	return (
+				// 		// Check the hash key
+				// 		props.fields.hasOwnProperty(props.hash) &&
+				// 		// Check the sort key
+				// 		(!props.sort || props.fields.hasOwnProperty(props.sort)) &&
+				// 		// Check all indexes
+				// 		!Object.values(props.indexes || {}).map(index => (
+				// 			// Check the index hash key
+				// 			props.fields.hasOwnProperty(index.hash) &&
+				// 			// Check the index sort key
+				// 			(!index.sort || props.fields.hasOwnProperty(index.sort))
+				// 		)).includes(false)
+				// 	)
+				// }, 'Hash & Sort keys must be defined inside the table fields')
 			).optional()
 		}).array()
 	}),
@@ -138,14 +142,11 @@ export const tablePlugin = definePlugin({
 					...props.stream,
 				})
 
-				// if(hasOnFailure(config)) {}
-
 				stack.add(lambda, source)
 			}
 
 			bind((lambda) => {
 				lambda.addPermissions(table.permissions)
-				// lambda.addEnvironment(`RESOURCE_TABLE_${stack.name}_${id}`, table.name)
 			})
 		}
 	},
