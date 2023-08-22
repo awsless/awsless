@@ -39,6 +39,7 @@ export const topicPlugin = definePlugin({
 				name: `${config.name}-${id}`
 			})
 
+
 			bootstrap.add(topic)
 			bootstrap.export(`topic-${id}-arn`, topic.arn)
 

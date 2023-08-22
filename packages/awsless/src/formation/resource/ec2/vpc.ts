@@ -37,6 +37,7 @@ export class RouteTable extends Resource {
 	}) {
 		super('AWS::EC2::RouteTable', logicalId)
 		this.name = formatName(props.name || logicalId)
+		this.tag('name', this.name)
 	}
 
 	get id() {
@@ -46,10 +47,6 @@ export class RouteTable extends Resource {
 	properties() {
 		return {
 			VpcId: this.props.vpcId,
-			Tags: [{
-				Key: 'name',
-				Value: this.name,
-			}]
 		}
 	}
 }

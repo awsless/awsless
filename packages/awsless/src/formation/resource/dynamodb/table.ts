@@ -32,6 +32,8 @@ export class Table extends Resource {
 
 		this.name = formatName(this.props.name || logicalId)
 		this.indexes = { ...(this.props.indexes || {}) }
+
+		this.tag('name', this.name)
 	}
 
 	enableStream(viewType: StreamViewType) {

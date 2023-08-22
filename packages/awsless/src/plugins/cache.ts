@@ -1,0 +1,127 @@
+
+import { z } from 'zod'
+import { definePlugin } from '../plugin.js';
+import { ResourceIdSchema } from '../schema/resource-id.js';
+import { User } from '../formation/resource/memorydb/user.js';
+import { Acl } from '../formation/resource/memorydb/acl.js';
+import { Cluster } from '../formation/resource/memorydb/cluster.js';
+import { SecurityGroup } from '../formation/resource/ec2/security-group.js';
+import { SubnetGroup } from '../formation/resource/memorydb/subnet-group.js';
+import { Peer } from '../formation/resource/ec2/peer.js';
+import { Port } from '../formation/resource/ec2/port.js';
+
+const TypeSchema = z.enum([
+	't4g.small',
+	't4g.medium',
+
+	'r6g.large',
+	'r6g.xlarge',
+	'r6g.2xlarge',
+	'r6g.4xlarge',
+	'r6g.8xlarge',
+	'r6g.12xlarge',
+	'r6g.16xlarge',
+
+	'r6gd.xlarge',
+	'r6gd.2xlarge',
+	'r6gd.4xlarge',
+	'r6gd.8xlarge',
+])
+
+const PortSchema = z.number().int().min(1).max(50000)
+const ShardsSchema = z.number().int().min(0).max(100)
+const ReplicasPerShardSchema = z.number().int().min(0).max(5)
+const EngineSchema = z.enum([ '7.0', '6.2' ])
+
+export const cachePlugin = definePlugin({
+	name: 'cache',
+	schema: z.object({
+		stacks: z.object({
+			caches: z.record(
+				ResourceIdSchema,
+				z.object({
+					type: TypeSchema.default('t4g.small'),
+					port: PortSchema.default(6918),
+					shards: ShardsSchema.default(1),
+					replicasPerShard: ReplicasPerShardSchema.default(1),
+					engine: EngineSchema.default('7.0'),
+					dataTiering: z.boolean().default(false),
+				})
+			).optional()
+		}).array()
+	}),
+	onStack({ config, stack, stackConfig, bootstrap, bind }) {
+		for(const [ id, props ] of Object.entries(stackConfig.caches || {})) {
+
+			const name = `${config.name}-${stack.name}-${id}`
+			const password = 'passwordpassword'
+			const port = 6918
+			// 16-128
+
+			const user = new User(id, {
+				name,
+				password,
+			})
+
+			const acl = new Acl(id, {
+				name,
+				userNames: [ user.name ]
+			}).dependsOn(user)
+
+			const subnetGroup = new SubnetGroup(id, {
+				name,
+				subnetIds: [
+					bootstrap.import(`private-subnet-1`),
+					bootstrap.import(`private-subnet-2`),
+				]
+			})
+
+			const securityGroup = new SecurityGroup(id, {
+				name,
+				vpcId: bootstrap.import(`vpc-id`),
+				description: name,
+			})
+
+			// const port = Port.tcp(port)
+
+			securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(port))
+			securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(port))
+
+			const cluster = new Cluster(id, {
+				name,
+				aclName: acl.name,
+				securityGroupIds: [ securityGroup.id ],
+				subnetGroupName: subnetGroup.name,
+				...props,
+			}).dependsOn(acl, subnetGroup, securityGroup)
+
+			stack.add(user, acl, subnetGroup, securityGroup, cluster)
+
+			bind(lambda => {
+				lambda
+					.setVpc({
+						securityGroupIds: [ securityGroup.id ],
+						subnetIds: [
+							bootstrap.import(`private-subnet-1`),
+							bootstrap.import(`private-subnet-2`),
+						]
+					})
+					.addPermissions({
+						actions: [
+							'ec2:CreateNetworkInterface',
+							'ec2:DescribeNetworkInterfaces',
+							'ec2:DeleteNetworkInterface',
+							'ec2:AssignPrivateIpAddresses',
+							'ec2:UnassignPrivateIpAddresses',
+						],
+						resources: [ '*' ],
+					})
+					.addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address)
+					.addEnvironment(`CACHE_${stack.name}_${id}_PORT`, port.toString())
+					.addEnvironment(`CACHE_${stack.name}_${id}_USERNAME`, name)
+					.addEnvironment(`CACHE_${stack.name}_${id}_PASSWORD`, password)
+					.dependsOn(cluster)
+			})
+		}
+	},
+})

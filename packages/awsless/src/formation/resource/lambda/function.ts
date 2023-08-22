@@ -20,6 +20,10 @@ export type FunctionProps = {
 	ephemeralStorageSize?: Size
 	environment?: Record<string, string>
 	reserved?: number
+	vpc?: {
+		securityGroupIds: string[]
+		subnetIds: string[]
+	}
 
 	// retryAttempts
 	// role?: string
@@ -52,6 +56,8 @@ export class Function extends Resource {
 		this.policy = policy
 		this.name = formatName(this.props.name || logicalId)
 		this.environmentVariables = props.environment ? {...props.environment} : {}
+
+		this.tag('name', this.name)
 	}
 
 	addPermissions(...permissions: (Permission | Permission[])[]) {
@@ -62,6 +68,15 @@ export class Function extends Resource {
 
 	addEnvironment(name: string, value: string) {
 		this.environmentVariables[name] = value
+
+		return this
+	}
+
+	setVpc(vpc: {
+		securityGroupIds: string[]
+		subnetIds: string[]
+	}) {
+		this.props.vpc = vpc
 
 		return this
 	}
@@ -97,6 +112,12 @@ export class Function extends Resource {
 			EphemeralStorage: {
 				Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512
 			},
+			...(this.props.vpc ? {
+				VpcConfig: {
+					SecurityGroupIds: this.props.vpc.securityGroupIds,
+					SubnetIds: this.props.vpc.subnetIds,
+				}
+			} : {}),
 			Environment: {
 				Variables: this.environmentVariables
 			}

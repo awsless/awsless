@@ -13,6 +13,7 @@ export interface Resource {
 
 export abstract class Resource {
 	readonly logicalId: string
+	readonly tags = new Map<string, string>()
 	private deps = new Set<Resource>()
 
 	constructor(
@@ -27,6 +28,12 @@ export abstract class Resource {
 		for(const dependency of dependencies) {
 			this.deps.add(dependency)
 		}
+
+		return this
+	}
+
+	tag(key: string, value: string) {
+		this.tags.set(key, value)
 
 		return this
 	}
@@ -46,7 +53,15 @@ export abstract class Resource {
 			[ this.logicalId ]: {
 				Type: this.type,
 				DependsOn: [ ...this.deps ].map(dep => dep.logicalId),
-				Properties: this.properties()
+				Properties: {
+					...(this.tags.size ? {
+						Tags: Array.from(this.tags.entries()).map(([ key, value ]) => ({
+							Key: key,
+							Value: value,
+						}))
+					 } : {}),
+					...this.properties(),
+				}
 			}
 		}
 	}

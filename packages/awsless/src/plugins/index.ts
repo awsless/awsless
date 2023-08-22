@@ -15,11 +15,13 @@ import { onFailurePlugin } from './on-failure/index.js';
 import { vpcPlugin } from './vpc.js';
 import { httpPlugin } from './http.js';
 import { searchPlugin } from './search.js';
+import { cachePlugin } from './cache.js';
 
 export const defaultPlugins = [
 	extendPlugin,
 	vpcPlugin,
 	functionPlugin,
+	cachePlugin,
 	cronPlugin,
 	queuePlugin,
 	tablePlugin,

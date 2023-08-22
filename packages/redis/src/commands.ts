@@ -1,7 +1,7 @@
-import { redisClient } from './client'
-import type { Redis, RedisOptions } from 'ioredis'
+import { Client, CommandOptions, redisClient } from './client'
+// import type { Cluster, Redis, RedisOptions } from 'ioredis'
 
-export const command = async <T>(options: RedisOptions, callback: (client:Redis) => T): Promise<T> => {
+export const command = async <O extends CommandOptions, T>(options: O, callback: (client:Client<O>) => T): Promise<T> => {
 	const client = redisClient(options)
 
 	let result:T | undefined
@@ -11,7 +11,8 @@ export const command = async <T>(options: RedisOptions, callback: (client:Redis)
 	} catch (error) {
 		throw error
 	} finally {
-		await client.disconnect()
+		// await client.disconnect()
+		await client.quit()
 	}
 
 	return result

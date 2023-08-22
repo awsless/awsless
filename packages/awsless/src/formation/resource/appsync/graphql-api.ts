@@ -2,48 +2,6 @@ import { constantCase } from "change-case";
 import { Resource } from "../../resource";
 import { formatName, getAtt, ref } from "../../util";
 import { Duration } from "../../property/duration";
-// import { GraphQLSchema, Definition } from "./graphql-schema";
-
-// export type GraphQLProps = {
-// 	name?: string
-// 	authenticationType?: 'api-key'
-// 	schema: Definition
-// }
-
-// export class GraphQL extends Group {
-// 	readonly api: GraphQLApi
-// 	readonly schema: GraphQLSchema
-
-// 	constructor(logicalId: string, props: GraphQLProps) {
-// 		const api = new GraphQLApi(logicalId, props)
-// 		const schema = new GraphQLSchema(logicalId, {
-// 			apiId: api.id,
-// 			definition: props.schema,
-// 		}).dependsOn(api)
-
-// 		super([ api, schema ])
-
-// 		this.api = api
-// 		this.schema = schema
-// 	}
-
-// 	// attachDomainName(domainName: string, certificateArn: string) {
-// 	// 	const id = this.logicalId + domainName
-// 	// 	const domain = new DomainName(id, {
-// 	// 		domainName,
-// 	// 		certificateArn
-// 	// 	})
-
-// 	// 	const association = new DomainNameApiAssociation(id, {
-// 	// 		apiId: this.api.id,
-// 	// 		domainName,
-// 	// 	}).dependsOn(this.api, domain)
-
-// 	// 	this.children.push(domain, association)
-
-// 	// 	return this
-// 	// }
-// }
 
 export class GraphQLApi extends Resource {
 
@@ -57,6 +15,8 @@ export class GraphQLApi extends Resource {
 		super('AWS::AppSync::GraphQLApi', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
+
+		this.tag('name', this.name)
 	}
 
 	get arn() {

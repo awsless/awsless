@@ -12,6 +12,8 @@ export class Topic extends Resource {
 		super('AWS::SNS::Topic', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
+
+		this.tag('name', this.name)
 	}
 
 	get arn() {

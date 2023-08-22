@@ -266,6 +266,71 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     } | undefined;
 }>> | Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
+        caches: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
+            type: zod.ZodDefault<zod.ZodEnum<["t4g.small", "t4g.medium", "r6g.large", "r6g.xlarge", "r6g.2xlarge", "r6g.4xlarge", "r6g.8xlarge", "r6g.12xlarge", "r6g.16xlarge", "r6gd.xlarge", "r6gd.2xlarge", "r6gd.4xlarge", "r6gd.8xlarge"]>>;
+            port: zod.ZodDefault<zod.ZodNumber>;
+            shards: zod.ZodDefault<zod.ZodNumber>;
+            replicasPerShard: zod.ZodDefault<zod.ZodNumber>;
+            engine: zod.ZodDefault<zod.ZodEnum<["7.0", "6.2"]>>;
+            dataTiering: zod.ZodDefault<zod.ZodBoolean>;
+        }, "strip", zod.ZodTypeAny, {
+            type: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge";
+            port: number;
+            shards: number;
+            replicasPerShard: number;
+            engine: "7.0" | "6.2";
+            dataTiering: boolean;
+        }, {
+            type?: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge" | undefined;
+            port?: number | undefined;
+            shards?: number | undefined;
+            replicasPerShard?: number | undefined;
+            engine?: "7.0" | "6.2" | undefined;
+            dataTiering?: boolean | undefined;
+        }>>>;
+    }, "strip", zod.ZodTypeAny, {
+        caches?: Record<string, {
+            type: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge";
+            port: number;
+            shards: number;
+            replicasPerShard: number;
+            engine: "7.0" | "6.2";
+            dataTiering: boolean;
+        }> | undefined;
+    }, {
+        caches?: Record<string, {
+            type?: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge" | undefined;
+            port?: number | undefined;
+            shards?: number | undefined;
+            replicasPerShard?: number | undefined;
+            engine?: "7.0" | "6.2" | undefined;
+            dataTiering?: boolean | undefined;
+        }> | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    stacks: {
+        caches?: Record<string, {
+            type: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge";
+            port: number;
+            shards: number;
+            replicasPerShard: number;
+            engine: "7.0" | "6.2";
+            dataTiering: boolean;
+        }> | undefined;
+    }[];
+}, {
+    stacks: {
+        caches?: Record<string, {
+            type?: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge" | undefined;
+            port?: number | undefined;
+            shards?: number | undefined;
+            replicasPerShard?: number | undefined;
+            engine?: "7.0" | "6.2" | undefined;
+            dataTiering?: boolean | undefined;
+        }> | undefined;
+    }[];
+}>> | Plugin<zod.ZodObject<{
+    stacks: zod.ZodArray<zod.ZodObject<{
         crons: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
@@ -2090,9 +2155,11 @@ declare abstract class Resource {
     readonly type: string;
     readonly children: Array<Resource | Asset>;
     readonly logicalId: string;
+    readonly tags: Map<string, string>;
     private deps;
     constructor(type: string, logicalId: string, children?: Array<Resource | Asset>);
     dependsOn(...dependencies: Resource[]): this;
+    tag(key: string, value: string): this;
     protected attr(name: string, value: unknown): {
         [x: string]: unknown;
     };
@@ -2100,7 +2167,12 @@ declare abstract class Resource {
         [x: string]: {
             Type: string;
             DependsOn: string[];
-            Properties: object;
+            Properties: {
+                Tags?: {
+                    Key: string;
+                    Value: string;
+                }[] | undefined;
+            };
         };
     };
     abstract properties(): object;
@@ -2171,6 +2243,10 @@ type FunctionProps = {
     ephemeralStorageSize?: Size;
     environment?: Record<string, string>;
     reserved?: number;
+    vpc?: {
+        securityGroupIds: string[];
+        subnetIds: string[];
+    };
 };
 declare class Function extends Resource {
     private props;
@@ -2181,6 +2257,10 @@ declare class Function extends Resource {
     constructor(logicalId: string, props: FunctionProps);
     addPermissions(...permissions: (Permission | Permission[])[]): this;
     addEnvironment(name: string, value: string): this;
+    setVpc(vpc: {
+        securityGroupIds: string[];
+        subnetIds: string[];
+    }): this;
     get id(): string;
     get arn(): string;
     get permissions(): {
@@ -2188,11 +2268,15 @@ declare class Function extends Resource {
         resources: string[];
     };
     properties(): {
-        EphemeralStorage: {
-            Size: number;
-        };
         Environment: {
             Variables: Record<string, string>;
+        };
+        VpcConfig?: {
+            SecurityGroupIds: string[];
+            SubnetIds: string[];
+        } | undefined;
+        EphemeralStorage: {
+            Size: number;
         };
         Handler: string;
         Code: {
@@ -2271,6 +2355,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         retryAttempts?: number | undefined;
         reserved?: number | undefined;
         environment?: Record<string, string> | undefined;
+    }> | undefined;
+}) | (StackConfig$1 & {
+    caches?: Record<string, {
+        type?: "t4g.small" | "t4g.medium" | "r6g.large" | "r6g.xlarge" | "r6g.2xlarge" | "r6g.4xlarge" | "r6g.8xlarge" | "r6g.12xlarge" | "r6g.16xlarge" | "r6gd.xlarge" | "r6gd.2xlarge" | "r6gd.4xlarge" | "r6gd.8xlarge" | undefined;
+        port?: number | undefined;
+        shards?: number | undefined;
+        replicasPerShard?: number | undefined;
+        engine?: "7.0" | "6.2" | undefined;
+        dataTiering?: boolean | undefined;
     }> | undefined;
 }) | (StackConfig$1 & {
     crons?: Record<string, {

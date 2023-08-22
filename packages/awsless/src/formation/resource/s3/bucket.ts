@@ -15,6 +15,8 @@ export class Bucket extends Resource {
 		super('AWS::S3::Bucket', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
+
+		this.tag('name', this.name)
 	}
 
 	get arn() {

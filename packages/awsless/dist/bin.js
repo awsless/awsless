@@ -180,11 +180,16 @@ var Resource = class {
     this.logicalId = formatLogicalId(`${logicalId}-${type.replace(/^AWS::/, "")}`);
   }
   logicalId;
+  tags = /* @__PURE__ */ new Map();
   deps = /* @__PURE__ */ new Set();
   dependsOn(...dependencies) {
     for (const dependency of dependencies) {
       this.deps.add(dependency);
     }
+    return this;
+  }
+  tag(key, value) {
+    this.tags.set(key, value);
     return this;
   }
   attr(name, value) {
@@ -200,7 +205,15 @@ var Resource = class {
       [this.logicalId]: {
         Type: this.type,
         DependsOn: [...this.deps].map((dep) => dep.logicalId),
-        Properties: this.properties()
+        Properties: {
+          ...this.tags.size ? {
+            Tags: Array.from(this.tags.entries()).map(([key, value]) => ({
+              Key: key,
+              Value: value
+            }))
+          } : {},
+          ...this.properties()
+        }
       }
     };
   }
@@ -315,6 +328,7 @@ var Function = class extends Resource {
     this.policy = policy;
     this.name = formatName(this.props.name || logicalId);
     this.environmentVariables = props.environment ? { ...props.environment } : {};
+    this.tag("name", this.name);
   }
   name;
   role;
@@ -326,6 +340,10 @@ var Function = class extends Resource {
   }
   addEnvironment(name, value) {
     this.environmentVariables[name] = value;
+    return this;
+  }
+  setVpc(vpc) {
+    this.props.vpc = vpc;
     return this;
   }
   get id() {
@@ -356,6 +374,12 @@ var Function = class extends Resource {
       EphemeralStorage: {
         Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512
       },
+      ...this.props.vpc ? {
+        VpcConfig: {
+          SecurityGroupIds: this.props.vpc.securityGroupIds,
+          SubnetIds: this.props.vpc.subnetIds
+        }
+      } : {},
       Environment: {
         Variables: this.environmentVariables
       }
@@ -1207,6 +1231,7 @@ var Queue = class extends Resource {
     super("AWS::SQS::Queue", logicalId);
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
+    this.tag("name", this.name);
   }
   name;
   setDeadLetter(arn) {
@@ -1454,6 +1479,7 @@ var Table = class extends Resource {
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
     this.indexes = { ...this.props.indexes || {} };
+    this.tag("name", this.name);
   }
   name;
   indexes;
@@ -1720,6 +1746,7 @@ var Bucket = class extends Resource {
     super("AWS::S3::Bucket", logicalId);
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
+    this.tag("name", this.name);
   }
   name;
   get arn() {
@@ -1789,6 +1816,7 @@ var Topic = class extends Resource {
     super("AWS::SNS::Topic", logicalId);
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
+    this.tag("name", this.name);
   }
   name;
   get arn() {
@@ -2030,6 +2058,7 @@ var GraphQLApi = class extends Resource {
     super("AWS::AppSync::GraphQLApi", logicalId);
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
+    this.tag("name", this.name);
   }
   name;
   lambdaAuthProviders = [];
@@ -2805,6 +2834,7 @@ var RouteTable = class extends Resource {
     super("AWS::EC2::RouteTable", logicalId);
     this.props = props;
     this.name = formatName(props.name || logicalId);
+    this.tag("name", this.name);
   }
   name;
   get id() {
@@ -2812,11 +2842,7 @@ var RouteTable = class extends Resource {
   }
   properties() {
     return {
-      VpcId: this.props.vpcId,
-      Tags: [{
-        Key: "name",
-        Value: this.name
-      }]
+      VpcId: this.props.vpcId
     };
   }
 };
@@ -3011,7 +3037,9 @@ var SecurityGroup = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::EC2::SecurityGroup", logicalId);
     this.props = props;
+    this.name = formatName(props.name ?? logicalId);
   }
+  name;
   ingress = [];
   egress = [];
   get id() {
@@ -3036,7 +3064,7 @@ var SecurityGroup = class extends Resource {
   properties() {
     return {
       VpcId: this.props.vpcId,
-      GroupName: this.logicalId,
+      GroupName: this.name,
       GroupDescription: this.props.description,
       SecurityGroupIngress: this.ingress.map((rule) => ({
         Description: rule.description || "",
@@ -3447,6 +3475,7 @@ var Collection = class extends Resource {
     super("AWS::OpenSearchServerless::Collection", logicalId);
     this.props = props;
     this.name = this.props.name || logicalId;
+    this.tag("name", this.name);
   }
   name;
   get id() {
@@ -3491,11 +3520,215 @@ var searchPlugin = definePlugin({
   }
 });
 
+// src/plugins/cache.ts
+import { z as z19 } from "zod";
+
+// src/formation/resource/memorydb/user.ts
+var User = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::MemoryDB::User", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || this.logicalId);
+  }
+  name;
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      UserName: this.name,
+      AccessString: this.props.access ?? "on ~* &* +@all",
+      AuthenticationMode: {
+        Type: "password",
+        Passwords: [this.props.password]
+      }
+    };
+  }
+};
+
+// src/formation/resource/memorydb/acl.ts
+var Acl = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::MemoryDB::ACL", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      ACLName: this.name,
+      UserNames: this.props.userNames
+    };
+  }
+};
+
+// src/formation/resource/memorydb/cluster.ts
+var Cluster = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::MemoryDB::Cluster", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+    this.tag("name", this.name);
+  }
+  name;
+  get status() {
+    return getAtt(this.logicalId, "Status");
+  }
+  get arn() {
+    return getAtt(this.logicalId, "ARN");
+  }
+  get address() {
+    return getAtt(this.logicalId, "ClusterEndpoint.Address");
+  }
+  get port() {
+    return getAtt(this.logicalId, "ClusterEndpoint.Port");
+  }
+  properties() {
+    return {
+      ClusterName: this.name,
+      ClusterEndpoint: {
+        Port: this.props.port
+      },
+      Port: this.props.port,
+      ...this.attr("Description", this.props.description),
+      ACLName: this.props.aclName,
+      EngineVersion: this.props.engine ?? "7.0",
+      ...this.attr("SubnetGroupName", this.props.subnetGroupName),
+      ...this.attr("SecurityGroupIds", this.props.securityGroupIds),
+      NodeType: "db." + this.props.type,
+      NumReplicasPerShard: this.props.replicasPerShard ?? 1,
+      NumShards: this.props.shards ?? 1,
+      TLSEnabled: true,
+      DataTiering: this.props.dataTiering ? "true" : "false",
+      AutoMinorVersionUpgrade: this.props.autoMinorVersionUpgrade ?? true,
+      MaintenanceWindow: this.props.maintenanceWindow ?? "Sat:02:00-Sat:05:00"
+    };
+  }
+};
+
+// src/formation/resource/memorydb/subnet-group.ts
+var SubnetGroup = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::MemoryDB::SubnetGroup", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      SubnetGroupName: this.name,
+      SubnetIds: this.props.subnetIds,
+      ...this.attr("Description", this.props.description)
+    };
+  }
+};
+
+// src/plugins/cache.ts
+var TypeSchema = z19.enum([
+  "t4g.small",
+  "t4g.medium",
+  "r6g.large",
+  "r6g.xlarge",
+  "r6g.2xlarge",
+  "r6g.4xlarge",
+  "r6g.8xlarge",
+  "r6g.12xlarge",
+  "r6g.16xlarge",
+  "r6gd.xlarge",
+  "r6gd.2xlarge",
+  "r6gd.4xlarge",
+  "r6gd.8xlarge"
+]);
+var PortSchema = z19.number().int().min(1).max(5e4);
+var ShardsSchema = z19.number().int().min(0).max(100);
+var ReplicasPerShardSchema = z19.number().int().min(0).max(5);
+var EngineSchema = z19.enum(["7.0", "6.2"]);
+var cachePlugin = definePlugin({
+  name: "cache",
+  schema: z19.object({
+    stacks: z19.object({
+      caches: z19.record(
+        ResourceIdSchema,
+        z19.object({
+          type: TypeSchema.default("t4g.small"),
+          port: PortSchema.default(6918),
+          shards: ShardsSchema.default(1),
+          replicasPerShard: ReplicasPerShardSchema.default(1),
+          engine: EngineSchema.default("7.0"),
+          dataTiering: z19.boolean().default(false)
+        })
+      ).optional()
+    }).array()
+  }),
+  onStack({ config, stack, stackConfig, bootstrap: bootstrap2, bind }) {
+    for (const [id, props] of Object.entries(stackConfig.caches || {})) {
+      const name = `${config.name}-${stack.name}-${id}`;
+      const password = "passwordpassword";
+      const port = 6918;
+      const user = new User(id, {
+        name,
+        password
+      });
+      const acl = new Acl(id, {
+        name,
+        userNames: [user.name]
+      }).dependsOn(user);
+      const subnetGroup = new SubnetGroup(id, {
+        name,
+        subnetIds: [
+          bootstrap2.import(`private-subnet-1`),
+          bootstrap2.import(`private-subnet-2`)
+        ]
+      });
+      const securityGroup = new SecurityGroup(id, {
+        name,
+        vpcId: bootstrap2.import(`vpc-id`),
+        description: name
+      });
+      securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(port));
+      securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(port));
+      const cluster = new Cluster(id, {
+        name,
+        aclName: acl.name,
+        securityGroupIds: [securityGroup.id],
+        subnetGroupName: subnetGroup.name,
+        ...props
+      }).dependsOn(acl, subnetGroup, securityGroup);
+      stack.add(user, acl, subnetGroup, securityGroup, cluster);
+      bind((lambda) => {
+        lambda.setVpc({
+          securityGroupIds: [securityGroup.id],
+          subnetIds: [
+            bootstrap2.import(`private-subnet-1`),
+            bootstrap2.import(`private-subnet-2`)
+          ]
+        }).addPermissions({
+          actions: [
+            "ec2:CreateNetworkInterface",
+            "ec2:DescribeNetworkInterfaces",
+            "ec2:DeleteNetworkInterface",
+            "ec2:AssignPrivateIpAddresses",
+            "ec2:UnassignPrivateIpAddresses"
+          ],
+          resources: ["*"]
+        }).addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address).addEnvironment(`CACHE_${stack.name}_${id}_PORT`, port.toString()).addEnvironment(`CACHE_${stack.name}_${id}_USERNAME`, name).addEnvironment(`CACHE_${stack.name}_${id}_PASSWORD`, password).dependsOn(cluster);
+      });
+    }
+  }
+});
+
 // src/plugins/index.ts
 var defaultPlugins = [
   extendPlugin,
   vpcPlugin,
   functionPlugin,
+  cachePlugin,
   cronPlugin,
   queuePlugin,
   tablePlugin,
@@ -3748,17 +3981,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 
 // src/schema/stack.ts
-import { z as z19 } from "zod";
-var StackSchema = z19.object({
+import { z as z20 } from "zod";
+var StackSchema = z20.object({
   name: ResourceIdSchema,
-  depends: z19.array(z19.lazy(() => StackSchema)).optional()
+  depends: z20.array(z20.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z20 } from "zod";
+import { z as z21 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -3775,41 +4008,41 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = z20.enum(regions);
+var RegionSchema = z21.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z21 } from "zod";
-var PluginSchema = z21.object({
-  name: z21.string(),
-  schema: z21.custom().optional(),
+import { z as z22 } from "zod";
+var PluginSchema = z22.object({
+  name: z22.string(),
+  schema: z22.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onApp: z21.function().returns(z21.void()).optional(),
-  onStack: z21.function().returns(z21.any()).optional(),
-  onResource: z21.function().returns(z21.any()).optional()
+  onApp: z22.function().returns(z22.void()).optional(),
+  onStack: z22.function().returns(z22.any()).optional(),
+  onResource: z22.function().returns(z22.any()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z22.object({
+var AppSchema = z23.object({
   /** App name */
   name: ResourceIdSchema,
   /** The AWS region to deploy to. */
   region: RegionSchema,
   /** The AWS profile to deploy to. */
-  profile: z22.string(),
+  profile: z23.string(),
   /** The deployment stage.
    * @default 'prod'
    */
-  stage: z22.string().regex(/[a-z]+/).default("prod"),
+  stage: z23.string().regex(/[a-z]+/).default("prod"),
   /** Default properties. */
-  defaults: z22.object({}).default({}),
+  defaults: z23.object({}).default({}),
   /** The application stacks. */
-  stacks: z22.array(StackSchema).min(1).refine((stacks) => {
+  stacks: z23.array(StackSchema).min(1).refine((stacks) => {
     const unique = new Set(stacks.map((stack) => stack.name));
     return unique.size === stacks.length;
   }, "Must be an array of unique stacks"),
   /** Custom plugins. */
-  plugins: z22.array(PluginSchema).optional()
+  plugins: z23.array(PluginSchema).optional()
 });
 
 // src/util/import.ts

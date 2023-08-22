@@ -12,6 +12,8 @@ export class Collection extends Resource {
 	}) {
 		super('AWS::OpenSearchServerless::Collection', logicalId)
 		this.name = this.props.name || logicalId
+
+		this.tag('name', this.name)
 	}
 
 	get id() {

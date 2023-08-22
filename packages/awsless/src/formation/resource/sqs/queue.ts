@@ -21,6 +21,8 @@ export class Queue extends Resource {
 		super('AWS::SQS::Queue', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
+
+		this.tag('name', this.name)
 	}
 
 	setDeadLetter(arn:string) {

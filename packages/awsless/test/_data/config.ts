@@ -11,6 +11,7 @@ import { cronStack } from "./stack/cron"
 import { pubsubStack } from "./stack/pubsub"
 import { httpStack } from "./stack/http"
 import { failureStack } from "./stack/failure.js"
+import { cacheStack } from "./stack/cache.js"
 
 export default defineAppConfig(input => ({
 	name: 'app',
@@ -33,13 +34,15 @@ export default defineAppConfig(input => ({
 				subDomain: 'api',
 			}
 		},
-		// function: {
-		// 	environment: {
-		// 		BUGSNAG_API_KEY: 'test'
-		// 	}
-		// },
+		function: {
+			memorySize: '512 MB',
+			// environment: {
+			// 	BUGSNAG_API_KEY: 'test'
+			// }
+		},
 	},
 	stacks: [
+		cacheStack,
 		tableStack,
 		queueStack,
 		// storeStack,
