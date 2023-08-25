@@ -1,25 +1,21 @@
 import { Stack } from '../formation/stack.js';
 import { StackConfig } from '../schema/stack.js';
 
-export type StackNode = {
-	stack: Stack
-	children: StackNode[]
-}
-
-type FlatStack = {
-	stack: Stack
-	depends: string[]
-}
+// export type StackNode = {
+// 	stack: Stack
+// 	children: StackNode[]
+// }
 
 export const createDeploymentLine = (stacks:{ stack:Stack, config?:StackConfig }[]) => {
-	const list: FlatStack[] = stacks.map(({ stack, config }) => ({
+	const list = stacks.map(({ stack, config }) => ({
 		stack,
 		depends: config?.depends?.map(dep => dep.name) || []
 	}))
 
+	const names = stacks.map(({stack}) => stack.name)
 	const line:Stack[][] = []
 	const deps:string[] = []
-	let limit = 10
+	let limit = 100
 
 	while(deps.length < list.length) {
 		const local:Stack[] = []
@@ -34,7 +30,8 @@ export const createDeploymentLine = (stacks:{ stack:Stack, config?:StackConfig }
 		}
 
 		if(limit-- <= 0) {
-			throw new Error(`Circular stack dependencies arn't allowed.`)
+			const circularNames = names.filter(name => deps.includes(name))
+			throw new Error(`Circular stack dependencies arn't allowed: ${circularNames}`)
 		}
 
 		deps.push(...local.map(stack => stack.name))

@@ -584,9 +584,10 @@ var createDeploymentLine = (stacks) => {
     stack,
     depends: config?.depends?.map((dep) => dep.name) || []
   }));
+  const names = stacks.map(({ stack }) => stack.name);
   const line = [];
   const deps = [];
-  let limit = 10;
+  let limit = 100;
   while (deps.length < list3.length) {
     const local = [];
     for (const { stack, depends } of list3) {
@@ -595,7 +596,8 @@ var createDeploymentLine = (stacks) => {
       }
     }
     if (limit-- <= 0) {
-      throw new Error(`Circular stack dependencies arn't allowed.`);
+      const circularNames = names.filter((name) => deps.includes(name));
+      throw new Error(`Circular stack dependencies arn't allowed: ${circularNames}`);
     }
     deps.push(...local.map((stack) => stack.name));
     line.push(local);
@@ -5171,41 +5173,74 @@ var bootstrap = (program2) => {
   });
 };
 
-// src/cli/ui/complex/stack-tree.ts
-var stackTree = (nodes, statuses) => {
+// src/cli/ui/complex/deployer.ts
+var stacksDeployer = (deploymentLine) => {
+  const stackNames = deploymentLine.map((line) => line.map((stack) => stack.name)).flat();
+  const stackNameSize = Math.max(...stackNames.map((name) => name.length));
   return (term) => {
-    const render = (nodes2, deep = 0, parents = []) => {
-      const size = nodes2.length - 1;
-      nodes2.forEach((node, i) => {
-        const name = node.stack.name;
-        const status2 = statuses[name];
-        const first = i === 0 && deep === 0;
-        const last = i === size;
-        const more = i < size;
-        const line = flexLine(term, [
-          ...parents.map((parent) => {
-            return style.label(
-              parent ? "\u2502".padEnd(3) : " ".repeat(3)
-            );
-          }),
-          style.label(
-            first && size === 0 ? "  " : first ? "\u250C\u2500" : last ? "\u2514\u2500" : "\u251C\u2500"
-          ),
+    const ui = {};
+    term.out.gap();
+    for (const i in deploymentLine) {
+      const line = flexLine(
+        term,
+        ["   "],
+        [
           " ",
-          style.info(name),
-          " "
-        ], [
+          style.placeholder(Number(i) + 1),
+          style.placeholder(" \u2500\u2500")
+        ]
+      );
+      term.out.write(line);
+      term.out.write(br());
+      for (const stack of deploymentLine[i]) {
+        const icon = new Signal(" ");
+        const name = new Signal(style.label.dim(stack.name));
+        const status2 = new Signal(style.info.dim("waiting"));
+        let stopSpinner;
+        term.out.write([
+          icon,
+          "  ",
+          name,
+          " ".repeat(stackNameSize - stack.name.length),
+          " ",
+          style.placeholder(symbol.pointerSmall),
           " ",
           status2,
           br()
         ]);
-        term.out.write(line);
-        render(node.children, deep + 1, [...parents, more]);
-      });
-    };
+        ui[stack.name] = {
+          start: (value) => {
+            const [spinner, stop] = createSpinner();
+            name.set(style.label(stack.name));
+            icon.set(spinner);
+            status2.set(style.warning(value));
+            stopSpinner = stop;
+          },
+          done(value) {
+            stopSpinner();
+            icon.set(style.success(symbol.success));
+            status2.set(style.success(value));
+          },
+          fail(value) {
+            stopSpinner();
+            icon.set(style.error(symbol.error));
+            status2.set(style.error(value));
+          },
+          warn(value) {
+            stopSpinner();
+            icon.set(style.warning(symbol.warning));
+            status2.set(style.warning(value));
+          }
+        };
+      }
+    }
+    term.out.write(flexLine(term, ["   "], [
+      " ",
+      style.warning("\u26A1\uFE0F"),
+      style.placeholder("\u2500\u2500")
+    ]));
     term.out.gap();
-    render(nodes);
-    term.out.gap();
+    return ui;
   };
 };
 
@@ -5213,31 +5248,27 @@ var stackTree = (nodes, statuses) => {
 var status = (program2) => {
   program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
     await layout(async (config, write) => {
-      const { app, dependencyTree } = await toApp(config, filters);
+      const { app, deploymentLine } = await toApp(config, filters);
       await cleanUp();
       await write(assetBuilder(app));
       await write(templateBuilder(app));
       const doneLoading = write(loadingDialog("Loading stack information..."));
       const client = new StackClient(app, config.account, config.region, config.credentials);
       const statuses = [];
-      const stackStatuses = {};
-      for (const stack of app) {
-        stackStatuses[stack.name] = new Signal(style.info("Loading..."));
-      }
-      write(stackTree(dependencyTree, stackStatuses));
+      const ui = write(stacksDeployer(deploymentLine));
       debug("Load metadata for all deployed stacks on AWS");
       await Promise.all(app.stacks.map(async (stack, i) => {
+        const item = ui[stack.name];
+        item.start("loading");
         const info = await client.get(stack.name, stack.region);
-        const signal = stackStatuses[stack.name];
-        await new Promise((resolve) => setTimeout(resolve, i * 1e3));
         if (!info) {
-          signal.set(style.error("non-existent"));
+          item.fail("NON EXISTENT");
           statuses.push("non-existent");
         } else if (info.template !== stack.toString()) {
-          signal.set(style.warning("out-of-date"));
+          item.warn("OUT OF DATE");
           statuses.push("out-of-date");
         } else {
-          signal.set(style.success("up-to-date"));
+          item.done("UP TO DATE");
           statuses.push("up-to-date");
         }
       }));
@@ -5313,67 +5344,6 @@ var assetPublisher = (config, app) => {
       }));
     }));
     done("Done publishing stack assets to AWS");
-  };
-};
-
-// src/cli/ui/complex/deployer.ts
-var stacksDeployer = (deploymentLine) => {
-  const stackNames = deploymentLine.map((line) => line.map((stack) => stack.name)).flat();
-  const stackNameSize = Math.max(...stackNames.map((name) => name.length));
-  return (term) => {
-    const ui = {};
-    term.out.gap();
-    for (const i in deploymentLine) {
-      const line = flexLine(
-        term,
-        ["   "],
-        [
-          " ",
-          style.placeholder(Number(i) + 1),
-          style.placeholder(" \u2500\u2500")
-        ]
-      );
-      term.out.write(line);
-      term.out.write(br());
-      for (const stack of deploymentLine[i]) {
-        const icon = new Signal(" ");
-        const name = new Signal(style.label.dim(stack.name));
-        const status2 = new Signal(style.info.dim("waiting"));
-        let stopSpinner;
-        term.out.write([
-          icon,
-          "  ",
-          name,
-          " ".repeat(stackNameSize - stack.name.length),
-          " ",
-          style.placeholder(symbol.pointerSmall),
-          " ",
-          status2,
-          br()
-        ]);
-        ui[stack.name] = {
-          start: (value) => {
-            const [spinner, stop] = createSpinner();
-            name.set(style.label(stack.name));
-            icon.set(spinner);
-            status2.set(style.warning(value));
-            stopSpinner = stop;
-          },
-          done(value) {
-            stopSpinner();
-            icon.set(style.success(symbol.success));
-            status2.set(style.success(value));
-          },
-          fail(value) {
-            stopSpinner();
-            icon.set(style.error(symbol.error));
-            status2.set(style.error(value));
-          }
-        };
-      }
-    }
-    term.out.gap();
-    return ui;
   };
 };
 

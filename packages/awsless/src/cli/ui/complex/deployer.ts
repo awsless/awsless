@@ -16,6 +16,7 @@ export const stacksDeployer = (deploymentLine:Stack[][]) => {
 			start: (status:string) => void
 			done: (status:string) => void
 			fail: (status:string) => void
+			warn: (status:string) => void
 		}> = {}
 
 		term.out.gap()
@@ -70,9 +71,20 @@ export const stacksDeployer = (deploymentLine:Stack[][]) => {
 						icon.set(style.error(symbol.error))
 						status.set(style.error(value))
 					},
+					warn(value) {
+						stopSpinner()
+						icon.set(style.warning(symbol.warning))
+						status.set(style.warning(value))
+					},
 				}
 			}
 		}
+
+		term.out.write(flexLine(term, [ '   ' ], [
+			' ',
+			style.warning('⚡️'),
+			style.placeholder('──'),
+		]))
 
 		term.out.gap()
 
