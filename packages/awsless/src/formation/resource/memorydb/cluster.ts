@@ -1,6 +1,6 @@
 
 import { Resource } from "../../resource";
-import { formatName, getAtt } from "../../util";
+import { formatName } from "../../util";
 
 export type NodeType = (
 	't4g.small' |
@@ -35,7 +35,7 @@ export class Cluster extends Resource {
 		dataTiering?: boolean
 		shards?: number
 		replicasPerShard?: number
-		// tls?: boolean
+		tls?: boolean
 		autoMinorVersionUpgrade?: boolean
 		maintenanceWindow?: `${string}:${number}:${number}-${string}:${number}:${number}`
 	}) {
@@ -46,19 +46,19 @@ export class Cluster extends Resource {
 	}
 
 	get status() {
-		return getAtt(this.logicalId, 'Status')
+		return this.getAtt('Status')
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'ARN')
+		return this.getAtt('ARN')
 	}
 
 	get address() {
-		return getAtt(this.logicalId, 'ClusterEndpoint.Address')
+		return this.getAtt('ClusterEndpoint.Address')
 	}
 
 	get port() {
-		return getAtt<number>(this.logicalId, 'ClusterEndpoint.Port')
+		return this.getAtt<number>('ClusterEndpoint.Port')
 	}
 
 	properties() {
@@ -76,7 +76,7 @@ export class Cluster extends Resource {
 			NodeType: 'db.' + this.props.type,
 			NumReplicasPerShard: this.props.replicasPerShard ?? 1,
 			NumShards: this.props.shards ?? 1,
-			TLSEnabled: true,
+			TLSEnabled: this.props.tls ?? false,
 			DataTiering: this.props.dataTiering ? 'true' : 'false',
 			AutoMinorVersionUpgrade: this.props.autoMinorVersionUpgrade ?? true,
 			MaintenanceWindow: this.props.maintenanceWindow ?? 'Sat:02:00-Sat:05:00',

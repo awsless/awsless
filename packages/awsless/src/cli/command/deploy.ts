@@ -8,13 +8,11 @@ import { confirmPrompt } from '../ui/prompt/confirm.js';
 import { style } from '../style.js';
 import { Cancelled } from '../error.js';
 import { StackClient } from '../../formation/client.js';
-import { stackTree } from '../ui/complex/stack-tree.js';
-import { createDeploymentLine } from '../../util/deployment.js';
-import { Signal } from '../lib/signal.js';
 import { assetBuilder } from "../ui/complex/builder.js";
 import { cleanUp } from "../../util/cleanup.js";
 import { templateBuilder } from "../ui/complex/template.js";
 import { assetPublisher } from "../ui/complex/publisher.js";
+import { stacksDeployer } from "../ui/complex/deployer.js";
 
 export const deploy = (program: Command) => {
 	program
@@ -31,7 +29,7 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, dependencyTree } = await toApp(config, filters)
+				const { app, deploymentLine } = await toApp(config, filters)
 
 				const stackNames = app.stacks.map(stack => stack.name)
 				const formattedFilter = stackNames.map(i => style.info(i)).join(style.placeholder(', '))
@@ -61,34 +59,27 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const statuses:Record<string, Signal<string>> = {}
-
-				for(const stack of app) {
-					statuses[stack.name] = new Signal(style.info('waiting'))
-				}
-
 				const doneDeploying = write(loadingDialog('Deploying stacks to AWS...'))
 
-				write(stackTree(dependencyTree, statuses))
-
 				const client = new StackClient(app, config.account, config.region, config.credentials)
-				const deploymentLine = createDeploymentLine(dependencyTree)
 
-				for(const stacks of deploymentLine) {
-					const results = await Promise.allSettled(stacks.map(async stack => {
-						const signal = statuses[stack.name]
+				const ui = write(stacksDeployer(deploymentLine))
 
-						signal.set(style.warning('deploying'))
+				for(const line of deploymentLine) {
+					const results = await Promise.allSettled(line.map(async stack => {
+						const item = ui[stack.name]
+
+						item.start('deploying')
 
 						try {
 							await client.deploy(stack)
 						} catch(error) {
 							debugError(error)
-							signal.set(style.error('failed'))
+							item.fail('failed')
 							throw error
 						}
 
-						signal.set(style.success('deployed'))
+						item.done('deployed')
 					}))
 
 					for(const result of results) {

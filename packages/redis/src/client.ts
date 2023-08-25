@@ -53,17 +53,24 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 		host: options.host,
 		port: options.port,
 	}], {
+		enableReadyCheck: false,
 		dnsLookup: (address, callback) => callback(null, address),
 		redisOptions: {
 			username: options.username,
 			password: options.password,
-			tls: {},
+			tls: {
+				checkServerIdentity: (/*host, cert*/) => {
+					// skip certificate hostname validation
+					return undefined
+				}
+			}
 		},
-		enableAutoPipelining: true,
-		enableReadyCheck: false,
-		lazyConnect: true,
-		retryDelayOnClusterDown: 0,
-		slotsRefreshInterval: 0,
+
+		// enableAutoPipelining: true,
+		// enableReadyCheck: false,
+		// lazyConnect: true,
+		// retryDelayOnClusterDown: 0,
+		// slotsRefreshInterval: 0,
 		// slotsRefreshTimeout: 100,
 	}) as Client<O>
 }

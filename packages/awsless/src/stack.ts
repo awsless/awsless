@@ -103,6 +103,7 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 
 	return {
 		stack,
-		depends: stackConfig.depends,
+		bindings,
+		// depends: stackConfig.depends,
 	}
 }

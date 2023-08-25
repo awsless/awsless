@@ -1,7 +1,7 @@
 
 import { Region } from "../schema/region";
 import { Asset } from "./asset";
-import { Group, Resource } from "./resource";
+import { Group, Lazy, Resource } from "./resource";
 import { ConstructorOf, formatLogicalId, formatName, importValue } from "./util";
 
 export class Stack {
@@ -20,6 +20,7 @@ export class Stack {
 				this.add(...item.children)
 
 				if(item instanceof Resource) {
+					item.setStack(this)
 					this.resources.add(item)
 				}
 			}
@@ -79,8 +80,28 @@ export class Stack {
 		const resources = {}
 		const outputs = {}
 
+		const walk = (object:Record<string, any>) => {
+			for(const [ key, value ] of Object.entries(object)) {
+				if(!object.hasOwnProperty(key)) {
+					continue
+				}
+
+				if(value instanceof Lazy) {
+					object[key] = value.callback(this)
+					continue
+				}
+
+				if(typeof value === 'object' && value !== null) {
+					walk(value)
+				}
+			}
+		}
+
 		for(const resource of this) {
-			Object.assign(resources, resource.toJSON())
+			const json = resource.toJSON()
+			walk(json)
+
+			Object.assign(resources, json)
 		}
 
 		for(const [ name, value ] of this.exports.entries()) {

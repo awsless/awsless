@@ -1,5 +1,5 @@
 import { Resource } from "../../resource";
-import { formatName, ref } from "../../util";
+import { formatArn, formatName, ref } from "../../util";
 
 export type TopicProps = {
 	name?: string
@@ -23,7 +23,13 @@ export class Topic extends Resource {
 	get permissions() {
 		return {
 			actions: [ 'sns:Publish' ],
-			resources: [ this.arn ],
+			resources: [
+				formatArn({
+					service: 'sns',
+					resource: 'topic',
+					resourceName: this.name,
+				})
+			 ],
 		}
 	}
 

@@ -1,6 +1,6 @@
 import { Config } from './config'
 import { Binding, toStack } from './stack'
-import { StackNode, createDependencyTree } from './util/deployment'
+import { createDeploymentLine } from './util/deployment'
 import { debug } from './cli/logger'
 import { style } from './cli/style'
 import { StackConfig } from './schema/stack'
@@ -27,7 +27,7 @@ const getAllDepends = (filters:StackConfig[]) => {
 export const toApp = async (config:Config, filters:string[]) => {
 
 	const app = new App(config.name)
-	const stacks:{ stack:Stack, config:StackConfig }[] = []
+	const stacks:{ stack:Stack, config:StackConfig, bindings: Binding[] }[] = []
 	const plugins = [
 		...defaultPlugins,
 		...(config.plugins || [])
@@ -77,7 +77,7 @@ export const toApp = async (config:Config, filters:string[]) => {
 	)
 
 	for(const stackConfig of filterdStacks) {
-		const { stack } = toStack({
+		const { stack, bindings } = toStack({
 			config,
 			stackConfig,
 			bootstrap,
@@ -88,7 +88,7 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 		app.add(stack)
 
-		stacks.push({ stack, config: stackConfig })
+		stacks.push({ stack, config: stackConfig, bindings })
 	}
 
 	// ---------------------------------------------------------------
@@ -109,6 +109,7 @@ export const toApp = async (config:Config, filters:string[]) => {
 	}
 
 	// ---------------------------------------------------------------
+	// Global binds
 
 	const functions = app.find(Function)
 
@@ -119,42 +120,60 @@ export const toApp = async (config:Config, filters:string[]) => {
 	}
 
 	// ---------------------------------------------------------------
+	// Stack dependency binds
 
-	// const constructs = app.node.findAll()
-	// const created:unknown[] = []
+	for(const entry of stacks) {
+		for(const dep of entry.config.depends || []) {
+			const depStack = stacks.find(entry => entry.config.name === dep.name)
 
-	// for(const construct of constructs) {
-	// 	for(const resource of customResources) {
-	// 		if(construct instanceof resource && !created.includes(resource)) {
-	// 			created.push(resource)
-	// 			resource.create(bootstrap.stack)
-	// 		}
-	// 	}
-	// }
+			if(!depStack) {
+				throw new Error(`Stack dependency not found: ${dep.name}`)
+			}
+
+			const functions = entry.stack.find(Function)
+
+			for(const bind of depStack.bindings) {
+				for(const fn of functions) {
+					bind(fn)
+				}
+			}
+		}
+	}
 
 	// ---------------------------------------------------------------
 	// Make a bootstrap stack if needed and add it to the
 	// dependency tree
 
-	let dependencyTree:StackNode[] = createDependencyTree(stacks)
+	const deploymentLine = createDeploymentLine(stacks)
 
 	if(bootstrap.size > 0) {
-		dependencyTree = [{
-			stack: bootstrap,
-			children: dependencyTree,
-		}]
+		deploymentLine.unshift([bootstrap])
 	}
 
 	if(usEastBootstrap.size > 0) {
-		dependencyTree = [{
-			stack: usEastBootstrap,
-			children: dependencyTree,
-		}]
+		deploymentLine.unshift([usEastBootstrap])
 	}
+
+
+	// let dependencyTree:StackNode[] = createDependencyTree(stacks)
+
+	// if(bootstrap.size > 0) {
+	// 	dependencyTree = [{
+	// 		stack: bootstrap,
+	// 		children: dependencyTree,
+	// 	}]
+	// }
+
+	// if(usEastBootstrap.size > 0) {
+	// 	dependencyTree = [{
+	// 		stack: usEastBootstrap,
+	// 		children: dependencyTree,
+	// 	}]
+	// }
 
 	return {
 		app,
 		plugins,
-		dependencyTree,
+		deploymentLine,
 	}
 }

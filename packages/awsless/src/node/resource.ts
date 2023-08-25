@@ -25,11 +25,7 @@ export const getCacheProps = (name: string, stack = STACK) => {
 	const prefix = `CACHE_${stack}_${name}`
 
 	return {
-		username:  process.env[`${prefix}_USERNAME`]!,
-		password: process.env[`${prefix}_PASSWORD`]!,
 		host: process.env[`${prefix}_HOST`]!,
 		port: parseInt(process.env[`${prefix}_PORT`]!, 10),
-		tls: {},
-		cluster: true,
 	} as const
 }

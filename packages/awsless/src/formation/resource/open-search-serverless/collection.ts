@@ -1,6 +1,6 @@
 
 import { Resource } from "../../resource";
-import { getAtt, ref } from "../../util";
+import { formatArn, getAtt, ref } from "../../util";
 
 export class Collection extends Resource {
 	readonly name: string
@@ -26,6 +26,19 @@ export class Collection extends Resource {
 
 	get endpoint() {
 		return getAtt(this.logicalId, 'CollectionEndpoint')
+	}
+
+	get permissions() {
+		return {
+			actions: [ 'aoss:APIAccessAll' ],
+			resources: [
+				formatArn({
+					service: 'aoss',
+					resource: 'collection',
+					resourceName: this.name,
+				})
+			],
+		}
 	}
 
 	properties() {

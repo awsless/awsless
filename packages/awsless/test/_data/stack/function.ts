@@ -1,8 +1,11 @@
 import { StackConfig } from "../../../src";
+import { cacheStack } from "./cache";
+import { tableStack } from "./table";
 
 export const functionStack:StackConfig = {
 	name: 'function',
+	depends: [ cacheStack, tableStack ],
 	functions: {
-		bet: __dirname + '/../function/simple.ts'
+		call: __dirname + '/../function/call.ts'
 	},
 }

@@ -1,7 +1,7 @@
 import { Duration } from "../../property/duration";
 import { Size } from "../../property/size";
 import { Resource } from "../../resource";
-import { formatName, getAtt } from "../../util";
+import { formatArn, formatName, getAtt } from "../../util";
 
 export type QueueProps = {
 	name?: string
@@ -46,7 +46,13 @@ export class Queue extends Resource {
 				'sqs:GetQueueUrl',
 				'sqs:GetQueueAttributes',
 			],
-			resources: [ this.arn ],
+			resources: [
+				formatArn({
+					service: 'sqs',
+					resource: 'queue',
+					resourceName: this.name,
+				})
+			],
 		}
 	}
 

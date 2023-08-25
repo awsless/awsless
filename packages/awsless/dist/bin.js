@@ -171,6 +171,12 @@ var formatLogicalId = (id) => {
 var formatName = (name) => {
   return paramCase2(name);
 };
+var formatArn = (props) => {
+  return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}", {
+    seperator: "/",
+    ...props
+  });
+};
 
 // src/formation/resource.ts
 var Resource = class {
@@ -182,6 +188,7 @@ var Resource = class {
   logicalId;
   tags = /* @__PURE__ */ new Map();
   deps = /* @__PURE__ */ new Set();
+  stack;
   dependsOn(...dependencies) {
     for (const dependency of dependencies) {
       this.deps.add(dependency);
@@ -199,6 +206,27 @@ var Resource = class {
     return {
       [name]: value
     };
+  }
+  setStack(stack) {
+    this.stack = stack;
+    return this;
+  }
+  ref() {
+    return this.getAtt("ref");
+  }
+  getAtt(attr) {
+    return new Lazy((stack) => {
+      if (!this.stack) {
+        throw new TypeError("Resource stack not defined before building template");
+      }
+      const value = attr === "ref" ? ref(this.logicalId) : getAtt(this.logicalId, attr);
+      if (stack === this.stack) {
+        return value;
+      }
+      const name = `${this.stack.name}-${this.logicalId}-${attr}`;
+      this.stack.export(name, value);
+      return this.stack.import(name);
+    });
   }
   toJSON() {
     return {
@@ -221,6 +249,11 @@ var Resource = class {
 var Group = class {
   constructor(children) {
     this.children = children;
+  }
+};
+var Lazy = class {
+  constructor(callback) {
+    this.callback = callback;
   }
 };
 
@@ -347,10 +380,10 @@ var Function = class extends Resource {
     return this;
   }
   get id() {
-    return ref(this.logicalId);
+    return this.ref();
   }
   get arn() {
-    return getAtt(this.logicalId, "Arn");
+    return this.getAtt("Arn");
   }
   get permissions() {
     return {
@@ -358,7 +391,14 @@ var Function = class extends Resource {
         "lambda:InvokeFunction",
         "lambda:InvokeAsync"
       ],
-      resources: [this.arn]
+      resources: [
+        formatArn({
+          service: "lambda",
+          resource: "function",
+          resourceName: this.name,
+          seperator: ":"
+        })
+      ]
     };
   }
   properties() {
@@ -404,6 +444,7 @@ var Stack = class {
       } else {
         this.add(...item.children);
         if (item instanceof Resource) {
+          item.setStack(this);
           this.resources.add(item);
         }
       }
@@ -447,8 +488,24 @@ var Stack = class {
   toJSON() {
     const resources = {};
     const outputs = {};
+    const walk = (object) => {
+      for (const [key, value] of Object.entries(object)) {
+        if (!object.hasOwnProperty(key)) {
+          continue;
+        }
+        if (value instanceof Lazy) {
+          object[key] = value.callback(this);
+          continue;
+        }
+        if (typeof value === "object" && value !== null) {
+          walk(value);
+        }
+      }
+    };
     for (const resource of this) {
-      Object.assign(resources, resource.toJSON());
+      const json2 = resource.toJSON();
+      walk(json2);
+      Object.assign(resources, json2);
     }
     for (const [name, value] of this.exports.entries()) {
       Object.assign(outputs, {
@@ -516,54 +573,33 @@ var toStack = ({ config, app, stackConfig, bootstrap: bootstrap2, usEastBootstra
   }
   return {
     stack,
-    depends: stackConfig.depends
+    bindings
+    // depends: stackConfig.depends,
   };
 };
 
 // src/util/deployment.ts
-var createDependencyTree = (stacks) => {
+var createDeploymentLine = (stacks) => {
   const list3 = stacks.map(({ stack, config }) => ({
     stack,
     depends: config?.depends?.map((dep) => dep.name) || []
   }));
-  const findChildren = (list4, parents) => {
-    const children = [];
-    const rests = [];
-    for (const item of list4) {
-      const isChild = item.depends.filter((dep) => !parents.includes(dep)).length === 0;
-      if (isChild) {
-        children.push(item);
-      } else {
-        rests.push(item);
-      }
-    }
-    if (!rests.length) {
-      return children.map(({ stack }) => ({
-        stack,
-        children: []
-      }));
-    }
-    return children.map(({ stack }) => {
-      return {
-        stack,
-        children: findChildren(rests, [...parents, stack.name])
-      };
-    });
-  };
-  return findChildren(list3, []);
-};
-var createDeploymentLine = (stacks) => {
   const line = [];
-  const walk = (stacks2, level) => {
-    stacks2.forEach((node) => {
-      if (!line[level]) {
-        line[level] = [];
+  const deps = [];
+  let limit = 10;
+  while (deps.length < list3.length) {
+    const local = [];
+    for (const { stack, depends } of list3) {
+      if (!deps.includes(stack.name) && depends.filter((dep) => !deps.includes(dep)).length === 0) {
+        local.push(stack);
       }
-      line[level].push(node.stack);
-      walk(node.children, level + 1);
-    });
-  };
-  walk(stacks, 0);
+    }
+    if (limit-- <= 0) {
+      throw new Error(`Circular stack dependencies arn't allowed.`);
+    }
+    deps.push(...local.map((stack) => stack.name));
+    line.push(local);
+  }
   return line;
 };
 
@@ -960,8 +996,12 @@ var RuntimeSchema = z6.enum([
 var FunctionSchema = z6.union([
   LocalFileSchema,
   z6.object({
-    /** The file path ofthe function code. */
+    /** The file path of the function code. */
     file: LocalFileSchema,
+    /** Put the function inside your global VPC.
+     * @default false
+     */
+    vpc: z6.boolean().optional(),
     /** The amount of time that Lambda allows a function to run before stopping it.
      * You can specify a size value from 1 second to 15 minutes.
      * @default '10 seconds'
@@ -1011,6 +1051,10 @@ var FunctionSchema = z6.union([
 var schema = z6.object({
   defaults: z6.object({
     function: z6.object({
+      /** Put the function inside your global VPC.
+       * @default false
+       */
+      vpc: z6.boolean().default(false),
       /** The amount of time that Lambda allows a function to run before stopping it.
        * You can specify a size value from 1 second to 15 minutes.
        * @default '10 seconds'
@@ -1102,12 +1146,36 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
   const lambda = new Function(id, {
     name: `${config.name}-${stack.name}-${id}`,
     code: Code.fromFile(id, props.file),
-    ...props
+    ...props,
+    vpc: void 0
   });
   lambda.addEnvironment("APP", config.name).addEnvironment("STAGE", config.stage).addEnvironment("STACK", stack.name);
+  if (props.vpc) {
+    lambda.setVpc({
+      securityGroupIds: [
+        ctx.bootstrap.import(`vpc-security-group-id`)
+      ],
+      subnetIds: [
+        ctx.bootstrap.import(`public-subnet-1`),
+        ctx.bootstrap.import(`public-subnet-2`)
+      ]
+    }).addPermissions({
+      actions: [
+        "ec2:CreateNetworkInterface",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DeleteNetworkInterface",
+        "ec2:AssignPrivateIpAddresses",
+        "ec2:UnassignPrivateIpAddresses"
+      ],
+      resources: ["*"]
+    });
+  }
   if (props.runtime.startsWith("nodejs")) {
     lambda.addEnvironment("AWS_NODEJS_CONNECTION_REUSE_ENABLED", "1");
   }
+  ctx.bind((other) => {
+    other.addPermissions(lambda.permissions);
+  });
   return lambda;
 };
 
@@ -1252,7 +1320,13 @@ var Queue = class extends Resource {
         "sqs:GetQueueUrl",
         "sqs:GetQueueAttributes"
       ],
-      resources: [this.arn]
+      resources: [
+        formatArn({
+          service: "sqs",
+          resource: "queue",
+          resourceName: this.name
+        })
+      ]
     };
   }
   properties() {
@@ -1512,7 +1586,13 @@ var Table = class extends Resource {
         "dynamodb:Query",
         "dynamodb:Scan"
       ],
-      resources: [this.arn]
+      resources: [
+        formatArn({
+          service: "dynamodb",
+          resource: "table",
+          resourceName: this.name
+        })
+      ]
     };
   }
   attributeDefinitions() {
@@ -1763,7 +1843,13 @@ var Bucket = class extends Resource {
         "s3:GetQueueUrl",
         "s3:GetQueueAttributes"
       ],
-      resources: [this.arn]
+      resources: [
+        formatArn({
+          service: "s3",
+          resource: "bucket",
+          resourceName: this.name
+        })
+      ]
     };
   }
   properties() {
@@ -1825,7 +1911,13 @@ var Topic = class extends Resource {
   get permissions() {
     return {
       actions: ["sns:Publish"],
-      resources: [this.arn]
+      resources: [
+        formatArn({
+          service: "sns",
+          resource: "topic",
+          resourceName: this.name
+        })
+      ]
     };
   }
   properties() {
@@ -2823,6 +2915,12 @@ var Vpc = class extends Resource {
   get id() {
     return ref(this.logicalId);
   }
+  get defaultNetworkAcl() {
+    return getAtt(this.logicalId, "DefaultNetworkAcl");
+  }
+  get defaultSecurityGroup() {
+    return getAtt(this.logicalId, "DefaultSecurityGroup");
+  }
   properties() {
     return {
       CidrBlock: this.props.cidrBlock.ip
@@ -2995,6 +3093,7 @@ var vpcPlugin = definePlugin({
       routeTableId: publicRouteTable.id,
       destination: Peer.anyIpv4()
     }).dependsOn(gateway, publicRouteTable);
+    bootstrap2.export("vpc-security-group-id", vpc.defaultSecurityGroup);
     bootstrap2.export(`vpc-id`, vpc.id);
     bootstrap2.add(
       vpc,
@@ -3487,6 +3586,18 @@ var Collection = class extends Resource {
   get endpoint() {
     return getAtt(this.logicalId, "CollectionEndpoint");
   }
+  get permissions() {
+    return {
+      actions: ["aoss:APIAccessAll"],
+      resources: [
+        formatArn({
+          service: "aoss",
+          resource: "collection",
+          resourceName: this.name
+        })
+      ]
+    };
+  }
   properties() {
     return {
       Name: this.name,
@@ -3511,10 +3622,7 @@ var searchPlugin = definePlugin({
         type: "search"
       });
       bind((lambda) => {
-        lambda.addPermissions({
-          actions: ["aoss:APIAccessAll"],
-          resources: [collection.arn]
-        });
+        lambda.addPermissions(collection.permissions);
       });
     }
   }
@@ -3522,48 +3630,6 @@ var searchPlugin = definePlugin({
 
 // src/plugins/cache.ts
 import { z as z19 } from "zod";
-
-// src/formation/resource/memorydb/user.ts
-var User = class extends Resource {
-  constructor(logicalId, props) {
-    super("AWS::MemoryDB::User", logicalId);
-    this.props = props;
-    this.name = formatName(this.props.name || this.logicalId);
-  }
-  name;
-  get arn() {
-    return getAtt(this.logicalId, "Arn");
-  }
-  properties() {
-    return {
-      UserName: this.name,
-      AccessString: this.props.access ?? "on ~* &* +@all",
-      AuthenticationMode: {
-        Type: "password",
-        Passwords: [this.props.password]
-      }
-    };
-  }
-};
-
-// src/formation/resource/memorydb/acl.ts
-var Acl = class extends Resource {
-  constructor(logicalId, props) {
-    super("AWS::MemoryDB::ACL", logicalId);
-    this.props = props;
-    this.name = formatName(this.props.name || logicalId);
-  }
-  name;
-  get arn() {
-    return getAtt(this.logicalId, "Arn");
-  }
-  properties() {
-    return {
-      ACLName: this.name,
-      UserNames: this.props.userNames
-    };
-  }
-};
 
 // src/formation/resource/memorydb/cluster.ts
 var Cluster = class extends Resource {
@@ -3575,16 +3641,16 @@ var Cluster = class extends Resource {
   }
   name;
   get status() {
-    return getAtt(this.logicalId, "Status");
+    return this.getAtt("Status");
   }
   get arn() {
-    return getAtt(this.logicalId, "ARN");
+    return this.getAtt("ARN");
   }
   get address() {
-    return getAtt(this.logicalId, "ClusterEndpoint.Address");
+    return this.getAtt("ClusterEndpoint.Address");
   }
   get port() {
-    return getAtt(this.logicalId, "ClusterEndpoint.Port");
+    return this.getAtt("ClusterEndpoint.Port");
   }
   properties() {
     return {
@@ -3601,7 +3667,7 @@ var Cluster = class extends Resource {
       NodeType: "db." + this.props.type,
       NumReplicasPerShard: this.props.replicasPerShard ?? 1,
       NumShards: this.props.shards ?? 1,
-      TLSEnabled: true,
+      TLSEnabled: this.props.tls ?? false,
       DataTiering: this.props.dataTiering ? "true" : "false",
       AutoMinorVersionUpgrade: this.props.autoMinorVersionUpgrade ?? true,
       MaintenanceWindow: this.props.maintenanceWindow ?? "Sat:02:00-Sat:05:00"
@@ -3653,11 +3719,22 @@ var cachePlugin = definePlugin({
   name: "cache",
   schema: z19.object({
     stacks: z19.object({
+      /** Define the caches in your stack.
+       * For access to the cache put your functions inside the global VPC.
+       * @example
+       * {
+       *   caches: {
+       *     CACHE_NAME: {
+       *       type: 't4g.small'
+       *     }
+       *   }
+       * }
+       */
       caches: z19.record(
         ResourceIdSchema,
         z19.object({
           type: TypeSchema.default("t4g.small"),
-          port: PortSchema.default(6918),
+          port: PortSchema.default(6379),
           shards: ShardsSchema.default(1),
           replicasPerShard: ReplicasPerShardSchema.default(1),
           engine: EngineSchema.default("7.0"),
@@ -3669,16 +3746,6 @@ var cachePlugin = definePlugin({
   onStack({ config, stack, stackConfig, bootstrap: bootstrap2, bind }) {
     for (const [id, props] of Object.entries(stackConfig.caches || {})) {
       const name = `${config.name}-${stack.name}-${id}`;
-      const password = "passwordpassword";
-      const port = 6918;
-      const user = new User(id, {
-        name,
-        password
-      });
-      const acl = new Acl(id, {
-        name,
-        userNames: [user.name]
-      }).dependsOn(user);
       const subnetGroup = new SubnetGroup(id, {
         name,
         subnetIds: [
@@ -3691,33 +3758,19 @@ var cachePlugin = definePlugin({
         vpcId: bootstrap2.import(`vpc-id`),
         description: name
       });
-      securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(port));
-      securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(port));
+      const port = Port.tcp(props.port);
+      securityGroup.addIngressRule(Peer.anyIpv4(), port);
+      securityGroup.addIngressRule(Peer.anyIpv6(), port);
       const cluster = new Cluster(id, {
         name,
-        aclName: acl.name,
+        aclName: "open-access",
         securityGroupIds: [securityGroup.id],
         subnetGroupName: subnetGroup.name,
         ...props
-      }).dependsOn(acl, subnetGroup, securityGroup);
-      stack.add(user, acl, subnetGroup, securityGroup, cluster);
+      }).dependsOn(subnetGroup, securityGroup);
+      stack.add(subnetGroup, securityGroup, cluster);
       bind((lambda) => {
-        lambda.setVpc({
-          securityGroupIds: [securityGroup.id],
-          subnetIds: [
-            bootstrap2.import(`private-subnet-1`),
-            bootstrap2.import(`private-subnet-2`)
-          ]
-        }).addPermissions({
-          actions: [
-            "ec2:CreateNetworkInterface",
-            "ec2:DescribeNetworkInterfaces",
-            "ec2:DeleteNetworkInterface",
-            "ec2:AssignPrivateIpAddresses",
-            "ec2:UnassignPrivateIpAddresses"
-          ],
-          resources: ["*"]
-        }).addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address).addEnvironment(`CACHE_${stack.name}_${id}_PORT`, port.toString()).addEnvironment(`CACHE_${stack.name}_${id}_USERNAME`, name).addEnvironment(`CACHE_${stack.name}_${id}_PASSWORD`, password).dependsOn(cluster);
+        lambda.addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address).addEnvironment(`CACHE_${stack.name}_${id}_PORT`, props.port.toString());
       });
     }
   }
@@ -3910,7 +3963,7 @@ var toApp = async (config, filters) => {
     config.stacks.filter((stack) => filters.includes(stack.name))
   );
   for (const stackConfig of filterdStacks) {
-    const { stack } = toStack({
+    const { stack, bindings: bindings2 } = toStack({
       config,
       stackConfig,
       bootstrap: bootstrap2,
@@ -3919,7 +3972,7 @@ var toApp = async (config, filters) => {
       app
     });
     app.add(stack);
-    stacks.push({ stack, config: stackConfig });
+    stacks.push({ stack, config: stackConfig, bindings: bindings2 });
   }
   for (const plugin of plugins) {
     for (const stack of app.stacks) {
@@ -3941,23 +3994,31 @@ var toApp = async (config, filters) => {
       bind2(fn);
     }
   }
-  let dependencyTree = createDependencyTree(stacks);
+  for (const entry of stacks) {
+    for (const dep of entry.config.depends || []) {
+      const depStack = stacks.find((entry2) => entry2.config.name === dep.name);
+      if (!depStack) {
+        throw new Error(`Stack dependency not found: ${dep.name}`);
+      }
+      const functions2 = entry.stack.find(Function);
+      for (const bind2 of depStack.bindings) {
+        for (const fn of functions2) {
+          bind2(fn);
+        }
+      }
+    }
+  }
+  const deploymentLine = createDeploymentLine(stacks);
   if (bootstrap2.size > 0) {
-    dependencyTree = [{
-      stack: bootstrap2,
-      children: dependencyTree
-    }];
+    deploymentLine.unshift([bootstrap2]);
   }
   if (usEastBootstrap.size > 0) {
-    dependencyTree = [{
-      stack: usEastBootstrap,
-      children: dependencyTree
-    }];
+    deploymentLine.unshift([usEastBootstrap]);
   }
   return {
     app,
     plugins,
-    dependencyTree
+    deploymentLine
   };
 };
 
@@ -4046,9 +4107,11 @@ var AppSchema = z23.object({
 });
 
 // src/util/import.ts
-import { transformFile } from "@swc/core";
+import { rollup as rollup2 } from "rollup";
+import { swc as swc2 } from "rollup-plugin-swc3";
+import replace from "rollup-plugin-replace";
 import { dirname, join as join2 } from "path";
-import { lstat as lstat2, mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 
 // src/util/path.ts
 import { lstat } from "fs/promises";
@@ -4095,54 +4158,25 @@ var fileExist = async (file) => {
 };
 
 // src/util/import.ts
-var resolveFileNameExtension = async (path) => {
-  const options = [
-    "",
-    ".ts",
-    ".js",
-    "/index.ts",
-    "/index.js"
-  ];
-  for (const option of options) {
-    const file = path.replace(/\.js$/, "") + option;
-    let stat;
-    try {
-      stat = await lstat2(file);
-    } catch (error) {
-      continue;
-    }
-    if (stat.isFile()) {
-      return file;
-    }
-  }
-  throw new Error(`Failed to load file: ${path}`);
-};
-var resolveDir = (path) => {
-  return dirname(path).replace(directories.root + "/", "");
-};
 var importFile = async (path) => {
-  const load = async (file) => {
-    debug("Load file:", style.info(file));
-    let { code: code2 } = await transformFile(file, {
-      isModule: true
-    });
-    const path2 = dirname(file);
-    const dir = resolveDir(file);
-    code2 = code2.replaceAll("__dirname", `"${dir}"`);
-    const matches = code2.match(/(import|export)\s*{\s*[a-z0-9\_\,\s\*]+\s*}\s*from\s*('|")(\.\.?[\/a-z0-9\_\-\.]+)('|");?/ig);
-    if (!matches)
-      return code2;
-    await Promise.all(matches?.map(async (match) => {
-      const parts = /('|")(\.\.?[\/a-z0-9\_\-\.]+)('|")/ig.exec(match);
-      const from = parts[2];
-      const file2 = await resolveFileNameExtension(join2(path2, from));
-      const result = await load(file2);
-      code2 = code2.replace(match, result);
-    }));
-    return code2;
-  };
-  const code = await load(path);
+  const bundle = await rollup2({
+    input: path,
+    plugins: [
+      replace({
+        __dirname: (id) => `'${dirname(id)}'`
+      }),
+      swc2({
+        minify: false
+      })
+    ]
+  });
   const outputFile = join2(directories.cache, "config.js");
+  const result = await bundle.generate({
+    format: "esm",
+    exports: "default"
+  });
+  const output = result.output[0];
+  const code = output.code;
   await mkdir(directories.cache, { recursive: true });
   await writeFile(outputFile, code);
   debug("Save config file:", style.info(outputFile));
@@ -4444,7 +4478,7 @@ var Renderer = class {
   flushing = false;
   screen = [];
   width() {
-    return this.output.columns;
+    return this.output.columns - 1;
   }
   height() {
     return this.output.rows;
@@ -5282,12 +5316,73 @@ var assetPublisher = (config, app) => {
   };
 };
 
+// src/cli/ui/complex/deployer.ts
+var stacksDeployer = (deploymentLine) => {
+  const stackNames = deploymentLine.map((line) => line.map((stack) => stack.name)).flat();
+  const stackNameSize = Math.max(...stackNames.map((name) => name.length));
+  return (term) => {
+    const ui = {};
+    term.out.gap();
+    for (const i in deploymentLine) {
+      const line = flexLine(
+        term,
+        ["   "],
+        [
+          " ",
+          style.placeholder(Number(i) + 1),
+          style.placeholder(" \u2500\u2500")
+        ]
+      );
+      term.out.write(line);
+      term.out.write(br());
+      for (const stack of deploymentLine[i]) {
+        const icon = new Signal(" ");
+        const name = new Signal(style.label.dim(stack.name));
+        const status2 = new Signal(style.info.dim("waiting"));
+        let stopSpinner;
+        term.out.write([
+          icon,
+          "  ",
+          name,
+          " ".repeat(stackNameSize - stack.name.length),
+          " ",
+          style.placeholder(symbol.pointerSmall),
+          " ",
+          status2,
+          br()
+        ]);
+        ui[stack.name] = {
+          start: (value) => {
+            const [spinner, stop] = createSpinner();
+            name.set(style.label(stack.name));
+            icon.set(spinner);
+            status2.set(style.warning(value));
+            stopSpinner = stop;
+          },
+          done(value) {
+            stopSpinner();
+            icon.set(style.success(symbol.success));
+            status2.set(style.success(value));
+          },
+          fail(value) {
+            stopSpinner();
+            icon.set(style.error(symbol.error));
+            status2.set(style.error(value));
+          }
+        };
+      }
+    }
+    term.out.gap();
+    return ui;
+  };
+};
+
 // src/cli/command/deploy.ts
 var deploy = (program2) => {
   program2.command("deploy").argument("[stacks...]", "Optionally filter stacks to deploy").description("Deploy your app to AWS").action(async (filters) => {
     await layout(async (config, write) => {
       await write(bootstrapDeployer(config));
-      const { app, dependencyTree } = await toApp(config, filters);
+      const { app, deploymentLine } = await toApp(config, filters);
       const stackNames = app.stacks.map((stack) => stack.name);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to deploy", formattedFilter);
@@ -5301,26 +5396,21 @@ var deploy = (program2) => {
       await write(assetBuilder(app));
       await write(assetPublisher(config, app));
       await write(templateBuilder(app));
-      const statuses = {};
-      for (const stack of app) {
-        statuses[stack.name] = new Signal(style.info("waiting"));
-      }
       const doneDeploying = write(loadingDialog("Deploying stacks to AWS..."));
-      write(stackTree(dependencyTree, statuses));
       const client = new StackClient(app, config.account, config.region, config.credentials);
-      const deploymentLine = createDeploymentLine(dependencyTree);
-      for (const stacks of deploymentLine) {
-        const results = await Promise.allSettled(stacks.map(async (stack) => {
-          const signal = statuses[stack.name];
-          signal.set(style.warning("deploying"));
+      const ui = write(stacksDeployer(deploymentLine));
+      for (const line of deploymentLine) {
+        const results = await Promise.allSettled(line.map(async (stack) => {
+          const item = ui[stack.name];
+          item.start("deploying");
           try {
             await client.deploy(stack);
           } catch (error) {
             debugError(error);
-            signal.set(style.error("failed"));
+            item.fail("failed");
             throw error;
           }
-          signal.set(style.success("deployed"));
+          item.done("deployed");
         }));
         for (const result of results) {
           if (result.status === "rejected") {

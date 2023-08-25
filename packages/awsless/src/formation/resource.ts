@@ -1,5 +1,6 @@
 import { Asset } from "./asset"
-import { formatLogicalId } from "./util"
+import { Stack } from "./stack"
+import { formatLogicalId, getAtt, ref } from "./util"
 
 export type Permission = {
 	effect?: 'Allow' | 'Deny'
@@ -14,7 +15,8 @@ export interface Resource {
 export abstract class Resource {
 	readonly logicalId: string
 	readonly tags = new Map<string, string>()
-	private deps = new Set<Resource>()
+	protected deps = new Set<Resource>()
+	protected stack: Stack | undefined
 
 	constructor(
 		readonly type: string,
@@ -48,6 +50,35 @@ export abstract class Resource {
 		}
 	}
 
+	setStack(stack:Stack) {
+		this.stack = stack
+
+		return this
+	}
+
+	protected ref() {
+		return this.getAtt('ref')
+	}
+
+	protected getAtt<T = string>(attr:string) {
+		return new Lazy((stack) => {
+			if(!this.stack) {
+				throw new TypeError('Resource stack not defined before building template')
+			}
+
+			const value = attr === 'ref' ? ref<T>(this.logicalId) : getAtt<T>(this.logicalId, attr)
+
+			if(stack === this.stack) {
+				return value
+			}
+
+			const name = `${this.stack.name}-${this.logicalId}-${attr}`
+			this.stack.export(name, value as string)
+
+			return this.stack.import(name)
+		}) as unknown as T
+	}
+
 	toJSON() {
 		return {
 			[ this.logicalId ]: {
@@ -71,4 +102,8 @@ export abstract class Resource {
 
 export class Group {
 	constructor(readonly children:Array<Resource | Asset>) {}
+}
+
+export class Lazy {
+	constructor(readonly callback:(stack:Stack) => unknown) {}
 }

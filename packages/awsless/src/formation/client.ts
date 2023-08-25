@@ -16,7 +16,7 @@ export class StackClient {
 	private assetBucketName: string
 
 	constructor(
-		private app:App,
+		private app: App,
 		private account: string,
 		private region: Region,
 		private credentials: Credentials

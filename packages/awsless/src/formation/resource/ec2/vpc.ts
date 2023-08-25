@@ -1,6 +1,6 @@
 
 import { Resource } from "../../resource";
-import { formatName, ref } from "../../util";
+import { formatName, getAtt, ref } from "../../util";
 import { Peer } from "./peer";
 
 // export type VpcProps = {
@@ -20,6 +20,14 @@ export class Vpc extends Resource {
 
 	get id() {
 		return ref(this.logicalId)
+	}
+
+	get defaultNetworkAcl() {
+		return getAtt(this.logicalId, 'DefaultNetworkAcl')
+	}
+
+	get defaultSecurityGroup() {
+		return getAtt(this.logicalId, 'DefaultSecurityGroup')
 	}
 
 	properties() {

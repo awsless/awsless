@@ -39,6 +39,7 @@ export const vpcPlugin = definePlugin({
 			destination: Peer.anyIpv4(),
 		}).dependsOn(gateway, publicRouteTable)
 
+		bootstrap.export('vpc-security-group-id', vpc.defaultSecurityGroup)
 		bootstrap.export(`vpc-id`, vpc.id)
 		bootstrap.add(
 			vpc,
