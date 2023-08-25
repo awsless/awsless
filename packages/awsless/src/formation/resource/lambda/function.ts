@@ -3,7 +3,7 @@ import { Asset } from "../../asset";
 import { Duration } from "../../property/duration";
 import { Size } from "../../property/size";
 import { Permission, Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
+import { formatArn, formatName } from "../../util";
 import { InlinePolicy } from "../iam/inline-policy";
 import { ManagedPolicy } from "../iam/managed-policy";
 import { Role } from "../iam/role";
@@ -82,11 +82,11 @@ export class Function extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	get permissions() {
@@ -95,7 +95,14 @@ export class Function extends Resource {
 				'lambda:InvokeFunction',
 				'lambda:InvokeAsync',
 			],
-			resources: [ this.arn ],
+			resources: [
+				formatArn({
+					service: 'lambda',
+					resource: 'function',
+					resourceName: this.name,
+					seperator: ':',
+				})
+			],
 		}
 	}
 

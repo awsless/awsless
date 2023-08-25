@@ -19,10 +19,7 @@ export const searchPlugin = definePlugin({
 			})
 
 			bind(lambda => {
-				lambda.addPermissions({
-					actions: [ 'aoss:APIAccessAll' ],
-					resources: [ collection.arn ],
-				})
+				lambda.addPermissions(collection.permissions)
 			})
 		}
 	},

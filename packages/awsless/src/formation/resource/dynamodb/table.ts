@@ -1,6 +1,6 @@
 import { constantCase } from "change-case";
 import { Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
+import { formatArn, formatName, getAtt, ref } from "../../util";
 
 export type IndexProps = {
 	hash: string
@@ -70,7 +70,13 @@ export class Table extends Resource {
 				'dynamodb:Query',
 				'dynamodb:Scan',
 			],
-			resources: [ this.arn ],
+			resources: [
+				formatArn({
+					service: 'dynamodb',
+					resource: 'table',
+					resourceName: this.name,
+				})
+			 ],
 		}
 	}
 

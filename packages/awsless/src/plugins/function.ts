@@ -36,8 +36,13 @@ const RuntimeSchema = z.enum([
 export const FunctionSchema = z.union([
 	LocalFileSchema,
 	z.object({
-		/** The file path ofthe function code. */
+		/** The file path of the function code. */
 		file: LocalFileSchema,
+
+		/** Put the function inside your global VPC.
+		 * @default false
+		 */
+		vpc: z.boolean().optional(),
 
 		/** The amount of time that Lambda allows a function to run before stopping it.
 		 * You can specify a size value from 1 second to 15 minutes.
@@ -97,6 +102,11 @@ export const FunctionSchema = z.union([
 const schema = z.object({
 	defaults: z.object({
 		function: z.object({
+			/** Put the function inside your global VPC.
+			 * @default false
+			 */
+			vpc: z.boolean().default(false),
+
 			/** The amount of time that Lambda allows a function to run before stopping it.
 			 * You can specify a size value from 1 second to 15 minutes.
 			 * @default '10 seconds'
@@ -214,6 +224,7 @@ export const toLambdaFunction = (
 		name: `${config.name}-${stack.name}-${id}`,
 		code: Code.fromFile(id, props.file),
 		...props,
+		vpc: undefined,
 	})
 
 	lambda
@@ -221,9 +232,37 @@ export const toLambdaFunction = (
 		.addEnvironment('STAGE', config.stage)
 		.addEnvironment('STACK', stack.name)
 
+	if(props.vpc) {
+		lambda
+			.setVpc({
+				securityGroupIds: [
+					ctx.bootstrap.import(`vpc-security-group-id`),
+				],
+				subnetIds: [
+					ctx.bootstrap.import(`public-subnet-1`),
+					ctx.bootstrap.import(`public-subnet-2`),
+				],
+			}).addPermissions({
+				actions: [
+					'ec2:CreateNetworkInterface',
+					'ec2:DescribeNetworkInterfaces',
+					'ec2:DeleteNetworkInterface',
+					'ec2:AssignPrivateIpAddresses',
+					'ec2:UnassignPrivateIpAddresses',
+				],
+				resources: [ '*' ],
+			})
+	}
+
 	if (props.runtime.startsWith('nodejs')) {
 		lambda.addEnvironment('AWS_NODEJS_CONNECTION_REUSE_ENABLED', '1')
 	}
+
+	// stack.add(lambda).export('function-${}')
+
+	ctx.bind(other => {
+		other.addPermissions(lambda.permissions)
+	})
 
 	return lambda
 }

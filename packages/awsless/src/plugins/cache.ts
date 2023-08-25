@@ -2,8 +2,6 @@
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js';
 import { ResourceIdSchema } from '../schema/resource-id.js';
-import { User } from '../formation/resource/memorydb/user.js';
-import { Acl } from '../formation/resource/memorydb/acl.js';
 import { Cluster } from '../formation/resource/memorydb/cluster.js';
 import { SecurityGroup } from '../formation/resource/ec2/security-group.js';
 import { SubnetGroup } from '../formation/resource/memorydb/subnet-group.js';
@@ -37,11 +35,22 @@ export const cachePlugin = definePlugin({
 	name: 'cache',
 	schema: z.object({
 		stacks: z.object({
+			/** Define the caches in your stack.
+			 * For access to the cache put your functions inside the global VPC.
+			 * @example
+			 * {
+			 *   caches: {
+			 *     CACHE_NAME: {
+			 *       type: 't4g.small'
+			 *     }
+			 *   }
+			 * }
+			 */
 			caches: z.record(
 				ResourceIdSchema,
 				z.object({
 					type: TypeSchema.default('t4g.small'),
-					port: PortSchema.default(6918),
+					port: PortSchema.default(6379),
 					shards: ShardsSchema.default(1),
 					replicasPerShard: ReplicasPerShardSchema.default(1),
 					engine: EngineSchema.default('7.0'),
@@ -54,19 +63,6 @@ export const cachePlugin = definePlugin({
 		for(const [ id, props ] of Object.entries(stackConfig.caches || {})) {
 
 			const name = `${config.name}-${stack.name}-${id}`
-			const password = 'passwordpassword'
-			const port = 6918
-			// 16-128
-
-			const user = new User(id, {
-				name,
-				password,
-			})
-
-			const acl = new Acl(id, {
-				name,
-				userNames: [ user.name ]
-			}).dependsOn(user)
 
 			const subnetGroup = new SubnetGroup(id, {
 				name,
@@ -82,45 +78,43 @@ export const cachePlugin = definePlugin({
 				description: name,
 			})
 
-			// const port = Port.tcp(port)
+			const port = Port.tcp(props.port)
 
-			securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(port))
-			securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(port))
+			securityGroup.addIngressRule(Peer.anyIpv4(), port)
+			securityGroup.addIngressRule(Peer.anyIpv6(), port)
 
 			const cluster = new Cluster(id, {
 				name,
-				aclName: acl.name,
+				aclName: 'open-access',
 				securityGroupIds: [ securityGroup.id ],
 				subnetGroupName: subnetGroup.name,
 				...props,
-			}).dependsOn(acl, subnetGroup, securityGroup)
+			}).dependsOn(subnetGroup, securityGroup)
 
-			stack.add(user, acl, subnetGroup, securityGroup, cluster)
+			stack.add(subnetGroup, securityGroup, cluster)
 
 			bind(lambda => {
 				lambda
-					.setVpc({
-						securityGroupIds: [ securityGroup.id ],
-						subnetIds: [
-							bootstrap.import(`private-subnet-1`),
-							bootstrap.import(`private-subnet-2`),
-						]
-					})
-					.addPermissions({
-						actions: [
-							'ec2:CreateNetworkInterface',
-							'ec2:DescribeNetworkInterfaces',
-							'ec2:DeleteNetworkInterface',
-							'ec2:AssignPrivateIpAddresses',
-							'ec2:UnassignPrivateIpAddresses',
-						],
-						resources: [ '*' ],
-					})
+					// .setVpc({
+					// 	securityGroupIds: [ securityGroup.id ],
+					// 	subnetIds: [
+					// 		bootstrap.import(`public-subnet-1`),
+					// 		bootstrap.import(`public-subnet-2`),
+					// 	]
+					// })
+					// .addPermissions({
+					// 	actions: [
+					// 		'ec2:CreateNetworkInterface',
+					// 		'ec2:DescribeNetworkInterfaces',
+					// 		'ec2:DeleteNetworkInterface',
+					// 		'ec2:AssignPrivateIpAddresses',
+					// 		'ec2:UnassignPrivateIpAddresses',
+					// 	],
+					// 	resources: [ '*' ],
+					// })
 					.addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address)
-					.addEnvironment(`CACHE_${stack.name}_${id}_PORT`, port.toString())
-					.addEnvironment(`CACHE_${stack.name}_${id}_USERNAME`, name)
-					.addEnvironment(`CACHE_${stack.name}_${id}_PASSWORD`, password)
-					.dependsOn(cluster)
+					.addEnvironment(`CACHE_${stack.name}_${id}_PORT`, props.port.toString())
+					// .dependsOn(cluster)
 			})
 		}
 	},

@@ -1,6 +1,6 @@
 import { pascalCase } from "change-case";
 import { Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
+import { formatArn, formatName, getAtt, ref } from "../../util";
 
 export type BucketProps = {
 	name?: string
@@ -35,7 +35,13 @@ export class Bucket extends Resource {
 				's3:GetQueueUrl',
 				's3:GetQueueAttributes',
 			],
-			resources: [ this.arn ],
+			resources: [
+				formatArn({
+					service: 's3',
+					resource: 'bucket',
+					resourceName: this.name,
+				})
+			],
 		}
 	}
 

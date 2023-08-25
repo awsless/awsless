@@ -105,6 +105,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
 }>> | Plugin<undefined> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
         function: zod.ZodDefault<zod.ZodObject<{
+            vpc: zod.ZodDefault<zod.ZodBoolean>;
             timeout: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             runtime: zod.ZodDefault<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
             memorySize: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -114,6 +115,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
+            vpc: boolean;
             timeout: Duration;
             runtime: "nodejs16.x" | "nodejs18.x";
             memorySize: Size;
@@ -123,6 +125,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
         }, {
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -134,6 +137,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }>>;
     }, "strip", zod.ZodTypeAny, {
         function: {
+            vpc: boolean;
             timeout: Duration;
             runtime: "nodejs16.x" | "nodejs18.x";
             memorySize: Size;
@@ -145,6 +149,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         };
     }, {
         function?: {
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -158,6 +163,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         functions: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            vpc: zod.ZodOptional<zod.ZodBoolean>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -168,6 +174,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -178,6 +185,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -190,6 +198,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         functions?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -202,6 +211,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         functions?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -216,6 +226,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         functions?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -228,6 +239,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
     defaults: {
         function: {
+            vpc: boolean;
             timeout: Duration;
             runtime: "nodejs16.x" | "nodejs18.x";
             memorySize: Size;
@@ -242,6 +254,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         functions?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -254,6 +267,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
     defaults?: {
         function?: {
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -334,6 +348,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                vpc: zod.ZodOptional<zod.ZodBoolean>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
                 runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -344,6 +359,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -354,6 +370,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -368,6 +385,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -378,6 +396,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -392,6 +411,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -402,6 +422,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -418,6 +439,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -428,6 +450,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -444,6 +467,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -454,6 +478,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -472,6 +497,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -482,6 +508,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -500,6 +527,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -510,6 +538,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -580,6 +609,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                vpc: zod.ZodOptional<zod.ZodBoolean>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
                 runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -590,6 +620,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -600,6 +631,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -620,6 +652,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -630,6 +663,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -650,6 +684,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -660,6 +695,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -682,6 +718,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -692,6 +729,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -714,6 +752,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -724,6 +763,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -748,6 +788,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -758,6 +799,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -794,6 +836,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -804,6 +847,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -848,6 +892,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: zod.ZodEnum<["keys-only", "new-image", "old-image", "new-and-old-images"]>;
                 consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
                     runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -858,6 +903,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -868,6 +914,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }, {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -881,6 +928,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -891,6 +939,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -904,6 +953,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -914,6 +964,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -948,6 +999,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -958,6 +1010,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -984,6 +1037,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -994,6 +1048,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1022,6 +1077,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1032,6 +1088,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1060,6 +1117,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1070,6 +1128,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1100,6 +1159,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1110,6 +1170,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1140,6 +1201,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1150,6 +1212,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1187,6 +1250,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         topics: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            vpc: zod.ZodOptional<zod.ZodBoolean>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1197,6 +1261,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -1207,6 +1272,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1219,6 +1285,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         topics?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -1231,6 +1298,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         topics?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1245,6 +1313,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         topics?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -1259,6 +1328,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         topics?: Record<string, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1276,6 +1346,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             sqlVersion: zod.ZodDefault<zod.ZodEnum<["2015-10-08", "2016-03-23", "beta"]>>;
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                vpc: zod.ZodOptional<zod.ZodBoolean>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
                 runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1286,6 +1357,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1296,6 +1368,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1308,6 +1381,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1318,6 +1392,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1332,6 +1407,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1342,6 +1418,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1358,6 +1435,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1368,6 +1446,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1384,6 +1463,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1394,6 +1474,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1412,6 +1493,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1422,6 +1504,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1440,6 +1523,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1450,6 +1534,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1518,6 +1603,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization: zod.ZodOptional<zod.ZodObject<{
                 authorizer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
                     runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1528,6 +1614,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1538,6 +1625,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }, {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1552,6 +1640,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1562,6 +1651,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1574,6 +1664,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             }, {
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1584,6 +1675,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1603,6 +1695,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1613,6 +1706,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1630,6 +1724,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization?: {
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1640,6 +1735,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1661,6 +1757,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1671,6 +1768,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1690,6 +1788,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization?: {
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1700,6 +1799,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1719,6 +1819,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodArray<zod.ZodEffects<zod.ZodString, string, string>, "many">]>>;
             resolvers: zod.ZodOptional<zod.ZodRecord<zod.ZodType<`${string} ${string}`, zod.ZodTypeDef, `${string} ${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                vpc: zod.ZodOptional<zod.ZodBoolean>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
                 runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1729,6 +1830,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1739,6 +1841,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1752,6 +1855,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Partial<Record<`${string} ${string}`, string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1765,6 +1869,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Partial<Record<`${string} ${string}`, string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1780,6 +1885,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Partial<Record<`${string} ${string}`, string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1795,6 +1901,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Partial<Record<`${string} ${string}`, string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1812,6 +1919,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Partial<Record<`${string} ${string}`, string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: Duration | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: Size | undefined;
@@ -1831,6 +1939,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1841,6 +1950,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: Duration | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: Size | undefined;
@@ -1860,6 +1970,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Partial<Record<`${string} ${string}`, string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1878,6 +1989,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization?: {
                 authorizer: (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1888,6 +2000,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    vpc?: boolean | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1928,6 +2041,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         http: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodRecord<zod.ZodType<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, zod.ZodTypeDef, `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            vpc: zod.ZodOptional<zod.ZodBoolean>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1938,6 +2052,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -1948,6 +2063,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1960,6 +2076,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -1972,6 +2089,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1986,6 +2104,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -2006,6 +2125,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2026,6 +2146,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         onFailure: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            vpc: zod.ZodOptional<zod.ZodBoolean>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             runtime: zod.ZodOptional<zod.ZodEnum<["nodejs16.x", "nodejs18.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -2036,6 +2157,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -2046,6 +2168,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2058,6 +2181,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         onFailure?: string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -2070,6 +2194,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         onFailure?: string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2084,6 +2209,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         onFailure?: string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: Duration | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: Size | undefined;
@@ -2098,6 +2224,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         onFailure?: string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2156,13 +2283,17 @@ declare abstract class Resource {
     readonly children: Array<Resource | Asset>;
     readonly logicalId: string;
     readonly tags: Map<string, string>;
-    private deps;
+    protected deps: Set<Resource>;
+    protected stack: Stack | undefined;
     constructor(type: string, logicalId: string, children?: Array<Resource | Asset>);
     dependsOn(...dependencies: Resource[]): this;
     tag(key: string, value: string): this;
     protected attr(name: string, value: unknown): {
         [x: string]: unknown;
     };
+    setStack(stack: Stack): this;
+    protected ref(): string;
+    protected getAtt<T = string>(attr: string): T;
     toJSON(): {
         [x: string]: {
             Type: string;
@@ -2347,6 +2478,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     functions?: Record<string, string | {
         file: string;
+        vpc?: boolean | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2369,6 +2501,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     crons?: Record<string, {
         consumer: (string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2379,6 +2512,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             environment?: Record<string, string> | undefined;
         }) & (string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2395,6 +2529,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     queues?: Record<string, string | {
         consumer: (string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2405,6 +2540,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             environment?: Record<string, string> | undefined;
         }) & (string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2435,6 +2571,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
             consumer: (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2445,6 +2582,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                vpc?: boolean | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2466,6 +2604,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     topics?: Record<string, string | {
         file: string;
+        vpc?: boolean | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2479,6 +2618,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     pubsub?: Record<string, {
         consumer: (string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2489,6 +2629,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             environment?: Record<string, string> | undefined;
         }) & (string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2508,6 +2649,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         schema?: string | string[] | undefined;
         resolvers?: Partial<Record<`${string} ${string}`, string | {
             file: string;
+            vpc?: boolean | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2521,6 +2663,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
         file: string;
+        vpc?: boolean | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2533,6 +2676,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     onFailure?: string | {
         file: string;
+        vpc?: boolean | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         runtime?: "nodejs16.x" | "nodejs18.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;

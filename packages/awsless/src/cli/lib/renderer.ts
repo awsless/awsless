@@ -18,7 +18,7 @@ export class Renderer {
 	constructor(readonly output:NodeJS.WriteStream, private ins: Interface) {}
 
 	width() {
-		return this.output.columns
+		return this.output.columns - 1
 	}
 
 	height() {

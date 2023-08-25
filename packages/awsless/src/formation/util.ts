@@ -18,6 +18,12 @@ export const getAtt = <T = string>(logicalId: string, attr: string): T => {
 	return { 'Fn::GetAtt': [ logicalId, attr ] } as T
 }
 
+// export const lazy = <T = string>(logicalId: string, attr: string): T => {
+// 	return () => {
+// 		{ 'Fn::GetAtt': [ logicalId, attr ] } as T
+// 	}
+// }
+
 export const importValue = <T = string>(name: string): T => {
 	return { 'Fn::ImportValue': name } as T
 }
@@ -30,6 +36,9 @@ export const formatName = (name: string) => {
 	return paramCase(name)
 }
 
-// export const arn = (name: string) => {
-// 	return paramCase(name)
-// }
+export const formatArn = (props: { service: string, resource: string, resourceName: string, seperator?: string }) => {
+	return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}', {
+		seperator: '/',
+		...props
+	})
+}

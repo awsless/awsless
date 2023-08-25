@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { toApp } from "../../app.js";
 import { StackClient } from "../../formation/client.js";
 import { debug } from "../logger.js";
-import { stackTree } from "../ui/complex/stack-tree.js";
+import { stackTree } from "../ui/complex/__stack-tree.js";
 import { style } from "../style.js";
 import { layout } from "../ui/layout/layout.js";
 import { Signal } from "../lib/signal.js";
@@ -10,6 +10,7 @@ import { assetBuilder } from "../ui/complex/builder.js";
 import { cleanUp } from "../../util/cleanup.js";
 import { dialog, loadingDialog } from "../ui/layout/dialog.js";
 import { templateBuilder } from "../ui/complex/template.js";
+import { stacksDeployer } from "../ui/complex/deployer.js";
 
 export const status = (program: Command) => {
 	program
@@ -18,7 +19,7 @@ export const status = (program: Command) => {
 		.description('View the application status')
 		.action(async (filters: string[]) => {
 			await layout(async (config, write) => {
-				const { app, dependencyTree } = await toApp(config, filters)
+				const { app, deploymentLine } = await toApp(config, filters)
 
 				// --------------------------------------------------------
 				// Build stack assets
@@ -34,32 +35,30 @@ export const status = (program: Command) => {
 
 				const client = new StackClient(app, config.account, config.region, config.credentials)
 				const statuses: Array<'non-existent' | 'out-of-date' | 'up-to-date'> = []
-				const stackStatuses: Record<string, Signal<string>> = {}
-
-				for(const stack of app) {
-					stackStatuses[stack.name] = new Signal(style.info('Loading...'))
-				}
 
 				// render the stacks with a loading state
-				write(stackTree(dependencyTree, stackStatuses))
+				const ui = write(stacksDeployer(deploymentLine))
 
 				debug('Load metadata for all deployed stacks on AWS')
 
 				await Promise.all(app.stacks.map(async (stack, i) => {
-					const info = await client.get(stack.name, stack.region)
-					const signal = stackStatuses[stack.name]
 
-					await new Promise(resolve => setTimeout(resolve, i * 1000))
+					const item = ui[stack.name]
+					item.start('loading')
+
+					const info = await client.get(stack.name, stack.region)
+
+					// await new Promise(resolve => setTimeout(resolve, i * 1000))
 
 					if(!info) {
-						signal.set(style.error('non-existent'))
+						item.fail('NON EXISTENT')
 						statuses.push('non-existent')
 					}
 					else if(info.template !== stack.toString()) {
-						signal.set(style.warning('out-of-date'))
+						item.warn('OUT OF DATE')
 						statuses.push('out-of-date')
 					} else {
-						signal.set(style.success('up-to-date'))
+						item.done('UP TO DATE')
 						statuses.push('up-to-date')
 					}
 				}))
