@@ -15,12 +15,11 @@ export const defineAppConfig = (config:AppConfig | AppConfigFactory<AppConfig>) 
 	return config
 }
 
-export {
-	getLocalResourceName,
-	getGlobalResourceName,
-	getFunctionName,
-	getQueueName,
-	getStoreName,
-	getTableName,
-	getTopicName
-} from './node/resource'
+export { APP, STACK, getLocalResourceName, getGlobalResourceName, getSecretName } from './node/resource'
+export { getFunctionName, FunctionResources, Function } from './node/function'
+export { getTableName, TableResources, Table } from './node/table'
+export { getTopicName, TopicResources, Topic } from './node/topic'
+export { getQueueName, QueueResources, Queue } from './node/queue'
+export { getCacheProps, CacheResources, Cache } from './node/cache'
+export { getStoreName, StoreResources, Store } from './node/store'
+export { getSearchName, SearchResources, Search } from './node/search'

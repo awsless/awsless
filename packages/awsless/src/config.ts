@@ -12,8 +12,9 @@ import { defaultPlugins } from './plugins'
 // import { LoadMode, load } from "ts-import"
 // import { outDir } from './util/path'
 // import { transformFile } from '@swc/core'
-import { importFile } from "./util/import"
+import { importFile, watchFile } from "./util/import"
 import { findRootDir, setRoot } from "./util/path"
+import { z } from "zod"
 // import { outDir } from "./util/path"
 
 export type BaseConfig = AppConfigOutput & {
@@ -25,8 +26,14 @@ export type Config = ExtendedConfigOutput<typeof defaultPlugins[number]['schema'
 
 export type AppConfigFactory<C = AppConfigInput> = (options: ProgramOptions) => C | Promise<C>
 
-type Module = {
+export type Module = {
 	default: AppConfigFactory | AppConfigInput
+}
+
+export class ConfigError extends Error {
+	constructor(readonly error: z.ZodError, readonly data: any) {
+		super(error.message)
+	}
 }
 
 export const importConfig = async (options: ProgramOptions): Promise<Config> => {
@@ -64,7 +71,16 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 		}
 	}
 
-	const config = await schema.parseAsync(appConfig)
+	let config
+	try {
+		config = await schema.parseAsync(appConfig)
+	} catch(error) {
+		if(error instanceof z.ZodError) {
+			throw new ConfigError(error, appConfig)
+		}
+
+		throw error
+	}
 
 	debug('Load credentials', style.info(config.profile))
 	const credentials = getCredentials(config.profile)
@@ -77,5 +93,65 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 		...config,
 		account,
 		credentials,
+	}
+}
+
+export const watchConfig = async function* (options: ProgramOptions): AsyncGenerator<Config> {
+
+	debug('Find the root directory')
+
+	const configFile = options.configFile || 'awsless.config.ts'
+	const root = await findRootDir(process.cwd(), configFile)
+	setRoot(root)
+
+	debug('CWD:', style.info(root))
+
+	debug('Import config file')
+
+	const fileName = join(root, configFile)
+
+	for await(const module of watchFile(fileName)) {
+		const appConfig = typeof module.default === 'function'
+			? (await module.default(options))
+			: module.default
+
+		debug('Validate config file')
+
+		const plugins = [
+			...defaultPlugins,
+			...(appConfig.plugins || [])
+		]
+		let schema = AppSchema
+
+		for(const plugin of plugins) {
+			if(plugin.schema) {
+				// @ts-ignore
+				schema = schema.and(plugin.schema)
+			}
+		}
+
+		let config
+		try {
+			config = await schema.parseAsync(appConfig)
+		} catch(error) {
+			if(error instanceof z.ZodError) {
+				throw new ConfigError(error, appConfig)
+			}
+
+			throw error
+		}
+
+		debug('Load credentials', style.info(config.profile))
+		const credentials = getCredentials(config.profile)
+
+		debug('Load AWS account ID')
+		const account = await getAccountId(credentials, config.region)
+		debug('Account ID:', style.info(account))
+
+		yield {
+			...config,
+			account,
+			credentials,
+		}
 	}
 }

@@ -41,8 +41,12 @@ export class Definition extends Asset {
 
 		const defs = mergeTypeDefs(schemas)
 		const schema = print(defs)
-		const size = Buffer.from(schema, 'utf8').byteLength
 
+		if(schema.length === 0) {
+			throw new Error(`Graphql schema definition can't be empty. [${this.id}]`)
+		}
+
+		const size = Buffer.from(schema, 'utf8').byteLength
 		await write('schema.gql', schema)
 
 		this.schema = schema

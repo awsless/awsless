@@ -9,9 +9,9 @@ export const assetBucketName = (account:string, region:Region) => {
 	return `awsless-bootstrap-${ account }-${ region }`
 }
 
-export const assetBucketUrl = (account:string, region:Region, stack:Stack) => {
+export const assetBucketUrl = (account:string, region:Region, app:App, stack:Stack) => {
 	const bucket = assetBucketName(account, region)
-	return `https://s3-${ region }.amazonaws.com/${ bucket }/${ stack.name }/cloudformation.json`
+	return `https://${ bucket }.s3.${ region }.amazonaws.com/${ app.name }/${ stack.name }/cloudformation.json`
 }
 
 const version = '1'

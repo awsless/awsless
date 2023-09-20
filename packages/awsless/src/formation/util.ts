@@ -1,4 +1,5 @@
 import { paramCase, pascalCase } from "change-case"
+import { Lazy } from "./resource";
 
 export type ConstructorOf<C> = { new (...args: any[]): C; };
 
@@ -25,7 +26,9 @@ export const getAtt = <T = string>(logicalId: string, attr: string): T => {
 // }
 
 export const importValue = <T = string>(name: string): T => {
-	return { 'Fn::ImportValue': name } as T
+	return new Lazy((stack) => ({
+		'Fn::ImportValue': `${ stack.app!.name }-${name}`
+	})) as T
 }
 
 export const formatLogicalId = (id: string) => {

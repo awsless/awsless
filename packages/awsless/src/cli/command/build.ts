@@ -4,6 +4,7 @@ import { layout } from '../ui/layout/layout.js';
 import { assetBuilder } from "../ui/complex/builder.js";
 import { cleanUp } from "../../util/cleanup.js";
 import { templateBuilder } from "../ui/complex/template.js";
+import { typesGenerator } from "../ui/complex/types.js";
 
 export const build = (program: Command) => {
 	program
@@ -16,6 +17,7 @@ export const build = (program: Command) => {
 				const { app } = await toApp(config, filters)
 
 				await cleanUp()
+				await write(typesGenerator(config))
 				await write(assetBuilder(app))
 				await write(templateBuilder(app))
 			})

@@ -11,6 +11,11 @@ import { SqsEventSource } from '../formation/resource/lambda/event-source/sqs.js
 import { getGlobalOnFailure } from './on-failure/util.js';
 import { Duration } from '../formation/property/duration.js';
 import { Size } from '../formation/property/size.js';
+import { TypeGen, TypeObject } from '../util/type-gen.js';
+import { formatName } from '../formation/util.js';
+import { camelCase, constantCase } from 'change-case';
+import { directories } from '../util/path.js';
+import { relative } from 'path';
 
 const RetentionPeriodSchema = DurationSchema
 	.refine(durationMin(Duration.minutes(1)), 'Minimum retention period is 1 minute')
@@ -40,6 +45,17 @@ const MaxConcurrencySchema = z.number().int()
 
 const MaxBatchingWindow = DurationSchema
 	.refine(durationMax(Duration.minutes(5)), 'Maximum max batching window is 5 minutes')
+
+const typeGenCode = `
+import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless/sqs'
+
+type Payload<Func extends (...args: any[]) => any> = Parameters<Func>[0]['Records'][number]['body']
+
+type Send<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	(payload: Payload<Func>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
+}`
 
 export const queuePlugin = definePlugin({
 	name: 'queue',
@@ -156,6 +172,33 @@ export const queuePlugin = definePlugin({
 			).optional()
 		}).array()
 	}),
+	onTypeGen({ config }) {
+		const types = new TypeGen('@awsless/awsless', 'QueueResources')
+		types.addCode(typeGenCode)
+
+		for(const stack of config.stacks) {
+			const list = new TypeObject()
+			for(const [ name, fileOrProps ] of Object.entries(stack.queues || {})) {
+				const varName = camelCase(`${stack.name}-${name}`)
+				const queueName = formatName(`${config.name}-${stack.name}-${name}`)
+
+				const file = typeof fileOrProps === 'string'
+					? fileOrProps
+					: typeof fileOrProps.consumer === 'string'
+					? fileOrProps.consumer
+					: fileOrProps.consumer.file
+
+				const relFile = relative(directories.types, file)
+
+				types.addImport(varName, relFile)
+				list.addType(name, `Send<'${queueName}', typeof ${varName}>`)
+			}
+
+			types.addType(stack.name, list.toString())
+		}
+
+		return types.toString()
+	},
 	onStack(ctx) {
 		const { stack, config, stackConfig, bind } = ctx
 
@@ -182,6 +225,7 @@ export const queuePlugin = definePlugin({
 
 			bind((lambda) => {
 				lambda.addPermissions(queue.permissions)
+				lambda.addEnvironment(`QUEUE_${constantCase(stack.name)}_${constantCase(id)}_URL`, queue.url)
 			})
 		}
 	},

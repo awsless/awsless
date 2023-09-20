@@ -4,8 +4,12 @@ import { tableStack } from "./table";
 
 export const functionStack:StackConfig = {
 	name: 'function',
-	depends: [ cacheStack, tableStack ],
+	depends: [
+		// cacheStack,
+		// tableStack
+	],
 	functions: {
-		call: __dirname + '/../function/call.ts'
+		call: __dirname + '/../function/call.ts',
+		otherCall: __dirname + '/../function/call.ts'
 	},
 }

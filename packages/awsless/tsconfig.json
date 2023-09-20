@@ -6,7 +6,7 @@
 		// "module": "CommonJS",
 		// "moduleResolution": "NodeNext",
 		// "preserveSymlinks": true
-
+		"types": [ "node" ],
 		"declaration": true,
 		"removeComments": false,
 		"esModuleInterop": true,

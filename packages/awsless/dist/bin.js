@@ -163,7 +163,9 @@ var getAtt = (logicalId, attr) => {
   return { "Fn::GetAtt": [logicalId, attr] };
 };
 var importValue = (name) => {
-  return { "Fn::ImportValue": name };
+  return new Lazy((stack) => ({
+    "Fn::ImportValue": `${stack.app.name}-${name}`
+  }));
 };
 var formatLogicalId = (id) => {
   return pascalCase(id).replaceAll("_", "");
@@ -259,11 +261,12 @@ var Lazy = class {
 
 // src/formation/resource/iam/inline-policy.ts
 var InlinePolicy = class {
-  constructor(name, props = {}) {
-    this.name = name;
-    this.statements = props.statements || [];
-  }
+  name;
   statements;
+  constructor(name, props = {}) {
+    this.statements = props.statements || [];
+    this.name = formatName(name);
+  }
   addStatement(...statements) {
     this.statements.push(...statements.flat());
     return this;
@@ -302,9 +305,7 @@ var Role = class extends Resource {
   constructor(logicalId, props = {}) {
     super("AWS::IAM::Role", logicalId);
     this.props = props;
-    this.name = formatName(logicalId);
   }
-  name;
   inlinePolicies = /* @__PURE__ */ new Set();
   managedPolicies = /* @__PURE__ */ new Set();
   get arn() {
@@ -433,10 +434,18 @@ var Stack = class {
     this.name = name;
     this.region = region;
   }
+  parent;
   exports = /* @__PURE__ */ new Map();
   resources = /* @__PURE__ */ new Set();
   tags = /* @__PURE__ */ new Map();
   assets = /* @__PURE__ */ new Set();
+  get app() {
+    return this.parent;
+  }
+  setApp(app) {
+    this.parent = app;
+    return this;
+  }
   add(...resources) {
     for (const item of resources) {
       if (item instanceof Asset) {
@@ -502,7 +511,7 @@ var Stack = class {
         }
       }
     };
-    for (const resource of this) {
+    for (const resource of this.resources) {
       const json2 = resource.toJSON();
       walk(json2);
       Object.assign(resources, json2);
@@ -510,7 +519,9 @@ var Stack = class {
     for (const [name, value] of this.exports.entries()) {
       Object.assign(outputs, {
         [formatLogicalId(name)]: {
-          Export: { Name: name },
+          Export: {
+            Name: `${this.app?.name || "default"}-${name}`
+          },
           Value: value
         }
       });
@@ -585,7 +596,7 @@ var createDeploymentLine = (stacks) => {
     depends: config?.depends?.map((dep) => dep.name) || []
   }));
   const names = stacks.map(({ stack }) => stack.name);
-  const line = [];
+  const line2 = [];
   const deps = [];
   let limit = 100;
   while (deps.length < list3.length) {
@@ -600,9 +611,9 @@ var createDeploymentLine = (stacks) => {
       throw new Error(`Circular stack dependencies arn't allowed: ${circularNames}`);
     }
     deps.push(...local.map((stack) => stack.name));
-    line.push(local);
+    line2.push(local);
   }
-  return line;
+  return line2;
 };
 
 // src/plugins/cron/index.ts
@@ -612,23 +623,30 @@ import { z as z7 } from "zod";
 import { z } from "zod";
 import { awsCronExpressionValidator } from "aws-cron-expression-validator";
 var RateExpressionSchema = z.custom((value) => {
-  return z.string().regex(/rate\([0-9]+ (seconds?|minutes?|hours?|days?)\)/).refine((rate) => {
-    const [str] = rate.substring(5).split(" ");
+  return z.string().regex(/^[0-9]+ (seconds?|minutes?|hours?|days?)$/).refine((rate) => {
+    const [str] = rate.split(" ");
     const number = parseInt(str);
     return number > 0;
   }).safeParse(value).success;
-}, "Invalid rate expression");
+}, { message: "Invalid rate expression" }).transform((rate) => {
+  const [str] = rate.split(" ");
+  const number = parseInt(str);
+  const more = rate.endsWith("s");
+  if (more && number === 1) {
+    return `rate(${rate.substring(0, rate.length - 1)})`;
+  }
+  return `rate(${rate})`;
+});
 var CronExpressionSchema = z.custom((value) => {
-  return z.string().startsWith("cron(").endsWith(")").safeParse(value).success;
-}, "Invalid cron expression").superRefine((value, ctx) => {
-  const cron = value.substring(5, value.length - 1);
+  return z.string().safeParse(value).success;
+}, { message: "Invalid cron expression" }).superRefine((value, ctx) => {
   try {
-    awsCronExpressionValidator(cron);
+    awsCronExpressionValidator(value);
   } catch (error) {
     if (error instanceof Error) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: error.message
+        message: `Invalid cron expression: ${error.message}`
       });
     } else {
       ctx.addIssue({
@@ -637,6 +655,8 @@ var CronExpressionSchema = z.custom((value) => {
       });
     }
   }
+}).transform((value) => {
+  return `cron(${value.trim()})`;
 });
 var ScheduleExpressionSchema = RateExpressionSchema.or(CronExpressionSchema);
 
@@ -700,7 +720,7 @@ function toDuration(duration) {
   return Duration.days(0);
 }
 var DurationSchema = z2.custom((value) => {
-  return z2.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/).safeParse(value).success;
+  return z2.string().regex(/^[0-9]+ (seconds?|minutes?|hours?|days?)$/).safeParse(value).success;
 }, "Invalid duration").transform(toDuration);
 var durationMin = (min) => {
   return (duration) => {
@@ -726,8 +746,9 @@ var LocalFileSchema = z3.string().refine(async (path) => {
 }, `File doesn't exist`);
 
 // src/schema/resource-id.ts
+import { paramCase as paramCase3 } from "change-case";
 import { z as z4 } from "zod";
-var ResourceIdSchema = z4.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
+var ResourceIdSchema = z4.string().min(3).max(24).regex(/^[a-z0-9\-]+$/i, "Invalid resource ID").transform((value) => paramCase3(value));
 
 // src/schema/size.ts
 import { z as z5 } from "zod";
@@ -777,7 +798,7 @@ function toSize(size) {
   throw new TypeError(`Invalid size ${size}`);
 }
 var SizeSchema = z5.custom((value) => {
-  return z5.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value).success;
+  return z5.string().regex(/^[0-9]+ (KB|MB|GB)$/).safeParse(value).success;
 }, "Invalid size").transform(toSize);
 var sizeMin = (min) => {
   return (size) => {
@@ -804,6 +825,7 @@ import { swc } from "rollup-plugin-swc3";
 import json from "@rollup/plugin-json";
 import commonjs from "@rollup/plugin-commonjs";
 import nodeResolve from "@rollup/plugin-node-resolve";
+import { dirname } from "path";
 var rollupBundle = async (input) => {
   const bundle = await rollup({
     input,
@@ -818,12 +840,13 @@ var rollupBundle = async (input) => {
     },
     plugins: [
       commonjs({ sourceMap: true }),
-      nodeResolve({
-        preferBuiltins: true
-      }),
+      nodeResolve({ preferBuiltins: true }),
       swc({
         minify: true,
-        jsc: { minify: { sourceMap: true } },
+        jsc: {
+          baseUrl: dirname(input),
+          minify: { sourceMap: true }
+        },
         sourceMaps: true
       }),
       json()
@@ -984,6 +1007,162 @@ var hasOnFailure = (config) => {
 };
 
 // src/plugins/function.ts
+import { camelCase as camelCase2 } from "change-case";
+
+// src/util/path.ts
+import { lstat } from "fs/promises";
+import { join, normalize } from "path";
+var root = process.cwd();
+var directories = {
+  root,
+  get output() {
+    return join(this.root, ".awsless");
+  },
+  get cache() {
+    return join(this.output, "cache");
+  },
+  get asset() {
+    return join(this.output, "asset");
+  },
+  get types() {
+    return join(this.output, "types");
+  },
+  get template() {
+    return join(this.output, "template");
+  }
+};
+var setRoot = (path = root) => {
+  directories.root = path;
+};
+var findRootDir = async (path, configFile, level = 5) => {
+  if (!level) {
+    throw new TypeError("No awsless project found");
+  }
+  const file = join(path, configFile);
+  const exists = await fileExist(file);
+  if (exists) {
+    return path;
+  }
+  return findRootDir(normalize(join(path, "..")), configFile, level - 1);
+};
+var fileExist = async (file) => {
+  try {
+    const stat = await lstat(file);
+    if (stat.isFile()) {
+      return true;
+    }
+  } catch (error) {
+  }
+  return false;
+};
+
+// src/plugins/function.ts
+import { relative as relative2 } from "path";
+
+// src/util/type-gen.ts
+import { mkdir, writeFile } from "fs/promises";
+import { join as join2, relative } from "path";
+import { camelCase } from "change-case";
+var generateResourceTypes = async (config) => {
+  const plugins = [
+    ...defaultPlugins,
+    ...config.plugins || []
+  ];
+  const files = [];
+  for (const plugin of plugins) {
+    const code = plugin.onTypeGen?.({ config });
+    if (code) {
+      const file = join2(directories.types, `${plugin.name}.d.ts`);
+      files.push(relative(directories.root, file));
+      await mkdir(directories.types, { recursive: true });
+      await writeFile(file, code);
+    }
+  }
+  if (files.length) {
+    const code = files.map((file) => `/// <reference path='${file}' />`).join("\n");
+    await writeFile(join2(directories.root, `awsless.d.ts`), code);
+  }
+};
+var TypeGen = class {
+  constructor(module, interfaceName) {
+    this.module = module;
+    this.interfaceName = interfaceName;
+  }
+  codes = /* @__PURE__ */ new Set();
+  types = /* @__PURE__ */ new Map();
+  imports = /* @__PURE__ */ new Map();
+  addImport(varName, path) {
+    this.imports.set(varName, path);
+    return this;
+  }
+  addCode(code) {
+    this.codes.add(code);
+    return this;
+  }
+  addType(name, type) {
+    if (type) {
+      this.types.set(name, type);
+    }
+    return this;
+  }
+  toString() {
+    if (this.types.size === 0) {
+      return;
+    }
+    const lines = [];
+    if (this.imports.size > 0) {
+      lines.push(...[
+        "// Imports",
+        ...Array.from(this.imports.entries()).map(([varName, path]) => {
+          return `import ${camelCase(varName)} from '${path}'`;
+        }),
+        ""
+      ]);
+    }
+    if (this.codes.size > 0) {
+      lines.push(...[
+        "// Types",
+        ...Array.from(this.codes).map((v) => v.trim()),
+        ""
+      ]);
+    }
+    return [
+      ...lines,
+      "// Extend module",
+      `declare module '${this.module}' {`,
+      `	interface ${this.interfaceName} {`,
+      ...Array.from(this.types.entries()).map(([propName, type]) => {
+        return `		readonly ${camelCase(propName)}: ${type}`;
+      }),
+      `	}`,
+      `}`,
+      "",
+      "// Export fix",
+      `export {}`
+    ].join("\n");
+  }
+};
+var TypeObject = class {
+  types = /* @__PURE__ */ new Map();
+  addType(name, type) {
+    this.types.set(name, type);
+    return this;
+  }
+  toString() {
+    if (!this.types.size) {
+      return "";
+    }
+    return [
+      "{",
+      ...Array.from(this.types.entries()).map(([propName, type]) => {
+        return `			readonly ${camelCase(propName)}: ${type}`;
+      }),
+      "		}"
+    ].join("\n");
+  }
+};
+
+// src/plugins/function.ts
 var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum memory size is 10 GB");
 var TimeoutSchema = DurationSchema.refine(durationMin(Duration.seconds(10)), "Minimum timeout duration is 10 seconds").refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
 var EphemeralStorageSizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(512)), "Minimum ephemeral storage size is 512 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum ephemeral storage size is 10 GB");
@@ -1050,6 +1229,9 @@ var FunctionSchema = z6.union([
     // onFailure: ResourceIdSchema.optional(),
   })
 ]);
+var isFunctionProps = (input) => {
+  return typeof input === "string" || typeof input.file === "string";
+};
 var schema = z6.object({
   defaults: z6.object({
     function: z6.object({
@@ -1118,9 +1300,34 @@ var schema = z6.object({
     ).optional()
   }).array()
 });
+var typeGenCode = `
+import { InvokeOptions } from '@awsless/lambda'
+
+type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
+	async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
+}`;
 var functionPlugin = definePlugin({
   name: "function",
   schema,
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "FunctionResources");
+    types2.addCode(typeGenCode);
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const [name, fileOrProps] of Object.entries(stack.functions || {})) {
+        const varName = camelCase2(`${stack.name}-${name}`);
+        const funcName = formatName(`${config.name}-${stack.name}-${name}`);
+        const file = typeof fileOrProps === "string" ? fileOrProps : fileOrProps.file;
+        const relFile = relative2(directories.types, file);
+        types2.addImport(varName, relFile);
+        list3.addType(name, `Invoke<'${funcName}', typeof ${varName}>`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack(ctx) {
     const { config, stack } = ctx;
     for (const [id, fileOrProps] of Object.entries(ctx.stackConfig.functions || {})) {
@@ -1146,7 +1353,7 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
   const stack = ctx.stack;
   const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
   const lambda = new Function(id, {
-    name: `${config.name}-${stack.name}-${id}`,
+    name: `${config.name}--${stack.name}--${id}`,
     code: Code.fromFile(id, props.file),
     ...props,
     vpc: void 0
@@ -1224,7 +1431,7 @@ var Permission2 = class extends Resource {
       FunctionName: this.props.functionArn,
       Action: this.props.action || "lambda:InvokeFunction",
       Principal: this.props.principal,
-      SourceArn: this.props.sourceArn
+      ...this.attr("SourceArn", this.props.sourceArn)
     };
   }
 };
@@ -1261,7 +1468,7 @@ var cronPlugin = definePlugin({
        *   crons: {
        *     CRON_NAME: {
        *       consumer: 'function.ts',
-       *       schedule: 'rate(5 minutes)',
+       *       schedule: '5 minutes',
        *     }
        *   }
        * }
@@ -1270,8 +1477,8 @@ var cronPlugin = definePlugin({
         /** The consuming lambda function properties. */
         consumer: FunctionSchema,
         /** The scheduling expression.
-         * @example 'cron(0 20 * * ? *)'
-         * @example 'rate(5 minutes)'
+         * @example '0 20 * * ? *'
+         * @example '5 minutes'
          */
         schedule: ScheduleExpressionSchema,
         // Valid JSON passed to the consumer.
@@ -1413,6 +1620,8 @@ var SqsEventSource = class extends Group {
 };
 
 // src/plugins/queue.ts
+import { camelCase as camelCase3, constantCase as constantCase2 } from "change-case";
+import { relative as relative3 } from "path";
 var RetentionPeriodSchema = DurationSchema.refine(durationMin(Duration.minutes(1)), "Minimum retention period is 1 minute").refine(durationMax(Duration.days(14)), "Maximum retention period is 14 days");
 var VisibilityTimeoutSchema = DurationSchema.refine(durationMax(Duration.hours(12)), "Maximum visibility timeout is 12 hours");
 var DeliveryDelaySchema = DurationSchema.refine(durationMax(Duration.minutes(15)), "Maximum delivery delay is 15 minutes");
@@ -1421,6 +1630,16 @@ var MaxMessageSizeSchema = SizeSchema.refine(sizeMin(Size.kiloBytes(1)), "Minimu
 var BatchSizeSchema = z8.number().int().min(1, "Minimum batch size is 1").max(1e4, "Maximum batch size is 10000");
 var MaxConcurrencySchema = z8.number().int().min(2, "Minimum max concurrency is 2").max(1e3, "Maximum max concurrency is 1000");
 var MaxBatchingWindow = DurationSchema.refine(durationMax(Duration.minutes(5)), "Maximum max batching window is 5 minutes");
+var typeGenCode2 = `
+import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless/sqs'
+
+type Payload<Func extends (...args: any[]) => any> = Parameters<Func>[0]['Records'][number]['body']
+
+type Send<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	(payload: Payload<Func>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
+}`;
 var queuePlugin = definePlugin({
   name: "queue",
   schema: z8.object({
@@ -1520,6 +1739,23 @@ var queuePlugin = definePlugin({
       ).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "QueueResources");
+    types2.addCode(typeGenCode2);
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const [name, fileOrProps] of Object.entries(stack.queues || {})) {
+        const varName = camelCase3(`${stack.name}-${name}`);
+        const queueName = formatName(`${config.name}-${stack.name}-${name}`);
+        const file = typeof fileOrProps === "string" ? fileOrProps : typeof fileOrProps.consumer === "string" ? fileOrProps.consumer : fileOrProps.consumer.file;
+        const relFile = relative3(directories.types, file);
+        types2.addImport(varName, relFile);
+        list3.addType(name, `Send<'${queueName}', typeof ${varName}>`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack(ctx) {
     const { stack, config, stackConfig, bind } = ctx;
     for (const [id, functionOrProps] of Object.entries(stackConfig.queues || {})) {
@@ -1539,6 +1775,7 @@ var queuePlugin = definePlugin({
       stack.add(queue2, lambda, source);
       bind((lambda2) => {
         lambda2.addPermissions(queue2.permissions);
+        lambda2.addEnvironment(`QUEUE_${constantCase2(stack.name)}_${constantCase2(id)}_URL`, queue2.url);
       });
     }
   }
@@ -1548,7 +1785,7 @@ var queuePlugin = definePlugin({
 import { z as z9 } from "zod";
 
 // src/formation/resource/dynamodb/table.ts
-import { constantCase as constantCase2 } from "change-case";
+import { constantCase as constantCase3 } from "change-case";
 var Table = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::DynamoDB::Table", logicalId);
@@ -1607,21 +1844,21 @@ var Table = class extends Resource {
         index.sort
       ])
     ].flat().filter(Boolean));
-    const types = {
+    const types2 = {
       string: "S",
       number: "N",
       binary: "B"
     };
     return [...attributes].map((name) => ({
       AttributeName: name,
-      AttributeType: types[fields[name] || "string"]
+      AttributeType: types2[fields[name] || "string"]
     }));
   }
   properties() {
     return {
       TableName: this.name,
       BillingMode: "PAY_PER_REQUEST",
-      TableClass: constantCase2(this.props.class || "standard"),
+      TableClass: constantCase3(this.props.class || "standard"),
       PointInTimeRecoverySpecification: {
         PointInTimeRecoveryEnabled: this.props.pointInTimeRecovery || false
       },
@@ -1632,7 +1869,7 @@ var Table = class extends Resource {
       AttributeDefinitions: this.attributeDefinitions(),
       ...this.props.stream ? {
         StreamSpecification: {
-          StreamViewType: constantCase2(this.props.stream)
+          StreamViewType: constantCase3(this.props.stream)
         }
       } : {},
       ...this.props.timeToLiveAttribute ? {
@@ -1649,7 +1886,7 @@ var Table = class extends Resource {
             ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
           ],
           Projection: {
-            ProjectionType: constantCase2(props.projection || "all")
+            ProjectionType: constantCase3(props.projection || "all")
           }
         }))
       } : {}
@@ -1793,6 +2030,18 @@ var tablePlugin = definePlugin({
       ).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "TableResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const name of Object.keys(stack.tables || {})) {
+        const tableName = formatName(`${config.name}-${stack.name}-${name}`);
+        list3.addType(name, `{ name: '${tableName}' }`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack(ctx) {
     const { config, stack, stackConfig, bind } = ctx;
     for (const [id, props] of Object.entries(stackConfig.tables || {})) {
@@ -1881,6 +2130,18 @@ var storePlugin = definePlugin({
       stores: z10.array(ResourceIdSchema).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "StoreResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const name of stack.stores || []) {
+        const storeName = formatName(`${config.name}-${stack.name}-${name}`);
+        list3.addType(name, `{ name: '${storeName}' }`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack({ config, stack, stackConfig, bind }) {
     for (const id of stackConfig.stores || []) {
       const bucket = new Bucket(id, {
@@ -1964,47 +2225,101 @@ var SnsEventSource = class extends Group {
 };
 
 // src/plugins/topic.ts
+var typeGenCode3 = `
+import { PublishOptions } from '@awsless/sns'
+
+type Publish<Name extends string> = {
+	name: Name
+	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
+}`;
 var topicPlugin = definePlugin({
   name: "topic",
   schema: z11.object({
     stacks: z11.object({
-      /** Define the topics to listen too in your stack.
+      // /** Define the events to listen too in your stack.
+      //  * @example
+      //  * {
+      //  *   topics: {
+      //  *     TOPIC_NAME: 'function.ts'
+      //  *   }
+      //  * }
+      //  */
+      // topics: z.record(ResourceIdSchema, FunctionSchema).optional()
+      /** Define the events to publish too in your stack.
        * @example
        * {
-       *   topics: {
+       *   topics: [ 'TOPIC_NAME ]'
+       * }
+       */
+      topics: z11.array(ResourceIdSchema).refine((topics) => {
+        return topics.length === new Set(topics).size;
+      }, "Must be a list of unique topic names").optional(),
+      /** Define the events to subscribe too in your stack.
+       * @example
+       * {
+       *   subscribers: {
        *     TOPIC_NAME: 'function.ts'
        *   }
        * }
        */
-      topics: z11.record(ResourceIdSchema, FunctionSchema).optional()
-    }).array()
+      subscribers: z11.record(ResourceIdSchema, FunctionSchema).optional()
+    }).array().superRefine((stacks, ctx) => {
+      const topics = [];
+      for (const stack of stacks) {
+        topics.push(...stack.topics || []);
+      }
+      for (const index in stacks) {
+        const stack = stacks[index];
+        for (const sub2 of Object.keys(stack.subscribers || {})) {
+          if (!topics.includes(sub2)) {
+            ctx.addIssue({
+              code: z11.ZodIssueCode.custom,
+              message: `Topic subscription to "${sub2}" is undefined`,
+              path: [Number(index), "subscribers"]
+            });
+          }
+        }
+      }
+    })
   }),
-  onApp({ config, bootstrap: bootstrap2, bind }) {
-    const allTopicNames = config.stacks.map((stack) => {
-      return Object.keys(stack.topics || {});
-    }).flat();
-    const uniqueTopicNames = [...new Set(allTopicNames)];
-    for (const id of uniqueTopicNames) {
-      const topic = new Topic(id, {
-        name: `${config.name}-${id}`
-      });
-      bootstrap2.add(topic);
-      bootstrap2.export(`topic-${id}-arn`, topic.arn);
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "TopicResources");
+    gen.addCode(typeGenCode3);
+    for (const stack of config.stacks) {
+      for (const topic of Object.keys(stack.topics || {})) {
+        const name = formatName(`${config.name}-${topic}`);
+        gen.addType(topic, `Publish<'${name}'>`);
+      }
     }
-    bind((lambda) => {
-      lambda.addPermissions({
-        actions: ["sns:Publish"],
-        resources: [
-          sub("arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${app}-*", {
-            app: config.name
-          })
-        ]
-      });
-    });
+    return gen.toString();
+  },
+  onApp({ config, bootstrap: bootstrap2 }) {
+    for (const stack of config.stacks) {
+      for (const id of stack.topics || []) {
+        const topic = new Topic(id, {
+          name: `${config.name}-${id}`
+        });
+        bootstrap2.add(topic);
+        bootstrap2.export(`topic-${id}-arn`, topic.arn);
+      }
+    }
   },
   onStack(ctx) {
-    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
-    for (const [id, props] of Object.entries(stackConfig.topics || {})) {
+    const { config, stack, stackConfig, bootstrap: bootstrap2, bind } = ctx;
+    for (const id of stackConfig.topics || []) {
+      bind((lambda) => {
+        lambda.addPermissions({
+          actions: ["sns:Publish"],
+          resources: [
+            sub("arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${app}-${topic}", {
+              app: config.name,
+              topic: id
+            })
+          ]
+        });
+      });
+    }
+    for (const [id, props] of Object.entries(stackConfig.subscribers || {})) {
       const lambda = toLambdaFunction(ctx, `topic-${id}`, props);
       const source = new SnsEventSource(id, lambda, {
         topicArn: bootstrap2.import(`topic-${id}-arn`)
@@ -2143,10 +2458,10 @@ var toArray = (value) => {
 };
 
 // src/plugins/graphql.ts
-import { paramCase as paramCase3 } from "change-case";
+import { paramCase as paramCase4 } from "change-case";
 
 // src/formation/resource/appsync/graphql-api.ts
-import { constantCase as constantCase3 } from "change-case";
+import { constantCase as constantCase4 } from "change-case";
 var GraphQLApi = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::AppSync::GraphQLApi", logicalId);
@@ -2178,7 +2493,7 @@ var GraphQLApi = class extends Resource {
   properties() {
     return {
       Name: this.name,
-      AuthenticationType: constantCase3(this.props.authenticationType || "api-key"),
+      AuthenticationType: constantCase4(this.props.authenticationType || "api-key"),
       AdditionalAuthenticationProviders: this.lambdaAuthProviders.map((provider) => ({
         AuthenticationType: "AWS_LAMBDA",
         LambdaAuthorizerConfig: {
@@ -2248,6 +2563,9 @@ var Definition = class extends Asset {
     }));
     const defs = mergeTypeDefs(schemas);
     const schema2 = print(defs);
+    if (schema2.length === 0) {
+      throw new Error(`Graphql schema definition can't be empty. [${this.id}]`);
+    }
     const size = Buffer.from(schema2, "utf8").byteLength;
     await write("schema.gql", schema2);
     this.schema = schema2;
@@ -2483,9 +2801,6 @@ export function response(ctx) {
 	return ctx.result
 }
 `;
-var ResolverFieldSchema = z14.custom((value) => {
-  return z14.string().regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi).safeParse(value).success;
-}, `Invalid resolver field. Valid example: "Query list"`);
 var graphqlPlugin = definePlugin({
   name: "graphql",
   schema: z14.object({
@@ -2506,7 +2821,21 @@ var graphqlPlugin = definePlugin({
           LocalFileSchema,
           z14.array(LocalFileSchema).min(1)
         ]).optional(),
-        resolvers: z14.record(ResolverFieldSchema, FunctionSchema).optional()
+        resolvers: z14.record(
+          // TypeName
+          z14.string(),
+          z14.record(
+            // FieldName
+            z14.string(),
+            z14.union([
+              FunctionSchema,
+              z14.object({
+                consumer: FunctionSchema,
+                resolver: LocalFileSchema
+              })
+            ])
+          )
+        ).optional()
       })).optional()
     }).array()
   }),
@@ -2571,17 +2900,19 @@ var graphqlPlugin = definePlugin({
     const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, props] of Object.entries(stackConfig.graphql || {})) {
       const apiId = bootstrap2.import(`graphql-${id}`);
-      for (const [typeAndField, functionProps] of Object.entries(props.resolvers || {})) {
-        const [typeName, fieldName] = typeAndField.split(/[\s]+/g);
-        const entryId = paramCase3(`${id}-${typeName}-${fieldName}`);
-        const lambda = toLambdaFunction(ctx, `graphql-${entryId}`, functionProps);
-        const source = new AppsyncEventSource(entryId, lambda, {
-          apiId,
-          typeName,
-          fieldName,
-          code: Code2.fromInline(entryId, defaultResolver)
-        });
-        stack.add(lambda, source);
+      for (const [typeName, fields] of Object.entries(props.resolvers || {})) {
+        for (const [fieldName, resolverProps] of Object.entries(fields || {})) {
+          const props2 = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps;
+          const entryId = paramCase4(`${id}-${typeName}-${fieldName}`);
+          const lambda = toLambdaFunction(ctx, `graphql-${entryId}`, props2.consumer);
+          const source = new AppsyncEventSource(entryId, lambda, {
+            apiId,
+            typeName,
+            fieldName,
+            code: Code2.fromInline(entryId, props2.resolver || defaultResolver)
+          });
+          stack.add(lambda, source);
+        }
       }
     }
   }
@@ -2659,6 +2990,37 @@ var RecordSetGroup = class extends Resource {
   }
 };
 
+// src/custom/util.ts
+var sendCode = (
+  /* JS */
+  `
+
+const send = async (event, id, status, data, reason = '') => {
+	const body = JSON.stringify({
+		Status: status,
+		Reason: reason,
+		PhysicalResourceId: id,
+		StackId: event.StackId,
+		RequestId: event.RequestId,
+		LogicalResourceId: event.LogicalResourceId,
+		NoEcho: false,
+		Data: data
+	})
+
+	await fetch(event.ResponseURL, {
+		method: 'PUT',
+		port: 443,
+		body,
+		headers: {
+			'content-type': '',
+            'content-length': Buffer.from(body).byteLength,
+		},
+	})
+}
+
+`
+);
+
 // src/custom/delete-hosted-zone/handler.ts
 var deleteHostedZoneRecordsHandlerCode = (
   /* JS */
@@ -2667,6 +3029,8 @@ var deleteHostedZoneRecordsHandlerCode = (
 const { Route53Client, ListResourceRecordSetsCommand, ChangeResourceRecordSetsCommand } = require('@aws-sdk/client-route-53')
 
 const client = new Route53Client({})
+
+${sendCode}
 
 exports.handler = async (event) => {
 	const type = event.RequestType
@@ -2689,29 +3053,6 @@ exports.handler = async (event) => {
 			await send(event, hostedZoneId, 'FAILED', {}, 'Unknown error')
 		}
 	}
-}
-
-const send = async (event, id, status, data = {}, reason = '') => {
-	const body = JSON.stringify({
-		Status: status,
-		Reason: reason,
-		PhysicalResourceId: id,
-		StackId: event.StackId,
-		RequestId: event.RequestId,
-		LogicalResourceId: event.LogicalResourceId,
-		NoEcho: false,
-		Data: data
-	})
-
-	await fetch(event.ResponseURL, {
-		method: 'PUT',
-		port: 443,
-		body,
-		headers: {
-			'content-type': '',
-            'content-length': Buffer.from(body).byteLength,
-		},
-	})
 }
 
 const deleteHostedZoneRecords = async (hostedZoneId, records) => {
@@ -2913,6 +3254,7 @@ var Vpc = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::EC2::VPC", logicalId);
     this.props = props;
+    this.tag("Name", props.name);
   }
   get id() {
     return ref(this.logicalId);
@@ -3075,6 +3417,7 @@ var vpcPlugin = definePlugin({
   // }),
   onApp({ config, bootstrap: bootstrap2 }) {
     const vpc = new Vpc("main", {
+      name: config.name,
       cidrBlock: Peer.ipv4("10.0.0.0/16")
     });
     const privateRouteTable = new RouteTable("private", {
@@ -3255,7 +3598,7 @@ var LoadBalancer = class extends Resource {
 };
 
 // src/formation/resource/elb/listener.ts
-import { constantCase as constantCase4 } from "change-case";
+import { constantCase as constantCase5 } from "change-case";
 var Listener = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::ElasticLoadBalancingV2::Listener", logicalId);
@@ -3271,7 +3614,7 @@ var Listener = class extends Resource {
     return {
       LoadBalancerArn: this.props.loadBalancerArn,
       Port: this.props.port,
-      Protocol: constantCase4(this.props.protocol),
+      Protocol: constantCase5(this.props.protocol),
       Certificates: this.props.certificates.map((arn) => ({
         CertificateArn: arn
       })),
@@ -3617,6 +3960,18 @@ var searchPlugin = definePlugin({
       searchs: z18.array(ResourceIdSchema).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "SearchResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const id of stack.searchs || []) {
+        const name = formatName(`${config.name}-${stack.name}-${id}`);
+        list3.addType(name, `{ name: '${name}' }`);
+      }
+      gen.addType(stack.name, list3.toString());
+    }
+    return gen.toString();
+  },
   onStack({ config, stack, stackConfig, bind }) {
     for (const id of stackConfig.searchs || []) {
       const collection = new Collection(id, {
@@ -3698,6 +4053,7 @@ var SubnetGroup = class extends Resource {
 };
 
 // src/plugins/cache.ts
+import { constantCase as constantCase6 } from "change-case";
 var TypeSchema = z19.enum([
   "t4g.small",
   "t4g.medium",
@@ -3745,6 +4101,17 @@ var cachePlugin = definePlugin({
       ).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "CacheResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const name of Object.keys(stack.caches || {})) {
+        list3.addType(name, `{ host: string, port: number }`);
+      }
+      gen.addType(stack.name, list3.toString());
+    }
+    return gen.toString();
+  },
   onStack({ config, stack, stackConfig, bootstrap: bootstrap2, bind }) {
     for (const [id, props] of Object.entries(stackConfig.caches || {})) {
       const name = `${config.name}-${stack.name}-${id}`;
@@ -3772,8 +4139,272 @@ var cachePlugin = definePlugin({
       }).dependsOn(subnetGroup, securityGroup);
       stack.add(subnetGroup, securityGroup, cluster);
       bind((lambda) => {
-        lambda.addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address).addEnvironment(`CACHE_${stack.name}_${id}_PORT`, props.port.toString());
+        lambda.addEnvironment(`CACHE_${constantCase6(stack.name)}_${constantCase6(id)}_HOST`, cluster.address).addEnvironment(`CACHE_${constantCase6(stack.name)}_${constantCase6(id)}_PORT`, props.port.toString());
       });
+    }
+  }
+});
+
+// src/plugins/rest.ts
+import { z as z21 } from "zod";
+
+// src/schema/route.ts
+import { z as z20 } from "zod";
+var RouteSchema2 = z20.custom((route) => {
+  return z20.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/\{\}]*)$/ig).safeParse(route).success;
+}, "Invalid route");
+
+// src/formation/resource/api-gateway-v2/api.ts
+var Api = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Api", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get endpoint() {
+    return getAtt(this.logicalId, "ApiEndpoint");
+  }
+  get id() {
+    return getAtt(this.logicalId, "ApiId");
+  }
+  properties() {
+    return {
+      Name: this.name,
+      ProtocolType: this.props.protocolType,
+      ...this.attr("Description", this.props.description),
+      CorsConfiguration: {
+        ...this.attr("AllowCredentials", this.props.cors?.allow?.credentials),
+        ...this.attr("AllowHeaders", this.props.cors?.allow?.headers),
+        ...this.attr("AllowMethods", this.props.cors?.allow?.methods),
+        ...this.attr("AllowOrigins", this.props.cors?.allow?.origins),
+        ...this.attr("ExposeHeaders", this.props.cors?.expose?.headers),
+        ...this.attr("MaxAge", this.props.cors?.maxAge?.toSeconds())
+      }
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/integration.ts
+var Integration = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Integration", logicalId);
+    this.props = props;
+  }
+  get id() {
+    return ref(this.logicalId);
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      IntegrationType: this.props.type,
+      IntegrationUri: this.props.uri,
+      IntegrationMethod: this.props.method,
+      PayloadFormatVersion: this.props.payloadFormatVersion ?? "2.0",
+      ...this.attr("Description", this.props.description)
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/route.ts
+var Route2 = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Route", logicalId);
+    this.props = props;
+  }
+  get id() {
+    return getAtt(this.logicalId, "RouteId");
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      RouteKey: this.props.routeKey,
+      Target: this.props.target
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/api-gateway-v2.ts
+var ApiGatewayV2EventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const name = formatName(id);
+    const permission = new Permission2(id, {
+      action: "lambda:InvokeFunction",
+      principal: "apigateway.amazonaws.com",
+      functionArn: lambda.arn
+    }).dependsOn(lambda);
+    const integration = new Integration(id, {
+      apiId: props.apiId,
+      description: name,
+      method: "POST",
+      payloadFormatVersion: "2.0",
+      type: "AWS_PROXY",
+      uri: sub("arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambda}/invocations", {
+        lambda: lambda.arn
+      })
+    });
+    const route = new Route2(id, {
+      apiId: props.apiId,
+      routeKey: props.routeKey,
+      target: sub("integrations/${id}", { id: integration.id })
+    }).dependsOn(lambda, permission, integration);
+    super([integration, route, permission]);
+  }
+};
+
+// src/formation/resource/api-gateway-v2/domain-name.ts
+var DomainName2 = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::DomainName", logicalId);
+    this.props = props;
+  }
+  get name() {
+    return ref(this.logicalId);
+  }
+  get regionalDomainName() {
+    return getAtt(this.logicalId, "RegionalDomainName");
+  }
+  get regionalHostedZoneId() {
+    return getAtt(this.logicalId, "RegionalHostedZoneId");
+  }
+  properties() {
+    return {
+      DomainName: this.props.name,
+      DomainNameConfigurations: [{
+        CertificateArn: this.props.certificateArn
+      }]
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/stage.ts
+var Stage = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Stage", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      StageName: this.name,
+      AutoDeploy: this.props.autoDeploy ?? true,
+      ...this.attr("DeploymentId", this.props.deploymentId),
+      ...this.attr("Description", this.props.description)
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/api-mapping.ts
+var ApiMapping = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::ApiMapping", logicalId);
+    this.props = props;
+  }
+  get id() {
+    return getAtt(this.logicalId, "ApiMappingId");
+  }
+  properties() {
+    return {
+      DomainName: this.props.domainName,
+      ApiId: this.props.apiId,
+      Stage: this.props.stage
+    };
+  }
+};
+
+// src/plugins/rest.ts
+var restPlugin = definePlugin({
+  name: "rest",
+  schema: z21.object({
+    defaults: z21.object({
+      /** Define your global REST API's.
+       * @example
+       * {
+       *   rest: {
+       *     REST_API_NAME: {
+       *       domain: 'example.com',
+       *       subDomain: 'api',
+       *     }
+       *   }
+       * }
+       */
+      rest: z21.record(
+        ResourceIdSchema,
+        z21.object({
+          /** The domain to link your API with. */
+          domain: z21.string(),
+          subDomain: z21.string().optional()
+        })
+      ).optional()
+    }).default({}),
+    stacks: z21.object({
+      /** Define routes in your stack for your global REST API.
+       * @example
+       * {
+       *   rest: {
+       *     REST_API_NAME: {
+       *       'GET /': 'index.ts',
+       *       'POST /posts': 'create-post.ts',
+       *     }
+       *   }
+       * }
+       */
+      rest: z21.record(
+        ResourceIdSchema,
+        z21.record(RouteSchema2, FunctionSchema)
+      ).optional()
+    }).array()
+  }),
+  onApp({ config, bootstrap: bootstrap2, usEastBootstrap }) {
+    for (const [id, props] of Object.entries(config.defaults?.rest || {})) {
+      const api = new Api(id, {
+        name: `${config.name}-${id}`,
+        protocolType: "HTTP"
+      });
+      const stage = new Stage(id, {
+        name: "v1",
+        apiId: api.id
+      }).dependsOn(api);
+      bootstrap2.add(api, stage).export(`rest-${id}-id`, api.id);
+      if (props.domain) {
+        const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
+        const hostedZoneId = usEastBootstrap.import(`hosted-zone-${props.domain}-id`);
+        const certificateArn = bootstrap2.import(`certificate-${props.domain}-arn`);
+        const domain = new DomainName2(id, {
+          name: domainName,
+          certificateArn
+        });
+        const mapping = new ApiMapping(id, {
+          apiId: api.id,
+          domainName: domain.name,
+          stage: stage.name
+        }).dependsOn(api, domain, stage);
+        const record = new RecordSet(`${id}-rest`, {
+          hostedZoneId,
+          type: "A",
+          name: domainName,
+          alias: {
+            dnsName: domain.regionalDomainName,
+            hostedZoneId: domain.regionalHostedZoneId
+          }
+        }).dependsOn(domain, mapping);
+        bootstrap2.add(domain, mapping, record);
+      }
+    }
+  },
+  onStack(ctx) {
+    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    for (const [id, routes] of Object.entries(stackConfig.rest || {})) {
+      for (const [routeKey, props] of Object.entries(routes)) {
+        const lambda = toLambdaFunction(ctx, `rest-${id}-${routeKey}`, props);
+        const source = new ApiGatewayV2EventSource(`rest-${id}-${routeKey}`, lambda, {
+          apiId: bootstrap2.import(`rest-${id}-id`),
+          routeKey
+        });
+        stack.add(lambda, source);
+      }
     }
   }
 });
@@ -3794,6 +4425,7 @@ var defaultPlugins = [
   domainPlugin,
   graphqlPlugin,
   httpPlugin,
+  restPlugin,
   onFailurePlugin
 ];
 
@@ -3804,7 +4436,10 @@ var App = class {
   }
   list = /* @__PURE__ */ new Map();
   add(...stacks) {
-    stacks.forEach((stack) => this.list.set(stack.name, stack));
+    stacks.forEach((stack) => {
+      this.list.set(stack.name, stack);
+      stack.setApp(this);
+    });
     return this;
   }
   find(resourceType) {
@@ -3828,6 +4463,8 @@ var globalExportsHandlerCode = (
 
 const { CloudFormationClient, ListExportsCommand } = require('@aws-sdk/client-cloudformation')
 
+${sendCode}
+
 exports.handler = async (event) => {
 	const region = event.ResourceProperties.region
 
@@ -3842,29 +4479,6 @@ exports.handler = async (event) => {
 			await send(event, region, 'FAILED', {}, 'Unknown error')
 		}
 	}
-}
-
-const send = async (event, id, status, data, reason = '') => {
-	const body = JSON.stringify({
-		Status: status,
-		Reason: reason,
-		PhysicalResourceId: id,
-		StackId: event.StackId,
-		RequestId: event.RequestId,
-		LogicalResourceId: event.LogicalResourceId,
-		NoEcho: false,
-		Data: data
-	})
-
-	await fetch(event.ResponseURL, {
-		method: 'PUT',
-		port: 443,
-		body,
-		headers: {
-			'content-type': '',
-            'content-length': Buffer.from(body).byteLength,
-		},
-	})
 }
 
 const listExports = async (region) => {
@@ -4025,7 +4639,7 @@ var toApp = async (config, filters) => {
 };
 
 // src/config.ts
-import { join as join3 } from "path";
+import { join as join4 } from "path";
 
 // src/util/account.ts
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
@@ -4044,17 +4658,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-import { z as z23 } from "zod";
+import { z as z25 } from "zod";
 
 // src/schema/stack.ts
-import { z as z20 } from "zod";
-var StackSchema = z20.object({
+import { z as z22 } from "zod";
+var StackSchema = z22.object({
   name: ResourceIdSchema,
-  depends: z20.array(z20.lazy(() => StackSchema)).optional()
+  depends: z22.array(z22.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z21 } from "zod";
+import { z as z23 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -4071,121 +4685,145 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = z21.enum(regions);
+var RegionSchema = z23.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z22 } from "zod";
-var PluginSchema = z22.object({
-  name: z22.string(),
-  schema: z22.custom().optional(),
+import { z as z24 } from "zod";
+var PluginSchema = z24.object({
+  name: z24.string(),
+  schema: z24.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onApp: z22.function().returns(z22.void()).optional(),
-  onStack: z22.function().returns(z22.any()).optional(),
-  onResource: z22.function().returns(z22.any()).optional()
+  onApp: z24.function().returns(z24.void()).optional(),
+  onStack: z24.function().returns(z24.any()).optional(),
+  onResource: z24.function().returns(z24.any()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z23.object({
+var AppSchema = z25.object({
   /** App name */
   name: ResourceIdSchema,
   /** The AWS region to deploy to. */
   region: RegionSchema,
   /** The AWS profile to deploy to. */
-  profile: z23.string(),
+  profile: z25.string(),
   /** The deployment stage.
    * @default 'prod'
    */
-  stage: z23.string().regex(/[a-z]+/).default("prod"),
+  stage: z25.string().regex(/^[a-z]+$/).default("prod"),
   /** Default properties. */
-  defaults: z23.object({}).default({}),
+  defaults: z25.object({}).default({}),
   /** The application stacks. */
-  stacks: z23.array(StackSchema).min(1).refine((stacks) => {
+  stacks: z25.array(StackSchema).min(1).refine((stacks) => {
     const unique = new Set(stacks.map((stack) => stack.name));
     return unique.size === stacks.length;
   }, "Must be an array of unique stacks"),
   /** Custom plugins. */
-  plugins: z23.array(PluginSchema).optional()
+  plugins: z25.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
-import { rollup as rollup2 } from "rollup";
+import { rollup as rollup2, watch } from "rollup";
 import { swc as swc2 } from "rollup-plugin-swc3";
 import replace from "rollup-plugin-replace";
-import { dirname, join as join2 } from "path";
-import { mkdir, writeFile } from "fs/promises";
-
-// src/util/path.ts
-import { lstat } from "fs/promises";
-import { join, normalize } from "path";
-var root = process.cwd();
-var directories = {
-  root,
-  get output() {
-    return join(this.root, ".awsless");
-  },
-  get cache() {
-    return join(this.output, "cache");
-  },
-  get asset() {
-    return join(this.output, "asset");
-  },
-  get template() {
-    return join(this.output, "template");
-  }
-};
-var setRoot = (path = root) => {
-  directories.root = path;
-};
-var findRootDir = async (path, configFile, level = 5) => {
-  if (!level) {
-    throw new TypeError("No awsless project found");
-  }
-  const file = join(path, configFile);
-  const exists = await fileExist(file);
-  if (exists) {
-    return path;
-  }
-  return findRootDir(normalize(join(path, "..")), configFile, level - 1);
-};
-var fileExist = async (file) => {
-  try {
-    const stat = await lstat(file);
-    if (stat.isFile()) {
-      return true;
-    }
-  } catch (error) {
-  }
-  return false;
-};
-
-// src/util/import.ts
+import { EventIterator } from "event-iterator";
+import { dirname as dirname2, join as join3 } from "path";
+import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
 var importFile = async (path) => {
   const bundle = await rollup2({
     input: path,
+    onwarn: (error) => {
+      debugError(error.message);
+    },
     plugins: [
       replace({
-        __dirname: (id) => `'${dirname(id)}'`
+        __dirname: (id) => `'${dirname2(id)}'`
       }),
       swc2({
-        minify: false
+        minify: false,
+        jsc: {
+          baseUrl: dirname2(path)
+        }
       })
     ]
   });
-  const outputFile = join2(directories.cache, "config.js");
+  const outputFile = join3(directories.cache, "config.js");
   const result = await bundle.generate({
     format: "esm",
     exports: "default"
   });
   const output = result.output[0];
   const code = output.code;
-  await mkdir(directories.cache, { recursive: true });
-  await writeFile(outputFile, code);
+  await mkdir2(directories.cache, { recursive: true });
+  await writeFile2(outputFile, code);
   debug("Save config file:", style.info(outputFile));
   return import(outputFile);
 };
+var watchFile = (path) => {
+  return new EventIterator((queue2) => {
+    const watcher = watch({
+      watch: {
+        skipWrite: true
+      },
+      input: path,
+      onwarn: (error) => {
+        debugError(error.message);
+      },
+      plugins: [
+        replace({
+          __dirname: (id) => `'${dirname2(id)}'`
+        }),
+        swc2({
+          minify: false,
+          jsc: {
+            baseUrl: dirname2(path)
+          }
+        })
+      ]
+    });
+    let resume;
+    queue2.on("lowWater", () => {
+      resume?.(true);
+    });
+    watcher.on("close", queue2.stop);
+    watcher.on("event", async (event) => {
+      if (event.code === "ERROR") {
+        queue2.fail(new Error(event.error.message));
+      }
+      if (event.code === "BUNDLE_END") {
+        const result = await event.result.generate({
+          format: "esm",
+          exports: "default"
+        });
+        event.result.close();
+        const output = result.output[0];
+        const code = output.code;
+        const outputFile = join3(directories.cache, "config.js");
+        await mkdir2(directories.cache, { recursive: true });
+        await writeFile2(outputFile, code);
+        debug("Save config file:", style.info(outputFile));
+        const config = await import(`${outputFile}?${Date.now()}`);
+        queue2.push(config);
+      }
+    });
+    return () => {
+      watcher.close();
+    };
+  }, {
+    highWaterMark: 1,
+    lowWaterMark: 0
+  });
+};
 
 // src/config.ts
+import { z as z26 } from "zod";
+var ConfigError = class extends Error {
+  constructor(error, data) {
+    super(error.message);
+    this.error = error;
+    this.data = data;
+  }
+};
 var importConfig = async (options) => {
   debug("Find the root directory");
   const configFile = options.configFile || "awsless.config.ts";
@@ -4193,7 +4831,7 @@ var importConfig = async (options) => {
   setRoot(root2);
   debug("CWD:", style.info(root2));
   debug("Import config file");
-  const fileName = join3(root2, configFile);
+  const fileName = join4(root2, configFile);
   const module = await importFile(fileName);
   const appConfig = typeof module.default === "function" ? await module.default(options) : module.default;
   debug("Validate config file");
@@ -4207,7 +4845,15 @@ var importConfig = async (options) => {
       schema2 = schema2.and(plugin.schema);
     }
   }
-  const config = await schema2.parseAsync(appConfig);
+  let config;
+  try {
+    config = await schema2.parseAsync(appConfig);
+  } catch (error) {
+    if (error instanceof z26.ZodError) {
+      throw new ConfigError(error, appConfig);
+    }
+    throw error;
+  }
   debug("Load credentials", style.info(config.profile));
   const credentials = getCredentials(config.profile);
   debug("Load AWS account ID");
@@ -4218,6 +4864,48 @@ var importConfig = async (options) => {
     account,
     credentials
   };
+};
+var watchConfig = async function* (options) {
+  debug("Find the root directory");
+  const configFile = options.configFile || "awsless.config.ts";
+  const root2 = await findRootDir(process.cwd(), configFile);
+  setRoot(root2);
+  debug("CWD:", style.info(root2));
+  debug("Import config file");
+  const fileName = join4(root2, configFile);
+  for await (const module of watchFile(fileName)) {
+    const appConfig = typeof module.default === "function" ? await module.default(options) : module.default;
+    debug("Validate config file");
+    const plugins = [
+      ...defaultPlugins,
+      ...appConfig.plugins || []
+    ];
+    let schema2 = AppSchema;
+    for (const plugin of plugins) {
+      if (plugin.schema) {
+        schema2 = schema2.and(plugin.schema);
+      }
+    }
+    let config;
+    try {
+      config = await schema2.parseAsync(appConfig);
+    } catch (error) {
+      if (error instanceof z26.ZodError) {
+        throw new ConfigError(error, appConfig);
+      }
+      throw error;
+    }
+    debug("Load credentials", style.info(config.profile));
+    const credentials = getCredentials(config.profile);
+    debug("Load AWS account ID");
+    const account = await getAccountId(credentials, config.region);
+    debug("Account ID:", style.info(account));
+    yield {
+      ...config,
+      account,
+      credentials
+    };
+  }
 };
 
 // src/cli/ui/layout/basic.ts
@@ -4331,11 +5019,11 @@ var dialog = (type, lines) => {
   const padding = 3;
   const icon = style[type](symbol[type].padEnd(padding));
   return (term) => {
-    term.out.write(lines.map((line, i) => {
+    term.out.write(lines.map((line2, i) => {
       if (i === 0) {
-        return icon + wrapAnsi(line, term.out.width(), { hard: true });
+        return icon + wrapAnsi(line2, term.out.width(), { hard: true });
       }
-      return wrapAnsi(" ".repeat(padding) + line, term.out.width(), { hard: true });
+      return wrapAnsi(" ".repeat(padding) + line2, term.out.width(), { hard: true });
     }).join(br()) + br());
   };
 };
@@ -4480,7 +5168,7 @@ var Renderer = class {
   flushing = false;
   screen = [];
   width() {
-    return this.output.columns - 1;
+    return this.output.columns - 3;
   }
   height() {
     return this.output.rows;
@@ -4589,6 +5277,7 @@ var Renderer = class {
         }
       }
     }
+    await this.setCursor(0, size - start);
     this.screen = screen;
     this.flushing = false;
   }
@@ -4657,6 +5346,86 @@ var logs = () => {
   };
 };
 
+// src/cli/ui/layout/zod-error.ts
+var line = (value, level = 0, highlight = false) => {
+  return [
+    highlight ? style.error(symbol.pointerSmall) + style.placeholder("  | ") : style.placeholder.dim("   | "),
+    "   ".repeat(level),
+    value,
+    br()
+  ];
+};
+var format = (value) => {
+  if (Array.isArray(value)) {
+    return "[ ... ]";
+  }
+  if (value === null) {
+    return "null";
+  }
+  switch (typeof value) {
+    case "function":
+      return "() => { ... }";
+    case "bigint":
+      return `${value}n`;
+    case "symbol":
+      return "Symbol()";
+    case "object":
+      return "{ ... }";
+    case "undefined":
+    case "string":
+    case "number":
+    case "boolean":
+      return JSON.stringify(value);
+  }
+  return "";
+};
+var zodError = (error, data) => {
+  return (term) => {
+    for (const issue of error.issues) {
+      term.out.gap();
+      term.out.write(dialog("error", [
+        style.error(issue.message)
+      ]));
+      term.out.gap();
+      term.out.write(line("{"));
+      let context = data;
+      const inStack = issue.path[0] === "stacks" && typeof issue.path[1] === "number";
+      const length2 = issue.path.length;
+      const end = [];
+      issue.path.forEach((path, i) => {
+        const index = i + 1;
+        context = context[path];
+        if (typeof path === "string") {
+          const key = path + `: `;
+          if (index === length2) {
+            const space = " ".repeat(key.length);
+            const value = format(context);
+            const error2 = "^".repeat(value.length);
+            term.out.write(line(key + style.warning(value), index));
+            term.out.write(line(space + style.error(error2), index, true));
+          } else if (Array.isArray(context)) {
+            term.out.write(line(key + "[", index));
+            end.unshift(line("]", index));
+          } else if (typeof context === "object") {
+            if (inStack && index === 3) {
+              const name = data.stacks[issue.path[1]].name;
+              term.out.write(line("name: " + style.info(`"${name}"`) + ",", index));
+            }
+            term.out.write(line(key + "{", index));
+            end.unshift(line("}", index));
+          }
+        } else if (typeof context === "object") {
+          term.out.write(line("{", index));
+          end.unshift(line("}", index));
+        }
+      });
+      term.out.write(end);
+      term.out.write(line("}"));
+      term.out.gap();
+    }
+  };
+};
+
 // src/cli/ui/layout/layout.ts
 var layout = async (cb) => {
   const term = createTerminal();
@@ -4672,7 +5441,9 @@ var layout = async (cb) => {
     await cb(config, term.out.write.bind(term.out), term);
   } catch (error) {
     term.out.gap();
-    if (error instanceof Error) {
+    if (error instanceof ConfigError) {
+      term.out.write(zodError(error.error, error.data));
+    } else if (error instanceof Error) {
       term.out.write(dialog("error", [error.message]));
     } else if (typeof error === "string") {
       term.out.write(dialog("error", [error]));
@@ -4693,7 +5464,7 @@ var layout = async (cb) => {
 };
 
 // src/cli/ui/complex/builder.ts
-import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
+import { mkdir as mkdir3, writeFile as writeFile3 } from "fs/promises";
 
 // src/cli/ui/layout/flex-line.ts
 var stripEscapeCode = (str) => {
@@ -4716,7 +5487,7 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
 };
 
 // src/cli/ui/complex/builder.ts
-import { dirname as dirname2, join as join4 } from "path";
+import { dirname as dirname3, join as join5 } from "path";
 var assetBuilder = (app) => {
   return async (term) => {
     const assets = [];
@@ -4732,10 +5503,13 @@ var assetBuilder = (app) => {
     if (assets.length === 0) {
       return;
     }
+    const showDetailedView = assets.length <= term.out.height() - 2;
     const done = term.out.write(loadingDialog("Building stack assets..."));
     const groups = new Signal([""]);
-    term.out.gap();
-    term.out.write(groups);
+    if (showDetailedView) {
+      term.out.gap();
+      term.out.write(groups);
+    }
     const stackNameSize = Math.max(...stacks.map((stack) => stack.name.length));
     const assetTypeSize = Math.max(...assets.map((asset) => asset.type.length));
     await Promise.all(app.stacks.map(async (stack) => {
@@ -4747,7 +5521,7 @@ var assetBuilder = (app) => {
         }
         const [icon, stop] = createSpinner();
         const details = new Signal({});
-        const line = flexLine(term, [
+        const line2 = flexLine(term, [
           icon,
           "  ",
           style.label(stack.name),
@@ -4771,36 +5545,45 @@ var assetBuilder = (app) => {
           }),
           br()
         ]);
-        group.update((group2) => [...group2, line]);
+        group.update((group2) => [...group2, line2]);
         const timer = createTimer();
-        const data = await asset.build({
-          async write(file, data2) {
-            const fullpath = join4(directories.asset, asset.type, app.name, stack.name, asset.id, file);
-            const basepath = dirname2(fullpath);
-            await mkdir2(basepath, { recursive: true });
-            await writeFile2(fullpath, data2);
-          }
-        });
-        details.set({
-          ...data,
-          time: timer()
-        });
-        icon.set(style.success(symbol.success));
-        stop();
+        try {
+          const data = await asset.build({
+            async write(file, data2) {
+              const fullpath = join5(directories.asset, asset.type, app.name, stack.name, asset.id, file);
+              const basepath = dirname3(fullpath);
+              await mkdir3(basepath, { recursive: true });
+              await writeFile3(fullpath, data2);
+            }
+          });
+          details.set({
+            ...data,
+            time: timer()
+          });
+          icon.set(style.success(symbol.success));
+        } catch (error) {
+          icon.set(style.error(symbol.error));
+          throw error;
+        } finally {
+          stop();
+        }
       }));
     }));
     done("Done building stack assets");
-    term.out.gap();
+    if (showDetailedView) {
+      term.out.gap();
+    }
   };
 };
 
 // src/util/cleanup.ts
-import { mkdir as mkdir3, rm } from "fs/promises";
+import { mkdir as mkdir4, rm } from "fs/promises";
 var cleanUp = async () => {
   debug("Clean up template, cache, and asset files");
   const paths = [
     directories.asset,
     directories.cache,
+    directories.types,
     directories.template
   ];
   await Promise.all(paths.map((path) => rm(path, {
@@ -4808,25 +5591,34 @@ var cleanUp = async () => {
     force: true,
     maxRetries: 2
   })));
-  await Promise.all(paths.map((path) => mkdir3(path, {
+  await Promise.all(paths.map((path) => mkdir4(path, {
     recursive: true
   })));
 };
 
 // src/cli/ui/complex/template.ts
-import { mkdir as mkdir4, writeFile as writeFile3 } from "fs/promises";
-import { join as join5 } from "path";
+import { mkdir as mkdir5, writeFile as writeFile4 } from "fs/promises";
+import { join as join6 } from "path";
 var templateBuilder = (app) => {
   return async (term) => {
     const done = term.out.write(loadingDialog("Building stack templates..."));
     await Promise.all(app.stacks.map(async (stack) => {
       const template = stack.toString(true);
-      const path = join5(directories.template, app.name);
-      const file = join5(path, `${stack.name}.json`);
-      await mkdir4(path, { recursive: true });
-      await writeFile3(file, template);
+      const path = join6(directories.template, app.name);
+      const file = join6(path, `${stack.name}.json`);
+      await mkdir5(path, { recursive: true });
+      await writeFile4(file, template);
     }));
     done("Done building stack templates");
+  };
+};
+
+// src/cli/ui/complex/types.ts
+var typesGenerator = (config) => {
+  return async (term) => {
+    const done = term.out.write(loadingDialog("Generate type definition files..."));
+    await generateResourceTypes(config);
+    done("Done generating type definition files");
   };
 };
 
@@ -4836,6 +5628,7 @@ var build = (program2) => {
     await layout(async (config, write) => {
       const { app } = await toApp(config, filters);
       await cleanUp();
+      await write(typesGenerator(config));
       await write(assetBuilder(app));
       await write(templateBuilder(app));
     });
@@ -4846,9 +5639,9 @@ var build = (program2) => {
 var assetBucketName = (account, region) => {
   return `awsless-bootstrap-${account}-${region}`;
 };
-var assetBucketUrl = (account, region, stack) => {
+var assetBucketUrl = (account, region, app, stack) => {
   const bucket = assetBucketName(account, region);
-  return `https://s3-${region}.amazonaws.com/${bucket}/${stack.name}/cloudformation.json`;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${app.name}/${stack.name}/cloudformation.json`;
 };
 var version = "1";
 var bootstrapStack = (account, region) => {
@@ -4870,9 +5663,9 @@ var shouldDeployBootstrap = async (client, stack) => {
 };
 
 // src/formation/client.ts
-import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from "@aws-sdk/client-cloudformation";
+import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStackEventsCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from "@aws-sdk/client-cloudformation";
 import { S3Client, PutObjectCommand, ObjectCannedACL, StorageClass } from "@aws-sdk/client-s3";
-import { paramCase as paramCase4 } from "change-case";
+import { paramCase as paramCase5 } from "change-case";
 var StackClient = class {
   constructor(app, account, region, credentials) {
     this.app = app;
@@ -4884,7 +5677,7 @@ var StackClient = class {
   maxWaitTime = 60 * 30;
   // 30 minutes
   maxDelay = 30;
-  // 30 seconds
+  // 10 seconds
   assetBucketName;
   getClient(region) {
     return new CloudFormationClient({
@@ -4899,13 +5692,13 @@ var StackClient = class {
   templateProp(stack) {
     const template = stack.toString();
     return this.shouldUploadTemplate(template) ? {
-      TemplateUrl: assetBucketUrl(this.account, this.region, stack)
+      TemplateURL: assetBucketUrl(this.account, this.region, this.app, stack)
     } : {
       TemplateBody: template
     };
   }
   stackName(stackName) {
-    return paramCase4(`${this.app.name}-${stackName}`);
+    return paramCase5(`${this.app.name}-${stackName}`);
   }
   tags(stack) {
     const tags = [];
@@ -4931,7 +5724,7 @@ var StackClient = class {
   async create(stack, capabilities) {
     debug("Create the", style.info(stack.name), "stack");
     const client = this.getClient(stack.region);
-    await client.send(new CreateStackCommand({
+    const result = await client.send(new CreateStackCommand({
       StackName: this.stackName(stack.name),
       EnableTerminationProtection: false,
       OnFailure: OnFailure.DELETE,
@@ -4939,36 +5732,53 @@ var StackClient = class {
       Tags: this.tags(stack),
       ...this.templateProp(stack)
     }));
-    await waitUntilStackCreateComplete({
-      client,
-      maxWaitTime: this.maxWaitTime,
-      maxDelay: this.maxDelay
-    }, {
-      StackName: this.stackName(stack.name)
-    });
+    try {
+      await waitUntilStackCreateComplete({
+        client,
+        maxWaitTime: this.maxWaitTime,
+        maxDelay: this.maxDelay
+      }, {
+        StackName: result.StackId
+      });
+    } catch (_) {
+      const reason = await this.getFailureReason(
+        result.StackId,
+        stack.region
+      );
+      throw new Error(reason);
+    }
   }
   async update(stack, capabilities) {
     debug("Update the", style.info(stack.name), "stack");
     const client = this.getClient(stack.region);
+    let result;
     try {
-      await client.send(new UpdateStackCommand({
+      result = await client.send(new UpdateStackCommand({
         StackName: this.stackName(stack.name),
         Capabilities: capabilities,
         Tags: this.tags(stack),
         ...this.templateProp(stack)
       }));
-      await waitUntilStackUpdateComplete({
-        client,
-        maxWaitTime: this.maxWaitTime,
-        maxDelay: this.maxDelay
-      }, {
-        StackName: this.stackName(stack.name)
-      });
     } catch (error) {
       if (error instanceof Error && error.name === "ValidationError" && error.message.toLowerCase().includes("no updates")) {
         return;
       }
       throw error;
+    }
+    try {
+      await waitUntilStackUpdateComplete({
+        client,
+        maxWaitTime: this.maxWaitTime,
+        maxDelay: this.maxDelay
+      }, {
+        StackName: result.StackId
+      });
+    } catch (error) {
+      const reason = await this.getFailureReason(
+        result.StackId,
+        stack.region
+      );
+      throw new Error(reason);
     }
   }
   async validate(stack) {
@@ -5049,13 +5859,44 @@ var StackClient = class {
     await client.send(new DeleteStackCommand({
       StackName: this.stackName(name)
     }));
-    await waitUntilStackDeleteComplete({
-      client,
-      maxWaitTime: this.maxWaitTime,
-      maxDelay: this.maxDelay
-    }, {
-      StackName: this.stackName(name)
-    });
+    try {
+      await waitUntilStackDeleteComplete({
+        client,
+        maxWaitTime: this.maxWaitTime,
+        maxDelay: this.maxDelay
+      }, {
+        StackName: this.stackName(name)
+      });
+    } catch (_) {
+      const reason = await this.getFailureReason(name, region);
+      throw new Error(reason);
+    }
+  }
+  async getFailureReason(name, region) {
+    const client = this.getClient(region);
+    const result = await client.send(await new DescribeStackEventsCommand({
+      StackName: name
+    }));
+    const failureStatuses = [
+      "UPDATE_ROLLBACK_IN_PROGRESS",
+      "CREATE_FAILED",
+      "UPDATE_FAILED",
+      "DELETE_FAILED"
+    ];
+    let reason = "Unknown failure reason";
+    for (const event of result.StackEvents || []) {
+      if (event.ResourceStatusReason?.toLowerCase() === "user initiated") {
+        break;
+      }
+      if (failureStatuses.includes(event.ResourceStatus || "") && event.ResourceStatusReason) {
+        reason = [
+          `Logical ID: ${event.LogicalResourceId}`,
+          `Type: ${event.ResourceType}`,
+          `Reason: ${event.ResourceStatusReason}`
+        ].join("\n");
+      }
+    }
+    return reason;
   }
 };
 
@@ -5175,13 +6016,13 @@ var bootstrap = (program2) => {
 
 // src/cli/ui/complex/deployer.ts
 var stacksDeployer = (deploymentLine) => {
-  const stackNames = deploymentLine.map((line) => line.map((stack) => stack.name)).flat();
+  const stackNames = deploymentLine.map((line2) => line2.map((stack) => stack.name)).flat();
   const stackNameSize = Math.max(...stackNames.map((name) => name.length));
   return (term) => {
     const ui = {};
     term.out.gap();
     for (const i in deploymentLine) {
-      const line = flexLine(
+      const line2 = flexLine(
         term,
         ["   "],
         [
@@ -5190,7 +6031,7 @@ var stacksDeployer = (deploymentLine) => {
           style.placeholder(" \u2500\u2500")
         ]
       );
-      term.out.write(line);
+      term.out.write(line2);
       term.out.write(br());
       for (const stack of deploymentLine[i]) {
         const icon = new Signal(" ");
@@ -5285,7 +6126,7 @@ var status = (program2) => {
 
 // src/cli/ui/complex/publisher.ts
 import { readFile as readFile3 } from "fs/promises";
-import { join as join6 } from "path";
+import { join as join7 } from "path";
 import { GetObjectCommand, ObjectCannedACL as ObjectCannedACL2, PutObjectCommand as PutObjectCommand2, S3Client as S3Client2, StorageClass as StorageClass2 } from "@aws-sdk/client-s3";
 var assetPublisher = (config, app) => {
   const client = new S3Client2({
@@ -5298,7 +6139,7 @@ var assetPublisher = (config, app) => {
       await Promise.all([...stack.assets].map(async (asset) => {
         await asset.publish?.({
           async read(file) {
-            const path = join6(directories.asset, asset.type, app.name, stack.name, asset.id, file);
+            const path = join7(directories.asset, asset.type, app.name, stack.name, asset.id, file);
             const data = await readFile3(path);
             return data;
           },
@@ -5363,14 +6204,15 @@ var deploy = (program2) => {
         throw new Cancelled();
       }
       await cleanUp();
+      await write(typesGenerator(config));
       await write(assetBuilder(app));
       await write(assetPublisher(config, app));
       await write(templateBuilder(app));
       const doneDeploying = write(loadingDialog("Deploying stacks to AWS..."));
       const client = new StackClient(app, config.account, config.region, config.credentials);
       const ui = write(stacksDeployer(deploymentLine));
-      for (const line of deploymentLine) {
-        const results = await Promise.allSettled(line.map(async (stack) => {
+      for (const line2 of deploymentLine) {
+        const results = await Promise.allSettled(line2.map(async (stack) => {
           const item = ui[stack.name];
           item.start("deploying");
           try {
@@ -5552,6 +6394,29 @@ var test = (program2) => {
   });
 };
 
+// src/cli/command/types.ts
+var types = (program2) => {
+  program2.command("types").description("Generate type definition files").action(async () => {
+    await layout(async (config, write) => {
+      await cleanUp();
+      await write(typesGenerator(config));
+    });
+  });
+};
+
+// src/cli/command/dev.ts
+var dev = (program2) => {
+  program2.command("dev").description("Start the development service").action(async () => {
+    await layout(async (_, write) => {
+      const options = program2.optsWithGlobals();
+      for await (const config of watchConfig(options)) {
+        await cleanUp();
+        await write(typesGenerator(config));
+      }
+    });
+  });
+};
+
 // src/cli/program.ts
 var program = new Command();
 program.name(logo().join("").replace(/\s+/, ""));
@@ -5570,8 +6435,10 @@ program.on("option:verbose", () => {
 var commands2 = [
   bootstrap,
   status,
+  types,
   build,
   deploy,
+  dev,
   secrets,
   test
   // diff,

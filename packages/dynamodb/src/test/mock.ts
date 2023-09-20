@@ -28,24 +28,26 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(configOrServer:St
 	} else {
 		server = new DynamoDBServer()
 
-		beforeAll && beforeAll(async () => {
-			const [ port, releasePort ] = await requestPort()
+		if(typeof(beforeAll) !== 'undefined') {
+			beforeAll(async () => {
+				const [ port, releasePort ] = await requestPort()
 
-			await server.listen(port)
-			await server.wait()
+				await server.listen(port)
+				await server.wait()
 
-			if(configOrServer.tables) {
-				await migrate(server.getClient(), configOrServer.tables)
-				if(configOrServer.seed) {
-					await seed(configOrServer.seed)
+				if(configOrServer.tables) {
+					await migrate(server.getClient(), configOrServer.tables)
+					if(configOrServer.seed) {
+						await seed(configOrServer.seed)
+					}
 				}
-			}
 
-			return async () => {
-				await server.kill()
-				await releasePort()
-			}
-		}, configOrServer.timeout)
+				return async () => {
+					await server.kill()
+					await releasePort()
+				}
+			}, configOrServer.timeout)
+		}
 	}
 
 	const client = server.getClient()

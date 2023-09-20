@@ -35,6 +35,8 @@ export { mockDynamoDB } from './test/mock.js'
 export { seedTable } from './test/seed.js'
 export { streamTable } from './test/stream.js'
 
+export { DynamoDBServer } from '@awsless/dynamodb-server'
+
 // validation struct
 export { streamStruct } from './test/struct.js'
 

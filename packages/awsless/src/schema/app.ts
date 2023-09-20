@@ -17,7 +17,7 @@ export const AppSchema = z.object({
 	/** The deployment stage.
 	 * @default 'prod'
 	 */
-	stage: z.string().regex(/[a-z]+/).default('prod'),
+	stage: z.string().regex(/^[a-z]+$/).default('prod'),
 
 	/** Default properties. */
 	defaults: z.object({}).default({}),

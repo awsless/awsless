@@ -21,7 +21,7 @@ export function toSize(size: SizeFormat): Size {
 
 export const SizeSchema = z.custom<SizeFormat>((value) => {
 	return z.string()
-		.regex(/[0-9]+ (KB|MB|GB)/)
+		.regex(/^[0-9]+ (KB|MB|GB)$/)
 		.safeParse(value).success
 }, 'Invalid size').transform<Size>(toSize)
 

@@ -11,6 +11,11 @@ import { Size } from '../formation/property/size.js';
 import { Code } from '../formation/resource/lambda/code.js';
 import { EventInvokeConfig } from '../formation/resource/lambda/event-invoke-config.js';
 import { getGlobalOnFailure, hasOnFailure } from './on-failure/util.js';
+import { camelCase } from 'change-case';
+import { directories } from '../util/path.js';
+import { relative } from 'path';
+import { TypeGen, TypeObject } from '../util/type-gen.js';
+import { formatName } from '../formation/util.js';
 
 const MemorySizeSchema = SizeSchema
 	.refine(sizeMin(Size.megaBytes(128)), 'Minimum memory size is 128 MB')
@@ -99,6 +104,13 @@ export const FunctionSchema = z.union([
 	})
 ])
 
+export const isFunctionProps = (input:unknown): input is z.output<typeof FunctionSchema> => {
+	return (
+		typeof input === 'string' ||
+		typeof (input as { file?: string }).file === 'string'
+	)
+}
+
 const schema = z.object({
 	defaults: z.object({
 		function: z.object({
@@ -177,9 +189,39 @@ const schema = z.object({
 	}).array()
 })
 
+const typeGenCode = `
+import { InvokeOptions } from '@awsless/lambda'
+
+type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
+	async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
+}`
+
 export const functionPlugin = definePlugin({
 	name: 'function',
 	schema,
+	onTypeGen({ config }) {
+		const types = new TypeGen('@awsless/awsless', 'FunctionResources')
+		types.addCode(typeGenCode)
+
+		for(const stack of config.stacks) {
+			const list = new TypeObject()
+			for(const [ name, fileOrProps ] of Object.entries(stack.functions || {})) {
+				const varName = camelCase(`${stack.name}-${name}`)
+				const funcName = formatName(`${config.name}-${stack.name}-${name}`)
+				const file = typeof fileOrProps === 'string' ? fileOrProps : fileOrProps.file
+				const relFile = relative(directories.types, file)
+
+				types.addImport(varName, relFile)
+				list.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+			}
+
+			types.addType(stack.name, list.toString())
+		}
+
+		return types.toString()
+	},
 	onStack(ctx) {
 		const { config, stack } = ctx
 
@@ -221,7 +263,7 @@ export const toLambdaFunction = (
 		: { ...config.defaults?.function, ...fileOrProps }
 
 	const lambda = new Function(id, {
-		name: `${config.name}-${stack.name}-${id}`,
+		name: `${config.name}--${stack.name}--${id}`,
 		code: Code.fromFile(id, props.file),
 		...props,
 		vpc: undefined,

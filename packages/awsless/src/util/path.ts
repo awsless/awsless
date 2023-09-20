@@ -8,6 +8,7 @@ export const directories = {
 	get output() { return join(this.root, '.awsless') },
 	get cache() { return join(this.output, 'cache') },
 	get asset() { return join(this.output, 'asset') },
+	get types() { return join(this.output, 'types') },
 	get template() { return join(this.output, 'template') },
 }
 

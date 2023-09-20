@@ -6,6 +6,8 @@ import { Table } from '../formation/resource/dynamodb/table.js';
 import { FunctionSchema, toLambdaFunction } from './function.js';
 import { DynamoDBEventSource } from '../formation/resource/lambda/event-source/dynamodb.js';
 import { getGlobalOnFailure } from './on-failure/util.js';
+import { TypeGen, TypeObject } from '../util/type-gen.js';
+import { formatName } from '../formation/util.js';
 
 const KeySchema = z.string().min(1).max(255)
 
@@ -123,6 +125,20 @@ export const tablePlugin = definePlugin({
 			).optional()
 		}).array()
 	}),
+	onTypeGen({ config }) {
+		const types = new TypeGen('@awsless/awsless', 'TableResources')
+		for(const stack of config.stacks) {
+			const list = new TypeObject()
+			for(const name of Object.keys(stack.tables || {})) {
+				const tableName = formatName(`${config.name}-${stack.name}-${name}`)
+				list.addType(name, `{ name: '${tableName}' }`)
+			}
+
+			types.addType(stack.name, list.toString())
+		}
+
+		return types.toString()
+	},
 	onStack(ctx) {
 		const { config, stack, stackConfig, bind } = ctx
 		for(const [ id, props ] of Object.entries(stackConfig.tables || {})) {

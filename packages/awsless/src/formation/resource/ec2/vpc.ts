@@ -13,9 +13,11 @@ import { Peer } from "./peer";
 
 export class Vpc extends Resource {
 	constructor(logicalId: string, private props: {
+		name: string
 		cidrBlock: Peer
 	}) {
 		super('AWS::EC2::VPC', logicalId)
+		this.tag('Name', props.name)
 	}
 
 	get id() {

@@ -1,7 +1,10 @@
+import { sendCode } from "../util";
 
 export const globalExportsHandlerCode = /* JS */ `
 
 const { CloudFormationClient, ListExportsCommand } = require('@aws-sdk/client-cloudformation')
+
+${ sendCode }
 
 exports.handler = async (event) => {
 	const region = event.ResourceProperties.region
@@ -17,29 +20,6 @@ exports.handler = async (event) => {
 			await send(event, region, 'FAILED', {}, 'Unknown error')
 		}
 	}
-}
-
-const send = async (event, id, status, data, reason = '') => {
-	const body = JSON.stringify({
-		Status: status,
-		Reason: reason,
-		PhysicalResourceId: id,
-		StackId: event.StackId,
-		RequestId: event.RequestId,
-		LogicalResourceId: event.LogicalResourceId,
-		NoEcho: false,
-		Data: data
-	})
-
-	await fetch(event.ResponseURL, {
-		method: 'PUT',
-		port: 443,
-		body,
-		headers: {
-			'content-type': '',
-            'content-length': Buffer.from(body).byteLength,
-		},
-	})
 }
 
 const listExports = async (region) => {

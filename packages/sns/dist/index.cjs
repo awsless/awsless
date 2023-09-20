@@ -48,7 +48,7 @@ var formatAttributes = (attributes) => {
   }
   return list;
 };
-var publish = ({
+var publish = async ({
   client = snsClient(),
   topic,
   subject,
@@ -66,7 +66,7 @@ var publish = ({
       ...attributes
     })
   });
-  return client.send(command);
+  await client.send(command);
 };
 
 // src/mock.ts

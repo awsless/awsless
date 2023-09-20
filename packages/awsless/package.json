@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.20",
+	"version": "0.0.43",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -31,6 +31,11 @@
 		"build": "pnpm tsup src/index.ts src/bin.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test schema; then pnpm build; else exit; fi"
 	},
+	"peerDependencies": {
+		"@awsless/lambda": "workspace:^",
+		"@awsless/sqs": "workspace:^",
+		"@awsless/sns": "workspace:^"
+	},
 	"dependencies": {
 		"@aws-sdk/client-cloudformation": "^3.369.0",
 		"@aws-sdk/client-s3": "^3.369.0",
@@ -50,6 +55,7 @@
 		"chalk": "^5.3.0",
 		"change-case": "^4.1.2",
 		"commander": "^9.4.1",
+		"event-iterator": "^2.0.0",
 		"filesize": "^10.0.7",
 		"graphql": "^16.7.1",
 		"jszip": "^3.10.1",

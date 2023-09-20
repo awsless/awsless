@@ -33,7 +33,7 @@ export function toDuration(duration: DurationFormat) {
 
 export const DurationSchema = z.custom<DurationFormat>((value) => {
 	return z.string()
-		.regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/)
+		.regex(/^[0-9]+ (seconds?|minutes?|hours?|days?)$/)
 		.safeParse(value).success
 }, 'Invalid duration').transform<Duration>(toDuration)
 

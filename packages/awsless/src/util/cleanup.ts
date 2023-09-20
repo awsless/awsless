@@ -9,6 +9,7 @@ export const cleanUp = async () => {
 	const paths = [
 		directories.asset,
 		directories.cache,
+		directories.types,
 		directories.template,
 	]
 

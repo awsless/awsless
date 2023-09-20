@@ -7,7 +7,11 @@ export class App {
 	constructor(readonly name: string) {}
 
 	add(...stacks: Stack[]) {
-		stacks.forEach(stack => this.list.set(stack.name, stack))
+		stacks.forEach(stack => {
+			this.list.set(stack.name, stack)
+			stack.setApp(this)
+		})
+
 		return this
 	}
 

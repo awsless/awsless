@@ -1,11 +1,9 @@
 import { Resource } from "../../resource"
-import { formatName, getAtt } from "../../util"
+import { getAtt } from "../../util"
 import { InlinePolicy } from "./inline-policy"
 import { ManagedPolicy } from "./managed-policy"
 
 export class Role extends Resource {
-	readonly name: string
-
 	private inlinePolicies = new Set<InlinePolicy>()
 	private managedPolicies = new Set<ManagedPolicy>()
 
@@ -13,7 +11,6 @@ export class Role extends Resource {
 		assumedBy?: string
 	} = {}) {
 		super('AWS::IAM::Role', logicalId)
-		this.name = formatName(logicalId)
 	}
 
 	get arn() {

@@ -7,6 +7,8 @@ import { deploy } from './command/deploy.js'
 import { secrets } from './command/secrets/index.js'
 import { test } from './command/test.js'
 import { logo } from './ui/layout/logo.js'
+import { types } from './command/types.js'
+import { dev } from './command/dev.js'
 
 export type ProgramOptions = {
 	configFile?: string
@@ -39,8 +41,10 @@ program.on('option:verbose', () => {
 const commands = [
 	bootstrap,
 	status,
+	types,
 	build,
 	deploy,
+	dev,
 	secrets,
 
 	test,

@@ -4,7 +4,7 @@ export const cronStack:StackConfig = {
 	name: 'cron',
 	crons: {
 		cron: {
-			schedule: 'rate(1 day)',
+			schedule: '1 days',
 			consumer: __dirname + '/../function/simple.ts',
 		}
 	},

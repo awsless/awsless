@@ -5,7 +5,7 @@ export type PermissionProps = {
 	functionArn: string
 	action: string
 	principal: string
-	sourceArn: string
+	sourceArn?: string
 }
 
 export class Permission extends Resource {
@@ -19,7 +19,7 @@ export class Permission extends Resource {
 			FunctionName: this.props.functionArn,
 			Action: this.props.action || 'lambda:InvokeFunction',
 			Principal: this.props.principal,
-			SourceArn: this.props.sourceArn,
+			...this.attr('SourceArn', this.props.sourceArn),
 		}
 	}
 }

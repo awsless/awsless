@@ -6,7 +6,9 @@ export const graphqlTwoStack:StackConfig = {
 		api: {
 			schema: __dirname + '/../schema/two.gql',
 			resolvers: {
-				'Query two': __dirname + '/../function/graphql.ts',
+				Query: {
+					two: __dirname + '/../function/graphql.ts',
+				}
 			}
 		}
 	},

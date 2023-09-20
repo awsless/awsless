@@ -43,6 +43,15 @@ importers:
       '@awsless/code':
         specifier: workspace:^
         version: link:../code
+      '@awsless/lambda':
+        specifier: workspace:^
+        version: link:../lambda
+      '@awsless/sns':
+        specifier: workspace:^
+        version: link:../sns
+      '@awsless/sqs':
+        specifier: workspace:^
+        version: link:../sqs
       '@graphql-tools/merge':
         specifier: ^9.0.0
         version: 9.0.0(graphql@16.7.1)
@@ -79,6 +88,9 @@ importers:
       commander:
         specifier: ^9.4.1
         version: 9.5.0
+      event-iterator:
+        specifier: ^2.0.0
+        version: 2.0.0
       filesize:
         specifier: ^10.0.7
         version: 10.0.7
@@ -7639,6 +7651,10 @@ packages:
   /esutils@2.0.3:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
+
+  /event-iterator@2.0.0:
+    resolution: {integrity: sha512-KGft0ldl31BZVV//jj+IAIGCxkvvUkkON+ScH6zfoX+l+omX6001ggyRSpI0Io2Hlro0ThXotswCtfzS8UkIiQ==}
+    dev: false
 
   /events@1.1.1:
     resolution: {integrity: sha512-kEcvvCBByWXGnZy6JUlgAp2gBIUjfCAV6P6TgT1/aaQKcmuAEC4OZTV1I4EWQLz2gxZw76atuVyvHhTxvi0Flw==}

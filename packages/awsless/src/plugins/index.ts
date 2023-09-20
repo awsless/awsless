@@ -16,6 +16,7 @@ import { vpcPlugin } from './vpc.js';
 import { httpPlugin } from './http.js';
 import { searchPlugin } from './search.js';
 import { cachePlugin } from './cache.js';
+import { restPlugin } from './rest.js';
 
 export const defaultPlugins = [
 	extendPlugin,
@@ -32,6 +33,7 @@ export const defaultPlugins = [
 	domainPlugin,
 	graphqlPlugin,
 	httpPlugin,
+	restPlugin,
 	onFailurePlugin,
 ]
 

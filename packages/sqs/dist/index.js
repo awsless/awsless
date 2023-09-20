@@ -23,6 +23,9 @@ var formatAttributes = (attributes) => {
   return list;
 };
 var getQueueUrl = async (client, queue) => {
+  if (queue.includes("://")) {
+    return queue;
+  }
   const command = new GetQueueUrlCommand({ QueueName: queue });
   const response = await client.send(command);
   return response.QueueUrl;
@@ -48,7 +51,7 @@ var sendMessage = async ({
     DelaySeconds: delay,
     MessageAttributes: formatAttributes({ queue, ...attributes })
   });
-  return client.send(command);
+  await client.send(command);
 };
 var sendMessageBatch = async ({ client = sqsClient(), queue, items }) => {
   const url = await getCachedQueueUrl(client, queue);

@@ -183,7 +183,9 @@ var getAtt = (logicalId, attr) => {
   return { "Fn::GetAtt": [logicalId, attr] };
 };
 var importValue = (name) => {
-  return { "Fn::ImportValue": name };
+  return new Lazy((stack) => ({
+    "Fn::ImportValue": `${stack.app.name}-${name}`
+  }));
 };
 var formatLogicalId = (id) => {
   return (0, import_change_case2.pascalCase)(id).replaceAll("_", "");
@@ -279,11 +281,12 @@ var Lazy = class {
 
 // src/formation/resource/iam/inline-policy.ts
 var InlinePolicy = class {
-  constructor(name, props = {}) {
-    this.name = name;
-    this.statements = props.statements || [];
-  }
+  name;
   statements;
+  constructor(name, props = {}) {
+    this.statements = props.statements || [];
+    this.name = formatName(name);
+  }
   addStatement(...statements) {
     this.statements.push(...statements.flat());
     return this;
@@ -322,9 +325,7 @@ var Role = class extends Resource {
   constructor(logicalId, props = {}) {
     super("AWS::IAM::Role", logicalId);
     this.props = props;
-    this.name = formatName(logicalId);
   }
-  name;
   inlinePolicies = /* @__PURE__ */ new Set();
   managedPolicies = /* @__PURE__ */ new Set();
   get arn() {
@@ -453,10 +454,18 @@ var Stack = class {
     this.name = name;
     this.region = region;
   }
+  parent;
   exports = /* @__PURE__ */ new Map();
   resources = /* @__PURE__ */ new Set();
   tags = /* @__PURE__ */ new Map();
   assets = /* @__PURE__ */ new Set();
+  get app() {
+    return this.parent;
+  }
+  setApp(app) {
+    this.parent = app;
+    return this;
+  }
   add(...resources) {
     for (const item of resources) {
       if (item instanceof Asset) {
@@ -522,7 +531,7 @@ var Stack = class {
         }
       }
     };
-    for (const resource of this) {
+    for (const resource of this.resources) {
       const json2 = resource.toJSON();
       walk(json2);
       Object.assign(resources, json2);
@@ -530,7 +539,9 @@ var Stack = class {
     for (const [name, value] of this.exports.entries()) {
       Object.assign(outputs, {
         [formatLogicalId(name)]: {
-          Export: { Name: name },
+          Export: {
+            Name: `${this.app?.name || "default"}-${name}`
+          },
           Value: value
         }
       });
@@ -605,7 +616,7 @@ var createDeploymentLine = (stacks) => {
     depends: config?.depends?.map((dep) => dep.name) || []
   }));
   const names = stacks.map(({ stack }) => stack.name);
-  const line = [];
+  const line2 = [];
   const deps = [];
   let limit = 100;
   while (deps.length < list3.length) {
@@ -620,9 +631,9 @@ var createDeploymentLine = (stacks) => {
       throw new Error(`Circular stack dependencies arn't allowed: ${circularNames}`);
     }
     deps.push(...local.map((stack) => stack.name));
-    line.push(local);
+    line2.push(local);
   }
-  return line;
+  return line2;
 };
 
 // src/plugins/cron/index.ts
@@ -635,23 +646,30 @@ var definePlugin = (plugin) => plugin;
 var import_zod = require("zod");
 var import_aws_cron_expression_validator = require("aws-cron-expression-validator");
 var RateExpressionSchema = import_zod.z.custom((value) => {
-  return import_zod.z.string().regex(/rate\([0-9]+ (seconds?|minutes?|hours?|days?)\)/).refine((rate) => {
-    const [str] = rate.substring(5).split(" ");
+  return import_zod.z.string().regex(/^[0-9]+ (seconds?|minutes?|hours?|days?)$/).refine((rate) => {
+    const [str] = rate.split(" ");
     const number = parseInt(str);
     return number > 0;
   }).safeParse(value).success;
-}, "Invalid rate expression");
+}, { message: "Invalid rate expression" }).transform((rate) => {
+  const [str] = rate.split(" ");
+  const number = parseInt(str);
+  const more = rate.endsWith("s");
+  if (more && number === 1) {
+    return `rate(${rate.substring(0, rate.length - 1)})`;
+  }
+  return `rate(${rate})`;
+});
 var CronExpressionSchema = import_zod.z.custom((value) => {
-  return import_zod.z.string().startsWith("cron(").endsWith(")").safeParse(value).success;
-}, "Invalid cron expression").superRefine((value, ctx) => {
-  const cron = value.substring(5, value.length - 1);
+  return import_zod.z.string().safeParse(value).success;
+}, { message: "Invalid cron expression" }).superRefine((value, ctx) => {
   try {
-    (0, import_aws_cron_expression_validator.awsCronExpressionValidator)(cron);
+    (0, import_aws_cron_expression_validator.awsCronExpressionValidator)(value);
   } catch (error) {
     if (error instanceof Error) {
       ctx.addIssue({
         code: import_zod.z.ZodIssueCode.custom,
-        message: error.message
+        message: `Invalid cron expression: ${error.message}`
       });
     } else {
       ctx.addIssue({
@@ -660,6 +678,8 @@ var CronExpressionSchema = import_zod.z.custom((value) => {
       });
     }
   }
+}).transform((value) => {
+  return `cron(${value.trim()})`;
 });
 var ScheduleExpressionSchema = RateExpressionSchema.or(CronExpressionSchema);
 
@@ -723,7 +743,7 @@ function toDuration(duration) {
   return Duration.days(0);
 }
 var DurationSchema = import_zod2.z.custom((value) => {
-  return import_zod2.z.string().regex(/[0-9]+ (seconds?|minutes?|hours?|days?)/).safeParse(value).success;
+  return import_zod2.z.string().regex(/^[0-9]+ (seconds?|minutes?|hours?|days?)$/).safeParse(value).success;
 }, "Invalid duration").transform(toDuration);
 var durationMin = (min) => {
   return (duration) => {
@@ -749,8 +769,9 @@ var LocalFileSchema = import_zod3.z.string().refine(async (path) => {
 }, `File doesn't exist`);
 
 // src/schema/resource-id.ts
+var import_change_case3 = require("change-case");
 var import_zod4 = require("zod");
-var ResourceIdSchema = import_zod4.z.string().min(3).max(24).regex(/[a-z\-]+/, "Invalid resource ID");
+var ResourceIdSchema = import_zod4.z.string().min(3).max(24).regex(/^[a-z0-9\-]+$/i, "Invalid resource ID").transform((value) => (0, import_change_case3.paramCase)(value));
 
 // src/schema/size.ts
 var import_zod5 = require("zod");
@@ -800,7 +821,7 @@ function toSize(size) {
   throw new TypeError(`Invalid size ${size}`);
 }
 var SizeSchema = import_zod5.z.custom((value) => {
-  return import_zod5.z.string().regex(/[0-9]+ (KB|MB|GB)/).safeParse(value).success;
+  return import_zod5.z.string().regex(/^[0-9]+ (KB|MB|GB)$/).safeParse(value).success;
 }, "Invalid size").transform(toSize);
 var sizeMin = (min) => {
   return (size) => {
@@ -827,6 +848,7 @@ var import_rollup_plugin_swc3 = require("rollup-plugin-swc3");
 var import_plugin_json = __toESM(require("@rollup/plugin-json"), 1);
 var import_plugin_commonjs = __toESM(require("@rollup/plugin-commonjs"), 1);
 var import_plugin_node_resolve = __toESM(require("@rollup/plugin-node-resolve"), 1);
+var import_path = require("path");
 var rollupBundle = async (input) => {
   const bundle = await (0, import_rollup.rollup)({
     input,
@@ -841,12 +863,13 @@ var rollupBundle = async (input) => {
     },
     plugins: [
       (0, import_plugin_commonjs.default)({ sourceMap: true }),
-      (0, import_plugin_node_resolve.default)({
-        preferBuiltins: true
-      }),
+      (0, import_plugin_node_resolve.default)({ preferBuiltins: true }),
       (0, import_rollup_plugin_swc3.swc)({
         minify: true,
-        jsc: { minify: { sourceMap: true } },
+        jsc: {
+          baseUrl: (0, import_path.dirname)(input),
+          minify: { sourceMap: true }
+        },
         sourceMaps: true
       }),
       (0, import_plugin_json.default)()
@@ -1007,6 +1030,162 @@ var hasOnFailure = (config) => {
 };
 
 // src/plugins/function.ts
+var import_change_case5 = require("change-case");
+
+// src/util/path.ts
+var import_promises2 = require("fs/promises");
+var import_path2 = require("path");
+var root = process.cwd();
+var directories = {
+  root,
+  get output() {
+    return (0, import_path2.join)(this.root, ".awsless");
+  },
+  get cache() {
+    return (0, import_path2.join)(this.output, "cache");
+  },
+  get asset() {
+    return (0, import_path2.join)(this.output, "asset");
+  },
+  get types() {
+    return (0, import_path2.join)(this.output, "types");
+  },
+  get template() {
+    return (0, import_path2.join)(this.output, "template");
+  }
+};
+var setRoot = (path = root) => {
+  directories.root = path;
+};
+var findRootDir = async (path, configFile, level = 5) => {
+  if (!level) {
+    throw new TypeError("No awsless project found");
+  }
+  const file = (0, import_path2.join)(path, configFile);
+  const exists = await fileExist(file);
+  if (exists) {
+    return path;
+  }
+  return findRootDir((0, import_path2.normalize)((0, import_path2.join)(path, "..")), configFile, level - 1);
+};
+var fileExist = async (file) => {
+  try {
+    const stat = await (0, import_promises2.lstat)(file);
+    if (stat.isFile()) {
+      return true;
+    }
+  } catch (error) {
+  }
+  return false;
+};
+
+// src/plugins/function.ts
+var import_path6 = require("path");
+
+// src/util/type-gen.ts
+var import_promises3 = require("fs/promises");
+var import_path4 = require("path");
+var import_change_case4 = require("change-case");
+var generateResourceTypes = async (config) => {
+  const plugins = [
+    ...defaultPlugins,
+    ...config.plugins || []
+  ];
+  const files = [];
+  for (const plugin of plugins) {
+    const code = plugin.onTypeGen?.({ config });
+    if (code) {
+      const file = (0, import_path4.join)(directories.types, `${plugin.name}.d.ts`);
+      files.push((0, import_path4.relative)(directories.root, file));
+      await (0, import_promises3.mkdir)(directories.types, { recursive: true });
+      await (0, import_promises3.writeFile)(file, code);
+    }
+  }
+  if (files.length) {
+    const code = files.map((file) => `/// <reference path='${file}' />`).join("\n");
+    await (0, import_promises3.writeFile)((0, import_path4.join)(directories.root, `awsless.d.ts`), code);
+  }
+};
+var TypeGen = class {
+  constructor(module2, interfaceName) {
+    this.module = module2;
+    this.interfaceName = interfaceName;
+  }
+  codes = /* @__PURE__ */ new Set();
+  types = /* @__PURE__ */ new Map();
+  imports = /* @__PURE__ */ new Map();
+  addImport(varName, path) {
+    this.imports.set(varName, path);
+    return this;
+  }
+  addCode(code) {
+    this.codes.add(code);
+    return this;
+  }
+  addType(name, type) {
+    if (type) {
+      this.types.set(name, type);
+    }
+    return this;
+  }
+  toString() {
+    if (this.types.size === 0) {
+      return;
+    }
+    const lines = [];
+    if (this.imports.size > 0) {
+      lines.push(...[
+        "// Imports",
+        ...Array.from(this.imports.entries()).map(([varName, path]) => {
+          return `import ${(0, import_change_case4.camelCase)(varName)} from '${path}'`;
+        }),
+        ""
+      ]);
+    }
+    if (this.codes.size > 0) {
+      lines.push(...[
+        "// Types",
+        ...Array.from(this.codes).map((v) => v.trim()),
+        ""
+      ]);
+    }
+    return [
+      ...lines,
+      "// Extend module",
+      `declare module '${this.module}' {`,
+      `	interface ${this.interfaceName} {`,
+      ...Array.from(this.types.entries()).map(([propName, type]) => {
+        return `		readonly ${(0, import_change_case4.camelCase)(propName)}: ${type}`;
+      }),
+      `	}`,
+      `}`,
+      "",
+      "// Export fix",
+      `export {}`
+    ].join("\n");
+  }
+};
+var TypeObject = class {
+  types = /* @__PURE__ */ new Map();
+  addType(name, type) {
+    this.types.set(name, type);
+    return this;
+  }
+  toString() {
+    if (!this.types.size) {
+      return "";
+    }
+    return [
+      "{",
+      ...Array.from(this.types.entries()).map(([propName, type]) => {
+        return `			readonly ${(0, import_change_case4.camelCase)(propName)}: ${type}`;
+      }),
+      "		}"
+    ].join("\n");
+  }
+};
+
+// src/plugins/function.ts
 var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum memory size is 10 GB");
 var TimeoutSchema = DurationSchema.refine(durationMin(Duration.seconds(10)), "Minimum timeout duration is 10 seconds").refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
 var EphemeralStorageSizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(512)), "Minimum ephemeral storage size is 512 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum ephemeral storage size is 10 GB");
@@ -1073,6 +1252,9 @@ var FunctionSchema = import_zod6.z.union([
     // onFailure: ResourceIdSchema.optional(),
   })
 ]);
+var isFunctionProps = (input) => {
+  return typeof input === "string" || typeof input.file === "string";
+};
 var schema = import_zod6.z.object({
   defaults: import_zod6.z.object({
     function: import_zod6.z.object({
@@ -1141,9 +1323,34 @@ var schema = import_zod6.z.object({
     ).optional()
   }).array()
 });
+var typeGenCode = `
+import { InvokeOptions } from '@awsless/lambda'
+
+type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
+	async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
+}`;
 var functionPlugin = definePlugin({
   name: "function",
   schema,
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "FunctionResources");
+    types2.addCode(typeGenCode);
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const [name, fileOrProps] of Object.entries(stack.functions || {})) {
+        const varName = (0, import_change_case5.camelCase)(`${stack.name}-${name}`);
+        const funcName = formatName(`${config.name}-${stack.name}-${name}`);
+        const file = typeof fileOrProps === "string" ? fileOrProps : fileOrProps.file;
+        const relFile = (0, import_path6.relative)(directories.types, file);
+        types2.addImport(varName, relFile);
+        list3.addType(name, `Invoke<'${funcName}', typeof ${varName}>`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack(ctx) {
     const { config, stack } = ctx;
     for (const [id, fileOrProps] of Object.entries(ctx.stackConfig.functions || {})) {
@@ -1169,7 +1376,7 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
   const stack = ctx.stack;
   const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
   const lambda = new Function(id, {
-    name: `${config.name}-${stack.name}-${id}`,
+    name: `${config.name}--${stack.name}--${id}`,
     code: Code.fromFile(id, props.file),
     ...props,
     vpc: void 0
@@ -1247,7 +1454,7 @@ var Permission2 = class extends Resource {
       FunctionName: this.props.functionArn,
       Action: this.props.action || "lambda:InvokeFunction",
       Principal: this.props.principal,
-      SourceArn: this.props.sourceArn
+      ...this.attr("SourceArn", this.props.sourceArn)
     };
   }
 };
@@ -1284,7 +1491,7 @@ var cronPlugin = definePlugin({
        *   crons: {
        *     CRON_NAME: {
        *       consumer: 'function.ts',
-       *       schedule: 'rate(5 minutes)',
+       *       schedule: '5 minutes',
        *     }
        *   }
        * }
@@ -1293,8 +1500,8 @@ var cronPlugin = definePlugin({
         /** The consuming lambda function properties. */
         consumer: FunctionSchema,
         /** The scheduling expression.
-         * @example 'cron(0 20 * * ? *)'
-         * @example 'rate(5 minutes)'
+         * @example '0 20 * * ? *'
+         * @example '5 minutes'
          */
         schedule: ScheduleExpressionSchema,
         // Valid JSON passed to the consumer.
@@ -1373,7 +1580,7 @@ var Queue = class extends Resource {
 };
 
 // src/formation/resource/lambda/event-source-mapping.ts
-var import_change_case3 = require("change-case");
+var import_change_case6 = require("change-case");
 var EventSourceMapping = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::Lambda::EventSourceMapping", logicalId);
@@ -1395,7 +1602,7 @@ var EventSourceMapping = class extends Resource {
       ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
       ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow?.toSeconds()),
       ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-      ...this.attr("StartingPosition", this.props.startingPosition && (0, import_change_case3.constantCase)(this.props.startingPosition)),
+      ...this.attr("StartingPosition", this.props.startingPosition && (0, import_change_case6.constantCase)(this.props.startingPosition)),
       ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
       ...this.props.maxConcurrency ? {
         ScalingConfig: {
@@ -1436,6 +1643,8 @@ var SqsEventSource = class extends Group {
 };
 
 // src/plugins/queue.ts
+var import_change_case7 = require("change-case");
+var import_path8 = require("path");
 var RetentionPeriodSchema = DurationSchema.refine(durationMin(Duration.minutes(1)), "Minimum retention period is 1 minute").refine(durationMax(Duration.days(14)), "Maximum retention period is 14 days");
 var VisibilityTimeoutSchema = DurationSchema.refine(durationMax(Duration.hours(12)), "Maximum visibility timeout is 12 hours");
 var DeliveryDelaySchema = DurationSchema.refine(durationMax(Duration.minutes(15)), "Maximum delivery delay is 15 minutes");
@@ -1444,6 +1653,16 @@ var MaxMessageSizeSchema = SizeSchema.refine(sizeMin(Size.kiloBytes(1)), "Minimu
 var BatchSizeSchema = import_zod8.z.number().int().min(1, "Minimum batch size is 1").max(1e4, "Maximum batch size is 10000");
 var MaxConcurrencySchema = import_zod8.z.number().int().min(2, "Minimum max concurrency is 2").max(1e3, "Maximum max concurrency is 1000");
 var MaxBatchingWindow = DurationSchema.refine(durationMax(Duration.minutes(5)), "Maximum max batching window is 5 minutes");
+var typeGenCode2 = `
+import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless/sqs'
+
+type Payload<Func extends (...args: any[]) => any> = Parameters<Func>[0]['Records'][number]['body']
+
+type Send<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	(payload: Payload<Func>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
+}`;
 var queuePlugin = definePlugin({
   name: "queue",
   schema: import_zod8.z.object({
@@ -1543,6 +1762,23 @@ var queuePlugin = definePlugin({
       ).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "QueueResources");
+    types2.addCode(typeGenCode2);
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const [name, fileOrProps] of Object.entries(stack.queues || {})) {
+        const varName = (0, import_change_case7.camelCase)(`${stack.name}-${name}`);
+        const queueName = formatName(`${config.name}-${stack.name}-${name}`);
+        const file = typeof fileOrProps === "string" ? fileOrProps : typeof fileOrProps.consumer === "string" ? fileOrProps.consumer : fileOrProps.consumer.file;
+        const relFile = (0, import_path8.relative)(directories.types, file);
+        types2.addImport(varName, relFile);
+        list3.addType(name, `Send<'${queueName}', typeof ${varName}>`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack(ctx) {
     const { stack, config, stackConfig, bind } = ctx;
     for (const [id, functionOrProps] of Object.entries(stackConfig.queues || {})) {
@@ -1562,6 +1798,7 @@ var queuePlugin = definePlugin({
       stack.add(queue2, lambda, source);
       bind((lambda2) => {
         lambda2.addPermissions(queue2.permissions);
+        lambda2.addEnvironment(`QUEUE_${(0, import_change_case7.constantCase)(stack.name)}_${(0, import_change_case7.constantCase)(id)}_URL`, queue2.url);
       });
     }
   }
@@ -1571,7 +1808,7 @@ var queuePlugin = definePlugin({
 var import_zod9 = require("zod");
 
 // src/formation/resource/dynamodb/table.ts
-var import_change_case4 = require("change-case");
+var import_change_case8 = require("change-case");
 var Table = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::DynamoDB::Table", logicalId);
@@ -1630,21 +1867,21 @@ var Table = class extends Resource {
         index.sort
       ])
     ].flat().filter(Boolean));
-    const types = {
+    const types2 = {
       string: "S",
       number: "N",
       binary: "B"
     };
     return [...attributes].map((name) => ({
       AttributeName: name,
-      AttributeType: types[fields[name] || "string"]
+      AttributeType: types2[fields[name] || "string"]
     }));
   }
   properties() {
     return {
       TableName: this.name,
       BillingMode: "PAY_PER_REQUEST",
-      TableClass: (0, import_change_case4.constantCase)(this.props.class || "standard"),
+      TableClass: (0, import_change_case8.constantCase)(this.props.class || "standard"),
       PointInTimeRecoverySpecification: {
         PointInTimeRecoveryEnabled: this.props.pointInTimeRecovery || false
       },
@@ -1655,7 +1892,7 @@ var Table = class extends Resource {
       AttributeDefinitions: this.attributeDefinitions(),
       ...this.props.stream ? {
         StreamSpecification: {
-          StreamViewType: (0, import_change_case4.constantCase)(this.props.stream)
+          StreamViewType: (0, import_change_case8.constantCase)(this.props.stream)
         }
       } : {},
       ...this.props.timeToLiveAttribute ? {
@@ -1672,7 +1909,7 @@ var Table = class extends Resource {
             ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
           ],
           Projection: {
-            ProjectionType: (0, import_change_case4.constantCase)(props.projection || "all")
+            ProjectionType: (0, import_change_case8.constantCase)(props.projection || "all")
           }
         }))
       } : {}
@@ -1816,6 +2053,18 @@ var tablePlugin = definePlugin({
       ).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "TableResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const name of Object.keys(stack.tables || {})) {
+        const tableName = formatName(`${config.name}-${stack.name}-${name}`);
+        list3.addType(name, `{ name: '${tableName}' }`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack(ctx) {
     const { config, stack, stackConfig, bind } = ctx;
     for (const [id, props] of Object.entries(stackConfig.tables || {})) {
@@ -1845,7 +2094,7 @@ var tablePlugin = definePlugin({
 var import_zod10 = require("zod");
 
 // src/formation/resource/s3/bucket.ts
-var import_change_case5 = require("change-case");
+var import_change_case9 = require("change-case");
 var Bucket = class extends Resource {
   constructor(logicalId, props = {}) {
     super("AWS::S3::Bucket", logicalId);
@@ -1880,7 +2129,7 @@ var Bucket = class extends Resource {
   properties() {
     return {
       BucketName: this.name,
-      AccessControl: (0, import_change_case5.pascalCase)(this.props.accessControl ?? "private"),
+      AccessControl: (0, import_change_case9.pascalCase)(this.props.accessControl ?? "private"),
       ...this.props.versioned ? {
         VersioningConfiguration: {
           Status: "Enabled"
@@ -1904,6 +2153,18 @@ var storePlugin = definePlugin({
       stores: import_zod10.z.array(ResourceIdSchema).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const types2 = new TypeGen("@awsless/awsless", "StoreResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const name of stack.stores || []) {
+        const storeName = formatName(`${config.name}-${stack.name}-${name}`);
+        list3.addType(name, `{ name: '${storeName}' }`);
+      }
+      types2.addType(stack.name, list3.toString());
+    }
+    return types2.toString();
+  },
   onStack({ config, stack, stackConfig, bind }) {
     for (const id of stackConfig.stores || []) {
       const bucket = new Bucket(id, {
@@ -1987,47 +2248,101 @@ var SnsEventSource = class extends Group {
 };
 
 // src/plugins/topic.ts
+var typeGenCode3 = `
+import { PublishOptions } from '@awsless/sns'
+
+type Publish<Name extends string> = {
+	name: Name
+	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
+}`;
 var topicPlugin = definePlugin({
   name: "topic",
   schema: import_zod11.z.object({
     stacks: import_zod11.z.object({
-      /** Define the topics to listen too in your stack.
+      // /** Define the events to listen too in your stack.
+      //  * @example
+      //  * {
+      //  *   topics: {
+      //  *     TOPIC_NAME: 'function.ts'
+      //  *   }
+      //  * }
+      //  */
+      // topics: z.record(ResourceIdSchema, FunctionSchema).optional()
+      /** Define the events to publish too in your stack.
        * @example
        * {
-       *   topics: {
+       *   topics: [ 'TOPIC_NAME ]'
+       * }
+       */
+      topics: import_zod11.z.array(ResourceIdSchema).refine((topics) => {
+        return topics.length === new Set(topics).size;
+      }, "Must be a list of unique topic names").optional(),
+      /** Define the events to subscribe too in your stack.
+       * @example
+       * {
+       *   subscribers: {
        *     TOPIC_NAME: 'function.ts'
        *   }
        * }
        */
-      topics: import_zod11.z.record(ResourceIdSchema, FunctionSchema).optional()
-    }).array()
+      subscribers: import_zod11.z.record(ResourceIdSchema, FunctionSchema).optional()
+    }).array().superRefine((stacks, ctx) => {
+      const topics = [];
+      for (const stack of stacks) {
+        topics.push(...stack.topics || []);
+      }
+      for (const index in stacks) {
+        const stack = stacks[index];
+        for (const sub2 of Object.keys(stack.subscribers || {})) {
+          if (!topics.includes(sub2)) {
+            ctx.addIssue({
+              code: import_zod11.z.ZodIssueCode.custom,
+              message: `Topic subscription to "${sub2}" is undefined`,
+              path: [Number(index), "subscribers"]
+            });
+          }
+        }
+      }
+    })
   }),
-  onApp({ config, bootstrap: bootstrap2, bind }) {
-    const allTopicNames = config.stacks.map((stack) => {
-      return Object.keys(stack.topics || {});
-    }).flat();
-    const uniqueTopicNames = [...new Set(allTopicNames)];
-    for (const id of uniqueTopicNames) {
-      const topic = new Topic(id, {
-        name: `${config.name}-${id}`
-      });
-      bootstrap2.add(topic);
-      bootstrap2.export(`topic-${id}-arn`, topic.arn);
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "TopicResources");
+    gen.addCode(typeGenCode3);
+    for (const stack of config.stacks) {
+      for (const topic of Object.keys(stack.topics || {})) {
+        const name = formatName(`${config.name}-${topic}`);
+        gen.addType(topic, `Publish<'${name}'>`);
+      }
     }
-    bind((lambda) => {
-      lambda.addPermissions({
-        actions: ["sns:Publish"],
-        resources: [
-          sub("arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${app}-*", {
-            app: config.name
-          })
-        ]
-      });
-    });
+    return gen.toString();
+  },
+  onApp({ config, bootstrap: bootstrap2 }) {
+    for (const stack of config.stacks) {
+      for (const id of stack.topics || []) {
+        const topic = new Topic(id, {
+          name: `${config.name}-${id}`
+        });
+        bootstrap2.add(topic);
+        bootstrap2.export(`topic-${id}-arn`, topic.arn);
+      }
+    }
   },
   onStack(ctx) {
-    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
-    for (const [id, props] of Object.entries(stackConfig.topics || {})) {
+    const { config, stack, stackConfig, bootstrap: bootstrap2, bind } = ctx;
+    for (const id of stackConfig.topics || []) {
+      bind((lambda) => {
+        lambda.addPermissions({
+          actions: ["sns:Publish"],
+          resources: [
+            sub("arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${app}-${topic}", {
+              app: config.name,
+              topic: id
+            })
+          ]
+        });
+      });
+    }
+    for (const [id, props] of Object.entries(stackConfig.subscribers || {})) {
       const lambda = toLambdaFunction(ctx, `topic-${id}`, props);
       const source = new SnsEventSource(id, lambda, {
         topicArn: bootstrap2.import(`topic-${id}-arn`)
@@ -2061,12 +2376,12 @@ var extendPlugin = definePlugin({
 var import_zod13 = require("zod");
 
 // src/formation/resource/iot/topic-rule.ts
-var import_change_case6 = require("change-case");
+var import_change_case10 = require("change-case");
 var TopicRule = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::IoT::TopicRule", logicalId);
     this.props = props;
-    this.name = (0, import_change_case6.snakeCase)(this.props.name || logicalId);
+    this.name = (0, import_change_case10.snakeCase)(this.props.name || logicalId);
   }
   name;
   get arn() {
@@ -2166,10 +2481,10 @@ var toArray = (value) => {
 };
 
 // src/plugins/graphql.ts
-var import_change_case10 = require("change-case");
+var import_change_case14 = require("change-case");
 
 // src/formation/resource/appsync/graphql-api.ts
-var import_change_case7 = require("change-case");
+var import_change_case11 = require("change-case");
 var GraphQLApi = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::AppSync::GraphQLApi", logicalId);
@@ -2201,7 +2516,7 @@ var GraphQLApi = class extends Resource {
   properties() {
     return {
       Name: this.name,
-      AuthenticationType: (0, import_change_case7.constantCase)(this.props.authenticationType || "api-key"),
+      AuthenticationType: (0, import_change_case11.constantCase)(this.props.authenticationType || "api-key"),
       AdditionalAuthenticationProviders: this.lambdaAuthProviders.map((provider) => ({
         AuthenticationType: "AWS_LAMBDA",
         LambdaAuthorizerConfig: {
@@ -2242,7 +2557,7 @@ var RecordSet = class extends Resource {
 
 // src/formation/resource/appsync/graphql-schema.ts
 var import_graphql = require("graphql");
-var import_promises2 = require("fs/promises");
+var import_promises4 = require("fs/promises");
 var import_merge = require("@graphql-tools/merge");
 var GraphQLSchema = class extends Resource {
   constructor(logicalId, props) {
@@ -2267,10 +2582,13 @@ var Definition = class extends Asset {
   async build({ write }) {
     const files = [this.files].flat();
     const schemas = await Promise.all(files.map((file) => {
-      return (0, import_promises2.readFile)(file, "utf8");
+      return (0, import_promises4.readFile)(file, "utf8");
     }));
     const defs = (0, import_merge.mergeTypeDefs)(schemas);
     const schema2 = (0, import_graphql.print)(defs);
+    if (schema2.length === 0) {
+      throw new Error(`Graphql schema definition can't be empty. [${this.id}]`);
+    }
     const size = Buffer.from(schema2, "utf8").byteLength;
     await write("schema.gql", schema2);
     this.schema = schema2;
@@ -2284,7 +2602,7 @@ var Definition = class extends Asset {
 };
 
 // src/formation/resource/appsync/code.ts
-var import_promises3 = require("fs/promises");
+var import_promises5 = require("fs/promises");
 var Code2 = class {
   static fromFile(id, file) {
     return new FileCode2(id, file);
@@ -2311,7 +2629,7 @@ var FileCode2 = class extends Asset {
   }
   code;
   async build() {
-    const code = await (0, import_promises3.readFile)(this.file);
+    const code = await (0, import_promises5.readFile)(this.file);
     this.code = code.toString("utf8");
     return {
       size: formatByteSize(code.byteLength)
@@ -2325,12 +2643,12 @@ var FileCode2 = class extends Asset {
 };
 
 // src/formation/resource/appsync/data-source.ts
-var import_change_case8 = require("change-case");
+var import_change_case12 = require("change-case");
 var DataSource = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::AppSync::DataSource", logicalId);
     this.props = props;
-    this.name = (0, import_change_case8.snakeCase)(this.props.name || logicalId);
+    this.name = (0, import_change_case12.snakeCase)(this.props.name || logicalId);
   }
   static fromLambda(logicalId, apiId, props) {
     return new DataSource(logicalId, {
@@ -2370,14 +2688,14 @@ var DataSource = class extends Resource {
 };
 
 // src/formation/resource/appsync/function-configuration.ts
-var import_change_case9 = require("change-case");
+var import_change_case13 = require("change-case");
 var FunctionConfiguration = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::AppSync::FunctionConfiguration", logicalId, [
       props.code
     ]);
     this.props = props;
-    this.name = (0, import_change_case9.snakeCase)(this.props.name || logicalId);
+    this.name = (0, import_change_case13.snakeCase)(this.props.name || logicalId);
   }
   name;
   get id() {
@@ -2506,9 +2824,6 @@ export function response(ctx) {
 	return ctx.result
 }
 `;
-var ResolverFieldSchema = import_zod14.z.custom((value) => {
-  return import_zod14.z.string().regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi).safeParse(value).success;
-}, `Invalid resolver field. Valid example: "Query list"`);
 var graphqlPlugin = definePlugin({
   name: "graphql",
   schema: import_zod14.z.object({
@@ -2529,7 +2844,21 @@ var graphqlPlugin = definePlugin({
           LocalFileSchema,
           import_zod14.z.array(LocalFileSchema).min(1)
         ]).optional(),
-        resolvers: import_zod14.z.record(ResolverFieldSchema, FunctionSchema).optional()
+        resolvers: import_zod14.z.record(
+          // TypeName
+          import_zod14.z.string(),
+          import_zod14.z.record(
+            // FieldName
+            import_zod14.z.string(),
+            import_zod14.z.union([
+              FunctionSchema,
+              import_zod14.z.object({
+                consumer: FunctionSchema,
+                resolver: LocalFileSchema
+              })
+            ])
+          )
+        ).optional()
       })).optional()
     }).array()
   }),
@@ -2594,17 +2923,19 @@ var graphqlPlugin = definePlugin({
     const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, props] of Object.entries(stackConfig.graphql || {})) {
       const apiId = bootstrap2.import(`graphql-${id}`);
-      for (const [typeAndField, functionProps] of Object.entries(props.resolvers || {})) {
-        const [typeName, fieldName] = typeAndField.split(/[\s]+/g);
-        const entryId = (0, import_change_case10.paramCase)(`${id}-${typeName}-${fieldName}`);
-        const lambda = toLambdaFunction(ctx, `graphql-${entryId}`, functionProps);
-        const source = new AppsyncEventSource(entryId, lambda, {
-          apiId,
-          typeName,
-          fieldName,
-          code: Code2.fromInline(entryId, defaultResolver)
-        });
-        stack.add(lambda, source);
+      for (const [typeName, fields] of Object.entries(props.resolvers || {})) {
+        for (const [fieldName, resolverProps] of Object.entries(fields || {})) {
+          const props2 = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps;
+          const entryId = (0, import_change_case14.paramCase)(`${id}-${typeName}-${fieldName}`);
+          const lambda = toLambdaFunction(ctx, `graphql-${entryId}`, props2.consumer);
+          const source = new AppsyncEventSource(entryId, lambda, {
+            apiId,
+            typeName,
+            fieldName,
+            code: Code2.fromInline(entryId, props2.resolver || defaultResolver)
+          });
+          stack.add(lambda, source);
+        }
       }
     }
   }
@@ -2682,6 +3013,37 @@ var RecordSetGroup = class extends Resource {
   }
 };
 
+// src/custom/util.ts
+var sendCode = (
+  /* JS */
+  `
+
+const send = async (event, id, status, data, reason = '') => {
+	const body = JSON.stringify({
+		Status: status,
+		Reason: reason,
+		PhysicalResourceId: id,
+		StackId: event.StackId,
+		RequestId: event.RequestId,
+		LogicalResourceId: event.LogicalResourceId,
+		NoEcho: false,
+		Data: data
+	})
+
+	await fetch(event.ResponseURL, {
+		method: 'PUT',
+		port: 443,
+		body,
+		headers: {
+			'content-type': '',
+            'content-length': Buffer.from(body).byteLength,
+		},
+	})
+}
+
+`
+);
+
 // src/custom/delete-hosted-zone/handler.ts
 var deleteHostedZoneRecordsHandlerCode = (
   /* JS */
@@ -2690,6 +3052,8 @@ var deleteHostedZoneRecordsHandlerCode = (
 const { Route53Client, ListResourceRecordSetsCommand, ChangeResourceRecordSetsCommand } = require('@aws-sdk/client-route-53')
 
 const client = new Route53Client({})
+
+${sendCode}
 
 exports.handler = async (event) => {
 	const type = event.RequestType
@@ -2712,29 +3076,6 @@ exports.handler = async (event) => {
 			await send(event, hostedZoneId, 'FAILED', {}, 'Unknown error')
 		}
 	}
-}
-
-const send = async (event, id, status, data = {}, reason = '') => {
-	const body = JSON.stringify({
-		Status: status,
-		Reason: reason,
-		PhysicalResourceId: id,
-		StackId: event.StackId,
-		RequestId: event.RequestId,
-		LogicalResourceId: event.LogicalResourceId,
-		NoEcho: false,
-		Data: data
-	})
-
-	await fetch(event.ResponseURL, {
-		method: 'PUT',
-		port: 443,
-		body,
-		headers: {
-			'content-type': '',
-            'content-length': Buffer.from(body).byteLength,
-		},
-	})
 }
 
 const deleteHostedZoneRecords = async (hostedZoneId, records) => {
@@ -2936,6 +3277,7 @@ var Vpc = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::EC2::VPC", logicalId);
     this.props = props;
+    this.tag("Name", props.name);
   }
   get id() {
     return ref(this.logicalId);
@@ -3098,6 +3440,7 @@ var vpcPlugin = definePlugin({
   // }),
   onApp({ config, bootstrap: bootstrap2 }) {
     const vpc = new Vpc("main", {
+      name: config.name,
       cidrBlock: Peer.ipv4("10.0.0.0/16")
     });
     const privateRouteTable = new RouteTable("private", {
@@ -3278,7 +3621,7 @@ var LoadBalancer = class extends Resource {
 };
 
 // src/formation/resource/elb/listener.ts
-var import_change_case11 = require("change-case");
+var import_change_case15 = require("change-case");
 var Listener = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::ElasticLoadBalancingV2::Listener", logicalId);
@@ -3294,7 +3637,7 @@ var Listener = class extends Resource {
     return {
       LoadBalancerArn: this.props.loadBalancerArn,
       Port: this.props.port,
-      Protocol: (0, import_change_case11.constantCase)(this.props.protocol),
+      Protocol: (0, import_change_case15.constantCase)(this.props.protocol),
       Certificates: this.props.certificates.map((arn) => ({
         CertificateArn: arn
       })),
@@ -3640,6 +3983,18 @@ var searchPlugin = definePlugin({
       searchs: import_zod18.z.array(ResourceIdSchema).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "SearchResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const id of stack.searchs || []) {
+        const name = formatName(`${config.name}-${stack.name}-${id}`);
+        list3.addType(name, `{ name: '${name}' }`);
+      }
+      gen.addType(stack.name, list3.toString());
+    }
+    return gen.toString();
+  },
   onStack({ config, stack, stackConfig, bind }) {
     for (const id of stackConfig.searchs || []) {
       const collection = new Collection(id, {
@@ -3721,6 +4076,7 @@ var SubnetGroup = class extends Resource {
 };
 
 // src/plugins/cache.ts
+var import_change_case16 = require("change-case");
 var TypeSchema = import_zod19.z.enum([
   "t4g.small",
   "t4g.medium",
@@ -3768,6 +4124,17 @@ var cachePlugin = definePlugin({
       ).optional()
     }).array()
   }),
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "CacheResources");
+    for (const stack of config.stacks) {
+      const list3 = new TypeObject();
+      for (const name of Object.keys(stack.caches || {})) {
+        list3.addType(name, `{ host: string, port: number }`);
+      }
+      gen.addType(stack.name, list3.toString());
+    }
+    return gen.toString();
+  },
   onStack({ config, stack, stackConfig, bootstrap: bootstrap2, bind }) {
     for (const [id, props] of Object.entries(stackConfig.caches || {})) {
       const name = `${config.name}-${stack.name}-${id}`;
@@ -3795,8 +4162,272 @@ var cachePlugin = definePlugin({
       }).dependsOn(subnetGroup, securityGroup);
       stack.add(subnetGroup, securityGroup, cluster);
       bind((lambda) => {
-        lambda.addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address).addEnvironment(`CACHE_${stack.name}_${id}_PORT`, props.port.toString());
+        lambda.addEnvironment(`CACHE_${(0, import_change_case16.constantCase)(stack.name)}_${(0, import_change_case16.constantCase)(id)}_HOST`, cluster.address).addEnvironment(`CACHE_${(0, import_change_case16.constantCase)(stack.name)}_${(0, import_change_case16.constantCase)(id)}_PORT`, props.port.toString());
       });
+    }
+  }
+});
+
+// src/plugins/rest.ts
+var import_zod21 = require("zod");
+
+// src/schema/route.ts
+var import_zod20 = require("zod");
+var RouteSchema2 = import_zod20.z.custom((route) => {
+  return import_zod20.z.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/\{\}]*)$/ig).safeParse(route).success;
+}, "Invalid route");
+
+// src/formation/resource/api-gateway-v2/api.ts
+var Api = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Api", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get endpoint() {
+    return getAtt(this.logicalId, "ApiEndpoint");
+  }
+  get id() {
+    return getAtt(this.logicalId, "ApiId");
+  }
+  properties() {
+    return {
+      Name: this.name,
+      ProtocolType: this.props.protocolType,
+      ...this.attr("Description", this.props.description),
+      CorsConfiguration: {
+        ...this.attr("AllowCredentials", this.props.cors?.allow?.credentials),
+        ...this.attr("AllowHeaders", this.props.cors?.allow?.headers),
+        ...this.attr("AllowMethods", this.props.cors?.allow?.methods),
+        ...this.attr("AllowOrigins", this.props.cors?.allow?.origins),
+        ...this.attr("ExposeHeaders", this.props.cors?.expose?.headers),
+        ...this.attr("MaxAge", this.props.cors?.maxAge?.toSeconds())
+      }
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/integration.ts
+var Integration = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Integration", logicalId);
+    this.props = props;
+  }
+  get id() {
+    return ref(this.logicalId);
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      IntegrationType: this.props.type,
+      IntegrationUri: this.props.uri,
+      IntegrationMethod: this.props.method,
+      PayloadFormatVersion: this.props.payloadFormatVersion ?? "2.0",
+      ...this.attr("Description", this.props.description)
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/route.ts
+var Route2 = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Route", logicalId);
+    this.props = props;
+  }
+  get id() {
+    return getAtt(this.logicalId, "RouteId");
+  }
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      RouteKey: this.props.routeKey,
+      Target: this.props.target
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/api-gateway-v2.ts
+var ApiGatewayV2EventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const name = formatName(id);
+    const permission = new Permission2(id, {
+      action: "lambda:InvokeFunction",
+      principal: "apigateway.amazonaws.com",
+      functionArn: lambda.arn
+    }).dependsOn(lambda);
+    const integration = new Integration(id, {
+      apiId: props.apiId,
+      description: name,
+      method: "POST",
+      payloadFormatVersion: "2.0",
+      type: "AWS_PROXY",
+      uri: sub("arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambda}/invocations", {
+        lambda: lambda.arn
+      })
+    });
+    const route = new Route2(id, {
+      apiId: props.apiId,
+      routeKey: props.routeKey,
+      target: sub("integrations/${id}", { id: integration.id })
+    }).dependsOn(lambda, permission, integration);
+    super([integration, route, permission]);
+  }
+};
+
+// src/formation/resource/api-gateway-v2/domain-name.ts
+var DomainName2 = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::DomainName", logicalId);
+    this.props = props;
+  }
+  get name() {
+    return ref(this.logicalId);
+  }
+  get regionalDomainName() {
+    return getAtt(this.logicalId, "RegionalDomainName");
+  }
+  get regionalHostedZoneId() {
+    return getAtt(this.logicalId, "RegionalHostedZoneId");
+  }
+  properties() {
+    return {
+      DomainName: this.props.name,
+      DomainNameConfigurations: [{
+        CertificateArn: this.props.certificateArn
+      }]
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/stage.ts
+var Stage = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::Stage", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  properties() {
+    return {
+      ApiId: this.props.apiId,
+      StageName: this.name,
+      AutoDeploy: this.props.autoDeploy ?? true,
+      ...this.attr("DeploymentId", this.props.deploymentId),
+      ...this.attr("Description", this.props.description)
+    };
+  }
+};
+
+// src/formation/resource/api-gateway-v2/api-mapping.ts
+var ApiMapping = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::ApiGatewayV2::ApiMapping", logicalId);
+    this.props = props;
+  }
+  get id() {
+    return getAtt(this.logicalId, "ApiMappingId");
+  }
+  properties() {
+    return {
+      DomainName: this.props.domainName,
+      ApiId: this.props.apiId,
+      Stage: this.props.stage
+    };
+  }
+};
+
+// src/plugins/rest.ts
+var restPlugin = definePlugin({
+  name: "rest",
+  schema: import_zod21.z.object({
+    defaults: import_zod21.z.object({
+      /** Define your global REST API's.
+       * @example
+       * {
+       *   rest: {
+       *     REST_API_NAME: {
+       *       domain: 'example.com',
+       *       subDomain: 'api',
+       *     }
+       *   }
+       * }
+       */
+      rest: import_zod21.z.record(
+        ResourceIdSchema,
+        import_zod21.z.object({
+          /** The domain to link your API with. */
+          domain: import_zod21.z.string(),
+          subDomain: import_zod21.z.string().optional()
+        })
+      ).optional()
+    }).default({}),
+    stacks: import_zod21.z.object({
+      /** Define routes in your stack for your global REST API.
+       * @example
+       * {
+       *   rest: {
+       *     REST_API_NAME: {
+       *       'GET /': 'index.ts',
+       *       'POST /posts': 'create-post.ts',
+       *     }
+       *   }
+       * }
+       */
+      rest: import_zod21.z.record(
+        ResourceIdSchema,
+        import_zod21.z.record(RouteSchema2, FunctionSchema)
+      ).optional()
+    }).array()
+  }),
+  onApp({ config, bootstrap: bootstrap2, usEastBootstrap }) {
+    for (const [id, props] of Object.entries(config.defaults?.rest || {})) {
+      const api = new Api(id, {
+        name: `${config.name}-${id}`,
+        protocolType: "HTTP"
+      });
+      const stage = new Stage(id, {
+        name: "v1",
+        apiId: api.id
+      }).dependsOn(api);
+      bootstrap2.add(api, stage).export(`rest-${id}-id`, api.id);
+      if (props.domain) {
+        const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
+        const hostedZoneId = usEastBootstrap.import(`hosted-zone-${props.domain}-id`);
+        const certificateArn = bootstrap2.import(`certificate-${props.domain}-arn`);
+        const domain = new DomainName2(id, {
+          name: domainName,
+          certificateArn
+        });
+        const mapping = new ApiMapping(id, {
+          apiId: api.id,
+          domainName: domain.name,
+          stage: stage.name
+        }).dependsOn(api, domain, stage);
+        const record = new RecordSet(`${id}-rest`, {
+          hostedZoneId,
+          type: "A",
+          name: domainName,
+          alias: {
+            dnsName: domain.regionalDomainName,
+            hostedZoneId: domain.regionalHostedZoneId
+          }
+        }).dependsOn(domain, mapping);
+        bootstrap2.add(domain, mapping, record);
+      }
+    }
+  },
+  onStack(ctx) {
+    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    for (const [id, routes] of Object.entries(stackConfig.rest || {})) {
+      for (const [routeKey, props] of Object.entries(routes)) {
+        const lambda = toLambdaFunction(ctx, `rest-${id}-${routeKey}`, props);
+        const source = new ApiGatewayV2EventSource(`rest-${id}-${routeKey}`, lambda, {
+          apiId: bootstrap2.import(`rest-${id}-id`),
+          routeKey
+        });
+        stack.add(lambda, source);
+      }
     }
   }
 });
@@ -3817,6 +4448,7 @@ var defaultPlugins = [
   domainPlugin,
   graphqlPlugin,
   httpPlugin,
+  restPlugin,
   onFailurePlugin
 ];
 
@@ -3827,7 +4459,10 @@ var App = class {
   }
   list = /* @__PURE__ */ new Map();
   add(...stacks) {
-    stacks.forEach((stack) => this.list.set(stack.name, stack));
+    stacks.forEach((stack) => {
+      this.list.set(stack.name, stack);
+      stack.setApp(this);
+    });
     return this;
   }
   find(resourceType) {
@@ -3851,6 +4486,8 @@ var globalExportsHandlerCode = (
 
 const { CloudFormationClient, ListExportsCommand } = require('@aws-sdk/client-cloudformation')
 
+${sendCode}
+
 exports.handler = async (event) => {
 	const region = event.ResourceProperties.region
 
@@ -3865,29 +4502,6 @@ exports.handler = async (event) => {
 			await send(event, region, 'FAILED', {}, 'Unknown error')
 		}
 	}
-}
-
-const send = async (event, id, status, data, reason = '') => {
-	const body = JSON.stringify({
-		Status: status,
-		Reason: reason,
-		PhysicalResourceId: id,
-		StackId: event.StackId,
-		RequestId: event.RequestId,
-		LogicalResourceId: event.LogicalResourceId,
-		NoEcho: false,
-		Data: data
-	})
-
-	await fetch(event.ResponseURL, {
-		method: 'PUT',
-		port: 443,
-		body,
-		headers: {
-			'content-type': '',
-            'content-length': Buffer.from(body).byteLength,
-		},
-	})
 }
 
 const listExports = async (region) => {
@@ -4048,7 +4662,7 @@ var toApp = async (config, filters) => {
 };
 
 // src/config.ts
-var import_path4 = require("path");
+var import_path11 = require("path");
 
 // src/util/account.ts
 var import_client_sts = require("@aws-sdk/client-sts");
@@ -4067,17 +4681,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-var import_zod23 = require("zod");
+var import_zod25 = require("zod");
 
 // src/schema/stack.ts
-var import_zod20 = require("zod");
-var StackSchema = import_zod20.z.object({
+var import_zod22 = require("zod");
+var StackSchema = import_zod22.z.object({
   name: ResourceIdSchema,
-  depends: import_zod20.z.array(import_zod20.z.lazy(() => StackSchema)).optional()
+  depends: import_zod22.z.array(import_zod22.z.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-var import_zod21 = require("zod");
+var import_zod23 = require("zod");
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -4094,121 +4708,145 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = import_zod21.z.enum(regions);
+var RegionSchema = import_zod23.z.enum(regions);
 
 // src/schema/plugin.ts
-var import_zod22 = require("zod");
-var PluginSchema = import_zod22.z.object({
-  name: import_zod22.z.string(),
-  schema: import_zod22.z.custom().optional(),
+var import_zod24 = require("zod");
+var PluginSchema = import_zod24.z.object({
+  name: import_zod24.z.string(),
+  schema: import_zod24.z.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onApp: import_zod22.z.function().returns(import_zod22.z.void()).optional(),
-  onStack: import_zod22.z.function().returns(import_zod22.z.any()).optional(),
-  onResource: import_zod22.z.function().returns(import_zod22.z.any()).optional()
+  onApp: import_zod24.z.function().returns(import_zod24.z.void()).optional(),
+  onStack: import_zod24.z.function().returns(import_zod24.z.any()).optional(),
+  onResource: import_zod24.z.function().returns(import_zod24.z.any()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = import_zod23.z.object({
+var AppSchema = import_zod25.z.object({
   /** App name */
   name: ResourceIdSchema,
   /** The AWS region to deploy to. */
   region: RegionSchema,
   /** The AWS profile to deploy to. */
-  profile: import_zod23.z.string(),
+  profile: import_zod25.z.string(),
   /** The deployment stage.
    * @default 'prod'
    */
-  stage: import_zod23.z.string().regex(/[a-z]+/).default("prod"),
+  stage: import_zod25.z.string().regex(/^[a-z]+$/).default("prod"),
   /** Default properties. */
-  defaults: import_zod23.z.object({}).default({}),
+  defaults: import_zod25.z.object({}).default({}),
   /** The application stacks. */
-  stacks: import_zod23.z.array(StackSchema).min(1).refine((stacks) => {
+  stacks: import_zod25.z.array(StackSchema).min(1).refine((stacks) => {
     const unique = new Set(stacks.map((stack) => stack.name));
     return unique.size === stacks.length;
   }, "Must be an array of unique stacks"),
   /** Custom plugins. */
-  plugins: import_zod23.z.array(PluginSchema).optional()
+  plugins: import_zod25.z.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
 var import_rollup3 = require("rollup");
 var import_rollup_plugin_swc32 = require("rollup-plugin-swc3");
 var import_rollup_plugin_replace = __toESM(require("rollup-plugin-replace"), 1);
-var import_path2 = require("path");
-var import_promises5 = require("fs/promises");
-
-// src/util/path.ts
-var import_promises4 = require("fs/promises");
-var import_path = require("path");
-var root = process.cwd();
-var directories = {
-  root,
-  get output() {
-    return (0, import_path.join)(this.root, ".awsless");
-  },
-  get cache() {
-    return (0, import_path.join)(this.output, "cache");
-  },
-  get asset() {
-    return (0, import_path.join)(this.output, "asset");
-  },
-  get template() {
-    return (0, import_path.join)(this.output, "template");
-  }
-};
-var setRoot = (path = root) => {
-  directories.root = path;
-};
-var findRootDir = async (path, configFile, level = 5) => {
-  if (!level) {
-    throw new TypeError("No awsless project found");
-  }
-  const file = (0, import_path.join)(path, configFile);
-  const exists = await fileExist(file);
-  if (exists) {
-    return path;
-  }
-  return findRootDir((0, import_path.normalize)((0, import_path.join)(path, "..")), configFile, level - 1);
-};
-var fileExist = async (file) => {
-  try {
-    const stat = await (0, import_promises4.lstat)(file);
-    if (stat.isFile()) {
-      return true;
-    }
-  } catch (error) {
-  }
-  return false;
-};
-
-// src/util/import.ts
+var import_event_iterator = require("event-iterator");
+var import_path9 = require("path");
+var import_promises6 = require("fs/promises");
 var importFile = async (path) => {
   const bundle = await (0, import_rollup3.rollup)({
     input: path,
+    onwarn: (error) => {
+      debugError(error.message);
+    },
     plugins: [
       (0, import_rollup_plugin_replace.default)({
-        __dirname: (id) => `'${(0, import_path2.dirname)(id)}'`
+        __dirname: (id) => `'${(0, import_path9.dirname)(id)}'`
       }),
       (0, import_rollup_plugin_swc32.swc)({
-        minify: false
+        minify: false,
+        jsc: {
+          baseUrl: (0, import_path9.dirname)(path)
+        }
       })
     ]
   });
-  const outputFile = (0, import_path2.join)(directories.cache, "config.js");
+  const outputFile = (0, import_path9.join)(directories.cache, "config.js");
   const result = await bundle.generate({
     format: "esm",
     exports: "default"
   });
   const output = result.output[0];
   const code = output.code;
-  await (0, import_promises5.mkdir)(directories.cache, { recursive: true });
-  await (0, import_promises5.writeFile)(outputFile, code);
+  await (0, import_promises6.mkdir)(directories.cache, { recursive: true });
+  await (0, import_promises6.writeFile)(outputFile, code);
   debug("Save config file:", style.info(outputFile));
   return import(outputFile);
 };
+var watchFile = (path) => {
+  return new import_event_iterator.EventIterator((queue2) => {
+    const watcher = (0, import_rollup3.watch)({
+      watch: {
+        skipWrite: true
+      },
+      input: path,
+      onwarn: (error) => {
+        debugError(error.message);
+      },
+      plugins: [
+        (0, import_rollup_plugin_replace.default)({
+          __dirname: (id) => `'${(0, import_path9.dirname)(id)}'`
+        }),
+        (0, import_rollup_plugin_swc32.swc)({
+          minify: false,
+          jsc: {
+            baseUrl: (0, import_path9.dirname)(path)
+          }
+        })
+      ]
+    });
+    let resume;
+    queue2.on("lowWater", () => {
+      resume?.(true);
+    });
+    watcher.on("close", queue2.stop);
+    watcher.on("event", async (event) => {
+      if (event.code === "ERROR") {
+        queue2.fail(new Error(event.error.message));
+      }
+      if (event.code === "BUNDLE_END") {
+        const result = await event.result.generate({
+          format: "esm",
+          exports: "default"
+        });
+        event.result.close();
+        const output = result.output[0];
+        const code = output.code;
+        const outputFile = (0, import_path9.join)(directories.cache, "config.js");
+        await (0, import_promises6.mkdir)(directories.cache, { recursive: true });
+        await (0, import_promises6.writeFile)(outputFile, code);
+        debug("Save config file:", style.info(outputFile));
+        const config = await import(`${outputFile}?${Date.now()}`);
+        queue2.push(config);
+      }
+    });
+    return () => {
+      watcher.close();
+    };
+  }, {
+    highWaterMark: 1,
+    lowWaterMark: 0
+  });
+};
 
 // src/config.ts
+var import_zod26 = require("zod");
+var ConfigError = class extends Error {
+  constructor(error, data) {
+    super(error.message);
+    this.error = error;
+    this.data = data;
+  }
+};
 var importConfig = async (options) => {
   debug("Find the root directory");
   const configFile = options.configFile || "awsless.config.ts";
@@ -4216,7 +4854,7 @@ var importConfig = async (options) => {
   setRoot(root2);
   debug("CWD:", style.info(root2));
   debug("Import config file");
-  const fileName = (0, import_path4.join)(root2, configFile);
+  const fileName = (0, import_path11.join)(root2, configFile);
   const module2 = await importFile(fileName);
   const appConfig = typeof module2.default === "function" ? await module2.default(options) : module2.default;
   debug("Validate config file");
@@ -4230,7 +4868,15 @@ var importConfig = async (options) => {
       schema2 = schema2.and(plugin.schema);
     }
   }
-  const config = await schema2.parseAsync(appConfig);
+  let config;
+  try {
+    config = await schema2.parseAsync(appConfig);
+  } catch (error) {
+    if (error instanceof import_zod26.z.ZodError) {
+      throw new ConfigError(error, appConfig);
+    }
+    throw error;
+  }
   debug("Load credentials", style.info(config.profile));
   const credentials = getCredentials(config.profile);
   debug("Load AWS account ID");
@@ -4241,6 +4887,48 @@ var importConfig = async (options) => {
     account,
     credentials
   };
+};
+var watchConfig = async function* (options) {
+  debug("Find the root directory");
+  const configFile = options.configFile || "awsless.config.ts";
+  const root2 = await findRootDir(process.cwd(), configFile);
+  setRoot(root2);
+  debug("CWD:", style.info(root2));
+  debug("Import config file");
+  const fileName = (0, import_path11.join)(root2, configFile);
+  for await (const module2 of watchFile(fileName)) {
+    const appConfig = typeof module2.default === "function" ? await module2.default(options) : module2.default;
+    debug("Validate config file");
+    const plugins = [
+      ...defaultPlugins,
+      ...appConfig.plugins || []
+    ];
+    let schema2 = AppSchema;
+    for (const plugin of plugins) {
+      if (plugin.schema) {
+        schema2 = schema2.and(plugin.schema);
+      }
+    }
+    let config;
+    try {
+      config = await schema2.parseAsync(appConfig);
+    } catch (error) {
+      if (error instanceof import_zod26.z.ZodError) {
+        throw new ConfigError(error, appConfig);
+      }
+      throw error;
+    }
+    debug("Load credentials", style.info(config.profile));
+    const credentials = getCredentials(config.profile);
+    debug("Load AWS account ID");
+    const account = await getAccountId(credentials, config.region);
+    debug("Account ID:", style.info(account));
+    yield {
+      ...config,
+      account,
+      credentials
+    };
+  }
 };
 
 // src/cli/ui/layout/basic.ts
@@ -4354,11 +5042,11 @@ var dialog = (type, lines) => {
   const padding = 3;
   const icon = style[type](symbol[type].padEnd(padding));
   return (term) => {
-    term.out.write(lines.map((line, i) => {
+    term.out.write(lines.map((line2, i) => {
       if (i === 0) {
-        return icon + (0, import_wrap_ansi.default)(line, term.out.width(), { hard: true });
+        return icon + (0, import_wrap_ansi.default)(line2, term.out.width(), { hard: true });
       }
-      return (0, import_wrap_ansi.default)(" ".repeat(padding) + line, term.out.width(), { hard: true });
+      return (0, import_wrap_ansi.default)(" ".repeat(padding) + line2, term.out.width(), { hard: true });
     }).join(br()) + br());
   };
 };
@@ -4503,7 +5191,7 @@ var Renderer = class {
   flushing = false;
   screen = [];
   width() {
-    return this.output.columns - 1;
+    return this.output.columns - 3;
   }
   height() {
     return this.output.rows;
@@ -4612,6 +5300,7 @@ var Renderer = class {
         }
       }
     }
+    await this.setCursor(0, size - start);
     this.screen = screen;
     this.flushing = false;
   }
@@ -4680,6 +5369,86 @@ var logs = () => {
   };
 };
 
+// src/cli/ui/layout/zod-error.ts
+var line = (value, level = 0, highlight = false) => {
+  return [
+    highlight ? style.error(symbol.pointerSmall) + style.placeholder("  | ") : style.placeholder.dim("   | "),
+    "   ".repeat(level),
+    value,
+    br()
+  ];
+};
+var format = (value) => {
+  if (Array.isArray(value)) {
+    return "[ ... ]";
+  }
+  if (value === null) {
+    return "null";
+  }
+  switch (typeof value) {
+    case "function":
+      return "() => { ... }";
+    case "bigint":
+      return `${value}n`;
+    case "symbol":
+      return "Symbol()";
+    case "object":
+      return "{ ... }";
+    case "undefined":
+    case "string":
+    case "number":
+    case "boolean":
+      return JSON.stringify(value);
+  }
+  return "";
+};
+var zodError = (error, data) => {
+  return (term) => {
+    for (const issue of error.issues) {
+      term.out.gap();
+      term.out.write(dialog("error", [
+        style.error(issue.message)
+      ]));
+      term.out.gap();
+      term.out.write(line("{"));
+      let context = data;
+      const inStack = issue.path[0] === "stacks" && typeof issue.path[1] === "number";
+      const length2 = issue.path.length;
+      const end = [];
+      issue.path.forEach((path, i) => {
+        const index = i + 1;
+        context = context[path];
+        if (typeof path === "string") {
+          const key = path + `: `;
+          if (index === length2) {
+            const space = " ".repeat(key.length);
+            const value = format(context);
+            const error2 = "^".repeat(value.length);
+            term.out.write(line(key + style.warning(value), index));
+            term.out.write(line(space + style.error(error2), index, true));
+          } else if (Array.isArray(context)) {
+            term.out.write(line(key + "[", index));
+            end.unshift(line("]", index));
+          } else if (typeof context === "object") {
+            if (inStack && index === 3) {
+              const name = data.stacks[issue.path[1]].name;
+              term.out.write(line("name: " + style.info(`"${name}"`) + ",", index));
+            }
+            term.out.write(line(key + "{", index));
+            end.unshift(line("}", index));
+          }
+        } else if (typeof context === "object") {
+          term.out.write(line("{", index));
+          end.unshift(line("}", index));
+        }
+      });
+      term.out.write(end);
+      term.out.write(line("}"));
+      term.out.gap();
+    }
+  };
+};
+
 // src/cli/ui/layout/layout.ts
 var layout = async (cb) => {
   const term = createTerminal();
@@ -4695,7 +5464,9 @@ var layout = async (cb) => {
     await cb(config, term.out.write.bind(term.out), term);
   } catch (error) {
     term.out.gap();
-    if (error instanceof Error) {
+    if (error instanceof ConfigError) {
+      term.out.write(zodError(error.error, error.data));
+    } else if (error instanceof Error) {
       term.out.write(dialog("error", [error.message]));
     } else if (typeof error === "string") {
       term.out.write(dialog("error", [error]));
@@ -4716,7 +5487,7 @@ var layout = async (cb) => {
 };
 
 // src/cli/ui/complex/builder.ts
-var import_promises6 = require("fs/promises");
+var import_promises7 = require("fs/promises");
 
 // src/cli/ui/layout/flex-line.ts
 var stripEscapeCode = (str) => {
@@ -4739,7 +5510,7 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
 };
 
 // src/cli/ui/complex/builder.ts
-var import_path7 = require("path");
+var import_path14 = require("path");
 var assetBuilder = (app) => {
   return async (term) => {
     const assets = [];
@@ -4755,10 +5526,13 @@ var assetBuilder = (app) => {
     if (assets.length === 0) {
       return;
     }
+    const showDetailedView = assets.length <= term.out.height() - 2;
     const done = term.out.write(loadingDialog("Building stack assets..."));
     const groups = new Signal([""]);
-    term.out.gap();
-    term.out.write(groups);
+    if (showDetailedView) {
+      term.out.gap();
+      term.out.write(groups);
+    }
     const stackNameSize = Math.max(...stacks.map((stack) => stack.name.length));
     const assetTypeSize = Math.max(...assets.map((asset) => asset.type.length));
     await Promise.all(app.stacks.map(async (stack) => {
@@ -4770,7 +5544,7 @@ var assetBuilder = (app) => {
         }
         const [icon, stop] = createSpinner();
         const details = new Signal({});
-        const line = flexLine(term, [
+        const line2 = flexLine(term, [
           icon,
           "  ",
           style.label(stack.name),
@@ -4794,62 +5568,80 @@ var assetBuilder = (app) => {
           }),
           br()
         ]);
-        group.update((group2) => [...group2, line]);
+        group.update((group2) => [...group2, line2]);
         const timer = createTimer();
-        const data = await asset.build({
-          async write(file, data2) {
-            const fullpath = (0, import_path7.join)(directories.asset, asset.type, app.name, stack.name, asset.id, file);
-            const basepath = (0, import_path7.dirname)(fullpath);
-            await (0, import_promises6.mkdir)(basepath, { recursive: true });
-            await (0, import_promises6.writeFile)(fullpath, data2);
-          }
-        });
-        details.set({
-          ...data,
-          time: timer()
-        });
-        icon.set(style.success(symbol.success));
-        stop();
+        try {
+          const data = await asset.build({
+            async write(file, data2) {
+              const fullpath = (0, import_path14.join)(directories.asset, asset.type, app.name, stack.name, asset.id, file);
+              const basepath = (0, import_path14.dirname)(fullpath);
+              await (0, import_promises7.mkdir)(basepath, { recursive: true });
+              await (0, import_promises7.writeFile)(fullpath, data2);
+            }
+          });
+          details.set({
+            ...data,
+            time: timer()
+          });
+          icon.set(style.success(symbol.success));
+        } catch (error) {
+          icon.set(style.error(symbol.error));
+          throw error;
+        } finally {
+          stop();
+        }
       }));
     }));
     done("Done building stack assets");
-    term.out.gap();
+    if (showDetailedView) {
+      term.out.gap();
+    }
   };
 };
 
 // src/util/cleanup.ts
-var import_promises7 = require("fs/promises");
+var import_promises8 = require("fs/promises");
 var cleanUp = async () => {
   debug("Clean up template, cache, and asset files");
   const paths = [
     directories.asset,
     directories.cache,
+    directories.types,
     directories.template
   ];
-  await Promise.all(paths.map((path) => (0, import_promises7.rm)(path, {
+  await Promise.all(paths.map((path) => (0, import_promises8.rm)(path, {
     recursive: true,
     force: true,
     maxRetries: 2
   })));
-  await Promise.all(paths.map((path) => (0, import_promises7.mkdir)(path, {
+  await Promise.all(paths.map((path) => (0, import_promises8.mkdir)(path, {
     recursive: true
   })));
 };
 
 // src/cli/ui/complex/template.ts
-var import_promises8 = require("fs/promises");
-var import_path10 = require("path");
+var import_promises9 = require("fs/promises");
+var import_path17 = require("path");
 var templateBuilder = (app) => {
   return async (term) => {
     const done = term.out.write(loadingDialog("Building stack templates..."));
     await Promise.all(app.stacks.map(async (stack) => {
       const template = stack.toString(true);
-      const path = (0, import_path10.join)(directories.template, app.name);
-      const file = (0, import_path10.join)(path, `${stack.name}.json`);
-      await (0, import_promises8.mkdir)(path, { recursive: true });
-      await (0, import_promises8.writeFile)(file, template);
+      const path = (0, import_path17.join)(directories.template, app.name);
+      const file = (0, import_path17.join)(path, `${stack.name}.json`);
+      await (0, import_promises9.mkdir)(path, { recursive: true });
+      await (0, import_promises9.writeFile)(file, template);
     }));
     done("Done building stack templates");
+  };
+};
+
+// src/cli/ui/complex/types.ts
+var typesGenerator = (config) => {
+  return async (term) => {
+    const done = term.out.write(loadingDialog("Generate type definition files..."));
+    await generateResourceTypes(config);
+    done("Done generating type definition files");
   };
 };
 
@@ -4859,6 +5651,7 @@ var build = (program2) => {
     await layout(async (config, write) => {
       const { app } = await toApp(config, filters);
       await cleanUp();
+      await write(typesGenerator(config));
       await write(assetBuilder(app));
       await write(templateBuilder(app));
     });
@@ -4869,9 +5662,9 @@ var build = (program2) => {
 var assetBucketName = (account, region) => {
   return `awsless-bootstrap-${account}-${region}`;
 };
-var assetBucketUrl = (account, region, stack) => {
+var assetBucketUrl = (account, region, app, stack) => {
   const bucket = assetBucketName(account, region);
-  return `https://s3-${region}.amazonaws.com/${bucket}/${stack.name}/cloudformation.json`;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${app.name}/${stack.name}/cloudformation.json`;
 };
 var version = "1";
 var bootstrapStack = (account, region) => {
@@ -4895,7 +5688,7 @@ var shouldDeployBootstrap = async (client, stack) => {
 // src/formation/client.ts
 var import_client_cloudformation = require("@aws-sdk/client-cloudformation");
 var import_client_s3 = require("@aws-sdk/client-s3");
-var import_change_case12 = require("change-case");
+var import_change_case17 = require("change-case");
 var StackClient = class {
   constructor(app, account, region, credentials) {
     this.app = app;
@@ -4907,7 +5700,7 @@ var StackClient = class {
   maxWaitTime = 60 * 30;
   // 30 minutes
   maxDelay = 30;
-  // 30 seconds
+  // 10 seconds
   assetBucketName;
   getClient(region) {
     return new import_client_cloudformation.CloudFormationClient({
@@ -4922,13 +5715,13 @@ var StackClient = class {
   templateProp(stack) {
     const template = stack.toString();
     return this.shouldUploadTemplate(template) ? {
-      TemplateUrl: assetBucketUrl(this.account, this.region, stack)
+      TemplateURL: assetBucketUrl(this.account, this.region, this.app, stack)
     } : {
       TemplateBody: template
     };
   }
   stackName(stackName) {
-    return (0, import_change_case12.paramCase)(`${this.app.name}-${stackName}`);
+    return (0, import_change_case17.paramCase)(`${this.app.name}-${stackName}`);
   }
   tags(stack) {
     const tags = [];
@@ -4954,7 +5747,7 @@ var StackClient = class {
   async create(stack, capabilities) {
     debug("Create the", style.info(stack.name), "stack");
     const client = this.getClient(stack.region);
-    await client.send(new import_client_cloudformation.CreateStackCommand({
+    const result = await client.send(new import_client_cloudformation.CreateStackCommand({
       StackName: this.stackName(stack.name),
       EnableTerminationProtection: false,
       OnFailure: import_client_cloudformation.OnFailure.DELETE,
@@ -4962,36 +5755,53 @@ var StackClient = class {
       Tags: this.tags(stack),
       ...this.templateProp(stack)
     }));
-    await (0, import_client_cloudformation.waitUntilStackCreateComplete)({
-      client,
-      maxWaitTime: this.maxWaitTime,
-      maxDelay: this.maxDelay
-    }, {
-      StackName: this.stackName(stack.name)
-    });
+    try {
+      await (0, import_client_cloudformation.waitUntilStackCreateComplete)({
+        client,
+        maxWaitTime: this.maxWaitTime,
+        maxDelay: this.maxDelay
+      }, {
+        StackName: result.StackId
+      });
+    } catch (_) {
+      const reason = await this.getFailureReason(
+        result.StackId,
+        stack.region
+      );
+      throw new Error(reason);
+    }
   }
   async update(stack, capabilities) {
     debug("Update the", style.info(stack.name), "stack");
     const client = this.getClient(stack.region);
+    let result;
     try {
-      await client.send(new import_client_cloudformation.UpdateStackCommand({
+      result = await client.send(new import_client_cloudformation.UpdateStackCommand({
         StackName: this.stackName(stack.name),
         Capabilities: capabilities,
         Tags: this.tags(stack),
         ...this.templateProp(stack)
       }));
-      await (0, import_client_cloudformation.waitUntilStackUpdateComplete)({
-        client,
-        maxWaitTime: this.maxWaitTime,
-        maxDelay: this.maxDelay
-      }, {
-        StackName: this.stackName(stack.name)
-      });
     } catch (error) {
       if (error instanceof Error && error.name === "ValidationError" && error.message.toLowerCase().includes("no updates")) {
         return;
       }
       throw error;
+    }
+    try {
+      await (0, import_client_cloudformation.waitUntilStackUpdateComplete)({
+        client,
+        maxWaitTime: this.maxWaitTime,
+        maxDelay: this.maxDelay
+      }, {
+        StackName: result.StackId
+      });
+    } catch (error) {
+      const reason = await this.getFailureReason(
+        result.StackId,
+        stack.region
+      );
+      throw new Error(reason);
     }
   }
   async validate(stack) {
@@ -5072,13 +5882,44 @@ var StackClient = class {
     await client.send(new import_client_cloudformation.DeleteStackCommand({
       StackName: this.stackName(name)
     }));
-    await (0, import_client_cloudformation.waitUntilStackDeleteComplete)({
-      client,
-      maxWaitTime: this.maxWaitTime,
-      maxDelay: this.maxDelay
-    }, {
-      StackName: this.stackName(name)
-    });
+    try {
+      await (0, import_client_cloudformation.waitUntilStackDeleteComplete)({
+        client,
+        maxWaitTime: this.maxWaitTime,
+        maxDelay: this.maxDelay
+      }, {
+        StackName: this.stackName(name)
+      });
+    } catch (_) {
+      const reason = await this.getFailureReason(name, region);
+      throw new Error(reason);
+    }
+  }
+  async getFailureReason(name, region) {
+    const client = this.getClient(region);
+    const result = await client.send(await new import_client_cloudformation.DescribeStackEventsCommand({
+      StackName: name
+    }));
+    const failureStatuses = [
+      "UPDATE_ROLLBACK_IN_PROGRESS",
+      "CREATE_FAILED",
+      "UPDATE_FAILED",
+      "DELETE_FAILED"
+    ];
+    let reason = "Unknown failure reason";
+    for (const event of result.StackEvents || []) {
+      if (event.ResourceStatusReason?.toLowerCase() === "user initiated") {
+        break;
+      }
+      if (failureStatuses.includes(event.ResourceStatus || "") && event.ResourceStatusReason) {
+        reason = [
+          `Logical ID: ${event.LogicalResourceId}`,
+          `Type: ${event.ResourceType}`,
+          `Reason: ${event.ResourceStatusReason}`
+        ].join("\n");
+      }
+    }
+    return reason;
   }
 };
 
@@ -5198,13 +6039,13 @@ var bootstrap = (program2) => {
 
 // src/cli/ui/complex/deployer.ts
 var stacksDeployer = (deploymentLine) => {
-  const stackNames = deploymentLine.map((line) => line.map((stack) => stack.name)).flat();
+  const stackNames = deploymentLine.map((line2) => line2.map((stack) => stack.name)).flat();
   const stackNameSize = Math.max(...stackNames.map((name) => name.length));
   return (term) => {
     const ui = {};
     term.out.gap();
     for (const i in deploymentLine) {
-      const line = flexLine(
+      const line2 = flexLine(
         term,
         ["   "],
         [
@@ -5213,7 +6054,7 @@ var stacksDeployer = (deploymentLine) => {
           style.placeholder(" \u2500\u2500")
         ]
       );
-      term.out.write(line);
+      term.out.write(line2);
       term.out.write(br());
       for (const stack of deploymentLine[i]) {
         const icon = new Signal(" ");
@@ -5307,8 +6148,8 @@ var status = (program2) => {
 };
 
 // src/cli/ui/complex/publisher.ts
-var import_promises9 = require("fs/promises");
-var import_path12 = require("path");
+var import_promises10 = require("fs/promises");
+var import_path19 = require("path");
 var import_client_s32 = require("@aws-sdk/client-s3");
 var assetPublisher = (config, app) => {
   const client = new import_client_s32.S3Client({
@@ -5321,8 +6162,8 @@ var assetPublisher = (config, app) => {
       await Promise.all([...stack.assets].map(async (asset) => {
         await asset.publish?.({
           async read(file) {
-            const path = (0, import_path12.join)(directories.asset, asset.type, app.name, stack.name, asset.id, file);
-            const data = await (0, import_promises9.readFile)(path);
+            const path = (0, import_path19.join)(directories.asset, asset.type, app.name, stack.name, asset.id, file);
+            const data = await (0, import_promises10.readFile)(path);
             return data;
           },
           async publish(name, data, hash) {
@@ -5386,14 +6227,15 @@ var deploy = (program2) => {
         throw new Cancelled();
       }
       await cleanUp();
+      await write(typesGenerator(config));
       await write(assetBuilder(app));
       await write(assetPublisher(config, app));
       await write(templateBuilder(app));
       const doneDeploying = write(loadingDialog("Deploying stacks to AWS..."));
       const client = new StackClient(app, config.account, config.region, config.credentials);
       const ui = write(stacksDeployer(deploymentLine));
-      for (const line of deploymentLine) {
-        const results = await Promise.allSettled(line.map(async (stack) => {
+      for (const line2 of deploymentLine) {
+        const results = await Promise.allSettled(line2.map(async (stack) => {
           const item = ui[stack.name];
           item.start("deploying");
           try {
@@ -5575,6 +6417,29 @@ var test = (program2) => {
   });
 };
 
+// src/cli/command/types.ts
+var types = (program2) => {
+  program2.command("types").description("Generate type definition files").action(async () => {
+    await layout(async (config, write) => {
+      await cleanUp();
+      await write(typesGenerator(config));
+    });
+  });
+};
+
+// src/cli/command/dev.ts
+var dev = (program2) => {
+  program2.command("dev").description("Start the development service").action(async () => {
+    await layout(async (_, write) => {
+      const options = program2.optsWithGlobals();
+      for await (const config of watchConfig(options)) {
+        await cleanUp();
+        await write(typesGenerator(config));
+      }
+    });
+  });
+};
+
 // src/cli/program.ts
 var program = new import_commander.Command();
 program.name(logo().join("").replace(/\s+/, ""));
@@ -5593,8 +6458,10 @@ program.on("option:verbose", () => {
 var commands2 = [
   bootstrap,
   status,
+  types,
   build,
   deploy,
+  dev,
   secrets,
   test
   // diff,

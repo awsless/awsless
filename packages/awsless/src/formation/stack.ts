@@ -1,16 +1,29 @@
 
 import { Region } from "../schema/region";
+import { App } from "./app";
 import { Asset } from "./asset";
 import { Group, Lazy, Resource } from "./resource";
 import { ConstructorOf, formatLogicalId, formatName, importValue } from "./util";
 
 export class Stack {
+	private parent?:App
+
 	readonly exports = new Map<string, string>()
 	readonly resources = new Set<Resource>()
 	readonly tags = new Map<string, string>()
 	readonly assets = new Set<Asset>()
 
 	constructor(readonly name: string, readonly region:Region) {}
+
+	get app() {
+		return this.parent
+	}
+
+	setApp(app: App) {
+		this.parent = app
+
+		return this
+	}
 
 	add(...resources: (Resource | Asset | Group)[]) {
 		for(const item of resources) {
@@ -97,7 +110,7 @@ export class Stack {
 			}
 		}
 
-		for(const resource of this) {
+		for(const resource of this.resources) {
 			const json = resource.toJSON()
 			walk(json)
 
@@ -107,7 +120,9 @@ export class Stack {
 		for(const [ name, value ] of this.exports.entries()) {
 			Object.assign(outputs, {
 				[ formatLogicalId(name) ]: {
-					Export: { Name: name },
+					Export: {
+						Name: `${ this.app?.name || 'default' }-${ name }`
+					},
 					Value: value,
 				}
 			})

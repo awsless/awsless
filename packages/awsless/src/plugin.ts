@@ -49,6 +49,10 @@ export type AppContext<S extends AnyZodObject | undefined = undefined> = {
 	bind: (cb: Binding) => void
 }
 
+export type TypeGenContext<S extends AnyZodObject | undefined = undefined> = {
+	config: ExtendedConfigOutput<S>
+}
+
 export type Plugin<S extends AnyZodObject | undefined = undefined> = {
 	name: string
 	schema?: S
@@ -56,6 +60,7 @@ export type Plugin<S extends AnyZodObject | undefined = undefined> = {
 	onApp?: (context: AppContext<S>) => void
 	onStack?: (context: StackContext<S>) => void
 	onResource?: (context: ResourceContext<S>) => void
+	onTypeGen?: (context: TypeGenContext<S>) => string | void
 }
 
 export const definePlugin = <
