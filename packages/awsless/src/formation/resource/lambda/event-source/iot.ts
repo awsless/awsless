@@ -1,7 +1,7 @@
-import { Group } from "../../../resource"
-import { TopicRule, TopicRuleSqlVersion } from "../../iot/topic-rule"
-import { Function } from "../function"
-import { Permission } from "../permission"
+import { Group } from '../../../resource.js'
+import { TopicRule, TopicRuleSqlVersion } from '../../iot/topic-rule.js'
+import { Function } from '../function.js'
+import { Permission } from '../permission.js'
 
 export class IotEventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

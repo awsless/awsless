@@ -11,6 +11,11 @@ import { Size } from '../formation/property/size.js';
 import { Code } from '../formation/resource/lambda/code.js';
 import { EventInvokeConfig } from '../formation/resource/lambda/event-invoke-config.js';
 import { getGlobalOnFailure, hasOnFailure } from './on-failure/util.js';
+import { camelCase } from 'change-case';
+import { directories } from '../util/path.js';
+import { relative } from 'path';
+import { TypeGen, TypeObject } from '../util/type-gen.js';
+import { formatName } from '../formation/util.js';
 
 const MemorySizeSchema = SizeSchema
 	.refine(sizeMin(Size.megaBytes(128)), 'Minimum memory size is 128 MB')
@@ -29,8 +34,12 @@ const EnvironmentSchema = z.record(z.string(), z.string()).optional()
 const ArchitectureSchema = z.enum([ 'x86_64', 'arm64' ])
 const RetryAttemptsSchema = z.number().int().min(0).max(2)
 const RuntimeSchema = z.enum([
-	'nodejs16.x',
 	'nodejs18.x',
+])
+
+const LogSchema = z.union([
+	z.boolean(),
+	DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day'),
 ])
 
 export const FunctionSchema = z.union([
@@ -39,10 +48,19 @@ export const FunctionSchema = z.union([
 		/** The file path of the function code. */
 		file: LocalFileSchema,
 
+		// /**  */
+		// handler: z.string().optional(),
+
 		/** Put the function inside your global VPC.
 		 * @default false
 		 */
 		vpc: z.boolean().optional(),
+
+		/** Enable logging to a CloudWatch log group.
+		 * Providing a duration value will set the log retention time.
+		 * @default false
+		 */
+		log: LogSchema.optional(),
 
 		/** The amount of time that Lambda allows a function to run before stopping it.
 		 * You can specify a size value from 1 second to 15 minutes.
@@ -99,6 +117,13 @@ export const FunctionSchema = z.union([
 	})
 ])
 
+export const isFunctionProps = (input:unknown): input is z.output<typeof FunctionSchema> => {
+	return (
+		typeof input === 'string' ||
+		typeof (input as { file?: string }).file === 'string'
+	)
+}
+
 const schema = z.object({
 	defaults: z.object({
 		function: z.object({
@@ -106,6 +131,11 @@ const schema = z.object({
 			 * @default false
 			 */
 			vpc: z.boolean().default(false),
+
+			/** Enable logging to a CloudWatch log group.
+			 * @default false
+			 */
+			log: LogSchema.default(false),
 
 			/** The amount of time that Lambda allows a function to run before stopping it.
 			 * You can specify a size value from 1 second to 15 minutes.
@@ -177,9 +207,39 @@ const schema = z.object({
 	}).array()
 })
 
+const typeGenCode = `
+import { InvokeOptions } from '@awsless/lambda'
+
+type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
+	name: Name
+	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
+	async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
+}`
+
 export const functionPlugin = definePlugin({
 	name: 'function',
 	schema,
+	onTypeGen({ config }) {
+		const types = new TypeGen('@awsless/awsless', 'FunctionResources')
+		types.addCode(typeGenCode)
+
+		for(const stack of config.stacks) {
+			const list = new TypeObject()
+			for(const [ name, fileOrProps ] of Object.entries(stack.functions || {})) {
+				const varName = camelCase(`${stack.name}-${name}`)
+				const funcName = formatName(`${config.name}-${stack.name}-${name}`)
+				const file = typeof fileOrProps === 'string' ? fileOrProps : fileOrProps.file
+				const relFile = relative(directories.types, file)
+
+				types.addImport(varName, relFile)
+				list.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+			}
+
+			types.addType(stack.name, list.toString())
+		}
+
+		return types.toString()
+	},
 	onStack(ctx) {
 		const { config, stack } = ctx
 
@@ -188,7 +248,7 @@ export const functionPlugin = definePlugin({
 				? { ...config.defaults?.function, file: fileOrProps }
 				: { ...config.defaults?.function, ...fileOrProps }
 
-			const lambda = toLambdaFunction(ctx, id, fileOrProps)
+			const lambda = toLambdaFunction(ctx as any, id, fileOrProps)
 
 			const invoke = new EventInvokeConfig(id, {
 				functionName: lambda.name,
@@ -215,6 +275,7 @@ export const toLambdaFunction = (
 ) => {
 	const config = ctx.config as ExtendedConfigOutput<typeof schema>
 	const stack = ctx.stack
+	const bootstrap = ctx.bootstrap
 
 	const props = typeof fileOrProps === 'string'
 		? { ...config.defaults?.function, file: fileOrProps }
@@ -232,33 +293,30 @@ export const toLambdaFunction = (
 		.addEnvironment('STAGE', config.stage)
 		.addEnvironment('STACK', stack.name)
 
+	if(props.log) {
+		lambda.enableLogs(props.log instanceof Duration ? props.log : undefined)
+	}
+
 	if(props.vpc) {
-		lambda
-			.setVpc({
-				securityGroupIds: [
-					ctx.bootstrap.import(`vpc-security-group-id`),
-				],
-				subnetIds: [
-					ctx.bootstrap.import(`public-subnet-1`),
-					ctx.bootstrap.import(`public-subnet-2`),
-				],
-			}).addPermissions({
-				actions: [
-					'ec2:CreateNetworkInterface',
-					'ec2:DescribeNetworkInterfaces',
-					'ec2:DeleteNetworkInterface',
-					'ec2:AssignPrivateIpAddresses',
-					'ec2:UnassignPrivateIpAddresses',
-				],
-				resources: [ '*' ],
-			})
+		lambda.setVpc({
+			securityGroupIds: [
+				bootstrap.import(`vpc-security-group-id`),
+			],
+			subnetIds: [
+				bootstrap.import(`public-subnet-1`),
+				bootstrap.import(`public-subnet-2`),
+			],
+		}).addPermissions({
+			actions: [
+				'ec2:CreateNetworkInterface',
+				'ec2:DescribeNetworkInterfaces',
+				'ec2:DeleteNetworkInterface',
+				'ec2:AssignPrivateIpAddresses',
+				'ec2:UnassignPrivateIpAddresses',
+			],
+			resources: [ '*' ],
+		})
 	}
-
-	if (props.runtime.startsWith('nodejs')) {
-		lambda.addEnvironment('AWS_NODEJS_CONNECTION_REUSE_ENABLED', '1')
-	}
-
-	// stack.add(lambda).export('function-${}')
 
 	ctx.bind(other => {
 		other.addPermissions(lambda.permissions)

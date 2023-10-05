@@ -8,11 +8,12 @@ import { confirmPrompt } from '../ui/prompt/confirm.js';
 import { style } from '../style.js';
 import { Cancelled } from '../error.js';
 import { StackClient } from '../../formation/client.js';
-import { assetBuilder } from "../ui/complex/builder.js";
-import { cleanUp } from "../../util/cleanup.js";
-import { templateBuilder } from "../ui/complex/template.js";
-import { assetPublisher } from "../ui/complex/publisher.js";
-import { stacksDeployer } from "../ui/complex/deployer.js";
+import { assetBuilder } from '../ui/complex/builder.js';
+import { cleanUp } from '../../util/cleanup.js';
+import { templateBuilder } from '../ui/complex/template.js';
+import { assetPublisher } from '../ui/complex/publisher.js';
+import { stacksDeployer } from '../ui/complex/deployer.js';
+import { typesGenerator } from '../ui/complex/types.js';
 
 export const deploy = (program: Command) => {
 	program
@@ -53,6 +54,7 @@ export const deploy = (program: Command) => {
 				// Building stack assets & templates
 
 				await cleanUp()
+				await write(typesGenerator(config))
 				await write(assetBuilder(app))
 				await write(assetPublisher(config, app))
 				await write(templateBuilder(app))

@@ -1,6 +1,6 @@
 import { constantCase } from "change-case";
-import { Resource } from "../../resource";
-import { formatArn, formatName, getAtt, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { formatArn, formatName, getAtt, ref } from '../../util.js';
 
 export type IndexProps = {
 	hash: string

@@ -1085,21 +1085,23 @@ var mockDynamoDB = (configOrServer) => {
     server = configOrServer;
   } else {
     server = new DynamoDBServer();
-    beforeAll && beforeAll(async () => {
-      const [port, releasePort] = await requestPort();
-      await server.listen(port);
-      await server.wait();
-      if (configOrServer.tables) {
-        await migrate(server.getClient(), configOrServer.tables);
-        if (configOrServer.seed) {
-          await seed(configOrServer.seed);
+    if (typeof beforeAll !== "undefined") {
+      beforeAll(async () => {
+        const [port, releasePort] = await requestPort();
+        await server.listen(port);
+        await server.wait();
+        if (configOrServer.tables) {
+          await migrate(server.getClient(), configOrServer.tables);
+          if (configOrServer.seed) {
+            await seed(configOrServer.seed);
+          }
         }
-      }
-      return async () => {
-        await server.kill();
-        await releasePort();
-      };
-    }, configOrServer.timeout);
+        return async () => {
+          await server.kill();
+          await releasePort();
+        };
+      }, configOrServer.timeout);
+    }
   }
   const client2 = server.getClient();
   const documentClient = server.getDocumentClient();
@@ -1129,6 +1131,9 @@ var mockDynamoDB = (configOrServer) => {
   mockClient(DynamoDBDocumentClient2).on(GetCommand).callsFake((input) => documentClientSend(new GetCommand(input))).on(PutCommand).callsFake((input) => documentClientSend(new PutCommand(input))).on(DeleteCommand).callsFake((input) => documentClientSend(new DeleteCommand(input))).on(UpdateCommand).callsFake((input) => documentClientSend(new UpdateCommand(input))).on(Query).callsFake((input) => documentClientSend(new Query(input))).on(Scan).callsFake((input) => documentClientSend(new Scan(input))).on(BatchGetCommand).callsFake((input) => documentClientSend(new BatchGetCommand(input))).on(BatchWriteCommand).callsFake((input) => documentClientSend(new BatchWriteCommand(input))).on(TransactGetCommand).callsFake((input) => documentClientSend(new TransactGetCommand(input))).on(TransactWriteCommand).callsFake((input) => documentClientSend(new TransactWriteCommand(input)));
   return server;
 };
+
+// src/index.ts
+import { DynamoDBServer as DynamoDBServer2 } from "@awsless/dynamodb-server";
 
 // src/test/struct.ts
 import { array as array2, coerce, enums as enums2, object as object2, type, unknown as unknown2 } from "@awsless/validate";
@@ -1560,6 +1565,7 @@ export {
   DeleteItemCommand4 as DeleteItemCommand,
   DynamoDBClient4 as DynamoDBClient,
   DynamoDBDocumentClient3 as DynamoDBDocumentClient,
+  DynamoDBServer2 as DynamoDBServer,
   GetItemCommand3 as GetItemCommand,
   PutItemCommand4 as PutItemCommand,
   QueryCommand3 as QueryCommand,
@@ -1588,6 +1594,7 @@ export {
   enums,
   getIndexedItem,
   getItem,
+  migrate,
   mockDynamoDB,
   number,
   numberSet,
@@ -1601,6 +1608,7 @@ export {
   record,
   scan,
   scanAll,
+  seed,
   seedTable,
   streamStruct,
   streamTable,

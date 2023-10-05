@@ -98,4 +98,4 @@ declare const lambdaClient: {
     set(client: LambdaClient): void;
 };
 
-export { Context, ExtraMetaData, Handler, Input, Logger, Loggers, Output, Response, TimeoutError, ValidationError, ViewableError, getViewableErrorData, invoke, isViewableError, isViewableErrorString, isViewableErrorType, lambda, lambdaClient, mockLambda, parseViewableErrorString };
+export { Context, ExtraMetaData, Handler, Input, Invoke, InvokeOptions, Logger, Loggers, Output, Response, TimeoutError, ValidationError, ViewableError, getViewableErrorData, invoke, isViewableError, isViewableErrorString, isViewableErrorType, lambda, lambdaClient, mockLambda, parseViewableErrorString };

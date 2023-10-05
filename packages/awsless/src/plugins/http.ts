@@ -81,7 +81,7 @@ export const httpPlugin = definePlugin({
 			).optional()
 		}).array()
 	}),
-	onApp({ config, bootstrap, usEastBootstrap }) {
+	onApp({ config, bootstrap }) {
 
 		if(Object.keys(config.defaults?.http || {}).length === 0) {
 			return
@@ -127,7 +127,7 @@ export const httpPlugin = definePlugin({
 			}).dependsOn(loadBalancer)
 
 			const record = new RecordSet(`${id}-http`, {
-				hostedZoneId: usEastBootstrap.import(`hosted-zone-${props.domain}-id`),
+				hostedZoneId: bootstrap.import(`hosted-zone-${props.domain}-id`),
 				name: props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain,
 				type: 'A',
 				alias: {
@@ -148,7 +148,7 @@ export const httpPlugin = definePlugin({
 			for(const [ route, props ] of Object.entries(routes)) {
 				const { method, path } = parseRoute(route as Route)
 
-				const lambda = toLambdaFunction(ctx, `http-${id}`, props!)
+				const lambda = toLambdaFunction(ctx as any, `http-${id}`, props!)
 				const source = new ElbEventSource(`http-${id}-${route}`, lambda, {
 					listenerArn: bootstrap.import(`http-${id}-listener-arn`),
 					priority: generatePriority(stackConfig.name, route),

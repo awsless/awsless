@@ -1,5 +1,5 @@
-import { formatByteSize } from "../../../util/byte-size"
-import { Asset } from "../../asset"
+import { formatByteSize } from '../../../util/byte-size.js'
+import { Asset } from '../../asset.js'
 import { readFile } from "fs/promises"
 
 export interface ICode {

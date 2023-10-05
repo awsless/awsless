@@ -1,11 +1,11 @@
 
-import { Group } from "../../../resource"
-import { formatName, sub } from "../../../util"
-import { ListenerAction } from "../../elb/listener"
-import { ListenerCondition, ListenerRule } from "../../elb/listener-rule"
-import { TargetGroup } from "../../elb/target-group"
-import { Function } from "../function"
-import { Permission } from "../permission"
+import { Group } from '../../../resource.js'
+import { formatName, sub } from '../../../util.js'
+import { ListenerAction } from '../../elb/listener.js'
+import { ListenerCondition, ListenerRule } from '../../elb/listener-rule.js'
+import { TargetGroup } from '../../elb/target-group.js'
+import { Function } from '../function.js'
+import { Permission } from '../permission.js'
 
 export class ElbEventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

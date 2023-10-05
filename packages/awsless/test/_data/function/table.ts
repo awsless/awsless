@@ -1,5 +1,5 @@
-import { getTableName } from "../../../src"
-import { define, getItem, object, putItem, string } from "../../../../dynamodb/src"
+import { getTableName } from '../../../src.js'
+import { define, getItem, object, putItem, string } from '../../../../dynamodb/src.js'
 
 const table = define(getTableName('stats'), {
 	hash: 'id',

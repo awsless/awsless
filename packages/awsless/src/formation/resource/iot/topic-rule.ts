@@ -1,6 +1,6 @@
 import { snakeCase } from "change-case";
-import { Resource } from "../../resource";
-import { getAtt } from "../../util";
+import { Resource } from '../../resource.js';
+import { getAtt } from '../../util.js';
 
 export type TopicRuleSqlVersion = '2015-10-08' | '2016-03-23' | 'beta'
 

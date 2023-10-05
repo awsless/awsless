@@ -1,5 +1,5 @@
-import { Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { formatName, getAtt, ref } from '../../util.js';
 
 export class TargetGroup extends Resource {
 	readonly name: string

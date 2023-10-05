@@ -73,6 +73,10 @@ export const lambda:LambdaFactory = <
 				return (options.output ? create(output, options.output) : output) as Output<O>
 			})
 
+			if(result && process.env.NODE_ENV === 'test') {
+				return JSON.parse(JSON.stringify(result))
+			}
+
 			return result
 
 		} catch(error) {

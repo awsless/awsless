@@ -4,7 +4,7 @@
 - onFailure for lambda, sqs, dynamodb streams
 - add cache plugin & think about VPC lambda solutions
 - add fargate container stuff for long lived services
-
+- add check for existing graphql resolver field in schema
 
 ---
 ---
@@ -13,6 +13,7 @@
 # Features
 
 - Domains
+- Sites
 - Functions
 - Database
   - Tables
@@ -133,7 +134,8 @@ We use AWS SNS to provide serverless pubsub topics.
 ```js
 {
 	stacks: [{
-		topics: {
+		topics: [ 'TOPIC_NAME' ],
+		subscribers: {
 			TOPIC_NAME: 'topic-consumer.ts',
 		}
 	}]
@@ -176,7 +178,7 @@ We use AWS Event Bridge to provide serverless cron jobs.
 
 ## HTTP
 
-We use AWS ELB to provide a REST HTTP API.
+We use AWS ELB to provide a HTTP API.
 
 ```js
 {
@@ -185,6 +187,23 @@ We use AWS ELB to provide a REST HTTP API.
 			HTTP_API_NAME: {
 				'GET /posts': 'list-posts.ts',
 				'POST /posts': 'create-post.ts',
+			}
+		}
+	}]
+}
+```
+
+## REST
+
+We use AWS ApiGatewayV2 to provide a serverless REST API.
+
+```js
+{
+	stacks: [{
+		rest: {
+			REST_API_NAME: {
+				'GET /posts/{id}': 'get-posts.ts',
+				'DELETE /posts/{id}': 'delete-post.ts',
 			}
 		}
 	}]

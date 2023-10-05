@@ -6,6 +6,8 @@ import { Table } from '../formation/resource/dynamodb/table.js';
 import { FunctionSchema, toLambdaFunction } from './function.js';
 import { DynamoDBEventSource } from '../formation/resource/lambda/event-source/dynamodb.js';
 import { getGlobalOnFailure } from './on-failure/util.js';
+import { TypeGen, TypeObject } from '../util/type-gen.js';
+import { formatName } from '../formation/util.js';
 
 const KeySchema = z.string().min(1).max(255)
 
@@ -105,24 +107,23 @@ export const tablePlugin = definePlugin({
 						projection: z.enum(['all', 'keys-only']).default('all'),
 					})).optional(),
 				})
-				// .refine(props => {
-				// 	return (
-				// 		// Check the hash key
-				// 		props.fields.hasOwnProperty(props.hash) &&
-				// 		// Check the sort key
-				// 		(!props.sort || props.fields.hasOwnProperty(props.sort)) &&
-				// 		// Check all indexes
-				// 		!Object.values(props.indexes || {}).map(index => (
-				// 			// Check the index hash key
-				// 			props.fields.hasOwnProperty(index.hash) &&
-				// 			// Check the index sort key
-				// 			(!index.sort || props.fields.hasOwnProperty(index.sort))
-				// 		)).includes(false)
-				// 	)
-				// }, 'Hash & Sort keys must be defined inside the table fields')
 			).optional()
 		}).array()
 	}),
+	onTypeGen({ config }) {
+		const types = new TypeGen('@awsless/awsless', 'TableResources')
+		for(const stack of config.stacks) {
+			const list = new TypeObject()
+			for(const name of Object.keys(stack.tables || {})) {
+				const tableName = formatName(`${config.name}-${stack.name}-${name}`)
+				list.addType(name, `{ name: '${tableName}' }`)
+			}
+
+			types.addType(stack.name, list.toString())
+		}
+
+		return types.toString()
+	},
 	onStack(ctx) {
 		const { config, stack, stackConfig, bind } = ctx
 		for(const [ id, props ] of Object.entries(stackConfig.tables || {})) {
@@ -135,7 +136,7 @@ export const tablePlugin = definePlugin({
 			stack.add(table)
 
 			if(props.stream) {
-				const lambda = toLambdaFunction(ctx, `stream-${id}`, props.stream.consumer)
+				const lambda = toLambdaFunction(ctx as any, `stream-${id}`, props.stream.consumer)
 				const source = new DynamoDBEventSource(id, lambda, {
 					tableArn: table.arn,
 					onFailure: getGlobalOnFailure(ctx),

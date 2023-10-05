@@ -14,6 +14,7 @@ export const vpcPlugin = definePlugin({
 	onApp({ config, bootstrap }) {
 
 		const vpc = new Vpc('main', {
+			name: config.name,
 			cidrBlock: Peer.ipv4('10.0.0.0/16')
 		})
 

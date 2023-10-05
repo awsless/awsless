@@ -1,13 +1,13 @@
-import { access, constants } from "fs/promises";
+import { stat } from "fs/promises";
 import { z } from "zod";
 
 export const LocalFileSchema = z.string().refine(async (path) => {
-	// check if the file exists on disk...
+	// check if the path is a file...
 	try {
-		await access(path, constants.R_OK)
+		const s = await stat(path)
+		return s.isFile()
+
 	} catch(error) {
 		return false
 	}
-
-	return true
 }, `File doesn't exist`)

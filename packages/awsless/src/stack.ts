@@ -1,15 +1,13 @@
 
-import { Config } from './config'
-import { configParameterPrefix } from './util/param'
-import { StackConfigOutput } from './schema/stack'
-import { Plugin } from './plugin'
+import { Config } from './config.js'
+import { StackConfigOutput } from './schema/stack.js'
+import { Plugin } from './plugin.js'
 import { AnyZodObject } from "zod"
-import { debug } from './cli/logger'
-import { style } from './cli/style'
-import { App } from "./formation/app"
-import { Function } from "./formation/resource/lambda/function"
-import { sub } from "./formation/util"
-import { Stack } from './formation/stack'
+import { debug } from './cli/logger.js'
+import { style } from './cli/style.js'
+import { App } from './formation/app.js'
+import { Function } from './formation/resource/lambda/function.js'
+import { Stack } from './formation/stack.js'
 
 export type Binding = (lambda:Function) => void
 
@@ -88,18 +86,18 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 	// ------------------------------------------------------
 	// Give app/stage access to all config parameters
 
-	for(const fn of functions) {
-		fn.addPermissions({
-			actions: [
-				'ssm:GetParameter',
-				'ssm:GetParameters',
-				'ssm:GetParametersByPath',
-			],
-			resources: [
-				sub('arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config))
-			]
-		})
-	}
+	// for(const fn of functions) {
+	// 	fn.addPermissions({
+	// 		actions: [
+	// 			'ssm:GetParameter',
+	// 			'ssm:GetParameters',
+	// 			'ssm:GetParametersByPath',
+	// 		],
+	// 		resources: [
+	// 			sub('arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter' + configParameterPrefix(config))
+	// 		]
+	// 	})
+	// }
 
 	return {
 		stack,

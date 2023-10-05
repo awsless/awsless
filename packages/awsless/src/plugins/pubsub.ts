@@ -1,9 +1,9 @@
 
 import { z } from 'zod'
-import { definePlugin } from '../plugin';
-import { ResourceIdSchema } from '../schema/resource-id';
-import { FunctionSchema, toLambdaFunction } from './function';
-import { IotEventSource } from '../formation/resource/lambda/event-source/iot';
+import { definePlugin } from '../plugin.js';
+import { ResourceIdSchema } from '../schema/resource-id.js';
+import { FunctionSchema, toLambdaFunction } from './function.js';
+import { IotEventSource } from '../formation/resource/lambda/event-source/iot.js';
 
 export const pubsubPlugin = definePlugin({
 	name: 'pubsub',
@@ -44,7 +44,7 @@ export const pubsubPlugin = definePlugin({
 		const { config, stack, stackConfig } = ctx
 
 		for(const [ id, props ] of Object.entries(stackConfig.pubsub || {})) {
-			const lambda = toLambdaFunction(ctx, `pubsub-${id}`, props.consumer)
+			const lambda = toLambdaFunction(ctx as any, `pubsub-${id}`, props.consumer)
 			const source = new IotEventSource(id, lambda, {
 				name: `${config.name}-${stack.name}-${id}`,
 				sql: props.sql,

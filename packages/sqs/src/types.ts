@@ -4,22 +4,22 @@ export type Attributes = {
 	[key: string]: string
 }
 
-export interface SendMessage {
+export interface SendMessageOptions<Payload = unknown> {
 	client?: SQSClient
 	queue: string
-	payload?: unknown
+	payload?: Payload
 	delay?: number
 	attributes?: Attributes
 }
 
-export interface SendMessageBatch {
+export interface SendMessageBatchOptions<Payload = unknown> {
 	client?: SQSClient
 	queue: string
-	items: BatchItem[]
+	items: BatchItem<Payload>[]
 }
 
-export interface BatchItem {
-	payload?: unknown
+export interface BatchItem<Payload = unknown> {
+	payload?: Payload
 	delay?: number
 	attributes?: Attributes
 }

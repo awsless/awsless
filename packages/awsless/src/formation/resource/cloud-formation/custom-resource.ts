@@ -1,5 +1,5 @@
-import { Resource } from "../../resource";
-import { getAtt } from "../../util";
+import { Resource } from '../../resource.js';
+import { getAtt } from '../../util.js';
 
 export type CustomResourceProps = {
 	serviceToken: string
@@ -11,8 +11,8 @@ export class CustomResource extends Resource {
 		super('AWS::CloudFormation::CustomResource', logicalId)
 	}
 
-	getAtt(name:string) {
-		return getAtt(this.logicalId, name)
+	getAtt<T = string>(name:string) {
+		return getAtt(this.logicalId, name) as T
 	}
 
 	properties() {

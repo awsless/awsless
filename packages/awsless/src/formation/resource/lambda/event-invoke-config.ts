@@ -1,6 +1,6 @@
 
-import { Duration } from "../../property/duration";
-import { Resource } from "../../resource";
+import { Duration } from '../../property/duration.js';
+import { Resource } from '../../resource.js';
 
 export type EventInvokeConfigProps = {
 	functionName: string

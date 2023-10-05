@@ -7,6 +7,8 @@ import { SecurityGroup } from '../formation/resource/ec2/security-group.js';
 import { SubnetGroup } from '../formation/resource/memorydb/subnet-group.js';
 import { Peer } from '../formation/resource/ec2/peer.js';
 import { Port } from '../formation/resource/ec2/port.js';
+import { TypeGen, TypeObject } from '../util/type-gen.js';
+import { constantCase } from 'change-case';
 
 const TypeSchema = z.enum([
 	't4g.small',
@@ -59,6 +61,21 @@ export const cachePlugin = definePlugin({
 			).optional()
 		}).array()
 	}),
+	onTypeGen({ config }) {
+		const gen = new TypeGen('@awsless/awsless', 'CacheResources')
+
+		for(const stack of config.stacks) {
+			const list = new TypeObject()
+
+			for(const name of Object.keys(stack.caches || {})) {
+				list.addType(name, `{ host: string, port: number }`)
+			}
+
+			gen.addType(stack.name, list.toString())
+		}
+
+		return gen.toString()
+	},
 	onStack({ config, stack, stackConfig, bootstrap, bind }) {
 		for(const [ id, props ] of Object.entries(stackConfig.caches || {})) {
 
@@ -112,8 +129,8 @@ export const cachePlugin = definePlugin({
 					// 	],
 					// 	resources: [ '*' ],
 					// })
-					.addEnvironment(`CACHE_${stack.name}_${id}_HOST`, cluster.address)
-					.addEnvironment(`CACHE_${stack.name}_${id}_PORT`, props.port.toString())
+					.addEnvironment(`CACHE_${constantCase(stack.name)}_${constantCase(id)}_HOST`, cluster.address)
+					.addEnvironment(`CACHE_${constantCase(stack.name)}_${constantCase(id)}_PORT`, props.port.toString())
 					// .dependsOn(cluster)
 			})
 		}

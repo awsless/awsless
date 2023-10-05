@@ -1,7 +1,7 @@
 
-import { Duration } from "../../property/duration";
-import { Resource } from "../../resource";
-import { RecordType } from "./record-set";
+import { Duration } from '../../property/duration.js';
+import { Resource } from '../../resource.js';
+import { RecordType } from './record-set.js';
 
 export type RecordSetGroupProps = {
 	hostedZoneId: string

@@ -1,6 +1,6 @@
 import { PublishCommand } from '@aws-sdk/client-sns'
 import { snsClient } from './client'
-import { Attributes, FormattedAttributes, Publish } from './types'
+import { Attributes, FormattedAttributes, PublishOptions } from './types'
 
 const formatAttributes = (attributes: Attributes) => {
 	const list: FormattedAttributes = {}
@@ -14,7 +14,7 @@ const formatAttributes = (attributes: Attributes) => {
 	return list
 }
 
-export const publish = ({
+export const publish = async ({
 	client = snsClient(),
 	topic,
 	subject,
@@ -22,7 +22,7 @@ export const publish = ({
 	attributes = {},
 	region = process.env.AWS_REGION,
 	accountId = process.env.AWS_ACCOUNT_ID,
-}: Publish) => {
+}: PublishOptions) => {
 	const command = new PublishCommand({
 		TopicArn: `arn:aws:sns:${region}:${accountId}:${topic}`,
 		Subject: subject,
@@ -33,5 +33,5 @@ export const publish = ({
 		}),
 	})
 
-	return client.send(command)
+	await client.send(command)
 }

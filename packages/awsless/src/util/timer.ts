@@ -1,5 +1,5 @@
 import hrtime from 'pretty-hrtime'
-import { style } from '../cli/style'
+import { style } from '../cli/style.js'
 
 export const createTimer = () => {
 	const start = process.hrtime()

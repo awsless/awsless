@@ -1,3 +1,4 @@
+import { formatName } from '../../util.js'
 
 export type Statement = {
 	effect?: 'Allow' | 'Deny'
@@ -6,10 +7,12 @@ export type Statement = {
 }
 
 export class InlinePolicy {
+	readonly name: string
 	private statements: Statement[]
 
-	constructor(readonly name:string, props: { statements?: Statement[] } = {}) {
+	constructor(name:string, props: { statements?: Statement[] } = {}) {
 		this.statements = props.statements || []
+		this.name = formatName(name)
 	}
 
 	addStatement(...statements: (Statement | Statement[])[]) {

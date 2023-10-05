@@ -1,8 +1,8 @@
 
-import { Group } from "../../../resource"
-import { Rule } from "../../events/rule"
-import { Function } from "../function"
-import { Permission } from "../permission"
+import { Group } from '../../../resource.js'
+import { Rule } from '../../events/rule.js'
+import { Function } from '../function.js'
+import { Permission } from '../permission.js'
 
 export class EventsEventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

@@ -1,4 +1,4 @@
-import { sub } from "../../util"
+import { sub } from '../../util.js'
 
 export class ManagedPolicy {
 

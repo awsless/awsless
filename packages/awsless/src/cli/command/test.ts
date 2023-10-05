@@ -1,9 +1,9 @@
 import { Command } from "commander";
 import { layout } from '../ui/layout/layout.js';
 // import { StackClient } from '../../formation/client.js';
-import { App } from "../../formation/app.js";
-// import { Stack } from "../../formation/stack.js";
-// import { Function } from "../../formation/resource/lambda/function.js";
+import { App } from '../../formation/app.js';
+// import { Stack } from '../../formation/stack.js';
+// import { Function } from '../../formation/resource/lambda/function.js';
 
 export const test = (program: Command) => {
 	program

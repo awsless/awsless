@@ -1,9 +1,9 @@
-import { createTimer } from "../../../util/timer.js"
-import { RenderFactory } from "../../lib/renderer.js"
-import { Signal } from "../../lib/signal.js"
-import { style, symbol } from "../../style.js"
-import { br } from "./basic.js"
-import { createSpinner } from "./spinner.js"
+import { createTimer } from '../../../util/timer.js'
+import { RenderFactory } from '../../lib/renderer.js'
+import { Signal } from '../../lib/signal.js'
+import { style, symbol } from '../../style.js'
+import { br } from './basic.js'
+import { createSpinner } from './spinner.js'
 import wrapAnsi from 'wrap-ansi'
 
 type Type = keyof typeof symbol & keyof typeof style

@@ -1,9 +1,9 @@
-import { CustomResource } from "../../formation/resource/cloud-formation/custom-resource"
-import { Code } from "../../formation/resource/lambda/code"
-import { Function } from "../../formation/resource/lambda/function"
-import { Stack } from "../../formation/stack"
-import { formatName } from "../../formation/util"
-import { globalExportsHandlerCode } from "./handler"
+import { CustomResource } from '../../formation/resource/cloud-formation/custom-resource.js'
+import { Code } from '../../formation/resource/lambda/code.js'
+import { Function } from '../../formation/resource/lambda/function.js'
+import { Stack } from '../../formation/stack.js'
+import { formatName } from '../../formation/util.js'
+import { globalExportsHandlerCode } from './handler.js'
 
 export const extendWithGlobalExports = (appName: string, importable:Stack, exportable:Stack) => {
 	let crossRegionExports: CustomResource

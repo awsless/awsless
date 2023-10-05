@@ -36,6 +36,7 @@ __export(src_exports, {
   DeleteItemCommand: () => import_client_dynamodb17.DeleteItemCommand,
   DynamoDBClient: () => import_client_dynamodb16.DynamoDBClient,
   DynamoDBDocumentClient: () => import_lib_dynamodb3.DynamoDBDocumentClient,
+  DynamoDBServer: () => import_dynamodb_server2.DynamoDBServer,
   GetItemCommand: () => import_client_dynamodb17.GetItemCommand,
   PutItemCommand: () => import_client_dynamodb17.PutItemCommand,
   QueryCommand: () => import_client_dynamodb18.QueryCommand,
@@ -64,6 +65,7 @@ __export(src_exports, {
   enums: () => enums,
   getIndexedItem: () => getIndexedItem,
   getItem: () => getItem,
+  migrate: () => migrate,
   mockDynamoDB: () => mockDynamoDB,
   number: () => number,
   numberSet: () => numberSet,
@@ -77,6 +79,7 @@ __export(src_exports, {
   record: () => record,
   scan: () => scan,
   scanAll: () => scanAll,
+  seed: () => seed,
   seedTable: () => seedTable,
   streamStruct: () => streamStruct,
   streamTable: () => streamTable,
@@ -1181,21 +1184,23 @@ var mockDynamoDB = (configOrServer) => {
     server = configOrServer;
   } else {
     server = new import_dynamodb_server.DynamoDBServer();
-    beforeAll && beforeAll(async () => {
-      const [port, releasePort] = await (0, import_request_port.requestPort)();
-      await server.listen(port);
-      await server.wait();
-      if (configOrServer.tables) {
-        await migrate(server.getClient(), configOrServer.tables);
-        if (configOrServer.seed) {
-          await seed(configOrServer.seed);
+    if (typeof beforeAll !== "undefined") {
+      beforeAll(async () => {
+        const [port, releasePort] = await (0, import_request_port.requestPort)();
+        await server.listen(port);
+        await server.wait();
+        if (configOrServer.tables) {
+          await migrate(server.getClient(), configOrServer.tables);
+          if (configOrServer.seed) {
+            await seed(configOrServer.seed);
+          }
         }
-      }
-      return async () => {
-        await server.kill();
-        await releasePort();
-      };
-    }, configOrServer.timeout);
+        return async () => {
+          await server.kill();
+          await releasePort();
+        };
+      }, configOrServer.timeout);
+    }
   }
   const client2 = server.getClient();
   const documentClient = server.getDocumentClient();
@@ -1225,6 +1230,9 @@ var mockDynamoDB = (configOrServer) => {
   (0, import_aws_sdk_client_mock.mockClient)(import_lib_dynamodb2.DynamoDBDocumentClient).on(import_lib_dynamodb2.GetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.GetCommand(input))).on(import_lib_dynamodb2.PutCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.PutCommand(input))).on(import_lib_dynamodb2.DeleteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.DeleteCommand(input))).on(import_lib_dynamodb2.UpdateCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.UpdateCommand(input))).on(import_lib_dynamodb2.QueryCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.QueryCommand(input))).on(import_lib_dynamodb2.ScanCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.ScanCommand(input))).on(import_lib_dynamodb2.BatchGetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.BatchGetCommand(input))).on(import_lib_dynamodb2.BatchWriteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.BatchWriteCommand(input))).on(import_lib_dynamodb2.TransactGetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.TransactGetCommand(input))).on(import_lib_dynamodb2.TransactWriteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.TransactWriteCommand(input)));
   return server;
 };
+
+// src/index.ts
+var import_dynamodb_server2 = require("@awsless/dynamodb-server");
 
 // src/test/struct.ts
 var import_validate = require("@awsless/validate");
@@ -1657,6 +1665,7 @@ var paginateScan = async (table, options = {}) => {
   DeleteItemCommand,
   DynamoDBClient,
   DynamoDBDocumentClient,
+  DynamoDBServer,
   GetItemCommand,
   PutItemCommand,
   QueryCommand,
@@ -1685,6 +1694,7 @@ var paginateScan = async (table, options = {}) => {
   enums,
   getIndexedItem,
   getItem,
+  migrate,
   mockDynamoDB,
   number,
   numberSet,
@@ -1698,6 +1708,7 @@ var paginateScan = async (table, options = {}) => {
   record,
   scan,
   scanAll,
+  seed,
   seedTable,
   streamStruct,
   streamTable,

@@ -16,7 +16,7 @@ export const cronPlugin = definePlugin({
 			 *   crons: {
 			 *     CRON_NAME: {
 			 *       consumer: 'function.ts',
-			 *       schedule: 'rate(5 minutes)',
+			 *       schedule: '5 minutes',
 			 *     }
 			 *   }
 			 * }
@@ -26,8 +26,8 @@ export const cronPlugin = definePlugin({
 				consumer: FunctionSchema,
 
 				/** The scheduling expression.
-				 * @example 'cron(0 20 * * ? *)'
-				 * @example 'rate(5 minutes)'
+				 * @example '0 20 * * ? *'
+				 * @example '5 minutes'
 				 */
 				schedule: ScheduleExpressionSchema,
 
@@ -40,7 +40,7 @@ export const cronPlugin = definePlugin({
 		const { stack, stackConfig } = ctx
 
 		for(const [ id, props ] of Object.entries(stackConfig.crons || {})) {
-			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const lambda = toLambdaFunction(ctx as any, id, props.consumer)
 			const source = new EventsEventSource(id, lambda, {
 				schedule: props.schedule,
 				payload: props.payload,

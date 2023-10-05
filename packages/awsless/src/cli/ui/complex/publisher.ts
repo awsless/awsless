@@ -1,17 +1,18 @@
 import { readFile } from "fs/promises"
-import { App } from "../../../formation/app.js"
-import { directories } from "../../../util/path.js"
-import { RenderFactory } from "../../lib/renderer.js"
-import { loadingDialog } from "../layout/dialog.js"
+import { App } from '../../../formation/app.js'
+import { directories } from '../../../util/path.js'
+import { RenderFactory } from '../../lib/renderer.js'
+import { loadingDialog } from '../layout/dialog.js'
 import { join } from "path"
-import { assetBucketName } from "../../../formation/bootstrap.js"
+import { assetBucketName } from '../../../formation/bootstrap.js'
 import { GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client, StorageClass } from "@aws-sdk/client-s3"
-import { Config } from "../../../config.js"
+import { Config } from '../../../config.js'
 
 export const assetPublisher = (config:Config, app:App):RenderFactory => {
 	const client = new S3Client({
 		credentials: config.credentials,
 		region: config.region,
+		maxAttempts: 5,
 	})
 
 	return async (term) => {
@@ -27,7 +28,7 @@ export const assetPublisher = (config:Config, app:App):RenderFactory => {
 						return data
 					},
 					async publish(name, data, hash) {
-						const key = `${app.name}/${ stack.name }/function/${name}`
+						const key = `${ app.name }/${ stack.name }/${ asset.type }/${ name }`
 						const bucket = assetBucketName(config.account, config.region)
 
 						let getResult

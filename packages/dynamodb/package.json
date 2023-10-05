@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.0.35",
+	"version": "0.0.38",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -36,17 +36,16 @@
 		]
 	},
 	"dependencies": {
-		"@aws-sdk/client-dynamodb": "3.332.0",
-		"@aws-sdk/lib-dynamodb": "3.329.0",
+		"@aws-sdk/client-dynamodb": "3.363.0",
+		"@aws-sdk/lib-dynamodb": "3.363.0",
 		"@aws-sdk/node-http-handler": "^3.374.0",
-		"@aws-sdk/smithy-client": "3.329.0",
-		"@aws-sdk/util-dynamodb": "3.329.0",
+		"@aws-sdk/util-dynamodb": "3.363.0",
 		"@aws-sdk/util-utf8-node": "3.259.0",
 		"@awsless/dynamodb-server": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@heat/request-port": "^0.0.1",
-		"aws-sdk-client-mock": "^2.1.1",
+		"aws-sdk-client-mock": "^3.0.0",
 		"chunk": "^0.0.3",
 		"ts-toolbelt": "^9.6.0"
 	},

@@ -1,5 +1,5 @@
 
-import { program } from "../src/cli/program"
+import { program } from '../src/cli/program.js'
 
 describe('commands', () => {
 

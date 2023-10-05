@@ -50,7 +50,7 @@ export const importFile = async (path:string) => {
 
 		code = code.replaceAll('__dirname', `"${ dir }"`)
 
-		// export { definePlugin, Plugin } from "./plugin.js";
+		// export { definePlugin, Plugin } from './plugin.js';
 
 		const matches = code.match(/(import|export)\s*{\s*[a-z0-9\_\,\s\*]+\s*}\s*from\s*('|")(\.\.?[\/a-z0-9\_\-\.]+)('|");?/ig)
 		// debug('matches', matches)

@@ -1,7 +1,7 @@
 
-import { Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
-import { Peer } from "./peer";
+import { Resource } from '../../resource.js';
+import { formatName, getAtt, ref } from '../../util.js';
+import { Peer } from './peer.js';
 
 // export type VpcProps = {
 // 	availabilityZones: string[]
@@ -13,9 +13,11 @@ import { Peer } from "./peer";
 
 export class Vpc extends Resource {
 	constructor(logicalId: string, private props: {
+		name: string
 		cidrBlock: Peer
 	}) {
 		super('AWS::EC2::VPC', logicalId)
+		this.tag('Name', props.name)
 	}
 
 	get id() {

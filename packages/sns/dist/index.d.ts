@@ -1,4 +1,3 @@
-import * as _aws_sdk_client_sns from '@aws-sdk/client-sns';
 import { SNSClient } from '@aws-sdk/client-sns';
 import { Mock } from 'vitest';
 import { Struct } from '@awsless/validate';
@@ -6,17 +5,17 @@ import { Struct } from '@awsless/validate';
 type Attributes = {
     [key: string]: string;
 };
-interface Publish {
+interface PublishOptions<Payload = unknown> {
     client?: SNSClient;
     topic: string;
     subject?: string;
-    payload?: any;
+    payload?: Payload;
     attributes?: Attributes;
     region?: string;
     accountId?: string;
 }
 
-declare const publish: ({ client, topic, subject, payload, attributes, region, accountId, }: Publish) => Promise<_aws_sdk_client_sns.PublishCommandOutput>;
+declare const publish: ({ client, topic, subject, payload, attributes, region, accountId, }: PublishOptions) => Promise<void>;
 
 type Topics = {
     [key: string]: (payload: any) => any;
@@ -30,4 +29,4 @@ declare const snsClient: {
 
 declare const snsStruct: <A, B>(message: Struct<A, B>) => Struct<A[], Struct<A, B>>;
 
-export { mockSNS, publish, snsClient, snsStruct };
+export { PublishOptions, mockSNS, publish, snsClient, snsStruct };

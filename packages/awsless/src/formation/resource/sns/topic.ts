@@ -1,5 +1,5 @@
-import { Resource } from "../../resource";
-import { formatArn, formatName, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { formatArn, formatName, ref } from '../../util.js';
 
 export type TopicProps = {
 	name?: string

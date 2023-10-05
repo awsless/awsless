@@ -1,8 +1,12 @@
-import { formatByteSize } from "../../../util/byte-size"
-import { BuildProps, PublishProps } from "../../asset"
-import { rollupBundle } from "./util/rollup"
-import { zipFiles } from "./util/zip"
-import { Asset } from "../../asset"
+import { formatByteSize } from '../../../util/byte-size.js'
+import { BuildProps, PublishProps } from '../../asset.js'
+import { rollupBundle } from './util/rollup.js'
+import { zipFiles } from './util/zip.js'
+import { Asset } from '../../asset.js'
+// import { createHash } from 'crypto'
+// import { readFile } from 'fs/promises'
+import { fileURLToPath } from 'url'
+import { join } from 'path'
 
 export type CodeBundle = (file:string) => Promise<{
 	handler: string
@@ -12,8 +16,8 @@ export type CodeBundle = (file:string) => Promise<{
 
 export type File = {
 	name: string
-	code: Buffer | string
-	map?: Buffer | string
+	code: Buffer
+	map?: Buffer
 }
 
 export interface ICode {
@@ -37,6 +41,35 @@ export class Code {
 	static fromInline(code: string, handler?: string) {
 		return new InlineCode(code, handler)
 	}
+
+	static fromInlineFile(id:string, file:string, bundler?: CodeBundle) {
+		return new InlineFileCode(id, file, bundler)
+	}
+
+	// static fromZipFile(id:string, file:string, hash:string, handler?:string) {
+	// 	return new ZipFileCode(id, file, hash, handler)
+	// }
+
+	static fromFeature(id:string) {
+		const root = fileURLToPath(new URL('.', import.meta.url))
+		const file = join(root, `features/${id}.js`)
+
+		return new FileCode(id, file, rollupBundle({
+			minify: false,
+			handler: 'index.handler',
+		}))
+	}
+
+	static fromInlineFeature(id:string) {
+		const root = fileURLToPath(new URL('.', import.meta.url))
+		const file = join(root, `features/${id}.js`)
+
+		return new InlineFileCode(id, file, rollupBundle({
+			format: 'cjs',
+			minify: false,
+			handler: 'index.handler',
+		}))
+	}
 }
 
 export class InlineCode implements ICode {
@@ -51,6 +84,83 @@ export class InlineCode implements ICode {
 		}
 	}
 }
+
+export class InlineFileCode extends Asset implements ICode {
+	private code?: string
+	private handler?: string
+
+	constructor(id: string, private file: string, private bundler?: CodeBundle) {
+		super('function', id)
+	}
+
+	async build({ write }: BuildProps) {
+		const bundler = this.bundler ?? rollupBundle()
+		const { hash, files: [ file ], handler } = await bundler(this.file)
+
+		await Promise.all([
+			write('HASH', hash),
+			write('file.js', file.code),
+		])
+
+		this.handler = handler
+		this.code = file.code.toString('utf8')
+
+		return {
+			size: formatByteSize(file.code.byteLength)
+		}
+	}
+
+	toCodeJson() {
+		return {
+			Handler: this.handler ?? '',
+			Code: {
+				ZipFile: this.code ?? '',
+			},
+		}
+	}
+}
+
+// export class ZipFileCode extends Asset implements ICode {
+// 	private s3?: {
+// 		bucket: string
+// 		key: string
+// 		version: string
+// 	}
+
+// 	constructor(id: string, private file: string, private hash: string, private handler: string = 'index.default') {
+// 		super('function', id)
+// 	}
+
+// 	async publish({ publish }:PublishProps) {
+// 		const bundle = await readFile(this.file)
+
+// 		this.s3 = await publish(
+// 			`${ this.id }.zip`,
+// 			bundle,
+// 			this.hash,
+// 		)
+// 	}
+
+// 	toCodeJson() {
+// 		return {
+// 			Handler: this.handler!,
+// 			Code: {
+// 				S3Bucket: this.s3?.bucket ?? '',
+// 				S3Key: this.s3?.key ?? '',
+// 				S3ObjectVersion: this.s3?.version ?? '',
+// 			},
+// 		}
+// 	}
+// }
+
+// export class FeatureCode extends BundledCode {
+// 	constructor(id: string) {
+// 		const root = fileURLToPath(new URL('.', import.meta.url))
+// 		const file = join(root, `features/${id}.zip`)
+
+// 		super(id, file)
+// 	}
+// }
 
 export class FileCode extends Asset implements ICode {
 	private handler?: string
@@ -67,7 +177,7 @@ export class FileCode extends Asset implements ICode {
 	}
 
 	async build({ write }:BuildProps) {
-		const bundler = this.bundler ?? rollupBundle
+		const bundler = this.bundler ?? rollupBundle()
 		const { hash, files, handler } = await bundler(this.file)
 		const bundle = await zipFiles(files)
 

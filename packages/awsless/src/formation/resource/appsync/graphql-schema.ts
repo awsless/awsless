@@ -1,9 +1,9 @@
 import { print } from "graphql"
-import { Asset, BuildProps } from "../../asset"
+import { Asset, BuildProps } from '../../asset.js'
 import { readFile } from "fs/promises"
 import { mergeTypeDefs } from "@graphql-tools/merge"
-import { formatByteSize } from "../../../util/byte-size"
-import { Resource } from "../../resource"
+import { formatByteSize } from '../../../util/byte-size.js'
+import { Resource } from '../../resource.js'
 
 export type GraphQLSchemaProps = {
 	apiId: string
@@ -41,8 +41,12 @@ export class Definition extends Asset {
 
 		const defs = mergeTypeDefs(schemas)
 		const schema = print(defs)
-		const size = Buffer.from(schema, 'utf8').byteLength
 
+		if(schema.length === 0) {
+			throw new Error(`Graphql schema definition can't be empty. [${this.id}]`)
+		}
+
+		const size = Buffer.from(schema, 'utf8').byteLength
 		await write('schema.gql', schema)
 
 		this.schema = schema

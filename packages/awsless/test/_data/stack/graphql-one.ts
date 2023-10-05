@@ -1,4 +1,4 @@
-import { StackConfig } from "../../../src";
+import { StackConfig } from "../../../src/index.js";
 
 export const graphqlOneStack:StackConfig = {
 	name: 'graphql-one',
@@ -6,7 +6,9 @@ export const graphqlOneStack:StackConfig = {
 		api: {
 			schema: __dirname + '/../schema/one.gql',
 			resolvers: {
-				'Query one': __dirname + '/../function/graphql.ts',
+				Query: {
+					one: __dirname + '/../function/graphql.ts',
+				}
 			}
 		}
 	},

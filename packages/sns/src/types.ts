@@ -9,12 +9,12 @@ export type FormattedAttributes = {
 	}
 }
 
-export interface Publish {
+export interface PublishOptions<Payload = unknown> {
 	client?: SNSClient
 
 	topic: string
 	subject?: string
-	payload?: any
+	payload?: Payload
 	attributes?: Attributes
 
 	region?: string

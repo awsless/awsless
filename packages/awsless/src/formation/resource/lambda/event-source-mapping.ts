@@ -1,7 +1,7 @@
 
 import { constantCase } from "change-case";
-import { Duration } from "../../property/duration";
-import { Resource } from "../../resource";
+import { Duration } from '../../property/duration.js';
+import { Resource } from '../../resource.js';
 
 export type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp'
 

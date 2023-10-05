@@ -1,5 +1,5 @@
-import { Stack } from "./stack"
-import { ConstructorOf } from "./util"
+import { Stack } from './stack.js'
+import { ConstructorOf } from './util.js'
 
 export class App {
 	private list = new Map<string, Stack>()
@@ -7,7 +7,11 @@ export class App {
 	constructor(readonly name: string) {}
 
 	add(...stacks: Stack[]) {
-		stacks.forEach(stack => this.list.set(stack.name, stack))
+		stacks.forEach(stack => {
+			this.list.set(stack.name, stack)
+			stack.setApp(this)
+		})
+
 		return this
 	}
 

@@ -1,6 +1,6 @@
 
 import { z } from 'zod'
-import { AppContext, StackContext, definePlugin } from '../plugin';
+import { AppContext, StackContext, definePlugin } from '../plugin.js';
 
 export const extendPlugin = definePlugin({
 	name: 'extend',
@@ -16,6 +16,6 @@ export const extendPlugin = definePlugin({
 		ctx.config.extend?.(ctx as unknown as AppContext)
 	},
 	onStack(ctx) {
-		ctx.stackConfig.extend?.(ctx)
+		ctx.stackConfig.extend?.(ctx as unknown as StackContext)
 	},
 })

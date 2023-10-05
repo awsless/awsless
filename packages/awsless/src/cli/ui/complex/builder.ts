@@ -1,17 +1,17 @@
 import { mkdir, writeFile } from "fs/promises"
-import { App } from "../../../formation/app.js"
-import { directories } from "../../../util/path.js"
-import { createTimer } from "../../../util/timer.js"
-import { RenderFactory } from "../../lib/renderer.js"
-import { Signal, derive } from "../../lib/signal.js"
-import { style, symbol } from "../../style.js"
-import { br } from "../layout/basic.js"
-import { loadingDialog } from "../layout/dialog.js"
-import { flexLine } from "../layout/flex-line.js"
-import { createSpinner } from "../layout/spinner.js"
+import { App } from '../../../formation/app.js'
+import { directories } from '../../../util/path.js'
+import { createTimer } from '../../../util/timer.js'
+import { RenderFactory } from '../../lib/renderer.js'
+import { Signal, derive } from '../../lib/signal.js'
+import { style, symbol } from '../../style.js'
+import { br } from '../layout/basic.js'
+import { loadingDialog } from '../layout/dialog.js'
+import { flexLine } from '../layout/flex-line.js'
+import { createSpinner } from '../layout/spinner.js'
 import { dirname, join } from "path"
-import { Asset } from "../../../formation/asset.js"
-import { Stack } from "../../../formation/stack.js"
+import { Asset } from '../../../formation/asset.js'
+import { Stack } from '../../../formation/stack.js'
 
 export const assetBuilder = (app:App):RenderFactory => {
 	return async (term) => {
@@ -31,11 +31,14 @@ export const assetBuilder = (app:App):RenderFactory => {
 			return
 		}
 
+		const showDetailedView = assets.length <= term.out.height() - 2
 		const done = term.out.write(loadingDialog('Building stack assets...'))
 		const groups = new Signal<any[]>([''])
 
-		term.out.gap()
-		term.out.write(groups)
+		if(showDetailedView) {
+			term.out.gap()
+			term.out.write(groups)
+		}
 
 		const stackNameSize = Math.max(...stacks.map(stack => stack.name.length))
 		const assetTypeSize = Math.max(...assets.map(asset => asset.type.length))
@@ -81,27 +84,37 @@ export const assetBuilder = (app:App):RenderFactory => {
 				group.update(group => [...group, line])
 
 				const timer = createTimer()
-				const data = await asset.build({
-					async write(file, data) {
-						const fullpath = join(directories.asset, asset.type, app.name, stack.name, asset.id, file)
-						const basepath = dirname(fullpath)
 
-						await mkdir(basepath, { recursive: true })
-						await writeFile(fullpath, data)
-					}
-				})
+				try {
+					const data = await asset.build({
+						async write(file, data) {
+							const fullpath = join(directories.asset, asset.type, app.name, stack.name, asset.id, file)
+							const basepath = dirname(fullpath)
 
-				details.set({
-					...data,
-					time: timer()
-				})
+							await mkdir(basepath, { recursive: true })
+							await writeFile(fullpath, data)
+						}
+					})
 
-				icon.set(style.success(symbol.success))
-				stop()
+					details.set({
+						...data,
+						time: timer()
+					})
+
+					icon.set(style.success(symbol.success))
+				} catch(error) {
+					icon.set(style.error(symbol.error))
+					throw error
+				} finally {
+					stop()
+				}
 			}))
 		}))
 
 		done('Done building stack assets')
-		term.out.gap()
+
+		if(showDetailedView) {
+			term.out.gap()
+		}
 	}
 }

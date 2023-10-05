@@ -1,6 +1,6 @@
-import { Resource } from "../../resource";
-import { getAtt, ref } from "../../util";
-import { ListenerAction } from "./listener";
+import { Resource } from '../../resource.js';
+import { getAtt, ref } from '../../util.js';
+import { ListenerAction } from './listener.js';
 
 export class ListenerRule extends Resource {
 	constructor(logicalId: string, private props: {

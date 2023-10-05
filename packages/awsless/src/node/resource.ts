@@ -1,31 +1,14 @@
 
-const APP = process.env.APP || 'app'
-const STACK = process.env.STACK || 'stack'
+import { paramCase } from "change-case"
 
-export const getLocalResourceName = (id: string, stack = STACK) => {
-	return `${APP}-${stack}-${id}`
+export const APP = (process.env.APP || 'app') as 'app'
+export const STACK = (process.env.STACK || 'stack') as 'stack'
+export const STAGE = (process.env.STAGE || 'stage') as 'stage'
+
+export const getLocalResourceName = <N extends string, S extends string = typeof STACK>(name: N, stack:S = (STACK as S)) => {
+	return `${APP}-${paramCase(stack) as S}-${paramCase(name) as N}` as const
 }
 
-export const getGlobalResourceName = (id: string) => {
-	return `${APP}-${id}`
-}
-
-export const getFunctionName = getLocalResourceName
-export const getSearchName = getLocalResourceName
-export const getTableName = getLocalResourceName
-export const getStoreName = getLocalResourceName
-export const getQueueName = getLocalResourceName
-export const getTopicName = getGlobalResourceName
-
-export const getSecretName = (name: string) => {
-	return `/.awsless/${APP}/${name}`
-}
-
-export const getCacheProps = (name: string, stack = STACK) => {
-	const prefix = `CACHE_${stack}_${name}`
-
-	return {
-		host: process.env[`${prefix}_HOST`]!,
-		port: parseInt(process.env[`${prefix}_PORT`]!, 10),
-	} as const
+export const getGlobalResourceName = <N extends string>(name: N) => {
+	return `${APP}-${paramCase(name) as N}` as const
 }

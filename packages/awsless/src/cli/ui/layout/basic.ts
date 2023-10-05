@@ -1,5 +1,5 @@
-import { RenderFactory } from "../../lib/renderer.js"
-import { style } from "../../style.js"
+import { RenderFactory } from '../../lib/renderer.js'
+import { style } from '../../style.js'
 
 // export const line = (value:Fragment) => {
 // 	return [ value, br() ]

@@ -1,16 +1,29 @@
 
-import { Region } from "../schema/region";
-import { Asset } from "./asset";
-import { Group, Lazy, Resource } from "./resource";
-import { ConstructorOf, formatLogicalId, formatName, importValue } from "./util";
+import { Region } from '../schema/region.js';
+import { App } from './app.js';
+import { Asset } from './asset.js';
+import { Group, Lazy, Resource } from './resource.js';
+import { ConstructorOf, formatLogicalId, formatName, importValue, lazy } from './util.js';
 
 export class Stack {
+	private parent?:App
+
 	readonly exports = new Map<string, string>()
 	readonly resources = new Set<Resource>()
 	readonly tags = new Map<string, string>()
 	readonly assets = new Set<Asset>()
 
 	constructor(readonly name: string, readonly region:Region) {}
+
+	get app() {
+		return this.parent
+	}
+
+	setApp(app: App) {
+		this.parent = app
+
+		return this
+	}
 
 	add(...resources: (Resource | Asset | Group)[]) {
 		for(const item of resources) {
@@ -51,7 +64,13 @@ export class Stack {
 			throw new Error(`Undefined export value: ${name}`)
 		}
 
-		return importValue(name)
+		return lazy((stack) => {
+			if(stack === this) {
+				return this.exports.get(name)!
+			}
+
+			return importValue(`${ stack.app?.name ?? 'default' }-${name}`)
+		})
 	}
 
 	tag(name: string, value: string) {
@@ -80,35 +99,40 @@ export class Stack {
 		const resources = {}
 		const outputs = {}
 
-		const walk = (object:Record<string, any>) => {
-			for(const [ key, value ] of Object.entries(object)) {
-				if(!object.hasOwnProperty(key)) {
-					continue
-				}
-
-				if(value instanceof Lazy) {
-					object[key] = value.callback(this)
-					continue
-				}
-
-				if(typeof value === 'object' && value !== null) {
-					walk(value)
-				}
+		const walk = (node:unknown | Lazy): unknown => {
+			if(node instanceof Lazy) {
+				return walk(node.callback(this))
 			}
+
+			if(Array.isArray(node)) {
+				return node.map(walk)
+			}
+
+			if(typeof node === 'object' && node !== null) {
+				const object:Record<string, unknown> = {}
+
+				for(const [ key, value ] of Object.entries(node)) {
+					object[key] = walk(value)
+				}
+
+				return object
+			}
+
+			return node
 		}
 
-		for(const resource of this) {
-			const json = resource.toJSON()
-			walk(json)
-
+		for(const resource of this.resources) {
+			const json = walk(resource.toJSON())
 			Object.assign(resources, json)
 		}
 
-		for(const [ name, value ] of this.exports.entries()) {
+		for(let [ name, value ] of this.exports.entries()) {
 			Object.assign(outputs, {
 				[ formatLogicalId(name) ]: {
-					Export: { Name: name },
-					Value: value,
+					Export: {
+						Name: `${ this.app?.name ?? 'default' }-${ name }`
+					},
+					Value: walk(value),
 				}
 			})
 		}

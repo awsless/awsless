@@ -5,8 +5,11 @@ import { bootstrap } from './command/bootstrap.js'
 import { status } from './command/status.js'
 import { deploy } from './command/deploy.js'
 import { secrets } from './command/secrets/index.js'
-import { test } from './command/test.js'
+// import { test } from './command/test.js'
 import { logo } from './ui/layout/logo.js'
+import { types } from './command/types.js'
+import { dev } from './command/dev.js'
+import { del } from './command/delete.js'
 
 export type ProgramOptions = {
 	configFile?: string
@@ -39,11 +42,14 @@ program.on('option:verbose', () => {
 const commands = [
 	bootstrap,
 	status,
+	types,
 	build,
 	deploy,
+	del,
+	dev,
 	secrets,
 
-	test,
+	// test,
 
 	// diff,
 	// remove,

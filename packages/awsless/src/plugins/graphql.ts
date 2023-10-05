@@ -1,7 +1,7 @@
 
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js';
-import { FunctionSchema, toLambdaFunction } from './function.js';
+import { FunctionSchema, isFunctionProps, toLambdaFunction } from './function.js';
 import { LocalFileSchema } from '../schema/local-file.js';
 import { ResourceIdSchema } from '../schema/resource-id.js';
 import { toArray } from '../util/array.js';
@@ -13,6 +13,7 @@ import { Definition, GraphQLSchema } from '../formation/resource/appsync/graphql
 import { Code } from '../formation/resource/appsync/code.js';
 import { AppsyncEventSource } from '../formation/resource/lambda/event-source/appsync.js';
 import { DomainName, DomainNameApiAssociation } from '../formation/resource/appsync/domain-name.js';
+import { debug } from '../cli/logger.js';
 
 const defaultResolver = `
 export function request(ctx) {
@@ -27,11 +28,11 @@ export function response(ctx) {
 }
 `
 
-const ResolverFieldSchema = z.custom<`${string} ${string}`>((value) => {
-	return z.string()
-		.regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi)
-		.safeParse(value).success
-}, `Invalid resolver field. Valid example: "Query list"`)
+// const ResolverFieldSchema = z.custom<`${string} ${string}`>((value) => {
+// 	return z.string()
+// 		.regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi)
+// 		.safeParse(value).success
+// }, `Invalid resolver field. Valid example: "Query list"`)
 
 export const graphqlPlugin = definePlugin({
 	name: 'graphql',
@@ -54,12 +55,26 @@ export const graphqlPlugin = definePlugin({
 					LocalFileSchema,
 					z.array(LocalFileSchema).min(1),
 				]).optional(),
-				resolvers: z.record(ResolverFieldSchema, FunctionSchema).optional()
+				resolvers: z.record(
+					// TypeName
+					z.string(),
+					z.record(
+						// FieldName
+						z.string(),
+						z.union([
+							FunctionSchema,
+							z.object({
+								consumer: FunctionSchema,
+								resolver: LocalFileSchema,
+							})
+						])
+					)
+				).optional()
 			})).optional()
 		}).array()
 	}),
 	onApp(ctx) {
-		const { config, bootstrap, usEastBootstrap } = ctx
+		const { config, bootstrap } = ctx
 		const apis:Set<string> = new Set()
 
 		for(const stackConfig of config.stacks) {
@@ -106,8 +121,10 @@ export const graphqlPlugin = definePlugin({
 
 			if(props.domain) {
 				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
-				const hostedZoneId = usEastBootstrap.import(`hosted-zone-${props.domain}-id`)
-				const certificateArn = usEastBootstrap.import(`certificate-${props.domain}-arn`)
+				const hostedZoneId = bootstrap.import(`hosted-zone-${props.domain}-id`)
+				const certificateArn = bootstrap.import(`us-east-certificate-${props.domain}-arn`)
+
+				debug('DEBUG CERT', certificateArn)
 
 				const domain = new DomainName(id, {
 					domainName,
@@ -139,18 +156,26 @@ export const graphqlPlugin = definePlugin({
 		for(const [ id, props ] of Object.entries(stackConfig.graphql || {})) {
 			const apiId = bootstrap.import(`graphql-${id}`)
 
-			for(const [ typeAndField, functionProps ] of Object.entries(props.resolvers || {})) {
-				const [ typeName, fieldName ] = typeAndField.split(/[\s]+/g)
-				const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
-				const lambda = toLambdaFunction(ctx as any, `graphql-${entryId}`, functionProps!)
-				const source = new AppsyncEventSource(entryId, lambda, {
-					apiId,
-					typeName,
-					fieldName,
-					code: Code.fromInline(entryId, defaultResolver),
-				})
+			for(const [ typeName, fields ] of Object.entries(props.resolvers || {})) {
+				for(const [ fieldName, resolverProps ] of Object.entries(fields || {})) {
+					const props:{
+						consumer: z.output<typeof FunctionSchema>
+						resolver?: string
+					} = isFunctionProps(resolverProps)
+						? { consumer: resolverProps }
+						: resolverProps
 
-				stack.add(lambda, source)
+					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
+					const lambda = toLambdaFunction(ctx as any, `graphql-${entryId}`, props.consumer)
+					const source = new AppsyncEventSource(entryId, lambda, {
+						apiId,
+						typeName,
+						fieldName,
+						code: Code.fromInline(entryId, props.resolver || defaultResolver),
+					})
+
+					stack.add(lambda, source)
+				}
 			}
 		}
 	},

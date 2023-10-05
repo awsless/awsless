@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb-server",
-	"version": "0.0.6",
+	"version": "0.0.8",
 	"license": "MIT",
 	"main": "./dist/index.js",
 	"module": "./dist/index.mjs",
@@ -21,11 +21,10 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-dynamodb": "3.332.0",
-		"@aws-sdk/lib-dynamodb": "3.329.0",
-		"@aws-sdk/smithy-client": "3.329.0",
+		"@aws-sdk/client-dynamodb": "3.363.0",
+		"@aws-sdk/lib-dynamodb": "3.363.0",
 		"@aws-sdk/url-parser": "^3.272.0",
-		"dynamo-db-local": "^6.0.0",
+		"dynamo-db-local": "^7.0.0",
 		"sleep-await": "^1.0.2"
 	}
 }

@@ -1,7 +1,7 @@
 
 import { snakeCase } from "change-case";
-import { Resource } from "../../resource";
-import { ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { ref } from '../../util.js';
 
 export type DataSourceProps = {
 	apiId: string
