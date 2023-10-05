@@ -1,6 +1,6 @@
 {
 	"prettier.eslintIntegration": true,
-	"printWidth": 110,
+	"printWidth": 115,
 	"trailingComma": "es5",
 	"arrowParens": "avoid",
 	"bracketSpacing": true,

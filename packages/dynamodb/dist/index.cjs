@@ -123,10 +123,17 @@ var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
 var import_utils = require("@awsless/utils");
 var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
 var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
-var dynamoDBClient = (0, import_utils.globalClient)(() => {
-  return new import_client_dynamodb.DynamoDBClient({});
+var import_node_http_handler = require("@aws-sdk/node-http-handler");
+var dynamoDBClient = /* @__PURE__ */ (0, import_utils.globalClient)(() => {
+  return new import_client_dynamodb.DynamoDBClient({
+    maxAttempts: 2,
+    requestHandler: new import_node_http_handler.NodeHttpHandler({
+      connectionTimeout: 3 * 1e3,
+      requestTimeout: 3 * 1e3
+    })
+  });
 });
-var dynamoDBDocumentClient = (0, import_utils.globalClient)(() => {
+var dynamoDBDocumentClient = /* @__PURE__ */ (0, import_utils.globalClient)(() => {
   return import_lib_dynamodb.DynamoDBDocumentClient.from(dynamoDBClient(), {
     marshallOptions: {
       removeUndefinedValues: true

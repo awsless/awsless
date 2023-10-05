@@ -27,10 +27,17 @@ import { TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb";
 import { globalClient } from "@awsless/utils";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-var dynamoDBClient = globalClient(() => {
-  return new DynamoDBClient({});
+import { NodeHttpHandler } from "@aws-sdk/node-http-handler";
+var dynamoDBClient = /* @__PURE__ */ globalClient(() => {
+  return new DynamoDBClient({
+    maxAttempts: 2,
+    requestHandler: new NodeHttpHandler({
+      connectionTimeout: 3 * 1e3,
+      requestTimeout: 3 * 1e3
+    })
+  });
 });
-var dynamoDBDocumentClient = globalClient(() => {
+var dynamoDBDocumentClient = /* @__PURE__ */ globalClient(() => {
   return DynamoDBDocumentClient.from(dynamoDBClient(), {
     marshallOptions: {
       removeUndefinedValues: true

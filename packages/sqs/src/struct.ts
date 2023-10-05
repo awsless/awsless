@@ -8,7 +8,6 @@ export const sqsStruct = <A, B>(body: Struct<A, B>) => {
 	)
 }
 
-
 // type Input<T> = {
 // 	Records: {
 // 		body: T
