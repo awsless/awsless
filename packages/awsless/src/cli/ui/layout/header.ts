@@ -1,5 +1,5 @@
-import { Config } from "../../../config.js"
-import { list } from "./list.js"
+import { Config } from '../../../config.js'
+import { list } from './list.js'
 
 export const header = (config:Config) => {
 	return list({

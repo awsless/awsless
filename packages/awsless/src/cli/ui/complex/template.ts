@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from "fs/promises"
-import { App } from "../../../formation/app.js"
-import { directories } from "../../../util/path.js"
-import { RenderFactory } from "../../lib/renderer.js"
-import { loadingDialog } from "../layout/dialog.js"
+import { App } from '../../../formation/app.js'
+import { directories } from '../../../util/path.js'
+import { RenderFactory } from '../../lib/renderer.js'
+import { loadingDialog } from '../layout/dialog.js'
 import { join } from "path"
 
 export const templateBuilder = (app:App):RenderFactory => {

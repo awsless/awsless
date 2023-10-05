@@ -1,6 +1,6 @@
 
-import { Resource } from "../../resource";
-import { getAtt } from "../../util";
+import { Resource } from '../../resource.js';
+import { getAtt } from '../../util.js';
 
 export class ApiMapping extends Resource {
 

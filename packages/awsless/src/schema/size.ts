@@ -1,6 +1,6 @@
 
 import { z } from 'zod'
-import { Size } from '../formation/property/size'
+import { Size } from '../formation/property/size.js'
 
 export type SizeFormat = `${number} ${'KB' | 'MB' | 'GB'}`
 

@@ -1,6 +1,6 @@
 import { mkdir, rm } from "fs/promises"
-import { directories } from "./path.js"
-import { debug } from "../cli/logger.js"
+import { directories } from './path.js'
+import { debug } from '../cli/logger.js'
 
 export const cleanUp = async () => {
 

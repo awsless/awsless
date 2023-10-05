@@ -1,5 +1,5 @@
-import { getCacheProps } from "../../../src/node/resource"
-// import { command } from '../../../../redis/src/index'
+import { getCacheProps } from '../../../src/node/resource.js'
+// import { command } from '../../../../redis/src/index.js'
 import { createCluster } from 'redis'
 
 const props = getCacheProps('cache')

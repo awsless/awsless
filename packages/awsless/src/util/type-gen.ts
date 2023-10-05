@@ -1,10 +1,10 @@
 
 import { mkdir, writeFile } from "fs/promises"
-import { Config } from "../config"
-import { defaultPlugins } from "../plugins"
-import { directories } from "./path"
+import { Config } from '../config.js'
+import { defaultPlugins } from '../plugins/index.js'
+import { directories } from './path.js'
 import { join, relative } from "path"
-import { camelCase } from "change-case"
+import { camelCase, constantCase } from "change-case"
 
 export const generateResourceTypes = async (config:Config) => {
 	const plugins = [
@@ -39,7 +39,8 @@ export class TypeGen {
 
 	constructor(
 		readonly module: string,
-		readonly interfaceName:string
+		readonly interfaceName:string,
+		readonly readonly = true,
 	) {}
 
 	addImport(varName:string, path: string) {
@@ -52,9 +53,17 @@ export class TypeGen {
 		return this
 	}
 
-	addType(name:string, type: string) {
+	addType(name: string, type: string) {
 		if(type) {
-			this.types.set(name, type)
+			this.types.set(camelCase(name), type)
+		}
+
+		return this
+	}
+
+	addConst(name: string, type: string) {
+		if(type) {
+			this.types.set(constantCase(name), type)
 		}
 
 		return this
@@ -92,7 +101,7 @@ export class TypeGen {
 			`declare module '${this.module}' {`,
 			`\tinterface ${this.interfaceName} {`,
 			...Array.from(this.types.entries()).map(([ propName, type ]) => {
-				return `\t\treadonly ${camelCase(propName)}: ${type}`
+				return `\t\t${this.readonly ? 'readonly ' : ''}${propName}: ${type}`
 			}),
 			`\t}`,
 			`}`,
@@ -108,7 +117,18 @@ export class TypeObject {
 	protected types = new Map<string, string>()
 
 	addType(name:string, type: string) {
-		this.types.set(name, type)
+		if(type) {
+			this.types.set(camelCase(name), type)
+		}
+
+		return this
+	}
+
+	addConst(name: string, type: string) {
+		if(type) {
+			this.types.set(constantCase(name), type)
+		}
+
 		return this
 	}
 
@@ -120,7 +140,7 @@ export class TypeObject {
 		return [
 			'{',
 			...Array.from(this.types.entries()).map(([ propName, type ]) => {
-				return `\t\t\treadonly ${camelCase(propName)}: ${type}`
+				return `\t\t\treadonly ${propName}: ${type}`
 			}),
 			'\t\t}'
 		].join('\n')

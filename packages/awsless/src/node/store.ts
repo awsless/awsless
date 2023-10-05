@@ -1,5 +1,5 @@
-import { getLocalResourceName } from "./resource"
-import { createProxy } from "./util"
+import { getLocalResourceName } from './resource.js'
+import { createProxy } from './util.js'
 
 export const getStoreName = getLocalResourceName
 

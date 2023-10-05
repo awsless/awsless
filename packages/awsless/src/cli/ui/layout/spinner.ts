@@ -1,5 +1,5 @@
-import { Signal, derive } from "../../lib/signal.js"
-import { style } from "../../style.js"
+import { Signal, derive } from '../../lib/signal.js'
+import { style } from '../../style.js'
 
 const frames = [ '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' ]
 const length = frames.length

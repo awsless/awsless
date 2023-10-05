@@ -1,6 +1,6 @@
 
-import { Resource } from "../../resource";
-import { formatName } from "../../util";
+import { Resource } from '../../resource.js';
+import { formatName } from '../../util.js';
 
 export type NodeType = (
 	't4g.small' |

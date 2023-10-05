@@ -1,10 +1,10 @@
 import { Command } from "commander";
 import { toApp } from '../../app.js';
 import { layout } from '../ui/layout/layout.js';
-import { assetBuilder } from "../ui/complex/builder.js";
-import { cleanUp } from "../../util/cleanup.js";
-import { templateBuilder } from "../ui/complex/template.js";
-import { typesGenerator } from "../ui/complex/types.js";
+import { assetBuilder } from '../ui/complex/builder.js';
+import { cleanUp } from '../../util/cleanup.js';
+import { templateBuilder } from '../ui/complex/template.js';
+import { typesGenerator } from '../ui/complex/types.js';
 
 export const build = (program: Command) => {
 	program

@@ -1,6 +1,6 @@
 import { publish, PublishOptions } from '@awsless/sns'
-import { getGlobalResourceName } from "./resource"
-import { createProxy } from "./util"
+import { getGlobalResourceName } from './resource.js'
+import { createProxy } from './util.js'
 
 export const getTopicName = getGlobalResourceName
 

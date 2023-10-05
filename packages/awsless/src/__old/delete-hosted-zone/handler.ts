@@ -1,4 +1,4 @@
-import { sendCode } from "../util";
+import { sendCode } from '../util.js';
 
 export const deleteHostedZoneRecordsHandlerCode = /* JS */ `
 

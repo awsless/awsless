@@ -1,5 +1,5 @@
-import { Resource } from "../../resource";
-import { getAtt, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { getAtt, ref } from '../../util.js';
 
 export class LoadBalancer extends Resource {
 	readonly name: string

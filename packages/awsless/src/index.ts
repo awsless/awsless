@@ -1,8 +1,8 @@
 
-import { AppConfigFactory } from './config'
-import { CombinedDefaultPluginsConfigInput } from './plugins/index'
+import { AppConfigFactory } from './config.js'
+import { CombinedDefaultPluginsConfigInput } from './plugins/index.js'
 
-export { definePlugin, Plugin } from './plugin'
+export { definePlugin, Plugin } from './plugin.js'
 
 export type AppConfig = CombinedDefaultPluginsConfigInput
 export type StackConfig = CombinedDefaultPluginsConfigInput['stacks'][number]
@@ -15,11 +15,12 @@ export const defineAppConfig = (config:AppConfig | AppConfigFactory<AppConfig>) 
 	return config
 }
 
-export { APP, STACK, getLocalResourceName, getGlobalResourceName, getSecretName } from './node/resource'
-export { getFunctionName, FunctionResources, Function } from './node/function'
-export { getTableName, TableResources, Table } from './node/table'
-export { getTopicName, TopicResources, Topic } from './node/topic'
-export { getQueueName, QueueResources, Queue } from './node/queue'
-export { getCacheProps, CacheResources, Cache } from './node/cache'
-export { getStoreName, StoreResources, Store } from './node/store'
-export { getSearchName, SearchResources, Search } from './node/search'
+export { APP, STACK, getLocalResourceName, getGlobalResourceName } from './node/resource.js'
+export { getFunctionName, FunctionResources, Function } from './node/function.js'
+export { getTableName, TableResources, Table } from './node/table.js'
+export { getTopicName, TopicResources, Topic } from './node/topic.js'
+export { getQueueName, QueueResources, Queue } from './node/queue.js'
+export { getCacheProps, CacheResources, Cache } from './node/cache.js'
+export { getStoreName, StoreResources, Store } from './node/store.js'
+export { getConfigName, ConfigResources, Config } from './node/config.js'
+export { getSearchName, SearchResources, Search } from './node/search.js'

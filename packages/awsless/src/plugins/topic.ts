@@ -71,7 +71,7 @@ export const topicPlugin = definePlugin({
 		gen.addCode(typeGenCode)
 
 		for(const stack of config.stacks) {
-			for(const topic of Object.keys(stack.topics || {})) {
+			for(const topic of stack.topics || []) {
 				const name = formatName(`${config.name}-${topic}`)
 				gen.addType(topic, `Publish<'${name}'>`)
 			}
@@ -109,7 +109,7 @@ export const topicPlugin = definePlugin({
 		}
 
 		for(const [ id, props ] of Object.entries(stackConfig.subscribers || {})) {
-			const lambda = toLambdaFunction(ctx, `topic-${id}`, props)
+			const lambda = toLambdaFunction(ctx as any, `topic-${id}`, props)
 			const source = new SnsEventSource(id, lambda, {
 				topicArn: bootstrap.import(`topic-${id}-arn`)
 			})

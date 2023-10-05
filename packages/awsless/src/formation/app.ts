@@ -1,5 +1,5 @@
-import { Stack } from "./stack"
-import { ConstructorOf } from "./util"
+import { Stack } from './stack.js'
+import { ConstructorOf } from './util.js'
 
 export class App {
 	private list = new Map<string, Stack>()

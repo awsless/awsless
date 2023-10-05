@@ -1,8 +1,8 @@
 import wrapAnsi from "wrap-ansi"
-import { flushDebug } from "../../logger.js"
-import { style } from "../../style.js"
-import { br, hr } from "./basic.js"
-import { Terminal } from "../../lib/terminal.js"
+import { flushDebug } from '../../logger.js'
+import { style } from '../../style.js'
+import { br, hr } from './basic.js'
+import { Terminal } from '../../lib/terminal.js'
 
 let previous = new Date()
 

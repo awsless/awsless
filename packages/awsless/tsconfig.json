@@ -1,16 +1,18 @@
 {
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
-		"module": "NodeNext",
+		"module": "Node16",
 		// "module": "ESNext",
 		// "module": "CommonJS",
-		// "moduleResolution": "NodeNext",
-		// "preserveSymlinks": true
-		"types": [ "node" ],
-		"declaration": true,
-		"removeComments": false,
-		"esModuleInterop": true,
+		"moduleResolution": "Node16",
+		"rootDir": ".",
+		// "preserveSymlinks": true,
+		// "types": [ "node" ],
+		// "declaration": true,
+		// "removeComments": false,
+		// "esModuleInterop": true,
 		// "allowImportingTsExtensions": true,
+		"allowSyntheticDefaultImports": true,
 		"jsx": "react-jsx"
 	},
 	// "ts-node": {

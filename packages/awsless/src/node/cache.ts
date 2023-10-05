@@ -1,6 +1,6 @@
 import { constantCase } from "change-case"
-import { STACK } from "./resource"
-import { createProxy } from "./util"
+import { STACK } from './resource.js'
+import { createProxy } from './util.js'
 
 export const getCacheProps = (name: string, stack:string = STACK) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`

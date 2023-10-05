@@ -1,6 +1,6 @@
-import { Duration } from "../../property/duration";
-import { Resource } from "../../resource";
-import { formatName, getAtt } from "../../util";
+import { Duration } from '../../property/duration.js';
+import { Resource } from '../../resource.js';
+import { formatName, getAtt } from '../../util.js';
 
 export class Api extends Resource {
 

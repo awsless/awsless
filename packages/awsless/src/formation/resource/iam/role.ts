@@ -1,7 +1,7 @@
-import { Resource } from "../../resource"
-import { getAtt } from "../../util"
-import { InlinePolicy } from "./inline-policy"
-import { ManagedPolicy } from "./managed-policy"
+import { Resource } from '../../resource.js'
+import { getAtt } from '../../util.js'
+import { InlinePolicy } from './inline-policy.js'
+import { ManagedPolicy } from './managed-policy.js'
 
 export class Role extends Resource {
 	private inlinePolicies = new Set<InlinePolicy>()

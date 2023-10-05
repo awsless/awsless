@@ -1,7 +1,7 @@
-import { Duration } from "../../../property/duration"
-import { Group } from "../../../resource"
-import { EventSourceMapping, StartingPosition } from "../event-source-mapping"
-import { Function } from "../function"
+import { Duration } from '../../../property/duration.js'
+import { Group } from '../../../resource.js'
+import { EventSourceMapping, StartingPosition } from '../event-source-mapping.js'
+import { Function } from '../function.js'
 
 export class DynamoDBEventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

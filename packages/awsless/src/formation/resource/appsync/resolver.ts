@@ -1,9 +1,9 @@
 
-// import { Asset } from "../../asset";
-import { Asset } from "../../asset";
-import { Resource } from "../../resource";
-import { ICode } from "./code";
-// import { ICode } from "./code";
+// import { Asset } from '../../asset.js';
+import { Asset } from '../../asset.js';
+import { Resource } from '../../resource.js';
+import { ICode } from './code.js';
+// import { ICode } from './code.js';
 
 export type ResolverProps = {
 	apiId: string

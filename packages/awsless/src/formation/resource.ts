@@ -1,6 +1,6 @@
-import { Asset } from "./asset"
-import { Stack } from "./stack"
-import { formatLogicalId, getAtt, ref } from "./util"
+import { Asset } from './asset.js'
+import { Stack } from './stack.js'
+import { formatLogicalId, getAtt, ref } from './util.js'
 
 export type Permission = {
 	effect?: 'Allow' | 'Deny'
@@ -24,6 +24,12 @@ export abstract class Resource {
 		readonly children: Array<Resource | Asset> = []
 	) {
 		this.logicalId = formatLogicalId(`${ logicalId }-${ type.replace(/^AWS::/, '') }`)
+	}
+
+	addChild(...children: Resource[]) {
+		this.children.push(...children)
+
+		return this
 	}
 
 	dependsOn(...dependencies: Resource[]) {

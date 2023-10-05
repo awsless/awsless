@@ -1,15 +1,15 @@
 
 import { z } from 'zod'
-import { definePlugin } from '../plugin';
-import { ResourceIdSchema } from '../schema/resource-id';
-import { FunctionSchema, toLambdaFunction } from './function';
-import { RecordSet } from '../formation/resource/route53/record-set';
-import { RouteSchema } from '../schema/route';
-import { Api } from '../formation/resource/api-gateway-v2/api';
-import { ApiGatewayV2EventSource } from '../formation/resource/lambda/event-source/api-gateway-v2';
-import { DomainName } from '../formation/resource/api-gateway-v2/domain-name';
-import { Stage } from '../formation/resource/api-gateway-v2/stage';
-import { ApiMapping } from '../formation/resource/api-gateway-v2/api-mapping';
+import { definePlugin } from '../plugin.js';
+import { ResourceIdSchema } from '../schema/resource-id.js';
+import { FunctionSchema, toLambdaFunction } from './function.js';
+import { RecordSet } from '../formation/resource/route53/record-set.js';
+import { RouteSchema } from '../schema/route.js';
+import { Api } from '../formation/resource/api-gateway-v2/api.js';
+import { ApiGatewayV2EventSource } from '../formation/resource/lambda/event-source/api-gateway-v2.js';
+import { DomainName } from '../formation/resource/api-gateway-v2/domain-name.js';
+import { Stage } from '../formation/resource/api-gateway-v2/stage.js';
+import { ApiMapping } from '../formation/resource/api-gateway-v2/api-mapping.js';
 
 export const restPlugin = definePlugin({
 	name: 'rest',
@@ -53,7 +53,7 @@ export const restPlugin = definePlugin({
 			).optional()
 		}).array()
 	}),
-	onApp({ config, bootstrap, usEastBootstrap }) {
+	onApp({ config, bootstrap }) {
 		for(const [ id, props ] of Object.entries(config.defaults?.rest || {})) {
 			const api = new Api(id, {
 				name: `${config.name}-${id}`,
@@ -71,7 +71,7 @@ export const restPlugin = definePlugin({
 
 			if(props.domain) {
 				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
-				const hostedZoneId = usEastBootstrap.import(`hosted-zone-${props.domain}-id`)
+				const hostedZoneId = bootstrap.import(`hosted-zone-${props.domain}-id`)
 				const certificateArn = bootstrap.import(`certificate-${props.domain}-arn`)
 
 				const domain = new DomainName(id, {
@@ -85,7 +85,7 @@ export const restPlugin = definePlugin({
 					stage: stage.name,
 				}).dependsOn(api, domain, stage)
 
-				const record = new RecordSet(`${id}-rest`, {
+				const record = new RecordSet(`rest-${id}`, {
 					hostedZoneId,
 					type: 'A',
 					name: domainName,
@@ -105,7 +105,7 @@ export const restPlugin = definePlugin({
 		for(const [ id, routes ] of Object.entries(stackConfig.rest || {})) {
 			for(const [ routeKey, props ] of Object.entries(routes)) {
 
-				const lambda = toLambdaFunction(ctx, `rest-${id}-${routeKey}`, props!)
+				const lambda = toLambdaFunction(ctx as any, `rest-${id}-${routeKey}`, props!)
 				const source = new ApiGatewayV2EventSource(`rest-${id}-${routeKey}`, lambda, {
 					apiId: bootstrap.import(`rest-${id}-id`),
 					routeKey

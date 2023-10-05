@@ -1,8 +1,8 @@
 
-import { Config } from '../../../config'
-import { generateResourceTypes } from '../../../util/type-gen'
-import { Terminal } from '../../lib/terminal'
-import { loadingDialog } from '../layout/dialog'
+import { Config } from '../../../config.js'
+import { generateResourceTypes } from '../../../util/type-gen.js'
+import { Terminal } from '../../lib/terminal.js'
+import { loadingDialog } from '../layout/dialog.js'
 
 export const typesGenerator = (config:Config) => {
 	return async (term:Terminal) => {

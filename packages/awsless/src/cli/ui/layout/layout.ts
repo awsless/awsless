@@ -1,14 +1,14 @@
-import { ProgramOptions, program } from "../../program.js"
-import { Config, ConfigError, importConfig } from "../../../config.js"
-import { header } from "./header.js"
-import { dialog } from "./dialog.js"
-import { debug, debugError } from "../../logger.js"
-import { Terminal, createTerminal } from "../../lib/terminal.js"
-import { Renderer } from "../../lib/renderer.js"
-import { logo } from "./logo.js"
-import { logs } from "./logs.js"
-import { br } from "./basic.js"
-import { zodError } from "./zod-error.js"
+import { ProgramOptions, program } from '../../program.js'
+import { Config, ConfigError, importConfig } from '../../../config.js'
+import { header } from './header.js'
+import { dialog } from './dialog.js'
+import { debug, debugError } from '../../logger.js'
+import { Terminal, createTerminal } from '../../lib/terminal.js'
+import { Renderer } from '../../lib/renderer.js'
+import { logo } from './logo.js'
+import { logs } from './logs.js'
+import { br } from './basic.js'
+import { zodError } from './zod-error.js'
 
 export const layout = async (cb:(config:Config, write: Renderer['write'], term: Terminal) => Promise<void> | void) => {
 	const term = createTerminal()

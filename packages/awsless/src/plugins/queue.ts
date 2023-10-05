@@ -213,7 +213,7 @@ export const queuePlugin = definePlugin({
 				...props,
 			})
 
-			const lambda = toLambdaFunction(ctx, `queue-${id}`, props.consumer)
+			const lambda = toLambdaFunction(ctx as any, `queue-${id}`, props.consumer)
 			const source = new SqsEventSource(id, lambda, {
 				queueArn: queue.arn,
 				batchSize: props.batchSize,

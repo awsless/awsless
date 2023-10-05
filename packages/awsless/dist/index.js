@@ -6,14 +6,12 @@ import {
 import { paramCase } from "change-case";
 var APP = process.env.APP || "app";
 var STACK = process.env.STACK || "stack";
+var STAGE = process.env.STAGE || "stage";
 var getLocalResourceName = (name, stack = STACK) => {
   return `${APP}-${paramCase(stack)}-${paramCase(name)}`;
 };
 var getGlobalResourceName = (name) => {
   return `${APP}-${paramCase(name)}`;
-};
-var getSecretName = (name) => {
-  return `/.awsless/${APP}/${name}`;
 };
 
 // src/node/function.ts
@@ -145,6 +143,43 @@ var Store = createProxy((stack) => {
   });
 });
 
+// src/node/config.ts
+import { ssm } from "@awsless/ssm";
+import { paramCase as paramCase2 } from "change-case";
+var getConfigName = (name) => {
+  return `/.awsless/${APP}/${name}`;
+};
+var data = {};
+var TEST = process.env.NODE_ENV === "test";
+var CONFIGS = process.env.AWSLESS_CONFIG;
+if (!TEST && CONFIGS) {
+  const keys = CONFIGS.split(",");
+  if (keys.length > 0) {
+    const paths = {};
+    for (const key of keys) {
+      paths[key] = getConfigName(key);
+    }
+    data = await ssm(paths);
+  }
+}
+var Config = new Proxy({}, {
+  get(_, name) {
+    const key = paramCase2(name);
+    const value = data[key];
+    if (typeof value === "undefined") {
+      throw new Error(
+        `The "${name}" config value hasn't been set yet. ${TEST ? `Use "Config.${name} = 'VAlUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
+      );
+    }
+    return value;
+  },
+  set(_, name, value) {
+    const key = paramCase2(name);
+    data[key] = value;
+    return true;
+  }
+});
+
 // src/node/search.ts
 var getSearchName = getLocalResourceName;
 var Search = createProxy((stack) => {
@@ -165,6 +200,7 @@ var defineAppConfig = (config) => {
 export {
   APP,
   Cache,
+  Config,
   Function,
   Queue,
   STACK,
@@ -176,12 +212,12 @@ export {
   definePlugin,
   defineStackConfig,
   getCacheProps,
+  getConfigName,
   getFunctionName,
   getGlobalResourceName,
   getLocalResourceName,
   getQueueName,
   getSearchName,
-  getSecretName,
   getStoreName,
   getTableName,
   getTopicName

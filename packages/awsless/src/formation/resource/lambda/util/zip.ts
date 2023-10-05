@@ -1,5 +1,5 @@
 import JSZip from "jszip"
-import { File } from "../code"
+import { File } from '../code.js'
 
 export const zipFiles = (files: File[]) => {
 	const zip = new JSZip()

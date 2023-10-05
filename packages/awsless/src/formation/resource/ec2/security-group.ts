@@ -1,8 +1,8 @@
 
-import { Resource } from "../../resource";
-import { formatName, ref } from "../../util";
-import { Port } from "./port";
-import { Peer } from "./peer";
+import { Resource } from '../../resource.js';
+import { formatName, ref } from '../../util.js';
+import { Port } from './port.js';
+import { Peer } from './peer.js';
 
 export type SecurityGroupProps = {
 	vpcId: string

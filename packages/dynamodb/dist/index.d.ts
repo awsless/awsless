@@ -1,8 +1,10 @@
+import * as _aws_sdk_client_dynamodb from '@aws-sdk/client-dynamodb';
 import { AttributeValue as AttributeValue$1, DynamoDBClient, CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
 export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { BigFloat, Numeric } from '@awsless/big-float';
 import { NativeAttributeBinary, NativeAttributeValue, NativeScalarAttributeValue } from '@aws-sdk/util-dynamodb';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
+export { DynamoDBServer } from '@awsless/dynamodb-server';
 import * as superstruct_dist_utils from 'superstruct/dist/utils';
 import { Struct as Struct$1 } from '@awsless/validate';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
@@ -368,10 +370,13 @@ type StartDynamoDBOptions<T extends Tables> = {
 };
 declare const mockDynamoDB: <T extends Tables>(configOrServer: StartDynamoDBOptions<T> | DynamoDBServer) => DynamoDBServer;
 
+declare const migrate: (client: DynamoDBClient, tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[]) => Promise<_aws_sdk_client_dynamodb.CreateTableCommandOutput[]>;
+
 declare const seedTable: <T extends AnyTableDefinition>(table: T, items: InferInput$1<T>[]) => {
     table: T;
     items: InferInput$1<T>[];
 };
+declare const seed: (defs: ReturnType<typeof seedTable>[]) => Promise<void>;
 
 declare const streamStruct: <T extends AnyTableDefinition>(table: T) => Struct$1<{
     Records: superstruct_dist_utils.Simplify<superstruct_dist_utils.Optionalize<{
@@ -580,4 +585,4 @@ type PaginateScanResponse<T extends AnyTableDefinition, P extends ProjectionExpr
 };
 declare const paginateScan: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
-export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate, Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seedTable, streamStruct, streamTable, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate, Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enums, getIndexedItem, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, streamStruct, streamTable, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };

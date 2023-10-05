@@ -1,14 +1,14 @@
 
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStackEventsCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from '@aws-sdk/client-cloudformation'
 import { S3Client, PutObjectCommand, ObjectCannedACL, StorageClass } from '@aws-sdk/client-s3'
-import { assetBucketName, assetBucketUrl } from './bootstrap'
-import { debug } from '../cli/logger'
-import { style } from '../cli/style'
-import { Stack } from './stack'
-import { App } from './app'
-import { Credentials } from '../util/credentials'
+import { assetBucketName, assetBucketUrl } from './bootstrap.js'
+import { debug } from '../cli/logger.js'
+import { style } from '../cli/style.js'
+import { Stack } from './stack.js'
+import { App } from './app.js'
+import { Credentials } from '../util/credentials.js'
 import { paramCase } from 'change-case'
-import { Region } from '../schema/region'
+import { Region } from '../schema/region.js'
 
 export class StackClient {
 	private maxWaitTime = 60 * 30 // 30 minutes
@@ -65,6 +65,7 @@ export class StackClient {
 		const client = new S3Client({
 			credentials: this.credentials,
 			region: stack.region,
+			maxAttempts: 5,
 		})
 
 		await client.send(new PutObjectCommand({
@@ -205,6 +206,7 @@ export class StackClient {
 		debug('Status for:', style.info(name), 'is', style.attr(stack.StackStatus!))
 
 		return {
+			id: stack.StackId!,
 			status: stack.StackStatus!,
 			reason: stack.StackStatusReason,
 			outputs,
@@ -263,10 +265,10 @@ export class StackClient {
 				maxWaitTime: this.maxWaitTime,
 				maxDelay: this.maxDelay,
 			}, {
-				StackName: this.stackName(name),
+				StackName: data.id,
 			})
 		} catch(_) {
-			const reason = await this.getFailureReason(name, region)
+			const reason = await this.getFailureReason(data.id, region)
 			throw new Error(reason)
 		}
 	}

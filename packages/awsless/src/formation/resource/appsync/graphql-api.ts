@@ -1,7 +1,7 @@
 import { constantCase } from "change-case";
-import { Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
-import { Duration } from "../../property/duration";
+import { Resource } from '../../resource.js';
+import { formatName, getAtt, ref } from '../../util.js';
+import { Duration } from '../../property/duration.js';
 
 export class GraphQLApi extends Resource {
 

@@ -1,6 +1,6 @@
 
 import { z } from "zod";
-import { Duration } from "../formation/property/duration";
+import { Duration } from '../formation/property/duration.js';
 
 export type DurationFormat = `${number} ${
 	| 'second'

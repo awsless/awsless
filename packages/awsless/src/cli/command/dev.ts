@@ -1,9 +1,9 @@
 import { Command } from "commander";
 import { layout } from '../ui/layout/layout.js';
-import { cleanUp } from "../../util/cleanup.js";
-import { typesGenerator } from "../ui/complex/types.js";
-import { watchConfig } from "../../config.js";
-import { ProgramOptions } from "../program.js";
+import { cleanUp } from '../../util/cleanup.js';
+import { typesGenerator } from '../ui/complex/types.js';
+import { watchConfig } from '../../config.js';
+import { ProgramOptions } from '../program.js';
 
 export const dev = (program: Command) => {
 	program

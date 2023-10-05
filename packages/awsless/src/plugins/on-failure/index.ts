@@ -44,7 +44,7 @@ export const onFailurePlugin = definePlugin({
 		}
 
 		const queueArn = bootstrap.import('on-failure-queue-arn')
-		const lambda = toLambdaFunction(ctx, 'on-failure', onFailure)
+		const lambda = toLambdaFunction(ctx as any, 'on-failure', onFailure)
 		const source = new SqsEventSource('on-failure', lambda, {
 			queueArn,
 		})

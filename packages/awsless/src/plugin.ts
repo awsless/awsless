@@ -4,7 +4,7 @@ import { Binding } from './stack.js'
 import { AppConfigInput } from './schema/app.js'
 import { Stack } from './formation/stack.js'
 import { App } from './formation/app.js'
-import { Resource } from "./formation/resource.js"
+import { Resource } from './formation/resource.js'
 
 export type PluginSchema = AnyZodObject | undefined
 export type PluginDepends = Plugin[] | undefined

@@ -23,7 +23,7 @@ export const bootstrapStack = (account:string, region:Region) => {
 	stack.add(new Bucket('assets', {
 		name: assetBucketName(account, region),
 		accessControl: 'private',
-		versioned: true,
+		versioning: true,
 	}))
 
 	stack.export('version', version)

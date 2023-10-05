@@ -1,6 +1,6 @@
 
-import { Resource } from "../../resource";
-import { formatArn, getAtt, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { formatArn, getAtt, ref } from '../../util.js';
 
 export class Collection extends Resource {
 	readonly name: string

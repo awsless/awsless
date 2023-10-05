@@ -1,5 +1,6 @@
 import { paramCase, pascalCase } from "change-case"
-import { Lazy } from "./resource";
+import { Lazy } from './resource.js';
+import { Stack } from "./stack.js";
 
 export type ConstructorOf<C> = { new (...args: any[]): C; };
 
@@ -15,20 +16,28 @@ export const sub = <T = string>(value: string, params?: Record<string, string>):
 	return { 'Fn::Sub': value } as T
 }
 
+export const split = <T = string>(seperator: string, value: string): T => {
+	return { 'Fn::Split': [ seperator, value ] } as T
+}
+
+export const select = <T = string>(index: number, value: string): T => {
+	return { 'Fn::Select': [ index, value ] } as T
+}
+
 export const getAtt = <T = string>(logicalId: string, attr: string): T => {
 	return { 'Fn::GetAtt': [ logicalId, attr ] } as T
 }
 
-// export const lazy = <T = string>(logicalId: string, attr: string): T => {
-// 	return () => {
-// 		{ 'Fn::GetAtt': [ logicalId, attr ] } as T
-// 	}
-// }
+export const lazy = <T = string>(cb: (stack:Stack) => T): T => {
+	return new Lazy(cb) as T
+}
 
 export const importValue = <T = string>(name: string): T => {
-	return new Lazy((stack) => ({
-		'Fn::ImportValue': `${ stack.app!.name }-${name}`
-	})) as T
+	// return lazy<T>((stack) => ({
+	// 	'Fn::ImportValue': `${ stack.app!.name }-${name}`
+	// } as T))
+
+	return { 'Fn::ImportValue': name } as T
 }
 
 export const formatLogicalId = (id: string) => {

@@ -1,6 +1,6 @@
 
-import { Duration } from "../../property/duration";
-import { Resource } from "../../resource";
+import { Duration } from '../../property/duration.js';
+import { Resource } from '../../resource.js';
 
 export type RecordType = 'A' | 'AAAA' | 'CAA' | 'CNAME' | 'DS' | 'MX' | 'NAPTR' | 'NS' | 'PTR' | 'SOA' | 'SPF' | 'SRV' | 'TXT'
 

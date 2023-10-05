@@ -1,4 +1,4 @@
-import { defineStackConfig } from "../../../src";
+import { defineStackConfig } from "../../../src/index.js";
 
 export const siteStack = defineStackConfig({
 	name: 'site',
@@ -6,13 +6,16 @@ export const siteStack = defineStackConfig({
 	sites: {
 		news: {
 			domain: 'getblockalert.com',
-			public: __dirname + '/../public',
-			ssr: __dirname + '/../function/ssr.ts',
+			static: __dirname + '/../public',
+			ssr: {
+				file: __dirname + '/../function/ssr.ts',
+				log: '1 day',
+			}
 		}
 	},
-	commands: {
-		build: [
-			'pnpm run build --prod'
-		]
-	}
+	// commands: {
+	// 	build: [
+	// 		'pnpm run build --prod'
+	// 	]
+	// }
 })

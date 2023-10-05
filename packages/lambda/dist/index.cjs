@@ -284,6 +284,9 @@ var lambda = (options) => {
         const output = await transformValidationErrors(() => options.handle(input, extendedContext));
         return options.output ? (0, import_validate2.create)(output, options.output) : output;
       });
+      if (process.env.NODE_ENV === "test" && result) {
+        return JSON.parse(JSON.stringify(result));
+      }
       return result;
     } catch (error) {
       if (!isViewableError(error) || options.logViewableErrors) {

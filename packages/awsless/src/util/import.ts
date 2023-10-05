@@ -8,7 +8,7 @@ import { mkdir, writeFile } from 'fs/promises';
 import { directories } from './path';
 import { debug, debugError } from '../cli/logger';
 import { style } from '../cli/style';
-import { Module } from "../config";
+import { Module } from '../config.js';
 
 export const importFile = async (path:string) => {
 

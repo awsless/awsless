@@ -40,7 +40,7 @@ export const cronPlugin = definePlugin({
 		const { stack, stackConfig } = ctx
 
 		for(const [ id, props ] of Object.entries(stackConfig.crons || {})) {
-			const lambda = toLambdaFunction(ctx, id, props.consumer)
+			const lambda = toLambdaFunction(ctx as any, id, props.consumer)
 			const source = new EventsEventSource(id, lambda, {
 				schedule: props.schedule,
 				payload: props.payload,

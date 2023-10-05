@@ -1,9 +1,9 @@
 import { print } from "graphql"
-import { Asset, BuildProps } from "../../asset"
+import { Asset, BuildProps } from '../../asset.js'
 import { readFile } from "fs/promises"
 import { mergeTypeDefs } from "@graphql-tools/merge"
-import { formatByteSize } from "../../../util/byte-size"
-import { Resource } from "../../resource"
+import { formatByteSize } from '../../../util/byte-size.js'
+import { Resource } from '../../resource.js'
 
 export type GraphQLSchemaProps = {
 	apiId: string

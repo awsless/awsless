@@ -1,16 +1,16 @@
 import { Command } from "commander";
-import { toApp } from "../../app.js";
-import { StackClient } from "../../formation/client.js";
-import { debug } from "../logger.js";
-import { stackTree } from "../ui/complex/__stack-tree.js";
-import { style } from "../style.js";
-import { layout } from "../ui/layout/layout.js";
-import { Signal } from "../lib/signal.js";
-import { assetBuilder } from "../ui/complex/builder.js";
-import { cleanUp } from "../../util/cleanup.js";
-import { dialog, loadingDialog } from "../ui/layout/dialog.js";
-import { templateBuilder } from "../ui/complex/template.js";
-import { stacksDeployer } from "../ui/complex/deployer.js";
+import { toApp } from '../../app.js';
+import { StackClient } from '../../formation/client.js';
+import { debug } from '../logger.js';
+import { stackTree } from '../ui/complex/__stack-tree.js';
+import { style } from '../style.js';
+import { layout } from '../ui/layout/layout.js';
+import { Signal } from '../lib/signal.js';
+import { assetBuilder } from '../ui/complex/builder.js';
+import { cleanUp } from '../../util/cleanup.js';
+import { dialog, loadingDialog } from '../ui/layout/dialog.js';
+import { templateBuilder } from '../ui/complex/template.js';
+import { stacksDeployer } from '../ui/complex/deployer.js';
 
 export const status = (program: Command) => {
 	program

@@ -1,6 +1,6 @@
 import { sendMessage, sendMessageBatch, SendMessageOptions, SendMessageBatchOptions, BatchItem } from "@awsless/sqs"
-import { STACK, getLocalResourceName } from "./resource"
-import { createProxy } from "./util"
+import { STACK, getLocalResourceName } from './resource.js'
+import { createProxy } from './util.js'
 import { constantCase } from "change-case"
 
 export const getQueueName = getLocalResourceName

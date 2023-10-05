@@ -1,12 +1,12 @@
-import { Asset } from "../../../asset"
-import { Group } from "../../../resource"
-import { ICode } from "../../appsync/code"
-import { DataSource } from "../../appsync/data-source"
-import { FunctionConfiguration } from "../../appsync/function-configuration"
-import { Resolver } from "../../appsync/resolver"
-import { InlinePolicy } from "../../iam/inline-policy"
-import { Role } from "../../iam/role"
-import { Function } from "../function"
+import { Asset } from '../../../asset.js'
+import { Group } from '../../../resource.js'
+import { ICode } from '../../appsync/code.js'
+import { DataSource } from '../../appsync/data-source.js'
+import { FunctionConfiguration } from '../../appsync/function-configuration.js'
+import { Resolver } from '../../appsync/resolver.js'
+import { InlinePolicy } from '../../iam/inline-policy.js'
+import { Role } from '../../iam/role.js'
+import { Function } from '../function.js'
 
 export class AppsyncEventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

@@ -19,11 +19,13 @@ services {
 
 
 # stack ----------------------------
-name stack-name
 
-func get {
-	file ./file.ts
+stack stack-name {
+	function get {
+		file ./file.ts
+	}
 }
+
 
 table posts {
 	hash userId
@@ -42,7 +44,14 @@ cron 1 minute {
 	func -> get
 }
 
-domain example.com {
+site example.com {
+	static ./public
+	ssr func {
+		file ./file.ts
+	}
+}
+
+domain api.example.com {
 	http {
 		GET {
 			/posts/:id { func -> get }

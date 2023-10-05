@@ -1,7 +1,7 @@
-import { Group } from "../../../resource"
-import { Subscription } from "../../sns/subscription"
-import { Function } from "../function"
-import { Permission } from "../permission"
+import { Group } from '../../../resource.js'
+import { Subscription } from '../../sns/subscription.js'
+import { Function } from '../function.js'
+import { Permission } from '../permission.js'
 
 export class SnsEventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

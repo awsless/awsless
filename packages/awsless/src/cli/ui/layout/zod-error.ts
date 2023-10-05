@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { Terminal } from "../../lib/terminal";
-import { br } from "./basic";
-import { style, symbol } from "../../style";
-import { dialog } from "./dialog";
+import { Terminal } from '../../lib/terminal.js';
+import { br } from './basic.js';
+import { style, symbol } from '../../style.js';
+import { dialog } from './dialog.js';
 
 const line = (value: string, level = 0, highlight = false) => {
 	return [

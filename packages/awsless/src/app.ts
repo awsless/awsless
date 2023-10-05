@@ -1,14 +1,14 @@
-import { Config } from './config'
-import { Binding, toStack } from './stack'
-import { createDeploymentLine } from './util/deployment'
-import { debug } from './cli/logger'
-import { style } from './cli/style'
-import { StackConfig } from './schema/stack'
-import { defaultPlugins } from './plugins/index'
-import { App } from './formation/app'
-import { Stack } from './formation/stack'
-import { Function } from './formation/resource/lambda/function'
-import { extendWithGlobalExports } from './custom/global-export/extend'
+import { Config } from './config.js'
+import { Binding, toStack } from './stack.js'
+import { createDeploymentLine } from './util/deployment.js'
+import { debug } from './cli/logger.js'
+import { style } from './cli/style.js'
+import { StackConfig } from './schema/stack.js'
+import { defaultPlugins } from './plugins/index.js'
+import { App } from './formation/app.js'
+import { Stack } from './formation/stack.js'
+import { Function } from './formation/resource/lambda/function.js'
+// import { extendWithGlobalExports } from './custom/global-export/extend.js'
 
 
 const getAllDepends = (filters:StackConfig[]) => {
@@ -40,7 +40,7 @@ export const toApp = async (config:Config, filters:string[]) => {
 	const bootstrap = new Stack('bootstrap', config.region)
 	const usEastBootstrap = new Stack('us-east-bootstrap', 'us-east-1')
 
-	extendWithGlobalExports(config.name, usEastBootstrap, bootstrap)
+	// extendWithGlobalExports(config.name, usEastBootstrap, bootstrap)
 
 	app.add(bootstrap, usEastBootstrap)
 

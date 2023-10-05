@@ -13,6 +13,7 @@ import { Definition, GraphQLSchema } from '../formation/resource/appsync/graphql
 import { Code } from '../formation/resource/appsync/code.js';
 import { AppsyncEventSource } from '../formation/resource/lambda/event-source/appsync.js';
 import { DomainName, DomainNameApiAssociation } from '../formation/resource/appsync/domain-name.js';
+import { debug } from '../cli/logger.js';
 
 const defaultResolver = `
 export function request(ctx) {
@@ -73,7 +74,7 @@ export const graphqlPlugin = definePlugin({
 		}).array()
 	}),
 	onApp(ctx) {
-		const { config, bootstrap, usEastBootstrap } = ctx
+		const { config, bootstrap } = ctx
 		const apis:Set<string> = new Set()
 
 		for(const stackConfig of config.stacks) {
@@ -120,8 +121,10 @@ export const graphqlPlugin = definePlugin({
 
 			if(props.domain) {
 				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
-				const hostedZoneId = usEastBootstrap.import(`hosted-zone-${props.domain}-id`)
-				const certificateArn = usEastBootstrap.import(`certificate-${props.domain}-arn`)
+				const hostedZoneId = bootstrap.import(`hosted-zone-${props.domain}-id`)
+				const certificateArn = bootstrap.import(`us-east-certificate-${props.domain}-arn`)
+
+				debug('DEBUG CERT', certificateArn)
 
 				const domain = new DomainName(id, {
 					domainName,

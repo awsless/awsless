@@ -1,4 +1,4 @@
-import { formatName } from "../../util"
+import { formatName } from '../../util.js'
 
 export type Statement = {
 	effect?: 'Allow' | 'Deny'

@@ -1,6 +1,6 @@
 import { constantCase } from "change-case";
-import { Resource } from "../../resource";
-import { getAtt, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { getAtt, ref } from '../../util.js';
 
 export class Listener extends Resource {
 	constructor(logicalId: string, private props: {

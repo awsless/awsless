@@ -1,5 +1,5 @@
-import { Config } from "../../config"
-import { Stack } from "../../formation/stack"
+import { Config } from '../../config.js'
+import { Stack } from '../../formation/stack.js'
 
 export const getGlobalOnFailure = ({ config, bootstrap }: { config: Config, bootstrap: Stack }) => {
 	return hasOnFailure(config) ? bootstrap.import('on-failure-queue-arn') : undefined

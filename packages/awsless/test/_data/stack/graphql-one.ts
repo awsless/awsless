@@ -1,4 +1,4 @@
-import { StackConfig } from "../../../src";
+import { StackConfig } from "../../../src/index.js";
 
 export const graphqlOneStack:StackConfig = {
 	name: 'graphql-one',

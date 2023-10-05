@@ -1,6 +1,6 @@
 
-import { Resource } from "../../resource";
-import { ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { ref } from '../../util.js';
 
 export class Integration extends Resource {
 

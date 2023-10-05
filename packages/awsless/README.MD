@@ -13,6 +13,7 @@
 # Features
 
 - Domains
+- Sites
 - Functions
 - Database
   - Tables

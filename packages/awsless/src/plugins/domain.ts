@@ -7,8 +7,11 @@ import { Certificate } from '../formation/resource/certificate-manager/certifica
 import { RecordSetGroup } from '../formation/resource/route53/record-set-group.js';
 import { Function } from '../formation/resource/lambda/function.js';
 import { Code } from '../formation/resource/lambda/code.js';
-import { deleteHostedZoneRecordsHandlerCode } from '../custom/delete-hosted-zone/handler.js';
 import { CustomResource } from '../formation/resource/cloud-formation/custom-resource.js';
+// import { globalExportsHandlerCode } from '../custom/global-export/handler.js';
+import { GlobalExports } from '../custom/global-exports.js';
+import { Duration } from '../formation/property/duration.js';
+// import { debug } from '../cli/logger.js';
 
 const DomainNameSchema = z.string().regex(/[a-z\-\_\.]/g, 'Invalid domain name')
 
@@ -54,12 +57,12 @@ export const domainPlugin = definePlugin({
 			return
 		}
 
-		const lambda = new Function('delete-hosted-zone', {
+		const deleteHostedZoneLambda = new Function('delete-hosted-zone', {
 			name: `${config.name}-delete-hosted-zone`,
-			code: Code.fromInline(deleteHostedZoneRecordsHandlerCode, 'index.handler'),
+			code: Code.fromInlineFeature('delete-hosted-zone'),
 		})
-
-		lambda.addPermissions({
+		.enableLogs(Duration.days(3))
+		.addPermissions({
 			actions: [
 				'route53:ListResourceRecordSets',
 				'route53:ChangeResourceRecordSets',
@@ -67,7 +70,33 @@ export const domainPlugin = definePlugin({
 			resources: [ '*' ]
 		})
 
-		usEastBootstrap.add(lambda)
+		usEastBootstrap.add(deleteHostedZoneLambda)
+
+		const usEastExports = new GlobalExports('us-east-exports', {
+			region: usEastBootstrap.region
+		})
+
+		bootstrap.add(usEastExports)
+
+		// const usEastExportsLambda = new Function('us-east-exports', {
+		// 	name: `${config.name}-us-east-global-exports`,
+		// 	code: Code.fromInline(globalExportsHandlerCode, 'index.handler'),
+		// }).addPermissions({
+		// 	actions: [ 'cloudformation:ListExports' ],
+		// 	resources: [ '*' ],
+		// })
+
+		// const usEastExports = new CustomResource('us-east-exports', {
+		// 	serviceToken: usEastExportsLambda.arn,
+		// 	properties: {
+		// 		region: usEastBootstrap.region
+		// 	}
+		// })
+
+		// bootstrap.add(
+		// 	usEastExportsLambda,
+		// 	usEastExports
+		// )
 
 		for(const [ domain, records ] of domains) {
 			const hostedZone = new HostedZone(domain)
@@ -77,28 +106,30 @@ export const domainPlugin = definePlugin({
 				alternativeNames: [ `*.${domain}` ],
 			})
 
-			const custom = new CustomResource(domain, {
-				serviceToken: lambda.arn,
+			const deleteHostedZone = new CustomResource(domain, {
+				serviceToken: deleteHostedZoneLambda.arn,
 				properties: {
 					hostedZoneId: hostedZone.id,
 				}
-			}).dependsOn(hostedZone)
+			}).dependsOn(deleteHostedZoneLambda, hostedZone)
 
 			usEastBootstrap
-				.add(custom)
 				.add(hostedZone)
+				.add(deleteHostedZone)
 				.add(usEastCertificate)
 				.export(`certificate-${domain}-arn`, usEastCertificate.arn)
 				.export(`hosted-zone-${domain}-id`, hostedZone.id)
 
 			const certificate = new Certificate(domain, {
-				hostedZoneId: usEastBootstrap.import(`hosted-zone-${domain}-id`),
+				hostedZoneId: usEastExports.import(`hosted-zone-${domain}-id`),
 				alternativeNames: [ `*.${domain}` ],
 			})
 
 			bootstrap
 				.add(certificate)
 				.export(`certificate-${domain}-arn`, certificate.arn)
+				.export(`hosted-zone-${domain}-id`, usEastExports.import(`hosted-zone-${domain}-id`))
+				.export(`us-east-certificate-${domain}-arn`, usEastExports.import(`certificate-${domain}-arn`))
 
 			if(records.length > 0) {
 				const group = new RecordSetGroup(domain, {

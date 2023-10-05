@@ -1,7 +1,7 @@
 
 import { invoke, InvokeOptions } from "@awsless/lambda"
-import { getLocalResourceName } from "./resource"
-import { createProxy } from "./util"
+import { getLocalResourceName } from './resource.js'
+import { createProxy } from './util.js'
 
 export const getFunctionName = <S extends string, N extends string>(stack: S, name: N) => {
 	return getLocalResourceName(name, stack)

@@ -1,11 +1,15 @@
 import { pascalCase } from "change-case";
-import { Resource } from "../../resource";
-import { formatArn, formatName, getAtt, ref } from "../../util";
+import { Resource } from '../../resource.js';
+import { formatArn, formatName, getAtt } from '../../util.js';
 
 export type BucketProps = {
 	name?: string
 	accessControl?: 'private' | 'public-read' | 'public-read-write' | 'authenticated-read' | 'bucket-owner-read' | 'bucket-owner-full-control' | 'log-delivery-write'
-	versioned?: boolean
+	versioning?: boolean,
+	website?: {
+		indexDocument?: string
+		errorDocument?: string
+	}
 }
 
 export class Bucket extends Resource {
@@ -20,11 +24,23 @@ export class Bucket extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return getAtt(this.logicalId, 'Arn')
 	}
 
 	get domainName() {
 		return getAtt(this.logicalId, 'DomainName')
+	}
+
+	get dealStackDomainName() {
+		return getAtt(this.logicalId, 'DualStackDomainName')
+	}
+
+	get regionalDomainName() {
+		return getAtt(this.logicalId, 'RegionalDomainName')
+	}
+
+	get url() {
+		return getAtt(this.logicalId, 'WebsiteURL')
 	}
 
 	get permissions() {
@@ -49,11 +65,17 @@ export class Bucket extends Resource {
 		return {
 			BucketName: this.name,
 			AccessControl: pascalCase(this.props.accessControl ?? 'private'),
-			...( this.props.versioned ? {
+			...( this.props.versioning ? {
 				VersioningConfiguration: {
 					Status: 'Enabled'
 				}
-			} : {})
+			} : {}),
+			...( this.props.website ? {
+				WebsiteConfiguration: {
+					...this.attr('IndexDocument', this.props.website.indexDocument),
+					...this.attr('ErrorDocument', this.props.website.errorDocument),
+				}
+			} : {}),
 		}
 	}
 }

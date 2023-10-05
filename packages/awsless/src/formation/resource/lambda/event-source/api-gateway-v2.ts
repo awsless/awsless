@@ -1,10 +1,10 @@
 
-import { Group } from "../../../resource"
-import { formatName, sub } from "../../../util"
-import { Integration } from "../../api-gateway-v2/integration"
-import { Route } from "../../api-gateway-v2/route"
-import { Function } from "../function"
-import { Permission } from "../permission"
+import { Group } from '../../../resource.js'
+import { formatName, sub } from '../../../util.js'
+import { Integration } from '../../api-gateway-v2/integration.js'
+import { Route } from '../../api-gateway-v2/route.js'
+import { Function } from '../function.js'
+import { Permission } from '../permission.js'
 
 export class ApiGatewayV2EventSource extends Group {
 	constructor(id: string, lambda:Function, props: {

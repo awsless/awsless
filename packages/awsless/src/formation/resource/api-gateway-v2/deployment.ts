@@ -1,5 +1,5 @@
-// import { Resource } from "../../resource";
-// import { formatName, getAtt } from "../../util";
+// import { Resource } from '../../resource.js';
+// import { formatName, getAtt } from '../../util.js';
 
 // export class ApDeploymenti extends Resource {
 

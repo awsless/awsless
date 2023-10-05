@@ -1,22 +1,21 @@
-// import { S3Client, ListObjectsV2Command, ListObjectVersionsCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3'
-
-import { sendCode } from "../util";
-
-export const deleteHostedZoneRecordsHandlerCode = /* JS */ `
-
-const { S3Client, ListObjectsV2Command, ListObjectVersionsCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3')
+import { CloudFormationCustomResourceEvent } from 'aws-lambda'
+import { S3Client, ListObjectsV2Command, ListObjectVersionsCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3'
+import { send } from '../util.js';
 
 const client = new S3Client({})
 
-${ sendCode }
-
-exports.handler = async (event) => {
+export const handler = async (event:CloudFormationCustomResourceEvent) => {
 	const type = event.RequestType
 	const bucketName = event.ResourceProperties.bucketName
 
+	console.log('Type:', type)
+	console.log('BucketName:', bucketName)
+
 	try {
 		if(type === 'Delete') {
+			console.log('Deleting bucket objects...')
 			await emptyBucket(bucketName)
+			console.log('Done')
 		}
 
 		await send(event, bucketName, 'SUCCESS')
@@ -27,10 +26,12 @@ exports.handler = async (event) => {
 		} else {
 			await send(event, bucketName, 'FAILED', {}, 'Unknown error')
 		}
+
+		console.error(error);
 	}
 }
 
-const emptyBucket = async (bucket) => {
+const emptyBucket = async (bucket: string) => {
 	while(true) {
 		const result = await client.send(new ListObjectsV2Command({
 			Bucket: bucket,
@@ -72,4 +73,3 @@ const emptyBucket = async (bucket) => {
 		}))
 	}
 }
-`

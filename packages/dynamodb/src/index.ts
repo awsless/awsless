@@ -32,9 +32,9 @@ export { binarySet } from './structs/set/binary.js'
 
 // test
 export { mockDynamoDB } from './test/mock.js'
-export { seedTable } from './test/seed.js'
+export { migrate } from './test/migrate.js'
+export { seedTable, seed } from './test/seed.js'
 export { streamTable } from './test/stream.js'
-
 export { DynamoDBServer } from '@awsless/dynamodb-server'
 
 // validation struct

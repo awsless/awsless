@@ -1,7 +1,7 @@
 
-import { Resource } from "../../resource";
-import { formatName, getAtt, ref } from "../../util";
-import { Peer } from "./peer";
+import { Resource } from '../../resource.js';
+import { formatName, getAtt, ref } from '../../util.js';
+import { Peer } from './peer.js';
 
 // export type VpcProps = {
 // 	availabilityZones: string[]

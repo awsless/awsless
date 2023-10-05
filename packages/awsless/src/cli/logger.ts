@@ -1,4 +1,4 @@
-import { style } from "./style.js"
+import { style } from './style.js'
 
 const queue:{
 	date: Date

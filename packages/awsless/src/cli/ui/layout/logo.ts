@@ -1,5 +1,5 @@
 
-import { style } from "../../style.js"
+import { style } from '../../style.js'
 
 export const logo = () => {
 	return [

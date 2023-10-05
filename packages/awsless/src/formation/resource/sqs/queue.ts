@@ -1,7 +1,7 @@
-import { Duration } from "../../property/duration";
-import { Size } from "../../property/size";
-import { Resource } from "../../resource";
-import { formatArn, formatName, getAtt } from "../../util";
+import { Duration } from '../../property/duration.js';
+import { Size } from '../../property/size.js';
+import { Resource } from '../../resource.js';
+import { formatArn, formatName, getAtt } from '../../util.js';
 
 export type QueueProps = {
 	name?: string

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DurationFormat, DurationSchema } from "../src/schema/duration"
+import { DurationFormat, DurationSchema } from '../src/schema/duration.js'
 import { CronExpression, CronExpressionSchema, RateExpression, RateExpressionSchema, ScheduleExpression, ScheduleExpressionSchema } from "../src/plugins/cron/schema/schedule";
 import { Duration } from "../src/formation/property/duration";
 import { SizeFormat, SizeSchema } from "../src/schema/size";

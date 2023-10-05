@@ -17,11 +17,17 @@ import { httpPlugin } from './http.js';
 import { searchPlugin } from './search.js';
 import { cachePlugin } from './cache.js';
 import { restPlugin } from './rest.js';
+import { configPlugin } from './config.js';
+import { sitePlugin } from './site.js';
+import { featurePlugin } from './feature.js';
 
 export const defaultPlugins = [
 	extendPlugin,
+	featurePlugin,
 	vpcPlugin,
+	domainPlugin,
 	functionPlugin,
+	configPlugin,
 	cachePlugin,
 	cronPlugin,
 	queuePlugin,
@@ -30,10 +36,10 @@ export const defaultPlugins = [
 	topicPlugin,
 	pubsubPlugin,
 	searchPlugin,
-	domainPlugin,
 	graphqlPlugin,
 	httpPlugin,
 	restPlugin,
+	sitePlugin,
 	onFailurePlugin,
 ]
 

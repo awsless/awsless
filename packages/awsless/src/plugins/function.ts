@@ -34,8 +34,12 @@ const EnvironmentSchema = z.record(z.string(), z.string()).optional()
 const ArchitectureSchema = z.enum([ 'x86_64', 'arm64' ])
 const RetryAttemptsSchema = z.number().int().min(0).max(2)
 const RuntimeSchema = z.enum([
-	'nodejs16.x',
 	'nodejs18.x',
+])
+
+const LogSchema = z.union([
+	z.boolean(),
+	DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day'),
 ])
 
 export const FunctionSchema = z.union([
@@ -44,10 +48,19 @@ export const FunctionSchema = z.union([
 		/** The file path of the function code. */
 		file: LocalFileSchema,
 
+		// /**  */
+		// handler: z.string().optional(),
+
 		/** Put the function inside your global VPC.
 		 * @default false
 		 */
 		vpc: z.boolean().optional(),
+
+		/** Enable logging to a CloudWatch log group.
+		 * Providing a duration value will set the log retention time.
+		 * @default false
+		 */
+		log: LogSchema.optional(),
 
 		/** The amount of time that Lambda allows a function to run before stopping it.
 		 * You can specify a size value from 1 second to 15 minutes.
@@ -118,6 +131,11 @@ const schema = z.object({
 			 * @default false
 			 */
 			vpc: z.boolean().default(false),
+
+			/** Enable logging to a CloudWatch log group.
+			 * @default false
+			 */
+			log: LogSchema.default(false),
 
 			/** The amount of time that Lambda allows a function to run before stopping it.
 			 * You can specify a size value from 1 second to 15 minutes.
@@ -230,7 +248,7 @@ export const functionPlugin = definePlugin({
 				? { ...config.defaults?.function, file: fileOrProps }
 				: { ...config.defaults?.function, ...fileOrProps }
 
-			const lambda = toLambdaFunction(ctx, id, fileOrProps)
+			const lambda = toLambdaFunction(ctx as any, id, fileOrProps)
 
 			const invoke = new EventInvokeConfig(id, {
 				functionName: lambda.name,
@@ -257,13 +275,14 @@ export const toLambdaFunction = (
 ) => {
 	const config = ctx.config as ExtendedConfigOutput<typeof schema>
 	const stack = ctx.stack
+	const bootstrap = ctx.bootstrap
 
 	const props = typeof fileOrProps === 'string'
 		? { ...config.defaults?.function, file: fileOrProps }
 		: { ...config.defaults?.function, ...fileOrProps }
 
 	const lambda = new Function(id, {
-		name: `${config.name}--${stack.name}--${id}`,
+		name: `${config.name}-${stack.name}-${id}`,
 		code: Code.fromFile(id, props.file),
 		...props,
 		vpc: undefined,
@@ -274,33 +293,30 @@ export const toLambdaFunction = (
 		.addEnvironment('STAGE', config.stage)
 		.addEnvironment('STACK', stack.name)
 
+	if(props.log) {
+		lambda.enableLogs(props.log instanceof Duration ? props.log : undefined)
+	}
+
 	if(props.vpc) {
-		lambda
-			.setVpc({
-				securityGroupIds: [
-					ctx.bootstrap.import(`vpc-security-group-id`),
-				],
-				subnetIds: [
-					ctx.bootstrap.import(`public-subnet-1`),
-					ctx.bootstrap.import(`public-subnet-2`),
-				],
-			}).addPermissions({
-				actions: [
-					'ec2:CreateNetworkInterface',
-					'ec2:DescribeNetworkInterfaces',
-					'ec2:DeleteNetworkInterface',
-					'ec2:AssignPrivateIpAddresses',
-					'ec2:UnassignPrivateIpAddresses',
-				],
-				resources: [ '*' ],
-			})
+		lambda.setVpc({
+			securityGroupIds: [
+				bootstrap.import(`vpc-security-group-id`),
+			],
+			subnetIds: [
+				bootstrap.import(`public-subnet-1`),
+				bootstrap.import(`public-subnet-2`),
+			],
+		}).addPermissions({
+			actions: [
+				'ec2:CreateNetworkInterface',
+				'ec2:DescribeNetworkInterfaces',
+				'ec2:DeleteNetworkInterface',
+				'ec2:AssignPrivateIpAddresses',
+				'ec2:UnassignPrivateIpAddresses',
+			],
+			resources: [ '*' ],
+		})
 	}
-
-	if (props.runtime.startsWith('nodejs')) {
-		lambda.addEnvironment('AWS_NODEJS_CONNECTION_REUSE_ENABLED', '1')
-	}
-
-	// stack.add(lambda).export('function-${}')
 
 	ctx.bind(other => {
 		other.addPermissions(lambda.permissions)

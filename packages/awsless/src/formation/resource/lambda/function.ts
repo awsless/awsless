@@ -1,19 +1,20 @@
 
-import { Asset } from "../../asset";
-import { Duration } from "../../property/duration";
-import { Size } from "../../property/size";
-import { Permission, Resource } from "../../resource";
-import { formatArn, formatName } from "../../util";
-import { InlinePolicy } from "../iam/inline-policy";
-import { ManagedPolicy } from "../iam/managed-policy";
-import { Role } from "../iam/role";
-import { ICode } from "./code";
+import { Asset } from '../../asset.js';
+import { Duration } from '../../property/duration.js';
+import { Size } from '../../property/size.js';
+import { Permission, Resource } from '../../resource.js';
+import { formatArn, formatName, sub } from '../../util.js';
+import { LogGroup } from '../cloud-watch/log-group.js';
+import { InlinePolicy } from '../iam/inline-policy.js';
+import { Role } from '../iam/role.js';
+import { ICode } from './code.js';
+import { Url, UrlProps } from './url.js';
 
 export type FunctionProps = {
 	code: ICode
 	name?: string
 	description?: string
-	runtime?: 'nodejs16.x' | 'nodejs18.x'
+	runtime?: 'nodejs18.x'
 	architecture?: 'arm64' | 'x86_64'
 	memorySize?: Size
 	timeout?: Duration
@@ -35,16 +36,15 @@ export class Function extends Resource {
 	private policy: InlinePolicy
 	private environmentVariables: Record<string, string>
 
-	constructor(logicalId: string, private props: FunctionProps) {
-		const policy = new InlinePolicy(logicalId)
-		const role = new Role(logicalId, {
+	constructor(private _logicalId: string, private props: FunctionProps) {
+		const policy = new InlinePolicy(_logicalId)
+		const role = new Role(_logicalId, {
 			assumedBy: 'lambda.amazonaws.com',
 		})
 
 		role.addInlinePolicy(policy)
-		role.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('AWSLambdaBasicExecutionRole'))
 
-		super('AWS::Lambda::Function', logicalId, [ role ])
+		super('AWS::Lambda::Function', _logicalId, [ role ])
 
 		if(props.code instanceof Asset) {
 			this.children.push(props.code)
@@ -54,10 +54,37 @@ export class Function extends Resource {
 
 		this.role = role
 		this.policy = policy
-		this.name = formatName(this.props.name || logicalId)
+		this.name = formatName(this.props.name || _logicalId)
 		this.environmentVariables = props.environment ? {...props.environment} : {}
 
 		this.tag('name', this.name)
+	}
+
+	enableLogs(retention?:Duration) {
+		const logGroup = new LogGroup(this._logicalId, {
+			name: sub('/aws/lambda/${name}', {
+				name: this.name
+			}),
+			retention,
+		})
+
+		this.addChild(logGroup)
+		this.addPermissions({
+			actions: [ 'logs:CreateLogStream' ],
+			resources: [ logGroup.arn ],
+		}, {
+			actions: [ 'logs:PutLogEvents' ],
+			resources: [ sub('${arn}:*', { arn: logGroup.arn }) ],
+		})
+
+		return this
+	}
+
+	addUrl(props:Omit<UrlProps, 'target'> = {}) {
+		return new Url(this._logicalId, {
+			...props,
+			target: this.arn,
+		}).dependsOn(this)
 	}
 
 	addPermissions(...permissions: (Permission | Permission[])[]) {

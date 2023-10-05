@@ -1,17 +1,17 @@
 import { mkdir, writeFile } from "fs/promises"
-import { App } from "../../../formation/app.js"
-import { directories } from "../../../util/path.js"
-import { createTimer } from "../../../util/timer.js"
-import { RenderFactory } from "../../lib/renderer.js"
-import { Signal, derive } from "../../lib/signal.js"
-import { style, symbol } from "../../style.js"
-import { br } from "../layout/basic.js"
-import { loadingDialog } from "../layout/dialog.js"
-import { flexLine } from "../layout/flex-line.js"
-import { createSpinner } from "../layout/spinner.js"
+import { App } from '../../../formation/app.js'
+import { directories } from '../../../util/path.js'
+import { createTimer } from '../../../util/timer.js'
+import { RenderFactory } from '../../lib/renderer.js'
+import { Signal, derive } from '../../lib/signal.js'
+import { style, symbol } from '../../style.js'
+import { br } from '../layout/basic.js'
+import { loadingDialog } from '../layout/dialog.js'
+import { flexLine } from '../layout/flex-line.js'
+import { createSpinner } from '../layout/spinner.js'
 import { dirname, join } from "path"
-import { Asset } from "../../../formation/asset.js"
-import { Stack } from "../../../formation/stack.js"
+import { Asset } from '../../../formation/asset.js'
+import { Stack } from '../../../formation/stack.js'
 
 export const assetBuilder = (app:App):RenderFactory => {
 	return async (term) => {

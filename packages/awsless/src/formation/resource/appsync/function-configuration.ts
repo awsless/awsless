@@ -1,8 +1,8 @@
 
-import { Asset } from "../../asset";
-import { Resource } from "../../resource";
-import { getAtt, ref } from "../../util";
-import { ICode } from "./code";
+import { Asset } from '../../asset.js';
+import { Resource } from '../../resource.js';
+import { getAtt, ref } from '../../util.js';
+import { ICode } from './code.js';
 import { snakeCase } from "change-case";
 
 export type FunctionConfigurationProps = {
