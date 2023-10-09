@@ -1,7 +1,7 @@
 
 import { rollup } from "rollup"
 import { createHash } from "crypto"
-import { swc } from 'rollup-plugin-swc3';
+import { swc, minify } from 'rollup-plugin-swc3';
 import json from '@rollup/plugin-json'
 import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
@@ -15,7 +15,7 @@ export type RollupBundlerProps = {
 	handler?: string
 }
 
-export const rollupBundle = ({ format = 'esm', minify = true, handler = 'index.default' }: RollupBundlerProps = {}): CodeBundle => {
+export const rollupBundle = ({ format = 'esm', minify2 = true, handler = 'index.default' }: RollupBundlerProps = {}): CodeBundle => {
 	return async (input) => {
 		const bundle = await rollup({
 			input,
@@ -33,8 +33,12 @@ export const rollupBundle = ({ format = 'esm', minify = true, handler = 'index.d
 				commonjs({ sourceMap: true }),
 				// @ts-ignore
 				nodeResolve({ preferBuiltins: true }),
+				minify({
+					module: true,
+					sourceMap: true,
+				}),
 				swc({
-					minify,
+					// minify,
 					jsc: {
 						baseUrl: dirname(input),
 						minify: { sourceMap: true }
