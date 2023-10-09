@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.46",
+	"version": "0.0.61",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -38,6 +38,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-cloudformation": "^3.369.0",
+		"@aws-sdk/client-cloudfront": "^3.425.0",
 		"@aws-sdk/client-route-53": "^3.369.0",
 		"@aws-sdk/client-s3": "^3.369.0",
 		"@aws-sdk/client-ssm": "3.329.0",

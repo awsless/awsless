@@ -7,24 +7,30 @@ export const getConfigName = (name: string) => {
 	return `/.awsless/${APP}/${name}`
 }
 
-let data: Record<string, string> = {}
-
 const TEST = process.env.NODE_ENV === 'test'
 const CONFIGS = process.env.AWSLESS_CONFIG
 
-if(!TEST && CONFIGS) {
-	const keys = CONFIGS.split(',')
+/*@__NO_SIDE_EFFECTS__*/
+const loadConfigData = async () => {
 
-	if(keys.length > 0) {
-		const paths:Record<string, string> = {}
+	if(!TEST && CONFIGS) {
+		const keys = CONFIGS.split(',')
 
-		for(const key of keys) {
-			paths[key] = getConfigName(key)
+		if(keys.length > 0) {
+			const paths:Record<string, string> = {}
+
+			for(const key of keys) {
+				paths[key] = getConfigName(key)
+			}
+
+			return await ssm(paths)
 		}
-
-		data = await ssm(paths)
 	}
+
+	return {}
 }
+
+/*@__PURE__*/ const data: Record<string, string> = await loadConfigData()
 
 export interface ConfigResources {}
 

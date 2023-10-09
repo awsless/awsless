@@ -36,18 +36,20 @@ export const deploy = (program: Command) => {
 				const formattedFilter = stackNames.map(i => style.info(i)).join(style.placeholder(', '))
 				debug('Stacks to deploy', formattedFilter)
 
-				const deployAll = filters.length === 0
-				const deploySingle = filters.length === 1
-				const confirm = await write(confirmPrompt((
-					deployAll
-					? `Are you sure you want to deploy ${style.warning('all')} stacks?`
-					: deploySingle
-					? `Are you sure you want to deploy the ${formattedFilter} stack?`
-					: `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`
-				)))
+				if(!process.env.SKIP_PROMPT) {
+					const deployAll = filters.length === 0
+					const deploySingle = filters.length === 1
+					const confirm = await write(confirmPrompt((
+						deployAll
+						? `Are you sure you want to deploy ${style.warning('all')} stacks?`
+						: deploySingle
+						? `Are you sure you want to deploy the ${formattedFilter} stack?`
+						: `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`
+					)))
 
-				if(!confirm) {
-					throw new Cancelled()
+					if(!confirm) {
+						throw new Cancelled()
+					}
 				}
 
 				// ---------------------------------------------------

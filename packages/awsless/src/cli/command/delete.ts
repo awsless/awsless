@@ -26,18 +26,20 @@ export const del = (program: Command) => {
 				const formattedFilter = stackNames.map(i => style.info(i)).join(style.placeholder(', '))
 				debug('Stacks to delete', formattedFilter)
 
-				const deployAll = filters.length === 0
-				const deploySingle = filters.length === 1
-				const confirm = await write(confirmPrompt((
-					deployAll
-					? `Are you sure you want to ${ style.error('delete') } ${ style.warning('all') } stacks?`
-					: deploySingle
-					? `Are you sure you want to ${ style.error('delete') } the ${ formattedFilter } stack?`
-					: `Are you sure you want to ${ style.error('delete') } the [ ${ formattedFilter } ] stacks?`
-				)))
+				if(!process.env.SKIP_PROMPT) {
+					const deployAll = filters.length === 0
+					const deploySingle = filters.length === 1
+					const confirm = await write(confirmPrompt((
+						deployAll
+						? `Are you sure you want to ${ style.error('delete') } ${ style.warning('all') } stacks?`
+						: deploySingle
+						? `Are you sure you want to ${ style.error('delete') } the ${ formattedFilter } stack?`
+						: `Are you sure you want to ${ style.error('delete') } the [ ${ formattedFilter } ] stacks?`
+					)))
 
-				if(!confirm) {
-					throw new Cancelled()
+					if(!confirm) {
+						throw new Cancelled()
+					}
 				}
 
 				// ---------------------------------------------------

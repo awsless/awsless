@@ -8,6 +8,7 @@ import { Duration } from '../formation/property/duration.js';
 export const featurePlugin = definePlugin({
 	name: 'feature',
 	onApp({ config, bootstrap }) {
+
 		// ---------------------------------------------------------------------
 		// Feature: Delete Bucket
 		// ---------------------------------------------------------------------
@@ -37,15 +38,36 @@ export const featurePlugin = definePlugin({
 			resources: [ '*' ],
 		})
 
+		// ---------------------------------------------------------------------
+		// Feature: Invalidate Cache
+		// ---------------------------------------------------------------------
+
+		const invalidateCacheLambda = new Function('invalidate-cache', {
+			name: `${config.name}-invalidate-cache`,
+			code: Code.fromFeature('invalidate-cache'),
+		})
+		.enableLogs(Duration.days(3))
+		.addPermissions({
+			actions: [ 'cloudfront:*' ],
+			resources: [ '*' ],
+		})
+
+		// ---------------------------------------------------------------------
+		// ---------------------------------------------------------------------
+		// ---------------------------------------------------------------------
+
 		bootstrap.add(
 			deleteBucketLambda,
-			uploadBucketAssetLambda
+			uploadBucketAssetLambda,
+			invalidateCacheLambda
 		)
 
 		bootstrap
 			.export('feature-delete-bucket', deleteBucketLambda.arn)
 			.export('feature-upload-bucket-asset', uploadBucketAssetLambda.arn)
+			.export('feature-invalidate-cache', invalidateCacheLambda.arn)
 
+		// ---------------------------------------------------------------------
 		// ---------------------------------------------------------------------
 		// ---------------------------------------------------------------------
 	},

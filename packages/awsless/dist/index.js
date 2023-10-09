@@ -149,19 +149,22 @@ import { paramCase as paramCase2 } from "change-case";
 var getConfigName = (name) => {
   return `/.awsless/${APP}/${name}`;
 };
-var data = {};
 var TEST = process.env.NODE_ENV === "test";
 var CONFIGS = process.env.AWSLESS_CONFIG;
-if (!TEST && CONFIGS) {
-  const keys = CONFIGS.split(",");
-  if (keys.length > 0) {
-    const paths = {};
-    for (const key of keys) {
-      paths[key] = getConfigName(key);
+var loadConfigData = async () => {
+  if (!TEST && CONFIGS) {
+    const keys = CONFIGS.split(",");
+    if (keys.length > 0) {
+      const paths = {};
+      for (const key of keys) {
+        paths[key] = getConfigName(key);
+      }
+      return await ssm(paths);
     }
-    data = await ssm(paths);
   }
-}
+  return {};
+};
+var data = await loadConfigData();
 var Config = new Proxy({}, {
   get(_, name) {
     const key = paramCase2(name);

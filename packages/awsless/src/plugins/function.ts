@@ -16,6 +16,7 @@ import { directories } from '../util/path.js';
 import { relative } from 'path';
 import { TypeGen, TypeObject } from '../util/type-gen.js';
 import { formatName } from '../formation/util.js';
+import { rollupBundle } from '../formation/resource/lambda/util/rollup.js';
 
 const MemorySizeSchema = SizeSchema
 	.refine(sizeMin(Size.megaBytes(128)), 'Minimum memory size is 128 MB')
@@ -48,8 +49,15 @@ export const FunctionSchema = z.union([
 		/** The file path of the function code. */
 		file: LocalFileSchema,
 
-		// /**  */
-		// handler: z.string().optional(),
+		/** The name of the exported method within your code that Lambda calls to run your function.
+		 * @default 'index.default'
+		 */
+		handler: z.string().optional(),
+
+		/** Minify the function code.
+		 * @default true
+		 */
+		minify: z.boolean().optional(),
 
 		/** Put the function inside your global VPC.
 		 * @default false
@@ -127,6 +135,16 @@ export const isFunctionProps = (input:unknown): input is z.output<typeof Functio
 const schema = z.object({
 	defaults: z.object({
 		function: z.object({
+			/** The name of the exported method within your code that Lambda calls to run your function.
+			 * @default 'default'
+		 	 */
+			handler: z.string().default('default'),
+
+			/** Minify the function code.
+			 * @default true
+			 */
+			minify: z.boolean().default(true),
+
 			/** Put the function inside your global VPC.
 			 * @default false
 			 */
@@ -283,7 +301,10 @@ export const toLambdaFunction = (
 
 	const lambda = new Function(id, {
 		name: `${config.name}-${stack.name}-${id}`,
-		code: Code.fromFile(id, props.file),
+		code: Code.fromFile(id, props.file, rollupBundle({
+			handler: props.handler,
+			minify: props.minify,
+		})),
 		...props,
 		vpc: undefined,
 	})

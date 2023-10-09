@@ -20,6 +20,38 @@ import { ResponseHeadersPolicy } from '../formation/resource/cloud-front/respons
 import { DurationSchema } from '../schema/duration.js';
 import { CustomResource } from '../formation/resource/cloud-formation/custom-resource.js';
 
+const ErrorResponseSchema = z.union([
+	z.string(),
+	z.object({
+		/** The path to the custom error page that you want to return to the viewer when your origin returns the HTTP status code specified.
+		 * @example ```
+		 * "/404.html"
+		 * ```
+		 *
+		 * We recommend that you store custom error pages in an Amazon S3 bucket.
+		 * If you store custom error pages on an HTTP server and the server starts to return 5xx errors,
+		 * CloudFront can't get the files that you want to return to viewers because the origin server is unavailable.
+		 */
+		path: z.string(),
+
+		/** The HTTP status code that you want CloudFront to return to the viewer along with the custom error page.
+		 * There are a variety of reasons that you might want CloudFront to return a status code different from the status code that your origin returned to CloudFront, for example:
+		 * - Some Internet devices (some firewalls and corporate proxies, for example) intercept HTTP 4xx and 5xx and prevent the response from being returned to the viewer.
+		 * If you substitute 200, the response typically won't be intercepted.
+		 * - If you don't care about distinguishing among different client errors or server errors, you can specify 400 or 500 as the ResponseCode for all 4xx or 5xx errors.
+		 * - You might want to return a 200 status code (OK) and static website so your customers don't know that your website is down.
+		 */
+		statusCode: z.number().int().positive().optional(),
+
+		/** The minimum amount of time, that you want to cache the error response.
+		 * When this time period has elapsed, CloudFront queries your origin to see whether the problem that caused the error has been resolved and the requested object is now available.
+		 * @example
+		 * "1 day"
+		 */
+		minTTL: DurationSchema.optional(),
+	})
+]).optional()
+
 export const sitePlugin = definePlugin({
 	name: 'site',
 	schema: z.object({
@@ -29,12 +61,13 @@ export const sitePlugin = definePlugin({
 			 * {
 			 *   sites: {
 			 *     SITE_NAME: {
-			 *       static: 'dist/client'
-			 *       ssr: 'dist/server/index.js'
+			 *       domain: 'example.com',
+			 *       static: 'dist/client',
+			 *       ssr: 'dist/server/index.js',
 			 *     }
 			 *   }
 			 * }
-			 * */
+			 */
 			sites: z.record(
 				ResourceIdSchema,
 				z.object({
@@ -47,6 +80,42 @@ export const sitePlugin = definePlugin({
 
 					/** Specifies the ssr file. */
 					ssr: FunctionSchema.optional(),
+
+					/** Customize the error responses for specific HTTP status codes. */
+					errors: z.object({
+						/** Customize a `400 Bad Request` response */
+						400: ErrorResponseSchema,
+
+						/** Customize a `403 Forbidden` response. */
+						403: ErrorResponseSchema,
+
+						/** Customize a `404 Not Found` response. */
+						404: ErrorResponseSchema,
+
+						/** Customize a `405 Method Not Allowed` response. */
+						405: ErrorResponseSchema,
+
+						/** Customize a `414 Request-URI Too Long` response. */
+						414: ErrorResponseSchema,
+
+						/** Customize a `416 Range Not Satisfiable` response. */
+						416: ErrorResponseSchema,
+
+						/** Customize a `500 Internal Server Error` response. */
+						500: ErrorResponseSchema,
+
+						/** Customize a `501 Not Implemented` response. */
+						501: ErrorResponseSchema,
+
+						/** Customize a `502 Bad Gateway` response. */
+						502: ErrorResponseSchema,
+
+						/** Customize a `503 Service Unavailable` response. */
+						503: ErrorResponseSchema,
+
+						/** Customize a `504 Gateway Timeout` response. */
+						504: ErrorResponseSchema,
+					}).optional(),
 
 					/** Define the cors headers. */
 					cors: z.object({
@@ -107,8 +176,10 @@ export const sitePlugin = definePlugin({
 					cache: z.object({
 						/** Specifies the cookies that CloudFront includes in the cache key. */
 						cookies: z.string().array().optional(),
+
 						/** Specifies the headers that CloudFront includes in the cache key. */
 						headers: z.string().array().optional(),
+
 						/** Specifies the query values that CloudFront includes in the cache key. */
 						queries: z.string().array().optional(),
 					}).optional()
@@ -179,7 +250,7 @@ export const sitePlugin = definePlugin({
 					}
 				}).dependsOn(bucket)
 
-				const deleteBucket = new CustomResource(id, {
+				const deleteBucket = new CustomResource(`site-${ id }-delete-bucket`, {
 					serviceToken: bootstrap.import('feature-delete-bucket'),
 					properties: {
 						bucketName: bucket.name,
@@ -231,6 +302,11 @@ export const sitePlugin = definePlugin({
 				remove: [ 'server' ]
 			})
 
+			// const aliases: string[] = [ domainName ]
+			// if(!props.subDomain) {
+			// 	aliases.push(`www.${props.domain}`)
+			// }
+
 			const distribution = new Distribution(id, {
 				name: `site-${config.name}-${stack.name}-${id}`,
 				certificateArn,
@@ -242,7 +318,32 @@ export const sitePlugin = definePlugin({
 				originRequestPolicyId: originRequest.id,
 				cachePolicyId: cache.id,
 				responseHeadersPolicyId: responseHeaders.id,
+				customErrorResponses: Object.entries(props.errors ?? {}).map(([ errorCode, item ]) => {
+					if(typeof item === 'string') {
+						return {
+							errorCode,
+							responsePath: item,
+							responseCode: Number(errorCode)
+						}
+					}
+
+					return {
+						errorCode,
+						cacheMinTTL: item.minTTL,
+						responsePath: item.path,
+						responseCode: item.statusCode ?? Number(errorCode),
+					}
+				}),
 			}).dependsOn(originRequest, responseHeaders, cache, ...deps)
+
+			const invalidateCache = new CustomResource(`site-${ id }-invalidate-cache`, {
+				serviceToken: bootstrap.import('feature-invalidate-cache'),
+				properties: {
+					key: new Date().toISOString(),
+					distributionId: distribution.id,
+					paths: [ '/*' ],
+				}
+			}).dependsOn(distribution)
 
 			if(props.static) {
 				const bucketPolicy = new BucketPolicy(`site-${id}`, {
@@ -277,6 +378,7 @@ export const sitePlugin = definePlugin({
 
 			stack.add(
 				distribution,
+				invalidateCache,
 				responseHeaders,
 				originRequest,
 				cache,
