@@ -19,10 +19,12 @@ export const bootstrapDeployer = (config:Config) => {
 		if(shouldDeploy) {
 			term.out.write(dialog('warning', [ `Your app hasn't been bootstrapped yet` ]))
 
-			const confirmed = await term.out.write(confirmPrompt('Would you like to bootstrap?'))
+			if(!process.env.SKIP_PROMPT) {
+				const confirmed = await term.out.write(confirmPrompt('Would you like to bootstrap?'))
 
-			if(!confirmed) {
-				throw new Cancelled()
+				if(!confirmed) {
+					throw new Cancelled()
+				}
 			}
 
 			const done = term.out.write(loadingDialog('Bootstrapping...'))

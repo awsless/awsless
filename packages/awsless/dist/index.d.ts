@@ -250,6 +250,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
 }>> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
         function: zod.ZodDefault<zod.ZodObject<{
+            handler: zod.ZodDefault<zod.ZodString>;
+            minify: zod.ZodDefault<zod.ZodBoolean>;
             vpc: zod.ZodDefault<zod.ZodBoolean>;
             log: zod.ZodDefault<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -262,6 +264,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             vpc: boolean;
+            handler: string;
+            minify: boolean;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
             runtime: "nodejs18.x";
@@ -272,6 +276,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
         }, {
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -286,6 +292,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         function: {
             vpc: boolean;
+            handler: string;
+            minify: boolean;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
             runtime: "nodejs18.x";
@@ -298,6 +306,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         };
     }, {
         function?: {
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -313,6 +323,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         functions: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            handler: zod.ZodOptional<zod.ZodString>;
+            minify: zod.ZodOptional<zod.ZodBoolean>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -325,6 +337,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -337,6 +351,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -351,6 +367,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         functions?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -365,6 +383,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         functions?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -381,6 +401,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         functions?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -396,6 +418,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     defaults: {
         function: {
             vpc: boolean;
+            handler: string;
+            minify: boolean;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
             runtime: "nodejs18.x";
@@ -411,6 +435,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         functions?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -425,6 +451,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
     defaults?: {
         function?: {
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -523,6 +551,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                handler: zod.ZodOptional<zod.ZodString>;
+                minify: zod.ZodOptional<zod.ZodBoolean>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -535,6 +565,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -547,6 +579,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -563,6 +597,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -575,6 +611,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -591,6 +629,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -603,6 +643,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -621,6 +663,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -633,6 +677,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -651,6 +697,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -663,6 +711,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -683,6 +733,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -695,6 +747,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -715,6 +769,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         crons?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -727,6 +783,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -799,6 +857,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                handler: zod.ZodOptional<zod.ZodString>;
+                minify: zod.ZodOptional<zod.ZodBoolean>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -811,6 +871,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -823,6 +885,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -845,6 +909,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -857,6 +923,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -879,6 +947,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -891,6 +961,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -915,6 +987,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -927,6 +1001,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -951,6 +1027,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -963,6 +1041,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -989,6 +1069,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1001,6 +1083,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1039,6 +1123,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         queues?: Record<string, string | {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1051,6 +1137,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1097,6 +1185,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: zod.ZodEnum<["keys-only", "new-image", "old-image", "new-and-old-images"]>;
                 consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1109,6 +1199,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1121,6 +1213,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }, {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1136,6 +1230,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1148,6 +1244,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1163,6 +1261,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1175,6 +1275,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1211,6 +1313,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1223,6 +1327,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1251,6 +1357,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1263,6 +1371,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1293,6 +1403,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1305,6 +1417,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1335,6 +1449,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1347,6 +1463,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1379,6 +1497,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1391,6 +1511,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1423,6 +1545,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1435,6 +1559,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1475,6 +1601,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics: zod.ZodOptional<zod.ZodEffects<zod.ZodArray<zod.ZodEffects<zod.ZodString, string, string>, "many">, string[], string[]>>;
         subscribers: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            handler: zod.ZodOptional<zod.ZodString>;
+            minify: zod.ZodOptional<zod.ZodBoolean>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1487,6 +1615,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1499,6 +1629,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1514,6 +1646,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics?: string[] | undefined;
         subscribers?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1529,6 +1663,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics?: string[] | undefined;
         subscribers?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1544,6 +1680,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics?: string[] | undefined;
         subscribers?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1559,6 +1697,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics?: string[] | undefined;
         subscribers?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1576,6 +1716,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics?: string[] | undefined;
         subscribers?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1593,6 +1735,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         topics?: string[] | undefined;
         subscribers?: Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1612,6 +1756,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             sqlVersion: zod.ZodDefault<zod.ZodEnum<["2015-10-08", "2016-03-23", "beta"]>>;
             consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                handler: zod.ZodOptional<zod.ZodString>;
+                minify: zod.ZodOptional<zod.ZodBoolean>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1624,6 +1770,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1636,6 +1784,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1650,6 +1800,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1662,6 +1814,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1678,6 +1832,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         }, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1690,6 +1846,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1708,6 +1866,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1720,6 +1880,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1738,6 +1900,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1750,6 +1914,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1770,6 +1936,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1782,6 +1950,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1802,6 +1972,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         pubsub?: Record<string, {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1814,6 +1986,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1853,6 +2027,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization: zod.ZodOptional<zod.ZodObject<{
                 authorizer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1865,6 +2041,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1877,6 +2055,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }, {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1893,6 +2073,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1905,6 +2087,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1919,6 +2103,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             }, {
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1931,6 +2117,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1952,6 +2140,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1964,6 +2154,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1983,6 +2175,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization?: {
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1995,6 +2189,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2018,6 +2214,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2030,6 +2228,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2051,6 +2251,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization?: {
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2063,6 +2265,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2084,6 +2288,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodArray<zod.ZodEffects<zod.ZodString, string, string>, "many">]>>;
             resolvers: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodRecord<zod.ZodString, zod.ZodUnion<[zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                handler: zod.ZodOptional<zod.ZodString>;
+                minify: zod.ZodOptional<zod.ZodBoolean>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2096,6 +2302,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2108,6 +2316,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2121,6 +2331,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             }>]>, zod.ZodObject<{
                 consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2133,6 +2345,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2145,6 +2359,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }, {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2160,6 +2376,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             }, "strip", zod.ZodTypeAny, {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2172,6 +2390,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2187,6 +2407,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             }, {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2199,6 +2421,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2216,6 +2440,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Record<string, Record<string, string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2229,6 +2455,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2241,6 +2469,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2258,6 +2488,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Record<string, Record<string, string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2271,6 +2503,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2283,6 +2517,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2302,6 +2538,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Record<string, Record<string, string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2315,6 +2553,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2327,6 +2567,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2346,6 +2588,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Record<string, Record<string, string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2359,6 +2603,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2371,6 +2617,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2392,6 +2640,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Record<string, Record<string, string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2405,6 +2655,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2417,6 +2669,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2440,6 +2694,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 ttl: Duration;
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2452,6 +2708,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2473,6 +2731,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             schema?: string | string[] | undefined;
             resolvers?: Record<string, Record<string, string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2486,6 +2746,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             } | {
                 consumer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2498,6 +2760,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2520,6 +2784,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             authorization?: {
                 authorizer: (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2532,6 +2798,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     environment?: Record<string, string> | undefined;
                 }) & (string | {
                     file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2574,6 +2842,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         http: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodRecord<zod.ZodType<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, zod.ZodTypeDef, `POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            handler: zod.ZodOptional<zod.ZodString>;
+            minify: zod.ZodOptional<zod.ZodBoolean>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2586,6 +2856,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2598,6 +2870,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2612,6 +2886,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2626,6 +2902,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2642,6 +2920,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2664,6 +2944,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2708,6 +2990,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         rest: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodRecord<zod.ZodType<RouteFormat, zod.ZodTypeDef, RouteFormat>, zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            handler: zod.ZodOptional<zod.ZodString>;
+            minify: zod.ZodOptional<zod.ZodBoolean>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2720,6 +3004,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2732,6 +3018,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2746,6 +3034,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         rest?: Record<string, Partial<Record<RouteFormat, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2760,6 +3050,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         rest?: Record<string, Partial<Record<RouteFormat, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2776,6 +3068,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         rest?: Record<string, Partial<Record<RouteFormat, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2798,6 +3092,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         rest?: Record<string, Partial<Record<RouteFormat, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2824,6 +3120,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static: zod.ZodOptional<zod.ZodEffects<zod.ZodString, string, string>>;
             ssr: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
+                handler: zod.ZodOptional<zod.ZodString>;
+                minify: zod.ZodOptional<zod.ZodBoolean>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2836,6 +3134,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2848,6 +3148,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 environment?: Record<string, string> | undefined;
             }, {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2859,6 +3161,263 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
             }>]>>;
+            errors: zod.ZodOptional<zod.ZodObject<{
+                400: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                403: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                404: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                405: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                414: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                416: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                500: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                501: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                502: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                503: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+                504: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
+                    path: zod.ZodString;
+                    statusCode: zod.ZodOptional<zod.ZodNumber>;
+                    minTTL: zod.ZodOptional<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                }, "strip", zod.ZodTypeAny, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                }, {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                }>]>>;
+            }, "strip", zod.ZodTypeAny, {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+            }, {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+            }>>;
             cors: zod.ZodOptional<zod.ZodObject<{
                 override: zod.ZodDefault<zod.ZodBoolean>;
                 maxAge: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2904,6 +3463,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static?: string | undefined;
             ssr?: string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2914,6 +3475,63 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+            } | undefined;
+            errors?: {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
             } | undefined;
             cors?: {
                 override: boolean;
@@ -2936,6 +3554,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static?: string | undefined;
             ssr?: string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2946,6 +3566,63 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+            } | undefined;
+            errors?: {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
             } | undefined;
             cors?: {
                 override?: boolean | undefined;
@@ -2970,6 +3647,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static?: string | undefined;
             ssr?: string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2980,6 +3659,63 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+            } | undefined;
+            errors?: {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
             } | undefined;
             cors?: {
                 override: boolean;
@@ -3004,6 +3740,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static?: string | undefined;
             ssr?: string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3014,6 +3752,63 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+            } | undefined;
+            errors?: {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
             } | undefined;
             cors?: {
                 override?: boolean | undefined;
@@ -3040,6 +3835,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static?: string | undefined;
             ssr?: string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -3050,6 +3847,63 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+            } | undefined;
+            errors?: {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: Duration | undefined;
+                } | undefined;
             } | undefined;
             cors?: {
                 override: boolean;
@@ -3076,6 +3930,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             static?: string | undefined;
             ssr?: string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3086,6 +3942,63 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+            } | undefined;
+            errors?: {
+                400?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                403?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                404?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                405?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                414?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                416?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                500?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                501?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                502?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                503?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
+                504?: string | {
+                    path: string;
+                    statusCode?: number | undefined;
+                    minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                } | undefined;
             } | undefined;
             cors?: {
                 override?: boolean | undefined;
@@ -3108,6 +4021,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: zod.ZodArray<zod.ZodObject<{
         onFailure: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
+            handler: zod.ZodOptional<zod.ZodString>;
+            minify: zod.ZodOptional<zod.ZodBoolean>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -3120,6 +4035,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -3132,6 +4049,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             environment?: Record<string, string> | undefined;
         }, {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3146,6 +4065,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, "strip", zod.ZodTypeAny, {
         onFailure?: string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -3160,6 +4081,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }, {
         onFailure?: string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3176,6 +4099,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         onFailure?: string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -3192,6 +4117,8 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     stacks: {
         onFailure?: string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3420,6 +4347,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     functions?: Record<string, string | {
         file: string;
+        handler?: string | undefined;
+        minify?: boolean | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3446,6 +4375,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     crons?: Record<string, {
         consumer: (string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3458,6 +4389,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             environment?: Record<string, string> | undefined;
         }) & (string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3476,6 +4409,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     queues?: Record<string, string | {
         consumer: (string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3488,6 +4423,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             environment?: Record<string, string> | undefined;
         }) & (string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3520,6 +4457,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3532,6 +4471,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3556,6 +4497,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     topics?: string[] | undefined;
     subscribers?: Record<string, string | {
         file: string;
+        handler?: string | undefined;
+        minify?: boolean | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3571,6 +4514,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
     pubsub?: Record<string, {
         consumer: (string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3583,6 +4528,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             environment?: Record<string, string> | undefined;
         }) & (string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3604,6 +4551,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         schema?: string | string[] | undefined;
         resolvers?: Record<string, Record<string, string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3617,6 +4566,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         } | {
             consumer: (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3629,6 +4580,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 environment?: Record<string, string> | undefined;
             }) & (string | {
                 file: string;
+                handler?: string | undefined;
+                minify?: boolean | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3646,6 +4599,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
         file: string;
+        handler?: string | undefined;
+        minify?: boolean | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3660,6 +4615,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     rest?: Record<string, Partial<Record<RouteFormat, string | {
         file: string;
+        handler?: string | undefined;
+        minify?: boolean | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3678,6 +4635,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         static?: string | undefined;
         ssr?: string | {
             file: string;
+            handler?: string | undefined;
+            minify?: boolean | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3688,6 +4647,63 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+        } | undefined;
+        errors?: {
+            400?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            403?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            404?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            405?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            414?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            416?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            500?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            501?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            502?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            503?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            504?: string | {
+                path: string;
+                statusCode?: number | undefined;
+                minTTL?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
         } | undefined;
         cors?: {
             override?: boolean | undefined;
@@ -3708,6 +4724,8 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 }) | (StackConfig$1 & {
     onFailure?: string | {
         file: string;
+        handler?: string | undefined;
+        minify?: boolean | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;

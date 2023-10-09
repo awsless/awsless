@@ -1,3 +1,4 @@
+import { Duration } from '../../property/duration.js';
 import { Resource } from '../../resource.js';
 import { formatName, getAtt, sub } from '../../util.js';
 
@@ -36,6 +37,13 @@ export class Distribution extends Resource {
 			functionArn: string
 			includeBody?: boolean
 		}[]
+		customErrorResponses?: {
+			errorCode: string
+			cacheMinTTL?: Duration
+			responseCode?: number
+			responsePath?: string
+		}[]
+
 		// forward?: {
 		// 	cookies?: string[]
 		// 	headers?: string[]
@@ -77,6 +85,13 @@ export class Distribution extends Resource {
 					Quantity: this.props.originGroups?.length ?? 0,
 					Items: this.props.originGroups?.map(originGroup => originGroup.toJSON()) ?? [],
 				},
+
+				CustomErrorResponses: this.props.customErrorResponses?.map(item => ({
+					ErrorCode: item.errorCode,
+					...this.attr('ErrorCachingMinTTL', item.cacheMinTTL?.toSeconds()),
+					...this.attr('ResponseCode', item.responseCode),
+					...this.attr('ResponsePagePath', item.responsePath),
+				})) ?? [],
 
 				DefaultCacheBehavior: {
 					TargetOriginId: this.props.targetOriginId,

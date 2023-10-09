@@ -6,7 +6,7 @@ import { pipeline } from 'stream/promises'
 import { Extract } from 'unzipper'
 import { send } from '../util.js';
 import { CloudFormationCustomResourceEvent } from 'aws-lambda';
-import { readdir } from 'fs/promises';
+import { readdir, stat } from 'fs/promises';
 import { extname, join } from 'path';
 import { createHash } from 'crypto';
 import { Upload } from "@aws-sdk/lib-storage";
@@ -165,14 +165,24 @@ const createETag = async (file: string) => {
 }
 
 const listLocalFiles = async (localDirectory: string) => {
-	const files = await readdir(localDirectory, { recursive: true })
+	const paths = await readdir(localDirectory, { recursive: true })
+	const files: File[] = []
 
-	return Promise.all(files.map(async key => {
-		return {
-			key,
-			etag: await createETag(join(localDirectory, key))
+	await Promise.all(paths.map(async key => {
+		const file = join(localDirectory, key)
+		const stats = await stat(file)
+
+		if(!stats.isFile()) {
+			return
 		}
+
+		files.push({
+			key,
+			etag: await createETag(file)
+		})
 	}))
+
+	return files
 }
 
 const listRemoteFiles = async (bucketName: string) => {

@@ -798,12 +798,12 @@ var formatByteSize = (size) => {
 // src/formation/resource/lambda/util/rollup.ts
 import { rollup } from "rollup";
 import { createHash } from "crypto";
-import { swc } from "rollup-plugin-swc3";
+import { swc, minify as swcMinify } from "rollup-plugin-swc3";
 import json from "@rollup/plugin-json";
 import commonjs from "@rollup/plugin-commonjs";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import { dirname } from "path";
-var rollupBundle = ({ format: format2 = "esm", minify = true, handler = "index.default" } = {}) => {
+var rollupBundle = ({ format: format2 = "esm", minify = true, handler = "default" } = {}) => {
   return async (input) => {
     const bundle = await rollup({
       input,
@@ -822,34 +822,51 @@ var rollupBundle = ({ format: format2 = "esm", minify = true, handler = "index.d
         // @ts-ignore
         nodeResolve({ preferBuiltins: true }),
         swc({
-          minify,
+          // minify,
+          // module: true,
           jsc: {
             baseUrl: dirname(input),
             minify: { sourceMap: true }
           },
           sourceMaps: true
         }),
+        minify ? swcMinify({
+          module: format2 === "esm",
+          sourceMap: true,
+          compress: true
+        }) : void 0,
         // @ts-ignore
         json()
       ]
     });
+    const ext = format2 === "esm" ? "mjs" : "js";
     const result = await bundle.generate({
       format: format2,
       sourcemap: "hidden",
-      exports: "auto"
+      exports: "auto",
+      manualChunks: {},
+      entryFileNames: `index.${ext}`,
+      chunkFileNames: `[name].${ext}`
     });
-    const output = result.output[0];
-    const code = Buffer.from(output.code, "utf8");
-    const map = output.map ? Buffer.from(output.map.toString(), "utf8") : void 0;
-    const hash = createHash("sha1").update(code).digest("hex");
-    return {
-      handler,
-      hash,
-      files: [{
-        name: format2 === "esm" ? "index.mjs" : "index.js",
+    const hash = createHash("sha1");
+    const files = [];
+    for (const item of result.output) {
+      if (item.type !== "chunk") {
+        continue;
+      }
+      const code = Buffer.from(item.code, "utf8");
+      const map = item.map ? Buffer.from(item.map.toString(), "utf8") : void 0;
+      hash.update(code);
+      files.push({
+        name: item.fileName,
         code,
         map
-      }]
+      });
+    }
+    return {
+      handler: `index.${handler}`,
+      hash: hash.digest("hex"),
+      files
     };
   };
 };
@@ -891,7 +908,7 @@ var Code = class {
     const file = join(root2, `features/${id}.js`);
     return new FileCode(id, file, rollupBundle({
       minify: false,
-      handler: "index.handler"
+      handler: "handler"
     }));
   }
   static fromInlineFeature(id) {
@@ -900,7 +917,7 @@ var Code = class {
     return new InlineFileCode(id, file, rollupBundle({
       format: "cjs",
       minify: false,
-      handler: "index.handler"
+      handler: "handler"
     }));
   }
 };
@@ -1234,8 +1251,14 @@ var FunctionSchema = z6.union([
   z6.object({
     /** The file path of the function code. */
     file: LocalFileSchema,
-    // /**  */
-    // handler: z.string().optional(),
+    /** The name of the exported method within your code that Lambda calls to run your function.
+     * @default 'index.default'
+     */
+    handler: z6.string().optional(),
+    /** Minify the function code.
+     * @default true
+     */
+    minify: z6.boolean().optional(),
     /** Put the function inside your global VPC.
      * @default false
      */
@@ -1297,6 +1320,14 @@ var isFunctionProps = (input) => {
 var schema = z6.object({
   defaults: z6.object({
     function: z6.object({
+      /** The name of the exported method within your code that Lambda calls to run your function.
+       * @default 'default'
+      	 */
+      handler: z6.string().default("default"),
+      /** Minify the function code.
+       * @default true
+       */
+      minify: z6.boolean().default(true),
       /** Put the function inside your global VPC.
        * @default false
        */
@@ -1421,7 +1452,10 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
   const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
   const lambda = new Function(id, {
     name: `${config.name}-${stack.name}-${id}`,
-    code: Code.fromFile(id, props.file),
+    code: Code.fromFile(id, props.file, rollupBundle({
+      handler: props.handler,
+      minify: props.minify
+    })),
     ...props,
     vpc: void 0
   });
@@ -1881,7 +1915,7 @@ var Table = class extends Resource {
     return getAtt(this.logicalId, "StreamArn");
   }
   get permissions() {
-    return {
+    const permissions = [{
       actions: [
         "dynamodb:DescribeTable",
         "dynamodb:PutItem",
@@ -1901,7 +1935,19 @@ var Table = class extends Resource {
           resourceName: this.name
         })
       ]
-    };
+    }];
+    const indexNames = Object.keys(this.indexes ?? {});
+    if (indexNames.length > 0) {
+      permissions.push({
+        actions: ["dynamodb:Query"],
+        resources: indexNames.map((indexName) => formatArn({
+          service: "dynamodb",
+          resource: "table",
+          resourceName: `${this.name}/index/${indexName}`
+        }))
+      });
+    }
+    return permissions;
   }
   attributeDefinitions() {
     const fields = this.props.fields || {};
@@ -4581,6 +4627,12 @@ var Distribution = class extends Resource {
           Quantity: this.props.originGroups?.length ?? 0,
           Items: this.props.originGroups?.map((originGroup) => originGroup.toJSON()) ?? []
         },
+        CustomErrorResponses: this.props.customErrorResponses?.map((item) => ({
+          ErrorCode: item.errorCode,
+          ...this.attr("ErrorCachingMinTTL", item.cacheMinTTL?.toSeconds()),
+          ...this.attr("ResponseCode", item.responseCode),
+          ...this.attr("ResponsePagePath", item.responsePath)
+        })) ?? [],
         DefaultCacheBehavior: {
           TargetOriginId: this.props.targetOriginId,
           ViewerProtocolPolicy: this.props.viewerProtocol ?? "redirect-to-https",
@@ -4941,6 +4993,35 @@ var ResponseHeadersPolicy = class extends Resource {
 };
 
 // src/plugins/site.ts
+var ErrorResponseSchema = z24.union([
+  z24.string(),
+  z24.object({
+    /** The path to the custom error page that you want to return to the viewer when your origin returns the HTTP status code specified.
+     * @example ```
+     * "/404.html"
+     * ```
+     *
+     * We recommend that you store custom error pages in an Amazon S3 bucket.
+     * If you store custom error pages on an HTTP server and the server starts to return 5xx errors,
+     * CloudFront can't get the files that you want to return to viewers because the origin server is unavailable.
+     */
+    path: z24.string(),
+    /** The HTTP status code that you want CloudFront to return to the viewer along with the custom error page.
+     * There are a variety of reasons that you might want CloudFront to return a status code different from the status code that your origin returned to CloudFront, for example:
+     * - Some Internet devices (some firewalls and corporate proxies, for example) intercept HTTP 4xx and 5xx and prevent the response from being returned to the viewer.
+     * If you substitute 200, the response typically won't be intercepted.
+     * - If you don't care about distinguishing among different client errors or server errors, you can specify 400 or 500 as the ResponseCode for all 4xx or 5xx errors.
+     * - You might want to return a 200 status code (OK) and static website so your customers don't know that your website is down.
+     */
+    statusCode: z24.number().int().positive().optional(),
+    /** The minimum amount of time, that you want to cache the error response.
+     * When this time period has elapsed, CloudFront queries your origin to see whether the problem that caused the error has been resolved and the requested object is now available.
+     * @example
+     * "1 day"
+     */
+    minTTL: DurationSchema.optional()
+  })
+]).optional();
 var sitePlugin = definePlugin({
   name: "site",
   schema: z24.object({
@@ -4950,12 +5031,13 @@ var sitePlugin = definePlugin({
        * {
        *   sites: {
        *     SITE_NAME: {
-       *       static: 'dist/client'
-       *       ssr: 'dist/server/index.js'
+       *       domain: 'example.com',
+       *       static: 'dist/client',
+       *       ssr: 'dist/server/index.js',
        *     }
        *   }
        * }
-       * */
+       */
       sites: z24.record(
         ResourceIdSchema,
         z24.object({
@@ -4966,6 +5048,31 @@ var sitePlugin = definePlugin({
           static: LocalDirectorySchema.optional(),
           /** Specifies the ssr file. */
           ssr: FunctionSchema.optional(),
+          /** Customize the error responses for specific HTTP status codes. */
+          errors: z24.object({
+            /** Customize a `400 Bad Request` response */
+            400: ErrorResponseSchema,
+            /** Customize a `403 Forbidden` response. */
+            403: ErrorResponseSchema,
+            /** Customize a `404 Not Found` response. */
+            404: ErrorResponseSchema,
+            /** Customize a `405 Method Not Allowed` response. */
+            405: ErrorResponseSchema,
+            /** Customize a `414 Request-URI Too Long` response. */
+            414: ErrorResponseSchema,
+            /** Customize a `416 Range Not Satisfiable` response. */
+            416: ErrorResponseSchema,
+            /** Customize a `500 Internal Server Error` response. */
+            500: ErrorResponseSchema,
+            /** Customize a `501 Not Implemented` response. */
+            501: ErrorResponseSchema,
+            /** Customize a `502 Bad Gateway` response. */
+            502: ErrorResponseSchema,
+            /** Customize a `503 Service Unavailable` response. */
+            503: ErrorResponseSchema,
+            /** Customize a `504 Gateway Timeout` response. */
+            504: ErrorResponseSchema
+          }).optional(),
           /** Define the cors headers. */
           cors: z24.object({
             override: z24.boolean().default(false),
@@ -5083,7 +5190,7 @@ var sitePlugin = definePlugin({
             destinationBucketName: bucket.name
           }
         }).dependsOn(bucket);
-        const deleteBucket = new CustomResource(id, {
+        const deleteBucket = new CustomResource(`site-${id}-delete-bucket`, {
           serviceToken: bootstrap2.import("feature-delete-bucket"),
           properties: {
             bucketName: bucket.name
@@ -5137,8 +5244,31 @@ var sitePlugin = definePlugin({
         targetOriginId: props.ssr && props.static ? "group" : props.ssr ? "lambda" : "bucket",
         originRequestPolicyId: originRequest.id,
         cachePolicyId: cache.id,
-        responseHeadersPolicyId: responseHeaders.id
+        responseHeadersPolicyId: responseHeaders.id,
+        customErrorResponses: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
+          if (typeof item === "string") {
+            return {
+              errorCode,
+              responsePath: item,
+              responseCode: Number(errorCode)
+            };
+          }
+          return {
+            errorCode,
+            cacheMinTTL: item.minTTL,
+            responsePath: item.path,
+            responseCode: item.statusCode ?? Number(errorCode)
+          };
+        })
       }).dependsOn(originRequest, responseHeaders, cache, ...deps);
+      const invalidateCache = new CustomResource(`site-${id}-invalidate-cache`, {
+        serviceToken: bootstrap2.import("feature-invalidate-cache"),
+        properties: {
+          key: (/* @__PURE__ */ new Date()).toISOString(),
+          distributionId: distribution.id,
+          paths: ["/*"]
+        }
+      }).dependsOn(distribution);
       if (props.static) {
         const bucketPolicy = new BucketPolicy(`site-${id}`, {
           bucketName: bucket.name,
@@ -5169,6 +5299,7 @@ var sitePlugin = definePlugin({
       }).dependsOn(distribution);
       stack.add(
         distribution,
+        invalidateCache,
         responseHeaders,
         originRequest,
         cache,
@@ -5197,11 +5328,19 @@ var featurePlugin = definePlugin({
       actions: ["s3:*"],
       resources: ["*"]
     });
+    const invalidateCacheLambda = new Function("invalidate-cache", {
+      name: `${config.name}-invalidate-cache`,
+      code: Code.fromFeature("invalidate-cache")
+    }).enableLogs(Duration.days(3)).addPermissions({
+      actions: ["cloudfront:*"],
+      resources: ["*"]
+    });
     bootstrap2.add(
       deleteBucketLambda,
-      uploadBucketAssetLambda
+      uploadBucketAssetLambda,
+      invalidateCacheLambda
     );
-    bootstrap2.export("feature-delete-bucket", deleteBucketLambda.arn).export("feature-upload-bucket-asset", uploadBucketAssetLambda.arn);
+    bootstrap2.export("feature-delete-bucket", deleteBucketLambda.arn).export("feature-upload-bucket-asset", uploadBucketAssetLambda.arn).export("feature-invalidate-cache", invalidateCacheLambda.arn);
   }
 });
 
@@ -6710,9 +6849,11 @@ var bootstrapDeployer = (config) => {
     const shouldDeploy = await shouldDeployBootstrap(client, stack);
     if (shouldDeploy) {
       term.out.write(dialog("warning", [`Your app hasn't been bootstrapped yet`]));
-      const confirmed = await term.out.write(confirmPrompt("Would you like to bootstrap?"));
-      if (!confirmed) {
-        throw new Cancelled();
+      if (!process.env.SKIP_PROMPT) {
+        const confirmed = await term.out.write(confirmPrompt("Would you like to bootstrap?"));
+        if (!confirmed) {
+          throw new Cancelled();
+        }
       }
       const done = term.out.write(loadingDialog("Bootstrapping..."));
       await client.deploy(stack);
@@ -6919,11 +7060,13 @@ var deploy = (program2) => {
       const stackNames = app.stacks.map((stack) => stack.name);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to deploy", formattedFilter);
-      const deployAll = filters.length === 0;
-      const deploySingle = filters.length === 1;
-      const confirm = await write(confirmPrompt(deployAll ? `Are you sure you want to deploy ${style.warning("all")} stacks?` : deploySingle ? `Are you sure you want to deploy the ${formattedFilter} stack?` : `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`));
-      if (!confirm) {
-        throw new Cancelled();
+      if (!process.env.SKIP_PROMPT) {
+        const deployAll = filters.length === 0;
+        const deploySingle = filters.length === 1;
+        const confirm = await write(confirmPrompt(deployAll ? `Are you sure you want to deploy ${style.warning("all")} stacks?` : deploySingle ? `Are you sure you want to deploy the ${formattedFilter} stack?` : `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`));
+        if (!confirm) {
+          throw new Cancelled();
+        }
       }
       await cleanUp();
       await write(typesGenerator(config));
@@ -7138,11 +7281,13 @@ var del2 = (program2) => {
       const stackNames = app.stacks.map((stack) => stack.name);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to delete", formattedFilter);
-      const deployAll = filters.length === 0;
-      const deploySingle = filters.length === 1;
-      const confirm = await write(confirmPrompt(deployAll ? `Are you sure you want to ${style.error("delete")} ${style.warning("all")} stacks?` : deploySingle ? `Are you sure you want to ${style.error("delete")} the ${formattedFilter} stack?` : `Are you sure you want to ${style.error("delete")} the [ ${formattedFilter} ] stacks?`));
-      if (!confirm) {
-        throw new Cancelled();
+      if (!process.env.SKIP_PROMPT) {
+        const deployAll = filters.length === 0;
+        const deploySingle = filters.length === 1;
+        const confirm = await write(confirmPrompt(deployAll ? `Are you sure you want to ${style.error("delete")} ${style.warning("all")} stacks?` : deploySingle ? `Are you sure you want to ${style.error("delete")} the ${formattedFilter} stack?` : `Are you sure you want to ${style.error("delete")} the [ ${formattedFilter} ] stacks?`));
+        if (!confirm) {
+          throw new Cancelled();
+        }
       }
       const doneDeploying = write(loadingDialog("Deleting stacks from AWS..."));
       const client = new StackClient(app, config.account, config.region, config.credentials);
@@ -7178,6 +7323,7 @@ program.option("--config-file <string>", "The config file location");
 program.option("--stage <string>", "The stage to use, defaults to prod stage", "prod");
 program.option("--profile <string>", "The AWS profile to use");
 program.option("--region <string>", "The AWS region to use");
+program.option("-s --skip-prompt", "Skip prompts");
 program.option("-m --mute", "Mute sound effects");
 program.option("-v --verbose", "Print verbose logs");
 program.exitOverride(() => {
@@ -7185,6 +7331,9 @@ program.exitOverride(() => {
 });
 program.on("option:verbose", () => {
   process.env.VERBOSE = program.opts().verbose ? "1" : void 0;
+});
+program.on("option:skip-prompt", () => {
+  process.env.SKIP_PROMPT = program.opts().verbose ? "1" : void 0;
 });
 var commands2 = [
   bootstrap,

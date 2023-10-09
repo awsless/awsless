@@ -56,7 +56,7 @@ export class Code {
 
 		return new FileCode(id, file, rollupBundle({
 			minify: false,
-			handler: 'index.handler',
+			handler: 'handler',
 		}))
 	}
 
@@ -67,7 +67,7 @@ export class Code {
 		return new InlineFileCode(id, file, rollupBundle({
 			format: 'cjs',
 			minify: false,
-			handler: 'index.handler',
+			handler: 'handler',
 		}))
 	}
 }

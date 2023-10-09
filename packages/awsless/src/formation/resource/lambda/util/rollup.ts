@@ -1,12 +1,12 @@
 
 import { rollup } from "rollup"
 import { createHash } from "crypto"
-import { swc, minify } from 'rollup-plugin-swc3';
+import { swc, minify as swcMinify } from 'rollup-plugin-swc3';
 import json from '@rollup/plugin-json'
 import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import { debugError } from '../../../../cli/logger.js';
-import { CodeBundle } from '../code.js';
+import { CodeBundle, File } from '../code.js';
 import { dirname } from "path";
 
 export type RollupBundlerProps = {
@@ -15,7 +15,7 @@ export type RollupBundlerProps = {
 	handler?: string
 }
 
-export const rollupBundle = ({ format = 'esm', minify2 = true, handler = 'index.default' }: RollupBundlerProps = {}): CodeBundle => {
+export const rollupBundle = ({ format = 'esm', minify = true, handler = 'default' }: RollupBundlerProps = {}): CodeBundle => {
 	return async (input) => {
 		const bundle = await rollup({
 			input,
@@ -33,43 +33,63 @@ export const rollupBundle = ({ format = 'esm', minify2 = true, handler = 'index.
 				commonjs({ sourceMap: true }),
 				// @ts-ignore
 				nodeResolve({ preferBuiltins: true }),
-				minify({
-					module: true,
-					sourceMap: true,
-				}),
 				swc({
 					// minify,
+					// module: true,
 					jsc: {
 						baseUrl: dirname(input),
-						minify: { sourceMap: true }
+						minify: { sourceMap: true },
 					},
 					sourceMaps: true,
 				}),
+				minify ? swcMinify({
+					module: format === 'esm',
+					sourceMap: true,
+					compress: true,
+				}) : undefined,
 				// @ts-ignore
 				json(),
 			],
 		})
 
+		const ext = format === 'esm' ? 'mjs' : 'js'
 		const result = await bundle.generate({
 			format,
 			sourcemap: 'hidden',
 			exports: 'auto',
-			esModule: true
+			manualChunks: {},
+			entryFileNames: `index.${ext}`,
+			chunkFileNames: `[name].${ext}`,
 		})
 
-		const output = result.output[0]
-		const code = Buffer.from(output.code, 'utf8')
-		const map = output.map ? Buffer.from(output.map.toString(), 'utf8') : undefined
-		const hash = createHash('sha1').update(code).digest('hex')
+		const hash = createHash('sha1')
+		const files: File[] = []
+
+		for(const item of result.output) {
+			// For now we ignore asset chunks...
+			// I don't know what to do with assets yet.
+			if(item.type !== 'chunk') {
+				continue
+			}
+
+			// const base = item.isEntry ? 'index' : item.name
+			// const name = `${ base }.${ ext }`
+			const code = Buffer.from(item.code, 'utf8')
+			const map = item.map ? Buffer.from(item.map.toString(), 'utf8') : undefined
+
+			hash.update(code)
+
+			files.push({
+				name: item.fileName,
+				code,
+				map
+			})
+		}
 
 		return {
-			handler,
-			hash,
-			files: [{
-				name: format === 'esm' ? 'index.mjs' : 'index.js',
-				code,
-				map,
-			}]
+			handler: `index.${ handler }`,
+			hash: hash.digest('hex'),
+			files,
 		}
 	}
 }

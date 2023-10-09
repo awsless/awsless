@@ -57,7 +57,7 @@ export class Table extends Resource {
 	}
 
 	get permissions() {
-		return {
+		const permissions = [{
 			actions: [
 				'dynamodb:DescribeTable',
 				'dynamodb:PutItem',
@@ -75,9 +75,24 @@ export class Table extends Resource {
 					service: 'dynamodb',
 					resource: 'table',
 					resourceName: this.name,
-				})
+				}),
 			 ],
+		}]
+
+		const indexNames = Object.keys(this.indexes ?? {})
+
+		if(indexNames.length > 0) {
+			permissions.push({
+				actions: [ 'dynamodb:Query' ],
+				resources: indexNames.map(indexName => formatArn({
+					service: 'dynamodb',
+					resource: 'table',
+					resourceName: `${ this.name }/index/${ indexName }`,
+				}))
+			})
 		}
+
+		return permissions
 	}
 
 	private attributeDefinitions() {
