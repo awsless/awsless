@@ -97,6 +97,12 @@ var formatName = (name) => {
   return paramCase2(name);
 };
 var formatArn = (props) => {
+  if (!props.resource) {
+    return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}", props);
+  }
+  if (!props.resourceName) {
+    return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}", props);
+  }
   return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}", {
     seperator: "/",
     ...props
@@ -206,6 +212,7 @@ var LogGroup = class extends Resource {
 };
 
 // src/formation/resource/iam/inline-policy.ts
+import { capitalCase } from "change-case";
 var InlinePolicy = class {
   name;
   statements;
@@ -223,7 +230,7 @@ var InlinePolicy = class {
       PolicyDocument: {
         Version: "2012-10-17",
         Statement: this.statements.map((statement) => ({
-          Effect: statement.effect || "Allow",
+          Effect: capitalCase(statement.effect || "allow"),
           Action: statement.actions,
           Resource: statement.resources
         }))
@@ -275,8 +282,79 @@ var Role = class extends Resource {
   }
 };
 
-// src/formation/resource/lambda/url.ts
+// src/formation/resource/events/rule.ts
+var Rule = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Events::Rule", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      Name: this.name,
+      ...this.attr("State", "ENABLED"),
+      ...this.attr("Description", this.props.description),
+      ...this.attr("ScheduleExpression", this.props.schedule),
+      ...this.attr("RoleArn", this.props.roleArn),
+      ...this.attr("EventBusName", this.props.eventBusName),
+      ...this.attr("EventPattern", this.props.eventPattern),
+      Targets: this.props.targets.map((target) => ({
+        Arn: target.arn,
+        Id: target.id,
+        ...this.attr("Input", target.input && JSON.stringify(target.input))
+      }))
+    };
+  }
+};
+
+// src/formation/resource/lambda/permission.ts
 import { constantCase } from "change-case";
+var Permission = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Lambda::Permission", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      FunctionName: this.props.functionArn,
+      Action: this.props.action || "lambda:InvokeFunction",
+      Principal: this.props.principal,
+      ...this.attr("FunctionUrlAuthType", this.props.urlAuthType && constantCase(this.props.urlAuthType)),
+      ...this.attr("SourceArn", this.props.sourceArn)
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/events.ts
+var EventsEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const rule = new Rule(id, {
+      schedule: props.schedule,
+      targets: [{
+        id,
+        arn: lambda.arn,
+        input: props.payload
+      }]
+    });
+    const permission = new Permission(id, {
+      action: "lambda:InvokeFunction",
+      principal: "events.amazonaws.com",
+      functionArn: lambda.arn,
+      sourceArn: rule.arn
+    });
+    super([rule, permission]);
+  }
+};
+
+// src/formation/resource/lambda/url.ts
+import { constantCase as constantCase2 } from "change-case";
 var Url = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::Lambda::Url", logicalId);
@@ -287,8 +365,8 @@ var Url = class extends Resource {
   }
   properties() {
     return {
-      AuthType: constantCase(this.props.authType ?? "none"),
-      InvokeMode: constantCase(this.props.invokeMode ?? "buffered"),
+      AuthType: constantCase2(this.props.authType ?? "none"),
+      InvokeMode: constantCase2(this.props.invokeMode ?? "buffered"),
       TargetFunctionArn: this.props.target,
       ...this.attr("Qualifier", this.props.qualifier),
       Cors: {
@@ -343,6 +421,17 @@ var Function = class extends Resource {
       actions: ["logs:PutLogEvents"],
       resources: [sub("${arn}:*", { arn: logGroup.arn })]
     });
+    return this;
+  }
+  warmUp(concurrency) {
+    const source = new EventsEventSource(`${this._logicalId}-warmer`, this, {
+      schedule: "rate(5 minutes)",
+      payload: {
+        warmer: true,
+        concurrency
+      }
+    });
+    this.addChild(source);
     return this;
   }
   addUrl(props = {}) {
@@ -644,24 +733,24 @@ import { z as z6 } from "zod";
 import { z as z2 } from "zod";
 
 // src/formation/property/duration.ts
-var Duration = class {
+var Duration = class _Duration {
   constructor(value) {
     this.value = value;
   }
   static milliseconds(value) {
-    return new Duration(value);
+    return new _Duration(value);
   }
   static seconds(value) {
-    return new Duration(value * 1e3 /* seconds */);
+    return new _Duration(value * 1e3 /* seconds */);
   }
   static minutes(value) {
-    return new Duration(value * 6e4 /* minutes */);
+    return new _Duration(value * 6e4 /* minutes */);
   }
   static hours(value) {
-    return new Duration(value * 36e5 /* hours */);
+    return new _Duration(value * 36e5 /* hours */);
   }
   static days(value) {
-    return new Duration(value * 864e5 /* days */);
+    return new _Duration(value * 864e5 /* days */);
   }
   toMilliseconds() {
     return this.value;
@@ -731,21 +820,21 @@ var ResourceIdSchema = z4.string().min(3).max(24).regex(/^[a-z0-9\-]+$/i, "Inval
 import { z as z5 } from "zod";
 
 // src/formation/property/size.ts
-var Size = class {
+var Size = class _Size {
   constructor(bytes) {
     this.bytes = bytes;
   }
   static bytes(value) {
-    return new Size(value);
+    return new _Size(value);
   }
   static kiloBytes(value) {
-    return new Size(value * 1024 /* kilo */);
+    return new _Size(value * 1024 /* kilo */);
   }
   static megaBytes(value) {
-    return new Size(value * 1048576 /* mega */);
+    return new _Size(value * 1048576 /* mega */);
   }
   static gigaBytes(value) {
-    return new Size(value * 1073741824 /* giga */);
+    return new _Size(value * 1073741824 /* giga */);
   }
   toBytes() {
     return this.bytes;
@@ -1116,7 +1205,7 @@ import { relative as relative2 } from "path";
 // src/util/type-gen.ts
 import { mkdir, writeFile } from "fs/promises";
 import { join as join3, relative } from "path";
-import { camelCase, constantCase as constantCase2 } from "change-case";
+import { camelCase, constantCase as constantCase3 } from "change-case";
 var generateResourceTypes = async (config) => {
   const plugins = [
     ...defaultPlugins,
@@ -1162,7 +1251,7 @@ var TypeGen = class {
   }
   addConst(name, type) {
     if (type) {
-      this.types.set(constantCase2(name), type);
+      this.types.set(constantCase3(name), type);
     }
     return this;
   }
@@ -1213,7 +1302,7 @@ var TypeObject = class {
   }
   addConst(name, type) {
     if (type) {
-      this.types.set(constantCase2(name), type);
+      this.types.set(constantCase3(name), type);
     }
     return this;
   }
@@ -1242,10 +1331,17 @@ var RetryAttemptsSchema = z6.number().int().min(0).max(2);
 var RuntimeSchema = z6.enum([
   "nodejs18.x"
 ]);
+var PermissionSchema = z6.object({
+  effect: z6.enum(["allow", "deny"]).default("allow"),
+  actions: z6.string().array(),
+  resources: z6.string().array()
+});
+var PermissionsSchema = z6.union([PermissionSchema, PermissionSchema.array()]);
 var LogSchema = z6.union([
   z6.boolean(),
   DurationSchema.refine(durationMin(Duration.days(1)), "Minimum log retention is 1 day")
 ]);
+var WarmSchema = z6.number().int().min(0).max(10);
 var FunctionSchema = z6.union([
   LocalFileSchema,
   z6.object({
@@ -1259,6 +1355,11 @@ var FunctionSchema = z6.union([
      * @default true
      */
     minify: z6.boolean().optional(),
+    /** Specify how many functions you want to warm up each 5 minutes.
+     * You can specify a number from 0 to 10.
+     * @default 0
+     */
+    warm: WarmSchema.optional(),
     /** Put the function inside your global VPC.
      * @default false
      */
@@ -1310,8 +1411,17 @@ var FunctionSchema = z6.union([
      *   }
      * }
      */
-    environment: EnvironmentSchema.optional()
-    // onFailure: ResourceIdSchema.optional(),
+    environment: EnvironmentSchema.optional(),
+    /** Add IAM permissions to your function.
+     * @example
+     * {
+     *   permissions: {
+     *     actions: [ 's3:PutObject' ],
+     *     resources: [ '*' ]
+     *   }
+     * }
+     */
+    permissions: PermissionsSchema.optional()
   })
 ]);
 var isFunctionProps = (input) => {
@@ -1328,6 +1438,11 @@ var schema = z6.object({
        * @default true
        */
       minify: z6.boolean().default(true),
+      /** Specify how many functions you want to warm up each 5 minutes.
+       * You can specify a number from 0 to 10.
+       * @default 0
+       */
+      warm: WarmSchema.default(0),
       /** Put the function inside your global VPC.
        * @default false
        */
@@ -1378,8 +1493,17 @@ var schema = z6.object({
        *   }
        * }
        */
-      environment: EnvironmentSchema.optional()
-      // onFailure: ResourceIdSchema.optional(),
+      environment: EnvironmentSchema.optional(),
+      /** Add IAM permissions to your function.
+       * @example
+       * {
+       *   permissions: {
+       *     actions: [ 's3:PutObject' ],
+       *     resources: [ '*' ]
+       *   }
+       * }
+       */
+      permissions: PermissionsSchema.optional()
     }).default({})
   }).default({}),
   stacks: z6.object({
@@ -1459,9 +1583,18 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
     ...props,
     vpc: void 0
   });
+  if (config.defaults?.function?.permissions) {
+    lambda.addPermissions(config.defaults?.function?.permissions);
+  }
+  if (typeof fileOrProps === "object" && fileOrProps.permissions) {
+    lambda.addPermissions(fileOrProps.permissions);
+  }
   lambda.addEnvironment("APP", config.name).addEnvironment("STAGE", config.stage).addEnvironment("STACK", stack.name);
   if (props.log) {
     lambda.enableLogs(props.log instanceof Duration ? props.log : void 0);
+  }
+  if (props.warm) {
+    lambda.warmUp(props.warm);
   }
   if (props.vpc) {
     lambda.setVpc({
@@ -1487,77 +1620,6 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
     other.addPermissions(lambda.permissions);
   });
   return lambda;
-};
-
-// src/formation/resource/events/rule.ts
-var Rule = class extends Resource {
-  constructor(logicalId, props) {
-    super("AWS::Events::Rule", logicalId);
-    this.props = props;
-    this.name = formatName(this.props.name || logicalId);
-  }
-  name;
-  get id() {
-    return ref(this.logicalId);
-  }
-  get arn() {
-    return getAtt(this.logicalId, "Arn");
-  }
-  properties() {
-    return {
-      Name: this.name,
-      ...this.attr("State", "ENABLED"),
-      ...this.attr("Description", this.props.description),
-      ...this.attr("ScheduleExpression", this.props.schedule),
-      ...this.attr("RoleArn", this.props.roleArn),
-      ...this.attr("EventBusName", this.props.eventBusName),
-      ...this.attr("EventPattern", this.props.eventPattern),
-      Targets: this.props.targets.map((target) => ({
-        Arn: target.arn,
-        Id: target.id,
-        ...this.attr("Input", target.input && JSON.stringify(target.input))
-      }))
-    };
-  }
-};
-
-// src/formation/resource/lambda/permission.ts
-import { constantCase as constantCase3 } from "change-case";
-var Permission2 = class extends Resource {
-  constructor(logicalId, props) {
-    super("AWS::Lambda::Permission", logicalId);
-    this.props = props;
-  }
-  properties() {
-    return {
-      FunctionName: this.props.functionArn,
-      Action: this.props.action || "lambda:InvokeFunction",
-      Principal: this.props.principal,
-      ...this.attr("FunctionUrlAuthType", this.props.urlAuthType && constantCase3(this.props.urlAuthType)),
-      ...this.attr("SourceArn", this.props.sourceArn)
-    };
-  }
-};
-
-// src/formation/resource/lambda/event-source/events.ts
-var EventsEventSource = class extends Group {
-  constructor(id, lambda, props) {
-    const rule = new Rule(id, {
-      schedule: props.schedule,
-      targets: [{
-        id,
-        arn: lambda.arn,
-        input: props.payload
-      }]
-    });
-    const permission = new Permission2(id, {
-      action: "lambda:InvokeFunction",
-      principal: "events.amazonaws.com",
-      functionArn: lambda.arn,
-      sourceArn: rule.arn
-    });
-    super([rule, permission]);
-  }
 };
 
 // src/plugins/cron/index.ts
@@ -1635,8 +1697,7 @@ var Queue = class extends Resource {
       resources: [
         formatArn({
           service: "sqs",
-          resource: "queue",
-          resourceName: this.name
+          resource: this.name
         })
       ]
     };
@@ -2352,7 +2413,7 @@ var SnsEventSource = class extends Group {
       protocol: "lambda",
       endpoint: lambda.arn
     });
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "sns.amazonaws.com",
       functionArn: lambda.arn,
@@ -2517,7 +2578,7 @@ var IotEventSource = class extends Group {
       sqlVersion: props.sqlVersion,
       actions: [{ lambda: { functionArn: lambda.arn } }]
     });
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "iot.amazonaws.com",
       functionArn: lambda.arn,
@@ -2590,16 +2651,17 @@ var toArray = (value) => {
 import { paramCase as paramCase4 } from "change-case";
 
 // src/formation/resource/appsync/graphql-api.ts
-import { constantCase as constantCase7 } from "change-case";
 var GraphQLApi = class extends Resource {
+  // private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
   constructor(logicalId, props) {
     super("AWS::AppSync::GraphQLApi", logicalId);
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
+    this.defaultAuthorization = props.defaultAuthorization;
     this.tag("name", this.name);
   }
   name;
-  lambdaAuthProviders = [];
+  defaultAuthorization;
   get arn() {
     return ref(this.logicalId);
   }
@@ -2612,24 +2674,67 @@ var GraphQLApi = class extends Resource {
   get dns() {
     return getAtt(this.logicalId, "GraphQLDns");
   }
-  addLambdaAuthProvider(lambdaAuthorizerArn, resultTTL = Duration.seconds(0)) {
-    this.lambdaAuthProviders.push({
-      arn: lambdaAuthorizerArn,
-      ttl: resultTTL
-    });
+  setDefaultAuthorization(auth) {
+    this.defaultAuthorization = auth;
     return this;
   }
+  // addLambdaAuthProvider(lambdaAuthorizerArn: string, resultTTL: Duration = Duration.seconds(0)) {
+  // 	this.lambdaAuthProviders.push({
+  // 		arn: lambdaAuthorizerArn,
+  // 		ttl: resultTTL,
+  // 	})
+  // 	return this
+  // }
+  // addCognitoAuthProvider(lambdaAuthorizerArn: string, resultTTL: Duration = Duration.seconds(0)) {
+  // 	this.lambdaAuthProviders.push({
+  // 		arn: lambdaAuthorizerArn,
+  // 		ttl: resultTTL,
+  // 	})
+  // 	return this
+  // }
   properties() {
     return {
       Name: this.name,
-      AuthenticationType: constantCase7(this.props.authenticationType || "api-key"),
-      AdditionalAuthenticationProviders: this.lambdaAuthProviders.map((provider) => ({
-        AuthenticationType: "AWS_LAMBDA",
-        LambdaAuthorizerConfig: {
-          AuthorizerUri: provider.arn,
-          AuthorizerResultTtlInSeconds: provider.ttl.toSeconds()
-        }
-      }))
+      ...this.defaultAuthorization?.toJSON() ?? {}
+      // AuthenticationType: constantCase(this.props.authenticationType || 'api-key'),
+      // AdditionalAuthenticationProviders: this.lambdaAuthProviders.map(provider => ({
+      // 	AuthenticationType: 'AWS_LAMBDA',
+      // 	LambdaAuthorizerConfig: {
+      // 		AuthorizerUri: provider.arn,
+      // 		AuthorizerResultTtlInSeconds: provider.ttl.toSeconds(),
+      // 	}
+      // }))
+    };
+  }
+};
+var GraphQLAuthorization = class {
+  static withCognito(props) {
+    return new GraphQLCognitoAuthorization(props);
+  }
+  static withApiKey() {
+    return new GraphQLApiKeyAuthorization();
+  }
+};
+var GraphQLCognitoAuthorization = class {
+  constructor(props) {
+    this.props = props;
+  }
+  toJSON() {
+    return {
+      AuthenticationType: "AMAZON_COGNITO_USER_POOLS",
+      UserPoolConfig: {
+        UserPoolId: this.props.userPoolId,
+        ...this.props.region ? { AwsRegion: this.props.region } : {},
+        ...this.props.defaultAction ? { DefaultAction: this.props.defaultAction } : {},
+        ...this.props.appIdClientRegex ? { AppIdClientRegex: this.props.appIdClientRegex } : {}
+      }
+    };
+  }
+};
+var GraphQLApiKeyAuthorization = class {
+  toJSON() {
+    return {
+      AuthenticationType: "API_KEY"
     };
   }
 };
@@ -2750,14 +2855,14 @@ var FileCode2 = class extends Asset {
 
 // src/formation/resource/appsync/data-source.ts
 import { snakeCase as snakeCase2 } from "change-case";
-var DataSource = class extends Resource {
+var DataSource = class _DataSource extends Resource {
   constructor(logicalId, props) {
     super("AWS::AppSync::DataSource", logicalId);
     this.props = props;
     this.name = snakeCase2(this.props.name || logicalId);
   }
   static fromLambda(logicalId, apiId, props) {
-    return new DataSource(logicalId, {
+    return new _DataSource(logicalId, {
       apiId,
       type: "AWS_LAMBDA",
       serviceRoleArn: props.serviceRoleArn,
@@ -2769,7 +2874,7 @@ var DataSource = class extends Resource {
     });
   }
   static fromNone(logicalId, apiId) {
-    return new DataSource(logicalId, {
+    return new _DataSource(logicalId, {
       apiId,
       type: "NONE"
     });
@@ -2937,10 +3042,11 @@ var graphqlPlugin = definePlugin({
       graphql: z14.record(ResourceIdSchema, z14.object({
         domain: z14.string().optional(),
         subDomain: z14.string().optional(),
-        authorization: z14.object({
-          authorizer: FunctionSchema,
-          ttl: DurationSchema.default("1 hour")
-        }).optional(),
+        auth: ResourceIdSchema.optional(),
+        // authorization: z.object({
+        // 	authorizer: FunctionSchema,
+        // 	ttl: DurationSchema.default('1 hour'),
+        // }).optional(),
         resolver: LocalFileSchema.optional()
       })).optional()
     }).default({}),
@@ -2984,7 +3090,7 @@ var graphqlPlugin = definePlugin({
       }
       const api = new GraphQLApi(id, {
         name: `${config.name}-${id}`,
-        authenticationType: "api-key"
+        defaultAuthorization: GraphQLAuthorization.withApiKey()
       });
       const schema2 = new GraphQLSchema(id, {
         apiId: api.id,
@@ -2995,10 +3101,12 @@ var graphqlPlugin = definePlugin({
       if (!props) {
         continue;
       }
-      if (props.authorization) {
-        const lambda = toLambdaFunction(ctx, `${id}-authorizer`, props.authorization.authorizer);
-        api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl);
-        bootstrap2.add(lambda);
+      if (props.auth) {
+        api.setDefaultAuthorization(GraphQLAuthorization.withCognito({
+          userPoolId: bootstrap2.import(`auth-${props.auth}-user-pool-id`),
+          region: bootstrap2.region,
+          defaultAction: "ALLOW"
+        }));
       }
       if (props.domain) {
         const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
@@ -3153,36 +3261,38 @@ var DomainNameSchema = z15.string().regex(/[a-z\-\_\.]/g, "Invalid domain name")
 var domainPlugin = definePlugin({
   name: "domain",
   schema: z15.object({
-    /** Define the domains for your application.
-     * @example
-     * {
-     *   domains: {
-     *     'example.com': [{
-     *       name: 'www',
-     *       type: 'TXT',
-     *       ttl: '60 seconds',
-     *       records: [ 'value' ]
-     *     }]
-     *   }
-     * }
-     */
-    domains: z15.record(DomainNameSchema, z15.object({
-      /** Enter a fully qualified domain name, for example, www.example.com.
-       * You can optionally include a trailing dot.
-       * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
-       * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+    defaults: z15.object({
+      /** Define the domains for your application.
+       * @example
+       * {
+       *   domains: {
+       *     'example.com': [{
+       *       name: 'www',
+       *       type: 'TXT',
+       *       ttl: '60 seconds',
+       *       records: [ 'value' ]
+       *     }]
+       *   }
+       * }
        */
-      name: DomainNameSchema.optional(),
-      /** The DNS record type. */
-      type: z15.enum(["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]),
-      /** The resource record cache time to live (TTL). */
-      ttl: DurationSchema,
-      /** One or more values that correspond with the value that you specified for the Type property. */
-      records: z15.string().array()
-    }).array()).optional()
+      domains: z15.record(DomainNameSchema, z15.object({
+        /** Enter a fully qualified domain name, for example, www.example.com.
+         * You can optionally include a trailing dot.
+         * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
+         * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+         */
+        name: DomainNameSchema.optional(),
+        /** The DNS record type. */
+        type: z15.enum(["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]),
+        /** The resource record cache time to live (TTL). */
+        ttl: DurationSchema,
+        /** One or more values that correspond with the value that you specified for the Type property. */
+        records: z15.string().array()
+      }).array()).optional()
+    }).default({})
   }),
   onApp({ config, bootstrap: bootstrap2, usEastBootstrap }) {
-    const domains = Object.entries(config.domains || {});
+    const domains = Object.entries(config.defaults.domains || {});
     if (domains.length === 0) {
       return;
     }
@@ -3197,7 +3307,7 @@ var domainPlugin = definePlugin({
       resources: ["*"]
     });
     usEastBootstrap.add(deleteHostedZoneLambda);
-    const usEastExports = new GlobalExports("us-east-exports", {
+    const usEastExports = new GlobalExports(`${config.name}-us-east-exports`, {
       region: usEastBootstrap.region
     });
     bootstrap2.add(usEastExports);
@@ -3395,7 +3505,7 @@ var SubnetRouteTableAssociation = class extends Resource {
 };
 
 // src/formation/resource/ec2/peer.ts
-var Peer = class {
+var Peer = class _Peer {
   constructor(ip, type) {
     this.ip = ip;
     this.type = type;
@@ -3408,10 +3518,10 @@ var Peer = class {
     if (!cidrMatch[2]) {
       throw new Error(`CIDR mask is missing in IPv4: "${cidrIp}". Did you mean "${cidrIp}/32"?`);
     }
-    return new Peer(cidrIp, "v4");
+    return new _Peer(cidrIp, "v4");
   }
   static anyIpv4() {
-    return new Peer("0.0.0.0/0", "v4");
+    return new _Peer("0.0.0.0/0", "v4");
   }
   static ipv6(cidrIpv6) {
     const cidrMatch = cidrIpv6.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/);
@@ -3421,10 +3531,10 @@ var Peer = class {
     if (!cidrMatch[3]) {
       throw new Error(`CIDR mask is missing in IPv6: "${cidrIpv6}". Did you mean "${cidrIpv6}/128"?`);
     }
-    return new Peer(cidrIpv6, "v6");
+    return new _Peer(cidrIpv6, "v6");
   }
   static anyIpv6() {
-    return new Peer("::/0", "v6");
+    return new _Peer("::/0", "v6");
   }
   toRuleJson() {
     switch (this.type) {
@@ -3557,30 +3667,30 @@ var SecurityGroup = class extends Resource {
 };
 
 // src/formation/resource/ec2/port.ts
-var Port = class {
+var Port = class _Port {
   static tcp(port) {
-    return new Port({
+    return new _Port({
       protocol: "tcp" /* TCP */,
       from: port,
       to: port
     });
   }
   static tcpRange(startPort, endPort) {
-    return new Port({
+    return new _Port({
       protocol: "tcp" /* TCP */,
       from: startPort,
       to: endPort
     });
   }
   static allTcp() {
-    return new Port({
+    return new _Port({
       protocol: "tcp" /* TCP */,
       from: 0,
       to: 65535
     });
   }
   static allTraffic() {
-    return new Port({
+    return new _Port({
       protocol: "-1" /* ALL */
     });
   }
@@ -3630,7 +3740,7 @@ var LoadBalancer = class extends Resource {
 };
 
 // src/formation/resource/elb/listener.ts
-import { constantCase as constantCase8 } from "change-case";
+import { constantCase as constantCase7 } from "change-case";
 var Listener = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::ElasticLoadBalancingV2::Listener", logicalId);
@@ -3646,20 +3756,31 @@ var Listener = class extends Resource {
     return {
       LoadBalancerArn: this.props.loadBalancerArn,
       Port: this.props.port,
-      Protocol: constantCase8(this.props.protocol),
+      Protocol: constantCase7(this.props.protocol),
       Certificates: this.props.certificates.map((arn) => ({
         CertificateArn: arn
       })),
-      ...this.attr("DefaultActions", this.props.defaultActions?.map((action) => action.toJSON()))
+      ...this.attr("DefaultActions", this.props.defaultActions?.map((action, i) => {
+        return {
+          Order: i + 1,
+          ...action.toJSON()
+        };
+      }))
     };
   }
 };
-var ListenerAction = class {
+var ListenerAction = class _ListenerAction {
   constructor(props) {
     this.props = props;
   }
+  static authCognito(props) {
+    return new _ListenerAction({
+      type: "authenticate-cognito",
+      ...props
+    });
+  }
   static fixedResponse(statusCode, props = {}) {
-    return new ListenerAction({
+    return new _ListenerAction({
       type: "fixed-response",
       fixedResponse: {
         statusCode,
@@ -3668,7 +3789,7 @@ var ListenerAction = class {
     });
   }
   static forward(targets) {
-    return new ListenerAction({
+    return new _ListenerAction({
       type: "forward",
       forward: {
         targetGroups: targets
@@ -3699,6 +3820,17 @@ var ListenerAction = class {
             TargetGroupArn: target
           }))
         }
+      } : {},
+      ...this.props.type === "authenticate-cognito" ? {
+        AuthenticateCognitoConfig: {
+          OnUnauthenticatedRequest: this.props.onUnauthenticated ?? "deny",
+          Scope: this.props.scope ?? "openid",
+          SessionCookieName: this.props.session?.cookieName ?? "AWSELBAuthSessionCookie",
+          SessionTimeout: this.props.session?.timeout?.toSeconds() ?? 604800,
+          UserPoolArn: this.props.userPool.arn,
+          UserPoolClientId: this.props.userPool.clientId,
+          UserPoolDomain: this.props.userPool.domain
+        }
       } : {}
     };
   }
@@ -3721,22 +3853,28 @@ var ListenerRule = class extends Resource {
       ListenerArn: this.props.listenerArn,
       Priority: this.props.priority,
       Conditions: this.props.conditions.map((condition) => condition.toJSON()),
-      Actions: this.props.actions.map((action) => action.toJSON())
+      // Actions: this.props.actions.map(action => action.toJSON()),
+      Actions: this.props.actions?.map((action, i) => {
+        return {
+          Order: i + 1,
+          ...action.toJSON()
+        };
+      })
     };
   }
 };
-var ListenerCondition = class {
+var ListenerCondition = class _ListenerCondition {
   constructor(props) {
     this.props = props;
   }
   static httpRequestMethods(methods) {
-    return new ListenerCondition({
+    return new _ListenerCondition({
       field: "http-request-method",
       methods
     });
   }
   static pathPatterns(paths) {
-    return new ListenerCondition({
+    return new _ListenerCondition({
       field: "path-pattern",
       paths
     });
@@ -3787,7 +3925,7 @@ var TargetGroup = class extends Resource {
 var ElbEventSource = class extends Group {
   constructor(id, lambda, props) {
     const name = formatName(id);
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "elasticloadbalancing.amazonaws.com",
       functionArn: lambda.arn,
@@ -3800,11 +3938,16 @@ var ElbEventSource = class extends Group {
       type: "lambda",
       targets: [lambda.arn]
     }).dependsOn(lambda, permission);
+    const actions = [];
+    if (props.auth?.cognito) {
+      actions.push(ListenerAction.authCognito(props.auth.cognito));
+    }
     const rule = new ListenerRule(id, {
       listenerArn: props.listenerArn,
       priority: props.priority,
       conditions: props.conditions,
       actions: [
+        ...actions,
         ListenerAction.forward([target.arn])
       ]
     }).dependsOn(target);
@@ -3850,7 +3993,8 @@ var httpPlugin = definePlugin({
         z17.object({
           /** The domain to link your api with. */
           domain: z17.string(),
-          subDomain: z17.string().optional()
+          subDomain: z17.string().optional(),
+          auth: ResourceIdSchema.optional()
         })
       ).optional()
     }).default({}),
@@ -3923,18 +4067,28 @@ var httpPlugin = definePlugin({
     }
   },
   onStack(ctx) {
-    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    const { config, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, routes] of Object.entries(stackConfig.http || {})) {
-      for (const [route, props] of Object.entries(routes)) {
+      const props = config.defaults.http[id];
+      for (const [route, routeProps] of Object.entries(routes)) {
         const { method, path } = parseRoute(route);
-        const lambda = toLambdaFunction(ctx, `http-${id}`, props);
+        const lambda = toLambdaFunction(ctx, `http-${id}`, routeProps);
         const source = new ElbEventSource(`http-${id}-${route}`, lambda, {
           listenerArn: bootstrap2.import(`http-${id}-listener-arn`),
           priority: generatePriority(stackConfig.name, route),
           conditions: [
             ListenerCondition.httpRequestMethods([method]),
             ListenerCondition.pathPatterns([path])
-          ]
+          ],
+          auth: props.auth ? {
+            cognito: {
+              userPool: {
+                arn: bootstrap2.import(`auth-${props.auth}-user-pool-arn`),
+                clientId: bootstrap2.import(`auth-${props.auth}-client-id`),
+                domain: bootstrap2.import(`auth-${props.auth}-domain`)
+              }
+            }
+          } : void 0
         });
         stack.add(lambda, source);
       }
@@ -4085,7 +4239,7 @@ var SubnetGroup = class extends Resource {
 };
 
 // src/plugins/cache.ts
-import { constantCase as constantCase9 } from "change-case";
+import { constantCase as constantCase8 } from "change-case";
 var TypeSchema = z19.enum([
   "t4g.small",
   "t4g.medium",
@@ -4171,7 +4325,7 @@ var cachePlugin = definePlugin({
       }).dependsOn(subnetGroup, securityGroup);
       stack.add(subnetGroup, securityGroup, cluster);
       bind((lambda) => {
-        lambda.addEnvironment(`CACHE_${constantCase9(stack.name)}_${constantCase9(id)}_HOST`, cluster.address).addEnvironment(`CACHE_${constantCase9(stack.name)}_${constantCase9(id)}_PORT`, props.port.toString());
+        lambda.addEnvironment(`CACHE_${constantCase8(stack.name)}_${constantCase8(id)}_HOST`, cluster.address).addEnvironment(`CACHE_${constantCase8(stack.name)}_${constantCase8(id)}_PORT`, props.port.toString());
       });
     }
   }
@@ -4260,7 +4414,7 @@ var Route2 = class extends Resource {
 var ApiGatewayV2EventSource = class extends Group {
   constructor(id, lambda, props) {
     const name = formatName(id);
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "apigateway.amazonaws.com",
       functionArn: lambda.arn
@@ -4567,7 +4721,7 @@ var configPlugin = definePlugin({
     const configs = stackConfig.configs;
     bind((lambda) => {
       if (configs && configs.length) {
-        lambda.addEnvironment("AWSLESS_CONFIG", configs.join(","));
+        lambda.addEnvironment("CONFIG", configs.join(","));
         lambda.addPermissions({
           actions: [
             "ssm:GetParameter",
@@ -4861,7 +5015,7 @@ var Files = class extends Asset {
 };
 
 // src/formation/resource/s3/bucket-policy.ts
-import { capitalCase } from "change-case";
+import { capitalCase as capitalCase2 } from "change-case";
 var BucketPolicy = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::S3::BucketPolicy", logicalId);
@@ -4873,7 +5027,7 @@ var BucketPolicy = class extends Resource {
       PolicyDocument: {
         Version: this.props.version ?? "2012-10-17",
         Statement: this.props.statements.map((statement) => ({
-          Effect: capitalCase(statement.effect ?? "allow"),
+          Effect: capitalCase2(statement.effect ?? "allow"),
           ...statement.principal ? {
             Principal: {
               Service: statement.principal
@@ -5148,7 +5302,7 @@ var sitePlugin = definePlugin({
       let bucket;
       if (props.ssr) {
         const lambda = toLambdaFunction(ctx, `site-${id}`, props.ssr);
-        const permissions = new Permission2(`site-${id}`, {
+        const permissions = new Permission(`site-${id}`, {
           principal: "*",
           // principal: 'cloudfront.amazonaws.com',
           action: "lambda:InvokeFunctionUrl",
@@ -5344,6 +5498,399 @@ var featurePlugin = definePlugin({
   }
 });
 
+// src/plugins/auth.ts
+import { z as z25 } from "zod";
+
+// src/formation/resource/cognito/user-pool.ts
+import { constantCase as constantCase9 } from "change-case";
+
+// src/formation/resource/cognito/user-pool-client.ts
+var UserPoolClient = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Cognito::UserPoolClient", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  formatAuthFlows() {
+    const authFlows = [];
+    if (this.props.authFlows?.userPassword) {
+      authFlows.push("ALLOW_USER_PASSWORD_AUTH");
+    }
+    if (this.props.authFlows?.adminUserPassword) {
+      authFlows.push("ALLOW_ADMIN_USER_PASSWORD_AUTH");
+    }
+    if (this.props.authFlows?.custom) {
+      authFlows.push("ALLOW_CUSTOM_AUTH");
+    }
+    if (this.props.authFlows?.userSrp) {
+      authFlows.push("ALLOW_USER_SRP_AUTH");
+    }
+    authFlows.push("ALLOW_REFRESH_TOKEN_AUTH");
+    return authFlows;
+  }
+  formatIdentityProviders() {
+    const supported = this.props.supportedIdentityProviders ?? [];
+    const providers = [];
+    if (supported.length === 0) {
+      return void 0;
+    }
+    if (supported.includes("amazon")) {
+      providers.push("LoginWithAmazon");
+    }
+    if (supported.includes("apple")) {
+      providers.push("SignInWithApple");
+    }
+    if (supported.includes("cognito")) {
+      providers.push("COGNITO");
+    }
+    if (supported.includes("facebook")) {
+      providers.push("Facebook");
+    }
+    if (supported.includes("google")) {
+      providers.push("Google");
+    }
+    return providers;
+  }
+  properties() {
+    return {
+      ClientName: this.name,
+      UserPoolId: this.props.userPoolId,
+      ExplicitAuthFlows: this.formatAuthFlows(),
+      EnableTokenRevocation: this.props.enableTokenRevocation ?? false,
+      GenerateSecret: this.props.generateSecret ?? false,
+      PreventUserExistenceErrors: this.props.preventUserExistenceErrors ?? true ? "ENABLED" : "LEGACY",
+      ...this.attr("SupportedIdentityProviders", this.formatIdentityProviders()),
+      AllowedOAuthFlows: ["code"],
+      AllowedOAuthScopes: ["openid"],
+      AllowedOAuthFlowsUserPoolClient: true,
+      CallbackURLs: ["https://example.com"],
+      LogoutURLs: ["https://example.com"],
+      // DefaultRedirectURI: String
+      // EnablePropagateAdditionalUserContextData
+      ...this.attr("ReadAttributes", this.props.readAttributes),
+      ...this.attr("WriteAttributes", this.props.writeAttributes),
+      ...this.attr("AuthSessionValidity", this.props.validity?.authSession?.toMinutes()),
+      ...this.attr("AccessTokenValidity", this.props.validity?.accessToken?.toHours()),
+      ...this.attr("IdTokenValidity", this.props.validity?.idToken?.toHours()),
+      ...this.attr("RefreshTokenValidity", this.props.validity?.refreshToken?.toDays()),
+      TokenValidityUnits: {
+        ...this.attr("AccessToken", this.props.validity?.accessToken && "hours"),
+        ...this.attr("IdToken", this.props.validity?.idToken && "hours"),
+        ...this.attr("RefreshToken", this.props.validity?.refreshToken && "days")
+      }
+    };
+  }
+};
+
+// src/formation/resource/cognito/user-pool-domain.ts
+var UserPoolDomain = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Cognito::UserPoolDomain", logicalId);
+    this.props = props;
+  }
+  get domain() {
+    return ref(this.logicalId);
+  }
+  get cloudFrontDistribution() {
+    return getAtt(this.logicalId, "CloudFrontDistribution");
+  }
+  properties() {
+    return {
+      UserPoolId: this.props.userPoolId,
+      Domain: formatName(this.props.domain)
+    };
+  }
+};
+
+// src/formation/resource/cognito/user-pool.ts
+var UserPool = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Cognito::UserPool", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  get providerName() {
+    return getAtt(this.logicalId, "ProviderName");
+  }
+  get providerUrl() {
+    return getAtt(this.logicalId, "ProviderURL");
+  }
+  addDomain(props) {
+    const domain = new UserPoolDomain(this.logicalId, {
+      ...props,
+      userPoolId: this.id
+    }).dependsOn(this);
+    this.addChild(domain);
+    return domain;
+  }
+  addClient(props = {}) {
+    const client = new UserPoolClient(this.logicalId, {
+      ...props,
+      userPoolId: this.id
+    }).dependsOn(this);
+    this.addChild(client);
+    return client;
+  }
+  // get permissions() {
+  // 	const permissions = [{
+  // 		actions: [
+  // 			'dynamodb:DescribeTable',
+  // 			'dynamodb:PutItem',
+  // 			'dynamodb:GetItem',
+  // 			'dynamodb:DeleteItem',
+  // 			'dynamodb:TransactWrite',
+  // 			'dynamodb:BatchWriteItem',
+  // 			'dynamodb:BatchGetItem',
+  // 			'dynamodb:ConditionCheckItem',
+  // 			'dynamodb:Query',
+  // 			'dynamodb:Scan',
+  // 		],
+  // 		resources: [
+  // 			formatArn({
+  // 				service: 'dynamodb',
+  // 				resource: 'table',
+  // 				resourceName: this.name,
+  // 			}),
+  // 		 ],
+  // 	}]
+  // }
+  properties() {
+    return {
+      UserPoolName: this.name,
+      // UserPoolTags: [],
+      ...this.props.username?.emailAlias ? {
+        AliasAttributes: ["email"],
+        // UsernameAttributes: [ 'email' ],
+        AutoVerifiedAttributes: ["email"],
+        Schema: [{
+          AttributeDataType: "String",
+          Name: "email",
+          Required: true,
+          Mutable: false,
+          StringAttributeConstraints: {
+            MinLength: 5,
+            MaxLength: 100
+          }
+        }]
+      } : {},
+      UsernameConfiguration: {
+        CaseSensitive: this.props.username?.caseSensitive ?? false
+      },
+      ...this.attr("EmailConfiguration", this.props.email?.toJSON()),
+      // DeviceConfiguration: {
+      // 	ChallengeRequiredOnNewDevice: {},
+      // 	DeviceOnlyRememberedOnUserPrompt: {},
+      // },
+      AdminCreateUserConfig: {
+        AllowAdminCreateUserOnly: !(this.props.allowUserRegistration ?? true)
+      },
+      Policies: {
+        PasswordPolicy: {
+          MinimumLength: this.props.password?.minLength ?? 8,
+          RequireUppercase: this.props.password?.uppercase ?? false,
+          RequireLowercase: this.props.password?.lowercase ?? false,
+          RequireNumbers: this.props.password?.numbers ?? false,
+          RequireSymbols: this.props.password?.symbols ?? false,
+          TemporaryPasswordValidityDays: this.props.password?.temporaryPasswordValidity?.toDays() ?? 7
+        }
+      },
+      LambdaConfig: {
+        ...this.attr("PreAuthentication", this.props.events?.preLogin),
+        ...this.attr("PostAuthentication", this.props.events?.postLogin),
+        ...this.attr("PostConfirmation", this.props.events?.postRegister),
+        ...this.attr("PreSignUp", this.props.events?.preRegister),
+        ...this.attr("PreTokenGeneration", this.props.events?.preToken),
+        ...this.attr("CustomMessage", this.props.events?.customMessage),
+        ...this.attr("UserMigration", this.props.events?.userMigration),
+        ...this.attr("DefineAuthChallenge", this.props.events?.defineChallange),
+        ...this.attr("CreateAuthChallenge", this.props.events?.createChallange),
+        ...this.attr("VerifyAuthChallengeResponse", this.props.events?.verifyChallange)
+      }
+    };
+  }
+};
+
+// src/plugins/auth.ts
+var authPlugin = definePlugin({
+  name: "auth",
+  schema: z25.object({
+    defaults: z25.object({
+      /** Define the authenticatable users in your app.
+       * @example
+       * {
+       *   auth: {
+       *     AUTH_NAME: {
+       *       password: {
+       *         minLength: 10,
+       *       },
+       *       validity: {
+       *         refreshToken: '30 days',
+       *       }
+       *     }
+       *   }
+       * }
+       */
+      auth: z25.record(
+        ResourceIdSchema,
+        z25.object({
+          /** Specifies whether users can create an user account or if only the administrator can.
+           * @default true
+           */
+          allowUserRegistration: z25.boolean().default(true),
+          /** The username policy. */
+          username: z25.object({
+            /** Allow the user email to be used as username.
+             * @default true
+             */
+            emailAlias: z25.boolean().default(true),
+            /** Specifies whether username case sensitivity will be enabled.
+             * When usernames and email addresses are case insensitive,
+             * users can sign in as the same user when they enter a different capitalization of their user name.
+             * @default false
+             */
+            caseSensitive: z25.boolean().default(false)
+          }).default({}),
+          /** The password policy. */
+          password: z25.object({
+            /** Required users to have at least the minimum password length.
+             * @default 8
+             */
+            minLength: z25.number().int().min(6).max(99).default(8),
+            /** Required users to use at least one uppercase letter in their password.
+             * @default true
+             */
+            uppercase: z25.boolean().default(true),
+            /** Required users to use at least one lowercase letter in their password.
+             * @default true
+             */
+            lowercase: z25.boolean().default(true),
+            /** Required users to use at least one number in their password.
+             * @default true
+             */
+            numbers: z25.boolean().default(true),
+            /** Required users to use at least one symbol in their password.
+             * @default true
+             */
+            symbols: z25.boolean().default(true),
+            /** The duration a temporary password is valid.
+             * If the user doesn't sign in during this time, an administrator must reset their password.
+             * @default '7 days'
+             */
+            temporaryPasswordValidity: DurationSchema.default("7 days")
+          }).default({}),
+          /** Specifies the validity duration for every JWT token. */
+          validity: z25.object({
+            /** The ID token time limit.
+             * After this limit expires, your user can't use their ID token.
+             * @default '1 hour'
+             */
+            idToken: DurationSchema.default("1 hour"),
+            /** The access token time limit.
+             * After this limit expires, your user can't use their access token.
+             * @default '1 hour'
+             */
+            accessToken: DurationSchema.default("1 hour"),
+            /** The refresh token time limit.
+             * After this limit expires, your user can't use their refresh token.
+             * @default '365 days'
+             */
+            refreshToken: DurationSchema.default("365 days")
+          }).default({}),
+          /** Specifies the configuration for AWS Lambda triggers. */
+          events: z25.object({
+            /** A pre jwt token generation AWS Lambda trigger. */
+            preToken: FunctionSchema.optional(),
+            /** A pre user login AWS Lambda trigger. */
+            preLogin: FunctionSchema.optional(),
+            /** A post user login AWS Lambda trigger. */
+            postLogin: FunctionSchema.optional(),
+            /** A pre user register AWS Lambda trigger. */
+            preRegister: FunctionSchema.optional(),
+            /** A post user register AWS Lambda trigger. */
+            postRegister: FunctionSchema.optional(),
+            /** A custom message AWS Lambda trigger. */
+            customMessage: FunctionSchema.optional(),
+            /** Defines the authentication challenge. */
+            defineChallenge: FunctionSchema.optional(),
+            /** Creates an authentication challenge. */
+            createChallenge: FunctionSchema.optional(),
+            /** Verifies the authentication challenge response. */
+            verifyChallenge: FunctionSchema.optional()
+          }).optional()
+        })
+      ).default({})
+    }).default({})
+  }),
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "AuthResources");
+    for (const name of Object.keys(config.defaults.auth)) {
+      gen.addType(name, `{ name: '${formatName(name)}' }`);
+    }
+    return gen.toString();
+  },
+  onApp(ctx) {
+    const { config, bootstrap: bootstrap2, bind } = ctx;
+    for (const [id, props] of Object.entries(config.defaults.auth)) {
+      const functions = /* @__PURE__ */ new Map();
+      const events = {};
+      for (const [event, fnProps] of Object.entries(props.events ?? {})) {
+        const lambda = toLambdaFunction(ctx, `auth-${id}-${event}`, fnProps);
+        functions.set(event, lambda);
+        events[event] = lambda.arn;
+      }
+      const userPool = new UserPool(id, {
+        name: `${config.name}-${id}`,
+        allowUserRegistration: props.allowUserRegistration,
+        username: props.username,
+        password: props.password,
+        events
+      });
+      const client = userPool.addClient({
+        name: `${config.name}-${id}`,
+        validity: props.validity,
+        generateSecret: true,
+        supportedIdentityProviders: ["cognito"],
+        authFlows: {
+          userSrp: true
+        }
+      });
+      const domain = userPool.addDomain({
+        domain: `${config.name}-${id}`
+      });
+      bootstrap2.add(userPool).export(`auth-${id}-user-pool-arn`, userPool.arn).export(`auth-${id}-user-pool-id`, userPool.id).export(`auth-${id}-client-id`, client.id).export(`auth-${id}-domain`, domain.domain);
+      for (const [event, lambda] of functions) {
+        const permission = new Permission(`auth-${id}-${event}`, {
+          action: "lambda:InvokeFunction",
+          principal: "cognito-idp.amazonaws.com",
+          functionArn: lambda.arn,
+          sourceArn: userPool.arn
+        }).dependsOn(lambda);
+        bootstrap2.add(
+          lambda,
+          permission
+        );
+      }
+    }
+    bind((lambda) => {
+      lambda.addPermissions({
+        actions: ["cognito:*"],
+        resources: ["*"]
+      });
+    });
+  }
+});
+
 // src/plugins/index.ts
 var defaultPlugins = [
   extendPlugin,
@@ -5360,6 +5907,7 @@ var defaultPlugins = [
   topicPlugin,
   pubsubPlugin,
   searchPlugin,
+  authPlugin,
   graphqlPlugin,
   httpPlugin,
   restPlugin,
@@ -5516,17 +6064,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-import { z as z28 } from "zod";
+import { z as z29 } from "zod";
 
 // src/schema/stack.ts
-import { z as z25 } from "zod";
-var StackSchema = z25.object({
+import { z as z26 } from "zod";
+var StackSchema = z26.object({
   name: ResourceIdSchema,
-  depends: z25.array(z25.lazy(() => StackSchema)).optional()
+  depends: z26.array(z26.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z26 } from "zod";
+import { z as z27 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -5543,41 +6091,41 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = z26.enum(regions);
+var RegionSchema = z27.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z27 } from "zod";
-var PluginSchema = z27.object({
-  name: z27.string(),
-  schema: z27.custom().optional(),
+import { z as z28 } from "zod";
+var PluginSchema = z28.object({
+  name: z28.string(),
+  schema: z28.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onApp: z27.function().returns(z27.void()).optional(),
-  onStack: z27.function().returns(z27.any()).optional(),
-  onResource: z27.function().returns(z27.any()).optional()
+  onApp: z28.function().returns(z28.void()).optional(),
+  onStack: z28.function().returns(z28.any()).optional(),
+  onResource: z28.function().returns(z28.any()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z28.object({
+var AppSchema = z29.object({
   /** App name */
   name: ResourceIdSchema,
   /** The AWS region to deploy to. */
   region: RegionSchema,
   /** The AWS profile to deploy to. */
-  profile: z28.string(),
+  profile: z29.string(),
   /** The deployment stage.
    * @default 'prod'
    */
-  stage: z28.string().regex(/^[a-z]+$/).default("prod"),
+  stage: z29.string().regex(/^[a-z]+$/).default("prod"),
   /** Default properties. */
-  defaults: z28.object({}).default({}),
+  defaults: z29.object({}).default({}),
   /** The application stacks. */
-  stacks: z28.array(StackSchema).min(1).refine((stacks) => {
+  stacks: z29.array(StackSchema).min(1).refine((stacks) => {
     const unique = new Set(stacks.map((stack) => stack.name));
     return unique.size === stacks.length;
   }, "Must be an array of unique stacks"),
   /** Custom plugins. */
-  plugins: z28.array(PluginSchema).optional()
+  plugins: z29.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
@@ -5674,7 +6222,7 @@ var watchFile = (path) => {
 };
 
 // src/config.ts
-import { z as z29 } from "zod";
+import { z as z30 } from "zod";
 var ConfigError = class extends Error {
   constructor(error, data) {
     super(error.message);
@@ -5707,7 +6255,7 @@ var importConfig = async (options) => {
   try {
     config = await schema2.parseAsync(appConfig);
   } catch (error) {
-    if (error instanceof z29.ZodError) {
+    if (error instanceof z30.ZodError) {
       throw new ConfigError(error, appConfig);
     }
     throw error;
@@ -5748,7 +6296,7 @@ var watchConfig = async function* (options) {
     try {
       config = await schema2.parseAsync(appConfig);
     } catch (error) {
-      if (error instanceof z29.ZodError) {
+      if (error instanceof z30.ZodError) {
         throw new ConfigError(error, appConfig);
       }
       throw error;
@@ -6230,6 +6778,7 @@ var format = (value) => {
     case "object":
       return "{ ... }";
     case "undefined":
+      return "undefined";
     case "string":
     case "number":
     case "boolean":

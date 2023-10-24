@@ -23,31 +23,40 @@ export default defineAppConfig(input => ({
 	region: 'eu-west-1',
 	profile: input.profile || 'jacksclub',
 	// profile: 'op://personal/<item>/<field>',
-	domains: {
-		'getblockalert.com': [],
-		// main: {
-		// 	domain: input.stage === 'prod' ? 'getblockalert.com' :
-		// }
-	},
+	// domains: {
+	// 	'getblockalert.com': [],
+	// 	// main: {
+	// 	// 	domain: input.stage === 'prod' ? 'getblockalert.com' :
+	// 	// }
+	// },
 	defaults: {
-		// graphql: {
-		// 	api: {
-		// 		domain: 'getblockalert.com',
-		// 		subDomain: 'graphql',
-		// 	},
-		// },
-		// http: {
-		// 	api: {
-		// 		domain: 'getblockalert.com',
-		// 		subDomain: 'api',
-		// 	}
-		// },
-		rest: {
+		domains: {
+			'crypto-trender.com': []
+		},
+		graphql: {
 			api: {
-				domain: 'getblockalert.com',
-				subDomain: 'rest',
+				domain: 'crypto-trender.com',
+				subDomain: 'graphql',
+				auth: 'users'
+			},
+		},
+		http: {
+			api: {
+				domain: 'crypto-trender.com',
+				subDomain: 'http',
+				auth: 'users',
 			}
 		},
+		auth: {
+			users: { },
+			admins: { allowUserRegistration: false }
+		},
+		// rest: {
+		// 	api: {
+		// 		domain: 'getblockalert.com',
+		// 		subDomain: 'rest',
+		// 	}
+		// },
 		function: {
 			memorySize: '512 MB',
 			// environment: {
@@ -74,12 +83,12 @@ export default defineAppConfig(input => ({
 		// cronStack,
 		// pubsubStack,
 		// failureStack,
-		restStack,
-		siteStack,
-		// httpStack,
+		// restStack,
+		// siteStack,
+		httpStack,
 		// searchStack,
 
-		// graphqlOneStack,
-		// graphqlTwoStack,
+		graphqlOneStack,
+		graphqlTwoStack,
 	]
 }))

@@ -18,40 +18,42 @@ const DomainNameSchema = z.string().regex(/[a-z\-\_\.]/g, 'Invalid domain name')
 export const domainPlugin = definePlugin({
 	name: 'domain',
 	schema: z.object({
-		/** Define the domains for your application.
-		 * @example
-		 * {
-		 *   domains: {
-		 *     'example.com': [{
-		 *       name: 'www',
-		 *       type: 'TXT',
-		 *       ttl: '60 seconds',
-		 *       records: [ 'value' ]
-		 *     }]
-		 *   }
-		 * }
-		 */
-		domains: z.record(DomainNameSchema, z.object({
-			/** Enter a fully qualified domain name, for example, www.example.com.
-			 * You can optionally include a trailing dot.
-			 * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
-			 * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+		defaults: z.object({
+			/** Define the domains for your application.
+			 * @example
+			 * {
+			 *   domains: {
+			 *     'example.com': [{
+			 *       name: 'www',
+			 *       type: 'TXT',
+			 *       ttl: '60 seconds',
+			 *       records: [ 'value' ]
+			 *     }]
+			 *   }
+			 * }
 			 */
-			name: DomainNameSchema.optional(),
+			domains: z.record(DomainNameSchema, z.object({
+				/** Enter a fully qualified domain name, for example, www.example.com.
+				 * You can optionally include a trailing dot.
+				 * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
+				 * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+				 */
+				name: DomainNameSchema.optional(),
 
-			/** The DNS record type. */
-			type: z.enum([ 'A', 'AAAA', 'CAA', 'CNAME', 'DS', 'MX', 'NAPTR', 'NS', 'PTR', 'SOA', 'SPF', 'SRV', 'TXT' ]),
+				/** The DNS record type. */
+				type: z.enum([ 'A', 'AAAA', 'CAA', 'CNAME', 'DS', 'MX', 'NAPTR', 'NS', 'PTR', 'SOA', 'SPF', 'SRV', 'TXT' ]),
 
-			/** The resource record cache time to live (TTL). */
-			ttl: DurationSchema,
+				/** The resource record cache time to live (TTL). */
+				ttl: DurationSchema,
 
-			/** One or more values that correspond with the value that you specified for the Type property. */
-			records: z.string().array(),
-		}).array()).optional(),
+				/** One or more values that correspond with the value that you specified for the Type property. */
+				records: z.string().array(),
+			}).array()).optional(),
+		}).default({}),
 	}),
 	onApp({ config, bootstrap, usEastBootstrap }) {
 
-		const domains = Object.entries(config.domains || {})
+		const domains = Object.entries(config.defaults.domains || {})
 
 		if(domains.length === 0) {
 			return
@@ -72,8 +74,8 @@ export const domainPlugin = definePlugin({
 
 		usEastBootstrap.add(deleteHostedZoneLambda)
 
-		const usEastExports = new GlobalExports('us-east-exports', {
-			region: usEastBootstrap.region
+		const usEastExports = new GlobalExports(`${config.name}-us-east-exports`, {
+			region: usEastBootstrap.region,
 		})
 
 		bootstrap.add(usEastExports)

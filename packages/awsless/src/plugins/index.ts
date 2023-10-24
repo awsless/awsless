@@ -20,6 +20,7 @@ import { restPlugin } from './rest.js';
 import { configPlugin } from './config.js';
 import { sitePlugin } from './site.js';
 import { featurePlugin } from './feature.js';
+import { authPlugin } from './auth.js';
 
 export const defaultPlugins = [
 	extendPlugin,
@@ -36,6 +37,7 @@ export const defaultPlugins = [
 	topicPlugin,
 	pubsubPlugin,
 	searchPlugin,
+	authPlugin,
 	graphqlPlugin,
 	httpPlugin,
 	restPlugin,

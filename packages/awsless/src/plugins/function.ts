@@ -38,10 +38,20 @@ const RuntimeSchema = z.enum([
 	'nodejs18.x',
 ])
 
+const PermissionSchema = z.object({
+	effect: z.enum([ 'allow', 'deny' ]).default('allow'),
+	actions: z.string().array(),
+	resources: z.string().array(),
+})
+
+const PermissionsSchema = z.union([ PermissionSchema, PermissionSchema.array() ])
+
 const LogSchema = z.union([
 	z.boolean(),
 	DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day'),
 ])
+
+const WarmSchema = z.number().int().min(0).max(10)
 
 export const FunctionSchema = z.union([
 	LocalFileSchema,
@@ -58,6 +68,12 @@ export const FunctionSchema = z.union([
 		 * @default true
 		 */
 		minify: z.boolean().optional(),
+
+		/** Specify how many functions you want to warm up each 5 minutes.
+		 * You can specify a number from 0 to 10.
+		 * @default 0
+		 */
+		warm: WarmSchema.optional(),
 
 		/** Put the function inside your global VPC.
 		 * @default false
@@ -121,7 +137,16 @@ export const FunctionSchema = z.union([
 		 */
 		environment: EnvironmentSchema.optional(),
 
-		// onFailure: ResourceIdSchema.optional(),
+		/** Add IAM permissions to your function.
+		 * @example
+		 * {
+		 *   permissions: {
+		 *     actions: [ 's3:PutObject' ],
+		 *     resources: [ '*' ]
+		 *   }
+		 * }
+		 */
+		permissions: PermissionsSchema.optional(),
 	})
 ])
 
@@ -144,6 +169,12 @@ const schema = z.object({
 			 * @default true
 			 */
 			minify: z.boolean().default(true),
+
+			/** Specify how many functions you want to warm up each 5 minutes.
+			 * You can specify a number from 0 to 10.
+			 * @default 0
+			 */
+			warm: WarmSchema.default(0),
 
 			/** Put the function inside your global VPC.
 			 * @default false
@@ -206,7 +237,17 @@ const schema = z.object({
 			 */
 			environment: EnvironmentSchema.optional(),
 
-			// onFailure: ResourceIdSchema.optional(),
+			/** Add IAM permissions to your function.
+			 * @example
+			 * {
+			 *   permissions: {
+			 *     actions: [ 's3:PutObject' ],
+			 *     resources: [ '*' ]
+			 *   }
+			 * }
+			 */
+			permissions: PermissionsSchema.optional(),
+
 		}).default({}),
 	}).default({}),
 	stacks: z.object({
@@ -309,6 +350,14 @@ export const toLambdaFunction = (
 		vpc: undefined,
 	})
 
+	if(config.defaults?.function?.permissions) {
+		lambda.addPermissions(config.defaults?.function?.permissions)
+	}
+
+	if(typeof fileOrProps === 'object' && fileOrProps.permissions) {
+		lambda.addPermissions(fileOrProps.permissions)
+	}
+
 	lambda
 		.addEnvironment('APP', config.name)
 		.addEnvironment('STAGE', config.stage)
@@ -316,6 +365,13 @@ export const toLambdaFunction = (
 
 	if(props.log) {
 		lambda.enableLogs(props.log instanceof Duration ? props.log : undefined)
+	}
+
+	// debug(id, props.warm);
+
+	if(props.warm) {
+		// debug(props);
+		lambda.warmUp(props.warm)
 	}
 
 	if(props.vpc) {

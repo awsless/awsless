@@ -25,7 +25,13 @@ export class ListenerRule extends Resource {
 			ListenerArn: this.props.listenerArn,
 			Priority: this.props.priority,
 			Conditions: this.props.conditions.map(condition => condition.toJSON()),
-			Actions: this.props.actions.map(action => action.toJSON()),
+			// Actions: this.props.actions.map(action => action.toJSON()),
+			Actions: this.props.actions?.map((action, i) => {
+				return {
+					Order: i + 1,
+					...action.toJSON()
+				}
+			}),
 		}
 	}
 }

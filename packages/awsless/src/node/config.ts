@@ -8,7 +8,7 @@ export const getConfigName = (name: string) => {
 }
 
 const TEST = process.env.NODE_ENV === 'test'
-const CONFIGS = process.env.AWSLESS_CONFIG
+const CONFIGS = process.env.CONFIG
 
 /*@__NO_SIDE_EFFECTS__*/
 const loadConfigData = async () => {
@@ -23,18 +23,18 @@ const loadConfigData = async () => {
 				paths[key] = getConfigName(key)
 			}
 
-			return await ssm(paths)
+			return ssm(paths)
 		}
 	}
 
 	return {}
 }
 
-/*@__PURE__*/ const data: Record<string, string> = await loadConfigData()
+const data: Record<string, string> = await /*@__PURE__*/ loadConfigData()
 
 export interface ConfigResources {}
 
-export const Config:ConfigResources = new Proxy({}, {
+export const Config:ConfigResources = /*@__PURE__*/ new Proxy({}, {
 	get(_, name:string) {
 		const key = paramCase(name)
 		const value = data[key]

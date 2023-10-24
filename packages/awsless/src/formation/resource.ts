@@ -3,7 +3,7 @@ import { Stack } from './stack.js'
 import { formatLogicalId, getAtt, ref } from './util.js'
 
 export type Permission = {
-	effect?: 'Allow' | 'Deny'
+	effect?: 'allow' | 'deny'
 	actions: string[]
 	resources: string[]
 }
@@ -21,12 +21,12 @@ export abstract class Resource {
 	constructor(
 		readonly type: string,
 		logicalId: string,
-		readonly children: Array<Resource | Asset> = []
+		readonly children: Array<Resource | Asset | Group> = []
 	) {
 		this.logicalId = formatLogicalId(`${ logicalId }-${ type.replace(/^AWS::/, '') }`)
 	}
 
-	addChild(...children: Resource[]) {
+	addChild(...children: Array<Resource | Asset | Group>) {
 		this.children.push(...children)
 
 		return this

@@ -13,7 +13,7 @@ export const getCacheProps = (name: string, stack:string = STACK) => {
 
 export interface CacheResources {}
 
-export const Cache:CacheResources = createProxy((stack) => {
+export const Cache:CacheResources = /*@__PURE__*/ createProxy((stack) => {
 	return createProxy((name) => {
 		const call = () => {
 			// should provide a redis client.

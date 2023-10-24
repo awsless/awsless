@@ -69,7 +69,7 @@ declare class Stack {
 }
 
 type Permission = {
-    effect?: 'Allow' | 'Deny';
+    effect?: 'allow' | 'deny';
     actions: string[];
     resources: string[];
 };
@@ -78,13 +78,13 @@ interface Resource {
 }
 declare abstract class Resource {
     readonly type: string;
-    readonly children: Array<Resource | Asset>;
+    readonly children: Array<Resource | Asset | Group>;
     readonly logicalId: string;
     readonly tags: Map<string, string>;
     protected deps: Set<Resource>;
     protected stack: Stack | undefined;
-    constructor(type: string, logicalId: string, children?: Array<Resource | Asset>);
-    addChild(...children: Resource[]): this;
+    constructor(type: string, logicalId: string, children?: Array<Resource | Asset | Group>);
+    addChild(...children: Array<Resource | Asset | Group>): this;
     dependsOn(...dependencies: Resource[]): this;
     tag(key: string, value: string): this;
     protected attr(name: string, value: unknown): {
@@ -110,6 +110,21 @@ declare abstract class Resource {
 declare class Group {
     readonly children: Array<Resource | Asset>;
     constructor(children: Array<Resource | Asset>);
+}
+
+declare class Duration {
+    private value;
+    static milliseconds(value: number): Duration;
+    static seconds(value: number): Duration;
+    static minutes(value: number): Duration;
+    static hours(value: number): Duration;
+    static days(value: number): Duration;
+    constructor(value: number);
+    toMilliseconds(): number;
+    toSeconds(): number;
+    toMinutes(): number;
+    toHours(): number;
+    toDays(): number;
 }
 
 type HttpRequestMethod = 'POST' | 'GET' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS';
@@ -182,21 +197,6 @@ declare class Size {
     toGigaBytes(): number;
 }
 
-declare class Duration {
-    private value;
-    static milliseconds(value: number): Duration;
-    static seconds(value: number): Duration;
-    static minutes(value: number): Duration;
-    static hours(value: number): Duration;
-    static days(value: number): Duration;
-    constructor(value: number);
-    toMilliseconds(): number;
-    toSeconds(): number;
-    toMinutes(): number;
-    toHours(): number;
-    toDays(): number;
-}
-
 declare const defaultPlugins: (Plugin<zod.ZodObject<{
     extend: zod.ZodOptional<zod.ZodType<(ctx: AppContext<undefined>) => void, zod.ZodTypeDef, (ctx: AppContext<undefined>) => void>>;
     stacks: zod.ZodArray<zod.ZodObject<{
@@ -217,41 +217,62 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
     extend?: ((ctx: AppContext<undefined>) => void) | undefined;
 }>> | Plugin<undefined> | Plugin<zod.ZodObject<{
-    domains: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodArray<zod.ZodObject<{
-        name: zod.ZodOptional<zod.ZodString>;
-        type: zod.ZodEnum<["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]>;
-        ttl: zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>;
-        records: zod.ZodArray<zod.ZodString, "many">;
+    defaults: zod.ZodDefault<zod.ZodObject<{
+        domains: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodArray<zod.ZodObject<{
+            name: zod.ZodOptional<zod.ZodString>;
+            type: zod.ZodEnum<["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]>;
+            ttl: zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>;
+            records: zod.ZodArray<zod.ZodString, "many">;
+        }, "strip", zod.ZodTypeAny, {
+            type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
+            ttl: Duration;
+            records: string[];
+            name?: string | undefined;
+        }, {
+            type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
+            ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
+            records: string[];
+            name?: string | undefined;
+        }>, "many">>>;
     }, "strip", zod.ZodTypeAny, {
-        type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
-        ttl: Duration;
-        records: string[];
-        name?: string | undefined;
+        domains?: Record<string, {
+            type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
+            ttl: Duration;
+            records: string[];
+            name?: string | undefined;
+        }[]> | undefined;
     }, {
-        type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
-        ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
-        records: string[];
-        name?: string | undefined;
-    }>, "many">>>;
+        domains?: Record<string, {
+            type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
+            ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
+            records: string[];
+            name?: string | undefined;
+        }[]> | undefined;
+    }>>;
 }, "strip", zod.ZodTypeAny, {
-    domains?: Record<string, {
-        type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
-        ttl: Duration;
-        records: string[];
-        name?: string | undefined;
-    }[]> | undefined;
+    defaults: {
+        domains?: Record<string, {
+            type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
+            ttl: Duration;
+            records: string[];
+            name?: string | undefined;
+        }[]> | undefined;
+    };
 }, {
-    domains?: Record<string, {
-        type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
-        ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
-        records: string[];
-        name?: string | undefined;
-    }[]> | undefined;
+    defaults?: {
+        domains?: Record<string, {
+            type: "A" | "AAAA" | "CAA" | "CNAME" | "DS" | "MX" | "NAPTR" | "NS" | "PTR" | "SOA" | "SPF" | "SRV" | "TXT";
+            ttl: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined);
+            records: string[];
+            name?: string | undefined;
+        }[]> | undefined;
+    } | undefined;
 }>> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
         function: zod.ZodDefault<zod.ZodObject<{
             handler: zod.ZodDefault<zod.ZodString>;
             minify: zod.ZodDefault<zod.ZodBoolean>;
+            warm: zod.ZodDefault<zod.ZodNumber>;
             vpc: zod.ZodDefault<zod.ZodBoolean>;
             log: zod.ZodDefault<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -262,10 +283,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: zod.ZodDefault<zod.ZodNumber>;
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+            permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, zod.ZodArray<zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, "many">]>>;
         }, "strip", zod.ZodTypeAny, {
             vpc: boolean;
             handler: string;
             minify: boolean;
+            warm: number;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
             runtime: "nodejs18.x";
@@ -275,9 +322,19 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: number;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }, {
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -288,12 +345,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>>;
     }, "strip", zod.ZodTypeAny, {
         function: {
             vpc: boolean;
             handler: string;
             minify: boolean;
+            warm: number;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
             runtime: "nodejs18.x";
@@ -303,11 +370,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: number;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         };
     }, {
         function?: {
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -318,6 +395,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined;
     }>>;
     stacks: zod.ZodArray<zod.ZodObject<{
@@ -325,6 +411,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
             handler: zod.ZodOptional<zod.ZodString>;
             minify: zod.ZodOptional<zod.ZodBoolean>;
+            warm: zod.ZodOptional<zod.ZodNumber>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -335,10 +422,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: zod.ZodOptional<zod.ZodNumber>;
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+            permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, zod.ZodArray<zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, "many">]>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -349,10 +462,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -363,12 +486,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>]>>>;
     }, "strip", zod.ZodTypeAny, {
         functions?: Record<string, string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -379,12 +512,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }> | undefined;
     }, {
         functions?: Record<string, string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -395,6 +538,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }> | undefined;
     }>, "many">;
 }, "strip", zod.ZodTypeAny, {
@@ -403,6 +555,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -413,6 +566,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }> | undefined;
     }[];
     defaults: {
@@ -420,6 +582,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: boolean;
             handler: string;
             minify: boolean;
+            warm: number;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
             runtime: "nodejs18.x";
@@ -429,6 +592,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: number;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         };
     };
 }, {
@@ -437,6 +609,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -447,12 +620,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }> | undefined;
     }[];
     defaults?: {
         function?: {
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -463,6 +646,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined;
     } | undefined;
 }>> | Plugin<zod.ZodObject<{
@@ -553,6 +745,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
                 handler: zod.ZodOptional<zod.ZodString>;
                 minify: zod.ZodOptional<zod.ZodBoolean>;
+                warm: zod.ZodOptional<zod.ZodNumber>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -563,10 +756,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                 reserved: zod.ZodOptional<zod.ZodNumber>;
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, zod.ZodArray<zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, "many">]>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -577,10 +796,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -591,6 +820,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }>]>;
             schedule: zod.ZodUnion<[zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, string, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${string} ${string} ${string} ${string} ${string} ${string}`, zod.ZodTypeDef, `${string} ${string} ${string} ${string} ${string} ${string}`>, `${string} ${string} ${string} ${string} ${string} ${string}`, `${string} ${string} ${string} ${string} ${string} ${string}`>, string, `${string} ${string} ${string} ${string} ${string} ${string}`>]>;
             payload: zod.ZodOptional<zod.ZodUnknown>;
@@ -599,6 +837,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -609,10 +848,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -623,6 +872,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             schedule: string;
             payload?: unknown;
@@ -631,6 +889,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -641,10 +900,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -655,6 +924,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             schedule: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}` | undefined);
             payload?: unknown;
@@ -665,6 +943,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -675,10 +954,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -689,6 +978,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             schedule: string;
             payload?: unknown;
@@ -699,6 +997,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -709,10 +1008,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -723,6 +1032,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             schedule: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}` | undefined);
             payload?: unknown;
@@ -735,6 +1053,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -745,10 +1064,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -759,6 +1088,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             schedule: string;
             payload?: unknown;
@@ -771,6 +1109,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -781,10 +1120,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -795,6 +1144,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             schedule: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}` | undefined);
             payload?: unknown;
@@ -859,6 +1217,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
                 handler: zod.ZodOptional<zod.ZodString>;
                 minify: zod.ZodOptional<zod.ZodBoolean>;
+                warm: zod.ZodOptional<zod.ZodNumber>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -869,10 +1228,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                 reserved: zod.ZodOptional<zod.ZodNumber>;
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, zod.ZodArray<zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, "many">]>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -883,10 +1268,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -897,6 +1292,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }>]>;
             retentionPeriod: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
             visibilityTimeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -911,6 +1315,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -921,10 +1326,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -935,6 +1350,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             retentionPeriod?: Duration | undefined;
             visibilityTimeout?: Duration | undefined;
@@ -949,6 +1373,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -959,10 +1384,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -973,6 +1408,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -989,6 +1433,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -999,10 +1444,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1013,6 +1468,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             retentionPeriod?: Duration | undefined;
             visibilityTimeout?: Duration | undefined;
@@ -1029,6 +1493,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1039,10 +1504,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1053,6 +1528,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1071,6 +1555,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1081,10 +1566,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1095,6 +1590,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             retentionPeriod?: Duration | undefined;
             visibilityTimeout?: Duration | undefined;
@@ -1125,6 +1629,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1135,10 +1640,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1149,6 +1664,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1187,6 +1711,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
                     handler: zod.ZodOptional<zod.ZodString>;
                     minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1197,10 +1722,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                     reserved: zod.ZodOptional<zod.ZodNumber>;
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1211,10 +1762,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }, {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1225,6 +1786,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }>]>;
             }, "strip", zod.ZodTypeAny, {
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
@@ -1232,6 +1802,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1242,10 +1813,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1256,6 +1837,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
             }, {
                 type: "keys-only" | "new-image" | "old-image" | "new-and-old-images";
@@ -1263,6 +1853,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1273,10 +1864,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1287,6 +1888,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
             }>>;
             indexes: zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodObject<{
@@ -1315,6 +1925,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1325,10 +1936,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1339,6 +1960,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
             } | undefined;
             indexes?: Record<string, {
@@ -1359,6 +1989,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1369,10 +2000,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1383,6 +2024,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
             } | undefined;
             indexes?: Record<string, {
@@ -1405,6 +2055,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1415,10 +2066,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1429,6 +2090,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
             } | undefined;
             indexes?: Record<string, {
@@ -1451,6 +2121,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1461,10 +2132,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1475,6 +2156,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
             } | undefined;
             indexes?: Record<string, {
@@ -1499,6 +2189,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1509,10 +2200,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -1523,6 +2224,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
             } | undefined;
             indexes?: Record<string, {
@@ -1547,6 +2257,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1557,10 +2268,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1571,6 +2292,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
             } | undefined;
             indexes?: Record<string, {
@@ -1603,6 +2333,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
             handler: zod.ZodOptional<zod.ZodString>;
             minify: zod.ZodOptional<zod.ZodBoolean>;
+            warm: zod.ZodOptional<zod.ZodNumber>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1613,10 +2344,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: zod.ZodOptional<zod.ZodNumber>;
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+            permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, zod.ZodArray<zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, "many">]>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1627,10 +2384,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1641,6 +2408,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>]>>>;
     }, "strip", zod.ZodTypeAny, {
         topics?: string[] | undefined;
@@ -1648,6 +2424,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1658,6 +2435,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }> | undefined;
     }, {
         topics?: string[] | undefined;
@@ -1665,6 +2451,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1675,6 +2462,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }> | undefined;
     }>, "many">, {
         topics?: string[] | undefined;
@@ -1682,6 +2478,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1692,6 +2489,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }> | undefined;
     }[], {
         topics?: string[] | undefined;
@@ -1699,6 +2505,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1709,6 +2516,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }> | undefined;
     }[]>;
 }, "strip", zod.ZodTypeAny, {
@@ -1718,6 +2534,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -1728,6 +2545,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }> | undefined;
     }[];
 }, {
@@ -1737,6 +2563,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1747,6 +2574,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }> | undefined;
     }[];
 }>> | Plugin<zod.ZodObject<{
@@ -1758,6 +2594,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
                 handler: zod.ZodOptional<zod.ZodString>;
                 minify: zod.ZodOptional<zod.ZodBoolean>;
+                warm: zod.ZodOptional<zod.ZodNumber>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -1768,10 +2605,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                 reserved: zod.ZodOptional<zod.ZodNumber>;
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, zod.ZodArray<zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, "many">]>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1782,10 +2645,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1796,12 +2669,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }>]>;
         }, "strip", zod.ZodTypeAny, {
             consumer: (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1812,10 +2695,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1826,6 +2719,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             sql: string;
             sqlVersion: "2015-10-08" | "2016-03-23" | "beta";
@@ -1834,6 +2736,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1844,10 +2747,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1858,6 +2771,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             sql: string;
             sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
@@ -1868,6 +2790,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1878,10 +2801,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1892,6 +2825,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             sql: string;
             sqlVersion: "2015-10-08" | "2016-03-23" | "beta";
@@ -1902,6 +2844,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1912,10 +2855,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1926,6 +2879,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             sql: string;
             sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
@@ -1938,6 +2900,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1948,10 +2911,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -1962,6 +2935,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined);
             sql: string;
             sqlVersion: "2015-10-08" | "2016-03-23" | "beta";
@@ -1974,6 +2956,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1984,10 +2967,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -1998,6 +2991,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             sql: string;
             sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
@@ -2021,14 +3023,59 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
     }[];
 }>> | Plugin<zod.ZodObject<{
     defaults: zod.ZodDefault<zod.ZodObject<{
-        graphql: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
-            domain: zod.ZodOptional<zod.ZodString>;
-            subDomain: zod.ZodOptional<zod.ZodString>;
-            authorization: zod.ZodOptional<zod.ZodObject<{
-                authorizer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+        auth: zod.ZodDefault<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+            allowUserRegistration: zod.ZodDefault<zod.ZodBoolean>;
+            username: zod.ZodDefault<zod.ZodObject<{
+                emailAlias: zod.ZodDefault<zod.ZodBoolean>;
+                caseSensitive: zod.ZodDefault<zod.ZodBoolean>;
+            }, "strip", zod.ZodTypeAny, {
+                emailAlias: boolean;
+                caseSensitive: boolean;
+            }, {
+                emailAlias?: boolean | undefined;
+                caseSensitive?: boolean | undefined;
+            }>>;
+            password: zod.ZodDefault<zod.ZodObject<{
+                minLength: zod.ZodDefault<zod.ZodNumber>;
+                uppercase: zod.ZodDefault<zod.ZodBoolean>;
+                lowercase: zod.ZodDefault<zod.ZodBoolean>;
+                numbers: zod.ZodDefault<zod.ZodBoolean>;
+                symbols: zod.ZodDefault<zod.ZodBoolean>;
+                temporaryPasswordValidity: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+            }, "strip", zod.ZodTypeAny, {
+                minLength: number;
+                uppercase: boolean;
+                lowercase: boolean;
+                numbers: boolean;
+                symbols: boolean;
+                temporaryPasswordValidity: Duration;
+            }, {
+                minLength?: number | undefined;
+                uppercase?: boolean | undefined;
+                lowercase?: boolean | undefined;
+                numbers?: boolean | undefined;
+                symbols?: boolean | undefined;
+                temporaryPasswordValidity?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            }>>;
+            validity: zod.ZodDefault<zod.ZodObject<{
+                idToken: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                accessToken: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                refreshToken: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+            }, "strip", zod.ZodTypeAny, {
+                idToken: Duration;
+                accessToken: Duration;
+                refreshToken: Duration;
+            }, {
+                idToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                accessToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                refreshToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            }>>;
+            events: zod.ZodOptional<zod.ZodObject<{
+                preToken: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
                     handler: zod.ZodOptional<zod.ZodString>;
                     minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2039,10 +3086,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                     reserved: zod.ZodOptional<zod.ZodNumber>;
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2053,10 +3126,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }, {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2067,14 +3150,734 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
-                }>]>;
-                ttl: zod.ZodDefault<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                preLogin: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                postLogin: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                preRegister: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                postRegister: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                customMessage: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                defineChallenge: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                createChallenge: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
+                verifyChallenge: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+                    file: zod.ZodEffects<zod.ZodString, string, string>;
+                    handler: zod.ZodOptional<zod.ZodString>;
+                    minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
+                    vpc: zod.ZodOptional<zod.ZodBoolean>;
+                    log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
+                    timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
+                    ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
+                    retryAttempts: zod.ZodOptional<zod.ZodNumber>;
+                    reserved: zod.ZodOptional<zod.ZodNumber>;
+                    environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
+                }, "strip", zod.ZodTypeAny, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                }, {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                }>]>>;
             }, "strip", zod.ZodTypeAny, {
-                ttl: Duration;
-                authorizer: (string | {
+                preToken?: string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2085,10 +3888,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
-                }) & (string | {
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2099,12 +3913,197 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
-                } | undefined);
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
             }, {
-                authorizer: (string | {
+                preToken?: string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2115,10 +4114,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
-                }) & (string | {
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2129,157 +4139,1712 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
-                } | undefined);
-                ttl?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
             }>>;
+        }, "strip", zod.ZodTypeAny, {
+            allowUserRegistration: boolean;
+            username: {
+                emailAlias: boolean;
+                caseSensitive: boolean;
+            };
+            password: {
+                minLength: number;
+                uppercase: boolean;
+                lowercase: boolean;
+                numbers: boolean;
+                symbols: boolean;
+                temporaryPasswordValidity: Duration;
+            };
+            validity: {
+                idToken: Duration;
+                accessToken: Duration;
+                refreshToken: Duration;
+            };
+            events?: {
+                preToken?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+            } | undefined;
+        }, {
+            allowUserRegistration?: boolean | undefined;
+            username?: {
+                emailAlias?: boolean | undefined;
+                caseSensitive?: boolean | undefined;
+            } | undefined;
+            password?: {
+                minLength?: number | undefined;
+                uppercase?: boolean | undefined;
+                lowercase?: boolean | undefined;
+                numbers?: boolean | undefined;
+                symbols?: boolean | undefined;
+                temporaryPasswordValidity?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            validity?: {
+                idToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                accessToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                refreshToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            events?: {
+                preToken?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+            } | undefined;
+        }>>>;
+    }, "strip", zod.ZodTypeAny, {
+        auth: Record<string, {
+            allowUserRegistration: boolean;
+            username: {
+                emailAlias: boolean;
+                caseSensitive: boolean;
+            };
+            password: {
+                minLength: number;
+                uppercase: boolean;
+                lowercase: boolean;
+                numbers: boolean;
+                symbols: boolean;
+                temporaryPasswordValidity: Duration;
+            };
+            validity: {
+                idToken: Duration;
+                accessToken: Duration;
+                refreshToken: Duration;
+            };
+            events?: {
+                preToken?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+            } | undefined;
+        }>;
+    }, {
+        auth?: Record<string, {
+            allowUserRegistration?: boolean | undefined;
+            username?: {
+                emailAlias?: boolean | undefined;
+                caseSensitive?: boolean | undefined;
+            } | undefined;
+            password?: {
+                minLength?: number | undefined;
+                uppercase?: boolean | undefined;
+                lowercase?: boolean | undefined;
+                numbers?: boolean | undefined;
+                symbols?: boolean | undefined;
+                temporaryPasswordValidity?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            validity?: {
+                idToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                accessToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                refreshToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            events?: {
+                preToken?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+            } | undefined;
+        }> | undefined;
+    }>>;
+}, "strip", zod.ZodTypeAny, {
+    defaults: {
+        auth: Record<string, {
+            allowUserRegistration: boolean;
+            username: {
+                emailAlias: boolean;
+                caseSensitive: boolean;
+            };
+            password: {
+                minLength: number;
+                uppercase: boolean;
+                lowercase: boolean;
+                numbers: boolean;
+                symbols: boolean;
+                temporaryPasswordValidity: Duration;
+            };
+            validity: {
+                idToken: Duration;
+                accessToken: Duration;
+                refreshToken: Duration;
+            };
+            events?: {
+                preToken?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | Duration | undefined;
+                    timeout?: Duration | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: Size | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: Size | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
+                } | undefined;
+            } | undefined;
+        }>;
+    };
+}, {
+    defaults?: {
+        auth?: Record<string, {
+            allowUserRegistration?: boolean | undefined;
+            username?: {
+                emailAlias?: boolean | undefined;
+                caseSensitive?: boolean | undefined;
+            } | undefined;
+            password?: {
+                minLength?: number | undefined;
+                uppercase?: boolean | undefined;
+                lowercase?: boolean | undefined;
+                numbers?: boolean | undefined;
+                symbols?: boolean | undefined;
+                temporaryPasswordValidity?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            validity?: {
+                idToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                accessToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                refreshToken?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+            } | undefined;
+            events?: {
+                preToken?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postLogin?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                preRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                postRegister?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                customMessage?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                defineChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                createChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+                verifyChallenge?: string | {
+                    file: string;
+                    handler?: string | undefined;
+                    minify?: boolean | undefined;
+                    warm?: number | undefined;
+                    vpc?: boolean | undefined;
+                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
+                    runtime?: "nodejs18.x" | undefined;
+                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    architecture?: "x86_64" | "arm64" | undefined;
+                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
+                    retryAttempts?: number | undefined;
+                    reserved?: number | undefined;
+                    environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
+                } | undefined;
+            } | undefined;
+        }> | undefined;
+    } | undefined;
+}>> | Plugin<zod.ZodObject<{
+    defaults: zod.ZodDefault<zod.ZodObject<{
+        graphql: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
+            domain: zod.ZodOptional<zod.ZodString>;
+            subDomain: zod.ZodOptional<zod.ZodString>;
+            auth: zod.ZodOptional<zod.ZodEffects<zod.ZodString, string, string>>;
             resolver: zod.ZodOptional<zod.ZodEffects<zod.ZodString, string, string>>;
         }, "strip", zod.ZodTypeAny, {
             domain?: string | undefined;
             subDomain?: string | undefined;
-            authorization?: {
-                ttl: Duration;
-                authorizer: (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | Duration | undefined;
-                    timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: Size | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: Size | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                }) & (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | Duration | undefined;
-                    timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: Size | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: Size | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                } | undefined);
-            } | undefined;
+            auth?: string | undefined;
             resolver?: string | undefined;
         }, {
             domain?: string | undefined;
             subDomain?: string | undefined;
-            authorization?: {
-                authorizer: (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                }) & (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                } | undefined);
-                ttl?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            } | undefined;
+            auth?: string | undefined;
             resolver?: string | undefined;
         }>>>;
     }, "strip", zod.ZodTypeAny, {
         graphql?: Record<string, {
             domain?: string | undefined;
             subDomain?: string | undefined;
-            authorization?: {
-                ttl: Duration;
-                authorizer: (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | Duration | undefined;
-                    timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: Size | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: Size | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                }) & (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | Duration | undefined;
-                    timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: Size | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: Size | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                } | undefined);
-            } | undefined;
+            auth?: string | undefined;
             resolver?: string | undefined;
         }> | undefined;
     }, {
         graphql?: Record<string, {
             domain?: string | undefined;
             subDomain?: string | undefined;
-            authorization?: {
-                authorizer: (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                }) & (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                } | undefined);
-                ttl?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            } | undefined;
+            auth?: string | undefined;
             resolver?: string | undefined;
         }> | undefined;
     }>>;
@@ -2290,6 +5855,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
                 handler: zod.ZodOptional<zod.ZodString>;
                 minify: zod.ZodOptional<zod.ZodBoolean>;
+                warm: zod.ZodOptional<zod.ZodNumber>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2300,10 +5866,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                 reserved: zod.ZodOptional<zod.ZodNumber>;
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, zod.ZodArray<zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, "many">]>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2314,10 +5906,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2328,11 +5930,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }>]>, zod.ZodObject<{
                 consumer: zod.ZodUnion<[zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
                     file: zod.ZodEffects<zod.ZodString, string, string>;
                     handler: zod.ZodOptional<zod.ZodString>;
                     minify: zod.ZodOptional<zod.ZodBoolean>;
+                    warm: zod.ZodOptional<zod.ZodNumber>;
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2343,10 +5955,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                     reserved: zod.ZodOptional<zod.ZodNumber>;
                     environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                    permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, zod.ZodArray<zod.ZodObject<{
+                        effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                        actions: zod.ZodArray<zod.ZodString, "many">;
+                        resources: zod.ZodArray<zod.ZodString, "many">;
+                    }, "strip", zod.ZodTypeAny, {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }, {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }>, "many">]>>;
                 }, "strip", zod.ZodTypeAny, {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2357,10 +5995,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }, {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2371,6 +6019,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }>]>;
                 resolver: zod.ZodEffects<zod.ZodString, string, string>;
             }, "strip", zod.ZodTypeAny, {
@@ -2378,6 +6035,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2388,10 +6046,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2402,6 +6070,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }, {
@@ -2409,6 +6086,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2419,10 +6097,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2433,6 +6121,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>]>>>>;
@@ -2442,6 +6139,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2452,11 +6150,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | {
                 consumer: (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2467,10 +6175,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2481,6 +6199,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>> | undefined;
@@ -2490,6 +6217,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2500,11 +6228,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | {
                 consumer: (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2515,10 +6253,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2529,6 +6277,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>> | undefined;
@@ -2540,6 +6297,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2550,11 +6308,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | {
                 consumer: (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2565,10 +6333,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2579,6 +6357,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>> | undefined;
@@ -2590,6 +6377,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2600,11 +6388,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | {
                 consumer: (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2615,10 +6413,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2629,6 +6437,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>> | undefined;
@@ -2642,6 +6459,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -2652,11 +6470,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | {
                 consumer: (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2667,10 +6495,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
@@ -2681,6 +6519,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    } | {
+                        effect: "allow" | "deny";
+                        actions: string[];
+                        resources: string[];
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>> | undefined;
@@ -2690,38 +6537,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         graphql?: Record<string, {
             domain?: string | undefined;
             subDomain?: string | undefined;
-            authorization?: {
-                ttl: Duration;
-                authorizer: (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | Duration | undefined;
-                    timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: Size | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: Size | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                }) & (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | Duration | undefined;
-                    timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: Size | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: Size | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                } | undefined);
-            } | undefined;
+            auth?: string | undefined;
             resolver?: string | undefined;
         }> | undefined;
     };
@@ -2733,6 +6549,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2743,11 +6560,21 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | {
                 consumer: (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2758,10 +6585,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 }) & (string | {
                     file: string;
                     handler?: string | undefined;
                     minify?: boolean | undefined;
+                    warm?: number | undefined;
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2772,6 +6609,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     retryAttempts?: number | undefined;
                     reserved?: number | undefined;
                     environment?: Record<string, string> | undefined;
+                    permissions?: {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    } | {
+                        actions: string[];
+                        resources: string[];
+                        effect?: "allow" | "deny" | undefined;
+                    }[] | undefined;
                 } | undefined);
                 resolver: string;
             }>> | undefined;
@@ -2781,38 +6627,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         graphql?: Record<string, {
             domain?: string | undefined;
             subDomain?: string | undefined;
-            authorization?: {
-                authorizer: (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                }) & (string | {
-                    file: string;
-                    handler?: string | undefined;
-                    minify?: boolean | undefined;
-                    vpc?: boolean | undefined;
-                    log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
-                    memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    architecture?: "x86_64" | "arm64" | undefined;
-                    ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
-                    retryAttempts?: number | undefined;
-                    reserved?: number | undefined;
-                    environment?: Record<string, string> | undefined;
-                } | undefined);
-                ttl?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            } | undefined;
+            auth?: string | undefined;
             resolver?: string | undefined;
         }> | undefined;
     } | undefined;
@@ -2821,22 +6636,27 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
         http: zod.ZodOptional<zod.ZodRecord<zod.ZodEffects<zod.ZodString, string, string>, zod.ZodObject<{
             domain: zod.ZodString;
             subDomain: zod.ZodOptional<zod.ZodString>;
+            auth: zod.ZodOptional<zod.ZodEffects<zod.ZodString, string, string>>;
         }, "strip", zod.ZodTypeAny, {
             domain: string;
             subDomain?: string | undefined;
+            auth?: string | undefined;
         }, {
             domain: string;
             subDomain?: string | undefined;
+            auth?: string | undefined;
         }>>>;
     }, "strip", zod.ZodTypeAny, {
         http?: Record<string, {
             domain: string;
             subDomain?: string | undefined;
+            auth?: string | undefined;
         }> | undefined;
     }, {
         http?: Record<string, {
             domain: string;
             subDomain?: string | undefined;
+            auth?: string | undefined;
         }> | undefined;
     }>>;
     stacks: zod.ZodArray<zod.ZodObject<{
@@ -2844,6 +6664,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
             handler: zod.ZodOptional<zod.ZodString>;
             minify: zod.ZodOptional<zod.ZodBoolean>;
+            warm: zod.ZodOptional<zod.ZodNumber>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -2854,10 +6675,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: zod.ZodOptional<zod.ZodNumber>;
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+            permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, zod.ZodArray<zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, "many">]>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2868,10 +6715,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2882,12 +6739,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>]>>>>;
     }, "strip", zod.ZodTypeAny, {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2898,12 +6765,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }>>> | undefined;
     }, {
         http?: Record<string, Partial<Record<`POST /${string}` | `GET /${string}` | `PUT /${string}` | `DELETE /${string}` | `HEAD /${string}` | `OPTIONS /${string}`, string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2914,6 +6791,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>>> | undefined;
     }>, "many">;
 }, "strip", zod.ZodTypeAny, {
@@ -2922,6 +6808,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -2932,12 +6819,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }>>> | undefined;
     }[];
     defaults: {
         http?: Record<string, {
             domain: string;
             subDomain?: string | undefined;
+            auth?: string | undefined;
         }> | undefined;
     };
 }, {
@@ -2946,6 +6843,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -2956,12 +6854,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>>> | undefined;
     }[];
     defaults?: {
         http?: Record<string, {
             domain: string;
             subDomain?: string | undefined;
+            auth?: string | undefined;
         }> | undefined;
     } | undefined;
 }>> | Plugin<zod.ZodObject<{
@@ -2992,6 +6900,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
             handler: zod.ZodOptional<zod.ZodString>;
             minify: zod.ZodOptional<zod.ZodBoolean>;
+            warm: zod.ZodOptional<zod.ZodNumber>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -3002,10 +6911,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: zod.ZodOptional<zod.ZodNumber>;
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+            permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, zod.ZodArray<zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, "many">]>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -3016,10 +6951,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3030,12 +6975,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>]>>>>;
     }, "strip", zod.ZodTypeAny, {
         rest?: Record<string, Partial<Record<RouteFormat, string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -3046,12 +7001,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }>>> | undefined;
     }, {
         rest?: Record<string, Partial<Record<RouteFormat, string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3062,6 +7027,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>>> | undefined;
     }>, "many">;
 }, "strip", zod.ZodTypeAny, {
@@ -3070,6 +7044,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -3080,6 +7055,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }>>> | undefined;
     }[];
     defaults: {
@@ -3094,6 +7078,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3104,6 +7089,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>>> | undefined;
     }[];
     defaults?: {
@@ -3122,6 +7116,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: zod.ZodEffects<zod.ZodString, string, string>;
                 handler: zod.ZodOptional<zod.ZodString>;
                 minify: zod.ZodOptional<zod.ZodBoolean>;
+                warm: zod.ZodOptional<zod.ZodNumber>;
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -3132,10 +7127,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts: zod.ZodOptional<zod.ZodNumber>;
                 reserved: zod.ZodOptional<zod.ZodNumber>;
                 environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+                permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, zod.ZodArray<zod.ZodObject<{
+                    effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                    actions: zod.ZodArray<zod.ZodString, "many">;
+                    resources: zod.ZodArray<zod.ZodString, "many">;
+                }, "strip", zod.ZodTypeAny, {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }, {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }>, "many">]>>;
             }, "strip", zod.ZodTypeAny, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -3146,10 +7167,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             }, {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3160,6 +7191,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }>]>>;
             errors: zod.ZodOptional<zod.ZodObject<{
                 400: zod.ZodOptional<zod.ZodUnion<[zod.ZodString, zod.ZodObject<{
@@ -3465,6 +7505,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -3475,6 +7516,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined;
             errors?: {
                 400?: string | {
@@ -3556,6 +7606,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3566,6 +7617,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined;
             errors?: {
                 400?: string | {
@@ -3649,6 +7709,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -3659,6 +7720,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined;
             errors?: {
                 400?: string | {
@@ -3742,6 +7812,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3752,6 +7823,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined;
             errors?: {
                 400?: string | {
@@ -3837,6 +7917,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
@@ -3847,6 +7928,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                } | {
+                    effect: "allow" | "deny";
+                    actions: string[];
+                    resources: string[];
+                }[] | undefined;
             } | undefined;
             errors?: {
                 400?: string | {
@@ -3932,6 +8022,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -3942,6 +8033,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined;
             errors?: {
                 400?: string | {
@@ -4023,6 +8123,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: zod.ZodEffects<zod.ZodString, string, string>;
             handler: zod.ZodOptional<zod.ZodString>;
             minify: zod.ZodOptional<zod.ZodBoolean>;
+            warm: zod.ZodOptional<zod.ZodNumber>;
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
@@ -4033,10 +8134,36 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts: zod.ZodOptional<zod.ZodNumber>;
             reserved: zod.ZodOptional<zod.ZodNumber>;
             environment: zod.ZodOptional<zod.ZodOptional<zod.ZodRecord<zod.ZodString, zod.ZodString>>>;
+            permissions: zod.ZodOptional<zod.ZodUnion<[zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, zod.ZodArray<zod.ZodObject<{
+                effect: zod.ZodDefault<zod.ZodEnum<["allow", "deny"]>>;
+                actions: zod.ZodArray<zod.ZodString, "many">;
+                resources: zod.ZodArray<zod.ZodString, "many">;
+            }, "strip", zod.ZodTypeAny, {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }, {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }>, "many">]>>;
         }, "strip", zod.ZodTypeAny, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -4047,10 +8174,20 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         }, {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4061,12 +8198,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }>]>>;
     }, "strip", zod.ZodTypeAny, {
         onFailure?: string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -4077,12 +8224,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         } | undefined;
     }, {
         onFailure?: string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4093,6 +8250,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined;
     }>, "many">;
 }, "strip", zod.ZodTypeAny, {
@@ -4101,6 +8267,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
@@ -4111,6 +8278,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            } | {
+                effect: "allow" | "deny";
+                actions: string[];
+                resources: string[];
+            }[] | undefined;
         } | undefined;
     }[];
 }, {
@@ -4119,6 +8295,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4129,6 +8306,15 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined;
     }[];
 }>>)[];
@@ -4210,6 +8396,7 @@ declare class Function$1 extends Resource {
     private environmentVariables;
     constructor(_logicalId: string, props: FunctionProps);
     enableLogs(retention?: Duration): this;
+    warmUp(concurrency: number): this;
     addUrl(props?: Omit<UrlProps, 'target'>): Url;
     addPermissions(...permissions: (Permission | Permission[])[]): this;
     addEnvironment(name: string, value: string): this;
@@ -4349,6 +8536,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         file: string;
         handler?: string | undefined;
         minify?: boolean | undefined;
+        warm?: number | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4359,6 +8547,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         retryAttempts?: number | undefined;
         reserved?: number | undefined;
         environment?: Record<string, string> | undefined;
+        permissions?: {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        } | {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        }[] | undefined;
     }> | undefined;
 }) | (StackConfig$1 & {
     configs?: string[] | undefined;
@@ -4377,6 +8574,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4387,10 +8585,20 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }) & (string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4401,6 +8609,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined);
         schedule: (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}`) & (`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | `${string} ${string} ${string} ${string} ${string} ${string}` | undefined);
         payload?: unknown;
@@ -4411,6 +8628,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4421,10 +8639,20 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }) & (string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4435,6 +8663,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined);
         retentionPeriod?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         visibilityTimeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4459,6 +8696,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4469,10 +8707,20 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4483,6 +8731,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
         } | undefined;
         indexes?: Record<string, {
@@ -4499,6 +8756,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         file: string;
         handler?: string | undefined;
         minify?: boolean | undefined;
+        warm?: number | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4509,6 +8767,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         retryAttempts?: number | undefined;
         reserved?: number | undefined;
         environment?: Record<string, string> | undefined;
+        permissions?: {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        } | {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        }[] | undefined;
     }> | undefined;
 }) | (StackConfig$1 & {
     pubsub?: Record<string, {
@@ -4516,6 +8783,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4526,10 +8794,20 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         }) & (string | {
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4540,6 +8818,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined);
         sql: string;
         sqlVersion?: "2015-10-08" | "2016-03-23" | "beta" | undefined;
@@ -4553,6 +8840,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4563,11 +8851,21 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | {
             consumer: (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4578,10 +8876,20 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             }) & (string | {
                 file: string;
                 handler?: string | undefined;
                 minify?: boolean | undefined;
+                warm?: number | undefined;
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4592,6 +8900,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 retryAttempts?: number | undefined;
                 reserved?: number | undefined;
                 environment?: Record<string, string> | undefined;
+                permissions?: {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                } | {
+                    actions: string[];
+                    resources: string[];
+                    effect?: "allow" | "deny" | undefined;
+                }[] | undefined;
             } | undefined);
             resolver: string;
         }>> | undefined;
@@ -4601,6 +8918,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         file: string;
         handler?: string | undefined;
         minify?: boolean | undefined;
+        warm?: number | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4611,12 +8929,22 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         retryAttempts?: number | undefined;
         reserved?: number | undefined;
         environment?: Record<string, string> | undefined;
+        permissions?: {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        } | {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        }[] | undefined;
     }>>> | undefined;
 }) | (StackConfig$1 & {
     rest?: Record<string, Partial<Record<RouteFormat, string | {
         file: string;
         handler?: string | undefined;
         minify?: boolean | undefined;
+        warm?: number | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4627,6 +8955,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         retryAttempts?: number | undefined;
         reserved?: number | undefined;
         environment?: Record<string, string> | undefined;
+        permissions?: {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        } | {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        }[] | undefined;
     }>>> | undefined;
 }) | (StackConfig$1 & {
     sites?: Record<string, {
@@ -4637,6 +8974,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             file: string;
             handler?: string | undefined;
             minify?: boolean | undefined;
+            warm?: number | undefined;
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4647,6 +8985,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             retryAttempts?: number | undefined;
             reserved?: number | undefined;
             environment?: Record<string, string> | undefined;
+            permissions?: {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            } | {
+                actions: string[];
+                resources: string[];
+                effect?: "allow" | "deny" | undefined;
+            }[] | undefined;
         } | undefined;
         errors?: {
             400?: string | {
@@ -4726,6 +9073,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         file: string;
         handler?: string | undefined;
         minify?: boolean | undefined;
+        warm?: number | undefined;
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
@@ -4736,6 +9084,15 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         retryAttempts?: number | undefined;
         reserved?: number | undefined;
         environment?: Record<string, string> | undefined;
+        permissions?: {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        } | {
+            actions: string[];
+            resources: string[];
+            effect?: "allow" | "deny" | undefined;
+        }[] | undefined;
     } | undefined;
 });
 declare const defineAppConfig: (config: AppConfig | AppConfigFactory<AppConfig>) => CombinedDefaultPluginsConfigInput | AppConfigFactory<CombinedDefaultPluginsConfigInput>;

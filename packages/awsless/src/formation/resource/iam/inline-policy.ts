@@ -1,7 +1,8 @@
+import { capitalCase } from 'change-case'
 import { formatName } from '../../util.js'
 
 export type Statement = {
-	effect?: 'Allow' | 'Deny'
+	effect?: 'allow' | 'deny'
 	actions: string[]
 	resources: string[]
 }
@@ -27,7 +28,7 @@ export class InlinePolicy {
 			PolicyDocument: {
 				Version: '2012-10-17',
 				Statement: this.statements.map(statement => ({
-					Effect: statement.effect || 'Allow',
+					Effect: capitalCase(statement.effect || 'allow'),
 					Action: statement.actions,
 					Resource: statement.resources,
 				}))

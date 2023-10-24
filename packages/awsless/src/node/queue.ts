@@ -11,20 +11,24 @@ export const getQueueUrl = (name: string, stack:string = STACK) => {
 
 export interface QueueResources {}
 
-export const Queue:QueueResources = createProxy((stack) => {
+export const Queue:QueueResources = /*@__PURE__*/ createProxy((stack) => {
 	return createProxy((queue) => {
 		const url = getQueueUrl(queue, stack)
+		const name = getQueueName(queue, stack)
 
-		const send = (payload:unknown, options:Omit<SendMessageOptions, 'queue' | 'payload'> = {}) => {
-			return sendMessage({
-				...options,
-				queue: url,
-				payload,
-			})
+		const ctx: Record<string, any> = {
+			[ name ]: (payload:unknown, options:Omit<SendMessageOptions, 'queue' | 'payload'> = {}) => {
+				return sendMessage({
+					...options,
+					queue: url,
+					payload,
+				})
+			}
 		}
 
+		const send = ctx[name]
 		send.url = url
-		send.name = getQueueName(queue, stack)
+
 		send.batch = (items:BatchItem[], options:Omit<SendMessageBatchOptions, 'queue' | 'items'> = {}) => {
 			return sendMessageBatch({
 				...options,

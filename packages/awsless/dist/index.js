@@ -18,7 +18,7 @@ var getGlobalResourceName = (name) => {
 import { invoke } from "@awsless/lambda";
 
 // src/node/util.ts
-var createProxy = (cb) => {
+var createProxy = /* @__NO_SIDE_EFFECTS__ */ (cb) => {
   const cache = /* @__PURE__ */ new Map();
   return new Proxy({}, {
     get(_, name) {
@@ -34,17 +34,19 @@ var createProxy = (cb) => {
 var getFunctionName = (stack, name) => {
   return getLocalResourceName(name, stack);
 };
-var Function = createProxy((stackName) => {
+var Function = /* @__PURE__ */ createProxy((stackName) => {
   return createProxy((funcName) => {
     const name = getFunctionName(stackName, funcName);
-    const call = (payload, options = {}) => {
-      return invoke({
-        ...options,
-        name,
-        payload
-      });
+    const ctx = {
+      [name]: (payload, options = {}) => {
+        return invoke({
+          ...options,
+          name,
+          payload
+        });
+      }
     };
-    call.name = name;
+    const call = ctx[name];
     call.async = (payload, options = {}) => {
       return invoke({
         ...options,
@@ -59,7 +61,7 @@ var Function = createProxy((stackName) => {
 
 // src/node/table.ts
 var getTableName = getLocalResourceName;
-var Table = createProxy((stack) => {
+var Table = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     return {
       name: getTableName(name, stack)
@@ -70,16 +72,18 @@ var Table = createProxy((stack) => {
 // src/node/topic.ts
 import { publish } from "@awsless/sns";
 var getTopicName = getGlobalResourceName;
-var Topic = createProxy((topic) => {
+var Topic = /* @__PURE__ */ createProxy((topic) => {
   const name = getTopicName(topic);
-  const call = (payload, options = {}) => {
-    return publish({
-      ...options,
-      topic: name,
-      payload
-    });
+  const ctx = {
+    [name]: (payload, options = {}) => {
+      return publish({
+        ...options,
+        topic: name,
+        payload
+      });
+    }
   };
-  call.name = name;
+  const call = ctx[name];
   return call;
 });
 
@@ -90,18 +94,21 @@ var getQueueName = getLocalResourceName;
 var getQueueUrl = (name, stack = STACK) => {
   return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`];
 };
-var Queue = createProxy((stack) => {
+var Queue = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((queue) => {
     const url = getQueueUrl(queue, stack);
-    const send = (payload, options = {}) => {
-      return sendMessage({
-        ...options,
-        queue: url,
-        payload
-      });
+    const name = getQueueName(queue, stack);
+    const ctx = {
+      [name]: (payload, options = {}) => {
+        return sendMessage({
+          ...options,
+          queue: url,
+          payload
+        });
+      }
     };
+    const send = ctx[name];
     send.url = url;
-    send.name = getQueueName(queue, stack);
     send.batch = (items, options = {}) => {
       return sendMessageBatch({
         ...options,
@@ -122,7 +129,7 @@ var getCacheProps = (name, stack = STACK) => {
     port: parseInt(process.env[`${prefix}_PORT`], 10)
   };
 };
-var Cache = createProxy((stack) => {
+var Cache = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     const call = () => {
     };
@@ -135,7 +142,7 @@ var Cache = createProxy((stack) => {
 
 // src/node/store.ts
 var getStoreName = getLocalResourceName;
-var Store = createProxy((stack) => {
+var Store = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     return {
       name: getStoreName(name, stack)
@@ -150,8 +157,8 @@ var getConfigName = (name) => {
   return `/.awsless/${APP}/${name}`;
 };
 var TEST = process.env.NODE_ENV === "test";
-var CONFIGS = process.env.AWSLESS_CONFIG;
-var loadConfigData = async () => {
+var CONFIGS = process.env.CONFIG;
+var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
   if (!TEST && CONFIGS) {
     const keys = CONFIGS.split(",");
     if (keys.length > 0) {
@@ -159,13 +166,13 @@ var loadConfigData = async () => {
       for (const key of keys) {
         paths[key] = getConfigName(key);
       }
-      return await ssm(paths);
+      return ssm(paths);
     }
   }
   return {};
 };
-var data = await loadConfigData();
-var Config = new Proxy({}, {
+var data = await /* @__PURE__ */ loadConfigData();
+var Config = /* @__PURE__ */ new Proxy({}, {
   get(_, name) {
     const key = paramCase2(name);
     const value = data[key];
@@ -185,7 +192,7 @@ var Config = new Proxy({}, {
 
 // src/node/search.ts
 var getSearchName = getLocalResourceName;
-var Search = createProxy((stack) => {
+var Search = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
     return {
       name: getSearchName(name, stack)

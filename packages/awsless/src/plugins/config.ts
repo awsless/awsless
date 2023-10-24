@@ -45,7 +45,7 @@ export const configPlugin = definePlugin({
 		const configs = stackConfig.configs
 		bind(lambda => {
 			if(configs && configs.length) {
-				lambda.addEnvironment('AWSLESS_CONFIG', configs.join(','))
+				lambda.addEnvironment('CONFIG', configs.join(','))
 				lambda.addPermissions({
 					actions: [
 						'ssm:GetParameter',

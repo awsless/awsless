@@ -6,8 +6,8 @@ import { LocalFileSchema } from '../schema/local-file.js';
 import { ResourceIdSchema } from '../schema/resource-id.js';
 import { toArray } from '../util/array.js';
 import { paramCase } from 'change-case';
-import { DurationSchema } from '../schema/duration.js';
-import { GraphQLApi } from '../formation/resource/appsync/graphql-api.js';
+// import { DurationSchema } from '../schema/duration.js';
+import { GraphQLApi, GraphQLAuthorization } from '../formation/resource/appsync/graphql-api.js';
 import { RecordSet } from '../formation/resource/route53/record-set.js';
 import { Definition, GraphQLSchema } from '../formation/resource/appsync/graphql-schema.js';
 import { Code } from '../formation/resource/appsync/code.js';
@@ -41,10 +41,11 @@ export const graphqlPlugin = definePlugin({
 			graphql: z.record(ResourceIdSchema, z.object({
 				domain: z.string().optional(),
 				subDomain: z.string().optional(),
-				authorization: z.object({
-					authorizer: FunctionSchema,
-					ttl: DurationSchema.default('1 hour'),
-				}).optional(),
+				auth: ResourceIdSchema.optional(),
+				// authorization: z.object({
+				// 	authorizer: FunctionSchema,
+				// 	ttl: DurationSchema.default('1 hour'),
+				// }).optional(),
 				resolver: LocalFileSchema.optional(),
 			})).optional(),
 		}).default({}),
@@ -93,7 +94,7 @@ export const graphqlPlugin = definePlugin({
 
 			const api = new GraphQLApi(id, {
 				name: `${config.name}-${id}`,
-				authenticationType: 'api-key',
+				defaultAuthorization: GraphQLAuthorization.withApiKey(),
 			})
 
 			const schema = new GraphQLSchema(id, {
@@ -112,12 +113,20 @@ export const graphqlPlugin = definePlugin({
 				continue
 			}
 
-			if(props.authorization) {
-				const lambda = toLambdaFunction(ctx as any, `${id}-authorizer`, props.authorization.authorizer)
-				api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl)
-
-				bootstrap.add(lambda)
+			if(props.auth) {
+				api.setDefaultAuthorization(GraphQLAuthorization.withCognito({
+					userPoolId: bootstrap.import(`auth-${props.auth}-user-pool-id`),
+					region: bootstrap.region,
+					defaultAction: 'ALLOW',
+				}))
 			}
+
+			// if(props.authorization) {
+			// 	const lambda = toLambdaFunction(ctx as any, `${id}-authorizer`, props.authorization.authorizer)
+			// 	api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl)
+
+			// 	bootstrap.add(lambda)
+			// }
 
 			if(props.domain) {
 				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain

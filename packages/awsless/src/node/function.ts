@@ -9,18 +9,21 @@ export const getFunctionName = <S extends string, N extends string>(stack: S, na
 
 export interface FunctionResources {}
 
-export const Function:FunctionResources = createProxy((stackName) => {
+export const Function:FunctionResources = /*@__PURE__*/ createProxy((stackName) => {
 	return createProxy((funcName) => {
 		const name = getFunctionName(stackName, funcName)
-		const call = (payload:unknown, options:Omit<InvokeOptions, 'payload' | 'name'> = {}) => {
-			return invoke({
-				...options,
-				name,
-				payload,
-			})
+		const ctx: Record<string, any> = {
+			[ name ]: (payload:unknown, options:Omit<InvokeOptions, 'payload' | 'name'> = {}) => {
+				return invoke({
+					...options,
+					name,
+					payload,
+				})
+			}
 		}
 
-		call.name = name
+		const call = ctx[name]
+
 		call.async = (payload:unknown, options:Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
 			return invoke({
 				...options,

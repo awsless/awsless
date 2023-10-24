@@ -49,8 +49,7 @@ export class Queue extends Resource {
 			resources: [
 				formatArn({
 					service: 'sqs',
-					resource: 'queue',
-					resourceName: this.name,
+					resource: this.name,
 				})
 			],
 		}
