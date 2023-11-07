@@ -15,9 +15,9 @@
 		// "allowImportingTsExtensions": true,
 		"allowSyntheticDefaultImports": true,
 		"jsx": "react-jsx"
-	},
+	}
 	// "ts-node": {
-    //     "esm": true,
+	//     "esm": true,
 	// 	"experimentalSpecifierResolution": "node",
-    // }
+	// }
 }

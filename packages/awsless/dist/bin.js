@@ -644,24 +644,24 @@ import { z as z6 } from "zod";
 import { z as z2 } from "zod";
 
 // src/formation/property/duration.ts
-var Duration = class {
+var Duration = class _Duration {
   constructor(value) {
     this.value = value;
   }
   static milliseconds(value) {
-    return new Duration(value);
+    return new _Duration(value);
   }
   static seconds(value) {
-    return new Duration(value * 1e3 /* seconds */);
+    return new _Duration(value * 1e3 /* seconds */);
   }
   static minutes(value) {
-    return new Duration(value * 6e4 /* minutes */);
+    return new _Duration(value * 6e4 /* minutes */);
   }
   static hours(value) {
-    return new Duration(value * 36e5 /* hours */);
+    return new _Duration(value * 36e5 /* hours */);
   }
   static days(value) {
-    return new Duration(value * 864e5 /* days */);
+    return new _Duration(value * 864e5 /* days */);
   }
   toMilliseconds() {
     return this.value;
@@ -731,21 +731,21 @@ var ResourceIdSchema = z4.string().min(3).max(24).regex(/^[a-z0-9\-]+$/i, "Inval
 import { z as z5 } from "zod";
 
 // src/formation/property/size.ts
-var Size = class {
+var Size = class _Size {
   constructor(bytes) {
     this.bytes = bytes;
   }
   static bytes(value) {
-    return new Size(value);
+    return new _Size(value);
   }
   static kiloBytes(value) {
-    return new Size(value * 1024 /* kilo */);
+    return new _Size(value * 1024 /* kilo */);
   }
   static megaBytes(value) {
-    return new Size(value * 1048576 /* mega */);
+    return new _Size(value * 1048576 /* mega */);
   }
   static gigaBytes(value) {
-    return new Size(value * 1073741824 /* giga */);
+    return new _Size(value * 1073741824 /* giga */);
   }
   toBytes() {
     return this.bytes;
@@ -2750,14 +2750,14 @@ var FileCode2 = class extends Asset {
 
 // src/formation/resource/appsync/data-source.ts
 import { snakeCase as snakeCase2 } from "change-case";
-var DataSource = class extends Resource {
+var DataSource = class _DataSource extends Resource {
   constructor(logicalId, props) {
     super("AWS::AppSync::DataSource", logicalId);
     this.props = props;
     this.name = snakeCase2(this.props.name || logicalId);
   }
   static fromLambda(logicalId, apiId, props) {
-    return new DataSource(logicalId, {
+    return new _DataSource(logicalId, {
       apiId,
       type: "AWS_LAMBDA",
       serviceRoleArn: props.serviceRoleArn,
@@ -2769,7 +2769,7 @@ var DataSource = class extends Resource {
     });
   }
   static fromNone(logicalId, apiId) {
-    return new DataSource(logicalId, {
+    return new _DataSource(logicalId, {
       apiId,
       type: "NONE"
     });
@@ -3395,7 +3395,7 @@ var SubnetRouteTableAssociation = class extends Resource {
 };
 
 // src/formation/resource/ec2/peer.ts
-var Peer = class {
+var Peer = class _Peer {
   constructor(ip, type) {
     this.ip = ip;
     this.type = type;
@@ -3408,10 +3408,10 @@ var Peer = class {
     if (!cidrMatch[2]) {
       throw new Error(`CIDR mask is missing in IPv4: "${cidrIp}". Did you mean "${cidrIp}/32"?`);
     }
-    return new Peer(cidrIp, "v4");
+    return new _Peer(cidrIp, "v4");
   }
   static anyIpv4() {
-    return new Peer("0.0.0.0/0", "v4");
+    return new _Peer("0.0.0.0/0", "v4");
   }
   static ipv6(cidrIpv6) {
     const cidrMatch = cidrIpv6.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/);
@@ -3421,10 +3421,10 @@ var Peer = class {
     if (!cidrMatch[3]) {
       throw new Error(`CIDR mask is missing in IPv6: "${cidrIpv6}". Did you mean "${cidrIpv6}/128"?`);
     }
-    return new Peer(cidrIpv6, "v6");
+    return new _Peer(cidrIpv6, "v6");
   }
   static anyIpv6() {
-    return new Peer("::/0", "v6");
+    return new _Peer("::/0", "v6");
   }
   toRuleJson() {
     switch (this.type) {
@@ -3557,30 +3557,30 @@ var SecurityGroup = class extends Resource {
 };
 
 // src/formation/resource/ec2/port.ts
-var Port = class {
+var Port = class _Port {
   static tcp(port) {
-    return new Port({
+    return new _Port({
       protocol: "tcp" /* TCP */,
       from: port,
       to: port
     });
   }
   static tcpRange(startPort, endPort) {
-    return new Port({
+    return new _Port({
       protocol: "tcp" /* TCP */,
       from: startPort,
       to: endPort
     });
   }
   static allTcp() {
-    return new Port({
+    return new _Port({
       protocol: "tcp" /* TCP */,
       from: 0,
       to: 65535
     });
   }
   static allTraffic() {
-    return new Port({
+    return new _Port({
       protocol: "-1" /* ALL */
     });
   }
@@ -3654,12 +3654,12 @@ var Listener = class extends Resource {
     };
   }
 };
-var ListenerAction = class {
+var ListenerAction = class _ListenerAction {
   constructor(props) {
     this.props = props;
   }
   static fixedResponse(statusCode, props = {}) {
-    return new ListenerAction({
+    return new _ListenerAction({
       type: "fixed-response",
       fixedResponse: {
         statusCode,
@@ -3668,7 +3668,7 @@ var ListenerAction = class {
     });
   }
   static forward(targets) {
-    return new ListenerAction({
+    return new _ListenerAction({
       type: "forward",
       forward: {
         targetGroups: targets
@@ -3725,18 +3725,18 @@ var ListenerRule = class extends Resource {
     };
   }
 };
-var ListenerCondition = class {
+var ListenerCondition = class _ListenerCondition {
   constructor(props) {
     this.props = props;
   }
   static httpRequestMethods(methods) {
-    return new ListenerCondition({
+    return new _ListenerCondition({
       field: "http-request-method",
       methods
     });
   }
   static pathPatterns(paths) {
-    return new ListenerCondition({
+    return new _ListenerCondition({
       field: "path-pattern",
       paths
     });

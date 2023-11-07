@@ -151,7 +151,7 @@ var getConfigName = (name) => {
 };
 var TEST = process.env.NODE_ENV === "test";
 var CONFIGS = process.env.AWSLESS_CONFIG;
-var loadConfigData = async () => {
+var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
   if (!TEST && CONFIGS) {
     const keys = CONFIGS.split(",");
     if (keys.length > 0) {
@@ -164,7 +164,7 @@ var loadConfigData = async () => {
   }
   return {};
 };
-var data = await loadConfigData();
+var data = await /* @__PURE__ */ loadConfigData();
 var Config = new Proxy({}, {
   get(_, name) {
     const key = paramCase2(name);
