@@ -1,9 +1,9 @@
-import { constantCase } from "change-case";
-import { Resource } from '../../resource.js';
-import { formatArn, formatName, getAtt, ref } from '../../util.js';
-import { Duration } from "../../property/duration.js";
-import { UserPoolClient, UserPoolClientProps } from "./user-pool-client.js";
-import { UserPoolDomain, UserPoolDomainProps } from "./user-pool-domain.js";
+import { constantCase } from 'change-case'
+import { Resource } from '../../resource.js'
+import { formatName, getAtt, ref } from '../../util.js'
+import { Duration } from '../../property/duration.js'
+import { UserPoolClient, UserPoolClientProps } from './user-pool-client.js'
+import { UserPoolDomain, UserPoolDomainProps } from './user-pool-domain.js'
 
 // export type IndexProps = {
 // 	hash: string
@@ -29,14 +29,16 @@ export type UserPoolProps = {
 		symbols?: boolean
 		temporaryPasswordValidity?: Duration
 	}
-	events?: {
-		preToken?: string
-		preLogin?: string
-		postLogin?: string
-		preRegister?: string
-		postRegister?: string
+	triggers?: {
+		beforeToken?: string
+		beforeLogin?: string
+		afterLogin?: string
+		beforeRegister?: string
+		afterRegister?: string
 		customMessage?: string
 		userMigration?: string
+
+		emailSender?: string
 
 		defineChallange?: string
 		createChallange?: string
@@ -69,10 +71,10 @@ export class UserPool extends Resource {
 		return getAtt(this.logicalId, 'ProviderURL')
 	}
 
-	addDomain(props:Omit<UserPoolDomainProps, 'userPoolId'>) {
+	addDomain(props: Omit<UserPoolDomainProps, 'userPoolId'>) {
 		const domain = new UserPoolDomain(this.logicalId, {
 			...props,
-			userPoolId: this.id
+			userPoolId: this.id,
 		}).dependsOn(this)
 
 		this.addChild(domain)
@@ -80,10 +82,10 @@ export class UserPool extends Resource {
 		return domain
 	}
 
-	addClient(props:Omit<UserPoolClientProps, 'userPoolId'> = {}) {
+	addClient(props: Omit<UserPoolClientProps, 'userPoolId'> = {}) {
 		const client = new UserPoolClient(this.logicalId, {
 			...props,
-			userPoolId: this.id
+			userPoolId: this.id,
 		}).dependsOn(this)
 
 		this.addChild(client)
@@ -119,22 +121,26 @@ export class UserPool extends Resource {
 		return {
 			UserPoolName: this.name,
 			// UserPoolTags: [],
-			...(this.props.username?.emailAlias ? {
-				AliasAttributes: [ 'email' ],
-				// UsernameAttributes: [ 'email' ],
-				AutoVerifiedAttributes: [ 'email' ],
+			...(this.props.username?.emailAlias
+				? {
+						AliasAttributes: ['email'],
+						// UsernameAttributes: [ 'email' ],
+						AutoVerifiedAttributes: ['email'],
 
-				Schema: [{
-					AttributeDataType: 'String',
-					Name: 'email',
-					Required: true,
-					Mutable: false,
-					StringAttributeConstraints: {
-						MinLength: 5,
-						MaxLength: 100,
-					}
-				}],
-			} : {}),
+						Schema: [
+							{
+								AttributeDataType: 'String',
+								Name: 'email',
+								Required: true,
+								Mutable: false,
+								StringAttributeConstraints: {
+									MinLength: 5,
+									MaxLength: 100,
+								},
+							},
+						],
+				  }
+				: {}),
 
 			UsernameConfiguration: {
 				CaseSensitive: this.props.username?.caseSensitive ?? false,
@@ -142,13 +148,12 @@ export class UserPool extends Resource {
 
 			...this.attr('EmailConfiguration', this.props.email?.toJSON()),
 
-			// DeviceConfiguration: {
-			// 	ChallengeRequiredOnNewDevice: {},
-			// 	DeviceOnlyRememberedOnUserPrompt: {},
-			// },
+			DeviceConfiguration: {
+				DeviceOnlyRememberedOnUserPrompt: false,
+			},
 
 			AdminCreateUserConfig: {
-				AllowAdminCreateUserOnly: !( this.props.allowUserRegistration ?? true ),
+				AllowAdminCreateUserOnly: !(this.props.allowUserRegistration ?? true),
 			},
 			Policies: {
 				PasswordPolicy: {
@@ -158,52 +163,52 @@ export class UserPool extends Resource {
 					RequireNumbers: this.props.password?.numbers ?? false,
 					RequireSymbols: this.props.password?.symbols ?? false,
 					TemporaryPasswordValidityDays: this.props.password?.temporaryPasswordValidity?.toDays() ?? 7,
-				}
+				},
 			},
 			LambdaConfig: {
-				...this.attr('PreAuthentication', this.props.events?.preLogin),
-				...this.attr('PostAuthentication', this.props.events?.postLogin),
-				...this.attr('PostConfirmation', this.props.events?.postRegister),
-				...this.attr('PreSignUp', this.props.events?.preRegister),
-				...this.attr('PreTokenGeneration', this.props.events?.preToken),
-				...this.attr('CustomMessage', this.props.events?.customMessage),
-				...this.attr('UserMigration', this.props.events?.userMigration),
+				...this.attr('PreAuthentication', this.props.triggers?.beforeLogin),
+				...this.attr('PostAuthentication', this.props.triggers?.afterLogin),
+				...this.attr('PostConfirmation', this.props.triggers?.afterRegister),
+				...this.attr('PreSignUp', this.props.triggers?.beforeRegister),
+				...this.attr('PreTokenGeneration', this.props.triggers?.beforeToken),
+				...this.attr('CustomMessage', this.props.triggers?.customMessage),
+				...this.attr('UserMigration', this.props.triggers?.userMigration),
 
-				...this.attr('DefineAuthChallenge', this.props.events?.defineChallange),
-				...this.attr('CreateAuthChallenge', this.props.events?.createChallange),
-				...this.attr('VerifyAuthChallengeResponse', this.props.events?.verifyChallange),
-			}
+				...this.attr('DefineAuthChallenge', this.props.triggers?.defineChallange),
+				...this.attr('CreateAuthChallenge', this.props.triggers?.createChallange),
+				...this.attr('VerifyAuthChallengeResponse', this.props.triggers?.verifyChallange),
+
+				...(this.props.triggers?.emailSender
+					? {
+							CustomEmailSender: {
+								LambdaArn: this.props.triggers.emailSender,
+								LambdaVersion: 'V1_0',
+							},
+					  }
+					: {}),
+			},
 		}
 	}
 }
 
 export class UserPoolEmail {
-	static withSES(props:{
-		fromEmail: string
-		fromName?: string
-		replyTo?: string
-	}) {
+	static withSES(props: { fromEmail: string; fromName?: string; replyTo?: string; sourceArn: string }) {
 		return new UserPoolEmail({
 			type: 'developer',
 			replyTo: props.replyTo,
-			from: props.fromName
-				? `${props.fromName} <${props.fromEmail}>`
-				: props.fromEmail,
-
-			sourceArn: formatArn({
-				service: 'ses',
-				resource: 'identity',
-				resourceName: props.fromEmail
-			})
+			from: props.fromName ? `${props.fromName} <${props.fromEmail}>` : props.fromEmail,
+			sourceArn: props.sourceArn,
 		})
 	}
 
-	constructor(private props:{
-		type?: 'developer' | 'cognito-default'
-		from?: string
-		replyTo?: string
-		sourceArn?: string
-	}) {}
+	constructor(
+		private props: {
+			type?: 'developer' | 'cognito-default'
+			from?: string
+			replyTo?: string
+			sourceArn?: string
+		}
+	) {}
 
 	toJSON() {
 		return {
@@ -214,7 +219,6 @@ export class UserPoolEmail {
 		}
 	}
 }
-
 
 // AccountRecoverySetting:
 // AccountRecoverySetting

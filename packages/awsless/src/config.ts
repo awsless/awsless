@@ -96,7 +96,11 @@ export const importConfig = async (options: ProgramOptions): Promise<Config> => 
 	}
 }
 
-export const watchConfig = async function* (options: ProgramOptions): AsyncGenerator<Config> {
+export const watchConfig = async (
+	options: ProgramOptions,
+	resolve:(config:Config) => void,
+	reject:(error:unknown) => void
+): Promise<void> => {
 
 	debug('Find the root directory')
 
@@ -135,10 +139,12 @@ export const watchConfig = async function* (options: ProgramOptions): AsyncGener
 			config = await schema.parseAsync(appConfig)
 		} catch(error) {
 			if(error instanceof z.ZodError) {
-				throw new ConfigError(error, appConfig)
+				reject(new ConfigError(error, appConfig))
+				continue
 			}
 
-			throw error
+			reject(error)
+			continue
 		}
 
 		debug('Load credentials', style.info(config.profile))
@@ -148,10 +154,10 @@ export const watchConfig = async function* (options: ProgramOptions): AsyncGener
 		const account = await getAccountId(credentials, config.region)
 		debug('Account ID:', style.info(account))
 
-		yield {
+		resolve({
 			...config,
 			account,
 			credentials,
-		}
+		})
 	}
 }

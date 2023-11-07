@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.76",
+	"version": "0.0.86",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -33,13 +33,16 @@
 	},
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",
+		"@awsless/redis": "workspace:^",
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^"
 	},
 	"dependencies": {
+		"@aws-appsync/utils": "^1.5.0",
 		"@aws-sdk/client-cloudformation": "^3.369.0",
 		"@aws-sdk/client-cloudfront": "^3.425.0",
+		"@aws-sdk/client-cognito-identity-provider": "^3.441.0",
 		"@aws-sdk/client-route-53": "^3.369.0",
 		"@aws-sdk/client-s3": "^3.369.0",
 		"@aws-sdk/client-ssm": "3.329.0",

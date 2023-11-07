@@ -1,14 +1,13 @@
-
 import { z } from 'zod'
-import { definePlugin } from '../plugin.js';
-import { ResourceIdSchema } from '../schema/resource-id.js';
-import { Cluster } from '../formation/resource/memorydb/cluster.js';
-import { SecurityGroup } from '../formation/resource/ec2/security-group.js';
-import { SubnetGroup } from '../formation/resource/memorydb/subnet-group.js';
-import { Peer } from '../formation/resource/ec2/peer.js';
-import { Port } from '../formation/resource/ec2/port.js';
-import { TypeGen, TypeObject } from '../util/type-gen.js';
-import { constantCase } from 'change-case';
+import { definePlugin } from '../plugin.js'
+import { ResourceIdSchema } from '../schema/resource-id.js'
+import { Cluster } from '../formation/resource/memorydb/cluster.js'
+import { SecurityGroup } from '../formation/resource/ec2/security-group.js'
+import { SubnetGroup } from '../formation/resource/memorydb/subnet-group.js'
+import { Peer } from '../formation/resource/ec2/peer.js'
+import { Port } from '../formation/resource/ec2/port.js'
+import { TypeGen, TypeObject } from '../util/type-gen.js'
+import { constantCase } from 'change-case'
 
 const TypeSchema = z.enum([
 	't4g.small',
@@ -31,44 +30,61 @@ const TypeSchema = z.enum([
 const PortSchema = z.number().int().min(1).max(50000)
 const ShardsSchema = z.number().int().min(0).max(100)
 const ReplicasPerShardSchema = z.number().int().min(0).max(5)
-const EngineSchema = z.enum([ '7.0', '6.2' ])
+const EngineSchema = z.enum(['7.0', '6.2'])
+
+const typeGenCode = `
+import { Cluster, CommandOptions } from '@awsless/redis'
+
+type Callback<T> = (redis: Cluster) => T
+
+type Command = {
+	readonly host: string
+	readonly port: number
+	<T>(callback: Callback<T>): T
+	<T>(options:Omit<CommandOptions, 'cluster'>, callback: Callback<T>): T
+}`
 
 export const cachePlugin = definePlugin({
 	name: 'cache',
 	schema: z.object({
-		stacks: z.object({
-			/** Define the caches in your stack.
-			 * For access to the cache put your functions inside the global VPC.
-			 * @example
-			 * {
-			 *   caches: {
-			 *     CACHE_NAME: {
-			 *       type: 't4g.small'
-			 *     }
-			 *   }
-			 * }
-			 */
-			caches: z.record(
-				ResourceIdSchema,
-				z.object({
-					type: TypeSchema.default('t4g.small'),
-					port: PortSchema.default(6379),
-					shards: ShardsSchema.default(1),
-					replicasPerShard: ReplicasPerShardSchema.default(1),
-					engine: EngineSchema.default('7.0'),
-					dataTiering: z.boolean().default(false),
-				})
-			).optional()
-		}).array()
+		stacks: z
+			.object({
+				/** Define the caches in your stack.
+				 * For access to the cache put your functions inside the global VPC.
+				 * @example
+				 * {
+				 *   caches: {
+				 *     CACHE_NAME: {
+				 *       type: 't4g.small'
+				 *     }
+				 *   }
+				 * }
+				 */
+				caches: z
+					.record(
+						ResourceIdSchema,
+						z.object({
+							type: TypeSchema.default('t4g.small'),
+							port: PortSchema.default(6379),
+							shards: ShardsSchema.default(1),
+							replicasPerShard: ReplicasPerShardSchema.default(1),
+							engine: EngineSchema.default('7.0'),
+							dataTiering: z.boolean().default(false),
+						})
+					)
+					.optional(),
+			})
+			.array(),
 	}),
 	onTypeGen({ config }) {
 		const gen = new TypeGen('@awsless/awsless', 'CacheResources')
+		gen.addCode(typeGenCode)
 
-		for(const stack of config.stacks) {
+		for (const stack of config.stacks) {
 			const list = new TypeObject()
 
-			for(const name of Object.keys(stack.caches || {})) {
-				list.addType(name, `{ host: string, port: number }`)
+			for (const name of Object.keys(stack.caches || {})) {
+				list.addType(name, `Command`)
 			}
 
 			gen.addType(stack.name, list.toString())
@@ -77,16 +93,12 @@ export const cachePlugin = definePlugin({
 		return gen.toString()
 	},
 	onStack({ config, stack, stackConfig, bootstrap, bind }) {
-		for(const [ id, props ] of Object.entries(stackConfig.caches || {})) {
-
+		for (const [id, props] of Object.entries(stackConfig.caches || {})) {
 			const name = `${config.name}-${stack.name}-${id}`
 
 			const subnetGroup = new SubnetGroup(id, {
 				name,
-				subnetIds: [
-					bootstrap.import(`private-subnet-1`),
-					bootstrap.import(`private-subnet-2`),
-				]
+				subnetIds: [bootstrap.import(`private-subnet-1`), bootstrap.import(`private-subnet-2`)],
 			})
 
 			const securityGroup = new SecurityGroup(id, {
@@ -103,7 +115,7 @@ export const cachePlugin = definePlugin({
 			const cluster = new Cluster(id, {
 				name,
 				aclName: 'open-access',
-				securityGroupIds: [ securityGroup.id ],
+				securityGroupIds: [securityGroup.id],
 				subnetGroupName: subnetGroup.name,
 				...props,
 			}).dependsOn(subnetGroup, securityGroup)
@@ -130,8 +142,11 @@ export const cachePlugin = definePlugin({
 					// 	resources: [ '*' ],
 					// })
 					.addEnvironment(`CACHE_${constantCase(stack.name)}_${constantCase(id)}_HOST`, cluster.address)
-					.addEnvironment(`CACHE_${constantCase(stack.name)}_${constantCase(id)}_PORT`, props.port.toString())
-					// .dependsOn(cluster)
+					.addEnvironment(
+						`CACHE_${constantCase(stack.name)}_${constantCase(id)}_PORT`,
+						props.port.toString()
+					)
+				// .dependsOn(cluster)
 			})
 		}
 	},

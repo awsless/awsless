@@ -1,8 +1,14 @@
-
-// import { z } from 'zod'
-import { definePlugin } from '../plugin.js';
-import { InternetGateway, Route, RouteTable, Subnet, SubnetRouteTableAssociation, VPCGatewayAttachment, Vpc } from '../formation/resource/ec2/vpc.js';
-import { Peer } from '../formation/resource/ec2/peer.js';
+import { definePlugin } from '../plugin.js'
+import {
+	InternetGateway,
+	Route,
+	RouteTable,
+	Subnet,
+	SubnetRouteTableAssociation,
+	VPCGatewayAttachment,
+	Vpc,
+} from '../formation/resource/ec2/vpc.js'
+import { Peer } from '../formation/resource/ec2/peer.js'
 
 export const vpcPlugin = definePlugin({
 	name: 'vpc',
@@ -12,10 +18,9 @@ export const vpcPlugin = definePlugin({
 	// 	}).default({}),
 	// }),
 	onApp({ config, bootstrap }) {
-
 		const vpc = new Vpc('main', {
 			name: config.name,
-			cidrBlock: Peer.ipv4('10.0.0.0/16')
+			cidrBlock: Peer.ipv4('10.0.0.0/16'),
 		})
 
 		const privateRouteTable = new RouteTable('private', {
@@ -31,7 +36,7 @@ export const vpcPlugin = definePlugin({
 		const gateway = new InternetGateway('')
 		const attachment = new VPCGatewayAttachment('', {
 			vpcId: vpc.id,
-			internetGatewayId: gateway.id
+			internetGatewayId: gateway.id,
 		}).dependsOn(vpc, gateway)
 
 		const route = new Route('', {
@@ -42,21 +47,14 @@ export const vpcPlugin = definePlugin({
 
 		bootstrap.export('vpc-security-group-id', vpc.defaultSecurityGroup)
 		bootstrap.export(`vpc-id`, vpc.id)
-		bootstrap.add(
-			vpc,
-			privateRouteTable,
-			publicRouteTable,
-			gateway,
-			attachment,
-			route
-		)
+		bootstrap.add(vpc, privateRouteTable, publicRouteTable, gateway, attachment, route)
 
-		const zones = [ 'a', 'b' ]
-		const tables = [ privateRouteTable, publicRouteTable ]
+		const zones = ['a', 'b']
+		const tables = [privateRouteTable, publicRouteTable]
 		let block = 0
 
-		for(const table of tables) {
-			for(const i in zones) {
+		for (const table of tables) {
+			for (const i in zones) {
 				const id = `${table.name}-${i}`
 				const subnet = new Subnet(id, {
 					vpcId: vpc.id,
@@ -69,11 +67,8 @@ export const vpcPlugin = definePlugin({
 					subnetId: subnet.id,
 				}).dependsOn(subnet, table)
 
-				bootstrap.export(`${table.name}-subnet-${ Number(i) + 1 }`, subnet.id)
-				bootstrap.add(
-					subnet,
-					association,
-				)
+				bootstrap.export(`${table.name}-subnet-${Number(i) + 1}`, subnet.id)
+				bootstrap.add(subnet, association)
 			}
 		}
 	},

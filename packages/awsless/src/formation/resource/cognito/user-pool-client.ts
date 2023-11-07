@@ -1,6 +1,6 @@
-import { Resource } from '../../resource.js';
-import { formatName, ref } from '../../util.js';
-import { Duration } from "../../property/duration.js";
+import { Resource } from '../../resource.js'
+import { formatName, ref } from '../../util.js'
+import { Duration } from '../../property/duration.js'
 
 export type UserPoolClientProps = {
 	name?: string
@@ -17,7 +17,7 @@ export type UserPoolClientProps = {
 		refreshToken?: Duration
 	}
 	authFlows?: {
-		adminUserPassword?:	boolean
+		adminUserPassword?: boolean
 		custom?: boolean
 		userPassword?: boolean
 		userSrp?: boolean
@@ -40,31 +40,49 @@ export class UserPoolClient extends Resource {
 	}
 
 	private formatAuthFlows() {
-		const authFlows: string[] = [];
+		const authFlows: string[] = []
 
-		if (this.props.authFlows?.userPassword) { authFlows.push('ALLOW_USER_PASSWORD_AUTH'); }
-		if (this.props.authFlows?.adminUserPassword) { authFlows.push('ALLOW_ADMIN_USER_PASSWORD_AUTH'); }
-		if (this.props.authFlows?.custom) { authFlows.push('ALLOW_CUSTOM_AUTH'); }
-		if (this.props.authFlows?.userSrp) { authFlows.push('ALLOW_USER_SRP_AUTH'); }
+		if (this.props.authFlows?.userPassword) {
+			authFlows.push('ALLOW_USER_PASSWORD_AUTH')
+		}
+		if (this.props.authFlows?.adminUserPassword) {
+			authFlows.push('ALLOW_ADMIN_USER_PASSWORD_AUTH')
+		}
+		if (this.props.authFlows?.custom) {
+			authFlows.push('ALLOW_CUSTOM_AUTH')
+		}
+		if (this.props.authFlows?.userSrp) {
+			authFlows.push('ALLOW_USER_SRP_AUTH')
+		}
 
-		authFlows.push('ALLOW_REFRESH_TOKEN_AUTH');
+		authFlows.push('ALLOW_REFRESH_TOKEN_AUTH')
 
-		return authFlows;
+		return authFlows
 	}
 
 	private formatIdentityProviders() {
 		const supported = this.props.supportedIdentityProviders ?? []
-		const providers: string[] = [];
+		const providers: string[] = []
 
-		if(supported.length === 0) {
+		if (supported.length === 0) {
 			return undefined
 		}
 
-		if(supported.includes('amazon')) { providers.push('LoginWithAmazon') }
-		if(supported.includes('apple')) { providers.push('SignInWithApple') }
-		if(supported.includes('cognito')) { providers.push('COGNITO') }
-		if(supported.includes('facebook')) { providers.push('Facebook') }
-		if(supported.includes('google')) { providers.push('Google') }
+		if (supported.includes('amazon')) {
+			providers.push('LoginWithAmazon')
+		}
+		if (supported.includes('apple')) {
+			providers.push('SignInWithApple')
+		}
+		if (supported.includes('cognito')) {
+			providers.push('COGNITO')
+		}
+		if (supported.includes('facebook')) {
+			providers.push('Facebook')
+		}
+		if (supported.includes('google')) {
+			providers.push('Google')
+		}
 
 		return providers
 	}
@@ -76,15 +94,15 @@ export class UserPoolClient extends Resource {
 			ExplicitAuthFlows: this.formatAuthFlows(),
 			EnableTokenRevocation: this.props.enableTokenRevocation ?? false,
 			GenerateSecret: this.props.generateSecret ?? false,
-			PreventUserExistenceErrors: (this.props.preventUserExistenceErrors ?? true) ? 'ENABLED' : 'LEGACY',
+			PreventUserExistenceErrors: this.props.preventUserExistenceErrors ?? true ? 'ENABLED' : 'LEGACY',
 
 			...this.attr('SupportedIdentityProviders', this.formatIdentityProviders()),
 
-			AllowedOAuthFlows: [ 'code' ],
-			AllowedOAuthScopes: [ 'openid' ],
+			AllowedOAuthFlows: ['code'],
+			AllowedOAuthScopes: ['openid'],
 			AllowedOAuthFlowsUserPoolClient: true,
-			CallbackURLs: [ 'https://example.com' ],
-			LogoutURLs: [ 'https://example.com' ],
+			CallbackURLs: ['https://example.com'],
+			LogoutURLs: ['https://example.com'],
 
 			// DefaultRedirectURI: String
 			// EnablePropagateAdditionalUserContextData
@@ -101,7 +119,7 @@ export class UserPoolClient extends Resource {
 				...this.attr('AccessToken', this.props.validity?.accessToken && 'hours'),
 				...this.attr('IdToken', this.props.validity?.idToken && 'hours'),
 				...this.attr('RefreshToken', this.props.validity?.refreshToken && 'days'),
-			}
+			},
 		}
 	}
 }

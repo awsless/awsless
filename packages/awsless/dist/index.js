@@ -58,41 +58,60 @@ var Function = /* @__PURE__ */ createProxy((stackName) => {
     return call;
   });
 });
+var Fn = Function;
+
+// src/node/auth.ts
+import { constantCase } from "change-case";
+var getAuthName = getGlobalResourceName;
+var Auth = /* @__PURE__ */ createProxy((name) => {
+  return getAuthProps(name);
+});
+var getAuthProps = (name) => {
+  const env = process.env;
+  const id = constantCase(name);
+  return {
+    name: getAuthName(name),
+    userPoolId: env[`AUTH_${id}_USER_POOL_ID`],
+    clientId: env[`AUTH_${id}_CLIENT_ID`],
+    clientSecret: env[`AUTH_${id}_CLIENT_SECRET`]
+  };
+};
 
 // src/node/table.ts
 var getTableName = getLocalResourceName;
 var Table = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
-    return {
-      name: getTableName(name, stack)
-    };
+    return getTableName(name, stack);
   });
 });
 
 // src/node/topic.ts
 import { publish } from "@awsless/sns";
 var getTopicName = getGlobalResourceName;
-var Topic = /* @__PURE__ */ createProxy((topic) => {
-  const name = getTopicName(topic);
+var Topic = /* @__PURE__ */ createProxy((name) => {
+  const topic = getTopicName(name);
   const ctx = {
-    [name]: (payload, options = {}) => {
-      return publish({
+    [topic]: async (payload, options = {}) => {
+      await publish({
         ...options,
-        topic: name,
+        topic,
         payload
       });
     }
   };
-  const call = ctx[name];
+  const call = ctx[topic];
   return call;
 });
 
 // src/node/queue.ts
-import { sendMessage, sendMessageBatch } from "@awsless/sqs";
-import { constantCase } from "change-case";
+import {
+  sendMessage,
+  sendMessageBatch
+} from "@awsless/sqs";
+import { constantCase as constantCase2 } from "change-case";
 var getQueueName = getLocalResourceName;
 var getQueueUrl = (name, stack = STACK) => {
-  return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`];
+  return process.env[`QUEUE_${constantCase2(stack)}_${constantCase2(name)}_URL`];
 };
 var Queue = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((queue) => {
@@ -121,9 +140,10 @@ var Queue = /* @__PURE__ */ createProxy((stack) => {
 });
 
 // src/node/cache.ts
-import { constantCase as constantCase2 } from "change-case";
+import { constantCase as constantCase3 } from "change-case";
+import { command } from "@awsless/redis";
 var getCacheProps = (name, stack = STACK) => {
-  const prefix = `CACHE_${constantCase2(stack)}_${constantCase2(name)}`;
+  const prefix = `CACHE_${constantCase3(stack)}_${constantCase3(name)}`;
   return {
     host: process.env[`${prefix}_HOST`],
     port: parseInt(process.env[`${prefix}_PORT`], 10)
@@ -131,9 +151,22 @@ var getCacheProps = (name, stack = STACK) => {
 };
 var Cache = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
-    const call = () => {
-    };
     const { host, port } = getCacheProps(name, stack);
+    const call = (opts, fn) => {
+      const overload = typeof opts === "function";
+      const options = overload ? {} : opts;
+      const callback = overload ? opts : fn;
+      return command(
+        {
+          host,
+          port,
+          db: 0,
+          cluster: true,
+          ...options
+        },
+        callback
+      );
+    };
     call.host = host;
     call.port = port;
     return call;
@@ -172,23 +205,26 @@ var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
   return {};
 };
 var data = await /* @__PURE__ */ loadConfigData();
-var Config = /* @__PURE__ */ new Proxy({}, {
-  get(_, name) {
-    const key = paramCase2(name);
-    const value = data[key];
-    if (typeof value === "undefined") {
-      throw new Error(
-        `The "${name}" config value hasn't been set yet. ${TEST ? `Use "Config.${name} = 'VAlUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
-      );
+var Config = /* @__PURE__ */ new Proxy(
+  {},
+  {
+    get(_, name) {
+      const key = paramCase2(name);
+      const value = data[key];
+      if (typeof value === "undefined") {
+        throw new Error(
+          `The "${name}" config value hasn't been set yet. ${TEST ? `Use "Config.${name} = 'VAlUE'" to define your mock value.` : `Define access to the desired config value inside your awsless stack file.`}`
+        );
+      }
+      return value;
+    },
+    set(_, name, value) {
+      const key = paramCase2(name);
+      data[key] = value;
+      return true;
     }
-    return value;
-  },
-  set(_, name, value) {
-    const key = paramCase2(name);
-    data[key] = value;
-    return true;
   }
-});
+);
 
 // src/node/search.ts
 var getSearchName = getLocalResourceName;
@@ -209,8 +245,10 @@ var defineAppConfig = (config) => {
 };
 export {
   APP,
+  Auth,
   Cache,
   Config,
+  Fn,
   Function,
   Queue,
   STACK,
@@ -221,6 +259,8 @@ export {
   defineAppConfig,
   definePlugin,
   defineStackConfig,
+  getAuthName,
+  getAuthProps,
   getCacheProps,
   getConfigName,
   getFunctionName,

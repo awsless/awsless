@@ -1,7 +1,7 @@
 import { Cluster, Redis } from 'ioredis'
 import type { RedisOptions } from 'ioredis'
 
-export type CommandOptions = RedisOptions & { cluster?: boolean }
+export type CommandOptions<Cluster extends boolean = boolean> = RedisOptions & { cluster?: Cluster }
 export type Client<O extends CommandOptions> = O['cluster'] extends true ? Cluster : Redis
 
 let optionOverrides: CommandOptions = {}
@@ -25,6 +25,10 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 		commandTimeout: 1000 * 5,
 		...options,
 		...optionOverrides,
+	}
+
+	if (!options.cluster) {
+		return new Redis(props) as Client<O>
 	}
 
 	// return new Redis(props) as Client<O>

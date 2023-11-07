@@ -2,8 +2,10 @@ import { Command } from "commander";
 import { layout } from '../ui/layout/layout.js';
 import { cleanUp } from '../../util/cleanup.js';
 import { typesGenerator } from '../ui/complex/types.js';
-import { watchConfig } from '../../config.js';
+import { ConfigError, watchConfig } from '../../config.js';
 import { ProgramOptions } from '../program.js';
+import { zodError } from "../ui/layout/zod-error.js";
+import { dialog } from "../ui/layout/dialog.js";
 
 export const dev = (program: Command) => {
 	program
@@ -14,10 +16,20 @@ export const dev = (program: Command) => {
 
 				const options = program.optsWithGlobals() as ProgramOptions
 
-				for await(const config of watchConfig(options)) {
+				await watchConfig(options, async (config) => {
 					await cleanUp()
 					await write(typesGenerator(config))
-				}
+				}, (error) => {
+					if(error instanceof ConfigError) {
+						write(zodError(error.error, error.data))
+					} else if(error instanceof Error) {
+						write(dialog('error', [ error.message ]))
+					} else if (typeof error === 'string') {
+						write(dialog('error', [ error ]))
+					} else {
+						write(dialog('error', [ JSON.stringify(error) ]))
+					}
+				})
 			})
 		})
 }

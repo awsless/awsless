@@ -21,7 +21,7 @@ export const searchPlugin = definePlugin({
 
 			for(const id of stack.searchs || []) {
 				const name = formatName(`${config.name}-${stack.name}-${id}`)
-				list.addType(name, `{ name: '${name}' }`)
+				list.addType(name, `{ readonly name: '${name}' }`)
 			}
 
 			gen.addType(stack.name, list.toString())

@@ -1,4 +1,6 @@
-import { CloudFormationClient, ListExportsCommand } from '@aws-sdk/client-cloudformation';
+'use strict';
+
+var clientCloudformation = require('@aws-sdk/client-cloudformation');
 
 const send = async (event, id, status, data, reason = '')=>{
     const body = JSON.stringify({
@@ -11,14 +13,14 @@ const send = async (event, id, status, data, reason = '')=>{
         NoEcho: false,
         Data: data
     });
-    // @ts-ignore
     await fetch(event.ResponseURL, {
         method: 'PUT',
+        // @ts-ignore
         port: 443,
         body,
         headers: {
             'content-type': '',
-            'content-length': Buffer.from(body).byteLength
+            'content-length': Buffer.from(body).byteLength.toString()
         }
     });
 };
@@ -38,13 +40,13 @@ const handler = async (event)=>{
     }
 };
 const listExports = async (region)=>{
-    const client = new CloudFormationClient({
+    const client = new clientCloudformation.CloudFormationClient({
         region
     });
     const data = {};
     let token;
     while(true){
-        const result = await client.send(new ListExportsCommand({
+        const result = await client.send(new clientCloudformation.ListExportsCommand({
             NextToken: token
         }));
         result.Exports?.forEach((item)=>{
@@ -58,4 +60,4 @@ const listExports = async (region)=>{
     }
 };
 
-export { handler };
+exports.handler = handler;

@@ -1,29 +1,30 @@
-
-import { definePlugin } from '../../plugin.js';
+import { definePlugin } from '../../plugin.js'
 import { z } from 'zod'
-import { FunctionSchema, toLambdaFunction } from '../function.js';
-import { SqsEventSource } from '../../formation/resource/lambda/event-source/sqs.js';
-import { Queue } from '../../formation/resource/sqs/queue.js';
-import { hasOnFailure } from './util.js';
+import { FunctionSchema, toLambdaFunction } from '../function.js'
+import { SqsEventSource } from '../../formation/resource/lambda/event-source/sqs.js'
+import { Queue } from '../../formation/resource/sqs/queue.js'
+import { hasOnFailure } from './util.js'
 
 export const onFailurePlugin = definePlugin({
 	name: 'on-failure',
 	schema: z.object({
-		stacks: z.object({
-			/** Defining a onFailure handler will add a global onFailure handler for the following resources:
-			 * - Async lambda functions
-			 * - SQS queues
-			 * - DynamoDB streams
-			 * @example
-			 * {
-			 *   onFailure: 'on-failure.ts'
-			 * }
-			 */
-			onFailure: FunctionSchema.optional()
-		}).array()
+		stacks: z
+			.object({
+				/** Defining a onFailure handler will add a global onFailure handler for the following resources:
+				 * - Async lambda functions
+				 * - SQS queues
+				 * - DynamoDB streams
+				 * @example
+				 * {
+				 *   onFailure: 'on-failure.ts'
+				 * }
+				 */
+				onFailure: FunctionSchema.optional(),
+			})
+			.array(),
 	}),
 	onApp({ config, bootstrap }) {
-		if(!hasOnFailure(config)) {
+		if (!hasOnFailure(config)) {
 			return
 		}
 
@@ -31,15 +32,13 @@ export const onFailurePlugin = definePlugin({
 			name: `${config.name}-failure`,
 		})
 
-		bootstrap
-			.add(queue)
-			.export('on-failure-queue-arn', queue.arn)
+		bootstrap.add(queue).export('on-failure-queue-arn', queue.arn)
 	},
 	onStack(ctx) {
 		const { stack, stackConfig, bootstrap } = ctx
 		const onFailure = stackConfig.onFailure
 
-		if(!onFailure) {
+		if (!onFailure) {
 			return
 		}
 
@@ -50,15 +49,10 @@ export const onFailurePlugin = definePlugin({
 		})
 
 		lambda.addPermissions({
-			actions: [
-				'sqs:SendMessage',
-				'sqs:ReceiveMessage',
-				'sqs:GetQueueUrl',
-				'sqs:GetQueueAttributes',
-			],
-			resources: [ queueArn ],
+			actions: ['sqs:SendMessage', 'sqs:ReceiveMessage', 'sqs:GetQueueUrl', 'sqs:GetQueueAttributes'],
+			resources: [queueArn],
 		})
 
 		stack.add(lambda, source)
-	}
+	},
 })

@@ -1,6 +1,7 @@
 import { formatByteSize } from '../../../util/byte-size.js'
 import { Asset } from '../../asset.js'
-import { readFile } from "fs/promises"
+// import { readFile } from 'fs/promises'
+import { rollupResolver } from './util/rollup.js'
 
 export interface ICode {
 	toCodeJson: () => {
@@ -10,11 +11,11 @@ export interface ICode {
 }
 
 export class Code {
-	static fromFile(id:string, file:string) {
+	static fromFile(id: string, file: string) {
 		return new FileCode(id, file)
 	}
 
-	static fromInline(id:string, code: string) {
+	static fromInline(id: string, code: string) {
 		return new InlineCode(id, code)
 	}
 }
@@ -26,7 +27,7 @@ export class InlineCode extends Asset implements ICode {
 
 	toCodeJson() {
 		return {
-			Code: this.code
+			Code: this.code,
 		}
 	}
 }
@@ -39,17 +40,18 @@ export class FileCode extends Asset implements ICode {
 	}
 
 	async build() {
-		const code = await readFile(this.file)
+		const code = await rollupResolver({ minify: false })(this.file)
+
 		this.code = code.toString('utf8')
 
 		return {
-			size: formatByteSize(code.byteLength)
+			size: formatByteSize(code.byteLength),
 		}
 	}
 
 	toCodeJson() {
 		return {
-			Code: this.code
+			Code: this.code,
 		}
 	}
 }

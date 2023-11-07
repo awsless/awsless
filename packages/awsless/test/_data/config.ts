@@ -1,4 +1,3 @@
-
 import { defineAppConfig } from '../../src/index.js'
 import { storeStack } from './stack/store.js'
 import { queueStack } from './stack/queue.js'
@@ -31,13 +30,17 @@ export default defineAppConfig(input => ({
 	// },
 	defaults: {
 		domains: {
-			'crypto-trender.com': []
+			'crypto-trender.com': [],
 		},
+		// alerts: {
+		// 	debug: 'info@jacksclub.io',
+		// },
 		graphql: {
 			api: {
 				domain: 'crypto-trender.com',
 				subDomain: 'graphql',
-				auth: 'users'
+				resolver: __dirname + '/function/resolver.ts',
+				auth: 'users',
 			},
 		},
 		http: {
@@ -45,11 +48,15 @@ export default defineAppConfig(input => ({
 				domain: 'crypto-trender.com',
 				subDomain: 'http',
 				auth: 'users',
-			}
+			},
 		},
 		auth: {
-			users: { },
-			admins: { allowUserRegistration: false }
+			users: {
+				messaging: {
+					fromEmail: 'info@jacksclub.dev',
+				},
+			},
+			admins: { allowUserRegistration: false },
 		},
 		// rest: {
 		// 	api: {
@@ -79,7 +86,7 @@ export default defineAppConfig(input => ({
 		// storeStack,
 		functionStack,
 		configStack,
-		// topicStack,
+		topicStack,
 		// cronStack,
 		// pubsubStack,
 		// failureStack,
@@ -90,5 +97,5 @@ export default defineAppConfig(input => ({
 
 		graphqlOneStack,
 		graphqlTwoStack,
-	]
+	],
 }))

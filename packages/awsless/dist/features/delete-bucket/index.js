@@ -1,4 +1,6 @@
-import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, ListObjectVersionsCommand } from '@aws-sdk/client-s3';
+'use strict';
+
+var clientS3 = require('@aws-sdk/client-s3');
 
 const send = async (event, id, status, data, reason = '')=>{
     const body = JSON.stringify({
@@ -11,19 +13,19 @@ const send = async (event, id, status, data, reason = '')=>{
         NoEcho: false,
         Data: data
     });
-    // @ts-ignore
     await fetch(event.ResponseURL, {
         method: 'PUT',
+        // @ts-ignore
         port: 443,
         body,
         headers: {
             'content-type': '',
-            'content-length': Buffer.from(body).byteLength
+            'content-length': Buffer.from(body).byteLength.toString()
         }
     });
 };
 
-const client = new S3Client({});
+const client = new clientS3.S3Client({});
 const handler = async (event)=>{
     const type = event.RequestType;
     const bucketName = event.ResourceProperties.bucketName;
@@ -47,14 +49,14 @@ const handler = async (event)=>{
 };
 const emptyBucket = async (bucket)=>{
     while(true){
-        const result = await client.send(new ListObjectsV2Command({
+        const result = await client.send(new clientS3.ListObjectsV2Command({
             Bucket: bucket,
             MaxKeys: 1000
         }));
         if (!result.Contents || result.Contents.length === 0) {
             break;
         }
-        await client.send(new DeleteObjectsCommand({
+        await client.send(new clientS3.DeleteObjectsCommand({
             Bucket: bucket,
             Delete: {
                 Objects: result.Contents.map((object)=>({
@@ -64,14 +66,14 @@ const emptyBucket = async (bucket)=>{
         }));
     }
     while(true){
-        const result = await client.send(new ListObjectVersionsCommand({
+        const result = await client.send(new clientS3.ListObjectVersionsCommand({
             Bucket: bucket,
             MaxKeys: 1000
         }));
         if (!result.Versions || result.Versions.length === 0) {
             break;
         }
-        await client.send(new DeleteObjectsCommand({
+        await client.send(new clientS3.DeleteObjectsCommand({
             Bucket: bucket,
             Delete: {
                 Objects: result.Versions.map((object)=>({
@@ -83,4 +85,4 @@ const emptyBucket = async (bucket)=>{
     }
 };
 
-export { handler };
+exports.handler = handler;

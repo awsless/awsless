@@ -1,8 +1,8 @@
-import { z } from "zod";
-import { ResourceIdSchema } from './resource-id.js';
-import { StackSchema } from './stack.js';
-import { RegionSchema } from './region.js';
-import { PluginSchema } from './plugin.js';
+import { z } from 'zod'
+import { ResourceIdSchema } from './resource-id.js'
+import { StackSchema } from './stack.js'
+import { RegionSchema } from './region.js'
+import { PluginSchema } from './plugin.js'
 
 export const AppSchema = z.object({
 	/** App name */
@@ -17,16 +17,22 @@ export const AppSchema = z.object({
 	/** The deployment stage.
 	 * @default 'prod'
 	 */
-	stage: z.string().regex(/^[a-z]+$/).default('prod'),
+	stage: z
+		.string()
+		.regex(/^[a-z]+$/)
+		.default('prod'),
 
 	/** Default properties. */
 	defaults: z.object({}).default({}),
 
 	/** The application stacks. */
-	stacks: z.array(StackSchema).min(1).refine(stacks => {
-		const unique = new Set(stacks.map(stack => stack.name))
-		return unique.size === stacks.length
-	}, 'Must be an array of unique stacks'),
+	stacks: z
+		.array(StackSchema)
+		.min(1)
+		.refine(stacks => {
+			const unique = new Set(stacks.map(stack => stack.name))
+			return unique.size === stacks.length
+		}, 'Must be an array of unique stacks'),
 
 	/** Custom plugins. */
 	plugins: z.array(PluginSchema).optional(),

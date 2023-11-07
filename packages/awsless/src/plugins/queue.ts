@@ -52,8 +52,8 @@ import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless
 type Payload<Func extends (...args: any[]) => any> = Parameters<Func>[0]['Records'][number]['body']
 
 type Send<Name extends string, Func extends (...args: any[]) => any> = {
-	name: Name
-	batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	readonly name: Name
+	readonly batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
 	(payload: Payload<Func>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
 }`
 

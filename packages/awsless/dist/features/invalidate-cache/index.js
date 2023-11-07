@@ -1,4 +1,6 @@
-import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront';
+'use strict';
+
+var clientCloudfront = require('@aws-sdk/client-cloudfront');
 
 const send = async (event, id, status, data, reason = '')=>{
     const body = JSON.stringify({
@@ -11,19 +13,19 @@ const send = async (event, id, status, data, reason = '')=>{
         NoEcho: false,
         Data: data
     });
-    // @ts-ignore
     await fetch(event.ResponseURL, {
         method: 'PUT',
+        // @ts-ignore
         port: 443,
         body,
         headers: {
             'content-type': '',
-            'content-length': Buffer.from(body).byteLength
+            'content-length': Buffer.from(body).byteLength.toString()
         }
     });
 };
 
-const client = new CloudFrontClient({});
+const client = new clientCloudfront.CloudFrontClient({});
 const handler = async (event)=>{
     const type = event.RequestType;
     const { distributionId, paths } = event.ResourceProperties;
@@ -45,7 +47,7 @@ const handler = async (event)=>{
     }
 };
 const invalidateCache = async (distributionId, paths)=>{
-    const result = await client.send(new CreateInvalidationCommand({
+    const result = await client.send(new clientCloudfront.CreateInvalidationCommand({
         DistributionId: distributionId,
         InvalidationBatch: {
             CallerReference: Date.now().toString(),
@@ -58,4 +60,4 @@ const invalidateCache = async (distributionId, paths)=>{
     return result.Invalidation.Id;
 };
 
-export { handler };
+exports.handler = handler;

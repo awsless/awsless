@@ -1,4 +1,6 @@
-import { Route53Client, ChangeResourceRecordSetsCommand, ListResourceRecordSetsCommand } from '@aws-sdk/client-route-53';
+'use strict';
+
+var clientRoute53 = require('@aws-sdk/client-route-53');
 
 const send = async (event, id, status, data, reason = '')=>{
     const body = JSON.stringify({
@@ -11,14 +13,14 @@ const send = async (event, id, status, data, reason = '')=>{
         NoEcho: false,
         Data: data
     });
-    // @ts-ignore
     await fetch(event.ResponseURL, {
         method: 'PUT',
+        // @ts-ignore
         port: 443,
         body,
         headers: {
             'content-type': '',
-            'content-length': Buffer.from(body).byteLength
+            'content-length': Buffer.from(body).byteLength.toString()
         }
     });
 };
@@ -64,7 +66,7 @@ var chunk$1 = {exports: {}};
 var chunkExports = chunk$1.exports;
 var chunk = /*@__PURE__*/getDefaultExportFromCjs(chunkExports);
 
-const client = new Route53Client({});
+const client = new clientRoute53.Route53Client({});
 const handler = async (event)=>{
     const type = event.RequestType;
     const hostedZoneId = event.ResourceProperties.hostedZoneId;
@@ -95,7 +97,7 @@ const deleteHostedZoneRecords = async (hostedZoneId, records)=>{
         return;
     }
     await Promise.all(chunk(records, 100).map(async (records)=>{
-        await client.send(new ChangeResourceRecordSetsCommand({
+        await client.send(new clientRoute53.ChangeResourceRecordSetsCommand({
             HostedZoneId: hostedZoneId,
             ChangeBatch: {
                 Changes: records.map((record)=>({
@@ -110,7 +112,7 @@ const listHostedZoneRecords = async (hostedZoneId)=>{
     const records = [];
     let token;
     while(true){
-        const result = await client.send(new ListResourceRecordSetsCommand({
+        const result = await client.send(new clientRoute53.ListResourceRecordSetsCommand({
             HostedZoneId: hostedZoneId,
             StartRecordName: token
         }));
@@ -125,4 +127,4 @@ const listHostedZoneRecords = async (hostedZoneId)=>{
     }
 };
 
-export { handler };
+exports.handler = handler;

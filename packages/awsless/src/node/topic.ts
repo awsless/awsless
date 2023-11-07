@@ -6,20 +6,20 @@ export const getTopicName = getGlobalResourceName
 
 export interface TopicResources {}
 
-export const Topic:TopicResources = /*@__PURE__*/ createProxy((topic) => {
-	const name = getTopicName(topic)
+export const Topic: TopicResources = /*@__PURE__*/ createProxy(name => {
+	const topic = getTopicName(name)
 
 	const ctx: Record<string, any> = {
-		[ name ]: (payload:unknown, options:Omit<PublishOptions, 'topic' | 'payload'> = {}) => {
-			return publish({
+		[topic]: async (payload: unknown, options: Omit<PublishOptions, 'topic' | 'payload'> = {}) => {
+			await publish({
 				...options,
-				topic: name,
+				topic,
 				payload,
 			})
-		}
+		},
 	}
 
-	const call = ctx[name]
+	const call = ctx[topic]
 
 	return call
 })

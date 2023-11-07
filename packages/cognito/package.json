@@ -1,0 +1,32 @@
+{
+	"name": "@awsless/cognito",
+	"version": "0.0.1",
+	"license": "MIT",
+	"main": "./src/index.js",
+	"type": "module",
+	"description": "Lightweight AWS Cognito client for the browser.",
+	"keywords": [
+		"amazon",
+		"aws",
+		"cognito",
+		"auth",
+		"identity"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/heat-js/monorepo/tree/master/packages/cognito"
+	},
+	"scripts": {
+		"test": "pnpm code test",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@types/js-cookie": "^3.0.5",
+		"js-cookie": "^3.0.1",
+		"jwt-decode": "^3.1.2"
+	},
+	"devDependencies": {
+		"cognito-srp": "^0.2.0"
+	}
+}

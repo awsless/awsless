@@ -1,11 +1,22 @@
+import { Duration } from '../../property/duration.js'
+import { Resource } from '../../resource.js'
 
-import { Duration } from '../../property/duration.js';
-import { Resource } from '../../resource.js';
+export type RecordType =
+	| 'A'
+	| 'AAAA'
+	| 'CAA'
+	| 'CNAME'
+	| 'DS'
+	| 'MX'
+	| 'NAPTR'
+	| 'NS'
+	| 'PTR'
+	| 'SOA'
+	| 'SPF'
+	| 'SRV'
+	| 'TXT'
 
-export type RecordType = 'A' | 'AAAA' | 'CAA' | 'CNAME' | 'DS' | 'MX' | 'NAPTR' | 'NS' | 'PTR' | 'SOA' | 'SPF' | 'SRV' | 'TXT'
-
-export type RecordSetProps = {
-	hostedZoneId: string
+export type Record = {
 	name?: string
 	type: RecordType
 	ttl?: Duration
@@ -15,6 +26,10 @@ export type RecordSetProps = {
 		hostedZoneId: string
 	}
 }
+
+export type RecordSetProps = {
+	hostedZoneId: string
+} & Record
 
 export class RecordSet extends Resource {
 	readonly name: string
@@ -28,20 +43,24 @@ export class RecordSet extends Resource {
 	properties() {
 		return {
 			HostedZoneId: this.props.hostedZoneId,
-			Name: this.name + '.',
+			Name: typeof this.name === 'string' ? this.name + '.' : this.name,
 			Type: this.props.type,
-			TTL: this.props.ttl,
+			TTL: this.props.ttl?.toSeconds(),
 
-			...(this.props.records ? {
-				ResourceRecords: this.props.records
-			} : {}),
+			...(this.props.records
+				? {
+						ResourceRecords: this.props.records,
+				  }
+				: {}),
 
-			...(this.props.alias ? {
-				AliasTarget: {
-					DNSName: this.props.alias.dnsName,
-					HostedZoneId: this.props.alias.hostedZoneId,
-				}
-			} : {}),
+			...(this.props.alias
+				? {
+						AliasTarget: {
+							DNSName: this.props.alias.dnsName,
+							HostedZoneId: this.props.alias.hostedZoneId,
+						},
+				  }
+				: {}),
 		}
 	}
 }

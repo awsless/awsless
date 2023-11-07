@@ -1,9 +1,8 @@
-
-import { Asset } from '../../asset.js';
-import { Resource } from '../../resource.js';
-import { getAtt, ref } from '../../util.js';
-import { ICode } from './code.js';
-import { snakeCase } from "change-case";
+import { Asset } from '../../asset.js'
+import { Resource } from '../../resource.js'
+import { getAtt, ref } from '../../util.js'
+import { ICode } from './code.js'
+import { snakeCase } from 'change-case'
 
 export type FunctionConfigurationProps = {
 	apiId: string
@@ -13,13 +12,10 @@ export type FunctionConfigurationProps = {
 }
 
 export class FunctionConfiguration extends Resource {
-
 	readonly name: string
 
 	constructor(logicalId: string, private props: FunctionConfigurationProps) {
-		super('AWS::AppSync::FunctionConfiguration', logicalId, [
-			props.code
-		])
+		super('AWS::AppSync::FunctionConfiguration', logicalId)
 
 		this.name = snakeCase(this.props.name || logicalId)
 	}
