@@ -97,6 +97,12 @@ var formatName = (name) => {
   return paramCase2(name);
 };
 var formatArn = (props) => {
+  if (!props.resource) {
+    return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}", props);
+  }
+  if (!props.resourceName) {
+    return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}", props);
+  }
   return sub("arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}", {
     seperator: "/",
     ...props
@@ -206,6 +212,7 @@ var LogGroup = class extends Resource {
 };
 
 // src/formation/resource/iam/inline-policy.ts
+import { capitalCase } from "change-case";
 var InlinePolicy = class {
   name;
   statements;
@@ -223,7 +230,7 @@ var InlinePolicy = class {
       PolicyDocument: {
         Version: "2012-10-17",
         Statement: this.statements.map((statement) => ({
-          Effect: statement.effect || "Allow",
+          Effect: capitalCase(statement.effect || "allow"),
           Action: statement.actions,
           Resource: statement.resources
         }))
@@ -275,8 +282,79 @@ var Role = class extends Resource {
   }
 };
 
-// src/formation/resource/lambda/url.ts
+// src/formation/resource/events/rule.ts
+var Rule = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Events::Rule", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  properties() {
+    return {
+      Name: this.name,
+      ...this.attr("State", "ENABLED"),
+      ...this.attr("Description", this.props.description),
+      ...this.attr("ScheduleExpression", this.props.schedule),
+      ...this.attr("RoleArn", this.props.roleArn),
+      ...this.attr("EventBusName", this.props.eventBusName),
+      ...this.attr("EventPattern", this.props.eventPattern),
+      Targets: this.props.targets.map((target) => ({
+        Arn: target.arn,
+        Id: target.id,
+        ...this.attr("Input", target.input && JSON.stringify(target.input))
+      }))
+    };
+  }
+};
+
+// src/formation/resource/lambda/permission.ts
 import { constantCase } from "change-case";
+var Permission = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Lambda::Permission", logicalId);
+    this.props = props;
+  }
+  properties() {
+    return {
+      FunctionName: this.props.functionArn,
+      Action: this.props.action || "lambda:InvokeFunction",
+      Principal: this.props.principal,
+      ...this.attr("FunctionUrlAuthType", this.props.urlAuthType && constantCase(this.props.urlAuthType)),
+      ...this.attr("SourceArn", this.props.sourceArn)
+    };
+  }
+};
+
+// src/formation/resource/lambda/event-source/events.ts
+var EventsEventSource = class extends Group {
+  constructor(id, lambda, props) {
+    const rule = new Rule(id, {
+      schedule: props.schedule,
+      targets: [{
+        id,
+        arn: lambda.arn,
+        input: props.payload
+      }]
+    });
+    const permission = new Permission(id, {
+      action: "lambda:InvokeFunction",
+      principal: "events.amazonaws.com",
+      functionArn: lambda.arn,
+      sourceArn: rule.arn
+    });
+    super([rule, permission]);
+  }
+};
+
+// src/formation/resource/lambda/url.ts
+import { constantCase as constantCase2 } from "change-case";
 var Url = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::Lambda::Url", logicalId);
@@ -287,8 +365,8 @@ var Url = class extends Resource {
   }
   properties() {
     return {
-      AuthType: constantCase(this.props.authType ?? "none"),
-      InvokeMode: constantCase(this.props.invokeMode ?? "buffered"),
+      AuthType: constantCase2(this.props.authType ?? "none"),
+      InvokeMode: constantCase2(this.props.invokeMode ?? "buffered"),
       TargetFunctionArn: this.props.target,
       ...this.attr("Qualifier", this.props.qualifier),
       Cors: {
@@ -343,6 +421,17 @@ var Function = class extends Resource {
       actions: ["logs:PutLogEvents"],
       resources: [sub("${arn}:*", { arn: logGroup.arn })]
     });
+    return this;
+  }
+  warmUp(concurrency) {
+    const source = new EventsEventSource(`${this._logicalId}-warmer`, this, {
+      schedule: "rate(5 minutes)",
+      payload: {
+        warmer: true,
+        concurrency
+      }
+    });
+    this.addChild(source);
     return this;
   }
   addUrl(props = {}) {
@@ -502,8 +591,8 @@ var Stack = class {
       return node;
     };
     for (const resource of this.resources) {
-      const json2 = walk(resource.toJSON());
-      Object.assign(resources, json2);
+      const json3 = walk(resource.toJSON());
+      Object.assign(resources, json3);
     }
     for (let [name, value] of this.exports.entries()) {
       Object.assign(outputs, {
@@ -803,7 +892,11 @@ import json from "@rollup/plugin-json";
 import commonjs from "@rollup/plugin-commonjs";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import { dirname } from "path";
-var rollupBundle = ({ format: format2 = "esm", minify = true, handler = "default" } = {}) => {
+var rollupBundle = ({
+  format: format2 = "esm",
+  minify = true,
+  handler = "default"
+} = {}) => {
   return async (input) => {
     const bundle = await rollup({
       input,
@@ -888,6 +981,7 @@ var zipFiles = (files) => {
 };
 
 // src/formation/resource/lambda/code.ts
+import { readFile } from "fs/promises";
 import { fileURLToPath } from "url";
 import { join } from "path";
 var Code = class {
@@ -904,21 +998,10 @@ var Code = class {
   // 	return new ZipFileCode(id, file, hash, handler)
   // }
   static fromFeature(id) {
-    const root2 = fileURLToPath(new URL(".", import.meta.url));
-    const file = join(root2, `features/${id}.js`);
-    return new FileCode(id, file, rollupBundle({
-      minify: false,
-      handler: "handler"
-    }));
+    return new FeatureCode(id);
   }
   static fromInlineFeature(id) {
-    const root2 = fileURLToPath(new URL(".", import.meta.url));
-    const file = join(root2, `features/${id}.js`);
-    return new InlineFileCode(id, file, rollupBundle({
-      format: "cjs",
-      minify: false,
-      handler: "handler"
-    }));
+    return new InlineFeatureCode(id);
   }
 };
 var InlineCode = class {
@@ -945,11 +1028,12 @@ var InlineFileCode = class extends Asset {
   handler;
   async build({ write }) {
     const bundler = this.bundler ?? rollupBundle();
-    const { hash, files: [file], handler } = await bundler(this.file);
-    await Promise.all([
-      write("HASH", hash),
-      write("file.js", file.code)
-    ]);
+    const {
+      hash,
+      files: [file],
+      handler
+    } = await bundler(this.file);
+    await Promise.all([write("HASH", hash), write("file.js", file.code)]);
     this.handler = handler;
     this.code = file.code.toString("utf8");
     return {
@@ -993,11 +1077,7 @@ var FileCode = class extends Asset {
     };
   }
   async publish({ publish }) {
-    this.s3 = await publish(
-      `${this.id}.zip`,
-      this.bundle,
-      this.hash
-    );
+    this.s3 = await publish(`${this.id}.zip`, this.bundle, this.hash);
   }
   toCodeJson() {
     return {
@@ -1006,6 +1086,49 @@ var FileCode = class extends Asset {
         S3Bucket: this.s3?.bucket ?? "",
         S3Key: this.s3?.key ?? "",
         S3ObjectVersion: this.s3?.version ?? ""
+      }
+    };
+  }
+};
+var FeatureCode = class extends Asset {
+  s3;
+  constructor(id) {
+    super("function", id);
+  }
+  async publish({ publish }) {
+    const root2 = fileURLToPath(new URL(".", import.meta.url));
+    const path = join(root2, `features/${this.id}`);
+    const bundle = await readFile(join(path, "bundle.zip"));
+    const hash = await readFile(join(path, "HASH"));
+    this.s3 = await publish(`${this.id}.zip`, bundle, hash.toString("utf8"));
+  }
+  toCodeJson() {
+    return {
+      Handler: "index.handler",
+      Code: {
+        S3Bucket: this.s3?.bucket ?? "",
+        S3Key: this.s3?.key ?? "",
+        S3ObjectVersion: this.s3?.version ?? ""
+      }
+    };
+  }
+};
+var InlineFeatureCode = class extends Asset {
+  code;
+  constructor(id) {
+    super("function", id);
+  }
+  async publish() {
+    const root2 = fileURLToPath(new URL(".", import.meta.url));
+    const path = join(root2, `features/${this.id}`);
+    const file = await readFile(join(path, "index.js"));
+    this.code = file.toString("utf8");
+  }
+  toCodeJson() {
+    return {
+      Handler: "index.handler",
+      Code: {
+        ZipFile: this.code ?? ""
       }
     };
   }
@@ -1116,7 +1239,7 @@ import { relative as relative2 } from "path";
 // src/util/type-gen.ts
 import { mkdir, writeFile } from "fs/promises";
 import { join as join3, relative } from "path";
-import { camelCase, constantCase as constantCase2 } from "change-case";
+import { camelCase, constantCase as constantCase3 } from "change-case";
 var generateResourceTypes = async (config) => {
   const plugins = [
     ...defaultPlugins,
@@ -1162,7 +1285,7 @@ var TypeGen = class {
   }
   addConst(name, type) {
     if (type) {
-      this.types.set(constantCase2(name), type);
+      this.types.set(constantCase3(name), type);
     }
     return this;
   }
@@ -1213,7 +1336,7 @@ var TypeObject = class {
   }
   addConst(name, type) {
     if (type) {
-      this.types.set(constantCase2(name), type);
+      this.types.set(constantCase3(name), type);
     }
     return this;
   }
@@ -1232,20 +1355,34 @@ var TypeObject = class {
 };
 
 // src/plugins/function.ts
-var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum memory size is 10 GB");
-var TimeoutSchema = DurationSchema.refine(durationMin(Duration.seconds(10)), "Minimum timeout duration is 10 seconds").refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
-var EphemeralStorageSizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(512)), "Minimum ephemeral storage size is 512 MB").refine(sizeMax(Size.gigaBytes(10)), "Minimum ephemeral storage size is 10 GB");
+var MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), "Minimum memory size is 128 MB").refine(
+  sizeMax(Size.gigaBytes(10)),
+  "Minimum memory size is 10 GB"
+);
+var TimeoutSchema = DurationSchema.refine(
+  durationMin(Duration.seconds(10)),
+  "Minimum timeout duration is 10 seconds"
+).refine(durationMax(Duration.minutes(15)), "Maximum timeout duration is 15 minutes");
+var EphemeralStorageSizeSchema = SizeSchema.refine(
+  sizeMin(Size.megaBytes(512)),
+  "Minimum ephemeral storage size is 512 MB"
+).refine(sizeMax(Size.gigaBytes(10)), "Minimum ephemeral storage size is 10 GB");
 var ReservedConcurrentExecutionsSchema = z6.number().int().min(0);
 var EnvironmentSchema = z6.record(z6.string(), z6.string()).optional();
 var ArchitectureSchema = z6.enum(["x86_64", "arm64"]);
 var RetryAttemptsSchema = z6.number().int().min(0).max(2);
-var RuntimeSchema = z6.enum([
-  "nodejs18.x"
-]);
+var RuntimeSchema = z6.enum(["nodejs18.x"]);
+var PermissionSchema = z6.object({
+  effect: z6.enum(["allow", "deny"]).default("allow"),
+  actions: z6.string().array(),
+  resources: z6.string().array()
+});
+var PermissionsSchema = z6.union([PermissionSchema, PermissionSchema.array()]);
 var LogSchema = z6.union([
   z6.boolean(),
   DurationSchema.refine(durationMin(Duration.days(1)), "Minimum log retention is 1 day")
 ]);
+var WarmSchema = z6.number().int().min(0).max(10);
 var FunctionSchema = z6.union([
   LocalFileSchema,
   z6.object({
@@ -1259,6 +1396,11 @@ var FunctionSchema = z6.union([
      * @default true
      */
     minify: z6.boolean().optional(),
+    /** Specify how many functions you want to warm up each 5 minutes.
+     * You can specify a number from 0 to 10.
+     * @default 0
+     */
+    warm: WarmSchema.optional(),
     /** Put the function inside your global VPC.
      * @default false
      */
@@ -1291,12 +1433,12 @@ var FunctionSchema = z6.union([
     /** The size of the function's /tmp directory.
      * You can specify a size value from 512 MB to 10 GB.
      * @default 512 MB
-    */
+     */
     ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
     /** The maximum number of times to retry when the function returns an error.
      * You can specify a number from 0 to 2.
      * @default 2
-    */
+     */
     retryAttempts: RetryAttemptsSchema.optional(),
     /** The number of simultaneous executions to reserve for the function.
      * You can specify a number from 0.
@@ -1310,8 +1452,17 @@ var FunctionSchema = z6.union([
      *   }
      * }
      */
-    environment: EnvironmentSchema.optional()
-    // onFailure: ResourceIdSchema.optional(),
+    environment: EnvironmentSchema.optional(),
+    /** Add IAM permissions to your function.
+     * @example
+     * {
+     *   permissions: {
+     *     actions: [ 's3:PutObject' ],
+     *     resources: [ '*' ]
+     *   }
+     * }
+     */
+    permissions: PermissionsSchema.optional()
   })
 ]);
 var isFunctionProps = (input) => {
@@ -1322,12 +1473,17 @@ var schema = z6.object({
     function: z6.object({
       /** The name of the exported method within your code that Lambda calls to run your function.
        * @default 'default'
-      	 */
+       */
       handler: z6.string().default("default"),
       /** Minify the function code.
        * @default true
        */
       minify: z6.boolean().default(true),
+      /** Specify how many functions you want to warm up each 5 minutes.
+       * You can specify a number from 0 to 10.
+       * @default 0
+       */
+      warm: WarmSchema.default(0),
       /** Put the function inside your global VPC.
        * @default false
        */
@@ -1359,12 +1515,12 @@ var schema = z6.object({
       /** The size of the function's /tmp directory.
        * You can specify a size value from 512 MB to 10 GB.
        * @default 512 MB
-      */
+       */
       ephemeralStorageSize: EphemeralStorageSizeSchema.default("512 MB"),
       /** The maximum number of times to retry when the function returns an error.
        * You can specify a number from 0 to 2.
        * @default 2
-      */
+       */
       retryAttempts: RetryAttemptsSchema.default(2),
       /** The number of simultaneous executions to reserve for the function.
        * You can specify a number from 0.
@@ -1378,8 +1534,17 @@ var schema = z6.object({
        *   }
        * }
        */
-      environment: EnvironmentSchema.optional()
-      // onFailure: ResourceIdSchema.optional(),
+      environment: EnvironmentSchema.optional(),
+      /** Add IAM permissions to your function.
+       * @example
+       * {
+       *   permissions: {
+       *     actions: [ 's3:PutObject' ],
+       *     resources: [ '*' ]
+       *   }
+       * }
+       */
+      permissions: PermissionsSchema.optional()
     }).default({})
   }).default({}),
   stacks: z6.object({
@@ -1391,19 +1556,16 @@ var schema = z6.object({
      *   }
      * }
      */
-    functions: z6.record(
-      ResourceIdSchema,
-      FunctionSchema
-    ).optional()
+    functions: z6.record(ResourceIdSchema, FunctionSchema).optional()
   }).array()
 });
 var typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'
 
 type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
-	name: Name
+	readonly name: Name
+	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
 	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
-	async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
 }`;
 var functionPlugin = definePlugin({
   name: "function",
@@ -1447,31 +1609,39 @@ var functionPlugin = definePlugin({
 });
 var toLambdaFunction = (ctx, id, fileOrProps) => {
   const config = ctx.config;
-  const stack = ctx.stack;
+  const stack = ctx.stack ?? ctx.bootstrap;
   const bootstrap2 = ctx.bootstrap;
   const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
   const lambda = new Function(id, {
     name: `${config.name}-${stack.name}-${id}`,
-    code: Code.fromFile(id, props.file, rollupBundle({
-      handler: props.handler,
-      minify: props.minify
-    })),
+    code: Code.fromFile(
+      id,
+      props.file,
+      rollupBundle({
+        handler: props.handler,
+        minify: props.minify
+      })
+    ),
     ...props,
     vpc: void 0
   });
+  if (config.defaults?.function?.permissions) {
+    lambda.addPermissions(config.defaults?.function?.permissions);
+  }
+  if (typeof fileOrProps === "object" && fileOrProps.permissions) {
+    lambda.addPermissions(fileOrProps.permissions);
+  }
   lambda.addEnvironment("APP", config.name).addEnvironment("STAGE", config.stage).addEnvironment("STACK", stack.name);
   if (props.log) {
     lambda.enableLogs(props.log instanceof Duration ? props.log : void 0);
   }
+  if (props.warm) {
+    lambda.warmUp(props.warm);
+  }
   if (props.vpc) {
     lambda.setVpc({
-      securityGroupIds: [
-        bootstrap2.import(`vpc-security-group-id`)
-      ],
-      subnetIds: [
-        bootstrap2.import(`public-subnet-1`),
-        bootstrap2.import(`public-subnet-2`)
-      ]
+      securityGroupIds: [bootstrap2.import(`vpc-security-group-id`)],
+      subnetIds: [bootstrap2.import(`public-subnet-1`), bootstrap2.import(`public-subnet-2`)]
     }).addPermissions({
       actions: [
         "ec2:CreateNetworkInterface",
@@ -1483,81 +1653,11 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
       resources: ["*"]
     });
   }
-  ctx.bind((other) => {
-    other.addPermissions(lambda.permissions);
+  lambda.addPermissions({
+    actions: ["lambda:InvokeFunction", "lambda:InvokeAsync"],
+    resources: ["*"]
   });
   return lambda;
-};
-
-// src/formation/resource/events/rule.ts
-var Rule = class extends Resource {
-  constructor(logicalId, props) {
-    super("AWS::Events::Rule", logicalId);
-    this.props = props;
-    this.name = formatName(this.props.name || logicalId);
-  }
-  name;
-  get id() {
-    return ref(this.logicalId);
-  }
-  get arn() {
-    return getAtt(this.logicalId, "Arn");
-  }
-  properties() {
-    return {
-      Name: this.name,
-      ...this.attr("State", "ENABLED"),
-      ...this.attr("Description", this.props.description),
-      ...this.attr("ScheduleExpression", this.props.schedule),
-      ...this.attr("RoleArn", this.props.roleArn),
-      ...this.attr("EventBusName", this.props.eventBusName),
-      ...this.attr("EventPattern", this.props.eventPattern),
-      Targets: this.props.targets.map((target) => ({
-        Arn: target.arn,
-        Id: target.id,
-        ...this.attr("Input", target.input && JSON.stringify(target.input))
-      }))
-    };
-  }
-};
-
-// src/formation/resource/lambda/permission.ts
-import { constantCase as constantCase3 } from "change-case";
-var Permission2 = class extends Resource {
-  constructor(logicalId, props) {
-    super("AWS::Lambda::Permission", logicalId);
-    this.props = props;
-  }
-  properties() {
-    return {
-      FunctionName: this.props.functionArn,
-      Action: this.props.action || "lambda:InvokeFunction",
-      Principal: this.props.principal,
-      ...this.attr("FunctionUrlAuthType", this.props.urlAuthType && constantCase3(this.props.urlAuthType)),
-      ...this.attr("SourceArn", this.props.sourceArn)
-    };
-  }
-};
-
-// src/formation/resource/lambda/event-source/events.ts
-var EventsEventSource = class extends Group {
-  constructor(id, lambda, props) {
-    const rule = new Rule(id, {
-      schedule: props.schedule,
-      targets: [{
-        id,
-        arn: lambda.arn,
-        input: props.payload
-      }]
-    });
-    const permission = new Permission2(id, {
-      action: "lambda:InvokeFunction",
-      principal: "events.amazonaws.com",
-      functionArn: lambda.arn,
-      sourceArn: rule.arn
-    });
-    super([rule, permission]);
-  }
 };
 
 // src/plugins/cron/index.ts
@@ -1576,17 +1676,20 @@ var cronPlugin = definePlugin({
        *   }
        * }
        * */
-      crons: z7.record(ResourceIdSchema, z7.object({
-        /** The consuming lambda function properties. */
-        consumer: FunctionSchema,
-        /** The scheduling expression.
-         * @example '0 20 * * ? *'
-         * @example '5 minutes'
-         */
-        schedule: ScheduleExpressionSchema,
-        // Valid JSON passed to the consumer.
-        payload: z7.unknown().optional()
-      })).optional()
+      crons: z7.record(
+        ResourceIdSchema,
+        z7.object({
+          /** The consuming lambda function properties. */
+          consumer: FunctionSchema,
+          /** The scheduling expression.
+           * @example '0 20 * * ? *'
+           * @example '5 minutes'
+           */
+          schedule: ScheduleExpressionSchema,
+          // Valid JSON passed to the consumer.
+          payload: z7.unknown().optional()
+        })
+      ).optional()
     }).array()
   }),
   onStack(ctx) {
@@ -1635,8 +1738,7 @@ var Queue = class extends Resource {
       resources: [
         formatArn({
           service: "sqs",
-          resource: "queue",
-          resourceName: this.name
+          resource: this.name
         })
       ]
     };
@@ -1739,8 +1841,8 @@ import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless
 type Payload<Func extends (...args: any[]) => any> = Parameters<Func>[0]['Records'][number]['body']
 
 type Send<Name extends string, Func extends (...args: any[]) => any> = {
-	name: Name
-	batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	readonly name: Name
+	readonly batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
 	(payload: Payload<Func>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
 }`;
 var queuePlugin = definePlugin({
@@ -2074,10 +2176,7 @@ var tablePlugin = definePlugin({
            *   }
            * }
            */
-          fields: z9.record(
-            z9.string(),
-            z9.enum(["string", "number", "binary"])
-          ).optional(),
+          fields: z9.record(z9.string(), z9.enum(["string", "number", "binary"])).optional(),
           /** The table class of the table.
            * @default 'standard'
            */
@@ -2114,18 +2213,21 @@ var tablePlugin = definePlugin({
            *   }
            * }
            */
-          indexes: z9.record(z9.string(), z9.object({
-            /** Specifies the name of the partition / hash key that makes up the primary key for the global secondary index. */
-            hash: KeySchema,
-            /** Specifies the name of the range / sort key that makes up the primary key for the global secondary index. */
-            sort: KeySchema.optional(),
-            /** The set of attributes that are projected into the index:
-             * - all - All of the table attributes are projected into the index.
-             * - keys-only - Only the index and primary keys are projected into the index.
-             * @default 'all'
-             */
-            projection: z9.enum(["all", "keys-only"]).default("all")
-          })).optional()
+          indexes: z9.record(
+            z9.string(),
+            z9.object({
+              /** Specifies the name of the partition / hash key that makes up the primary key for the global secondary index. */
+              hash: KeySchema,
+              /** Specifies the name of the range / sort key that makes up the primary key for the global secondary index. */
+              sort: KeySchema.optional(),
+              /** The set of attributes that are projected into the index:
+               * - all - All of the table attributes are projected into the index.
+               * - keys-only - Only the index and primary keys are projected into the index.
+               * @default 'all'
+               */
+              projection: z9.enum(["all", "keys-only"]).default("all")
+            })
+          ).optional()
         })
       ).optional()
     }).array()
@@ -2136,7 +2238,7 @@ var tablePlugin = definePlugin({
       const list3 = new TypeObject();
       for (const name of Object.keys(stack.tables || {})) {
         const tableName = formatName(`${config.name}-${stack.name}-${name}`);
-        list3.addType(name, `{ name: '${tableName}' }`);
+        list3.addType(name, `'${tableName}'`);
       }
       types2.addType(stack.name, list3.toString());
     }
@@ -2268,7 +2370,7 @@ var storePlugin = definePlugin({
       const list3 = new TypeObject();
       for (const name of stack.stores || []) {
         const storeName = formatName(`${config.name}-${stack.name}-${name}`);
-        list3.addType(name, `{ name: '${storeName}' }`);
+        list3.addType(name, `{ readonly name: '${storeName}' }`);
       }
       types2.addType(stack.name, list3.toString());
     }
@@ -2295,7 +2397,7 @@ var storePlugin = definePlugin({
 });
 
 // src/plugins/topic.ts
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 
 // src/formation/resource/sns/topic.ts
 var Topic = class extends Resource {
@@ -2352,7 +2454,7 @@ var SnsEventSource = class extends Group {
       protocol: "lambda",
       endpoint: lambda.arn
     });
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "sns.amazonaws.com",
       functionArn: lambda.arn,
@@ -2362,36 +2464,49 @@ var SnsEventSource = class extends Group {
   }
 };
 
+// src/schema/email.ts
+import { z as z11 } from "zod";
+var EmailSchema = z11.custom((value) => {
+  return z11.string().email().safeParse(value).success;
+});
+var isEmail = (value) => {
+  return z11.string().email().safeParse(value).success;
+};
+
 // src/plugins/topic.ts
 var typeGenCode3 = `
 import { PublishOptions } from '@awsless/sns'
 
 type Publish<Name extends string> = {
-	name: Name
+	readonly name: Name
 	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
 }`;
 var topicPlugin = definePlugin({
   name: "topic",
-  schema: z11.object({
-    stacks: z11.object({
+  schema: z12.object({
+    stacks: z12.object({
       /** Define the events to publish too in your stack.
        * @example
        * {
        *   topics: [ 'TOPIC_NAME' ]
        * }
        */
-      topics: z11.array(ResourceIdSchema).refine((topics) => {
+      topics: z12.array(ResourceIdSchema).refine((topics) => {
         return topics.length === new Set(topics).size;
       }, "Must be a list of unique topic names").optional(),
       /** Define the events to subscribe too in your stack.
        * @example
        * {
-       *   subscribers: {
-       *     TOPIC_NAME: 'function.ts'
+       *  subscribers: {
+       *     // Subscribe to a lambda function.
+       *     TOPIC_NAME: 'function.ts',
+       *
+       *     // Subscribe to an email address.
+       *     TOPIC_NAME: 'example@gmail.com',
        *   }
        * }
        */
-      subscribers: z11.record(ResourceIdSchema, FunctionSchema).optional()
+      subscribers: z12.record(ResourceIdSchema, z12.union([EmailSchema, FunctionSchema])).optional()
     }).array().superRefine((stacks, ctx) => {
       const topics = [];
       for (const stack of stacks) {
@@ -2402,7 +2517,7 @@ var topicPlugin = definePlugin({
         for (const sub2 of Object.keys(stack.subscribers || {})) {
           if (!topics.includes(sub2)) {
             ctx.addIssue({
-              code: z11.ZodIssueCode.custom,
+              code: z12.ZodIssueCode.custom,
               message: `Topic subscription to "${sub2}" is undefined`,
               path: [Number(index), "subscribers"]
             });
@@ -2449,25 +2564,34 @@ var topicPlugin = definePlugin({
       });
     }
     for (const [id, props] of Object.entries(stackConfig.subscribers || {})) {
-      const lambda = toLambdaFunction(ctx, `topic-${id}`, props);
-      const source = new SnsEventSource(id, lambda, {
-        topicArn: bootstrap2.import(`topic-${id}-arn`)
-      });
-      stack.add(lambda, source);
+      if (typeof props === "string" && isEmail(props)) {
+        const subscription = new Subscription(id, {
+          topicArn: bootstrap2.import(`topic-${id}-arn`),
+          protocol: "email",
+          endpoint: props
+        });
+        stack.add(subscription);
+      } else {
+        const lambda = toLambdaFunction(ctx, `topic-${id}`, props);
+        const source = new SnsEventSource(id, lambda, {
+          topicArn: bootstrap2.import(`topic-${id}-arn`)
+        });
+        stack.add(lambda, source);
+      }
     }
   }
 });
 
 // src/plugins/extend.ts
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 var extendPlugin = definePlugin({
   name: "extend",
-  schema: z12.object({
+  schema: z13.object({
     /** Extend your app with custom resources. */
-    extend: z12.custom().optional(),
-    stacks: z12.object({
+    extend: z13.custom().optional(),
+    stacks: z13.object({
       /** Extend your stack with custom resources. */
-      extend: z12.custom().optional()
+      extend: z13.custom().optional()
     }).array()
   }),
   onApp(ctx) {
@@ -2479,7 +2603,7 @@ var extendPlugin = definePlugin({
 });
 
 // src/plugins/pubsub.ts
-import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 
 // src/formation/resource/iot/topic-rule.ts
 import { snakeCase } from "change-case";
@@ -2517,7 +2641,7 @@ var IotEventSource = class extends Group {
       sqlVersion: props.sqlVersion,
       actions: [{ lambda: { functionArn: lambda.arn } }]
     });
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "iot.amazonaws.com",
       functionArn: lambda.arn,
@@ -2530,8 +2654,8 @@ var IotEventSource = class extends Group {
 // src/plugins/pubsub.ts
 var pubsubPlugin = definePlugin({
   name: "pubsub",
-  schema: z13.object({
-    stacks: z13.object({
+  schema: z14.object({
+    stacks: z14.object({
       /** Define the pubsub subscriber in your stack.
        * @example
        * {
@@ -2543,14 +2667,17 @@ var pubsubPlugin = definePlugin({
        *   }
        * }
        */
-      pubsub: z13.record(ResourceIdSchema, z13.object({
-        /** The SQL statement used to query the iot topic. */
-        sql: z13.string(),
-        /** The version of the SQL rules engine to use when evaluating the rule. */
-        sqlVersion: z13.enum(["2015-10-08", "2016-03-23", "beta"]).default("2016-03-23"),
-        /** The consuming lambda function properties. */
-        consumer: FunctionSchema
-      })).optional()
+      pubsub: z14.record(
+        ResourceIdSchema,
+        z14.object({
+          /** The SQL statement used to query the IOT topic. */
+          sql: z14.string(),
+          /** The version of the SQL rules engine to use when evaluating the rule. */
+          sqlVersion: z14.enum(["2015-10-08", "2016-03-23", "beta"]).default("2016-03-23"),
+          /** The consuming lambda function properties. */
+          consumer: FunctionSchema
+        })
+      ).optional()
     }).array()
   }),
   onApp({ bind }) {
@@ -2576,7 +2703,7 @@ var pubsubPlugin = definePlugin({
 });
 
 // src/plugins/graphql.ts
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 
 // src/util/array.ts
 var toArray = (value) => {
@@ -2590,16 +2717,17 @@ var toArray = (value) => {
 import { paramCase as paramCase4 } from "change-case";
 
 // src/formation/resource/appsync/graphql-api.ts
-import { constantCase as constantCase7 } from "change-case";
 var GraphQLApi = class extends Resource {
+  // private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
   constructor(logicalId, props) {
     super("AWS::AppSync::GraphQLApi", logicalId);
     this.props = props;
     this.name = formatName(this.props.name || logicalId);
+    this.defaultAuthorization = props.defaultAuthorization;
     this.tag("name", this.name);
   }
   name;
-  lambdaAuthProviders = [];
+  defaultAuthorization;
   get arn() {
     return ref(this.logicalId);
   }
@@ -2612,24 +2740,67 @@ var GraphQLApi = class extends Resource {
   get dns() {
     return getAtt(this.logicalId, "GraphQLDns");
   }
-  addLambdaAuthProvider(lambdaAuthorizerArn, resultTTL = Duration.seconds(0)) {
-    this.lambdaAuthProviders.push({
-      arn: lambdaAuthorizerArn,
-      ttl: resultTTL
-    });
+  setDefaultAuthorization(auth) {
+    this.defaultAuthorization = auth;
     return this;
   }
+  // addLambdaAuthProvider(lambdaAuthorizerArn: string, resultTTL: Duration = Duration.seconds(0)) {
+  // 	this.lambdaAuthProviders.push({
+  // 		arn: lambdaAuthorizerArn,
+  // 		ttl: resultTTL,
+  // 	})
+  // 	return this
+  // }
+  // addCognitoAuthProvider(lambdaAuthorizerArn: string, resultTTL: Duration = Duration.seconds(0)) {
+  // 	this.lambdaAuthProviders.push({
+  // 		arn: lambdaAuthorizerArn,
+  // 		ttl: resultTTL,
+  // 	})
+  // 	return this
+  // }
   properties() {
     return {
       Name: this.name,
-      AuthenticationType: constantCase7(this.props.authenticationType || "api-key"),
-      AdditionalAuthenticationProviders: this.lambdaAuthProviders.map((provider) => ({
-        AuthenticationType: "AWS_LAMBDA",
-        LambdaAuthorizerConfig: {
-          AuthorizerUri: provider.arn,
-          AuthorizerResultTtlInSeconds: provider.ttl.toSeconds()
-        }
-      }))
+      ...this.defaultAuthorization?.toJSON() ?? {}
+      // AuthenticationType: constantCase(this.props.authenticationType || 'api-key'),
+      // AdditionalAuthenticationProviders: this.lambdaAuthProviders.map(provider => ({
+      // 	AuthenticationType: 'AWS_LAMBDA',
+      // 	LambdaAuthorizerConfig: {
+      // 		AuthorizerUri: provider.arn,
+      // 		AuthorizerResultTtlInSeconds: provider.ttl.toSeconds(),
+      // 	}
+      // }))
+    };
+  }
+};
+var GraphQLAuthorization = class {
+  static withCognito(props) {
+    return new GraphQLCognitoAuthorization(props);
+  }
+  static withApiKey() {
+    return new GraphQLApiKeyAuthorization();
+  }
+};
+var GraphQLCognitoAuthorization = class {
+  constructor(props) {
+    this.props = props;
+  }
+  toJSON() {
+    return {
+      AuthenticationType: "AMAZON_COGNITO_USER_POOLS",
+      UserPoolConfig: {
+        UserPoolId: this.props.userPoolId,
+        ...this.props.region ? { AwsRegion: this.props.region } : {},
+        ...this.props.defaultAction ? { DefaultAction: this.props.defaultAction } : {},
+        ...this.props.appIdClientRegex ? { AppIdClientRegex: this.props.appIdClientRegex } : {}
+      }
+    };
+  }
+};
+var GraphQLApiKeyAuthorization = class {
+  toJSON() {
+    return {
+      AuthenticationType: "API_KEY"
     };
   }
 };
@@ -2645,9 +2816,9 @@ var RecordSet = class extends Resource {
   properties() {
     return {
       HostedZoneId: this.props.hostedZoneId,
-      Name: this.name + ".",
+      Name: typeof this.name === "string" ? this.name + "." : this.name,
       Type: this.props.type,
-      TTL: this.props.ttl,
+      TTL: this.props.ttl?.toSeconds(),
       ...this.props.records ? {
         ResourceRecords: this.props.records
       } : {},
@@ -2663,7 +2834,7 @@ var RecordSet = class extends Resource {
 
 // src/formation/resource/appsync/graphql-schema.ts
 import { print } from "graphql";
-import { readFile } from "fs/promises";
+import { readFile as readFile2 } from "fs/promises";
 import { mergeTypeDefs } from "@graphql-tools/merge";
 var GraphQLSchema = class extends Resource {
   constructor(logicalId, props) {
@@ -2688,7 +2859,7 @@ var Definition = class extends Asset {
   async build({ write }) {
     const files = [this.files].flat();
     const schemas = await Promise.all(files.map((file) => {
-      return readFile(file, "utf8");
+      return readFile2(file, "utf8");
     }));
     const defs = mergeTypeDefs(schemas);
     const schema2 = print(defs);
@@ -2707,8 +2878,69 @@ var Definition = class extends Asset {
   }
 };
 
+// src/formation/resource/appsync/util/rollup.ts
+import { rollup as rollup2 } from "rollup";
+import { swc as swc2, minify as swcMinify2 } from "rollup-plugin-swc3";
+import json2 from "@rollup/plugin-json";
+import commonjs2 from "@rollup/plugin-commonjs";
+import nodeResolve2 from "@rollup/plugin-node-resolve";
+import { dirname as dirname2 } from "path";
+var rollupResolver = ({ minify = true } = {}) => {
+  return async (input) => {
+    const bundle = await rollup2({
+      input,
+      external: (importee) => {
+        return importee.startsWith("@aws-sdk") || importee.startsWith("aws-sdk") || importee.startsWith("@aws-appsync/utils");
+      },
+      onwarn: (error) => {
+        debugError(error.message);
+      },
+      treeshake: {
+        moduleSideEffects: (id) => input === id
+      },
+      plugins: [
+        // @ts-ignore
+        commonjs2({ sourceMap: true }),
+        // @ts-ignore
+        nodeResolve2({ preferBuiltins: true }),
+        swc2({
+          // minify,
+          // module: true,
+          jsc: {
+            baseUrl: dirname2(input),
+            minify: { sourceMap: true }
+          },
+          sourceMaps: true
+        }),
+        minify ? swcMinify2({
+          module: true,
+          sourceMap: true,
+          compress: true
+        }) : void 0,
+        // @ts-ignore
+        json2()
+      ]
+    });
+    const result = await bundle.generate({
+      format: "esm",
+      sourcemap: "hidden",
+      exports: "auto",
+      manualChunks: {},
+      entryFileNames: `index.mjs`,
+      chunkFileNames: `[name].mjs`
+    });
+    let code;
+    for (const item of result.output) {
+      if (item.type !== "chunk") {
+        continue;
+      }
+      code = item.code;
+    }
+    return Buffer.from(code, "utf8");
+  };
+};
+
 // src/formation/resource/appsync/code.ts
-import { readFile as readFile2 } from "fs/promises";
 var Code2 = class {
   static fromFile(id, file) {
     return new FileCode2(id, file);
@@ -2735,7 +2967,7 @@ var FileCode2 = class extends Asset {
   }
   code;
   async build() {
-    const code = await readFile2(this.file);
+    const code = await rollupResolver({ minify: false })(this.file);
     this.code = code.toString("utf8");
     return {
       size: formatByteSize(code.byteLength)
@@ -2797,9 +3029,7 @@ var DataSource = class _DataSource extends Resource {
 import { snakeCase as snakeCase3 } from "change-case";
 var FunctionConfiguration = class extends Resource {
   constructor(logicalId, props) {
-    super("AWS::AppSync::FunctionConfiguration", logicalId, [
-      props.code
-    ]);
+    super("AWS::AppSync::FunctionConfiguration", logicalId);
     this.props = props;
     this.name = snakeCase3(this.props.name || logicalId);
   }
@@ -2918,7 +3148,10 @@ var DomainNameApiAssociation = class extends Resource {
 };
 
 // src/plugins/graphql.ts
-var defaultResolver = `
+import { basename } from "path";
+var defaultResolver = Code2.fromInline(
+  "graphql-default-resolver",
+  `
 export function request(ctx) {
 	return {
 		operation: 'Invoke',
@@ -2929,43 +3162,49 @@ export function request(ctx) {
 export function response(ctx) {
 	return ctx.result
 }
-`;
+`
+);
+var resolverCache = /* @__PURE__ */ new Map();
 var graphqlPlugin = definePlugin({
   name: "graphql",
-  schema: z14.object({
-    defaults: z14.object({
-      graphql: z14.record(ResourceIdSchema, z14.object({
-        domain: z14.string().optional(),
-        subDomain: z14.string().optional(),
-        authorization: z14.object({
-          authorizer: FunctionSchema,
-          ttl: DurationSchema.default("1 hour")
-        }).optional(),
-        resolver: LocalFileSchema.optional()
-      })).optional()
+  schema: z15.object({
+    defaults: z15.object({
+      graphql: z15.record(
+        ResourceIdSchema,
+        z15.object({
+          domain: z15.string().optional(),
+          subDomain: z15.string().optional(),
+          auth: ResourceIdSchema.optional(),
+          // authorization: z.object({
+          // 	authorizer: FunctionSchema,
+          // 	ttl: DurationSchema.default('1 hour'),
+          // }).optional(),
+          resolver: LocalFileSchema.optional()
+        })
+      ).optional()
     }).default({}),
-    stacks: z14.object({
-      graphql: z14.record(ResourceIdSchema, z14.object({
-        schema: z14.union([
-          LocalFileSchema,
-          z14.array(LocalFileSchema).min(1)
-        ]).optional(),
-        resolvers: z14.record(
-          // TypeName
-          z14.string(),
-          z14.record(
-            // FieldName
-            z14.string(),
-            z14.union([
-              FunctionSchema,
-              z14.object({
-                consumer: FunctionSchema,
-                resolver: LocalFileSchema
-              })
-            ])
-          )
-        ).optional()
-      })).optional()
+    stacks: z15.object({
+      graphql: z15.record(
+        ResourceIdSchema,
+        z15.object({
+          schema: z15.union([LocalFileSchema, z15.array(LocalFileSchema).min(1)]).optional(),
+          resolvers: z15.record(
+            // TypeName
+            z15.string(),
+            z15.record(
+              // FieldName
+              z15.string(),
+              z15.union([
+                FunctionSchema,
+                z15.object({
+                  consumer: FunctionSchema,
+                  resolver: LocalFileSchema.optional()
+                })
+              ])
+            )
+          ).optional()
+        })
+      ).optional()
     }).array()
   }),
   onApp(ctx) {
@@ -2984,7 +3223,7 @@ var graphqlPlugin = definePlugin({
       }
       const api = new GraphQLApi(id, {
         name: `${config.name}-${id}`,
-        authenticationType: "api-key"
+        defaultAuthorization: GraphQLAuthorization.withApiKey()
       });
       const schema2 = new GraphQLSchema(id, {
         apiId: api.id,
@@ -2995,16 +3234,19 @@ var graphqlPlugin = definePlugin({
       if (!props) {
         continue;
       }
-      if (props.authorization) {
-        const lambda = toLambdaFunction(ctx, `${id}-authorizer`, props.authorization.authorizer);
-        api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl);
-        bootstrap2.add(lambda);
+      if (props.auth) {
+        api.setDefaultAuthorization(
+          GraphQLAuthorization.withCognito({
+            userPoolId: bootstrap2.import(`auth-${props.auth}-user-pool-id`),
+            region: bootstrap2.region,
+            defaultAction: "ALLOW"
+          })
+        );
       }
       if (props.domain) {
         const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
         const hostedZoneId = bootstrap2.import(`hosted-zone-${props.domain}-id`);
         const certificateArn = bootstrap2.import(`us-east-certificate-${props.domain}-arn`);
-        debug("DEBUG CERT", certificateArn);
         const domain = new DomainName(id, {
           domainName,
           certificateArn
@@ -3027,19 +3269,30 @@ var graphqlPlugin = definePlugin({
     }
   },
   onStack(ctx) {
-    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    const { config, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, props] of Object.entries(stackConfig.graphql || {})) {
       const apiId = bootstrap2.import(`graphql-${id}`);
+      const defaultProps = config.defaults.graphql?.[id];
       for (const [typeName, fields] of Object.entries(props.resolvers || {})) {
         for (const [fieldName, resolverProps] of Object.entries(fields || {})) {
           const props2 = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps;
           const entryId = paramCase4(`${id}-${typeName}-${fieldName}`);
           const lambda = toLambdaFunction(ctx, `graphql-${entryId}`, props2.consumer);
+          const resolver = props2.resolver ?? defaultProps?.resolver;
+          let code = defaultResolver;
+          if (resolver) {
+            if (!resolverCache.has(resolver)) {
+              const fileCode = Code2.fromFile(basename(resolver), resolver);
+              resolverCache.set(resolver, fileCode);
+              stack.add(fileCode);
+            }
+            code = resolverCache.get(resolver);
+          }
           const source = new AppsyncEventSource(entryId, lambda, {
             apiId,
             typeName,
             fieldName,
-            code: Code2.fromInline(entryId, props2.resolver || defaultResolver)
+            code
           });
           stack.add(lambda, source);
         }
@@ -3049,7 +3302,7 @@ var graphqlPlugin = definePlugin({
 });
 
 // src/plugins/domain.ts
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 
 // src/formation/resource/route53/hosted-zone.ts
 var HostedZone = class extends Resource {
@@ -3103,9 +3356,9 @@ var RecordSetGroup = class extends Resource {
     return {
       HostedZoneId: this.props.hostedZoneId,
       RecordSets: this.props.records.map((props) => ({
-        Name: props.name + ".",
+        Name: typeof props.name === "string" ? props.name + "." : props.name,
         Type: props.type,
-        TTL: props.ttl,
+        TTL: props.ttl?.toSeconds(),
         ...props.records ? {
           ResourceRecords: props.records
         } : {},
@@ -3148,41 +3401,162 @@ var GlobalExports = class extends Group {
   }
 };
 
+// src/formation/resource/ses/configuration-set.ts
+var ConfigurationSet = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::SES::ConfigurationSet", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  properties() {
+    return {
+      Name: this.name,
+      VdmOptions: {
+        DashboardOptions: {
+          EngagementMetrics: this.props.engagementMetrics ?? false ? "ENABLED" : "DISABLED"
+        }
+      },
+      ReputationOptions: {
+        ReputationMetricsEnabled: this.props.reputationMetrics ?? false
+      },
+      SendingOptions: {
+        SendingEnabled: this.props.sending ?? true
+      }
+    };
+  }
+};
+
+// src/formation/resource/ses/email-identity.ts
+import { constantCase as constantCase7 } from "change-case";
+var EmailIdentity = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::SES::EmailIdentity", logicalId);
+    this.props = props;
+  }
+  getDnsToken(index) {
+    return {
+      name: getAtt(this.logicalId, "DkimDNSTokenName" + index),
+      value: getAtt(this.logicalId, "DkimDNSTokenValue" + index)
+    };
+  }
+  get fullDomain() {
+    return `${this.props.subDomain}.${this.props.domain}`;
+  }
+  get dkimDnsToken1() {
+    return this.getDnsToken(1);
+  }
+  get dkimDnsToken2() {
+    return this.getDnsToken(2);
+  }
+  get dkimDnsToken3() {
+    return this.getDnsToken(3);
+  }
+  get records() {
+    const tokens = [this.dkimDnsToken1, this.dkimDnsToken2, this.dkimDnsToken3];
+    const ttl = Duration.minutes(5);
+    return [
+      ...tokens.map((token) => ({
+        name: token.name,
+        type: "CNAME",
+        ttl,
+        records: [token.value]
+      })),
+      {
+        name: this.fullDomain,
+        type: "TXT",
+        ttl,
+        records: ['"v=spf1 include:amazonses.com -all"']
+      },
+      {
+        name: this.fullDomain,
+        type: "MX",
+        ttl,
+        records: [sub("10 feedback-smtp.${AWS::Region}.amazonses.com.")]
+      }
+    ];
+  }
+  properties() {
+    return {
+      EmailIdentity: this.props.domain,
+      ...this.props.configurationSetName ? {
+        ConfigurationSetAttributes: {
+          ConfigurationSetName: this.props.configurationSetName
+        }
+      } : {},
+      ...this.props.dkim ? {
+        DkimAttributes: {
+          SigningEnabled: true
+        },
+        DkimSigningAttributes: {
+          NextSigningKeyLength: constantCase7(this.props.dkim)
+        }
+      } : {},
+      FeedbackAttributes: {
+        EmailForwardingEnabled: this.props.feedback ?? false
+      },
+      MailFromAttributes: {
+        BehaviorOnMxFailure: this.props.rejectOnMxFailure ?? true ? "REJECT_MESSAGE" : "USE_DEFAULT_VALUE",
+        MailFromDomain: this.fullDomain
+      }
+    };
+  }
+};
+
 // src/plugins/domain.ts
-var DomainNameSchema = z15.string().regex(/[a-z\-\_\.]/g, "Invalid domain name");
+var DomainNameSchema = z16.string().regex(/[a-z\-\_\.]/g, "Invalid domain name");
 var domainPlugin = definePlugin({
   name: "domain",
-  schema: z15.object({
-    /** Define the domains for your application.
-     * @example
-     * {
-     *   domains: {
-     *     'example.com': [{
-     *       name: 'www',
-     *       type: 'TXT',
-     *       ttl: '60 seconds',
-     *       records: [ 'value' ]
-     *     }]
-     *   }
-     * }
-     */
-    domains: z15.record(DomainNameSchema, z15.object({
-      /** Enter a fully qualified domain name, for example, www.example.com.
-       * You can optionally include a trailing dot.
-       * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
-       * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+  schema: z16.object({
+    defaults: z16.object({
+      /** Define the domains for your application.
+       * @example
+       * {
+       *   domains: {
+       *     'example.com': [{
+       *       name: 'www',
+       *       type: 'TXT',
+       *       ttl: '60 seconds',
+       *       records: [ 'value' ]
+       *     }]
+       *   }
+       * }
        */
-      name: DomainNameSchema.optional(),
-      /** The DNS record type. */
-      type: z15.enum(["A", "AAAA", "CAA", "CNAME", "DS", "MX", "NAPTR", "NS", "PTR", "SOA", "SPF", "SRV", "TXT"]),
-      /** The resource record cache time to live (TTL). */
-      ttl: DurationSchema,
-      /** One or more values that correspond with the value that you specified for the Type property. */
-      records: z15.string().array()
-    }).array()).optional()
+      domains: z16.record(
+        DomainNameSchema,
+        z16.object({
+          /** Enter a fully qualified domain name, for example, www.example.com.
+           * You can optionally include a trailing dot.
+           * If you omit the trailing dot, Amazon Route 53 assumes that the domain name that you specify is fully qualified.
+           * This means that Route 53 treats www.example.com (without a trailing dot) and www.example.com. (with a trailing dot) as identical.
+           */
+          name: DomainNameSchema.optional(),
+          /** The DNS record type. */
+          type: z16.enum([
+            "A",
+            "AAAA",
+            "CAA",
+            "CNAME",
+            "DS",
+            "MX",
+            "NAPTR",
+            "NS",
+            "PTR",
+            "SOA",
+            "SPF",
+            "SRV",
+            "TXT"
+          ]),
+          /** The resource record cache time to live (TTL). */
+          ttl: DurationSchema,
+          /** One or more values that correspond with the value that you specified for the Type property. */
+          records: z16.string().array()
+        }).array()
+      ).optional()
+    }).default({})
   }),
-  onApp({ config, bootstrap: bootstrap2, usEastBootstrap }) {
-    const domains = Object.entries(config.domains || {});
+  onApp({ config, bootstrap: bootstrap2, usEastBootstrap, bind }) {
+    const domains = Object.entries(config.defaults.domains || {});
     if (domains.length === 0) {
       return;
     }
@@ -3190,17 +3564,20 @@ var domainPlugin = definePlugin({
       name: `${config.name}-delete-hosted-zone`,
       code: Code.fromInlineFeature("delete-hosted-zone")
     }).enableLogs(Duration.days(3)).addPermissions({
-      actions: [
-        "route53:ListResourceRecordSets",
-        "route53:ChangeResourceRecordSets"
-      ],
+      actions: ["route53:ListResourceRecordSets", "route53:ChangeResourceRecordSets"],
       resources: ["*"]
     });
     usEastBootstrap.add(deleteHostedZoneLambda);
-    const usEastExports = new GlobalExports("us-east-exports", {
+    const usEastExports = new GlobalExports(`${config.name}-us-east-exports`, {
       region: usEastBootstrap.region
     });
     bootstrap2.add(usEastExports);
+    const configurationSet = new ConfigurationSet("default", {
+      name: config.name,
+      engagementMetrics: true,
+      reputationMetrics: true
+    });
+    bootstrap2.add(configurationSet);
     for (const [domain, records] of domains) {
       const hostedZone = new HostedZone(domain);
       const usEastCertificate = new Certificate(domain, {
@@ -3218,7 +3595,18 @@ var domainPlugin = definePlugin({
         hostedZoneId: usEastExports.import(`hosted-zone-${domain}-id`),
         alternativeNames: [`*.${domain}`]
       });
-      bootstrap2.add(certificate).export(`certificate-${domain}-arn`, certificate.arn).export(`hosted-zone-${domain}-id`, usEastExports.import(`hosted-zone-${domain}-id`)).export(`us-east-certificate-${domain}-arn`, usEastExports.import(`certificate-${domain}-arn`));
+      const emailIdentity = new EmailIdentity(domain, {
+        domain,
+        subDomain: "mailer",
+        configurationSetName: configurationSet.name,
+        feedback: true,
+        rejectOnMxFailure: true
+      }).dependsOn(configurationSet);
+      const emailRecordGroup = new RecordSetGroup(`${domain}-mail`, {
+        hostedZoneId: usEastExports.import(`hosted-zone-${domain}-id`),
+        records: emailIdentity.records
+      }).dependsOn(emailIdentity);
+      bootstrap2.add(certificate).add(emailIdentity).add(emailRecordGroup).export(`certificate-${domain}-arn`, certificate.arn).export(`hosted-zone-${domain}-id`, usEastExports.import(`hosted-zone-${domain}-id`)).export(`us-east-certificate-${domain}-arn`, usEastExports.import(`certificate-${domain}-arn`));
       if (records.length > 0) {
         const group = new RecordSetGroup(domain, {
           hostedZoneId: hostedZone.id,
@@ -3227,15 +3615,21 @@ var domainPlugin = definePlugin({
         usEastBootstrap.add(group);
       }
     }
+    bind(
+      (lambda) => lambda.addPermissions({
+        actions: ["ses:*"],
+        resources: ["*"]
+      })
+    );
   }
 });
 
 // src/plugins/on-failure/index.ts
-import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 var onFailurePlugin = definePlugin({
   name: "on-failure",
-  schema: z16.object({
-    stacks: z16.object({
+  schema: z17.object({
+    stacks: z17.object({
       /** Defining a onFailure handler will add a global onFailure handler for the following resources:
        * - Async lambda functions
        * - SQS queues
@@ -3269,12 +3663,7 @@ var onFailurePlugin = definePlugin({
       queueArn
     });
     lambda.addPermissions({
-      actions: [
-        "sqs:SendMessage",
-        "sqs:ReceiveMessage",
-        "sqs:GetQueueUrl",
-        "sqs:GetQueueAttributes"
-      ],
+      actions: ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"],
       resources: [queueArn]
     });
     stack.add(lambda, source);
@@ -3472,14 +3861,7 @@ var vpcPlugin = definePlugin({
     }).dependsOn(gateway, publicRouteTable);
     bootstrap2.export("vpc-security-group-id", vpc.defaultSecurityGroup);
     bootstrap2.export(`vpc-id`, vpc.id);
-    bootstrap2.add(
-      vpc,
-      privateRouteTable,
-      publicRouteTable,
-      gateway,
-      attachment,
-      route
-    );
+    bootstrap2.add(vpc, privateRouteTable, publicRouteTable, gateway, attachment, route);
     const zones = ["a", "b"];
     const tables = [privateRouteTable, publicRouteTable];
     let block = 0;
@@ -3496,17 +3878,14 @@ var vpcPlugin = definePlugin({
           subnetId: subnet.id
         }).dependsOn(subnet, table);
         bootstrap2.export(`${table.name}-subnet-${Number(i) + 1}`, subnet.id);
-        bootstrap2.add(
-          subnet,
-          association
-        );
+        bootstrap2.add(subnet, association);
       }
     }
   }
 });
 
 // src/plugins/http.ts
-import { z as z17 } from "zod";
+import { z as z18 } from "zod";
 
 // src/formation/resource/ec2/security-group.ts
 var SecurityGroup = class extends Resource {
@@ -3650,13 +4029,24 @@ var Listener = class extends Resource {
       Certificates: this.props.certificates.map((arn) => ({
         CertificateArn: arn
       })),
-      ...this.attr("DefaultActions", this.props.defaultActions?.map((action) => action.toJSON()))
+      ...this.attr("DefaultActions", this.props.defaultActions?.map((action, i) => {
+        return {
+          Order: i + 1,
+          ...action.toJSON()
+        };
+      }))
     };
   }
 };
 var ListenerAction = class _ListenerAction {
   constructor(props) {
     this.props = props;
+  }
+  static authCognito(props) {
+    return new _ListenerAction({
+      type: "authenticate-cognito",
+      ...props
+    });
   }
   static fixedResponse(statusCode, props = {}) {
     return new _ListenerAction({
@@ -3699,6 +4089,17 @@ var ListenerAction = class _ListenerAction {
             TargetGroupArn: target
           }))
         }
+      } : {},
+      ...this.props.type === "authenticate-cognito" ? {
+        AuthenticateCognitoConfig: {
+          OnUnauthenticatedRequest: this.props.onUnauthenticated ?? "deny",
+          Scope: this.props.scope ?? "openid",
+          SessionCookieName: this.props.session?.cookieName ?? "AWSELBAuthSessionCookie",
+          SessionTimeout: this.props.session?.timeout?.toSeconds() ?? 604800,
+          UserPoolArn: this.props.userPool.arn,
+          UserPoolClientId: this.props.userPool.clientId,
+          UserPoolDomain: this.props.userPool.domain
+        }
       } : {}
     };
   }
@@ -3721,7 +4122,13 @@ var ListenerRule = class extends Resource {
       ListenerArn: this.props.listenerArn,
       Priority: this.props.priority,
       Conditions: this.props.conditions.map((condition) => condition.toJSON()),
-      Actions: this.props.actions.map((action) => action.toJSON())
+      // Actions: this.props.actions.map(action => action.toJSON()),
+      Actions: this.props.actions?.map((action, i) => {
+        return {
+          Order: i + 1,
+          ...action.toJSON()
+        };
+      })
     };
   }
 };
@@ -3787,7 +4194,7 @@ var TargetGroup = class extends Resource {
 var ElbEventSource = class extends Group {
   constructor(id, lambda, props) {
     const name = formatName(id);
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "elasticloadbalancing.amazonaws.com",
       functionArn: lambda.arn,
@@ -3800,11 +4207,16 @@ var ElbEventSource = class extends Group {
       type: "lambda",
       targets: [lambda.arn]
     }).dependsOn(lambda, permission);
+    const actions = [];
+    if (props.auth?.cognito) {
+      actions.push(ListenerAction.authCognito(props.auth.cognito));
+    }
     const rule = new ListenerRule(id, {
       listenerArn: props.listenerArn,
       priority: props.priority,
       conditions: props.conditions,
       actions: [
+        ...actions,
         ListenerAction.forward([target.arn])
       ]
     }).dependsOn(target);
@@ -3813,8 +4225,8 @@ var ElbEventSource = class extends Group {
 };
 
 // src/plugins/http.ts
-var RouteSchema = z17.custom((route) => {
-  return z17.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/]*)$/ig).safeParse(route).success;
+var RouteSchema = z18.custom((route) => {
+  return z18.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/]*)$/ig).safeParse(route).success;
 }, "Invalid route");
 var parseRoute = (route) => {
   const [method, ...paths] = route.split(" ");
@@ -3832,8 +4244,8 @@ var generatePriority = (stackName, route) => {
 };
 var httpPlugin = definePlugin({
   name: "http",
-  schema: z17.object({
-    defaults: z17.object({
+  schema: z18.object({
+    defaults: z18.object({
       /** Define your global http api's.
        * @example
        * {
@@ -3845,16 +4257,17 @@ var httpPlugin = definePlugin({
        *   }
        * }
        */
-      http: z17.record(
+      http: z18.record(
         ResourceIdSchema,
-        z17.object({
+        z18.object({
           /** The domain to link your api with. */
-          domain: z17.string(),
-          subDomain: z17.string().optional()
+          domain: z18.string(),
+          subDomain: z18.string().optional(),
+          auth: ResourceIdSchema.optional()
         })
       ).optional()
     }).default({}),
-    stacks: z17.object({
+    stacks: z18.object({
       /** Define routes in your stack for your global http api.
        * @example
        * {
@@ -3866,9 +4279,9 @@ var httpPlugin = definePlugin({
        *   }
        * }
        */
-      http: z17.record(
+      http: z18.record(
         ResourceIdSchema,
-        z17.record(RouteSchema, FunctionSchema)
+        z18.record(RouteSchema, FunctionSchema)
       ).optional()
     }).array()
   }),
@@ -3923,18 +4336,28 @@ var httpPlugin = definePlugin({
     }
   },
   onStack(ctx) {
-    const { stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    const { config, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, routes] of Object.entries(stackConfig.http || {})) {
-      for (const [route, props] of Object.entries(routes)) {
+      const props = config.defaults.http[id];
+      for (const [route, routeProps] of Object.entries(routes)) {
         const { method, path } = parseRoute(route);
-        const lambda = toLambdaFunction(ctx, `http-${id}`, props);
+        const lambda = toLambdaFunction(ctx, `http-${id}`, routeProps);
         const source = new ElbEventSource(`http-${id}-${route}`, lambda, {
           listenerArn: bootstrap2.import(`http-${id}-listener-arn`),
           priority: generatePriority(stackConfig.name, route),
           conditions: [
             ListenerCondition.httpRequestMethods([method]),
             ListenerCondition.pathPatterns([path])
-          ]
+          ],
+          auth: props.auth ? {
+            cognito: {
+              userPool: {
+                arn: bootstrap2.import(`auth-${props.auth}-user-pool-arn`),
+                clientId: bootstrap2.import(`auth-${props.auth}-client-id`),
+                domain: bootstrap2.import(`auth-${props.auth}-domain`)
+              }
+            }
+          } : void 0
         });
         stack.add(lambda, source);
       }
@@ -3943,7 +4366,7 @@ var httpPlugin = definePlugin({
 });
 
 // src/plugins/search.ts
-import { z as z18 } from "zod";
+import { z as z19 } from "zod";
 
 // src/formation/resource/open-search-serverless/collection.ts
 var Collection = class extends Resource {
@@ -3987,9 +4410,9 @@ var Collection = class extends Resource {
 // src/plugins/search.ts
 var searchPlugin = definePlugin({
   name: "search",
-  schema: z18.object({
-    stacks: z18.object({
-      searchs: z18.array(ResourceIdSchema).optional()
+  schema: z19.object({
+    stacks: z19.object({
+      searchs: z19.array(ResourceIdSchema).optional()
     }).array()
   }),
   onTypeGen({ config }) {
@@ -3998,7 +4421,7 @@ var searchPlugin = definePlugin({
       const list3 = new TypeObject();
       for (const id of stack.searchs || []) {
         const name = formatName(`${config.name}-${stack.name}-${id}`);
-        list3.addType(name, `{ name: '${name}' }`);
+        list3.addType(name, `{ readonly name: '${name}' }`);
       }
       gen.addType(stack.name, list3.toString());
     }
@@ -4018,7 +4441,7 @@ var searchPlugin = definePlugin({
 });
 
 // src/plugins/cache.ts
-import { z as z19 } from "zod";
+import { z as z20 } from "zod";
 
 // src/formation/resource/memorydb/cluster.ts
 var Cluster = class extends Resource {
@@ -4086,7 +4509,7 @@ var SubnetGroup = class extends Resource {
 
 // src/plugins/cache.ts
 import { constantCase as constantCase9 } from "change-case";
-var TypeSchema = z19.enum([
+var TypeSchema = z20.enum([
   "t4g.small",
   "t4g.medium",
   "r6g.large",
@@ -4101,14 +4524,25 @@ var TypeSchema = z19.enum([
   "r6gd.4xlarge",
   "r6gd.8xlarge"
 ]);
-var PortSchema = z19.number().int().min(1).max(5e4);
-var ShardsSchema = z19.number().int().min(0).max(100);
-var ReplicasPerShardSchema = z19.number().int().min(0).max(5);
-var EngineSchema = z19.enum(["7.0", "6.2"]);
+var PortSchema = z20.number().int().min(1).max(5e4);
+var ShardsSchema = z20.number().int().min(0).max(100);
+var ReplicasPerShardSchema = z20.number().int().min(0).max(5);
+var EngineSchema = z20.enum(["7.0", "6.2"]);
+var typeGenCode4 = `
+import { Cluster, CommandOptions } from '@awsless/redis'
+
+type Callback<T> = (redis: Cluster) => T
+
+type Command = {
+	readonly host: string
+	readonly port: number
+	<T>(callback: Callback<T>): T
+	<T>(options:Omit<CommandOptions, 'cluster'>, callback: Callback<T>): T
+}`;
 var cachePlugin = definePlugin({
   name: "cache",
-  schema: z19.object({
-    stacks: z19.object({
+  schema: z20.object({
+    stacks: z20.object({
       /** Define the caches in your stack.
        * For access to the cache put your functions inside the global VPC.
        * @example
@@ -4120,25 +4554,26 @@ var cachePlugin = definePlugin({
        *   }
        * }
        */
-      caches: z19.record(
+      caches: z20.record(
         ResourceIdSchema,
-        z19.object({
+        z20.object({
           type: TypeSchema.default("t4g.small"),
           port: PortSchema.default(6379),
           shards: ShardsSchema.default(1),
           replicasPerShard: ReplicasPerShardSchema.default(1),
           engine: EngineSchema.default("7.0"),
-          dataTiering: z19.boolean().default(false)
+          dataTiering: z20.boolean().default(false)
         })
       ).optional()
     }).array()
   }),
   onTypeGen({ config }) {
     const gen = new TypeGen("@awsless/awsless", "CacheResources");
+    gen.addCode(typeGenCode4);
     for (const stack of config.stacks) {
       const list3 = new TypeObject();
       for (const name of Object.keys(stack.caches || {})) {
-        list3.addType(name, `{ host: string, port: number }`);
+        list3.addType(name, `Command`);
       }
       gen.addType(stack.name, list3.toString());
     }
@@ -4149,10 +4584,7 @@ var cachePlugin = definePlugin({
       const name = `${config.name}-${stack.name}-${id}`;
       const subnetGroup = new SubnetGroup(id, {
         name,
-        subnetIds: [
-          bootstrap2.import(`private-subnet-1`),
-          bootstrap2.import(`private-subnet-2`)
-        ]
+        subnetIds: [bootstrap2.import(`private-subnet-1`), bootstrap2.import(`private-subnet-2`)]
       });
       const securityGroup = new SecurityGroup(id, {
         name,
@@ -4171,19 +4603,22 @@ var cachePlugin = definePlugin({
       }).dependsOn(subnetGroup, securityGroup);
       stack.add(subnetGroup, securityGroup, cluster);
       bind((lambda) => {
-        lambda.addEnvironment(`CACHE_${constantCase9(stack.name)}_${constantCase9(id)}_HOST`, cluster.address).addEnvironment(`CACHE_${constantCase9(stack.name)}_${constantCase9(id)}_PORT`, props.port.toString());
+        lambda.addEnvironment(`CACHE_${constantCase9(stack.name)}_${constantCase9(id)}_HOST`, cluster.address).addEnvironment(
+          `CACHE_${constantCase9(stack.name)}_${constantCase9(id)}_PORT`,
+          props.port.toString()
+        );
       });
     }
   }
 });
 
 // src/plugins/rest.ts
-import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 
 // src/schema/route.ts
-import { z as z20 } from "zod";
-var RouteSchema2 = z20.custom((route) => {
-  return z20.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/\{\}]*)$/ig).safeParse(route).success;
+import { z as z21 } from "zod";
+var RouteSchema2 = z21.custom((route) => {
+  return z21.string().regex(/^(POST|GET|PUT|DELETE|HEAD|OPTIONS)(\s\/[a-z0-9\+\_\-\/\{\}]*)$/ig).safeParse(route).success;
 }, "Invalid route");
 
 // src/formation/resource/api-gateway-v2/api.ts
@@ -4260,7 +4695,7 @@ var Route2 = class extends Resource {
 var ApiGatewayV2EventSource = class extends Group {
   constructor(id, lambda, props) {
     const name = formatName(id);
-    const permission = new Permission2(id, {
+    const permission = new Permission(id, {
       action: "lambda:InvokeFunction",
       principal: "apigateway.amazonaws.com",
       functionArn: lambda.arn
@@ -4349,8 +4784,8 @@ var ApiMapping = class extends Resource {
 // src/plugins/rest.ts
 var restPlugin = definePlugin({
   name: "rest",
-  schema: z21.object({
-    defaults: z21.object({
+  schema: z22.object({
+    defaults: z22.object({
       /** Define your global REST API's.
        * @example
        * {
@@ -4362,16 +4797,16 @@ var restPlugin = definePlugin({
        *   }
        * }
        */
-      rest: z21.record(
+      rest: z22.record(
         ResourceIdSchema,
-        z21.object({
+        z22.object({
           /** The domain to link your API with. */
-          domain: z21.string(),
-          subDomain: z21.string().optional()
+          domain: z22.string(),
+          subDomain: z22.string().optional()
         })
       ).optional()
     }).default({}),
-    stacks: z21.object({
+    stacks: z22.object({
       /** Define routes in your stack for your global REST API.
        * @example
        * {
@@ -4383,9 +4818,9 @@ var restPlugin = definePlugin({
        *   }
        * }
        */
-      rest: z21.record(
+      rest: z22.record(
         ResourceIdSchema,
-        z21.record(RouteSchema2, FunctionSchema)
+        z22.record(RouteSchema2, FunctionSchema)
       ).optional()
     }).array()
   }),
@@ -4442,7 +4877,7 @@ var restPlugin = definePlugin({
 });
 
 // src/plugins/config.ts
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 
 // src/util/param.ts
 import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterType, PutParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
@@ -4530,11 +4965,11 @@ var Params = class {
 
 // src/plugins/config.ts
 import { paramCase as paramCase5 } from "change-case";
-var ConfigNameSchema = z22.string().regex(/[a-z0-9\-]/g, "Invalid config name");
+var ConfigNameSchema = z23.string().regex(/[a-z0-9\-]/g, "Invalid config name");
 var configPlugin = definePlugin({
   name: "config",
-  schema: z22.object({
-    stacks: z22.object({
+  schema: z23.object({
+    stacks: z23.object({
       /** Define the config values for your stack.
        * @example
        * ```
@@ -4551,7 +4986,7 @@ var configPlugin = definePlugin({
        * Config.YOUR_SECRET
        * ```
        */
-      configs: z22.array(ConfigNameSchema).optional()
+      configs: z23.array(ConfigNameSchema).optional()
     }).array()
   }),
   onTypeGen({ config }) {
@@ -4567,13 +5002,9 @@ var configPlugin = definePlugin({
     const configs = stackConfig.configs;
     bind((lambda) => {
       if (configs && configs.length) {
-        lambda.addEnvironment("AWSLESS_CONFIG", configs.join(","));
+        lambda.addEnvironment("CONFIG", configs.join(","));
         lambda.addPermissions({
-          actions: [
-            "ssm:GetParameter",
-            "ssm:GetParameters",
-            "ssm:GetParametersByPath"
-          ],
+          actions: ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
           resources: configs.map((name) => {
             return formatArn({
               service: "ssm",
@@ -4589,7 +5020,7 @@ var configPlugin = definePlugin({
 });
 
 // src/plugins/site.ts
-import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 
 // src/formation/resource/cloud-front/distribution.ts
 var Distribution = class extends Resource {
@@ -4716,8 +5147,8 @@ var OriginGroup = class {
 
 // src/schema/local-directory.ts
 import { stat as stat2 } from "fs/promises";
-import { z as z23 } from "zod";
-var LocalDirectorySchema = z23.string().refine(async (path) => {
+import { z as z24 } from "zod";
+var LocalDirectorySchema = z24.string().refine(async (path) => {
   try {
     const s = await stat2(path);
     return s.isDirectory();
@@ -4861,7 +5292,7 @@ var Files = class extends Asset {
 };
 
 // src/formation/resource/s3/bucket-policy.ts
-import { capitalCase } from "change-case";
+import { capitalCase as capitalCase2 } from "change-case";
 var BucketPolicy = class extends Resource {
   constructor(logicalId, props) {
     super("AWS::S3::BucketPolicy", logicalId);
@@ -4873,7 +5304,7 @@ var BucketPolicy = class extends Resource {
       PolicyDocument: {
         Version: this.props.version ?? "2012-10-17",
         Statement: this.props.statements.map((statement) => ({
-          Effect: capitalCase(statement.effect ?? "allow"),
+          Effect: capitalCase2(statement.effect ?? "allow"),
           ...statement.principal ? {
             Principal: {
               Service: statement.principal
@@ -4993,9 +5424,9 @@ var ResponseHeadersPolicy = class extends Resource {
 };
 
 // src/plugins/site.ts
-var ErrorResponseSchema = z24.union([
-  z24.string(),
-  z24.object({
+var ErrorResponseSchema = z25.union([
+  z25.string(),
+  z25.object({
     /** The path to the custom error page that you want to return to the viewer when your origin returns the HTTP status code specified.
      * @example ```
      * "/404.html"
@@ -5005,7 +5436,7 @@ var ErrorResponseSchema = z24.union([
      * If you store custom error pages on an HTTP server and the server starts to return 5xx errors,
      * CloudFront can't get the files that you want to return to viewers because the origin server is unavailable.
      */
-    path: z24.string(),
+    path: z25.string(),
     /** The HTTP status code that you want CloudFront to return to the viewer along with the custom error page.
      * There are a variety of reasons that you might want CloudFront to return a status code different from the status code that your origin returned to CloudFront, for example:
      * - Some Internet devices (some firewalls and corporate proxies, for example) intercept HTTP 4xx and 5xx and prevent the response from being returned to the viewer.
@@ -5013,7 +5444,7 @@ var ErrorResponseSchema = z24.union([
      * - If you don't care about distinguishing among different client errors or server errors, you can specify 400 or 500 as the ResponseCode for all 4xx or 5xx errors.
      * - You might want to return a 200 status code (OK) and static website so your customers don't know that your website is down.
      */
-    statusCode: z24.number().int().positive().optional(),
+    statusCode: z25.number().int().positive().optional(),
     /** The minimum amount of time, that you want to cache the error response.
      * When this time period has elapsed, CloudFront queries your origin to see whether the problem that caused the error has been resolved and the requested object is now available.
      * @example
@@ -5024,8 +5455,8 @@ var ErrorResponseSchema = z24.union([
 ]).optional();
 var sitePlugin = definePlugin({
   name: "site",
-  schema: z24.object({
-    stacks: z24.object({
+  schema: z25.object({
+    stacks: z25.object({
       /** Define the sites in your stack.
        * @example
        * {
@@ -5038,18 +5469,18 @@ var sitePlugin = definePlugin({
        *   }
        * }
        */
-      sites: z24.record(
+      sites: z25.record(
         ResourceIdSchema,
-        z24.object({
+        z25.object({
           /** The domain to link your site with. */
-          domain: z24.string(),
-          subDomain: z24.string().optional(),
+          domain: z25.string(),
+          subDomain: z25.string().optional(),
           /** Specifies the path to the static files directory. */
           static: LocalDirectorySchema.optional(),
           /** Specifies the ssr file. */
           ssr: FunctionSchema.optional(),
           /** Customize the error responses for specific HTTP status codes. */
-          errors: z24.object({
+          errors: z25.object({
             /** Customize a `400 Bad Request` response */
             400: ErrorResponseSchema,
             /** Customize a `403 Forbidden` response. */
@@ -5074,17 +5505,17 @@ var sitePlugin = definePlugin({
             504: ErrorResponseSchema
           }).optional(),
           /** Define the cors headers. */
-          cors: z24.object({
-            override: z24.boolean().default(false),
+          cors: z25.object({
+            override: z25.boolean().default(false),
             maxAge: DurationSchema.default("365 days"),
-            exposeHeaders: z24.string().array().optional(),
-            credentials: z24.boolean().default(false),
-            headers: z24.string().array().default(["*"]),
-            origins: z24.string().array().default(["*"]),
-            methods: z24.enum(["GET", "DELETE", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "ALL"]).array().default(["ALL"])
+            exposeHeaders: z25.string().array().optional(),
+            credentials: z25.boolean().default(false),
+            headers: z25.string().array().default(["*"]),
+            origins: z25.string().array().default(["*"]),
+            methods: z25.enum(["GET", "DELETE", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "ALL"]).array().default(["ALL"])
           }).optional(),
           /** Define the cors headers. */
-          security: z24.object({
+          security: z25.object({
             // contentSecurityPolicy: z.object({
             // 	override: z.boolean().default(false),
             // 	policy: z.string(),
@@ -5127,13 +5558,13 @@ var sitePlugin = definePlugin({
             // }
           }).optional(),
           /** Specifies the cookies, headers, and query values that CloudFront includes in the cache key. */
-          cache: z24.object({
+          cache: z25.object({
             /** Specifies the cookies that CloudFront includes in the cache key. */
-            cookies: z24.string().array().optional(),
+            cookies: z25.string().array().optional(),
             /** Specifies the headers that CloudFront includes in the cache key. */
-            headers: z24.string().array().optional(),
+            headers: z25.string().array().optional(),
             /** Specifies the query values that CloudFront includes in the cache key. */
-            queries: z24.string().array().optional()
+            queries: z25.string().array().optional()
           }).optional()
         })
       ).optional()
@@ -5148,7 +5579,7 @@ var sitePlugin = definePlugin({
       let bucket;
       if (props.ssr) {
         const lambda = toLambdaFunction(ctx, `site-${id}`, props.ssr);
-        const permissions = new Permission2(`site-${id}`, {
+        const permissions = new Permission(`site-${id}`, {
           principal: "*",
           // principal: 'cloudfront.amazonaws.com',
           action: "lambda:InvokeFunctionUrl",
@@ -5158,11 +5589,13 @@ var sitePlugin = definePlugin({
         }).dependsOn(lambda);
         const url = lambda.addUrl();
         stack.add(url, lambda, permissions);
-        origins.push(new Origin({
-          id: "lambda",
-          domainName: select(2, split("/", url.url)),
-          protocol: "https-only"
-        }));
+        origins.push(
+          new Origin({
+            id: "lambda",
+            domainName: select(2, split("/", url.url)),
+            protocol: "https-only"
+          })
+        );
         deps.push(lambda, url, permissions);
       }
       if (props.static) {
@@ -5197,20 +5630,24 @@ var sitePlugin = definePlugin({
           }
         }).dependsOn(bucket);
         stack.add(bucket, files, uploadBucketAsset, deleteBucket, accessControl);
-        origins.push(new Origin({
-          id: "bucket",
-          // domainName: select(2, split('/', bucket.url)),
-          domainName: bucket.domainName,
-          originAccessControlId: accessControl.id
-        }));
+        origins.push(
+          new Origin({
+            id: "bucket",
+            // domainName: select(2, split('/', bucket.url)),
+            domainName: bucket.domainName,
+            originAccessControlId: accessControl.id
+          })
+        );
         deps.push(bucket, accessControl);
       }
       if (props.ssr && props.static) {
-        originGroups.push(new OriginGroup({
-          id: "group",
-          members: ["lambda", "bucket"],
-          statusCodes: [403, 404]
-        }));
+        originGroups.push(
+          new OriginGroup({
+            id: "group",
+            members: ["lambda", "bucket"],
+            statusCodes: [403, 404]
+          })
+        );
       }
       const cache = new CachePolicy(id, {
         name: `site-${config.name}-${stack.name}-${id}`,
@@ -5297,14 +5734,7 @@ var sitePlugin = definePlugin({
           hostedZoneId: "Z2FDTNDATAQYW2"
         }
       }).dependsOn(distribution);
-      stack.add(
-        distribution,
-        invalidateCache,
-        responseHeaders,
-        originRequest,
-        cache,
-        record
-      );
+      stack.add(distribution, invalidateCache, responseHeaders, originRequest, cache, record);
     }
   }
 });
@@ -5335,12 +5765,527 @@ var featurePlugin = definePlugin({
       actions: ["cloudfront:*"],
       resources: ["*"]
     });
-    bootstrap2.add(
-      deleteBucketLambda,
-      uploadBucketAssetLambda,
-      invalidateCacheLambda
-    );
+    bootstrap2.add(deleteBucketLambda, uploadBucketAssetLambda, invalidateCacheLambda);
     bootstrap2.export("feature-delete-bucket", deleteBucketLambda.arn).export("feature-upload-bucket-asset", uploadBucketAssetLambda.arn).export("feature-invalidate-cache", invalidateCacheLambda.arn);
+  }
+});
+
+// src/plugins/auth.ts
+import { z as z26 } from "zod";
+
+// src/formation/resource/cognito/user-pool.ts
+import { constantCase as constantCase10 } from "change-case";
+
+// src/formation/resource/cognito/user-pool-client.ts
+var UserPoolClient = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Cognito::UserPoolClient", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  formatAuthFlows() {
+    const authFlows = [];
+    if (this.props.authFlows?.userPassword) {
+      authFlows.push("ALLOW_USER_PASSWORD_AUTH");
+    }
+    if (this.props.authFlows?.adminUserPassword) {
+      authFlows.push("ALLOW_ADMIN_USER_PASSWORD_AUTH");
+    }
+    if (this.props.authFlows?.custom) {
+      authFlows.push("ALLOW_CUSTOM_AUTH");
+    }
+    if (this.props.authFlows?.userSrp) {
+      authFlows.push("ALLOW_USER_SRP_AUTH");
+    }
+    authFlows.push("ALLOW_REFRESH_TOKEN_AUTH");
+    return authFlows;
+  }
+  formatIdentityProviders() {
+    const supported = this.props.supportedIdentityProviders ?? [];
+    const providers = [];
+    if (supported.length === 0) {
+      return void 0;
+    }
+    if (supported.includes("amazon")) {
+      providers.push("LoginWithAmazon");
+    }
+    if (supported.includes("apple")) {
+      providers.push("SignInWithApple");
+    }
+    if (supported.includes("cognito")) {
+      providers.push("COGNITO");
+    }
+    if (supported.includes("facebook")) {
+      providers.push("Facebook");
+    }
+    if (supported.includes("google")) {
+      providers.push("Google");
+    }
+    return providers;
+  }
+  properties() {
+    return {
+      ClientName: this.name,
+      UserPoolId: this.props.userPoolId,
+      ExplicitAuthFlows: this.formatAuthFlows(),
+      EnableTokenRevocation: this.props.enableTokenRevocation ?? false,
+      GenerateSecret: this.props.generateSecret ?? false,
+      PreventUserExistenceErrors: this.props.preventUserExistenceErrors ?? true ? "ENABLED" : "LEGACY",
+      ...this.attr("SupportedIdentityProviders", this.formatIdentityProviders()),
+      AllowedOAuthFlows: ["code"],
+      AllowedOAuthScopes: ["openid"],
+      AllowedOAuthFlowsUserPoolClient: true,
+      CallbackURLs: ["https://example.com"],
+      LogoutURLs: ["https://example.com"],
+      // DefaultRedirectURI: String
+      // EnablePropagateAdditionalUserContextData
+      ...this.attr("ReadAttributes", this.props.readAttributes),
+      ...this.attr("WriteAttributes", this.props.writeAttributes),
+      ...this.attr("AuthSessionValidity", this.props.validity?.authSession?.toMinutes()),
+      ...this.attr("AccessTokenValidity", this.props.validity?.accessToken?.toHours()),
+      ...this.attr("IdTokenValidity", this.props.validity?.idToken?.toHours()),
+      ...this.attr("RefreshTokenValidity", this.props.validity?.refreshToken?.toDays()),
+      TokenValidityUnits: {
+        ...this.attr("AccessToken", this.props.validity?.accessToken && "hours"),
+        ...this.attr("IdToken", this.props.validity?.idToken && "hours"),
+        ...this.attr("RefreshToken", this.props.validity?.refreshToken && "days")
+      }
+    };
+  }
+};
+
+// src/formation/resource/cognito/user-pool-domain.ts
+var UserPoolDomain = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Cognito::UserPoolDomain", logicalId);
+    this.props = props;
+  }
+  get domain() {
+    return ref(this.logicalId);
+  }
+  get cloudFrontDistribution() {
+    return getAtt(this.logicalId, "CloudFrontDistribution");
+  }
+  properties() {
+    return {
+      UserPoolId: this.props.userPoolId,
+      Domain: formatName(this.props.domain)
+    };
+  }
+};
+
+// src/formation/resource/cognito/user-pool.ts
+var UserPool = class extends Resource {
+  constructor(logicalId, props) {
+    super("AWS::Cognito::UserPool", logicalId);
+    this.props = props;
+    this.name = formatName(this.props.name || logicalId);
+  }
+  name;
+  get id() {
+    return ref(this.logicalId);
+  }
+  get arn() {
+    return getAtt(this.logicalId, "Arn");
+  }
+  get providerName() {
+    return getAtt(this.logicalId, "ProviderName");
+  }
+  get providerUrl() {
+    return getAtt(this.logicalId, "ProviderURL");
+  }
+  addDomain(props) {
+    const domain = new UserPoolDomain(this.logicalId, {
+      ...props,
+      userPoolId: this.id
+    }).dependsOn(this);
+    this.addChild(domain);
+    return domain;
+  }
+  addClient(props = {}) {
+    const client = new UserPoolClient(this.logicalId, {
+      ...props,
+      userPoolId: this.id
+    }).dependsOn(this);
+    this.addChild(client);
+    return client;
+  }
+  // get permissions() {
+  // 	const permissions = [{
+  // 		actions: [
+  // 			'dynamodb:DescribeTable',
+  // 			'dynamodb:PutItem',
+  // 			'dynamodb:GetItem',
+  // 			'dynamodb:DeleteItem',
+  // 			'dynamodb:TransactWrite',
+  // 			'dynamodb:BatchWriteItem',
+  // 			'dynamodb:BatchGetItem',
+  // 			'dynamodb:ConditionCheckItem',
+  // 			'dynamodb:Query',
+  // 			'dynamodb:Scan',
+  // 		],
+  // 		resources: [
+  // 			formatArn({
+  // 				service: 'dynamodb',
+  // 				resource: 'table',
+  // 				resourceName: this.name,
+  // 			}),
+  // 		 ],
+  // 	}]
+  // }
+  properties() {
+    return {
+      UserPoolName: this.name,
+      // UserPoolTags: [],
+      ...this.props.username?.emailAlias ? {
+        AliasAttributes: ["email"],
+        // UsernameAttributes: [ 'email' ],
+        AutoVerifiedAttributes: ["email"],
+        Schema: [
+          {
+            AttributeDataType: "String",
+            Name: "email",
+            Required: true,
+            Mutable: false,
+            StringAttributeConstraints: {
+              MinLength: 5,
+              MaxLength: 100
+            }
+          }
+        ]
+      } : {},
+      UsernameConfiguration: {
+        CaseSensitive: this.props.username?.caseSensitive ?? false
+      },
+      ...this.attr("EmailConfiguration", this.props.email?.toJSON()),
+      DeviceConfiguration: {
+        DeviceOnlyRememberedOnUserPrompt: false
+      },
+      AdminCreateUserConfig: {
+        AllowAdminCreateUserOnly: !(this.props.allowUserRegistration ?? true)
+      },
+      Policies: {
+        PasswordPolicy: {
+          MinimumLength: this.props.password?.minLength ?? 8,
+          RequireUppercase: this.props.password?.uppercase ?? false,
+          RequireLowercase: this.props.password?.lowercase ?? false,
+          RequireNumbers: this.props.password?.numbers ?? false,
+          RequireSymbols: this.props.password?.symbols ?? false,
+          TemporaryPasswordValidityDays: this.props.password?.temporaryPasswordValidity?.toDays() ?? 7
+        }
+      },
+      LambdaConfig: {
+        ...this.attr("PreAuthentication", this.props.triggers?.beforeLogin),
+        ...this.attr("PostAuthentication", this.props.triggers?.afterLogin),
+        ...this.attr("PostConfirmation", this.props.triggers?.afterRegister),
+        ...this.attr("PreSignUp", this.props.triggers?.beforeRegister),
+        ...this.attr("PreTokenGeneration", this.props.triggers?.beforeToken),
+        ...this.attr("CustomMessage", this.props.triggers?.customMessage),
+        ...this.attr("UserMigration", this.props.triggers?.userMigration),
+        ...this.attr("DefineAuthChallenge", this.props.triggers?.defineChallange),
+        ...this.attr("CreateAuthChallenge", this.props.triggers?.createChallange),
+        ...this.attr("VerifyAuthChallengeResponse", this.props.triggers?.verifyChallange),
+        ...this.props.triggers?.emailSender ? {
+          CustomEmailSender: {
+            LambdaArn: this.props.triggers.emailSender,
+            LambdaVersion: "V1_0"
+          }
+        } : {}
+      }
+    };
+  }
+};
+var UserPoolEmail = class _UserPoolEmail {
+  constructor(props) {
+    this.props = props;
+  }
+  static withSES(props) {
+    return new _UserPoolEmail({
+      type: "developer",
+      replyTo: props.replyTo,
+      from: props.fromName ? `${props.fromName} <${props.fromEmail}>` : props.fromEmail,
+      sourceArn: props.sourceArn
+    });
+  }
+  toJSON() {
+    return {
+      ...this.props.type ? { EmailSendingAccount: constantCase10(this.props.type) } : {},
+      ...this.props.from ? { From: this.props.from } : {},
+      ...this.props.replyTo ? { ReplyToEmailAddress: this.props.replyTo } : {},
+      ...this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}
+    };
+  }
+};
+
+// src/plugins/auth.ts
+import { constantCase as constantCase11 } from "change-case";
+var TriggersSchema = z26.object({
+  /** A pre jwt token generation AWS Lambda trigger. */
+  beforeToken: FunctionSchema.optional(),
+  /** A pre user login AWS Lambda trigger. */
+  beforeLogin: FunctionSchema.optional(),
+  /** A post user login AWS Lambda trigger. */
+  afterLogin: FunctionSchema.optional(),
+  /** A pre user register AWS Lambda trigger. */
+  beforeRegister: FunctionSchema.optional(),
+  /** A post user register AWS Lambda trigger. */
+  afterRegister: FunctionSchema.optional(),
+  /** A custom message AWS Lambda trigger. */
+  customMessage: FunctionSchema.optional(),
+  // /** A custom email sender AWS Lambda trigger */
+  // emailSender: FunctionSchema.optional(),
+  /** Defines the authentication challenge. */
+  defineChallenge: FunctionSchema.optional(),
+  /** Creates an authentication challenge. */
+  createChallenge: FunctionSchema.optional(),
+  /** Verifies the authentication challenge response. */
+  verifyChallenge: FunctionSchema.optional()
+});
+var authPlugin = definePlugin({
+  name: "auth",
+  schema: z26.object({
+    defaults: z26.object({
+      /** Define the authenticatable users in your app.
+       * @example
+       * {
+       *   auth: {
+       *     AUTH_NAME: {
+       *       password: {
+       *         minLength: 10,
+       *       },
+       *       validity: {
+       *         refreshToken: '30 days',
+       *       }
+       *     }
+       *   }
+       * }
+       */
+      auth: z26.record(
+        ResourceIdSchema,
+        z26.object({
+          /** Specifies whether users can create an user account or if only the administrator can.
+           * @default true
+           */
+          allowUserRegistration: z26.boolean().default(true),
+          /** The email configuration for sending messages.
+           */
+          messaging: z26.object({
+            // Specifies the sender's email address.
+            fromEmail: EmailSchema,
+            // Specifies the sender's name.
+            fromName: z26.string().optional(),
+            // The destination to which the receiver of the email should reply.
+            replyTo: EmailSchema.optional()
+          }).optional(),
+          /** The username policy. */
+          username: z26.object({
+            /** Allow the user email to be used as username.
+             * @default true
+             */
+            emailAlias: z26.boolean().default(true),
+            /** Specifies whether username case sensitivity will be enabled.
+             * When usernames and email addresses are case insensitive,
+             * users can sign in as the same user when they enter a different capitalization of their user name.
+             * @default false
+             */
+            caseSensitive: z26.boolean().default(false)
+          }).default({}),
+          /** The password policy. */
+          password: z26.object({
+            /** Required users to have at least the minimum password length.
+             * @default 12
+             */
+            minLength: z26.number().int().min(6).max(99).default(12),
+            /** Required users to use at least one uppercase letter in their password.
+             * @default true
+             */
+            uppercase: z26.boolean().default(true),
+            /** Required users to use at least one lowercase letter in their password.
+             * @default true
+             */
+            lowercase: z26.boolean().default(true),
+            /** Required users to use at least one number in their password.
+             * @default true
+             */
+            numbers: z26.boolean().default(true),
+            /** Required users to use at least one symbol in their password.
+             * @default true
+             */
+            symbols: z26.boolean().default(true),
+            /** The duration a temporary password is valid.
+             * If the user doesn't sign in during this time, an administrator must reset their password.
+             * @default '7 days'
+             */
+            temporaryPasswordValidity: DurationSchema.default("7 days")
+          }).default({}),
+          /** Specifies the validity duration for every JWT token. */
+          validity: z26.object({
+            /** The ID token time limit.
+             * After this limit expires, your user can't use their ID token.
+             * @default '1 hour'
+             */
+            idToken: DurationSchema.default("1 hour"),
+            /** The access token time limit.
+             * After this limit expires, your user can't use their access token.
+             * @default '1 hour'
+             */
+            accessToken: DurationSchema.default("1 hour"),
+            /** The refresh token time limit.
+             * After this limit expires, your user can't use their refresh token.
+             * @default '365 days'
+             */
+            refreshToken: DurationSchema.default("365 days")
+          }).default({}),
+          /** Specifies the configuration for AWS Lambda triggers. */
+          triggers: TriggersSchema.optional()
+        })
+      ).default({})
+    }).default({}),
+    stacks: z26.object({
+      /** Define the auth triggers in your stack.
+       * @example
+       * {
+       *   auth: {
+       *     AUTH_NAME: {
+       *       triggers: {
+       *         beforeLogin: 'function.ts',
+       *       }
+       *     }
+       *   }
+       * }
+       */
+      auth: z26.record(
+        ResourceIdSchema,
+        z26.object({
+          /** Give access to every function in this stack to your cognito instance.
+           * @default false
+           */
+          access: z26.boolean().default(false),
+          /** Specifies the configuration for AWS Lambda triggers. */
+          triggers: TriggersSchema.optional()
+        })
+      ).optional()
+    }).array()
+  }),
+  onTypeGen({ config }) {
+    const gen = new TypeGen("@awsless/awsless", "AuthResources");
+    for (const name of Object.keys(config.defaults.auth)) {
+      const authName = formatName(`${config.name}-${name}`);
+      gen.addType(
+        name,
+        `{ readonly name: '${authName}', readonly userPoolId: string, readonly clientId: string }`
+      );
+    }
+    return gen.toString();
+  },
+  onStack({ bootstrap: bootstrap2, stackConfig, bind }) {
+    for (const [id, props] of Object.entries(stackConfig.auth ?? {})) {
+      if (props.access) {
+        const userPoolId = bootstrap2.import(`auth-${id}-user-pool-id`);
+        const clientId = bootstrap2.import(`auth-${id}-client-id`);
+        const clientSecret = bootstrap2.import(`auth-${id}-client-secret`);
+        const name = constantCase11(id);
+        bind((lambda) => {
+          lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId);
+          lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId);
+          lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret);
+          lambda.addPermissions({
+            actions: ["cognito:*"],
+            resources: ["*"]
+          });
+        });
+      }
+    }
+  },
+  onApp(ctx) {
+    const { config, bootstrap: bootstrap2 } = ctx;
+    if (Object.keys(config.defaults.auth).length === 0) {
+      return;
+    }
+    const clientSecretLambda = new Function(`auth-client-secret`, {
+      name: `${config.name}-auth-client-secret`,
+      code: Code.fromFeature("cognito-client-secret")
+    });
+    clientSecretLambda.addPermissions({
+      actions: ["cognito-idp:DescribeUserPoolClient"],
+      resources: ["*"]
+    });
+    bootstrap2.add(clientSecretLambda);
+    for (const [id, props] of Object.entries(config.defaults.auth)) {
+      const functions = /* @__PURE__ */ new Map();
+      const triggers = {};
+      for (const [trigger, fnProps] of Object.entries(props.triggers ?? {})) {
+        const lambda = toLambdaFunction(ctx, `auth-${id}-${trigger}`, fnProps);
+        functions.set(trigger, lambda);
+        triggers[trigger] = lambda.arn;
+      }
+      for (const stack of config.stacks) {
+        for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
+          const lambda = toLambdaFunction(ctx, `auth-${id}-${trigger}`, fnProps);
+          if (functions.has(trigger)) {
+            throw new TypeError(
+              `Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
+            );
+          }
+          functions.set(trigger, lambda);
+          triggers[trigger] = lambda.arn;
+        }
+      }
+      let emailConfig;
+      if (props.messaging) {
+        const [_, ...parts] = props.messaging.fromEmail.split("@");
+        const domainName = parts.join("@");
+        emailConfig = UserPoolEmail.withSES({
+          ...props.messaging,
+          sourceArn: formatArn({
+            service: "ses",
+            resource: "identity",
+            resourceName: domainName
+          })
+        });
+      }
+      const userPool = new UserPool(id, {
+        name: `${config.name}-${id}`,
+        allowUserRegistration: props.allowUserRegistration,
+        username: props.username,
+        password: props.password,
+        triggers,
+        email: emailConfig
+      });
+      const client = userPool.addClient({
+        name: `${config.name}-${id}`,
+        validity: props.validity,
+        generateSecret: true,
+        supportedIdentityProviders: ["cognito"],
+        authFlows: {
+          userSrp: true
+        }
+      });
+      const domain = userPool.addDomain({
+        domain: `${config.name}-${id}`
+      });
+      const clientSecret = new CustomResource(`${id}-client-secret`, {
+        serviceToken: clientSecretLambda.arn,
+        properties: {
+          userPoolId: userPool.id,
+          clientId: client.id
+        }
+      }).dependsOn(client, userPool);
+      bootstrap2.add(userPool).add(clientSecret).export(`auth-${id}-user-pool-arn`, userPool.arn).export(`auth-${id}-user-pool-id`, userPool.id).export(`auth-${id}-client-id`, client.id).export(`auth-${id}-client-secret`, clientSecret.getAtt("secret")).export(`auth-${id}-domain`, domain.domain);
+      for (const [event, lambda] of functions) {
+        const permission = new Permission(`auth-${id}-${event}`, {
+          action: "lambda:InvokeFunction",
+          principal: "cognito-idp.amazonaws.com",
+          functionArn: lambda.arn,
+          sourceArn: userPool.arn
+        }).dependsOn(lambda);
+        bootstrap2.add(lambda, permission);
+      }
+    }
   }
 });
 
@@ -5357,9 +6302,11 @@ var defaultPlugins = [
   queuePlugin,
   tablePlugin,
   storePlugin,
+  // alertPlugin,
   topicPlugin,
   pubsubPlugin,
   searchPlugin,
+  authPlugin,
   graphqlPlugin,
   httpPlugin,
   restPlugin,
@@ -5516,17 +6463,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-import { z as z28 } from "zod";
+import { z as z30 } from "zod";
 
 // src/schema/stack.ts
-import { z as z25 } from "zod";
-var StackSchema = z25.object({
+import { z as z27 } from "zod";
+var StackSchema = z27.object({
   name: ResourceIdSchema,
-  depends: z25.array(z25.lazy(() => StackSchema)).optional()
+  depends: z27.array(z27.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z26 } from "zod";
+import { z as z28 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -5543,64 +6490,66 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = z26.enum(regions);
+var RegionSchema = z28.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z27 } from "zod";
-var PluginSchema = z27.object({
-  name: z27.string(),
-  schema: z27.custom().optional(),
+import { z as z29 } from "zod";
+var PluginSchema = z29.object({
+  name: z29.string(),
+  schema: z29.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onApp: z27.function().returns(z27.void()).optional(),
-  onStack: z27.function().returns(z27.any()).optional(),
-  onResource: z27.function().returns(z27.any()).optional()
+  onApp: z29.function().returns(z29.void()).optional(),
+  onStack: z29.function().returns(z29.any()).optional(),
+  onResource: z29.function().returns(z29.any()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z28.object({
+var AppSchema = z30.object({
   /** App name */
   name: ResourceIdSchema,
   /** The AWS region to deploy to. */
   region: RegionSchema,
   /** The AWS profile to deploy to. */
-  profile: z28.string(),
+  profile: z30.string(),
   /** The deployment stage.
    * @default 'prod'
    */
-  stage: z28.string().regex(/^[a-z]+$/).default("prod"),
+  stage: z30.string().regex(/^[a-z]+$/).default("prod"),
   /** Default properties. */
-  defaults: z28.object({}).default({}),
+  defaults: z30.object({}).default({}),
   /** The application stacks. */
-  stacks: z28.array(StackSchema).min(1).refine((stacks) => {
+  stacks: z30.array(StackSchema).min(1).refine((stacks) => {
     const unique = new Set(stacks.map((stack) => stack.name));
     return unique.size === stacks.length;
   }, "Must be an array of unique stacks"),
   /** Custom plugins. */
-  plugins: z28.array(PluginSchema).optional()
+  plugins: z30.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
-import { rollup as rollup2, watch } from "rollup";
-import { swc as swc2 } from "rollup-plugin-swc3";
+import { rollup as rollup3, watch } from "rollup";
+import { swc as swc3 } from "rollup-plugin-swc3";
 import replace from "rollup-plugin-replace";
 import { EventIterator } from "event-iterator";
-import { dirname as dirname2, join as join5 } from "path";
+import { dirname as dirname3, join as join5 } from "path";
 import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
 var importFile = async (path) => {
-  const bundle = await rollup2({
+  const bundle = await rollup3({
     input: path,
     onwarn: (error) => {
       debugError(error.message);
     },
     plugins: [
+      // @ts-ignore
       replace({
-        __dirname: (id) => `'${dirname2(id)}'`
+        __dirname: (id) => `'${dirname3(id)}'`
+        // 'defineStackConfig({': id => `defineStackConfig({ cwd: '${dirname(id)}',`,
       }),
-      swc2({
+      swc3({
         minify: false,
         jsc: {
-          baseUrl: dirname2(path)
+          baseUrl: dirname3(path)
         }
       })
     ]
@@ -5618,63 +6567,68 @@ var importFile = async (path) => {
   return import(outputFile);
 };
 var watchFile = (path) => {
-  return new EventIterator((queue2) => {
-    const watcher = watch({
-      watch: {
-        skipWrite: true
-      },
-      input: path,
-      onwarn: (error) => {
-        debugError(error.message);
-      },
-      plugins: [
-        replace({
-          __dirname: (id) => `'${dirname2(id)}'`
-        }),
-        swc2({
-          minify: false,
-          jsc: {
-            baseUrl: dirname2(path)
-          }
-        })
-      ]
-    });
-    let resume;
-    queue2.on("lowWater", () => {
-      resume?.(true);
-    });
-    watcher.on("close", queue2.stop);
-    watcher.on("event", async (event) => {
-      if (event.code === "ERROR") {
-        queue2.fail(new Error(event.error.message));
-      }
-      if (event.code === "BUNDLE_END") {
-        const result = await event.result.generate({
-          format: "esm",
-          exports: "default"
-        });
-        event.result.close();
-        const output = result.output[0];
-        const code = output.code;
-        const outputFile = join5(directories.cache, "config.js");
-        await mkdir2(directories.cache, { recursive: true });
-        await writeFile2(outputFile, code);
-        debug("Save config file:", style.info(outputFile));
-        const config = await import(`${outputFile}?${Date.now()}`);
-        queue2.push(config);
-      }
-    });
-    return () => {
-      watcher.close();
-    };
-  }, {
-    highWaterMark: 1,
-    lowWaterMark: 0
-  });
+  return new EventIterator(
+    (queue2) => {
+      const watcher = watch({
+        watch: {
+          skipWrite: true
+        },
+        input: path,
+        onwarn: (error) => {
+          debugError(error.message);
+        },
+        plugins: [
+          // @ts-ignore
+          replace({
+            __dirname: (id) => `'${dirname3(id)}'`
+            // 'defineStackConfig({': id => `defineStackConfig({ cwd: '${dirname(id)}',`,
+          }),
+          swc3({
+            minify: false,
+            jsc: {
+              baseUrl: dirname3(path)
+            }
+          })
+        ]
+      });
+      let resume;
+      queue2.on("lowWater", () => {
+        resume?.(true);
+      });
+      watcher.on("close", queue2.stop);
+      watcher.on("event", async (event) => {
+        if (event.code === "ERROR") {
+          queue2.fail(new Error(event.error.message));
+        }
+        if (event.code === "BUNDLE_END") {
+          const result = await event.result.generate({
+            format: "esm",
+            exports: "default"
+          });
+          event.result.close();
+          const output = result.output[0];
+          const code = output.code;
+          const outputFile = join5(directories.cache, "config.js");
+          await mkdir2(directories.cache, { recursive: true });
+          await writeFile2(outputFile, code);
+          debug("Save config file:", style.info(outputFile));
+          const config = await import(`${outputFile}?${Date.now()}`);
+          queue2.push(config);
+        }
+      });
+      return () => {
+        watcher.close();
+      };
+    },
+    {
+      highWaterMark: 1,
+      lowWaterMark: 0
+    }
+  );
 };
 
 // src/config.ts
-import { z as z29 } from "zod";
+import { z as z31 } from "zod";
 var ConfigError = class extends Error {
   constructor(error, data) {
     super(error.message);
@@ -5707,7 +6661,7 @@ var importConfig = async (options) => {
   try {
     config = await schema2.parseAsync(appConfig);
   } catch (error) {
-    if (error instanceof z29.ZodError) {
+    if (error instanceof z31.ZodError) {
       throw new ConfigError(error, appConfig);
     }
     throw error;
@@ -5723,7 +6677,7 @@ var importConfig = async (options) => {
     credentials
   };
 };
-var watchConfig = async function* (options) {
+var watchConfig = async (options, resolve, reject) => {
   debug("Find the root directory");
   const configFile = options.configFile || "awsless.config.ts";
   const root2 = await findRootDir(process.cwd(), configFile);
@@ -5748,21 +6702,23 @@ var watchConfig = async function* (options) {
     try {
       config = await schema2.parseAsync(appConfig);
     } catch (error) {
-      if (error instanceof z29.ZodError) {
-        throw new ConfigError(error, appConfig);
+      if (error instanceof z31.ZodError) {
+        reject(new ConfigError(error, appConfig));
+        continue;
       }
-      throw error;
+      reject(error);
+      continue;
     }
     debug("Load credentials", style.info(config.profile));
     const credentials = getCredentials(config.profile);
     debug("Load AWS account ID");
     const account = await getAccountId(credentials, config.region);
     debug("Account ID:", style.info(account));
-    yield {
+    resolve({
       ...config,
       account,
       credentials
-    };
+    });
   }
 };
 
@@ -6230,6 +7186,7 @@ var format = (value) => {
     case "object":
       return "{ ... }";
     case "undefined":
+      return "undefined";
     case "string":
     case "number":
     case "boolean":
@@ -6345,7 +7302,7 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
 };
 
 // src/cli/ui/complex/builder.ts
-import { dirname as dirname3, join as join7 } from "path";
+import { dirname as dirname4, join as join7 } from "path";
 var assetBuilder = (app) => {
   return async (term) => {
     const assets = [];
@@ -6409,7 +7366,7 @@ var assetBuilder = (app) => {
           const data = await asset.build({
             async write(file, data2) {
               const fullpath = join7(directories.asset, asset.type, app.name, stack.name, asset.id, file);
-              const basepath = dirname3(fullpath);
+              const basepath = dirname4(fullpath);
               await mkdir3(basepath, { recursive: true });
               await writeFile3(fullpath, data2);
             }
@@ -6998,55 +7955,70 @@ var assetPublisher = (config, app) => {
   });
   return async (term) => {
     const done = term.out.write(loadingDialog("Publishing stack assets to AWS..."));
-    await Promise.all(app.stacks.map(async (stack) => {
-      await Promise.all([...stack.assets].map(async (asset) => {
-        await asset.publish?.({
-          async read(file) {
-            const path = join9(directories.asset, asset.type, app.name, stack.name, asset.id, file);
-            const data = await readFile3(path);
-            return data;
-          },
-          async publish(name, data, hash) {
-            const key = `${app.name}/${stack.name}/${asset.type}/${name}`;
-            const bucket = assetBucketName(config.account, config.region);
-            let getResult;
-            try {
-              getResult = await client.send(new GetObjectCommand({
-                Bucket: bucket,
-                Key: key
-              }));
-            } catch (error) {
-              if (error instanceof Error && error.name === "NoSuchKey") {
-              } else {
-                throw error;
+    await Promise.all(
+      app.stacks.map(async (stack) => {
+        await Promise.all(
+          [...stack.assets].map(async (asset) => {
+            await asset.publish?.({
+              async read(file) {
+                const path = join9(
+                  directories.asset,
+                  asset.type,
+                  app.name,
+                  stack.name,
+                  asset.id,
+                  file
+                );
+                const data = await readFile3(path);
+                return data;
+              },
+              async publish(name, data, hash) {
+                const key = `${app.name}/${stack.name}/${asset.type}/${name}`;
+                const bucket = assetBucketName(config.account, config.region);
+                let getResult;
+                try {
+                  getResult = await client.send(
+                    new GetObjectCommand({
+                      Bucket: bucket,
+                      Key: key
+                    })
+                  );
+                } catch (error) {
+                  if (error instanceof Error && error.name === "NoSuchKey") {
+                  } else {
+                    throw error;
+                  }
+                }
+                if (getResult?.Metadata?.hash === hash) {
+                  return {
+                    bucket,
+                    key,
+                    version: getResult.VersionId
+                  };
+                }
+                const putResult = await client.send(
+                  new PutObjectCommand2({
+                    Bucket: bucket,
+                    Key: key,
+                    Body: data,
+                    ACL: ObjectCannedACL2.private,
+                    StorageClass: StorageClass2.STANDARD,
+                    Metadata: {
+                      hash
+                    }
+                  })
+                );
+                return {
+                  bucket,
+                  key,
+                  version: putResult.VersionId
+                };
               }
-            }
-            if (getResult?.Metadata?.hash === hash) {
-              return {
-                bucket,
-                key,
-                version: getResult.VersionId
-              };
-            }
-            const putResult = await client.send(new PutObjectCommand2({
-              Bucket: bucket,
-              Key: key,
-              Body: data,
-              ACL: ObjectCannedACL2.private,
-              StorageClass: StorageClass2.STANDARD,
-              Metadata: {
-                hash
-              }
-            }));
-            return {
-              bucket,
-              key,
-              version: putResult.VersionId
-            };
-          }
-        });
-      }));
-    }));
+            });
+          })
+        );
+      })
+    );
     done("Done publishing stack assets to AWS");
   };
 };
@@ -7264,10 +8236,20 @@ var dev = (program2) => {
   program2.command("dev").description("Start the development service").action(async () => {
     await layout(async (_, write) => {
       const options = program2.optsWithGlobals();
-      for await (const config of watchConfig(options)) {
+      await watchConfig(options, async (config) => {
         await cleanUp();
         await write(typesGenerator(config));
-      }
+      }, (error) => {
+        if (error instanceof ConfigError) {
+          write(zodError(error.error, error.data));
+        } else if (error instanceof Error) {
+          write(dialog("error", [error.message]));
+        } else if (typeof error === "string") {
+          write(dialog("error", [error]));
+        } else {
+          write(dialog("error", [JSON.stringify(error)]));
+        }
+      });
     });
   });
 };

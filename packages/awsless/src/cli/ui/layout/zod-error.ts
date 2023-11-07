@@ -29,7 +29,7 @@ const format = (value:unknown): string => {
 		case 'bigint': return `${value}n`
 		case 'symbol': return 'Symbol()'
 		case 'object': return '{ ... }'
-		case 'undefined':
+		case 'undefined': return 'undefined'
 		case 'string':
 		case 'number':
 		case 'boolean':

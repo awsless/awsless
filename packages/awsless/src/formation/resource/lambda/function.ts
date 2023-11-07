@@ -8,6 +8,7 @@ import { LogGroup } from '../cloud-watch/log-group.js';
 import { InlinePolicy } from '../iam/inline-policy.js';
 import { Role } from '../iam/role.js';
 import { ICode } from './code.js';
+import { EventsEventSource } from './event-source/events.js';
 import { Url, UrlProps } from './url.js';
 
 export type FunctionProps = {
@@ -76,6 +77,20 @@ export class Function extends Resource {
 			actions: [ 'logs:PutLogEvents' ],
 			resources: [ sub('${arn}:*', { arn: logGroup.arn }) ],
 		})
+
+		return this
+	}
+
+	warmUp(concurrency: number) {
+		const source = new EventsEventSource(`${ this._logicalId }-warmer`, this, {
+			schedule: 'rate(5 minutes)',
+			payload: {
+				warmer: true,
+				concurrency,
+			}
+		})
+
+		this.addChild(source)
 
 		return this
 	}

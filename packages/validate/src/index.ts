@@ -1,41 +1,16 @@
+export * from 'valibot'
 
-export { bigfloat, positive, precision } from './types/bigfloat.js'
-export { date } from './types/date.js'
-export { uuid } from './types/uuid.js'
-export { json } from './types/json.js'
-export { lowercase, uppercase } from './types/string.js'
-export { unique } from './types/array.js'
+// --------------------------------------------
+// Schemas
 
-export {
-	// -------------------------------------------------------------------------
-	// coercions
-	coerce, defaulted, trimmed,
+export { json } from './schema/json.js'
+export { bigfloat } from './schema/bigfloat.js'
+export { date } from './schema/date.js'
+export { uuid } from './schema/uuid.js'
 
-	// -------------------------------------------------------------------------
-	// refinements
-	empty, max, min, nonempty, pattern, size, refine,
+// --------------------------------------------
+// Validation
 
-	// -------------------------------------------------------------------------
-	// types
-	any, array, bigint, boolean, enums, func, instance, integer, intersection,
-	literal, map, never, nullable, number, object, optional, record, regexp,
-	set, string, tuple, type, union, unknown,
-
-	// -------------------------------------------------------------------------
-	// utilities
-	assign, define, deprecated, dynamic, lazy, omit, partial, pick, struct,
-
-	// -------------------------------------------------------------------------
-	// struct
-	assert, create, mask, is,
-
-	Struct,
-	// Struct, Context, Infer, Describe, Result, Coercer, Validator, Refiner,
-
-	// -------------------------------------------------------------------------
-	// error
-	StructError
-	// Failure, StructError
-} from 'superstruct'
-
-export type { Context, Infer, Describe, Result, Coercer, Validator, Refiner, Failure } from 'superstruct'
+export { positive } from './validation/positive.js'
+export { precision } from './validation/precision.js'
+export { unique } from './validation/unique.js'

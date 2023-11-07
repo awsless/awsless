@@ -1,13 +1,12 @@
-
-import { rollup } from "rollup"
-import { createHash } from "crypto"
-import { swc, minify as swcMinify } from 'rollup-plugin-swc3';
+import { rollup } from 'rollup'
+import { createHash } from 'crypto'
+import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
 import json from '@rollup/plugin-json'
 import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
-import { debugError } from '../../../../cli/logger.js';
-import { CodeBundle, File } from '../code.js';
-import { dirname } from "path";
+import { debugError } from '../../../../cli/logger.js'
+import { CodeBundle, File } from '../code.js'
+import { dirname } from 'path'
 
 export type RollupBundlerProps = {
 	format?: 'esm' | 'cjs'
@@ -15,18 +14,22 @@ export type RollupBundlerProps = {
 	handler?: string
 }
 
-export const rollupBundle = ({ format = 'esm', minify = true, handler = 'default' }: RollupBundlerProps = {}): CodeBundle => {
-	return async (input) => {
+export const rollupBundle = ({
+	format = 'esm',
+	minify = true,
+	handler = 'default',
+}: RollupBundlerProps = {}): CodeBundle => {
+	return async input => {
 		const bundle = await rollup({
 			input,
-			external: (importee) => {
-				return (importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk'))
+			external: importee => {
+				return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk')
 			},
-			onwarn: (error) => {
+			onwarn: error => {
 				debugError(error.message)
 			},
 			treeshake: {
-				moduleSideEffects: (id) => input === id,
+				moduleSideEffects: id => input === id,
 			},
 			plugins: [
 				// @ts-ignore
@@ -42,11 +45,13 @@ export const rollupBundle = ({ format = 'esm', minify = true, handler = 'default
 					},
 					sourceMaps: true,
 				}),
-				minify ? swcMinify({
-					module: format === 'esm',
-					sourceMap: true,
-					compress: true,
-				}) : undefined,
+				minify
+					? swcMinify({
+							module: format === 'esm',
+							sourceMap: true,
+							compress: true,
+					  })
+					: undefined,
 				// @ts-ignore
 				json(),
 			],
@@ -65,10 +70,10 @@ export const rollupBundle = ({ format = 'esm', minify = true, handler = 'default
 		const hash = createHash('sha1')
 		const files: File[] = []
 
-		for(const item of result.output) {
+		for (const item of result.output) {
 			// For now we ignore asset chunks...
 			// I don't know what to do with assets yet.
-			if(item.type !== 'chunk') {
+			if (item.type !== 'chunk') {
 				continue
 			}
 
@@ -82,12 +87,12 @@ export const rollupBundle = ({ format = 'esm', minify = true, handler = 'default
 			files.push({
 				name: item.fileName,
 				code,
-				map
+				map,
 			})
 		}
 
 		return {
-			handler: `index.${ handler }`,
+			handler: `index.${handler}`,
 			hash: hash.digest('hex'),
 			files,
 		}

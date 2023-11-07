@@ -5,10 +5,8 @@ export const getTableName = getLocalResourceName
 
 export interface TableResources {}
 
-export const Table:TableResources = createProxy((stack) => {
-	return createProxy((name) => {
-		return {
-			name: getTableName(name, stack)
-		}
+export const Table: TableResources = /*@__PURE__*/ createProxy(stack => {
+	return createProxy(name => {
+		return getTableName(name, stack)
 	})
 })

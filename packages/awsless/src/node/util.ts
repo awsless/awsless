@@ -1,4 +1,5 @@
 
+/*@__NO_SIDE_EFFECTS__*/
 export const createProxy = (cb:(name:string) => unknown) => {
 	const cache = new Map<string, unknown>()
 

@@ -7,6 +7,7 @@ import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import { dirname } from 'path'
 import JSZip from 'jszip'
+import { createHash } from 'crypto'
 
 const main = async () => {
 	const path = './features/functions'
@@ -16,11 +17,19 @@ const main = async () => {
 	await mkdir(output, { recursive: true })
 
 	for (const func of functions) {
-		const code = await rollupBundle(join(path, func))
-		// const bundle = await zip(code)
+		const { hash, files } = await rollupBundle(join(path, func), 'esm')
+		const cjs = await rollupBundle(join(path, func), 'cjs')
+		const bundle = await zipFiles(files)
 
-		await writeFile(join(output, basename(func, '.ts') + '.js'), code)
-		// await writeFile(join(output, basename(func, '.ts') + '.zip'), bundle)
+		const funcPath = join(output, basename(func, '.ts'))
+		await mkdir(funcPath, { recursive: true })
+
+		await Promise.all([
+			writeFile(join(funcPath, 'HASH'), hash),
+			writeFile(join(funcPath, 'bundle.zip'), bundle),
+			writeFile(join(funcPath, 'index.mjs'), files[0].code),
+			writeFile(join(funcPath, 'index.js'), cjs.files[0].code),
+		])
 
 		console.log(func)
 	}
@@ -28,20 +37,23 @@ const main = async () => {
 
 main()
 
-// const zip = code => {
-// 	const zip = new JSZip()
-// 	zip.file('index.mjs', code)
+const zipFiles = files => {
+	const zip = new JSZip()
 
-// 	return zip.generateAsync({
-// 		type: 'nodebuffer',
-// 		compression: 'DEFLATE',
-// 		compressionOptions: {
-// 			level: 9,
-// 		},
-// 	})
-// }
+	for (const file of files) {
+		zip.file(file.name, file.code)
+	}
 
-const rollupBundle = async input => {
+	return zip.generateAsync({
+		type: 'nodebuffer',
+		compression: 'DEFLATE',
+		compressionOptions: {
+			level: 9,
+		},
+	})
+}
+
+const rollupBundle = async (input, format) => {
 	const bundle = await rollup({
 		input,
 		external: importee => {
@@ -54,27 +66,67 @@ const rollupBundle = async input => {
 			moduleSideEffects: id => input === id,
 		},
 		plugins: [
+			// @ts-ignore
 			commonjs({ sourceMap: true }),
+			// @ts-ignore
 			nodeResolve({ preferBuiltins: true }),
 			swc({
-				minify: false,
+				// minify,
+				// module: true,
 				jsc: {
 					baseUrl: dirname(input),
-					minify: { sourceMap: false },
+					minify: { sourceMap: true },
 				},
-				sourceMaps: false,
+				sourceMaps: true,
 			}),
+			// minify
+			// 	? swcMinify({
+			// 			module: format === 'esm',
+			// 			sourceMap: true,
+			// 			compress: true,
+			// 	  })
+			// 	: undefined,
+			// @ts-ignore
 			json(),
 		],
 	})
 
+	const ext = format === 'esm' ? 'mjs' : 'js'
 	const result = await bundle.generate({
-		format: 'esm',
+		format,
 		sourcemap: 'hidden',
 		exports: 'auto',
+		manualChunks: {},
+		entryFileNames: `index.${ext}`,
+		chunkFileNames: `[name].${ext}`,
 	})
 
-	const output = result.output[0]
+	const hash = createHash('sha1')
+	const files = []
 
-	return output.code
+	for (const item of result.output) {
+		// For now we ignore asset chunks...
+		// I don't know what to do with assets yet.
+		if (item.type !== 'chunk') {
+			continue
+		}
+
+		// const base = item.isEntry ? 'index' : item.name
+		// const name = `${ base }.${ ext }`
+		const code = Buffer.from(item.code, 'utf8')
+		const map = item.map ? Buffer.from(item.map.toString(), 'utf8') : undefined
+
+		hash.update(code)
+
+		files.push({
+			name: item.fileName,
+			code,
+			map,
+		})
+	}
+
+	return {
+		hash: hash.digest('hex'),
+		files,
+	}
 }

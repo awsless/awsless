@@ -5,10 +5,10 @@ export const getStoreName = getLocalResourceName
 
 export interface StoreResources {}
 
-export const Store:StoreResources = createProxy((stack) => {
-	return createProxy((name) => {
+export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
+	return createProxy(name => {
 		return {
-			name: getStoreName(name, stack)
+			name: getStoreName(name, stack),
 		}
 	})
 })

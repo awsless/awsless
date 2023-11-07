@@ -3,13 +3,13 @@ import { RedisServer } from "@awsless/redis-server";
 import { requestPort } from "@heat/request-port";
 
 // src/client.ts
-import { Redis } from "ioredis";
+import { Cluster, Redis } from "ioredis";
 var optionOverrides = {};
 var overrideOptions = (options) => {
   optionOverrides = options;
 };
 var redisClient = (options) => {
-  return new Redis({
+  const props = {
     lazyConnect: true,
     stringNumbers: true,
     keepAlive: 0,
@@ -24,28 +24,42 @@ var redisClient = (options) => {
     commandTimeout: 1e3 * 5,
     ...options,
     ...optionOverrides
-    // retryStrategy: (times) => {
-    // 	if (options.error && options.error.code === 'ECONNREFUSED') {
-    // 		return new Error 'The redis server refused the connection'
-    // 	}
-    // 	if (options.total_retry_time > ( 1000 * 10 )) {
-    // 		return new Error 'The redis retry time exhausted'
-    // 	}
-    // 	if (options.attempt > 10) {
-    // 		return
-    // 	}
-    // 	return Math.min(options.attempt * 100, 3000)
-    // },
-  });
+  };
+  if (!options.cluster) {
+    return new Redis(props);
+  }
+  return new Cluster(
+    [
+      {
+        host: props.host,
+        port: props.port
+      }
+    ],
+    {
+      dnsLookup: (address, callback) => callback(null, address),
+      enableReadyCheck: false,
+      redisOptions: {
+        ...props,
+        // username: options.username,
+        // password: options.password,
+        tls: {
+          checkServerIdentity: () => {
+            return void 0;
+          }
+        }
+      }
+    }
+  );
 };
 
 // src/mock.ts
-var mockRedis = async () => {
+var mockRedis = () => {
   const server = new RedisServer();
   let releasePort;
   beforeAll && beforeAll(async () => {
     const [port, release] = await requestPort();
     releasePort = release;
+    console.log(port);
     await server.start(port);
     await server.ping();
     overrideOptions({
@@ -68,11 +82,16 @@ var command = async (options, callback) => {
   } catch (error) {
     throw error;
   } finally {
-    await client.disconnect();
+    await client.quit();
   }
   return result;
 };
+
+// src/index.ts
+import { Redis as Redis2, Cluster as Cluster2 } from "ioredis";
 export {
+  Cluster2 as Cluster,
+  Redis2 as Redis,
   command,
   mockRedis,
   redisClient

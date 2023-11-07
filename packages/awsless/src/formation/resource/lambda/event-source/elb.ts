@@ -12,6 +12,15 @@ export class ElbEventSource extends Group {
 		listenerArn: string
 		priority: number
 		conditions: ListenerCondition[]
+		auth?: {
+			cognito?: {
+				userPool: {
+					arn: string
+					clientId: string
+					domain: string
+				}
+			}
+		}
 	}) {
 		const name = formatName(id)
 		const permission = new Permission(id, {
@@ -29,11 +38,18 @@ export class ElbEventSource extends Group {
 			targets: [ lambda.arn ]
 		}).dependsOn(lambda, permission)
 
+		const actions:ListenerAction[] = []
+
+		if(props.auth?.cognito) {
+			actions.push(ListenerAction.authCognito(props.auth.cognito))
+		}
+
 		const rule = new ListenerRule(id, {
 			listenerArn: props.listenerArn,
 			priority: props.priority,
 			conditions: props.conditions,
 			actions: [
+				...actions,
 				ListenerAction.forward([ target.arn ]),
 			],
 		}).dependsOn(target)

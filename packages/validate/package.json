@@ -35,6 +35,6 @@
 		"@awsless/big-float": "workspace:^"
 	},
 	"dependencies": {
-		"superstruct": "^1.0.3"
+		"valibot": "^0.20.1"
 	}
 }

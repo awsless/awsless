@@ -60,6 +60,7 @@ export const httpPlugin = definePlugin({
 					/** The domain to link your api with. */
 					domain: z.string(),
 					subDomain: z.string().optional(),
+					auth: ResourceIdSchema.optional(),
 				}),
 			).optional()
 		}).default({}),
@@ -123,8 +124,42 @@ export const httpPlugin = definePlugin({
 							message: 'Route not found'
 						}),
 					})
-				]
+				],
 			}).dependsOn(loadBalancer)
+
+			// if(props.auth) {
+			// 	actions.push(ListenerAction.authCognito({
+			// 		// session: {
+			// 		// 	cookieName: ''
+			// 		// },
+			// 		userPool: {
+			// 			arn: bootstrap.import(`auth-${props.auth}-user-pool-arn`),
+			// 			clientId: bootstrap.import(`auth-${props.auth}-client-id`),
+			// 			domain: bootstrap.import(`auth-${props.auth}-domain`),
+			// 		}
+			// 	}))
+			// }
+
+			// if(props.auth) {
+			// 	const rule = new ListenerRule(id, {
+			// 		listenerArn: listener.arn,
+			// 		priority: 50000,
+			// 		conditions: [
+			// 			ListenerCondition.pathPatterns([ '*' ]),
+			// 		],
+			// 		actions: [
+			// 			ListenerAction.authCognito({
+			// 				userPool: {
+			// 					arn: bootstrap.import(`auth-${props.auth}-user-pool-arn`),
+			// 					clientId: bootstrap.import(`auth-${props.auth}-client-id`),
+			// 					domain: bootstrap.import(`auth-${props.auth}-domain`),
+			// 				}
+			// 			})
+			// 		],
+			// 	}).dependsOn(listener)
+
+			// 	bootstrap.add(rule)
+			// }
 
 			const record = new RecordSet(`${id}-http`, {
 				hostedZoneId: bootstrap.import(`hosted-zone-${props.domain}-id`),
@@ -142,13 +177,15 @@ export const httpPlugin = definePlugin({
 		}
 	},
 	onStack(ctx) {
-		const { stack, stackConfig, bootstrap } = ctx
+		const { config, stack, stackConfig, bootstrap } = ctx
 
 		for(const [ id, routes ] of Object.entries(stackConfig.http || {})) {
-			for(const [ route, props ] of Object.entries(routes)) {
+			const props = config.defaults.http![id]
+
+			for(const [ route, routeProps ] of Object.entries(routes)) {
 				const { method, path } = parseRoute(route as Route)
 
-				const lambda = toLambdaFunction(ctx as any, `http-${id}`, props!)
+				const lambda = toLambdaFunction(ctx as any, `http-${id}`, routeProps!)
 				const source = new ElbEventSource(`http-${id}-${route}`, lambda, {
 					listenerArn: bootstrap.import(`http-${id}-listener-arn`),
 					priority: generatePriority(stackConfig.name, route),
@@ -156,7 +193,37 @@ export const httpPlugin = definePlugin({
 						ListenerCondition.httpRequestMethods([ method ]),
 						ListenerCondition.pathPatterns([ path ]),
 					],
+					auth: props.auth ? {
+						cognito: {
+							userPool: {
+								arn: bootstrap.import(`auth-${props.auth}-user-pool-arn`),
+								clientId: bootstrap.import(`auth-${props.auth}-client-id`),
+								domain: bootstrap.import(`auth-${props.auth}-domain`),
+							}
+						}
+					} : undefined
 				})
+
+				// if(props.auth) {
+			// 	const rule = new ListenerRule(id, {
+			// 		listenerArn: listener.arn,
+			// 		priority: 50000,
+			// 		conditions: [
+			// 			ListenerCondition.pathPatterns([ '*' ]),
+			// 		],
+			// 		actions: [
+			// 			ListenerAction.authCognito({
+			// 				userPool: {
+			// 					arn: bootstrap.import(`auth-${props.auth}-user-pool-arn`),
+			// 					clientId: bootstrap.import(`auth-${props.auth}-client-id`),
+			// 					domain: bootstrap.import(`auth-${props.auth}-domain`),
+			// 				}
+			// 			})
+			// 		],
+			// 	}).dependsOn(listener)
+
+			// 	bootstrap.add(rule)
+			// }
 
 				stack.add(lambda, source)
 			}

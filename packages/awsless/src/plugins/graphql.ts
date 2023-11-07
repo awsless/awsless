@@ -1,21 +1,24 @@
-
 import { z } from 'zod'
-import { definePlugin } from '../plugin.js';
-import { FunctionSchema, isFunctionProps, toLambdaFunction } from './function.js';
-import { LocalFileSchema } from '../schema/local-file.js';
-import { ResourceIdSchema } from '../schema/resource-id.js';
-import { toArray } from '../util/array.js';
-import { paramCase } from 'change-case';
-import { DurationSchema } from '../schema/duration.js';
-import { GraphQLApi } from '../formation/resource/appsync/graphql-api.js';
-import { RecordSet } from '../formation/resource/route53/record-set.js';
-import { Definition, GraphQLSchema } from '../formation/resource/appsync/graphql-schema.js';
-import { Code } from '../formation/resource/appsync/code.js';
-import { AppsyncEventSource } from '../formation/resource/lambda/event-source/appsync.js';
-import { DomainName, DomainNameApiAssociation } from '../formation/resource/appsync/domain-name.js';
-import { debug } from '../cli/logger.js';
+import { definePlugin } from '../plugin.js'
+import { FunctionSchema, isFunctionProps, toLambdaFunction } from './function.js'
+import { LocalFileSchema } from '../schema/local-file.js'
+import { ResourceIdSchema } from '../schema/resource-id.js'
+import { toArray } from '../util/array.js'
+import { paramCase } from 'change-case'
+// import { DurationSchema } from '../schema/duration.js';
+import { GraphQLApi, GraphQLAuthorization } from '../formation/resource/appsync/graphql-api.js'
+import { RecordSet } from '../formation/resource/route53/record-set.js'
+import { Definition, GraphQLSchema } from '../formation/resource/appsync/graphql-schema.js'
+import { Code, ICode } from '../formation/resource/appsync/code.js'
+import { AppsyncEventSource } from '../formation/resource/lambda/event-source/appsync.js'
+import { DomainName, DomainNameApiAssociation } from '../formation/resource/appsync/domain-name.js'
+import { Asset } from '../formation/asset.js'
+import { basename } from 'path'
+// import { debug } from '../cli/logger.js'
 
-const defaultResolver = `
+const defaultResolver = Code.fromInline(
+	'graphql-default-resolver',
+	`
 export function request(ctx) {
 	return {
 		operation: 'Invoke',
@@ -27,6 +30,9 @@ export function response(ctx) {
 	return ctx.result
 }
 `
+)
+
+const resolverCache = new Map<string, ICode & Asset>()
 
 // const ResolverFieldSchema = z.custom<`${string} ${string}`>((value) => {
 // 	return z.string()
@@ -37,63 +43,77 @@ export function response(ctx) {
 export const graphqlPlugin = definePlugin({
 	name: 'graphql',
 	schema: z.object({
-		defaults: z.object({
-			graphql: z.record(ResourceIdSchema, z.object({
-				domain: z.string().optional(),
-				subDomain: z.string().optional(),
-				authorization: z.object({
-					authorizer: FunctionSchema,
-					ttl: DurationSchema.default('1 hour'),
-				}).optional(),
-				resolver: LocalFileSchema.optional(),
-			})).optional(),
-		}).default({}),
-
-		stacks: z.object({
-			graphql: z.record(ResourceIdSchema, z.object({
-				schema: z.union([
-					LocalFileSchema,
-					z.array(LocalFileSchema).min(1),
-				]).optional(),
-				resolvers: z.record(
-					// TypeName
-					z.string(),
-					z.record(
-						// FieldName
-						z.string(),
-						z.union([
-							FunctionSchema,
-							z.object({
-								consumer: FunctionSchema,
-								resolver: LocalFileSchema,
-							})
-						])
+		defaults: z
+			.object({
+				graphql: z
+					.record(
+						ResourceIdSchema,
+						z.object({
+							domain: z.string().optional(),
+							subDomain: z.string().optional(),
+							auth: ResourceIdSchema.optional(),
+							// authorization: z.object({
+							// 	authorizer: FunctionSchema,
+							// 	ttl: DurationSchema.default('1 hour'),
+							// }).optional(),
+							resolver: LocalFileSchema.optional(),
+						})
 					)
-				).optional()
-			})).optional()
-		}).array()
+					.optional(),
+			})
+			.default({}),
+
+		stacks: z
+			.object({
+				graphql: z
+					.record(
+						ResourceIdSchema,
+						z.object({
+							schema: z.union([LocalFileSchema, z.array(LocalFileSchema).min(1)]).optional(),
+							resolvers: z
+								.record(
+									// TypeName
+									z.string(),
+									z.record(
+										// FieldName
+										z.string(),
+										z.union([
+											FunctionSchema,
+											z.object({
+												consumer: FunctionSchema,
+												resolver: LocalFileSchema.optional(),
+											}),
+										])
+									)
+								)
+								.optional(),
+						})
+					)
+					.optional(),
+			})
+			.array(),
 	}),
 	onApp(ctx) {
 		const { config, bootstrap } = ctx
-		const apis:Set<string> = new Set()
+		const apis: Set<string> = new Set()
 
-		for(const stackConfig of config.stacks) {
-			for(const id of Object.keys(stackConfig.graphql || {})) {
+		for (const stackConfig of config.stacks) {
+			for (const id of Object.keys(stackConfig.graphql || {})) {
 				apis.add(id)
 			}
 		}
 
-		for(const id of apis) {
-			const schemaFiles:string[] = []
+		for (const id of apis) {
+			const schemaFiles: string[] = []
 
-			for(const stack of config.stacks) {
+			for (const stack of config.stacks) {
 				const files = toArray(stack.graphql?.[id]?.schema || [])
 				schemaFiles.push(...files)
 			}
 
 			const api = new GraphQLApi(id, {
 				name: `${config.name}-${id}`,
-				authenticationType: 'api-key',
+				defaultAuthorization: GraphQLAuthorization.withApiKey(),
 			})
 
 			const schema = new GraphQLSchema(id, {
@@ -101,34 +121,41 @@ export const graphqlPlugin = definePlugin({
 				definition: new Definition(id, schemaFiles),
 			}).dependsOn(api)
 
-			bootstrap
-				.add(api)
-				.add(schema)
-				.export(`graphql-${id}`, api.id)
+			bootstrap.add(api).add(schema).export(`graphql-${id}`, api.id)
 
 			const props = config.defaults.graphql?.[id]
 
-			if(!props) {
+			if (!props) {
 				continue
 			}
 
-			if(props.authorization) {
-				const lambda = toLambdaFunction(ctx as any, `${id}-authorizer`, props.authorization.authorizer)
-				api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl)
-
-				bootstrap.add(lambda)
+			if (props.auth) {
+				api.setDefaultAuthorization(
+					GraphQLAuthorization.withCognito({
+						userPoolId: bootstrap.import(`auth-${props.auth}-user-pool-id`),
+						region: bootstrap.region,
+						defaultAction: 'ALLOW',
+					})
+				)
 			}
 
-			if(props.domain) {
+			// if(props.authorization) {
+			// 	const lambda = toLambdaFunction(ctx as any, `${id}-authorizer`, props.authorization.authorizer)
+			// 	api.addLambdaAuthProvider(lambda.arn, props.authorization.ttl)
+
+			// 	bootstrap.add(lambda)
+			// }
+
+			if (props.domain) {
 				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
 				const hostedZoneId = bootstrap.import(`hosted-zone-${props.domain}-id`)
 				const certificateArn = bootstrap.import(`us-east-certificate-${props.domain}-arn`)
 
-				debug('DEBUG CERT', certificateArn)
+				// debug('DEBUG CERT', certificateArn)
 
 				const domain = new DomainName(id, {
 					domainName,
-					certificateArn
+					certificateArn,
 				})
 
 				const association = new DomainNameApiAssociation(id, {
@@ -143,7 +170,7 @@ export const graphqlPlugin = definePlugin({
 					alias: {
 						dnsName: domain.appSyncDomainName,
 						hostedZoneId: domain.hostedZoneId,
-					}
+					},
 				}).dependsOn(domain, association)
 
 				bootstrap.add(domain, association, record)
@@ -151,27 +178,40 @@ export const graphqlPlugin = definePlugin({
 		}
 	},
 	onStack(ctx) {
-		const { stack, stackConfig, bootstrap } = ctx
+		const { config, stack, stackConfig, bootstrap } = ctx
 
-		for(const [ id, props ] of Object.entries(stackConfig.graphql || {})) {
+		for (const [id, props] of Object.entries(stackConfig.graphql || {})) {
 			const apiId = bootstrap.import(`graphql-${id}`)
+			const defaultProps = config.defaults.graphql?.[id]
 
-			for(const [ typeName, fields ] of Object.entries(props.resolvers || {})) {
-				for(const [ fieldName, resolverProps ] of Object.entries(fields || {})) {
-					const props:{
+			for (const [typeName, fields] of Object.entries(props.resolvers || {})) {
+				for (const [fieldName, resolverProps] of Object.entries(fields || {})) {
+					const props: {
 						consumer: z.output<typeof FunctionSchema>
 						resolver?: string
-					} = isFunctionProps(resolverProps)
-						? { consumer: resolverProps }
-						: resolverProps
+					} = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps
 
 					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
 					const lambda = toLambdaFunction(ctx as any, `graphql-${entryId}`, props.consumer)
+					const resolver = props.resolver ?? defaultProps?.resolver
+
+					let code: ICode & Asset = defaultResolver
+
+					if (resolver) {
+						if (!resolverCache.has(resolver)) {
+							const fileCode = Code.fromFile(basename(resolver), resolver)
+							resolverCache.set(resolver, fileCode)
+							stack.add(fileCode)
+						}
+
+						code = resolverCache.get(resolver)!
+					}
+
 					const source = new AppsyncEventSource(entryId, lambda, {
 						apiId,
 						typeName,
 						fieldName,
-						code: Code.fromInline(entryId, props.resolver || defaultResolver),
+						code,
 					})
 
 					stack.add(lambda, source)

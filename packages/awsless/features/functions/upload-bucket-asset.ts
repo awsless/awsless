@@ -3,7 +3,7 @@ import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, GetObjectCommand 
 import { createReadStream, createWriteStream } from 'fs';
 import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
-import { Extract } from 'unzipper'
+import decompress from 'decompress'
 import { send } from '../util.js';
 import { CloudFormationCustomResourceEvent } from 'aws-lambda';
 import { readdir, stat } from 'fs/promises';
@@ -230,8 +230,9 @@ const downloadAssetBundle = async (
 }
 
 const unzipBundle = async (sourceFile: string, destinationDirectory: string) => {
-	await pipeline(
-		createReadStream(sourceFile),
-  		Extract({ path: destinationDirectory })
-	)
+	await decompress(sourceFile, destinationDirectory)
+	// await pipeline(
+	// 	createReadStream(sourceFile),
+  	// 	Extract({ path: destinationDirectory })
+	// )
 }

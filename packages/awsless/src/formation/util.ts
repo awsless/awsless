@@ -48,7 +48,15 @@ export const formatName = (name: string) => {
 	return paramCase(name)
 }
 
-export const formatArn = (props: { service: string, resource: string, resourceName: string, seperator?: string }) => {
+export const formatArn = (props: { service: string, resource?: string, resourceName?: string, seperator?: string }) => {
+	if(!props.resource) {
+		return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}', props)
+	}
+
+	if(!props.resourceName) {
+		return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}', props)
+	}
+
 	return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}', {
 		seperator: '/',
 		...props

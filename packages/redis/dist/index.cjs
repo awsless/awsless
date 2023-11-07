@@ -20,6 +20,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  Cluster: () => import_ioredis2.Cluster,
+  Redis: () => import_ioredis2.Redis,
   command: () => command,
   mockRedis: () => mockRedis,
   redisClient: () => redisClient
@@ -37,7 +39,7 @@ var overrideOptions = (options) => {
   optionOverrides = options;
 };
 var redisClient = (options) => {
-  return new import_ioredis.Redis({
+  const props = {
     lazyConnect: true,
     stringNumbers: true,
     keepAlive: 0,
@@ -52,28 +54,42 @@ var redisClient = (options) => {
     commandTimeout: 1e3 * 5,
     ...options,
     ...optionOverrides
-    // retryStrategy: (times) => {
-    // 	if (options.error && options.error.code === 'ECONNREFUSED') {
-    // 		return new Error 'The redis server refused the connection'
-    // 	}
-    // 	if (options.total_retry_time > ( 1000 * 10 )) {
-    // 		return new Error 'The redis retry time exhausted'
-    // 	}
-    // 	if (options.attempt > 10) {
-    // 		return
-    // 	}
-    // 	return Math.min(options.attempt * 100, 3000)
-    // },
-  });
+  };
+  if (!options.cluster) {
+    return new import_ioredis.Redis(props);
+  }
+  return new import_ioredis.Cluster(
+    [
+      {
+        host: props.host,
+        port: props.port
+      }
+    ],
+    {
+      dnsLookup: (address, callback) => callback(null, address),
+      enableReadyCheck: false,
+      redisOptions: {
+        ...props,
+        // username: options.username,
+        // password: options.password,
+        tls: {
+          checkServerIdentity: () => {
+            return void 0;
+          }
+        }
+      }
+    }
+  );
 };
 
 // src/mock.ts
-var mockRedis = async () => {
+var mockRedis = () => {
   const server = new import_redis_server.RedisServer();
   let releasePort;
   beforeAll && beforeAll(async () => {
     const [port, release] = await (0, import_request_port.requestPort)();
     releasePort = release;
+    console.log(port);
     await server.start(port);
     await server.ping();
     overrideOptions({
@@ -96,12 +112,17 @@ var command = async (options, callback) => {
   } catch (error) {
     throw error;
   } finally {
-    await client.disconnect();
+    await client.quit();
   }
   return result;
 };
+
+// src/index.ts
+var import_ioredis2 = require("ioredis");
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  Cluster,
+  Redis,
   command,
   mockRedis,
   redisClient

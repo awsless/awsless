@@ -38,7 +38,7 @@ export const storePlugin = definePlugin({
 			const list = new TypeObject()
 			for(const name of stack.stores || []) {
 				const storeName = formatName(`${config.name}-${stack.name}-${name}`)
-				list.addType(name, `{ name: '${storeName}' }`)
+				list.addType(name, `{ readonly name: '${storeName}' }`)
 			}
 
 			types.addType(stack.name, list.toString())

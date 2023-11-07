@@ -12,6 +12,13 @@ export const functionStack:StackConfig = {
 	functions: {
 		call: __dirname + '/../function/call.ts',
 		otherCall: __dirname + '/../function/call.ts',
-		module: __dirname + '/../function/module.ts'
+		module: {
+			file: __dirname + '/../function/module.ts',
+			warm: 1,
+			permissions: {
+				actions: [ 's3:PutObject' ],
+				resources: [ '*' ]
+			}
+		}
 	},
 }

@@ -1,4 +1,3 @@
-
 import { defineAppConfig } from '../../src/index.js'
 import { storeStack } from './stack/store.js'
 import { queueStack } from './stack/queue.js'
@@ -23,31 +22,48 @@ export default defineAppConfig(input => ({
 	region: 'eu-west-1',
 	profile: input.profile || 'jacksclub',
 	// profile: 'op://personal/<item>/<field>',
-	domains: {
-		'getblockalert.com': [],
-		// main: {
-		// 	domain: input.stage === 'prod' ? 'getblockalert.com' :
-		// }
-	},
+	// domains: {
+	// 	'getblockalert.com': [],
+	// 	// main: {
+	// 	// 	domain: input.stage === 'prod' ? 'getblockalert.com' :
+	// 	// }
+	// },
 	defaults: {
-		// graphql: {
-		// 	api: {
-		// 		domain: 'getblockalert.com',
-		// 		subDomain: 'graphql',
-		// 	},
+		domains: {
+			'crypto-trender.com': [],
+		},
+		// alerts: {
+		// 	debug: 'info@jacksclub.io',
 		// },
-		// http: {
+		graphql: {
+			api: {
+				domain: 'crypto-trender.com',
+				subDomain: 'graphql',
+				resolver: __dirname + '/function/resolver.ts',
+				auth: 'users',
+			},
+		},
+		http: {
+			api: {
+				domain: 'crypto-trender.com',
+				subDomain: 'http',
+				auth: 'users',
+			},
+		},
+		auth: {
+			users: {
+				messaging: {
+					fromEmail: 'info@jacksclub.dev',
+				},
+			},
+			admins: { allowUserRegistration: false },
+		},
+		// rest: {
 		// 	api: {
 		// 		domain: 'getblockalert.com',
-		// 		subDomain: 'api',
+		// 		subDomain: 'rest',
 		// 	}
 		// },
-		rest: {
-			api: {
-				domain: 'getblockalert.com',
-				subDomain: 'rest',
-			}
-		},
 		function: {
 			memorySize: '512 MB',
 			// environment: {
@@ -70,16 +86,16 @@ export default defineAppConfig(input => ({
 		// storeStack,
 		functionStack,
 		configStack,
-		// topicStack,
+		topicStack,
 		// cronStack,
 		// pubsubStack,
 		// failureStack,
-		restStack,
-		siteStack,
-		// httpStack,
+		// restStack,
+		// siteStack,
+		httpStack,
 		// searchStack,
 
-		// graphqlOneStack,
-		// graphqlTwoStack,
-	]
+		graphqlOneStack,
+		graphqlTwoStack,
+	],
 }))

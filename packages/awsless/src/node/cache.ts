@@ -1,8 +1,9 @@
-import { constantCase } from "change-case"
+import { constantCase } from 'change-case'
 import { STACK } from './resource.js'
 import { createProxy } from './util.js'
+import { command, Cluster, CommandOptions } from '@awsless/redis'
 
-export const getCacheProps = (name: string, stack:string = STACK) => {
+export const getCacheProps = (name: string, stack: string = STACK) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`
 
 	return {
@@ -11,15 +12,31 @@ export const getCacheProps = (name: string, stack:string = STACK) => {
 	} as const
 }
 
+type Callback = (client: Cluster) => unknown
+
 export interface CacheResources {}
 
-export const Cache:CacheResources = createProxy((stack) => {
-	return createProxy((name) => {
-		const call = () => {
-			// should provide a redis client.
+export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
+	return createProxy(name => {
+		const { host, port } = getCacheProps(name, stack)
+
+		const call = (opts: Omit<CommandOptions, 'cluster'> | Callback, fn: Callback) => {
+			const overload = typeof opts === 'function'
+			const options = overload ? {} : opts
+			const callback = overload ? opts : fn
+
+			return command(
+				{
+					host,
+					port,
+					db: 0,
+					cluster: true,
+					...options,
+				},
+				callback
+			)
 		}
 
-		const { host, port } = getCacheProps(name, stack)
 		call.host = host
 		call.port = port
 
