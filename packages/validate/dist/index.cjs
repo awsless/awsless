@@ -15,221 +15,233 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __reExport = (target, mod, secondTarget) => (__copyProps(target, mod, "default"), secondTarget && __copyProps(secondTarget, mod, "default"));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  Struct: () => import_superstruct7.Struct,
-  StructError: () => import_superstruct7.StructError,
-  any: () => import_superstruct7.any,
-  array: () => import_superstruct7.array,
-  assert: () => import_superstruct7.assert,
-  assign: () => import_superstruct7.assign,
   bigfloat: () => bigfloat,
-  bigint: () => import_superstruct7.bigint,
-  boolean: () => import_superstruct7.boolean,
-  coerce: () => import_superstruct7.coerce,
-  create: () => import_superstruct7.create,
   date: () => date,
-  defaulted: () => import_superstruct7.defaulted,
-  define: () => import_superstruct7.define,
-  deprecated: () => import_superstruct7.deprecated,
-  dynamic: () => import_superstruct7.dynamic,
-  empty: () => import_superstruct7.empty,
-  enums: () => import_superstruct7.enums,
-  func: () => import_superstruct7.func,
-  instance: () => import_superstruct7.instance,
-  integer: () => import_superstruct7.integer,
-  intersection: () => import_superstruct7.intersection,
-  is: () => import_superstruct7.is,
+  dynamoDbStream: () => dynamoDbStream,
   json: () => json,
-  lazy: () => import_superstruct7.lazy,
-  literal: () => import_superstruct7.literal,
-  lowercase: () => lowercase,
-  map: () => import_superstruct7.map,
-  mask: () => import_superstruct7.mask,
-  max: () => import_superstruct7.max,
-  min: () => import_superstruct7.min,
-  never: () => import_superstruct7.never,
-  nonempty: () => import_superstruct7.nonempty,
-  nullable: () => import_superstruct7.nullable,
-  number: () => import_superstruct7.number,
-  object: () => import_superstruct7.object,
-  omit: () => import_superstruct7.omit,
-  optional: () => import_superstruct7.optional,
-  partial: () => import_superstruct7.partial,
-  pattern: () => import_superstruct7.pattern,
-  pick: () => import_superstruct7.pick,
   positive: () => positive,
   precision: () => precision,
-  record: () => import_superstruct7.record,
-  refine: () => import_superstruct7.refine,
-  regexp: () => import_superstruct7.regexp,
-  set: () => import_superstruct7.set,
-  size: () => import_superstruct7.size,
-  string: () => import_superstruct7.string,
-  struct: () => import_superstruct7.struct,
-  trimmed: () => import_superstruct7.trimmed,
-  tuple: () => import_superstruct7.tuple,
-  type: () => import_superstruct7.type,
-  union: () => import_superstruct7.union,
+  snsTopic: () => snsTopic,
+  sqsQueue: () => sqsQueue,
   unique: () => unique,
-  unknown: () => import_superstruct7.unknown,
-  uppercase: () => uppercase,
   uuid: () => uuid
 });
 module.exports = __toCommonJS(src_exports);
+__reExport(src_exports, require("valibot"), module.exports);
 
-// src/types/bigfloat.ts
-var import_superstruct = require("superstruct");
-var import_big_float = require("@awsless/big-float");
-var bigfloat = () => {
-  const base = (0, import_superstruct.define)("bigfloat", (value) => {
-    return value instanceof import_big_float.BigFloat || "Invalid number";
-  });
-  const bigFloatLike = (0, import_superstruct.coerce)(base, (0, import_superstruct.object)({
-    exponent: (0, import_superstruct.number)(),
-    coefficient: (0, import_superstruct.bigint)()
-  }), (value) => {
-    return new import_big_float.BigFloat(value);
-  });
-  return (0, import_superstruct.coerce)(bigFloatLike, (0, import_superstruct.union)([(0, import_superstruct.string)(), (0, import_superstruct.number)()]), (value) => {
-    if (typeof value === "string" && value !== "" || typeof value === "number") {
-      if (!isNaN(Number(value))) {
-        return new import_big_float.BigFloat(value);
+// src/schema/json.ts
+var import_valibot = require("valibot");
+var json = (schema) => {
+  return (0, import_valibot.transform)(
+    (0, import_valibot.string)(),
+    (value) => {
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        return null;
       }
-    }
-    return null;
-  });
-};
-var positive = (struct2) => {
-  const expected = `Expected a positive ${struct2.type}`;
-  const ZERO = new import_big_float.BigFloat(0);
-  return (0, import_superstruct.refine)(struct2, "positive", (value) => {
-    return (0, import_big_float.gt)(value, ZERO) || `${expected} but received '${value}'`;
-  });
-};
-var precision = (struct2, decimals) => {
-  const expected = `Expected a ${struct2.type}`;
-  return (0, import_superstruct.refine)(struct2, "precision", (value) => {
-    const big = new import_big_float.BigFloat(value);
-    return -big.exponent <= decimals || `${expected} with ${decimals} decimals`;
-  });
+    },
+    schema
+  );
 };
 
-// src/types/date.ts
-var import_superstruct2 = require("superstruct");
-var date = () => {
-  return (0, import_superstruct2.coerce)((0, import_superstruct2.date)(), (0, import_superstruct2.string)(), (value) => {
-    return new Date(value);
-  });
-};
+// src/schema/bigfloat.ts
+var import_big_float = require("@awsless/big-float");
+var import_valibot2 = require("valibot");
+var make = (value) => new import_big_float.BigFloat(value);
+function bigfloat(arg1, arg2) {
+  const [msg, pipe] = (0, import_valibot2.getDefaultArgs)(arg1, arg2);
+  const error = msg ?? "Invalid bigfloat";
+  return (0, import_valibot2.union)(
+    [
+      (0, import_valibot2.instance)(import_big_float.BigFloat, pipe),
+      (0, import_valibot2.transform)(
+        (0, import_valibot2.string)([
+          (input) => {
+            if (input === "" || isNaN(Number(input))) {
+              return (0, import_valibot2.getPipeIssues)("bigfloat", error, input);
+            }
+            return (0, import_valibot2.getOutput)(input);
+          }
+        ]),
+        make,
+        pipe
+      ),
+      (0, import_valibot2.transform)((0, import_valibot2.number)(), make, pipe),
+      (0, import_valibot2.transform)(
+        (0, import_valibot2.object)({
+          exponent: (0, import_valibot2.number)(),
+          coefficient: (0, import_valibot2.bigint)()
+        }),
+        make,
+        pipe
+      )
+    ],
+    error
+  );
+}
 
-// src/types/uuid.ts
-var import_superstruct3 = require("superstruct");
+// src/schema/date.ts
+var import_valibot3 = require("valibot");
+function date(arg1, arg2) {
+  const [error, pipe] = (0, import_valibot3.getDefaultArgs)(arg1, arg2);
+  return (0, import_valibot3.union)(
+    [
+      (0, import_valibot3.date)(pipe),
+      (0, import_valibot3.transform)(
+        (0, import_valibot3.string)(),
+        (input) => {
+          return new Date(input);
+        },
+        (0, import_valibot3.date)(pipe)
+      )
+    ],
+    error ?? "Invalid date"
+  );
+}
+
+// src/schema/uuid.ts
+var import_valibot4 = require("valibot");
 var uuid = () => {
-  return (0, import_superstruct3.define)("uuid", (value) => {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value));
-  });
+  return (0, import_valibot4.transform)((0, import_valibot4.string)([(0, import_valibot4.uuid)()]), (v) => v);
 };
 
-// src/types/json.ts
-var import_superstruct4 = require("superstruct");
-var json = (struct2) => {
-  return (0, import_superstruct4.coerce)(struct2, (0, import_superstruct4.string)(), (value) => {
-    try {
-      return JSON.parse(value);
-    } catch (error) {
-      return value;
+// src/schema/aws/sqs-queue.ts
+var import_valibot5 = require("valibot");
+var sqsQueue = (body) => {
+  const schema = body ?? (0, import_valibot5.unknown)();
+  return (0, import_valibot5.union)(
+    [
+      (0, import_valibot5.transform)(schema, (input) => [input]),
+      (0, import_valibot5.array)(schema),
+      (0, import_valibot5.transform)(
+        (0, import_valibot5.object)({
+          Records: (0, import_valibot5.array)(
+            (0, import_valibot5.object)({
+              body: json(schema)
+            })
+          )
+        }),
+        (input) => input.Records.map((record) => {
+          return record.body;
+        })
+      )
+    ],
+    "Invalid SQS Queue input"
+  );
+};
+
+// src/schema/aws/sns-topic.ts
+var import_valibot6 = require("valibot");
+var snsTopic = (body) => {
+  const schema = body ?? (0, import_valibot6.unknown)();
+  return (0, import_valibot6.union)(
+    [
+      (0, import_valibot6.transform)(schema, (input) => [input]),
+      (0, import_valibot6.array)(schema),
+      (0, import_valibot6.transform)(
+        (0, import_valibot6.object)({
+          Records: (0, import_valibot6.array)(
+            (0, import_valibot6.object)({
+              Sns: (0, import_valibot6.object)({
+                Message: json(schema)
+              })
+            })
+          )
+        }),
+        (input) => input.Records.map((record) => {
+          return record.Sns.Message;
+        })
+      )
+    ],
+    "Invalid SNS Topic input"
+  );
+};
+
+// src/schema/aws/dynamodb-stream.ts
+var import_valibot7 = require("valibot");
+var dynamoDbStream = (table) => {
+  const marshall = () => (0, import_valibot7.transform)((0, import_valibot7.unknown)(), (value) => table.unmarshall(value));
+  return (0, import_valibot7.transform)(
+    (0, import_valibot7.object)(
+      {
+        Records: (0, import_valibot7.array)(
+          (0, import_valibot7.object)({
+            eventName: (0, import_valibot7.picklist)(["MODIFY", "INSERT", "REMOVE"]),
+            dynamodb: (0, import_valibot7.object)({
+              Keys: marshall(),
+              OldImage: (0, import_valibot7.optional)(marshall()),
+              NewImage: (0, import_valibot7.optional)(marshall())
+            })
+          })
+        )
+      },
+      "Invalid DynamoDB Stream input"
+    ),
+    (input) => {
+      return input.Records.map((record) => {
+        const item = record;
+        return {
+          event: record.eventName,
+          keys: item.dynamodb.Keys,
+          old: item.dynamodb.OldImage,
+          new: item.dynamodb.NewImage
+        };
+      });
     }
-  });
+  );
 };
 
-// src/types/string.ts
-var import_superstruct5 = require("superstruct");
-var lowercase = (struct2) => {
-  return (0, import_superstruct5.coerce)(struct2, (0, import_superstruct5.string)(), (value) => value.toLowerCase());
-};
-var uppercase = (struct2) => {
-  return (0, import_superstruct5.coerce)(struct2, (0, import_superstruct5.string)(), (value) => value.toUpperCase());
-};
+// src/validation/positive.ts
+var import_big_float2 = require("@awsless/big-float");
+var import_valibot8 = require("valibot");
+function positive(error) {
+  return (input) => {
+    return (0, import_big_float2.gt)(input, import_big_float2.ZERO) ? (0, import_valibot8.getOutput)(input) : (0, import_valibot8.getPipeIssues)("positive", error ?? "Invalid positive number", input);
+  };
+}
 
-// src/types/array.ts
-var import_superstruct6 = require("superstruct");
-function unique(struct2, compare = (a, b) => a === b) {
-  return (0, import_superstruct6.refine)(struct2, "unique", (value) => {
-    for (const x in value) {
-      for (const y in value) {
-        if (x !== y && compare(value[x], value[y])) {
-          return `Expected a ${struct2.type} with unique values, but received "${value}"`;
+// src/validation/precision.ts
+var import_big_float3 = require("@awsless/big-float");
+var import_valibot9 = require("valibot");
+function precision(decimals, error) {
+  return (input) => {
+    const big = new import_big_float3.BigFloat(input.toString());
+    return -big.exponent <= decimals ? (0, import_valibot9.getOutput)(input) : (0, import_valibot9.getPipeIssues)("precision", error ?? `Invalid ${decimals} precision number`, input);
+  };
+}
+
+// src/validation/unique.ts
+var import_valibot10 = require("valibot");
+function unique(compare = (a, b) => a === b, error) {
+  return (input) => {
+    for (const x in input) {
+      for (const y in input) {
+        if (x !== y && compare(input[x], input[y])) {
+          return (0, import_valibot10.getPipeIssues)("unique", error ?? "None unique array", input);
         }
       }
     }
-    return true;
-  });
+    return (0, import_valibot10.getOutput)(input);
+  };
 }
-
-// src/index.ts
-var import_superstruct7 = require("superstruct");
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  Struct,
-  StructError,
-  any,
-  array,
-  assert,
-  assign,
   bigfloat,
-  bigint,
-  boolean,
-  coerce,
-  create,
   date,
-  defaulted,
-  define,
-  deprecated,
-  dynamic,
-  empty,
-  enums,
-  func,
-  instance,
-  integer,
-  intersection,
-  is,
+  dynamoDbStream,
   json,
-  lazy,
-  literal,
-  lowercase,
-  map,
-  mask,
-  max,
-  min,
-  never,
-  nonempty,
-  nullable,
-  number,
-  object,
-  omit,
-  optional,
-  partial,
-  pattern,
-  pick,
   positive,
   precision,
-  record,
-  refine,
-  regexp,
-  set,
-  size,
-  string,
-  struct,
-  trimmed,
-  tuple,
-  type,
-  union,
+  snsTopic,
+  sqsQueue,
   unique,
-  unknown,
-  uppercase,
-  uuid
+  uuid,
+  ...require("valibot")
 });

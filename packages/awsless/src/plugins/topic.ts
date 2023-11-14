@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js'
-import { ResourceIdSchema } from '../schema/resource-id.js'
 import { FunctionSchema, toLambdaFunction } from './function.js'
 import { Topic } from '../formation/resource/sns/topic.js'
 import { SnsEventSource } from '../formation/resource/lambda/event-source/sns.js'
@@ -8,6 +7,14 @@ import { formatName, sub } from '../formation/util.js'
 import { TypeGen } from '../util/type-gen.js'
 import { EmailSchema, isEmail } from '../schema/email.js'
 import { Subscription } from '../formation/resource/sns/subscription.js'
+import { paramCase } from 'change-case'
+
+export const TopicNameSchema = z
+	.string()
+	.min(3)
+	.max(256)
+	.regex(/^[a-z0-9\-]+$/i, 'Invalid topic name')
+	.transform(value => paramCase(value))
 
 const typeGenCode = `
 import { PublishOptions } from '@awsless/sns'
@@ -29,7 +36,7 @@ export const topicPlugin = definePlugin({
 				 * }
 				 */
 				topics: z
-					.array(ResourceIdSchema)
+					.array(TopicNameSchema)
 					.refine(topics => {
 						return topics.length === new Set(topics).size
 					}, 'Must be a list of unique topic names')
@@ -47,7 +54,7 @@ export const topicPlugin = definePlugin({
 				 *   }
 				 * }
 				 */
-				subscribers: z.record(ResourceIdSchema, z.union([EmailSchema, FunctionSchema])).optional(),
+				subscribers: z.record(TopicNameSchema, z.union([EmailSchema, FunctionSchema])).optional(),
 			})
 			.array()
 			.superRefine((stacks, ctx) => {

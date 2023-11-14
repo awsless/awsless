@@ -1,18 +1,16 @@
-
 import { lambda, invoke, mockLambda } from '../src'
 import { string } from '@awsless/validate'
 
 describe('Lambda', () => {
-
 	const mock = mockLambda({
-		echo: (payload) => payload,
+		echo: payload => payload,
 		noop: () => {},
 	})
 
 	it('should invoke lambda', async () => {
 		const result = await invoke({
 			name: 'echo',
-			payload: 'hi'
+			payload: 'hi',
 		})
 
 		expect(result).toBe('hi')
@@ -30,14 +28,13 @@ describe('Lambda', () => {
 
 	it('should play well with payload type validation', async () => {
 		const echo = lambda({
-			input: string(),
-			output: string(),
-			handle: (input) => input
+			schema: string(),
+			handle: input => input,
 		})
 
 		const result = await invoke<typeof echo>({
 			name: 'echo',
-			payload: 'hi'
+			payload: 'hi',
 		})
 
 		expect(result).toBe('hi')

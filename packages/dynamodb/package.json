@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.0.38",
+	"version": "0.0.40",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -43,7 +43,6 @@
 		"@aws-sdk/util-utf8-node": "3.259.0",
 		"@awsless/dynamodb-server": "workspace:^",
 		"@awsless/utils": "workspace:^",
-		"@awsless/validate": "workspace:^",
 		"@heat/request-port": "^0.0.1",
 		"aws-sdk-client-mock": "^3.0.0",
 		"chunk": "^0.0.3",
@@ -51,8 +50,7 @@
 	},
 	"devDependencies": {
 		"@awsless/big-float": "workspace:^",
-		"@types/chunk": "^0.0.0",
-		"superstruct": "^1.0.3"
+		"@types/chunk": "^0.0.0"
 	},
 	"peerDependencies": {
 		"@awsless/big-float": "workspace:^"

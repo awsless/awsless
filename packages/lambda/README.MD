@@ -27,7 +27,7 @@ import { bugsnag } from "@awsless/bugsnag";
 export default lambda({
 
   // Validate the input
-  input: object({
+  schema: object({
     message: string()
   }),
 
@@ -47,7 +47,7 @@ import { lambda, invoke } from "@awsless/lambda";
 import { string } from "@awsless/validate";
 
 export const echo = lambda({
-  input: string(),
+  schema: string(),
   handle(value) {
     return value
   }
@@ -71,7 +71,7 @@ export default lambda({
 import { mockLambda } from "@awsless/lambda";
 
 const lambdas = mockLambda({
-  echo: (a) => a,
+  echo: a => a,
 })
 
 it('your test', async () => {

@@ -1,22 +1,35 @@
-import { define, object, string, mockDynamoDB, number, streamTable, putItem, updateItem, deleteItem, batchPutItem, batchDeleteItem, transactWrite, transactPut, transactUpdate, transactDelete, streamStruct } from '../../src'
-import { create } from '@awsless/validate'
+import {
+	define,
+	object,
+	string,
+	mockDynamoDB,
+	number,
+	streamTable,
+	putItem,
+	updateItem,
+	deleteItem,
+	batchPutItem,
+	batchDeleteItem,
+	transactWrite,
+	transactPut,
+	transactUpdate,
+	transactDelete,
+} from '../../src'
 
 describe('Mock Stream', () => {
 	const users = define('users', {
 		hash: 'id',
 		schema: object({
 			id: number(),
-			name: string()
+			name: string(),
 		}),
 	})
 
 	const process = vitest.fn()
 
 	mockDynamoDB({
-		tables: [ users ],
-		stream: [
-			streamTable(users, process)
-		]
+		tables: [users],
+		stream: [streamTable(users, process)],
 	})
 
 	beforeEach(() => {
@@ -27,31 +40,39 @@ describe('Mock Stream', () => {
 		await putItem(users, { id: 1, name: 'Jack' })
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: { N: '1' } },
-					NewImage: { id: { N: '1' }, name: { S: 'Jack' } },
-					OldImage: undefined,
-				}
-			}]
+			Records: [
+				{
+					eventName: 'INSERT',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: { id: { N: '1' }, name: { S: 'Jack' } },
+						OldImage: undefined,
+					},
+				},
+			],
 		})
 	})
 
 	it('update', async () => {
-		await updateItem(users, { id: 1 }, {
-			update: exp => exp.update('name').set('Black')
-		})
+		await updateItem(
+			users,
+			{ id: 1 },
+			{
+				update: exp => exp.update('name').set('Black'),
+			}
+		)
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'MODIFY',
-				dynamodb: {
-					Keys: { id: { N: '1' } },
-					NewImage: { id: { N: '1' }, name: { S: 'Black' } },
-					OldImage: { id: { N: '1' }, name: { S: 'Jack' } },
-				}
-			}]
+			Records: [
+				{
+					eventName: 'MODIFY',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: { id: { N: '1' }, name: { S: 'Black' } },
+						OldImage: { id: { N: '1' }, name: { S: 'Jack' } },
+					},
+				},
+			],
 		})
 	})
 
@@ -59,14 +80,16 @@ describe('Mock Stream', () => {
 		await deleteItem(users, { id: 1 })
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'REMOVE',
-				dynamodb: {
-					Keys: { id: { N: '1' } },
-					NewImage: undefined,
-					OldImage: { id: { N: '1' }, name: { S: 'Black' } },
-				}
-			}]
+			Records: [
+				{
+					eventName: 'REMOVE',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: undefined,
+						OldImage: { id: { N: '1' }, name: { S: 'Black' } },
+					},
+				},
+			],
 		})
 	})
 
@@ -77,44 +100,49 @@ describe('Mock Stream', () => {
 		])
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: { N: '1' } },
-					NewImage: { id: { N: '1' }, name: { S: 'Jack' } },
-					OldImage: undefined
-				}
-			}, {
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: { N: '2' } },
-					NewImage: { id: { N: '2' }, name: { S: 'Black' } },
-					OldImage: undefined
-				}
-			}]
+			Records: [
+				{
+					eventName: 'INSERT',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: { id: { N: '1' }, name: { S: 'Jack' } },
+						OldImage: undefined,
+					},
+				},
+				{
+					eventName: 'INSERT',
+					dynamodb: {
+						Keys: { id: { N: '2' } },
+						NewImage: { id: { N: '2' }, name: { S: 'Black' } },
+						OldImage: undefined,
+					},
+				},
+			],
 		})
 	})
 
 	it('batch delete', async () => {
-		await batchDeleteItem(users, [ { id: 1 }, { id: 2 } ])
+		await batchDeleteItem(users, [{ id: 1 }, { id: 2 }])
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'REMOVE',
-				dynamodb: {
-					Keys: { id: { N: '1' } },
-					NewImage: undefined,
-					OldImage: { id: { N: '1' }, name: { S: 'Jack' } },
-				}
-			},
-			{
-				eventName: 'REMOVE',
-				dynamodb: {
-					Keys: { id: { N: '2' } },
-					NewImage: undefined,
-					OldImage: { id: { N: '2' }, name: { S: 'Black' } },
-				}
-			}]
+			Records: [
+				{
+					eventName: 'REMOVE',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: undefined,
+						OldImage: { id: { N: '1' }, name: { S: 'Jack' } },
+					},
+				},
+				{
+					eventName: 'REMOVE',
+					dynamodb: {
+						Keys: { id: { N: '2' } },
+						NewImage: undefined,
+						OldImage: { id: { N: '2' }, name: { S: 'Black' } },
+					},
+				},
+			],
 		})
 	})
 
@@ -122,81 +150,54 @@ describe('Mock Stream', () => {
 		await transactWrite({
 			items: [
 				transactPut(users, { id: 1, name: 'Jack' }),
-				transactUpdate(users, { id: 2 }, {
-					update: exp => exp.update('name').set('Black')
-				}),
+				transactUpdate(
+					users,
+					{ id: 2 },
+					{
+						update: exp => exp.update('name').set('Black'),
+					}
+				),
 				transactDelete(users, { id: 3 }),
-			]
+			],
 		})
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: { N: '1' } },
-					NewImage: { id: { N: '1' }, name: { S: 'Jack' } },
-					OldImage: undefined,
-				}
-			}]
+			Records: [
+				{
+					eventName: 'INSERT',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						NewImage: { id: { N: '1' }, name: { S: 'Jack' } },
+						OldImage: undefined,
+					},
+				},
+			],
 		})
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: { N: '2' } },
-					NewImage: { id: { N: '2' }, name: { S: 'Black' } },
-					OldImage: undefined,
-				}
-			}]
+			Records: [
+				{
+					eventName: 'INSERT',
+					dynamodb: {
+						Keys: { id: { N: '2' } },
+						NewImage: { id: { N: '2' }, name: { S: 'Black' } },
+						OldImage: undefined,
+					},
+				},
+			],
 		})
 
 		expect(process).toBeCalledWith({
-			Records: [{
-				eventName: 'REMOVE',
-				dynamodb: {
-					Keys: { id: { N: '3' } },
-					NewImage: undefined,
-					OldImage: undefined,
-				}
-			}]
+			Records: [
+				{
+					eventName: 'REMOVE',
+					dynamodb: {
+						Keys: { id: { N: '3' } },
+						NewImage: undefined,
+						OldImage: undefined,
+					},
+				},
+			],
 		})
-	})
-
-	it('struct', () => {
-		const event = {
-			Records: [{
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: { N: '2' } },
-					NewImage: { id: { N: '2' }, name: { S: 'Black' } },
-					OldImage: undefined,
-				}
-			}]
-		}
-
-		const result = create(event, streamStruct(users))
-
-		expect(result).toStrictEqual({
-			Records: [{
-				eventName: 'INSERT',
-				dynamodb: {
-					Keys: { id: 2 },
-					NewImage: { id: 2, name: 'Black' },
-					OldImage: undefined,
-				}
-			}]
-		})
-
-		expectTypeOf(result).toEqualTypeOf<{
-			Records: {
-				eventName: 'INSERT' | 'MODIFY' | 'REMOVE'
-				dynamodb: {
-					Keys: { id: number }
-					NewImage?: { id: number, name: string }
-					OldImage?: { id: number, name: string }
-				}
-			}[]
-		}>()
 	})
 })

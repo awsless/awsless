@@ -1,15 +1,14 @@
-
-import { Asset } from '../../asset.js';
-import { Duration } from '../../property/duration.js';
-import { Size } from '../../property/size.js';
-import { Permission, Resource } from '../../resource.js';
-import { formatArn, formatName, sub } from '../../util.js';
-import { LogGroup } from '../cloud-watch/log-group.js';
-import { InlinePolicy } from '../iam/inline-policy.js';
-import { Role } from '../iam/role.js';
-import { ICode } from './code.js';
-import { EventsEventSource } from './event-source/events.js';
-import { Url, UrlProps } from './url.js';
+import { Asset } from '../../asset.js'
+import { Duration } from '../../property/duration.js'
+import { Size } from '../../property/size.js'
+import { Permission, Resource } from '../../resource.js'
+import { formatArn, formatName, sub } from '../../util.js'
+import { LogGroup } from '../cloud-watch/log-group.js'
+import { InlinePolicy } from '../iam/inline-policy.js'
+import { Role } from '../iam/role.js'
+import { ICode } from './code.js'
+import { EventsEventSource } from './event-source/events.js'
+import { Url, UrlProps } from './url.js'
 
 export type FunctionProps = {
 	code: ICode
@@ -21,6 +20,7 @@ export type FunctionProps = {
 	timeout?: Duration
 	ephemeralStorageSize?: Size
 	environment?: Record<string, string>
+	permissions?: Permission | Permission[]
 	reserved?: number
 	vpc?: {
 		securityGroupIds: string[]
@@ -45,9 +45,13 @@ export class Function extends Resource {
 
 		role.addInlinePolicy(policy)
 
-		super('AWS::Lambda::Function', _logicalId, [ role ])
+		if (props.permissions) {
+			policy.addStatement(props.permissions)
+		}
 
-		if(props.code instanceof Asset) {
+		super('AWS::Lambda::Function', _logicalId, [role])
+
+		if (props.code instanceof Asset) {
 			this.children.push(props.code)
 		}
 
@@ -56,38 +60,41 @@ export class Function extends Resource {
 		this.role = role
 		this.policy = policy
 		this.name = formatName(this.props.name || _logicalId)
-		this.environmentVariables = props.environment ? {...props.environment} : {}
+		this.environmentVariables = props.environment ? { ...props.environment } : {}
 
 		this.tag('name', this.name)
 	}
 
-	enableLogs(retention?:Duration) {
+	enableLogs(retention?: Duration) {
 		const logGroup = new LogGroup(this._logicalId, {
 			name: sub('/aws/lambda/${name}', {
-				name: this.name
+				name: this.name,
 			}),
 			retention,
 		})
 
 		this.addChild(logGroup)
-		this.addPermissions({
-			actions: [ 'logs:CreateLogStream' ],
-			resources: [ logGroup.arn ],
-		}, {
-			actions: [ 'logs:PutLogEvents' ],
-			resources: [ sub('${arn}:*', { arn: logGroup.arn }) ],
-		})
+		this.addPermissions(
+			{
+				actions: ['logs:CreateLogStream'],
+				resources: [logGroup.arn],
+			},
+			{
+				actions: ['logs:PutLogEvents'],
+				resources: [sub('${arn}:*', { arn: logGroup.arn })],
+			}
+		)
 
 		return this
 	}
 
 	warmUp(concurrency: number) {
-		const source = new EventsEventSource(`${ this._logicalId }-warmer`, this, {
+		const source = new EventsEventSource(`${this._logicalId}-warmer`, this, {
 			schedule: 'rate(5 minutes)',
 			payload: {
 				warmer: true,
 				concurrency,
-			}
+			},
 		})
 
 		this.addChild(source)
@@ -95,7 +102,7 @@ export class Function extends Resource {
 		return this
 	}
 
-	addUrl(props:Omit<UrlProps, 'target'> = {}) {
+	addUrl(props: Omit<UrlProps, 'target'> = {}) {
 		return new Url(this._logicalId, {
 			...props,
 			target: this.arn,
@@ -114,10 +121,7 @@ export class Function extends Resource {
 		return this
 	}
 
-	setVpc(vpc: {
-		securityGroupIds: string[]
-		subnetIds: string[]
-	}) {
+	setVpc(vpc: { securityGroupIds: string[]; subnetIds: string[] }) {
 		this.props.vpc = vpc
 
 		return this
@@ -133,17 +137,14 @@ export class Function extends Resource {
 
 	get permissions() {
 		return {
-			actions: [
-				'lambda:InvokeFunction',
-				'lambda:InvokeAsync',
-			],
+			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
 			resources: [
 				formatArn({
 					service: 'lambda',
 					resource: 'function',
 					resourceName: this.name,
 					seperator: ':',
-				})
+				}),
 			],
 		}
 	}
@@ -154,22 +155,24 @@ export class Function extends Resource {
 			MemorySize: this.props.memorySize?.toMegaBytes() ?? 128,
 			Runtime: this.props.runtime ?? 'nodejs18.x',
 			Timeout: this.props.timeout?.toSeconds() ?? 10,
-			Architectures: [ this.props.architecture ?? 'arm64' ],
+			Architectures: [this.props.architecture ?? 'arm64'],
 			Role: this.role.arn,
 			...this.attr('ReservedConcurrentExecutions', this.props.reserved),
 			...this.props.code.toCodeJson(),
 			EphemeralStorage: {
-				Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512
+				Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512,
 			},
-			...(this.props.vpc ? {
-				VpcConfig: {
-					SecurityGroupIds: this.props.vpc.securityGroupIds,
-					SubnetIds: this.props.vpc.subnetIds,
-				}
-			} : {}),
+			...(this.props.vpc
+				? {
+						VpcConfig: {
+							SecurityGroupIds: this.props.vpc.securityGroupIds,
+							SubnetIds: this.props.vpc.subnetIds,
+						},
+				  }
+				: {}),
 			Environment: {
-				Variables: this.environmentVariables
-			}
+				Variables: this.environmentVariables,
+			},
 		}
 	}
 }

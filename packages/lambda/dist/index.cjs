@@ -78,13 +78,15 @@ var getViewableErrorData = (error) => {
 
 // src/errors/validation.ts
 var ValidationError = class extends ViewableError {
-  constructor(failures) {
+  constructor(issues) {
     super("validation", "Validation Error", {
-      failures: failures.map((failure) => ({
-        key: failure.key,
-        path: failure.path,
-        type: failure.type,
-        message: failure.message
+      issues: issues.map((issue) => ({
+        input: issue.input,
+        path: issue.path,
+        reason: issue.reason,
+        origin: issue.origin,
+        message: issue.message,
+        validation: issue.validation
       }))
     });
   }
@@ -93,8 +95,8 @@ var transformValidationErrors = async (callback) => {
   try {
     return await callback();
   } catch (error) {
-    if (error instanceof import_validate.StructError) {
-      throw new ValidationError(error.failures());
+    if (error instanceof import_validate.ValiError) {
+      throw new ValidationError(error.issues);
     }
     throw error;
   }
@@ -227,18 +229,20 @@ var warmUp = async (input, context) => {
       correlation,
       invocation: 1
     });
-    await Promise.all(Array.from({ length: input.concurrency - 1 }).map((_, index) => {
-      return invoke({
-        name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
-        qualifier: "$LATEST",
-        payload: {
-          [warmerKey]: true,
-          [invocationKey]: index + 2,
-          [correlationKey]: correlation,
-          [concurrencyKey]: input.concurrency
-        }
-      });
-    }));
+    await Promise.all(
+      Array.from({ length: input.concurrency - 1 }).map((_, index) => {
+        return invoke({
+          name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
+          qualifier: "$LATEST",
+          payload: {
+            [warmerKey]: true,
+            [invocationKey]: index + 2,
+            [correlationKey]: correlation,
+            [concurrencyKey]: input.concurrency
+          }
+        });
+      })
+    );
   }
 };
 
@@ -266,11 +270,13 @@ var lambda = (options) => {
     const log = async (maybeError) => {
       const error = normalizeError(maybeError);
       const list = [options.logger].flat(10);
-      await Promise.all(list.map((logger) => {
-        return logger && logger(error, {
-          input: event
-        });
-      }));
+      await Promise.all(
+        list.map((logger) => {
+          return logger?.(error, {
+            input: event
+          });
+        })
+      );
     };
     try {
       const warmUpEvent = getWarmUpEvent(event);
@@ -278,13 +284,14 @@ var lambda = (options) => {
         await warmUp(warmUpEvent, context);
         return void 0;
       }
-      const result = await createTimeoutWrap(context, log, async () => {
-        const input = await transformValidationErrors(() => options.input ? (0, import_validate2.create)(event, options.input) : event);
-        const extendedContext = { ...context || {}, event, log };
-        const output = await transformValidationErrors(() => options.handle(input, extendedContext));
-        return options.output ? (0, import_validate2.create)(output, options.output) : output;
+      const result = await createTimeoutWrap(context, log, () => {
+        return transformValidationErrors(() => {
+          const input = options.schema ? (0, import_validate2.parse)(options.schema, event) : event;
+          const extendedContext = { ...context ?? {}, event, log };
+          return options.handle(input, extendedContext);
+        });
       });
-      if (process.env.NODE_ENV === "test" && result) {
+      if (result && process.env.NODE_ENV === "test") {
         return JSON.parse(JSON.stringify(result));
       }
       return result;
@@ -305,8 +312,8 @@ var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var mockLambda = (lambdas) => {
   const list = (0, import_utils2.mockObjectValues)(lambdas);
   (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda3.LambdaClient).on(import_client_lambda3.InvokeCommand).callsFake(async (input) => {
-    const name = input.FunctionName || "";
-    const type = input.InvocationType || "RequestResponse";
+    const name = input.FunctionName ?? "";
+    const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? JSON.parse((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
     const callback = list[name];
     if (!callback) {

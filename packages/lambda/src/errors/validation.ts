@@ -1,27 +1,27 @@
-
-import { Failure, StructError } from '@awsless/validate'
+import { Issues, ValiError } from '@awsless/validate'
 import { ViewableError } from './viewable.js'
 
 export class ValidationError extends ViewableError {
-	constructor(failures:Failure[]) {
+	constructor(issues: Issues) {
 		super('validation', 'Validation Error', {
-			failures: failures.map(failure => ({
-				key: failure.key as string,
-				path: failure.path,
-				type: failure.type,
-				message: failure.message,
-			}))
+			issues: issues.map(issue => ({
+				input: issue.input,
+				path: issue.path,
+				reason: issue.reason,
+				origin: issue.origin,
+				message: issue.message,
+				validation: issue.validation,
+			})),
 		})
 	}
 }
 
-export const transformValidationErrors = async <T>(callback:() => Promise<T> | T): Promise<T> => {
+export const transformValidationErrors = async <T>(callback: () => Promise<T> | T): Promise<T> => {
 	try {
 		return await callback()
-	}
-	catch(error) {
-		if(error instanceof StructError) {
-			throw new ValidationError(error.failures())
+	} catch (error) {
+		if (error instanceof ValiError) {
+			throw new ValidationError(error.issues)
 		}
 
 		throw error

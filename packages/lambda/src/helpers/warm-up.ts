@@ -1,4 +1,3 @@
-
 import { Context } from 'aws-lambda'
 import { randomUUID } from 'crypto'
 import { invoke } from '../commands/invoke'
@@ -22,11 +21,11 @@ type Input = {
 	correlation: string
 }
 
-export const isWarmUpEvent = (event:unknown): event is Event => {
-	return (typeof event === 'object' && (event as Event).warmer === true)
+export const isWarmUpEvent = (event: unknown): event is Event => {
+	return typeof event === 'object' && (event as Event).warmer === true
 }
 
-export const getWarmUpEvent = (event:unknown): Input | undefined => {
+export const getWarmUpEvent = (event: unknown): Input | undefined => {
 	if (!isWarmUpEvent(event)) return
 
 	return {
@@ -36,21 +35,21 @@ export const getWarmUpEvent = (event:unknown): Input | undefined => {
 	}
 }
 
-export const warmUp = async (input: Input, context?:Context) => {
+export const warmUp = async (input: Input, context?: Context) => {
 	const event = {
 		action: warmerKey,
 		functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
 		functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
 	}
 
-	if(input.concurrency > concurrencyLimit) {
+	if (input.concurrency > concurrencyLimit) {
 		throw new Error(`Warm up concurrency limit can't be greater than ${concurrencyLimit}`)
 	}
 
-	if(input.correlation) {
+	if (input.correlation) {
 		console.log({
 			...event,
-			...input
+			...input,
 		})
 	} else {
 		const correlation = context?.awsRequestId || randomUUID()
@@ -58,20 +57,22 @@ export const warmUp = async (input: Input, context?:Context) => {
 		console.log({
 			...event,
 			correlation,
-			invocation: 1
+			invocation: 1,
 		})
 
-		await Promise.all(Array.from({ length: input.concurrency - 1 }).map((_, index) => {
-			return invoke({
-				name: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
-				qualifier: '$LATEST',
-				payload: {
-					[ warmerKey ]: true,
-					[ invocationKey ]: index + 2,
-					[ correlationKey ]: correlation,
-					[ concurrencyKey ]: input.concurrency
-				}
+		await Promise.all(
+			Array.from({ length: input.concurrency - 1 }).map((_, index) => {
+				return invoke({
+					name: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
+					qualifier: '$LATEST',
+					payload: {
+						[warmerKey]: true,
+						[invocationKey]: index + 2,
+						[correlationKey]: correlation,
+						[concurrencyKey]: input.concurrency,
+					},
+				})
 			})
-		}))
+		)
 	}
 }

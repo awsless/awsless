@@ -89,17 +89,17 @@ var Table = /* @__PURE__ */ createProxy((stack) => {
 import { publish } from "@awsless/sns";
 var getTopicName = getGlobalResourceName;
 var Topic = /* @__PURE__ */ createProxy((name) => {
-  const topic = getTopicName(name);
+  const topic2 = getTopicName(name);
   const ctx = {
-    [topic]: async (payload, options = {}) => {
+    [topic2]: async (payload, options = {}) => {
       await publish({
         ...options,
-        topic,
+        topic: topic2,
         payload
       });
     }
   };
-  const call = ctx[topic];
+  const call = ctx[topic2];
   return call;
 });
 
@@ -114,9 +114,9 @@ var getQueueUrl = (name, stack = STACK) => {
   return process.env[`QUEUE_${constantCase2(stack)}_${constantCase2(name)}_URL`];
 };
 var Queue = /* @__PURE__ */ createProxy((stack) => {
-  return createProxy((queue) => {
-    const url = getQueueUrl(queue, stack);
-    const name = getQueueName(queue, stack);
+  return createProxy((queue2) => {
+    const url = getQueueUrl(queue2, stack);
+    const name = getQueueName(queue2, stack);
     const ctx = {
       [name]: (payload, options = {}) => {
         return sendMessage({
@@ -236,13 +236,48 @@ var Search = /* @__PURE__ */ createProxy((stack) => {
   });
 });
 
+// src/node/handle/function.ts
+import { lambda } from "@awsless/lambda";
+var func = (props) => {
+  return lambda(props);
+};
+
+// src/node/handle/topic.ts
+import { snsTopic } from "@awsless/validate";
+import { lambda as lambda2 } from "@awsless/lambda";
+var topic = (props) => {
+  return lambda2({
+    logger: props.logger,
+    schema: snsTopic(props.schema),
+    handle: props.handle,
+    logViewableErrors: true
+  });
+};
+
+// src/node/handle/queue.ts
+import { lambda as lambda3 } from "@awsless/lambda";
+import { sqsQueue } from "@awsless/validate";
+var queue = (props) => {
+  return lambda3({
+    logger: props.logger,
+    schema: sqsQueue(props.schema),
+    handle: props.handle,
+    logViewableErrors: true
+  });
+};
+
+// src/node/handle/cron.ts
+import { lambda as lambda4 } from "@awsless/lambda";
+var cron = (props) => {
+  return lambda4({
+    ...props,
+    logViewableErrors: true
+  });
+};
+
 // src/index.ts
-var defineStackConfig = (config) => {
-  return config;
-};
-var defineAppConfig = (config) => {
-  return config;
-};
+var defineStackConfig = (config) => config;
+var defineAppConfig = (config) => config;
 export {
   APP,
   Auth,
@@ -256,9 +291,11 @@ export {
   Store,
   Table,
   Topic,
+  cron,
   defineAppConfig,
   definePlugin,
   defineStackConfig,
+  func,
   getAuthName,
   getAuthProps,
   getCacheProps,
@@ -270,5 +307,7 @@ export {
   getSearchName,
   getStoreName,
   getTableName,
-  getTopicName
+  getTopicName,
+  queue,
+  topic
 };

@@ -266,12 +266,12 @@ const schema = z.object({
 })
 
 const typeGenCode = `
-import { InvokeOptions } from '@awsless/lambda'
+import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
 
 type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
 	readonly name: Name
-	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
-	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
+	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<Func>
+	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<Func>
 }`
 
 export const functionPlugin = definePlugin({

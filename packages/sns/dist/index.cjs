@@ -22,8 +22,7 @@ var src_exports = {};
 __export(src_exports, {
   mockSNS: () => mockSNS,
   publish: () => publish,
-  snsClient: () => snsClient,
-  snsStruct: () => snsStruct
+  snsClient: () => snsClient
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -103,27 +102,9 @@ var mockSNS = (topics) => {
   });
   return list;
 };
-
-// src/struct.ts
-var import_superstruct = require("superstruct");
-var import_validate = require("@awsless/validate");
-var snsStruct = (message) => {
-  return (0, import_validate.coerce)(
-    (0, import_validate.array)(message),
-    (0, import_validate.type)({
-      Records: (0, import_validate.array)((0, import_validate.type)({
-        Sns: (0, import_validate.type)({ Message: (0, import_validate.string)() })
-      }))
-    }),
-    (value) => {
-      return value.Records.map((item) => JSON.parse(item.Sns.Message));
-    }
-  );
-};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   mockSNS,
   publish,
-  snsClient,
-  snsStruct
+  snsClient
 });

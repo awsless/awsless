@@ -1,9 +1,39 @@
 import { BigFloat } from '@awsless/big-float'
-import { define, number, object, string, date, putItem, mockDynamoDB, array, bigfloat, bigint, binary, unknown, boolean, bigintSet, stringSet, numberSet, binarySet, getItem, updateItem, record, optional, uuid, ttl, any, enums } from '../src'
+import {
+	define,
+	number,
+	object,
+	string,
+	date,
+	putItem,
+	mockDynamoDB,
+	array,
+	bigfloat,
+	bigint,
+	binary,
+	unknown,
+	boolean,
+	bigintSet,
+	stringSet,
+	numberSet,
+	binarySet,
+	getItem,
+	updateItem,
+	record,
+	optional,
+	uuid,
+	ttl,
+	any,
+	enum_,
+} from '../src'
 import { UUID, randomUUID } from 'crypto'
 // import { any } from '../src/structs/any'
 // import { AttributeTypes } from '../src/structs/struct'
 // import { CATCH_ALL } from '../src/structs/object'
+enum Enum {
+	one = '1',
+	two = '2',
+}
 
 describe('Types', () => {
 	// const obj1 = string()
@@ -21,7 +51,10 @@ describe('Types', () => {
 			key: number(),
 			number: number(),
 			string: string(),
-			enums: enums<'foo' | 'bar'>(),
+			string2: string<'foo' | 'bar'>(),
+			enum: enum_(Enum),
+			// numberEnum: numberEnum(NumEnum),
+			// enums: enums<'foo' | 'bar'>(),
 			bigint: bigint(),
 			bigfloat: bigfloat(),
 			boolean: boolean(),
@@ -30,12 +63,16 @@ describe('Types', () => {
 			ttl: ttl(),
 			optional: optional(string()),
 			unknown: unknown(),
-			array: array(object({
-				key: string(),
-			})),
-			record: record(object({
-				key: string(),
-			})),
+			array: array(
+				object({
+					key: string(),
+				})
+			),
+			record: record(
+				object({
+					key: string(),
+				})
+			),
 			any: any(),
 			sets: object({
 				empty: stringSet(),
@@ -58,7 +95,9 @@ describe('Types', () => {
 		key: 1,
 		number: 1,
 		string: '1',
-		enums: 'foo' as const,
+		string2: 'foo' as const,
+		// enum: new Date(),
+		enum: Enum.one,
 		bigint: 1n,
 		bigfloat: new BigFloat(1),
 		boolean: true,
@@ -75,7 +114,7 @@ describe('Types', () => {
 		any: {
 			M: {
 				id: { S: '1' },
-			}
+			},
 		},
 		sets: {
 			empty: new Set<string>(),
@@ -96,7 +135,8 @@ describe('Types', () => {
 		expectTypeOf(result!.id).toEqualTypeOf<UUID>()
 		expectTypeOf(result!.number).toEqualTypeOf<number>()
 		expectTypeOf(result!.string).toEqualTypeOf<string>()
-		expectTypeOf(result!.enums).toEqualTypeOf<'foo' | 'bar'>()
+		expectTypeOf(result!.string2).toEqualTypeOf<'foo' | 'bar'>()
+		expectTypeOf(result!.enum).toEqualTypeOf<Enum>()
 		expectTypeOf(result!.bigint).toEqualTypeOf<bigint>()
 		expectTypeOf(result!.bigfloat).toEqualTypeOf<BigFloat>()
 		expectTypeOf(result!.boolean).toEqualTypeOf<boolean>()
@@ -137,27 +177,50 @@ describe('Types', () => {
 				return: 'ALL_NEW',
 				update: exp =>
 					exp
-						.update('id').set('0-0-0-0-0')
-						.update('number').set(2)
-						.update('string').set('2')
-						.update('enums').set('bar')
-						.update('bigint').set(2n)
-						.update('bigfloat').set(new BigFloat(2))
-						.update('boolean').set(false)
-						.update('binary').set(bytes)
-						.update('date').set(date)
-						.update('ttl').set(date)
-						.update('optional').del()
-						.update('unknown').set({ random: 2 })
-						.update('array', 0).set({ key: '2' })
-						.update('record', 'key1').set({ key: '2' })
-						.update('record', 'key2').set({ key: '2' })
-						.update('any').set({ M: { id: { S: '2' } } })
-						.update('sets', 'empty').append(new Set(['foo']))
-						.update('sets', 'string').set(new Set(['2']))
-						.update('sets', 'number').set(new Set([2]))
-						.update('sets', 'bigint').set(new Set([2n]))
-						.update('sets', 'binary').set(new Set([bytes])),
+						.update('id')
+						.set('0-0-0-0-0')
+						.update('number')
+						.set(2)
+						.update('string')
+						.set('2')
+						.update('string2')
+						.set('bar')
+						.update('enum')
+						.set(Enum.two)
+						.update('bigint')
+						.set(2n)
+						.update('bigfloat')
+						.set(new BigFloat(2))
+						.update('boolean')
+						.set(false)
+						.update('binary')
+						.set(bytes)
+						.update('date')
+						.set(date)
+						.update('ttl')
+						.set(date)
+						.update('optional')
+						.del()
+						.update('unknown')
+						.set({ random: 2 })
+						.update('array', 0)
+						.set({ key: '2' })
+						.update('record', 'key1')
+						.set({ key: '2' })
+						.update('record', 'key2')
+						.set({ key: '2' })
+						.update('any')
+						.set({ M: { id: { S: '2' } } })
+						.update('sets', 'empty')
+						.append(new Set(['foo']))
+						.update('sets', 'string')
+						.set(new Set(['2']))
+						.update('sets', 'number')
+						.set(new Set([2]))
+						.update('sets', 'bigint')
+						.set(new Set([2n]))
+						.update('sets', 'binary')
+						.set(new Set([bytes])),
 			}
 		)
 
@@ -166,7 +229,8 @@ describe('Types', () => {
 			key: 1,
 			number: 2,
 			string: '2',
-			enums: 'bar',
+			string2: 'bar',
+			enum: Enum.two,
 			bigint: 2n,
 			bigfloat: new BigFloat(2),
 			boolean: false,

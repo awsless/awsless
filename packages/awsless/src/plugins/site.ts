@@ -84,6 +84,15 @@ export const sitePlugin = definePlugin({
 							/** Specifies the ssr file. */
 							ssr: FunctionSchema.optional(),
 
+							// ssr: z.union([
+							// 	FunctionSchema.optional(),
+							// 	z.object({
+							// 		consumer: FunctionSchema.optional(),
+							// 		responseStreaming: z.boolean().default(false),
+							// 		build: z.string().optional(),
+							// 	}),
+							// ]),
+
 							/** Customize the error responses for specific HTTP status codes. */
 							errors: z
 								.object({
@@ -224,7 +233,9 @@ export const sitePlugin = definePlugin({
 					// sourceArn: distribution.arn,
 				}).dependsOn(lambda)
 
-				const url = lambda.addUrl()
+				const url = lambda.addUrl({
+					invokeMode: 'buffered',
+				})
 
 				stack.add(url, lambda, permissions)
 
@@ -280,8 +291,7 @@ export const sitePlugin = definePlugin({
 				origins.push(
 					new Origin({
 						id: 'bucket',
-						// domainName: select(2, split('/', bucket.url)),
-						domainName: bucket.domainName,
+						domainName: bucket.regionalDomainName,
 						originAccessControlId: accessControl.id,
 					})
 				)
@@ -311,7 +321,7 @@ export const sitePlugin = definePlugin({
 				name: `site-${config.name}-${stack.name}-${id}`,
 				header: {
 					behavior: 'all-except',
-					values: ['HOST'],
+					values: ['host', 'authorization'],
 				},
 			})
 

@@ -74,26 +74,8 @@ var mockSNS = (topics) => {
   });
   return list;
 };
-
-// src/struct.ts
-import "superstruct";
-import { array, type, string, coerce } from "@awsless/validate";
-var snsStruct = (message) => {
-  return coerce(
-    array(message),
-    type({
-      Records: array(type({
-        Sns: type({ Message: string() })
-      }))
-    }),
-    (value) => {
-      return value.Records.map((item) => JSON.parse(item.Sns.Message));
-    }
-  );
-};
 export {
   mockSNS,
   publish,
-  snsClient,
-  snsStruct
+  snsClient
 };

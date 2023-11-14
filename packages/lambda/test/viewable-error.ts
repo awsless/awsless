@@ -1,8 +1,6 @@
-
 import { getViewableErrorData, isViewableError, isViewableErrorType, ViewableError } from '../src'
 
 describe('ViewableError', () => {
-
 	it('should support instanceof', () => {
 		const error = new ViewableError('type', 'message', { foo: 'bar' })
 		expect(error).instanceOf(ViewableError)
@@ -34,15 +32,15 @@ describe('ViewableError', () => {
 
 		expect(getViewableErrorData(error1)).toStrictEqual({
 			type: 'type',
-			message: 'message'
+			message: 'message',
 		})
 
 		expect(getViewableErrorData(error2)).toStrictEqual({
 			type: 'type',
 			message: 'message',
 			data: {
-				foo: 'bar'
-			}
+				foo: 'bar',
+			},
 		})
 	})
 })

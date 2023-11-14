@@ -1,4 +1,3 @@
-
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { InvokeCommand } from '@aws-sdk/client-lambda'
 import { lambdaClient } from '../helpers/client'
@@ -14,14 +13,14 @@ const isErrorResponse = (response: unknown): response is ErrorResponse => {
 }
 
 /** Invoke lambda function */
-export const invoke:Invoke = async ({
+export const invoke: Invoke = async ({
 	client = lambdaClient(),
 	name,
 	qualifier,
 	type = 'RequestResponse',
 	payload,
-	reflectViewableErrors = true
-}: UnknownInvokeOptions): Promise<unknown> => {
+	reflectViewableErrors = true,
+}: UnknownInvokeOptions) => {
 	const command = new InvokeCommand({
 		InvocationType: type,
 		FunctionName: name,
@@ -58,7 +57,7 @@ export const invoke:Invoke = async ({
 		error.name = response.errorType
 		error.response = response
 		error.metadata = {
-			service: name
+			service: name,
 		}
 
 		throw error

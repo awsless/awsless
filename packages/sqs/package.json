@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/sqs",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -32,14 +32,9 @@
 		"@aws-sdk/client-sqs": "3.329.0",
 		"@awsless/utils": "workspace:^",
 		"aws-sdk-client-mock": "^2.1.1",
-		"chunk": "^0.0.3",
-		"superstruct": "^1.0.3"
+		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
-		"@awsless/validate": "workspace:^",
 		"@types/chunk": "^0.0.0"
-	},
-	"peerDependencies": {
-		"@awsless/validate": "workspace:^"
 	}
 }

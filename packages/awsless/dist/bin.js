@@ -389,6 +389,9 @@ var Function = class extends Resource {
       assumedBy: "lambda.amazonaws.com"
     });
     role.addInlinePolicy(policy);
+    if (props.permissions) {
+      policy.addStatement(props.permissions);
+    }
     super("AWS::Lambda::Function", _logicalId, [role]);
     this._logicalId = _logicalId;
     this.props = props;
@@ -414,13 +417,16 @@ var Function = class extends Resource {
       retention
     });
     this.addChild(logGroup);
-    this.addPermissions({
-      actions: ["logs:CreateLogStream"],
-      resources: [logGroup.arn]
-    }, {
-      actions: ["logs:PutLogEvents"],
-      resources: [sub("${arn}:*", { arn: logGroup.arn })]
-    });
+    this.addPermissions(
+      {
+        actions: ["logs:CreateLogStream"],
+        resources: [logGroup.arn]
+      },
+      {
+        actions: ["logs:PutLogEvents"],
+        resources: [sub("${arn}:*", { arn: logGroup.arn })]
+      }
+    );
     return this;
   }
   warmUp(concurrency) {
@@ -460,10 +466,7 @@ var Function = class extends Resource {
   }
   get permissions() {
     return {
-      actions: [
-        "lambda:InvokeFunction",
-        "lambda:InvokeAsync"
-      ],
+      actions: ["lambda:InvokeFunction", "lambda:InvokeAsync"],
       resources: [
         formatArn({
           service: "lambda",
@@ -1560,12 +1563,12 @@ var schema = z6.object({
   }).array()
 });
 var typeGenCode = `
-import { InvokeOptions } from '@awsless/lambda'
+import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
 
 type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
 	readonly name: Name
-	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => ReturnType<Func>
-	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): ReturnType<Func>
+	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<Func>
+	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<Func>
 }`;
 var functionPlugin = definePlugin({
   name: "function",
@@ -2474,6 +2477,8 @@ var isEmail = (value) => {
 };
 
 // src/plugins/topic.ts
+import { paramCase as paramCase4 } from "change-case";
+var TopicNameSchema = z12.string().min(3).max(256).regex(/^[a-z0-9\-]+$/i, "Invalid topic name").transform((value) => paramCase4(value));
 var typeGenCode3 = `
 import { PublishOptions } from '@awsless/sns'
 
@@ -2491,7 +2496,7 @@ var topicPlugin = definePlugin({
        *   topics: [ 'TOPIC_NAME' ]
        * }
        */
-      topics: z12.array(ResourceIdSchema).refine((topics) => {
+      topics: z12.array(TopicNameSchema).refine((topics) => {
         return topics.length === new Set(topics).size;
       }, "Must be a list of unique topic names").optional(),
       /** Define the events to subscribe too in your stack.
@@ -2506,7 +2511,7 @@ var topicPlugin = definePlugin({
        *   }
        * }
        */
-      subscribers: z12.record(ResourceIdSchema, z12.union([EmailSchema, FunctionSchema])).optional()
+      subscribers: z12.record(TopicNameSchema, z12.union([EmailSchema, FunctionSchema])).optional()
     }).array().superRefine((stacks, ctx) => {
       const topics = [];
       for (const stack of stacks) {
@@ -2714,7 +2719,7 @@ var toArray = (value) => {
 };
 
 // src/plugins/graphql.ts
-import { paramCase as paramCase4 } from "change-case";
+import { paramCase as paramCase5 } from "change-case";
 
 // src/formation/resource/appsync/graphql-api.ts
 var GraphQLApi = class extends Resource {
@@ -3276,7 +3281,7 @@ var graphqlPlugin = definePlugin({
       for (const [typeName, fields] of Object.entries(props.resolvers || {})) {
         for (const [fieldName, resolverProps] of Object.entries(fields || {})) {
           const props2 = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps;
-          const entryId = paramCase4(`${id}-${typeName}-${fieldName}`);
+          const entryId = paramCase5(`${id}-${typeName}-${fieldName}`);
           const lambda = toLambdaFunction(ctx, `graphql-${entryId}`, props2.consumer);
           const resolver = props2.resolver ?? defaultProps?.resolver;
           let code = defaultResolver;
@@ -4964,7 +4969,7 @@ var Params = class {
 };
 
 // src/plugins/config.ts
-import { paramCase as paramCase5 } from "change-case";
+import { paramCase as paramCase6 } from "change-case";
 var ConfigNameSchema = z23.string().regex(/[a-z0-9\-]/g, "Invalid config name");
 var configPlugin = definePlugin({
   name: "config",
@@ -5009,7 +5014,7 @@ var configPlugin = definePlugin({
             return formatArn({
               service: "ssm",
               resource: "parameter",
-              resourceName: configParameterPrefix(config) + "/" + paramCase5(name),
+              resourceName: configParameterPrefix(config) + "/" + paramCase6(name),
               seperator: ""
             });
           })
@@ -5479,6 +5484,14 @@ var sitePlugin = definePlugin({
           static: LocalDirectorySchema.optional(),
           /** Specifies the ssr file. */
           ssr: FunctionSchema.optional(),
+          // ssr: z.union([
+          // 	FunctionSchema.optional(),
+          // 	z.object({
+          // 		consumer: FunctionSchema.optional(),
+          // 		responseStreaming: z.boolean().default(false),
+          // 		build: z.string().optional(),
+          // 	}),
+          // ]),
           /** Customize the error responses for specific HTTP status codes. */
           errors: z25.object({
             /** Customize a `400 Bad Request` response */
@@ -5587,7 +5600,9 @@ var sitePlugin = definePlugin({
           urlAuthType: "none"
           // sourceArn: distribution.arn,
         }).dependsOn(lambda);
-        const url = lambda.addUrl();
+        const url = lambda.addUrl({
+          invokeMode: "buffered"
+        });
         stack.add(url, lambda, permissions);
         origins.push(
           new Origin({
@@ -5633,8 +5648,7 @@ var sitePlugin = definePlugin({
         origins.push(
           new Origin({
             id: "bucket",
-            // domainName: select(2, split('/', bucket.url)),
-            domainName: bucket.domainName,
+            domainName: bucket.regionalDomainName,
             originAccessControlId: accessControl.id
           })
         );
@@ -5660,7 +5674,7 @@ var sitePlugin = definePlugin({
         name: `site-${config.name}-${stack.name}-${id}`,
         header: {
           behavior: "all-except",
-          values: ["HOST"]
+          values: ["host", "authorization"]
         }
       });
       const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain;
@@ -6356,10 +6370,7 @@ var getAllDepends = (filters) => {
 var toApp = async (config, filters) => {
   const app = new App(config.name);
   const stacks = [];
-  const plugins = [
-    ...defaultPlugins,
-    ...config.plugins || []
-  ];
+  const plugins = [...defaultPlugins, ...config.plugins || []];
   debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
   const bootstrap2 = new Stack("bootstrap", config.region);
   const usEastBootstrap = new Stack("us-east-bootstrap", "us-east-1");
@@ -6395,6 +6406,7 @@ var toApp = async (config, filters) => {
     app.add(stack);
     stacks.push({ stack, config: stackConfig, bindings: bindings2 });
   }
+  debug(app.stacks);
   for (const plugin of plugins) {
     for (const stack of app.stacks) {
       for (const resource of stack) {
@@ -7480,7 +7492,7 @@ var shouldDeployBootstrap = async (client, stack) => {
 // src/formation/client.ts
 import { CloudFormationClient, CreateStackCommand, DeleteStackCommand, DescribeStackEventsCommand, DescribeStacksCommand, GetTemplateCommand, OnFailure, TemplateStage, UpdateStackCommand, ValidateTemplateCommand, waitUntilStackCreateComplete, waitUntilStackDeleteComplete, waitUntilStackUpdateComplete } from "@aws-sdk/client-cloudformation";
 import { S3Client, PutObjectCommand, ObjectCannedACL, StorageClass } from "@aws-sdk/client-s3";
-import { paramCase as paramCase6 } from "change-case";
+import { paramCase as paramCase7 } from "change-case";
 var StackClient = class {
   constructor(app, account, region, credentials) {
     this.app = app;
@@ -7513,7 +7525,7 @@ var StackClient = class {
     };
   }
   stackName(stackName) {
-    return paramCase6(`${this.app.name}-${stackName}`);
+    return paramCase7(`${this.app.name}-${stackName}`);
   }
   tags(stack) {
     const tags = [];

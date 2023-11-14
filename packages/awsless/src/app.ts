@@ -10,10 +10,9 @@ import { Stack } from './formation/stack.js'
 import { Function } from './formation/resource/lambda/function.js'
 // import { extendWithGlobalExports } from './custom/global-export/extend.js'
 
-
-const getAllDepends = (filters:StackConfig[]) => {
-	const list:StackConfig[] = []
-	const walk = (deps:StackConfig[]) => {
+const getAllDepends = (filters: StackConfig[]) => {
+	const list: StackConfig[] = []
+	const walk = (deps: StackConfig[]) => {
 		deps.forEach(dep => {
 			!list.includes(dep) && list.push(dep)
 			dep.depends && walk(dep.depends)
@@ -24,14 +23,10 @@ const getAllDepends = (filters:StackConfig[]) => {
 	return list
 }
 
-export const toApp = async (config:Config, filters:string[]) => {
-
+export const toApp = async (config: Config, filters: string[]) => {
 	const app = new App(config.name)
-	const stacks:{ stack:Stack, config:StackConfig, bindings: Binding[] }[] = []
-	const plugins = [
-		...defaultPlugins,
-		...(config.plugins || [])
-	]
+	const stacks: { stack: Stack; config: StackConfig; bindings: Binding[] }[] = []
+	const plugins = [...defaultPlugins, ...(config.plugins || [])]
 
 	debug('Plugins detected:', plugins.map(plugin => style.info(plugin.name)).join(', '))
 
@@ -48,12 +43,12 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 	debug('Run plugin onApp listeners')
 
-	const bindings:Binding[] = []
-	const bind = (cb:Binding) => {
+	const bindings: Binding[] = []
+	const bind = (cb: Binding) => {
 		bindings.push(cb)
 	}
 
-	for(const plugin of plugins) {
+	for (const plugin of plugins) {
 		plugin.onApp?.({
 			config,
 			app,
@@ -67,16 +62,15 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 	debug('Stack filters:', filters.map(filter => style.info(filter)).join(', '))
 
-	const filterdStacks = (
+	const filterdStacks =
 		filters.length === 0
-		? config.stacks
-		: getAllDepends(
-			// config.stacks,
-			config.stacks.filter((stack) => filters.includes(stack.name))
-		)
-	)
+			? config.stacks
+			: getAllDepends(
+					// config.stacks,
+					config.stacks.filter(stack => filters.includes(stack.name))
+			  )
 
-	for(const stackConfig of filterdStacks) {
+	for (const stackConfig of filterdStacks) {
 		const { stack, bindings } = toStack({
 			config,
 			stackConfig,
@@ -91,11 +85,13 @@ export const toApp = async (config:Config, filters:string[]) => {
 		stacks.push({ stack, config: stackConfig, bindings })
 	}
 
+	debug(app.stacks)
+
 	// ---------------------------------------------------------------
 
-	for(const plugin of plugins) {
-		for(const stack of app.stacks) {
-			for(const resource of stack) {
+	for (const plugin of plugins) {
+		for (const stack of app.stacks) {
+			for (const resource of stack) {
 				plugin.onResource?.({
 					config,
 					app,
@@ -113,8 +109,8 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 	const functions = app.find(Function)
 
-	for(const bind of bindings) {
-		for(const fn of functions) {
+	for (const bind of bindings) {
+		for (const fn of functions) {
 			bind(fn)
 		}
 	}
@@ -122,18 +118,18 @@ export const toApp = async (config:Config, filters:string[]) => {
 	// ---------------------------------------------------------------
 	// Stack dependency binds
 
-	for(const entry of stacks) {
-		for(const dep of entry.config.depends || []) {
+	for (const entry of stacks) {
+		for (const dep of entry.config.depends || []) {
 			const depStack = stacks.find(entry => entry.config.name === dep.name)
 
-			if(!depStack) {
+			if (!depStack) {
 				throw new Error(`Stack dependency not found: ${dep.name}`)
 			}
 
 			const functions = entry.stack.find(Function)
 
-			for(const bind of depStack.bindings) {
-				for(const fn of functions) {
+			for (const bind of depStack.bindings) {
+				for (const fn of functions) {
 					bind(fn)
 				}
 			}
@@ -146,14 +142,13 @@ export const toApp = async (config:Config, filters:string[]) => {
 
 	const deploymentLine = createDeploymentLine(stacks)
 
-	if(bootstrap.size > 0) {
+	if (bootstrap.size > 0) {
 		deploymentLine.unshift([bootstrap])
 	}
 
-	if(usEastBootstrap.size > 0) {
+	if (usEastBootstrap.size > 0) {
 		deploymentLine.unshift([usEastBootstrap])
 	}
-
 
 	// let dependencyTree:StackNode[] = createDependencyTree(stacks)
 
