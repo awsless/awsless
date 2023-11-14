@@ -1,10 +1,15 @@
-
 // define
 export { define, InferOutput, InferInput, TableDefinition } from './table.js'
 
 // types
 export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'
-export { Transactable, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate } from './operations/transact-write.js'
+export {
+	Transactable,
+	TransactConditionCheck,
+	TransactDelete,
+	TransactPut,
+	TransactUpdate,
+} from './operations/transact-write.js'
 
 // structs
 export { optional } from './structs/optional.js'
@@ -21,7 +26,8 @@ export { object } from './structs/object.js'
 export { record } from './structs/record.js'
 export { array } from './structs/array.js'
 export { date } from './structs/date.js'
-export { enums } from './structs/enums.js'
+export { enum_ } from './structs/enum.js'
+// export { enums } from './structs/__enums.js'
 export { ttl } from './structs/ttl.js'
 export { unknown } from './structs/unknown.js'
 
@@ -36,9 +42,6 @@ export { migrate } from './test/migrate.js'
 export { seedTable, seed } from './test/seed.js'
 export { streamTable } from './test/stream.js'
 export { DynamoDBServer } from '@awsless/dynamodb-server'
-
-// validation struct
-export { streamStruct } from './test/struct.js'
 
 // client
 export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'
@@ -76,4 +79,10 @@ export { scanAll } from './operations/scan-all.js'
 export { paginateQuery } from './operations/paginate-query.js'
 export { paginateScan } from './operations/paginate-scan.js'
 
-export { transactWrite, transactUpdate, transactPut, transactDelete, transactConditionCheck } from './operations/transact-write.js'
+export {
+	transactWrite,
+	transactUpdate,
+	transactPut,
+	transactDelete,
+	transactConditionCheck,
+} from './operations/transact-write.js'

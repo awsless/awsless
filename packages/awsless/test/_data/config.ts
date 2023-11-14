@@ -91,7 +91,7 @@ export default defineAppConfig(input => ({
 		// pubsubStack,
 		// failureStack,
 		// restStack,
-		// siteStack,
+		siteStack,
 		httpStack,
 		// searchStack,
 

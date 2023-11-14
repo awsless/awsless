@@ -3,10 +3,15 @@ export * from 'valibot'
 // --------------------------------------------
 // Schemas
 
-export { json } from './schema/json.js'
-export { bigfloat } from './schema/bigfloat.js'
-export { date } from './schema/date.js'
-export { uuid } from './schema/uuid.js'
+export { json, JsonSchema } from './schema/json.js'
+export { bigfloat, BigFloatSchema } from './schema/bigfloat.js'
+export { date, DateSchema } from './schema/date.js'
+export { uuid, UuidSchema } from './schema/uuid.js'
+
+// AWS
+export { sqsQueue, SqsQueueSchema } from './schema/aws/sqs-queue.js'
+export { snsTopic, SnsTopicSchema } from './schema/aws/sns-topic.js'
+export { dynamoDbStream, DynamoDBStreamSchema } from './schema/aws/dynamodb-stream.js'
 
 // --------------------------------------------
 // Validation

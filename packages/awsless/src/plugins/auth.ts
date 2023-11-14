@@ -13,6 +13,7 @@ import { EmailSchema } from '../schema/email.js'
 import { Code } from '../formation/resource/lambda/code.js'
 import { CustomResource } from '../formation/resource/cloud-formation/custom-resource.js'
 
+// import { Script } from '../formation/resource/cloud-formation/script.js'
 // export const AuthIdSchema = z.object({})
 
 const TriggersSchema = z.object({
@@ -246,7 +247,16 @@ export const authPlugin = definePlugin({
 			return
 		}
 
-		// const clientSecretLambda = new Function
+		// const clientSecretScript = new Script(`auth-client-secret`, {
+		// 	name: `${config.name}-auth-client-secret`,
+		// 	onCreate: {
+		// 		code: Code.fromFeature('cognito-client-secret'),
+		// 		permissions: {
+		// 			actions: ['cognito-idp:DescribeUserPoolClient'],
+		// 			resources: ['*'],
+		// 		},
+		// 	},
+		// })
 
 		const clientSecretLambda = new Function(`auth-client-secret`, {
 			name: `${config.name}-auth-client-secret`,
@@ -323,6 +333,15 @@ export const authPlugin = definePlugin({
 			const domain = userPool.addDomain({
 				domain: `${config.name}-${id}`,
 			})
+
+			// const clientSecret = clientSecretScript
+			// 	.createInstance(id, {
+			// 		params: {
+			// 			userPoolId: userPool.id,
+			// 			clientId: client.id,
+			// 		},
+			// 	})
+			// 	.dependsOn(client, userPool)
 
 			const clientSecret = new CustomResource(`${id}-client-secret`, {
 				serviceToken: clientSecretLambda.arn,

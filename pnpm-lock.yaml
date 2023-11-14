@@ -73,6 +73,9 @@ importers:
       '@awsless/ssm':
         specifier: workspace:^
         version: link:../ssm
+      '@awsless/validate':
+        specifier: workspace:^
+        version: link:../validate
       '@graphql-tools/merge':
         specifier: ^9.0.0
         version: 9.0.0(graphql@16.7.1)
@@ -321,9 +324,6 @@ importers:
       '@awsless/utils':
         specifier: workspace:^
         version: link:../utils
-      '@awsless/validate':
-        specifier: workspace:^
-        version: link:../validate
       '@heat/request-port':
         specifier: ^0.0.1
         version: 0.0.1
@@ -343,9 +343,6 @@ importers:
       '@types/chunk':
         specifier: ^0.0.0
         version: 0.0.0
-      superstruct:
-        specifier: ^1.0.3
-        version: 1.0.3
 
   packages/dynamodb-server:
     dependencies:
@@ -394,8 +391,11 @@ importers:
         specifier: workspace:^
         version: link:../utils
       '@types/aws-lambda':
-        specifier: ^8.10.110
-        version: 8.10.110
+        specifier: ^8.10.126
+        version: 8.10.126
+      aws-lambda:
+        specifier: ^1.0.7
+        version: 1.0.7
       aws-sdk-client-mock:
         specifier: ^2.1.1
         version: 2.1.1
@@ -539,13 +539,6 @@ importers:
       aws-sdk-client-mock:
         specifier: ^2.1.1
         version: 2.1.1
-      superstruct:
-        specifier: ^1.0.3
-        version: 1.0.3
-    devDependencies:
-      '@awsless/validate':
-        specifier: workspace:^
-        version: link:../validate
 
   packages/sqs:
     dependencies:
@@ -561,13 +554,7 @@ importers:
       chunk:
         specifier: ^0.0.3
         version: 0.0.3
-      superstruct:
-        specifier: ^1.0.3
-        version: 1.0.3
     devDependencies:
-      '@awsless/validate':
-        specifier: workspace:^
-        version: link:../validate
       '@types/chunk':
         specifier: ^0.0.0
         version: 0.0.0
@@ -602,6 +589,9 @@ importers:
       '@awsless/big-float':
         specifier: workspace:^
         version: link:../big-float
+      '@awsless/dynamodb':
+        specifier: workspace:^
+        version: link:../dynamodb
 
   packages/weak-cache:
     devDependencies:
@@ -8539,6 +8529,10 @@ packages:
     resolution: {integrity: sha512-r6egf2Cwv/JaFTTrF9OXFVUB3j/SXTgM9BwrlbBRjWAa2Tu6GWoDoLflppAZ8uSfbUJdXvC7Br3DjuN9pQ2NUQ==}
     dev: false
 
+  /@types/aws-lambda@8.10.126:
+    resolution: {integrity: sha512-5eh4ffLdGYgGYI1Xr6W5L4IVse4RR7L2ns5OVUXA52nW5GFapIcGMcCzHAIMMOdpcQs3aGVxbvFlJNZH6IpgEQ==}
+    dev: false
+
   /@types/babel__core@7.20.0:
     resolution: {integrity: sha512-+n8dL/9GWblDO0iU6eZAwEIJVr5DWigtle+Q6HLOrh/pdbXOhOtqzq8VPPE2zvNJzSKY4vH/z3iT3tn0A3ypiQ==}
     dependencies:
@@ -12088,10 +12082,6 @@ packages:
       pirates: 4.0.5
       ts-interface-checker: 0.1.13
     dev: true
-
-  /superstruct@1.0.3:
-    resolution: {integrity: sha512-8iTn3oSS8nRGn+C2pgXSKPI3jmpm6FExNazNpjvqS6ZUJQCej3PUXEKM8NjHBOs54ExM+LPW/FBRhymrdcCiSg==}
-    engines: {node: '>=14.0.0'}
 
   /supports-color@5.5.0:
     resolution: {integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==}

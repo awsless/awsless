@@ -102,16 +102,16 @@ var QueryBulder = class {
 };
 
 // src/expressions/condition.ts
-var Condition = class extends QueryBulder {
+var Condition = class _Condition extends QueryBulder {
   where(...path) {
     return new Where(this, [], path);
   }
   group(fn) {
-    const combiner = fn(new Condition());
+    const combiner = fn(new _Condition());
     return new Combine(this, ["(", combiner, ")"]);
   }
   extend(fn) {
-    return fn(new Condition());
+    return fn(new _Condition());
   }
   // where<P extends InferPath<T>>(...path:P) {
   // 	return new Where<T, P>(this, path))
@@ -123,7 +123,7 @@ var Condition = class extends QueryBulder {
   // 	return fn(new Condition<T>(this, [])))
   // }
 };
-var Where = class extends QueryBulder {
+var Where = class _Where extends QueryBulder {
   constructor(query2, items, path) {
     super(query2, items);
     this.path = path;
@@ -132,7 +132,7 @@ var Where = class extends QueryBulder {
   // 	super(items)
   // }
   get not() {
-    return new Where(this, ["NOT"], this.path);
+    return new _Where(this, ["NOT"], this.path);
   }
   get exists() {
     return new Combine(this, ["attribute_exists(", { p: this.path }, ")"]);
@@ -519,8 +519,8 @@ var transactDelete = (table, key3, options = {}) => {
 // src/structs/struct.ts
 var Struct = class {
   // declare readonly OPTIONAL: Optional
-  constructor(type2, _marshall, _unmarshall, walk = void 0, optional2 = false) {
-    this.type = type2;
+  constructor(type, _marshall, _unmarshall, walk = void 0, optional2 = false) {
+    this.type = type;
     this._marshall = _marshall;
     this._unmarshall = _unmarshall;
     this.walk = walk;
@@ -587,11 +587,13 @@ var uuid = () => new Struct(
 );
 
 // src/structs/string.ts
-var string = () => new Struct(
-  "S",
-  (value) => value,
-  (value) => value
-);
+function string() {
+  return new Struct(
+    "S",
+    (value) => value,
+    (value) => value
+  );
+}
 
 // src/structs/boolean.ts
 var boolean = () => new Struct(
@@ -634,29 +636,29 @@ var object = (schema) => new Struct(
   "M",
   (unmarshalled) => {
     const marshalled = {};
-    for (const [key3, type2] of Object.entries(schema)) {
+    for (const [key3, type] of Object.entries(schema)) {
       const value = unmarshalled[key3];
-      if (type2.filterIn(value)) {
+      if (type.filterIn(value)) {
         continue;
       }
-      marshalled[key3] = type2.marshall(value);
+      marshalled[key3] = type.marshall(value);
     }
     return marshalled;
   },
   (marshalled) => {
     const unmarshalled = {};
-    for (const [key3, type2] of Object.entries(schema)) {
+    for (const [key3, type] of Object.entries(schema)) {
       const value = marshalled[key3];
-      if (type2.filterOut(value)) {
+      if (type.filterOut(value)) {
         continue;
       }
-      unmarshalled[key3] = type2.unmarshall(value);
+      unmarshalled[key3] = type.unmarshall(value);
     }
     return unmarshalled;
   },
   (path, ...rest) => {
-    const type2 = schema[path];
-    return rest.length ? type2.walk?.(...rest) : type2;
+    const type = schema[path];
+    return rest.length ? type.walk?.(...rest) : type;
   }
 );
 
@@ -699,8 +701,8 @@ var date = () => new Struct(
   (value) => new Date(Number(value))
 );
 
-// src/structs/enums.ts
-var enums = () => new Struct(
+// src/structs/enum.ts
+var enum_ = (_) => new Struct(
   "S",
   (value) => value,
   (value) => value
@@ -723,8 +725,8 @@ var unknown = () => new Struct(
 // src/structs/set/struct.ts
 var SetStruct = class {
   // declare readonly OPTIONAL: Optional
-  constructor(type2, _marshall, _unmarshall, walk = void 0, optional2 = false) {
-    this.type = type2;
+  constructor(type, _marshall, _unmarshall, walk = void 0, optional2 = false) {
+    this.type = type;
     this._marshall = _marshall;
     this._unmarshall = _unmarshall;
     this.walk = walk;
@@ -1134,28 +1136,6 @@ var mockDynamoDB = (configOrServer) => {
 
 // src/index.ts
 import { DynamoDBServer as DynamoDBServer2 } from "@awsless/dynamodb-server";
-
-// src/test/struct.ts
-import { array as array2, coerce, enums as enums2, object as object2, type, unknown as unknown2 } from "@awsless/validate";
-var streamStruct = (table) => {
-  const itemStruct = () => coerce(unknown2(), object2(), (value) => {
-    return table.unmarshall(value);
-  });
-  return type({
-    Records: array2(
-      type({
-        eventName: enums2(["MODIFY", "INSERT", "REMOVE"]),
-        dynamodb: type({
-          Keys: itemStruct(),
-          OldImage: itemStruct(),
-          NewImage: itemStruct()
-        })
-      })
-    )
-  });
-};
-
-// src/index.ts
 import { DynamoDBDocumentClient as DynamoDBDocumentClient3 } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBClient as DynamoDBClient4 } from "@aws-sdk/client-dynamodb";
 import { GetItemCommand as GetItemCommand3, PutItemCommand as PutItemCommand4, UpdateItemCommand as UpdateItemCommand4, DeleteItemCommand as DeleteItemCommand4 } from "@aws-sdk/client-dynamodb";
@@ -1591,7 +1571,7 @@ export {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
-  enums,
+  enum_,
   getIndexedItem,
   getItem,
   migrate,
@@ -1610,7 +1590,6 @@ export {
   scanAll,
   seed,
   seedTable,
-  streamStruct,
   streamTable,
   string,
   stringSet,

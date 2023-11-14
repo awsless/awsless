@@ -1,5 +1,5 @@
 // src/errors/validation.ts
-import { StructError } from "@awsless/validate";
+import { ValiError } from "@awsless/validate";
 
 // src/errors/viewable.ts
 var prefix = "[viewable]";
@@ -40,13 +40,15 @@ var getViewableErrorData = (error) => {
 
 // src/errors/validation.ts
 var ValidationError = class extends ViewableError {
-  constructor(failures) {
+  constructor(issues) {
     super("validation", "Validation Error", {
-      failures: failures.map((failure) => ({
-        key: failure.key,
-        path: failure.path,
-        type: failure.type,
-        message: failure.message
+      issues: issues.map((issue) => ({
+        input: issue.input,
+        path: issue.path,
+        reason: issue.reason,
+        origin: issue.origin,
+        message: issue.message,
+        validation: issue.validation
       }))
     });
   }
@@ -55,15 +57,15 @@ var transformValidationErrors = async (callback) => {
   try {
     return await callback();
   } catch (error) {
-    if (error instanceof StructError) {
-      throw new ValidationError(error.failures());
+    if (error instanceof ValiError) {
+      throw new ValidationError(error.issues);
     }
     throw error;
   }
 };
 
 // src/lambda.ts
-import { create } from "@awsless/validate";
+import { parse } from "@awsless/validate";
 
 // src/errors/timeout.ts
 var TimeoutError = class extends Error {
@@ -189,18 +191,20 @@ var warmUp = async (input, context) => {
       correlation,
       invocation: 1
     });
-    await Promise.all(Array.from({ length: input.concurrency - 1 }).map((_, index) => {
-      return invoke({
-        name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
-        qualifier: "$LATEST",
-        payload: {
-          [warmerKey]: true,
-          [invocationKey]: index + 2,
-          [correlationKey]: correlation,
-          [concurrencyKey]: input.concurrency
-        }
-      });
-    }));
+    await Promise.all(
+      Array.from({ length: input.concurrency - 1 }).map((_, index) => {
+        return invoke({
+          name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
+          qualifier: "$LATEST",
+          payload: {
+            [warmerKey]: true,
+            [invocationKey]: index + 2,
+            [correlationKey]: correlation,
+            [concurrencyKey]: input.concurrency
+          }
+        });
+      })
+    );
   }
 };
 
@@ -228,11 +232,13 @@ var lambda = (options) => {
     const log = async (maybeError) => {
       const error = normalizeError(maybeError);
       const list = [options.logger].flat(10);
-      await Promise.all(list.map((logger) => {
-        return logger && logger(error, {
-          input: event
-        });
-      }));
+      await Promise.all(
+        list.map((logger) => {
+          return logger?.(error, {
+            input: event
+          });
+        })
+      );
     };
     try {
       const warmUpEvent = getWarmUpEvent(event);
@@ -240,13 +246,14 @@ var lambda = (options) => {
         await warmUp(warmUpEvent, context);
         return void 0;
       }
-      const result = await createTimeoutWrap(context, log, async () => {
-        const input = await transformValidationErrors(() => options.input ? create(event, options.input) : event);
-        const extendedContext = { ...context || {}, event, log };
-        const output = await transformValidationErrors(() => options.handle(input, extendedContext));
-        return options.output ? create(output, options.output) : output;
+      const result = await createTimeoutWrap(context, log, () => {
+        return transformValidationErrors(() => {
+          const input = options.schema ? parse(options.schema, event) : event;
+          const extendedContext = { ...context ?? {}, event, log };
+          return options.handle(input, extendedContext);
+        });
       });
-      if (process.env.NODE_ENV === "test" && result) {
+      if (result && process.env.NODE_ENV === "test") {
         return JSON.parse(JSON.stringify(result));
       }
       return result;
@@ -267,8 +274,8 @@ import { mockClient } from "aws-sdk-client-mock";
 var mockLambda = (lambdas) => {
   const list = mockObjectValues(lambdas);
   mockClient(LambdaClient2).on(InvokeCommand2).callsFake(async (input) => {
-    const name = input.FunctionName || "";
-    const type = input.InvocationType || "RequestResponse";
+    const name = input.FunctionName ?? "";
+    const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? JSON.parse(toUtf82(input.Payload)) : void 0;
     const callback = list[name];
     if (!callback) {

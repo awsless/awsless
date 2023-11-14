@@ -1,17 +1,15 @@
-
 import { lambda } from '../src'
 import { Context } from 'aws-lambda'
 
 describe('Timeout', () => {
-
-	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+	const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 	const context = { getRemainingTimeInMillis: () => 100 + 1000 } as Context
 
 	it('should log timeout error', async () => {
 		const logger = vi.fn()
 		const handle = lambda({
 			logger,
-			handle: () => sleep(1200)
+			handle: () => sleep(1200),
 		})
 
 		await handle(undefined, context)
@@ -27,7 +25,7 @@ describe('Timeout', () => {
 			async handle() {
 				await sleep(50)
 				throw error
-			}
+			},
 		})
 
 		await expect(handle(undefined, context)).rejects.toThrow(error)
@@ -43,7 +41,7 @@ describe('Timeout', () => {
 			async handle() {
 				await sleep(50)
 				return 'OK'
-			}
+			},
 		})
 
 		const result = await handle(undefined, context)

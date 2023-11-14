@@ -1,18 +1,17 @@
-
 import { Context } from 'aws-lambda'
 
 export class TimeoutError extends Error {
-	constructor(remainingTime:number) {
+	constructor(remainingTime: number) {
 		super(`Lambda will timeout in ${remainingTime}ms`)
 	}
 }
 
 export const createTimeoutWrap = async <R>(
-	context:Context | undefined,
-	log:(error:TimeoutError) => void,
-	callback:() => R
+	context: Context | undefined,
+	log: (error: TimeoutError) => void,
+	callback: () => R
 ): Promise<R> => {
-	if(!context) {
+	if (!context) {
 		return callback()
 	}
 
@@ -29,10 +28,10 @@ export const createTimeoutWrap = async <R>(
 
 	try {
 		return await callback()
-	// } catch(error) {
-	// 	console.log(error);
+		// } catch(error) {
+		// 	console.log(error);
 
-	// 	throw error
+		// 	throw error
 	} finally {
 		clearTimeout(id)
 	}

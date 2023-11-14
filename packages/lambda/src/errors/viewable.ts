@@ -8,7 +8,7 @@ export class ViewableError extends Error {
 			`${prefix} ${JSON.stringify({
 				type,
 				message,
-				data
+				data,
 			})}`
 		)
 	}
@@ -25,9 +25,7 @@ export const isViewableErrorType = (error: unknown, type: string): boolean => {
 }
 
 export const isViewableError = (error: unknown): error is ViewableError => {
-	return (
-		error instanceof ViewableError || ( error instanceof Error && isViewableErrorString(error.message) )
-	)
+	return error instanceof ViewableError || (error instanceof Error && isViewableErrorString(error.message))
 }
 
 export const isViewableErrorString = (value: string): boolean => {
@@ -38,7 +36,7 @@ export const parseViewableErrorString = (value: string): ViewableErrorData => {
 	const json = value.substring(prefix.length)
 	const data = JSON.parse(json) as ViewableErrorData
 
-	if(typeof data.type !== 'string' || typeof data.message !== 'string') {
+	if (typeof data.type !== 'string' || typeof data.message !== 'string') {
 		throw new TypeError('Invalid viewable error string')
 	}
 

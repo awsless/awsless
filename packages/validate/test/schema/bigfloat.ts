@@ -19,8 +19,8 @@ it('bigfloat like', () => {
 
 it('bigfloat types', () => {
 	const schema = bigfloat()
-	expectTypeOf<Output<typeof schema>>().toMatchTypeOf<BigFloat>()
-	expectTypeOf<Input<typeof schema>>().toMatchTypeOf<
+	expectTypeOf<Output<typeof schema>>().toEqualTypeOf<BigFloat>()
+	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<
 		| string
 		| number
 		| BigFloat

@@ -129,20 +129,9 @@ var mockSQS = (queues) => {
   });
   return list;
 };
-
-// src/struct.ts
-import { array, type, string, coerce } from "@awsless/validate";
-var sqsStruct = (body) => {
-  return coerce(
-    array(body),
-    type({ Records: array(type({ body: string() })) }),
-    ({ Records }) => Records.map((item) => JSON.parse(item.body))
-  );
-};
 export {
   mockSQS,
   sendMessage,
   sendMessageBatch,
-  sqsClient,
-  sqsStruct
+  sqsClient
 };

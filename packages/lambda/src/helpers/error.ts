@@ -1,4 +1,3 @@
-
 export const normalizeError = (maybeError: unknown): Error => {
 	if (maybeError instanceof Error) {
 		return maybeError

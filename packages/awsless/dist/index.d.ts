@@ -1,6 +1,10 @@
 import * as zod from 'zod';
 import { z, AnyZodObject } from 'zod';
 import { AwsCredentialIdentityProvider } from '@aws-sdk/types';
+import * as _awsless_lambda from '@awsless/lambda';
+import { Handler, Loggers } from '@awsless/lambda';
+import { BaseSchema, SnsTopicSchema, SqsQueueSchema } from '@awsless/validate';
+import * as valibot from 'valibot';
 
 type AssetRead = (name: string) => Promise<Buffer>;
 type AssetWrite = (name: string, data: string | Buffer) => Promise<void>;
@@ -11058,7 +11062,7 @@ declare class Url extends Resource {
     };
 }
 
-type FunctionProps = {
+type FunctionProps$1 = {
     code: ICode;
     name?: string;
     description?: string;
@@ -11068,6 +11072,7 @@ type FunctionProps = {
     timeout?: Duration;
     ephemeralStorageSize?: Size;
     environment?: Record<string, string>;
+    permissions?: Permission | Permission[];
     reserved?: number;
     vpc?: {
         securityGroupIds: string[];
@@ -11081,7 +11086,7 @@ declare class Function$1 extends Resource {
     private role;
     private policy;
     private environmentVariables;
-    constructor(_logicalId: string, props: FunctionProps);
+    constructor(_logicalId: string, props: FunctionProps$1);
     enableLogs(retention?: Duration): this;
     warmUp(concurrency: number): this;
     addUrl(props?: Omit<UrlProps, 'target'>): Url;
@@ -11225,6 +11230,45 @@ declare const getSearchName: <N extends string, S extends string = "stack">(name
 interface SearchResources {
 }
 declare const Search: SearchResources;
+
+type FunctionProps<H extends Handler<S>, S extends BaseSchema> = {
+    handle: H;
+    schema?: S;
+    logger?: Loggers;
+    logViewableErrors?: boolean;
+};
+declare const func: <H extends Handler<S>, S extends BaseSchema<any, any>>(props: FunctionProps<H, S>) => (event: _awsless_lambda.Input<S>, context?: _awsless_lambda.LambdaContext | undefined) => Promise<ReturnType<H>>;
+
+type TopicProps<H extends Handler<S>, S extends BaseSchema> = {
+    handle: H;
+    schema?: S;
+    logger?: Loggers;
+};
+declare const topic: <H extends Handler<SnsTopicSchema<S>>, S extends BaseSchema<any, any>>(props: TopicProps<H, S>) => (event: valibot.Input<S> | valibot.Input<S>[] | {
+    Records: {
+        Sns: {
+            Message: string | valibot.Input<S>;
+        };
+    }[];
+}, context?: _awsless_lambda.LambdaContext | undefined) => Promise<ReturnType<H>>;
+
+type QueueProps<H extends Handler<S>, S extends BaseSchema> = {
+    handle: H;
+    schema?: S;
+    logger?: Loggers;
+};
+declare const queue: <H extends Handler<SqsQueueSchema<S>>, S extends BaseSchema<any, any>>(props: QueueProps<H, S>) => (event: valibot.Input<S> | valibot.Input<S>[] | {
+    Records: {
+        body: string | valibot.Input<S>;
+    }[];
+}, context?: _awsless_lambda.LambdaContext | undefined) => Promise<ReturnType<H>>;
+
+type CronProps<H extends Handler<S>, S extends BaseSchema> = {
+    handle: H;
+    schema?: S;
+    logger?: Loggers;
+};
+declare const cron: <H extends Handler<S>, S extends BaseSchema<any, any>>(props: CronProps<H, S>) => (event: _awsless_lambda.Input<S>, context?: _awsless_lambda.LambdaContext | undefined) => Promise<ReturnType<H>>;
 
 type AppConfig = CombinedDefaultPluginsConfigInput;
 type StackConfig = CombinedDefaultPluginsConfigInput['stacks'][number];
@@ -12027,4 +12071,4 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
 });
 declare const defineAppConfig: (config: AppConfig | AppConfigFactory<AppConfig>) => CombinedDefaultPluginsConfigInput | AppConfigFactory<CombinedDefaultPluginsConfigInput>;
 
-export { APP, AppConfig, Auth, AuthResources, Cache, CacheResources, Config, ConfigResources, Fn, Function, FunctionResources, Plugin, Queue, QueueResources, STACK, Search, SearchResources, StackConfig, Store, StoreResources, Table, TableResources, Topic, TopicResources, defineAppConfig, definePlugin, defineStackConfig, getAuthName, getAuthProps, getCacheProps, getConfigName, getFunctionName, getGlobalResourceName, getLocalResourceName, getQueueName, getSearchName, getStoreName, getTableName, getTopicName };
+export { APP, AppConfig, Auth, AuthResources, Cache, CacheResources, Config, ConfigResources, CronProps, Fn, Function, FunctionProps, FunctionResources, Plugin, Queue, QueueProps, QueueResources, STACK, Search, SearchResources, StackConfig, Store, StoreResources, Table, TableResources, Topic, TopicProps, TopicResources, cron, defineAppConfig, definePlugin, defineStackConfig, func, getAuthName, getAuthProps, getCacheProps, getConfigName, getFunctionName, getGlobalResourceName, getLocalResourceName, getQueueName, getSearchName, getStoreName, getTableName, getTopicName, queue, topic };

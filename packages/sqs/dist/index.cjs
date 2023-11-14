@@ -33,8 +33,7 @@ __export(src_exports, {
   mockSQS: () => mockSQS,
   sendMessage: () => sendMessage,
   sendMessageBatch: () => sendMessageBatch,
-  sqsClient: () => sqsClient,
-  sqsStruct: () => sqsStruct
+  sqsClient: () => sqsClient
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -160,21 +159,10 @@ var mockSQS = (queues) => {
   });
   return list;
 };
-
-// src/struct.ts
-var import_validate = require("@awsless/validate");
-var sqsStruct = (body) => {
-  return (0, import_validate.coerce)(
-    (0, import_validate.array)(body),
-    (0, import_validate.type)({ Records: (0, import_validate.array)((0, import_validate.type)({ body: (0, import_validate.string)() })) }),
-    ({ Records }) => Records.map((item) => JSON.parse(item.body))
-  );
-};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   mockSQS,
   sendMessage,
   sendMessageBatch,
-  sqsClient,
-  sqsStruct
+  sqsClient
 });

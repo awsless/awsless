@@ -1,17 +1,15 @@
-
 import { lambda, mockLambda } from '../src'
 import { string } from '@awsless/validate'
 
 describe('Warm up support', () => {
-
 	process.env.AWS_LAMBDA_FUNCTION_NAME = 'test'
 
 	const mock = mockLambda({
-		test: () => {}
+		test: () => {},
 	})
 
 	const fn = lambda({
-		handle: () => 'normal'
+		handle: () => 'normal',
 	})
 
 	it('should skip the warmer for normal calls', async () => {
@@ -34,14 +32,12 @@ describe('Warm up support', () => {
 
 	it('should work with validation structs', async () => {
 		const fn = lambda({
-			input: string(),
-			output: string(),
-			handle: () => 'normal'
+			schema: string(),
+			handle: () => 'normal',
 		})
 
 		// @ts-ignore
 		const result = await fn({ warmer: true })
 		expect(result).toBeUndefined()
 	})
-
 })

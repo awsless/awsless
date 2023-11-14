@@ -1,4 +1,3 @@
-
 import { LambdaClient } from '@aws-sdk/client-lambda'
 import { Context } from 'aws-lambda'
 import { Jsonify, AsyncReturnType } from 'type-fest'
@@ -20,6 +19,8 @@ export interface KnownInvokeOptions<Lambda extends LambdaFunction> extends Invok
 	payload: Parameters<Lambda>[0]
 }
 
+export type InvokeResponse<Lambda extends LambdaFunction> = Promise<Jsonify<AsyncReturnType<Lambda>>>
+
 export interface LambdaError extends Error {
 	name: string
 	message: string
@@ -32,9 +33,16 @@ export interface ErrorResponse {
 	errorMessage: string
 }
 
-type LambdaFunction = (event:any, context?:Context) => Promise<unknown>
+type LambdaFunction = (event: any, context?: Context) => Promise<unknown>
 
 export type Invoke = {
 	({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>
-	<Lambda extends LambdaFunction>({ client, name, qualifier, type, payload, reflectViewableErrors }: KnownInvokeOptions<Lambda>): Promise<Jsonify<AsyncReturnType<Lambda>>>
+	<Lambda extends LambdaFunction>({
+		client,
+		name,
+		qualifier,
+		type,
+		payload,
+		reflectViewableErrors,
+	}: KnownInvokeOptions<Lambda>): InvokeResponse<Lambda>
 }
