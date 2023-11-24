@@ -6,14 +6,15 @@ import { Handler, Loggers } from '@awsless/lambda';
 import { BaseSchema, SnsTopicSchema, SqsQueueSchema } from '@awsless/validate';
 import * as valibot from 'valibot';
 
-type AssetRead = (name: string) => Promise<Buffer>;
-type AssetWrite = (name: string, data: string | Buffer) => Promise<void>;
-type AssetPublish = (name: string, data: string | Buffer, hash: string) => Promise<{
+type AssetRead = (fingerprint: string, names: string[]) => Promise<Buffer[]>;
+type AssetWrite = (fingerprint: string, cb: (write: (name: string, data: string | Buffer) => Promise<void>) => Promise<void>) => Promise<void>;
+type AssetPublish = (name: string, data: string | Buffer, hash: string | Buffer) => Promise<{
     bucket: string;
     key: string;
     version: string;
 }>;
 type BuildProps = {
+    read: AssetRead;
     write: AssetWrite;
 };
 type PublishProps = {
@@ -280,7 +281,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: zod.ZodDefault<zod.ZodBoolean>;
             log: zod.ZodDefault<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-            runtime: zod.ZodDefault<zod.ZodEnum<["nodejs18.x"]>>;
+            runtime: zod.ZodDefault<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
             memorySize: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
             architecture: zod.ZodDefault<zod.ZodEnum<["x86_64", "arm64"]>>;
             ephemeralStorageSize: zod.ZodDefault<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -319,7 +320,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             warm: number;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
-            runtime: "nodejs18.x";
+            runtime: "nodejs18.x" | "nodejs20.x";
             memorySize: Size;
             architecture: "x86_64" | "arm64";
             ephemeralStorageSize: Size;
@@ -342,7 +343,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -367,7 +368,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             warm: number;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
-            runtime: "nodejs18.x";
+            runtime: "nodejs18.x" | "nodejs20.x";
             memorySize: Size;
             architecture: "x86_64" | "arm64";
             ephemeralStorageSize: Size;
@@ -392,7 +393,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -419,7 +420,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
             architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
             ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -459,7 +460,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -483,7 +484,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -509,7 +510,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -535,7 +536,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -563,7 +564,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -589,7 +590,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             warm: number;
             log: (boolean | Duration) & (boolean | Duration | undefined);
             timeout: Duration;
-            runtime: "nodejs18.x";
+            runtime: "nodejs18.x" | "nodejs20.x";
             memorySize: Size;
             architecture: "x86_64" | "arm64";
             ephemeralStorageSize: Size;
@@ -617,7 +618,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -643,7 +644,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -753,7 +754,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                 architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                 ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -793,7 +794,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -817,7 +818,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -845,7 +846,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -869,7 +870,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -897,7 +898,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -921,7 +922,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -951,7 +952,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -975,7 +976,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1005,7 +1006,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1029,7 +1030,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1061,7 +1062,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1085,7 +1086,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1117,7 +1118,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1141,7 +1142,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1225,7 +1226,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                 architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                 ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1265,7 +1266,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1289,7 +1290,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1323,7 +1324,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1347,7 +1348,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1381,7 +1382,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1405,7 +1406,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1441,7 +1442,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1465,7 +1466,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1501,7 +1502,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1525,7 +1526,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1563,7 +1564,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1587,7 +1588,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -1637,7 +1638,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1661,7 +1662,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1719,7 +1720,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -1759,7 +1760,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -1783,7 +1784,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1810,7 +1811,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -1834,7 +1835,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -1861,7 +1862,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1885,7 +1886,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -1933,7 +1934,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -1957,7 +1958,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -1997,7 +1998,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2021,7 +2022,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2063,7 +2064,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -2087,7 +2088,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -2129,7 +2130,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2153,7 +2154,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2197,7 +2198,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -2221,7 +2222,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -2265,7 +2266,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2289,7 +2290,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2341,7 +2342,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
             architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
             ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -2381,7 +2382,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -2405,7 +2406,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2432,7 +2433,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -2459,7 +2460,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2486,7 +2487,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -2513,7 +2514,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2542,7 +2543,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -2571,7 +2572,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2602,7 +2603,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                 architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                 ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -2642,7 +2643,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2666,7 +2667,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2692,7 +2693,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2716,7 +2717,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2744,7 +2745,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2768,7 +2769,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2798,7 +2799,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2822,7 +2823,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2852,7 +2853,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2876,7 +2877,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2908,7 +2909,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2932,7 +2933,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -2964,7 +2965,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -2988,7 +2989,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3096,7 +3097,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3136,7 +3137,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3160,7 +3161,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3185,7 +3186,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3225,7 +3226,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3249,7 +3250,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3274,7 +3275,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3314,7 +3315,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3338,7 +3339,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3363,7 +3364,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3403,7 +3404,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3427,7 +3428,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3452,7 +3453,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3492,7 +3493,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3516,7 +3517,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3541,7 +3542,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3581,7 +3582,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3605,7 +3606,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3630,7 +3631,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3670,7 +3671,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3694,7 +3695,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3719,7 +3720,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3759,7 +3760,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3783,7 +3784,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3808,7 +3809,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -3848,7 +3849,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3872,7 +3873,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -3898,7 +3899,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3923,7 +3924,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3948,7 +3949,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3973,7 +3974,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -3998,7 +3999,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4023,7 +4024,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4048,7 +4049,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4073,7 +4074,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4098,7 +4099,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4124,7 +4125,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4149,7 +4150,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4174,7 +4175,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4199,7 +4200,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4224,7 +4225,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4249,7 +4250,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4274,7 +4275,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4299,7 +4300,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4324,7 +4325,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4375,7 +4376,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4400,7 +4401,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4425,7 +4426,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4450,7 +4451,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4475,7 +4476,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4500,7 +4501,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4525,7 +4526,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4550,7 +4551,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4575,7 +4576,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4626,7 +4627,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4651,7 +4652,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4676,7 +4677,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4701,7 +4702,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4726,7 +4727,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4751,7 +4752,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4776,7 +4777,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4801,7 +4802,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4826,7 +4827,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -4879,7 +4880,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4904,7 +4905,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4929,7 +4930,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4954,7 +4955,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -4979,7 +4980,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5004,7 +5005,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5029,7 +5030,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5054,7 +5055,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5079,7 +5080,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5132,7 +5133,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5157,7 +5158,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5182,7 +5183,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5207,7 +5208,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5232,7 +5233,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5257,7 +5258,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5282,7 +5283,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5307,7 +5308,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5332,7 +5333,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5364,7 +5365,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5404,7 +5405,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5428,7 +5429,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5453,7 +5454,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5493,7 +5494,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5517,7 +5518,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5542,7 +5543,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5582,7 +5583,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5606,7 +5607,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5631,7 +5632,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5671,7 +5672,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5695,7 +5696,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5720,7 +5721,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5760,7 +5761,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5784,7 +5785,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5809,7 +5810,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5849,7 +5850,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5873,7 +5874,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5898,7 +5899,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -5938,7 +5939,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -5962,7 +5963,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -5987,7 +5988,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -6027,7 +6028,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6051,7 +6052,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6076,7 +6077,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -6116,7 +6117,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6140,7 +6141,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6166,7 +6167,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6191,7 +6192,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6216,7 +6217,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6241,7 +6242,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6266,7 +6267,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6291,7 +6292,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6316,7 +6317,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6341,7 +6342,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6366,7 +6367,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6392,7 +6393,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6417,7 +6418,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6442,7 +6443,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6467,7 +6468,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6492,7 +6493,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6517,7 +6518,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6542,7 +6543,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6567,7 +6568,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6592,7 +6593,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6621,7 +6622,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6646,7 +6647,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6671,7 +6672,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6696,7 +6697,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6721,7 +6722,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6746,7 +6747,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6771,7 +6772,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6796,7 +6797,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6821,7 +6822,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -6850,7 +6851,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6875,7 +6876,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6900,7 +6901,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6925,7 +6926,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6950,7 +6951,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -6975,7 +6976,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7000,7 +7001,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7025,7 +7026,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7050,7 +7051,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7081,7 +7082,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7106,7 +7107,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7131,7 +7132,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7156,7 +7157,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7181,7 +7182,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7206,7 +7207,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7231,7 +7232,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7256,7 +7257,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7281,7 +7282,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7312,7 +7313,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7337,7 +7338,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7362,7 +7363,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7387,7 +7388,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7412,7 +7413,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7437,7 +7438,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7462,7 +7463,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7487,7 +7488,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7512,7 +7513,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -7545,7 +7546,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7570,7 +7571,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7595,7 +7596,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7620,7 +7621,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7645,7 +7646,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7670,7 +7671,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7695,7 +7696,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7720,7 +7721,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7745,7 +7746,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7799,7 +7800,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7824,7 +7825,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7849,7 +7850,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7874,7 +7875,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7899,7 +7900,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7924,7 +7925,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7949,7 +7950,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7974,7 +7975,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -7999,7 +8000,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -8032,7 +8033,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8057,7 +8058,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8082,7 +8083,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8107,7 +8108,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8132,7 +8133,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8157,7 +8158,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8182,7 +8183,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8207,7 +8208,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8232,7 +8233,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8286,7 +8287,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8311,7 +8312,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8336,7 +8337,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8361,7 +8362,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8386,7 +8387,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8411,7 +8412,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8436,7 +8437,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8461,7 +8462,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8486,7 +8487,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8550,7 +8551,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                 architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                 ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -8590,7 +8591,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -8614,7 +8615,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8639,7 +8640,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc: zod.ZodOptional<zod.ZodBoolean>;
                     log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                     timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                    runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                     memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                     architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                     ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -8679,7 +8680,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -8703,7 +8704,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8730,7 +8731,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -8754,7 +8755,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -8781,7 +8782,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8805,7 +8806,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8834,7 +8835,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -8859,7 +8860,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -8883,7 +8884,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -8912,7 +8913,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8937,7 +8938,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8961,7 +8962,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -8992,7 +8993,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -9017,7 +9018,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -9041,7 +9042,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -9072,7 +9073,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9097,7 +9098,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9121,7 +9122,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9154,7 +9155,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -9179,7 +9180,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -9203,7 +9204,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | Duration | undefined;
                     timeout?: Duration | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: Size | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: Size | undefined;
@@ -9244,7 +9245,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9269,7 +9270,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9293,7 +9294,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                     vpc?: boolean | undefined;
                     log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                     timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                    runtime?: "nodejs18.x" | undefined;
+                    runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                     memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                     architecture?: "x86_64" | "arm64" | undefined;
                     ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9359,7 +9360,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
             architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
             ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -9399,7 +9400,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -9423,7 +9424,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9449,7 +9450,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -9475,7 +9476,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9503,7 +9504,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -9538,7 +9539,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9595,7 +9596,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
             architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
             ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -9635,7 +9636,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -9659,7 +9660,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9685,7 +9686,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -9711,7 +9712,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9739,7 +9740,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -9773,7 +9774,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -9811,7 +9812,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc: zod.ZodOptional<zod.ZodBoolean>;
                 log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
                 timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+                runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
                 memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
                 architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
                 ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -9851,7 +9852,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -9875,7 +9876,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -10200,7 +10201,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -10301,7 +10302,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -10404,7 +10405,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -10507,7 +10508,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -10612,7 +10613,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | Duration | undefined;
                 timeout?: Duration | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: Size | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: Size | undefined;
@@ -10717,7 +10718,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -10818,7 +10819,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc: zod.ZodOptional<zod.ZodBoolean>;
             log: zod.ZodOptional<zod.ZodUnion<[zod.ZodBoolean, zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>]>>;
             timeout: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`, zod.ZodTypeDef, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>, Duration, `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days`>>;
-            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x"]>>;
+            runtime: zod.ZodOptional<zod.ZodEnum<["nodejs18.x", "nodejs20.x"]>>;
             memorySize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
             architecture: zod.ZodOptional<zod.ZodEnum<["x86_64", "arm64"]>>;
             ephemeralStorageSize: zod.ZodOptional<zod.ZodEffects<zod.ZodEffects<zod.ZodEffects<zod.ZodType<`${number} KB` | `${number} MB` | `${number} GB`, zod.ZodTypeDef, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>, Size, `${number} KB` | `${number} MB` | `${number} GB`>>;
@@ -10858,7 +10859,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -10882,7 +10883,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -10908,7 +10909,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -10934,7 +10935,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -10962,7 +10963,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | Duration | undefined;
             timeout?: Duration | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: Size | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: Size | undefined;
@@ -10990,7 +10991,7 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11007,6 +11008,22 @@ declare const defaultPlugins: (Plugin<zod.ZodObject<{
                 effect?: "allow" | "deny" | undefined;
             }[] | undefined;
         } | undefined;
+    }[];
+}>> | Plugin<zod.ZodObject<{
+    stacks: zod.ZodArray<zod.ZodObject<{
+        tests: zod.ZodOptional<zod.ZodUnion<[zod.ZodEffects<zod.ZodEffects<zod.ZodString, string, string>, string[], string>, zod.ZodArray<zod.ZodEffects<zod.ZodString, string, string>, "many">]>>;
+    }, "strip", zod.ZodTypeAny, {
+        tests?: string[] | undefined;
+    }, {
+        tests?: string | string[] | undefined;
+    }>, "many">;
+}, "strip", zod.ZodTypeAny, {
+    stacks: {
+        tests?: string[] | undefined;
+    }[];
+}, {
+    stacks: {
+        tests?: string | string[] | undefined;
     }[];
 }>>)[];
 type CombinedDefaultPluginsConfigInput = ExtendedConfigInput<(typeof defaultPlugins)[number]['schema']>;
@@ -11066,7 +11083,7 @@ type FunctionProps$1 = {
     code: ICode;
     name?: string;
     description?: string;
-    runtime?: 'nodejs18.x';
+    runtime?: 'nodejs18.x' | 'nodejs20.x';
     architecture?: 'arm64' | 'x86_64';
     memorySize?: Size;
     timeout?: Duration;
@@ -11123,7 +11140,7 @@ declare class Function$1 extends Resource {
         };
         FunctionName: string;
         MemorySize: number;
-        Runtime: "nodejs18.x";
+        Runtime: "nodejs18.x" | "nodejs20.x";
         Timeout: number;
         Architectures: ("x86_64" | "arm64")[];
         Role: string;
@@ -11132,22 +11149,15 @@ declare class Function$1 extends Resource {
 
 type Binding = (lambda: Function$1) => void;
 
-type ExtendedConfigOutput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? BaseConfig & z.output<S> : BaseConfig);
-type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = (S extends AnyZodObject ? AppConfigInput & z.input<S> : AppConfigInput);
-type ResourceContext<S extends AnyZodObject | undefined = undefined> = {
-    config: ExtendedConfigOutput<S>;
-    app: App;
-    stack: Stack;
-    bootstrap: Stack;
-    usEastBootstrap: Stack;
-    resource: Resource;
-};
+type ExtendedConfigOutput<S extends AnyZodObject | undefined = undefined> = S extends AnyZodObject ? BaseConfig & z.output<S> : BaseConfig;
+type ExtendedConfigInput<S extends AnyZodObject | undefined = undefined> = S extends AnyZodObject ? AppConfigInput & z.input<S> : AppConfigInput;
 type StackContext<S extends AnyZodObject | undefined = undefined> = {
     config: ExtendedConfigOutput<S>;
     stack: Stack;
     stackConfig: ExtendedConfigOutput<S>['stacks'][number];
     bootstrap: Stack;
     usEastBootstrap: Stack;
+    tests: Map<string, string[]>;
     app: App;
     bind: (cb: Binding) => void;
 };
@@ -11155,6 +11165,7 @@ type AppContext<S extends AnyZodObject | undefined = undefined> = {
     config: ExtendedConfigOutput<S>;
     bootstrap: Stack;
     usEastBootstrap: Stack;
+    tests: Map<string, string[]>;
     app: App;
     bind: (cb: Binding) => void;
 };
@@ -11166,7 +11177,6 @@ type Plugin<S extends AnyZodObject | undefined = undefined> = {
     schema?: S;
     onApp?: (context: AppContext<S>) => void;
     onStack?: (context: StackContext<S>) => void;
-    onResource?: (context: ResourceContext<S>) => void;
     onTypeGen?: (context: TypeGenContext<S>) => string | void;
 };
 declare const definePlugin: <S extends AnyZodObject | undefined = undefined>(plugin: Plugin<S>) => Plugin<S>;
@@ -11270,6 +11280,24 @@ type CronProps<H extends Handler<S>, S extends BaseSchema> = {
 };
 declare const cron: <H extends Handler<S>, S extends BaseSchema<any, any>>(props: CronProps<H, S>) => (event: _awsless_lambda.Input<S>, context?: _awsless_lambda.LambdaContext | undefined) => Promise<ReturnType<H>>;
 
+interface FunctionMock {
+}
+interface FunctionMockResponse {
+}
+declare const mockFunction: (cb: (mock: FunctionMock) => void) => FunctionMockResponse;
+
+interface TopicMock {
+}
+interface TopicMockResponse {
+}
+declare const mockTopic: (cb: (mock: TopicMock) => void) => TopicMockResponse;
+
+interface QueueMock {
+}
+interface QueueMockResponse {
+}
+declare const mockQueue: (cb: (mock: QueueMock) => void) => QueueMockResponse;
+
 type AppConfig = CombinedDefaultPluginsConfigInput;
 type StackConfig = CombinedDefaultPluginsConfigInput['stacks'][number];
 declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (StackConfig$1 & {
@@ -11283,7 +11311,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-        runtime?: "nodejs18.x" | undefined;
+        runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
         architecture?: "x86_64" | "arm64" | undefined;
         ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11321,7 +11349,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11345,7 +11373,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11375,7 +11403,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11399,7 +11427,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11443,7 +11471,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11467,7 +11495,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11503,7 +11531,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-        runtime?: "nodejs18.x" | undefined;
+        runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
         architecture?: "x86_64" | "arm64" | undefined;
         ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11530,7 +11558,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11554,7 +11582,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11588,7 +11616,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11613,7 +11641,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11638,7 +11666,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11663,7 +11691,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11688,7 +11716,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11713,7 +11741,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11738,7 +11766,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11763,7 +11791,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11788,7 +11816,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11818,7 +11846,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11843,7 +11871,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11867,7 +11895,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
                 vpc?: boolean | undefined;
                 log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
                 timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-                runtime?: "nodejs18.x" | undefined;
+                runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
                 memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
                 architecture?: "x86_64" | "arm64" | undefined;
                 ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11896,7 +11924,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-        runtime?: "nodejs18.x" | undefined;
+        runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
         architecture?: "x86_64" | "arm64" | undefined;
         ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11922,7 +11950,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-        runtime?: "nodejs18.x" | undefined;
+        runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
         architecture?: "x86_64" | "arm64" | undefined;
         ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -11952,7 +11980,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             vpc?: boolean | undefined;
             log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
             timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-            runtime?: "nodejs18.x" | undefined;
+            runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
             memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
             architecture?: "x86_64" | "arm64" | undefined;
             ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -12051,7 +12079,7 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
         vpc?: boolean | undefined;
         log?: boolean | `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
         timeout?: `${number} second` | `${number} seconds` | `${number} minute` | `${number} minutes` | `${number} hour` | `${number} hours` | `${number} day` | `${number} days` | undefined;
-        runtime?: "nodejs18.x" | undefined;
+        runtime?: "nodejs18.x" | "nodejs20.x" | undefined;
         memorySize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
         architecture?: "x86_64" | "arm64" | undefined;
         ephemeralStorageSize?: `${number} KB` | `${number} MB` | `${number} GB` | undefined;
@@ -12068,7 +12096,9 @@ declare const defineStackConfig: (config: StackConfig) => StackConfig$1 | (Stack
             effect?: "allow" | "deny" | undefined;
         }[] | undefined;
     } | undefined;
+}) | (StackConfig$1 & {
+    tests?: string | string[] | undefined;
 });
 declare const defineAppConfig: (config: AppConfig | AppConfigFactory<AppConfig>) => CombinedDefaultPluginsConfigInput | AppConfigFactory<CombinedDefaultPluginsConfigInput>;
 
-export { APP, AppConfig, Auth, AuthResources, Cache, CacheResources, Config, ConfigResources, CronProps, Fn, Function, FunctionProps, FunctionResources, Plugin, Queue, QueueProps, QueueResources, STACK, Search, SearchResources, StackConfig, Store, StoreResources, Table, TableResources, Topic, TopicProps, TopicResources, cron, defineAppConfig, definePlugin, defineStackConfig, func, getAuthName, getAuthProps, getCacheProps, getConfigName, getFunctionName, getGlobalResourceName, getLocalResourceName, getQueueName, getSearchName, getStoreName, getTableName, getTopicName, queue, topic };
+export { APP, AppConfig, Auth, AuthResources, Cache, CacheResources, Config, ConfigResources, CronProps, Fn, Function, FunctionMock, FunctionMockResponse, FunctionProps, FunctionResources, Plugin, Queue, QueueMock, QueueMockResponse, QueueProps, QueueResources, STACK, Search, SearchResources, StackConfig, Store, StoreResources, Table, TableResources, Topic, TopicMock, TopicMockResponse, TopicProps, TopicResources, cron, defineAppConfig, definePlugin, defineStackConfig, func, getAuthName, getAuthProps, getCacheProps, getConfigName, getFunctionName, getGlobalResourceName, getLocalResourceName, getQueueName, getSearchName, getStoreName, getTableName, getTopicName, mockFunction, mockQueue, mockTopic, queue, topic };

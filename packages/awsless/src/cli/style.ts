@@ -1,4 +1,3 @@
-
 import chalk from 'chalk'
 
 export const symbol = {
@@ -8,6 +7,7 @@ export const symbol = {
 	question: '?',
 	error: '✖',
 
+	dot: '·',
 	ellipsis: '…',
 	pointerSmall: '›',
 	// line: '─',
@@ -30,7 +30,7 @@ export const style = {
 
 	attr: chalk.yellow,
 
-	cursor: chalk.bgWhite.blackBright
+	cursor: chalk.bgWhite.blackBright,
 }
 
 // export const symbol = {

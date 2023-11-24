@@ -8,41 +8,38 @@ import wrapAnsi from 'wrap-ansi'
 
 type Type = keyof typeof symbol & keyof typeof style
 
-export const dialog = (type: Type, lines: string[]):RenderFactory => {
-	const padding = 3
+export const dialog = (type: Type, lines: string[]): RenderFactory => {
+	const padding = 2
 	const icon = style[type](symbol[type].padEnd(padding))
 	// const value = [
 	// 	icon, ' '
 	// ]
 
-	return (term) => {
-		term.out.write(lines.map((line, i) => {
-			if(i === 0) {
-				return icon + wrapAnsi(line, term.out.width(), { hard: true })
-			}
+	return term => {
+		term.out.write(
+			lines
+				.map((line, i) => {
+					if (i === 0) {
+						return icon + wrapAnsi(line, term.out.width(), { hard: true })
+					}
 
-			return wrapAnsi(' '.repeat(padding) + line, term.out.width(), { hard: true })
-		}).join(br()) + br())
+					return wrapAnsi(' '.repeat(padding) + line, term.out.width(), { hard: true })
+				})
+				.join(br()) + br()
+		)
 	}
 }
 
-export const loadingDialog = (message: string): RenderFactory<(message:string) => void> => {
-	const [ icon, stop ] = createSpinner()
+export const loadingDialog = (message: string): RenderFactory<(message: string) => void> => {
+	const [icon, stop] = createSpinner()
 	const description = new Signal(message)
 	const time = new Signal<string>('')
 	const timer = createTimer()
 
-	return (term) => {
-		term.out.write([
-			icon,
-			'  ',
-			description,
-			' ',
-			time,
-			br()
-		])
+	return term => {
+		term.out.write([icon, ' ', description, ' ', time, br()])
 
-		return (message) => {
+		return message => {
 			description.set(message)
 			time.set(timer())
 

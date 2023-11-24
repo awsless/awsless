@@ -1,4 +1,3 @@
-
 import { define, getItem, object, putItem, string } from '../../../../dynamodb/src/index.js'
 import { invoke } from '../../../../lambda/src/index.js'
 import { getFunctionName, getTableName } from '../../../src/index.js'
@@ -9,25 +8,25 @@ const table = define(getTableName('stats', 'table'), {
 	schema: object({
 		id: string(),
 		name: string(),
-	})
+	}),
 })
 
 export default async () => {
 	const value = await invoke<typeof redis>({
 		name: getFunctionName('test', 'cache'),
-		payload: undefined
+		payload: undefined,
 	})
 
-	if(value === null) {
+	if (value === null) {
 		return 'ERROR'
 	}
 
 	await putItem(table, {
 		id: '1',
-		name: value
+		name: value,
 	})
 
 	return await getItem(table, {
-		id: '1'
+		id: '1',
 	})
 }

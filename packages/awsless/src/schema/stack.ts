@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { ResourceIdSchema } from './resource-id.js';
+import { z } from 'zod'
+import { ResourceIdSchema } from './resource-id.js'
 
 export type StackConfig = {
 	name: string
@@ -8,7 +8,7 @@ export type StackConfig = {
 
 export const StackSchema: z.ZodType<StackConfig, z.ZodTypeDef, StackConfig> = z.object({
 	name: ResourceIdSchema,
-	depends: z.array(z.lazy(() => StackSchema)).optional()
+	depends: z.array(z.lazy(() => StackSchema)).optional(),
 })
 
 export type StackConfigInput = z.input<typeof StackSchema>

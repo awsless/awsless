@@ -1,10 +1,8 @@
-
 type Item<Value> = {
 	value: Value
 }
 
 export class WeakCache<Key extends string | number | symbol, Value extends unknown> {
-
 	private registry: FinalizationRegistry<Key>
 	private cache: Map<Key, WeakRef<Item<Value>>>
 
@@ -29,7 +27,7 @@ export class WeakCache<Key extends string | number | symbol, Value extends unkno
 	get(key: Key, defaultValue: Value): Value
 	get(key: Key, defaultValue?: Value): Value | undefined {
 		const ref = this.cache.get(key)
-		if(ref) {
+		if (ref) {
 			const item = ref.deref()
 
 			if (typeof item !== 'undefined') {
@@ -47,7 +45,7 @@ export class WeakCache<Key extends string | number | symbol, Value extends unkno
 	delete(key: Key) {
 		const ref = this.cache.get(key)
 
-		if(ref) {
+		if (ref) {
 			this.cache.delete(key)
 			this.registry.unregister(ref)
 
@@ -58,7 +56,7 @@ export class WeakCache<Key extends string | number | symbol, Value extends unkno
 	}
 
 	clear() {
-		for(const key of this.keys()) {
+		for (const key of this.keys()) {
 			this.delete(key)
 		}
 	}
@@ -67,7 +65,7 @@ export class WeakCache<Key extends string | number | symbol, Value extends unkno
 		return this.cache.size
 	}
 
-	[ Symbol.iterator ]() {
+	[Symbol.iterator]() {
 		return this.entries()
 	}
 
@@ -75,22 +73,22 @@ export class WeakCache<Key extends string | number | symbol, Value extends unkno
 		return this.cache.keys()
 	}
 
-	* values(): IterableIterator<Value> {
-		for(const ref of this.cache.values()) {
+	*values(): IterableIterator<Value> {
+		for (const ref of this.cache.values()) {
 			const item = ref.deref()
 
-			if(item) {
+			if (item) {
 				yield item.value
 			}
 		}
 	}
 
-	* entries(): IterableIterator<[ Key, Value ]> {
-		for(const [ key, ref ] of this.cache.entries()) {
+	*entries(): IterableIterator<[Key, Value]> {
+		for (const [key, ref] of this.cache.entries()) {
 			const item = ref.deref()
 
-			if(item) {
-				yield [ key, item.value ]
+			if (item) {
+				yield [key, item.value]
 			}
 		}
 	}

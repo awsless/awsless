@@ -1,9 +1,16 @@
-import { z } from "zod";
+import { z } from 'zod'
 import { DurationFormat, DurationSchema } from '../src/schema/duration.js'
-import { CronExpression, CronExpressionSchema, RateExpression, RateExpressionSchema, ScheduleExpression, ScheduleExpressionSchema } from "../src/plugins/cron/schema/schedule";
-import { Duration } from "../src/formation/property/duration";
-import { SizeFormat, SizeSchema } from "../src/schema/size";
-import { Size } from "../src/formation/property/size";
+import {
+	CronExpression,
+	CronExpressionSchema,
+	RateExpression,
+	RateExpressionSchema,
+	ScheduleExpression,
+	ScheduleExpressionSchema,
+} from '../src/plugins/cron/schema/schedule.js'
+import { Duration } from '../src/formation/property/duration.js'
+import { SizeFormat, SizeSchema } from '../src/schema/size.js'
+import { Size } from '../src/formation/property/size.js'
 
 describe('schema', () => {
 	it('size', () => {
@@ -68,6 +75,9 @@ describe('schema', () => {
 	})
 
 	it('schedule expression', () => {
+		expectTypeOf<z.input<typeof ScheduleExpressionSchema>>().toEqualTypeOf<ScheduleExpression>()
+		expectTypeOf<z.output<typeof ScheduleExpressionSchema>>().toEqualTypeOf<string>()
+
 		ScheduleExpressionSchema.parse('1 hour')
 		ScheduleExpressionSchema.parse('* * * * ? *')
 

@@ -275,6 +275,65 @@ var cron = (props) => {
   });
 };
 
+// src/node/mock/function.ts
+import { mockLambda } from "@awsless/lambda";
+var mockFunction = (cb) => {
+  const list = {};
+  const mock = createProxy((stack) => {
+    return createProxy((name) => {
+      return (handleOrResponse) => {
+        const handle = typeof handleOrResponse === "function" ? handleOrResponse : () => handleOrResponse;
+        list[getFunctionName(stack, name)] = handle;
+      };
+    });
+  });
+  cb(mock);
+  const result = mockLambda(list);
+  return createProxy((stack) => {
+    return createProxy((name) => {
+      return result[getFunctionName(stack, name)];
+    });
+  });
+};
+
+// src/node/mock/topic.ts
+import { mockSNS } from "@awsless/sns";
+var mockTopic = (cb) => {
+  const list = {};
+  const mock = createProxy((name) => {
+    return (handle) => {
+      list[getTopicName(name)] = handle ?? (() => {
+      });
+    };
+  });
+  cb(mock);
+  const result = mockSNS(list);
+  return createProxy((name) => {
+    return result[getTopicName(name)];
+  });
+};
+
+// src/node/mock/queue.ts
+import { mockSQS } from "@awsless/sqs";
+var mockQueue = (cb) => {
+  const list = {};
+  const mock = createProxy((stack) => {
+    return createProxy((name) => {
+      return (handle) => {
+        list[getQueueName(stack, name)] = handle ?? (() => {
+        });
+      };
+    });
+  });
+  cb(mock);
+  const result = mockSQS(list);
+  return createProxy((stack) => {
+    return createProxy((name) => {
+      return result[getQueueName(stack, name)];
+    });
+  });
+};
+
 // src/index.ts
 var defineStackConfig = (config) => config;
 var defineAppConfig = (config) => config;
@@ -308,6 +367,9 @@ export {
   getStoreName,
   getTableName,
   getTopicName,
+  mockFunction,
+  mockQueue,
+  mockTopic,
   queue,
   topic
 };

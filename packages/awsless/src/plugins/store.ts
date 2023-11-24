@@ -1,13 +1,12 @@
-
 import { z } from 'zod'
-import { definePlugin } from '../plugin.js';
+import { definePlugin } from '../plugin.js'
 // import { addResourceEnvironment, toId, toName } from '../util/resource.js';
-import { ResourceIdSchema } from '../schema/resource-id.js';
-import { Bucket } from '../formation/resource/s3/bucket.js';
-import { TypeGen, TypeObject } from '../util/type-gen.js';
-import { formatName } from '../formation/util.js';
-import { Config } from '../config.js';
-import { CustomResource } from '../formation/resource/cloud-formation/custom-resource.js';
+import { ResourceIdSchema } from '../schema/resource-id.js'
+import { Bucket } from '../formation/resource/s3/bucket.js'
+import { TypeGen, TypeObject } from '../util/type-gen.js'
+import { formatName } from '../formation/util.js'
+import { Config } from '../config.js'
+import { CustomResource } from '../formation/resource/cloud-formation/custom-resource.js'
 
 export const hasStores = (config: Config) => {
 	const stores = config.stacks.find(stack => {
@@ -18,36 +17,42 @@ export const hasStores = (config: Config) => {
 	return !!stores
 }
 
-
 export const storePlugin = definePlugin({
 	name: 'store',
 	schema: z.object({
-		stacks: z.object({
-			/** Define the stores in your stack.
-			 * @example
-			 * {
-			 *   stores: [ 'STORE_NAME' ]
-			 * }
-			 */
-			stores: z.array(ResourceIdSchema).optional()
-		}).array()
+		stacks: z
+			.object({
+				/** Define the stores in your stack.
+				 * @example
+				 * {
+				 *   stores: [ 'STORE_NAME' ]
+				 * }
+				 */
+				stores: z.array(ResourceIdSchema).optional(),
+			})
+			.array(),
 	}),
 	onTypeGen({ config }) {
-		const types = new TypeGen('@awsless/awsless', 'StoreResources')
-		for(const stack of config.stacks) {
-			const list = new TypeObject()
-			for(const name of stack.stores || []) {
+		const gen = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(1)
+
+		for (const stack of config.stacks) {
+			const list = new TypeObject(2)
+
+			for (const name of stack.stores || []) {
 				const storeName = formatName(`${config.name}-${stack.name}-${name}`)
 				list.addType(name, `{ readonly name: '${storeName}' }`)
 			}
 
-			types.addType(stack.name, list.toString())
+			resources.addType(stack.name, list)
 		}
 
-		return types.toString()
+		gen.addInterface('StoreResources', resources)
+
+		return gen.toString()
 	},
 	onStack({ config, stack, stackConfig, bootstrap, bind }) {
-		for(const id of stackConfig.stores || []) {
+		for (const id of stackConfig.stores || []) {
 			const bucket = new Bucket(id, {
 				name: `store-${config.name}-${stack.name}-${id}`,
 				accessControl: 'private',
@@ -57,7 +62,7 @@ export const storePlugin = definePlugin({
 				serviceToken: bootstrap.import('feature-delete-bucket'),
 				properties: {
 					bucketName: bucket.name,
-				}
+				},
 			}).dependsOn(bucket)
 
 			stack.add(bucket, custom)

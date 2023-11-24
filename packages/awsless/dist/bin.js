@@ -14,6 +14,7 @@ var symbol = {
   warning: "\u26A0",
   question: "?",
   error: "\u2716",
+  dot: "\xB7",
   ellipsis: "\u2026",
   pointerSmall: "\u203A",
   // line: '─',
@@ -594,8 +595,8 @@ var Stack = class {
       return node;
     };
     for (const resource of this.resources) {
-      const json3 = walk(resource.toJSON());
-      Object.assign(resources, json3);
+      const json4 = walk(resource.toJSON());
+      Object.assign(resources, json4);
     }
     for (let [name, value] of this.exports.entries()) {
       Object.assign(outputs, {
@@ -622,9 +623,9 @@ var Stack = class {
 };
 
 // src/stack.ts
-var toStack = ({ config, app, stackConfig, bootstrap: bootstrap2, usEastBootstrap, plugins }) => {
+var toStack = ({ config: config2, app, stackConfig, bootstrap: bootstrap2, usEastBootstrap, plugins, tests }) => {
   const name = stackConfig.name;
-  const stack = new Stack(name, config.region).tag("app", config.name).tag("stage", config.stage).tag("stack", name);
+  const stack = new Stack(name, config2.region).tag("app", config2.name).tag("stage", config2.stage).tag("stack", name);
   debug("Define stack:", style.info(name));
   debug("Run plugin onStack listeners");
   const bindings = [];
@@ -633,12 +634,13 @@ var toStack = ({ config, app, stackConfig, bootstrap: bootstrap2, usEastBootstra
   };
   for (const plugin of plugins) {
     plugin.onStack?.({
-      config,
+      config: config2,
       app,
       stack,
       stackConfig,
       bootstrap: bootstrap2,
       usEastBootstrap,
+      tests,
       bind
     });
   }
@@ -660,9 +662,9 @@ var toStack = ({ config, app, stackConfig, bootstrap: bootstrap2, usEastBootstra
 
 // src/util/deployment.ts
 var createDeploymentLine = (stacks) => {
-  const list3 = stacks.map(({ stack, config }) => ({
+  const list3 = stacks.map(({ stack, config: config2 }) => ({
     stack,
-    depends: config?.depends?.map((dep) => dep.name) || []
+    depends: config2?.depends?.map((dep) => dep.name) || []
   }));
   const names = stacks.map(({ stack }) => stack.name);
   const line2 = [];
@@ -984,9 +986,68 @@ var zipFiles = (files) => {
 };
 
 // src/formation/resource/lambda/code.ts
-import { readFile } from "fs/promises";
+import { readFile as readFile2 } from "fs/promises";
 import { fileURLToPath } from "url";
-import { join } from "path";
+import { join as join2 } from "path";
+
+// src/util/fingerprint.ts
+import { createHash as createHash2 } from "crypto";
+import { readFile, stat as stat2 } from "fs/promises";
+import { basename, dirname as dirname2, join } from "path";
+import parseImports from "parse-imports";
+var generateFingerprint = async (file) => {
+  const hashes = /* @__PURE__ */ new Map();
+  const generate = async (file2) => {
+    if (hashes.has(file2)) {
+      return;
+    }
+    const code = await readModuleFile(file2);
+    const deps = await findDependencies(file2, code);
+    const hash = createHash2("sha1").update(code).digest();
+    hashes.set(file2, hash);
+    for (const dep of deps) {
+      if (dep.startsWith("/")) {
+        await generate(dep);
+      }
+    }
+  };
+  await generate(file);
+  const merge = Buffer.concat(Array.from(hashes.values()));
+  return createHash2("sha1").update(merge).digest("hex");
+};
+var readModuleFile = (file) => {
+  if (file.endsWith(".js")) {
+    return readFiles([file, file.substring(0, file.length - 3) + ".ts"]);
+  }
+  if (!basename(file).includes(".")) {
+    const extensions = ["js", "mjs", "jsx", "ts", "mts", "tsx"];
+    return readFiles([
+      file,
+      ...extensions.map((exp) => `${file}.${exp}`),
+      ...extensions.map((exp) => join(file, `/index.${exp}`))
+    ]);
+  }
+  return readFile(file, "utf8");
+};
+var readFiles = async (files) => {
+  for (const file of files) {
+    try {
+      const s = await stat2(file);
+      if (s.isFile()) {
+        return readFile(file, "utf8");
+      }
+    } catch (_) {
+      continue;
+    }
+  }
+  throw new Error(`No such file: ${files.join(", ")}`);
+};
+var findDependencies = async (file, code) => {
+  const imports = Array.from(await parseImports(code));
+  return imports.map((entry) => entry.moduleSpecifier.value).filter(Boolean).map((value) => value?.startsWith(".") ? join(dirname2(file), value) : value);
+};
+
+// src/formation/resource/lambda/code.ts
 var Code = class {
   static fromFile(id, file, bundler) {
     return new FileCode(id, file, bundler);
@@ -1029,18 +1090,28 @@ var InlineFileCode = class extends Asset {
   }
   code;
   handler;
-  async build({ write }) {
-    const bundler = this.bundler ?? rollupBundle();
-    const {
-      hash,
-      files: [file],
-      handler
-    } = await bundler(this.file);
-    await Promise.all([write("HASH", hash), write("file.js", file.code)]);
-    this.handler = handler;
-    this.code = file.code.toString("utf8");
+  async build({ read, write }) {
+    const fingerprint = await generateFingerprint(this.file);
+    await write(fingerprint, async (write2) => {
+      const bundler = this.bundler ?? rollupBundle();
+      const {
+        hash,
+        files: [file],
+        handler: handler2
+      } = await bundler(this.file);
+      await Promise.all([
+        write2("HASH", hash),
+        write2("SIZE", formatByteSize(file.code.byteLength)),
+        write2("HANDLER", handler2),
+        write2("file.js", file.code),
+        file.map && write2("file.map", file.map)
+      ]);
+    });
+    const [handler, size, code] = await read(fingerprint, ["HANDLER", "SIZE", "file.js"]);
+    this.handler = handler.toString("utf8");
+    this.code = code.toString("utf8");
     return {
-      size: formatByteSize(file.code.byteLength)
+      size: size.toString("utf8")
     };
   }
   toCodeJson() {
@@ -1058,33 +1129,39 @@ var FileCode = class extends Asset {
     this.file = file;
     this.bundler = bundler;
   }
+  fingerprint;
   handler;
-  hash;
-  bundle;
+  // private hash?: string
+  // private bundle?: Buffer
   s3;
-  async build({ write }) {
-    const bundler = this.bundler ?? rollupBundle();
-    const { hash, files, handler } = await bundler(this.file);
-    const bundle = await zipFiles(files);
-    await Promise.all([
-      write("HASH", hash),
-      write("bundle.zip", bundle),
-      ...files.map((file) => write(`files/${file.name}`, file.code)),
-      ...files.map((file) => file.map ? write(`files/${file.name}.map`, file.map) : void 0)
-    ]);
-    this.handler = handler;
-    this.bundle = bundle;
-    this.hash = hash;
+  async build({ write, read }) {
+    this.fingerprint = await generateFingerprint(this.file);
+    await write(this.fingerprint, async (write2) => {
+      const bundler = this.bundler ?? rollupBundle();
+      const { hash, files, handler } = await bundler(this.file);
+      const bundle = await zipFiles(files);
+      await Promise.all([
+        write2("HASH", hash),
+        write2("SIZE", formatByteSize(bundle.byteLength)),
+        write2("HANDLER", handler),
+        write2("bundle.zip", bundle),
+        ...files.map((file) => write2(`files/${file.name}`, file.code)),
+        ...files.map((file) => file.map && write2(`files/${file.name}.map`, file.map))
+      ]);
+    });
+    const [size] = await read(this.fingerprint, ["SIZE"]);
     return {
-      size: formatByteSize(bundle.byteLength)
+      size: size.toString("utf8")
     };
   }
-  async publish({ publish }) {
-    this.s3 = await publish(`${this.id}.zip`, this.bundle, this.hash);
+  async publish({ publish, read }) {
+    const [hash, handler, bundle] = await read(this.fingerprint, ["HASH", "HANDLER", "bundle.zip"]);
+    this.handler = handler.toString("utf8");
+    this.s3 = await publish(`${this.id}.zip`, bundle, hash);
   }
   toCodeJson() {
     return {
-      Handler: this.handler,
+      Handler: this.handler ?? "",
       Code: {
         S3Bucket: this.s3?.bucket ?? "",
         S3Key: this.s3?.key ?? "",
@@ -1100,9 +1177,9 @@ var FeatureCode = class extends Asset {
   }
   async publish({ publish }) {
     const root2 = fileURLToPath(new URL(".", import.meta.url));
-    const path = join(root2, `features/${this.id}`);
-    const bundle = await readFile(join(path, "bundle.zip"));
-    const hash = await readFile(join(path, "HASH"));
+    const path = join2(root2, `features/${this.id}`);
+    const bundle = await readFile2(join2(path, "bundle.zip"));
+    const hash = await readFile2(join2(path, "HASH"));
     this.s3 = await publish(`${this.id}.zip`, bundle, hash.toString("utf8"));
   }
   toCodeJson() {
@@ -1123,8 +1200,8 @@ var InlineFeatureCode = class extends Asset {
   }
   async publish() {
     const root2 = fileURLToPath(new URL(".", import.meta.url));
-    const path = join(root2, `features/${this.id}`);
-    const file = await readFile(join(path, "index.js"));
+    const path = join2(root2, `features/${this.id}`);
+    const file = await readFile2(join2(path, "index.js"));
     this.code = file.toString("utf8");
   }
   toCodeJson() {
@@ -1176,11 +1253,11 @@ var EventInvokeConfig = class extends Resource {
 };
 
 // src/plugins/on-failure/util.ts
-var getGlobalOnFailure = ({ config, bootstrap: bootstrap2 }) => {
-  return hasOnFailure(config) ? bootstrap2.import("on-failure-queue-arn") : void 0;
+var getGlobalOnFailure = ({ config: config2, bootstrap: bootstrap2 }) => {
+  return hasOnFailure(config2) ? bootstrap2.import("on-failure-queue-arn") : void 0;
 };
-var hasOnFailure = (config) => {
-  const onFailure = config.stacks.find((stack) => {
+var hasOnFailure = (config2) => {
+  const onFailure = config2.stacks.find((stack) => {
     return typeof stack.onFailure !== "undefined";
   });
   return !!onFailure;
@@ -1191,24 +1268,24 @@ import { camelCase as camelCase2 } from "change-case";
 
 // src/util/path.ts
 import { lstat } from "fs/promises";
-import { join as join2, normalize } from "path";
+import { join as join3, normalize } from "path";
 var root = process.cwd();
 var directories = {
   root,
   get output() {
-    return join2(this.root, ".awsless");
+    return join3(this.root, ".awsless");
   },
   get cache() {
-    return join2(this.output, "cache");
+    return join3(this.output, "cache");
   },
   get asset() {
-    return join2(this.output, "asset");
+    return join3(this.output, "asset");
   },
   get types() {
-    return join2(this.output, "types");
+    return join3(this.output, "types");
   },
   get template() {
-    return join2(this.output, "template");
+    return join3(this.output, "template");
   }
 };
 var setRoot = (path = root) => {
@@ -1218,17 +1295,17 @@ var findRootDir = async (path, configFile, level = 5) => {
   if (!level) {
     throw new TypeError("No awsless project found");
   }
-  const file = join2(path, configFile);
+  const file = join3(path, configFile);
   const exists = await fileExist(file);
   if (exists) {
     return path;
   }
-  return findRootDir(normalize(join2(path, "..")), configFile, level - 1);
+  return findRootDir(normalize(join3(path, "..")), configFile, level - 1);
 };
 var fileExist = async (file) => {
   try {
-    const stat3 = await lstat(file);
-    if (stat3.isFile()) {
+    const stat4 = await lstat(file);
+    if (stat4.isFile()) {
       return true;
     }
   } catch (error) {
@@ -1241,18 +1318,15 @@ import { relative as relative2 } from "path";
 
 // src/util/type-gen.ts
 import { mkdir, writeFile } from "fs/promises";
-import { join as join3, relative } from "path";
+import { join as join4, relative } from "path";
 import { camelCase, constantCase as constantCase3 } from "change-case";
-var generateResourceTypes = async (config) => {
-  const plugins = [
-    ...defaultPlugins,
-    ...config.plugins || []
-  ];
+var generateResourceTypes = async (config2) => {
+  const plugins = [...defaultPlugins, ...config2.plugins || []];
   const files = [];
   for (const plugin of plugins) {
-    const code = plugin.onTypeGen?.({ config });
+    const code = plugin.onTypeGen?.({ config: config2 });
     if (code) {
-      const file = join3(directories.types, `${plugin.name}.d.ts`);
+      const file = join4(directories.types, `${plugin.name}.d.ts`);
       files.push(relative(directories.root, file));
       await mkdir(directories.types, { recursive: true });
       await writeFile(file, code);
@@ -1260,17 +1334,15 @@ var generateResourceTypes = async (config) => {
   }
   if (files.length) {
     const code = files.map((file) => `/// <reference path='${file}' />`).join("\n");
-    await writeFile(join3(directories.root, `awsless.d.ts`), code);
+    await writeFile(join4(directories.root, `awsless.d.ts`), code);
   }
 };
 var TypeGen = class {
-  constructor(module, interfaceName, readonly = true) {
+  constructor(module) {
     this.module = module;
-    this.interfaceName = interfaceName;
-    this.readonly = readonly;
   }
   codes = /* @__PURE__ */ new Set();
-  types = /* @__PURE__ */ new Map();
+  interfaces = /* @__PURE__ */ new Map();
   imports = /* @__PURE__ */ new Map();
   addImport(varName, path) {
     this.imports.set(varName, path);
@@ -1280,48 +1352,49 @@ var TypeGen = class {
     this.codes.add(code);
     return this;
   }
-  addType(name, type) {
-    if (type) {
-      this.types.set(camelCase(name), type);
+  addInterface(name, type) {
+    const value = type.toString();
+    if (value) {
+      this.interfaces.set(name, value);
     }
     return this;
   }
-  addConst(name, type) {
-    if (type) {
-      this.types.set(constantCase3(name), type);
-    }
-    return this;
-  }
+  // addConst(name: string, type: string) {
+  // 	if (type) {
+  // 		this.types.set(constantCase(name), type)
+  // 	}
+  // 	return this
+  // }
   toString() {
-    if (this.types.size === 0) {
+    if (this.interfaces.size === 0) {
       return;
     }
     const lines = [];
     if (this.imports.size > 0) {
-      lines.push(...[
-        "// Imports",
-        ...Array.from(this.imports.entries()).map(([varName, path]) => {
-          return `import ${camelCase(varName)} from '${path}'`;
-        }),
-        ""
-      ]);
+      lines.push(
+        ...[
+          "// Imports",
+          ...Array.from(this.imports.entries()).map(([varName, path]) => {
+            return `import ${camelCase(varName)} from '${path}'`;
+          }),
+          ""
+        ]
+      );
     }
     if (this.codes.size > 0) {
-      lines.push(...[
-        "// Types",
-        ...Array.from(this.codes).map((v) => v.trim()),
-        ""
-      ]);
+      lines.push(...["// Types", ...Array.from(this.codes).map((v) => v.trim()), ""]);
     }
     return [
       ...lines,
       "// Extend module",
       `declare module '${this.module}' {`,
-      `	interface ${this.interfaceName} {`,
-      ...Array.from(this.types.entries()).map(([propName, type]) => {
-        return `		${this.readonly ? "readonly " : ""}${propName}: ${type}`;
-      }),
-      `	}`,
+      Array.from(this.interfaces).map(([name, type]) => {
+        return `	interface ${name} ${type}`;
+      }).join("\n\n"),
+      // ...Array.from(this.types.entries()).map(([propName, type]) => { // `\tinterface ${this.interfaceName} {`,
+      // 	return `\t\t${this.readonly ? 'readonly ' : ''}${propName}: ${type}`
+      // }),
+      // `\t}`,
       `}`,
       "",
       "// Export fix",
@@ -1330,10 +1403,15 @@ var TypeGen = class {
   }
 };
 var TypeObject = class {
+  constructor(level, readonly = true) {
+    this.level = level;
+    this.readonly = readonly;
+  }
   types = /* @__PURE__ */ new Map();
   addType(name, type) {
-    if (type) {
-      this.types.set(camelCase(name), type);
+    const value = type.toString();
+    if (value) {
+      this.types.set(camelCase(name), value);
     }
     return this;
   }
@@ -1350,9 +1428,16 @@ var TypeObject = class {
     return [
       "{",
       ...Array.from(this.types.entries()).map(([propName, type]) => {
-        return `			readonly ${propName}: ${type}`;
+        return [
+          "	".repeat(this.level + 1),
+          this.readonly ? "readonly" : "",
+          " ",
+          propName,
+          ": ",
+          type
+        ].join("");
       }),
-      "		}"
+      `${"	".repeat(this.level)}}`
     ].join("\n");
   }
 };
@@ -1374,7 +1459,7 @@ var ReservedConcurrentExecutionsSchema = z6.number().int().min(0);
 var EnvironmentSchema = z6.record(z6.string(), z6.string()).optional();
 var ArchitectureSchema = z6.enum(["x86_64", "arm64"]);
 var RetryAttemptsSchema = z6.number().int().min(0).max(2);
-var RuntimeSchema = z6.enum(["nodejs18.x"]);
+var RuntimeSchema = z6.enum(["nodejs18.x", "nodejs20.x"]);
 var PermissionSchema = z6.object({
   effect: z6.enum(["allow", "deny"]).default("allow"),
   actions: z6.string().array(),
@@ -1501,9 +1586,9 @@ var schema = z6.object({
        */
       timeout: TimeoutSchema.default("10 seconds"),
       /** The identifier of the function's runtime.
-       * @default 'nodejs18.x'
+       * @default 'nodejs20.x'
        */
-      runtime: RuntimeSchema.default("nodejs18.x"),
+      runtime: RuntimeSchema.default("nodejs20.x"),
       /** The amount of memory available to the function at runtime.
        * Increasing the function memory also increases its CPU allocation.
        * The value can be any multiple of 1 MB.
@@ -1564,36 +1649,59 @@ var schema = z6.object({
 });
 var typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
+import type { PartialDeep } from 'type-fest'
+import type { Mock } from 'vitest'
 
-type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
+type Func = (...args: any[]) => any
+
+type Invoke<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<Func>
-	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<Func>
-}`;
+	readonly async: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
+	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<F>
+}
+
+type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurseIntoArrays: true }>
+type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Response<F>> | Response<F> | void | Promise<void> | Promise<Promise<void>>
+type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
+type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+`;
 var functionPlugin = definePlugin({
   name: "function",
   schema,
-  onTypeGen({ config }) {
-    const types2 = new TypeGen("@awsless/awsless", "FunctionResources");
-    types2.addCode(typeGenCode);
-    for (const stack of config.stacks) {
-      const list3 = new TypeObject();
+  onTypeGen({ config: config2 }) {
+    const types2 = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    const mocks = new TypeObject(1);
+    const mockResponses = new TypeObject(1);
+    for (const stack of config2.stacks) {
+      const resource = new TypeObject(2);
+      const mock = new TypeObject(2);
+      const mockResponse = new TypeObject(2);
       for (const [name, fileOrProps] of Object.entries(stack.functions || {})) {
         const varName = camelCase2(`${stack.name}-${name}`);
-        const funcName = formatName(`${config.name}-${stack.name}-${name}`);
+        const funcName = formatName(`${config2.name}-${stack.name}-${name}`);
         const file = typeof fileOrProps === "string" ? fileOrProps : fileOrProps.file;
         const relFile = relative2(directories.types, file);
         types2.addImport(varName, relFile);
-        list3.addType(name, `Invoke<'${funcName}', typeof ${varName}>`);
+        resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`);
+        mock.addType(name, `MockBuilder<typeof ${varName}>`);
+        mockResponse.addType(name, `MockObject<typeof ${varName}>`);
       }
-      types2.addType(stack.name, list3.toString());
+      mocks.addType(stack.name, mock);
+      resources.addType(stack.name, resource);
+      mockResponses.addType(stack.name, mockResponse);
     }
+    types2.addCode(typeGenCode);
+    types2.addInterface("FunctionResources", resources);
+    types2.addInterface("FunctionMock", mocks);
+    types2.addInterface("FunctionMockResponse", mockResponses);
     return types2.toString();
   },
   onStack(ctx) {
-    const { config, stack } = ctx;
+    const { config: config2, stack } = ctx;
     for (const [id, fileOrProps] of Object.entries(ctx.stackConfig.functions || {})) {
-      const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
+      const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
       const lambda = toLambdaFunction(ctx, id, fileOrProps);
       const invoke = new EventInvokeConfig(id, {
         functionName: lambda.name,
@@ -1611,12 +1719,12 @@ var functionPlugin = definePlugin({
   }
 });
 var toLambdaFunction = (ctx, id, fileOrProps) => {
-  const config = ctx.config;
+  const config2 = ctx.config;
   const stack = ctx.stack ?? ctx.bootstrap;
   const bootstrap2 = ctx.bootstrap;
-  const props = typeof fileOrProps === "string" ? { ...config.defaults?.function, file: fileOrProps } : { ...config.defaults?.function, ...fileOrProps };
+  const props = typeof fileOrProps === "string" ? { ...config2.defaults?.function, file: fileOrProps } : { ...config2.defaults?.function, ...fileOrProps };
   const lambda = new Function(id, {
-    name: `${config.name}-${stack.name}-${id}`,
+    name: `${config2.name}-${stack.name}-${id}`,
     code: Code.fromFile(
       id,
       props.file,
@@ -1628,13 +1736,13 @@ var toLambdaFunction = (ctx, id, fileOrProps) => {
     ...props,
     vpc: void 0
   });
-  if (config.defaults?.function?.permissions) {
-    lambda.addPermissions(config.defaults?.function?.permissions);
+  if (config2.defaults?.function?.permissions) {
+    lambda.addPermissions(config2.defaults?.function?.permissions);
   }
   if (typeof fileOrProps === "object" && fileOrProps.permissions) {
     lambda.addPermissions(fileOrProps.permissions);
   }
-  lambda.addEnvironment("APP", config.name).addEnvironment("STAGE", config.stage).addEnvironment("STACK", stack.name);
+  lambda.addEnvironment("APP", config2.name).addEnvironment("STAGE", config2.stage).addEnvironment("STACK", stack.name);
   if (props.log) {
     lambda.enableLogs(props.log instanceof Duration ? props.log : void 0);
   }
@@ -1830,24 +1938,49 @@ var SqsEventSource = class extends Group {
 // src/plugins/queue.ts
 import { camelCase as camelCase3, constantCase as constantCase5 } from "change-case";
 import { relative as relative3 } from "path";
-var RetentionPeriodSchema = DurationSchema.refine(durationMin(Duration.minutes(1)), "Minimum retention period is 1 minute").refine(durationMax(Duration.days(14)), "Maximum retention period is 14 days");
-var VisibilityTimeoutSchema = DurationSchema.refine(durationMax(Duration.hours(12)), "Maximum visibility timeout is 12 hours");
-var DeliveryDelaySchema = DurationSchema.refine(durationMax(Duration.minutes(15)), "Maximum delivery delay is 15 minutes");
-var ReceiveMessageWaitTimeSchema = DurationSchema.refine(durationMin(Duration.seconds(1)), "Minimum receive message wait time is 1 second").refine(durationMax(Duration.seconds(20)), "Maximum receive message wait time is 20 seconds");
-var MaxMessageSizeSchema = SizeSchema.refine(sizeMin(Size.kiloBytes(1)), "Minimum max message size is 1 KB").refine(sizeMax(Size.kiloBytes(256)), "Maximum max message size is 256 KB");
+var RetentionPeriodSchema = DurationSchema.refine(
+  durationMin(Duration.minutes(1)),
+  "Minimum retention period is 1 minute"
+).refine(durationMax(Duration.days(14)), "Maximum retention period is 14 days");
+var VisibilityTimeoutSchema = DurationSchema.refine(
+  durationMax(Duration.hours(12)),
+  "Maximum visibility timeout is 12 hours"
+);
+var DeliveryDelaySchema = DurationSchema.refine(
+  durationMax(Duration.minutes(15)),
+  "Maximum delivery delay is 15 minutes"
+);
+var ReceiveMessageWaitTimeSchema = DurationSchema.refine(
+  durationMin(Duration.seconds(1)),
+  "Minimum receive message wait time is 1 second"
+).refine(durationMax(Duration.seconds(20)), "Maximum receive message wait time is 20 seconds");
+var MaxMessageSizeSchema = SizeSchema.refine(
+  sizeMin(Size.kiloBytes(1)),
+  "Minimum max message size is 1 KB"
+).refine(sizeMax(Size.kiloBytes(256)), "Maximum max message size is 256 KB");
 var BatchSizeSchema = z8.number().int().min(1, "Minimum batch size is 1").max(1e4, "Maximum batch size is 10000");
 var MaxConcurrencySchema = z8.number().int().min(2, "Minimum max concurrency is 2").max(1e3, "Maximum max concurrency is 1000");
-var MaxBatchingWindow = DurationSchema.refine(durationMax(Duration.minutes(5)), "Maximum max batching window is 5 minutes");
+var MaxBatchingWindow = DurationSchema.refine(
+  durationMax(Duration.minutes(5)),
+  "Maximum max batching window is 5 minutes"
+);
 var typeGenCode2 = `
 import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless/sqs'
+import type { Mock } from 'vitest'
 
-type Payload<Func extends (...args: any[]) => any> = Parameters<Func>[0]['Records'][number]['body']
+type Func = (...args: any[]) => any
+type Payload<F extends Func> = Parameters<F>[0]['Records'][number]['body']
 
-type Send<Name extends string, Func extends (...args: any[]) => any> = {
+type Send<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly batch(items:BatchItem<Payload<Func>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
-	(payload: Payload<Func>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
-}`;
+	readonly batch(items:BatchItem<Payload<F>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	(payload: Payload<F>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
+}
+
+type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
+type MockBuilder<F extends Func> = (handle?: MockHandle<F>) => void
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+`;
 var queuePlugin = definePlugin({
   name: "queue",
   schema: z8.object({
@@ -1947,29 +2080,41 @@ var queuePlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const types2 = new TypeGen("@awsless/awsless", "QueueResources");
-    types2.addCode(typeGenCode2);
-    for (const stack of config.stacks) {
-      const list3 = new TypeObject();
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    const mocks = new TypeObject(1);
+    const mockResponses = new TypeObject(1);
+    for (const stack of config2.stacks) {
+      const resource = new TypeObject(2);
+      const mock = new TypeObject(2);
+      const mockResponse = new TypeObject(2);
       for (const [name, fileOrProps] of Object.entries(stack.queues || {})) {
         const varName = camelCase3(`${stack.name}-${name}`);
-        const queueName = formatName(`${config.name}-${stack.name}-${name}`);
+        const queueName = formatName(`${config2.name}-${stack.name}-${name}`);
         const file = typeof fileOrProps === "string" ? fileOrProps : typeof fileOrProps.consumer === "string" ? fileOrProps.consumer : fileOrProps.consumer.file;
         const relFile = relative3(directories.types, file);
-        types2.addImport(varName, relFile);
-        list3.addType(name, `Send<'${queueName}', typeof ${varName}>`);
+        gen.addImport(varName, relFile);
+        mock.addType(name, `MockBuilder<typeof ${varName}>`);
+        resource.addType(name, `Send<'${queueName}', typeof ${varName}>`);
+        mockResponse.addType(name, `MockObject<typeof ${varName}>`);
       }
-      types2.addType(stack.name, list3.toString());
+      mocks.addType(stack.name, mock);
+      resources.addType(stack.name, resource);
+      mockResponses.addType(stack.name, mockResponse);
     }
-    return types2.toString();
+    gen.addCode(typeGenCode2);
+    gen.addInterface("QueueResources", resources);
+    gen.addInterface("QueueMock", mocks);
+    gen.addInterface("QueueMockResponse", mockResponses);
+    return gen.toString();
   },
   onStack(ctx) {
-    const { stack, config, stackConfig, bind } = ctx;
+    const { stack, config: config2, stackConfig, bind } = ctx;
     for (const [id, functionOrProps] of Object.entries(stackConfig.queues || {})) {
-      const props = typeof functionOrProps === "string" ? { ...config.defaults.queue, consumer: functionOrProps } : { ...config.defaults.queue, ...functionOrProps };
+      const props = typeof functionOrProps === "string" ? { ...config2.defaults.queue, consumer: functionOrProps } : { ...config2.defaults.queue, ...functionOrProps };
       const queue2 = new Queue(id, {
-        name: `${config.name}-${stack.name}-${id}`,
+        name: `${config2.name}-${stack.name}-${id}`,
         deadLetterArn: getGlobalOnFailure(ctx),
         ...props
       });
@@ -2235,24 +2380,26 @@ var tablePlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const types2 = new TypeGen("@awsless/awsless", "TableResources");
-    for (const stack of config.stacks) {
-      const list3 = new TypeObject();
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    for (const stack of config2.stacks) {
+      const list3 = new TypeObject(2);
       for (const name of Object.keys(stack.tables || {})) {
-        const tableName = formatName(`${config.name}-${stack.name}-${name}`);
+        const tableName = formatName(`${config2.name}-${stack.name}-${name}`);
         list3.addType(name, `'${tableName}'`);
       }
-      types2.addType(stack.name, list3.toString());
+      resources.addType(stack.name, list3);
     }
-    return types2.toString();
+    gen.addInterface("TableResources", resources);
+    return gen.toString();
   },
   onStack(ctx) {
-    const { config, stack, stackConfig, bind } = ctx;
+    const { config: config2, stack, stackConfig, bind } = ctx;
     for (const [id, props] of Object.entries(stackConfig.tables || {})) {
       const table = new Table(id, {
         ...props,
-        name: `${config.name}-${stack.name}-${id}`,
+        name: `${config2.name}-${stack.name}-${id}`,
         stream: props.stream?.type
       });
       stack.add(table);
@@ -2367,22 +2514,24 @@ var storePlugin = definePlugin({
       stores: z10.array(ResourceIdSchema).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const types2 = new TypeGen("@awsless/awsless", "StoreResources");
-    for (const stack of config.stacks) {
-      const list3 = new TypeObject();
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    for (const stack of config2.stacks) {
+      const list3 = new TypeObject(2);
       for (const name of stack.stores || []) {
-        const storeName = formatName(`${config.name}-${stack.name}-${name}`);
+        const storeName = formatName(`${config2.name}-${stack.name}-${name}`);
         list3.addType(name, `{ readonly name: '${storeName}' }`);
       }
-      types2.addType(stack.name, list3.toString());
+      resources.addType(stack.name, list3);
     }
-    return types2.toString();
+    gen.addInterface("StoreResources", resources);
+    return gen.toString();
   },
-  onStack({ config, stack, stackConfig, bootstrap: bootstrap2, bind }) {
+  onStack({ config: config2, stack, stackConfig, bootstrap: bootstrap2, bind }) {
     for (const id of stackConfig.stores || []) {
       const bucket = new Bucket(id, {
-        name: `store-${config.name}-${stack.name}-${id}`,
+        name: `store-${config2.name}-${stack.name}-${id}`,
         accessControl: "private"
       });
       const custom = new CustomResource(id, {
@@ -2480,12 +2629,17 @@ var isEmail = (value) => {
 import { paramCase as paramCase4 } from "change-case";
 var TopicNameSchema = z12.string().min(3).max(256).regex(/^[a-z0-9\-]+$/i, "Invalid topic name").transform((value) => paramCase4(value));
 var typeGenCode3 = `
-import { PublishOptions } from '@awsless/sns'
+import type { PublishOptions } from '@awsless/sns'
+import type { Mock } from 'vitest'
 
 type Publish<Name extends string> = {
 	readonly name: Name
 	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
-}`;
+}
+
+type MockHandle = (payload: unknown) => void
+type MockBuilder = (handle?: MockHandle) => void
+`;
 var topicPlugin = definePlugin({
   name: "topic",
   schema: z12.object({
@@ -2531,22 +2685,30 @@ var topicPlugin = definePlugin({
       }
     })
   }),
-  onTypeGen({ config }) {
-    const gen = new TypeGen("@awsless/awsless", "TopicResources");
-    gen.addCode(typeGenCode3);
-    for (const stack of config.stacks) {
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    const mocks = new TypeObject(1);
+    const mockResponses = new TypeObject(1);
+    for (const stack of config2.stacks) {
       for (const topic of stack.topics || []) {
-        const name = formatName(`${config.name}-${topic}`);
-        gen.addType(topic, `Publish<'${name}'>`);
+        const name = formatName(`${config2.name}-${topic}`);
+        mockResponses.addType(topic, "Mock");
+        resources.addType(topic, `Publish<'${name}'>`);
+        mocks.addType(topic, `MockBuilder`);
       }
     }
+    gen.addCode(typeGenCode3);
+    gen.addInterface("TopicResources", resources);
+    gen.addInterface("TopicMock", mocks);
+    gen.addInterface("TopicMockResponse", mockResponses);
     return gen.toString();
   },
-  onApp({ config, bootstrap: bootstrap2 }) {
-    for (const stack of config.stacks) {
+  onApp({ config: config2, bootstrap: bootstrap2 }) {
+    for (const stack of config2.stacks) {
       for (const id of stack.topics || []) {
         const topic = new Topic(id, {
-          name: `${config.name}-${id}`
+          name: `${config2.name}-${id}`
         });
         bootstrap2.add(topic);
         bootstrap2.export(`topic-${id}-arn`, topic.arn);
@@ -2554,14 +2716,14 @@ var topicPlugin = definePlugin({
     }
   },
   onStack(ctx) {
-    const { config, stack, stackConfig, bootstrap: bootstrap2, bind } = ctx;
+    const { config: config2, stack, stackConfig, bootstrap: bootstrap2, bind } = ctx;
     for (const id of stackConfig.topics || []) {
       bind((lambda) => {
         lambda.addPermissions({
           actions: ["sns:Publish"],
           resources: [
             sub("arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${app}-${topic}", {
-              app: config.name,
+              app: config2.name,
               topic: id
             })
           ]
@@ -2694,11 +2856,11 @@ var pubsubPlugin = definePlugin({
     });
   },
   onStack(ctx) {
-    const { config, stack, stackConfig } = ctx;
+    const { config: config2, stack, stackConfig } = ctx;
     for (const [id, props] of Object.entries(stackConfig.pubsub || {})) {
       const lambda = toLambdaFunction(ctx, `pubsub-${id}`, props.consumer);
       const source = new IotEventSource(id, lambda, {
-        name: `${config.name}-${stack.name}-${id}`,
+        name: `${config2.name}-${stack.name}-${id}`,
         sql: props.sql,
         sqlVersion: props.sqlVersion
       });
@@ -2839,13 +3001,11 @@ var RecordSet = class extends Resource {
 
 // src/formation/resource/appsync/graphql-schema.ts
 import { print } from "graphql";
-import { readFile as readFile2 } from "fs/promises";
+import { readFile as readFile3 } from "fs/promises";
 import { mergeTypeDefs } from "@graphql-tools/merge";
 var GraphQLSchema = class extends Resource {
   constructor(logicalId, props) {
-    super("AWS::AppSync::GraphQLSchema", logicalId, [
-      props.definition
-    ]);
+    super("AWS::AppSync::GraphQLSchema", logicalId, [props.definition]);
     this.props = props;
   }
   properties() {
@@ -2863,16 +3023,21 @@ var Definition = class extends Asset {
   schema;
   async build({ write }) {
     const files = [this.files].flat();
-    const schemas = await Promise.all(files.map((file) => {
-      return readFile2(file, "utf8");
-    }));
+    const fingerprint = files.join("");
+    const schemas = await Promise.all(
+      files.map((file) => {
+        return readFile3(file, "utf8");
+      })
+    );
     const defs = mergeTypeDefs(schemas);
     const schema2 = print(defs);
     if (schema2.length === 0) {
       throw new Error(`Graphql schema definition can't be empty. [${this.id}]`);
     }
     const size = Buffer.from(schema2, "utf8").byteLength;
-    await write("schema.gql", schema2);
+    await write(fingerprint, async (write2) => {
+      await write2("schema.gql", schema2);
+    });
     this.schema = schema2;
     return {
       size: formatByteSize(size)
@@ -2889,7 +3054,7 @@ import { swc as swc2, minify as swcMinify2 } from "rollup-plugin-swc3";
 import json2 from "@rollup/plugin-json";
 import commonjs2 from "@rollup/plugin-commonjs";
 import nodeResolve2 from "@rollup/plugin-node-resolve";
-import { dirname as dirname2 } from "path";
+import { dirname as dirname3 } from "path";
 var rollupResolver = ({ minify = true } = {}) => {
   return async (input) => {
     const bundle = await rollup2({
@@ -2912,7 +3077,7 @@ var rollupResolver = ({ minify = true } = {}) => {
           // minify,
           // module: true,
           jsc: {
-            baseUrl: dirname2(input),
+            baseUrl: dirname3(input),
             minify: { sourceMap: true }
           },
           sourceMaps: true
@@ -2971,8 +3136,14 @@ var FileCode2 = class extends Asset {
     this.file = file;
   }
   code;
-  async build() {
-    const code = await rollupResolver({ minify: false })(this.file);
+  async build({ read, write }) {
+    const fingerprint = await generateFingerprint(this.file);
+    await write(fingerprint, async (write2) => {
+      const builder = rollupResolver({ minify: false });
+      const code2 = await builder(this.file);
+      await write2("file.js", code2);
+    });
+    const [code] = await read(fingerprint, ["file.js"]);
     this.code = code.toString("utf8");
     return {
       size: formatByteSize(code.byteLength)
@@ -3101,7 +3272,7 @@ var AppsyncEventSource = class extends Group {
       functionArn: lambda.arn,
       serviceRoleArn: role.arn
     }).dependsOn(role).dependsOn(lambda);
-    const config = new FunctionConfiguration(id, {
+    const config2 = new FunctionConfiguration(id, {
       apiId: props.apiId,
       code: props.code,
       dataSourceName: source.name
@@ -3110,10 +3281,10 @@ var AppsyncEventSource = class extends Group {
       apiId: props.apiId,
       typeName: props.typeName,
       fieldName: props.fieldName,
-      functions: [config.id],
+      functions: [config2.id],
       code: props.code
-    }).dependsOn(config);
-    super([role, source, config, resolver]);
+    }).dependsOn(config2);
+    super([role, source, config2, resolver]);
   }
 };
 
@@ -3153,7 +3324,7 @@ var DomainNameApiAssociation = class extends Resource {
 };
 
 // src/plugins/graphql.ts
-import { basename } from "path";
+import { basename as basename2 } from "path";
 var defaultResolver = Code2.fromInline(
   "graphql-default-resolver",
   `
@@ -3213,21 +3384,21 @@ var graphqlPlugin = definePlugin({
     }).array()
   }),
   onApp(ctx) {
-    const { config, bootstrap: bootstrap2 } = ctx;
+    const { config: config2, bootstrap: bootstrap2 } = ctx;
     const apis = /* @__PURE__ */ new Set();
-    for (const stackConfig of config.stacks) {
+    for (const stackConfig of config2.stacks) {
       for (const id of Object.keys(stackConfig.graphql || {})) {
         apis.add(id);
       }
     }
     for (const id of apis) {
       const schemaFiles = [];
-      for (const stack of config.stacks) {
+      for (const stack of config2.stacks) {
         const files = toArray(stack.graphql?.[id]?.schema || []);
         schemaFiles.push(...files);
       }
       const api = new GraphQLApi(id, {
-        name: `${config.name}-${id}`,
+        name: `${config2.name}-${id}`,
         defaultAuthorization: GraphQLAuthorization.withApiKey()
       });
       const schema2 = new GraphQLSchema(id, {
@@ -3235,7 +3406,7 @@ var graphqlPlugin = definePlugin({
         definition: new Definition(id, schemaFiles)
       }).dependsOn(api);
       bootstrap2.add(api).add(schema2).export(`graphql-${id}`, api.id);
-      const props = config.defaults.graphql?.[id];
+      const props = config2.defaults.graphql?.[id];
       if (!props) {
         continue;
       }
@@ -3274,10 +3445,10 @@ var graphqlPlugin = definePlugin({
     }
   },
   onStack(ctx) {
-    const { config, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    const { config: config2, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, props] of Object.entries(stackConfig.graphql || {})) {
       const apiId = bootstrap2.import(`graphql-${id}`);
-      const defaultProps = config.defaults.graphql?.[id];
+      const defaultProps = config2.defaults.graphql?.[id];
       for (const [typeName, fields] of Object.entries(props.resolvers || {})) {
         for (const [fieldName, resolverProps] of Object.entries(fields || {})) {
           const props2 = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps;
@@ -3287,7 +3458,7 @@ var graphqlPlugin = definePlugin({
           let code = defaultResolver;
           if (resolver) {
             if (!resolverCache.has(resolver)) {
-              const fileCode = Code2.fromFile(basename(resolver), resolver);
+              const fileCode = Code2.fromFile(basename2(resolver), resolver);
               resolverCache.set(resolver, fileCode);
               stack.add(fileCode);
             }
@@ -3560,25 +3731,25 @@ var domainPlugin = definePlugin({
       ).optional()
     }).default({})
   }),
-  onApp({ config, bootstrap: bootstrap2, usEastBootstrap, bind }) {
-    const domains = Object.entries(config.defaults.domains || {});
+  onApp({ config: config2, bootstrap: bootstrap2, usEastBootstrap, bind }) {
+    const domains = Object.entries(config2.defaults.domains || {});
     if (domains.length === 0) {
       return;
     }
     const deleteHostedZoneLambda = new Function("delete-hosted-zone", {
-      name: `${config.name}-delete-hosted-zone`,
+      name: `${config2.name}-delete-hosted-zone`,
       code: Code.fromInlineFeature("delete-hosted-zone")
     }).enableLogs(Duration.days(3)).addPermissions({
       actions: ["route53:ListResourceRecordSets", "route53:ChangeResourceRecordSets"],
       resources: ["*"]
     });
     usEastBootstrap.add(deleteHostedZoneLambda);
-    const usEastExports = new GlobalExports(`${config.name}-us-east-exports`, {
+    const usEastExports = new GlobalExports(`${config2.name}-us-east-exports`, {
       region: usEastBootstrap.region
     });
     bootstrap2.add(usEastExports);
     const configurationSet = new ConfigurationSet("default", {
-      name: config.name,
+      name: config2.name,
       engagementMetrics: true,
       reputationMetrics: true
     });
@@ -3647,12 +3818,12 @@ var onFailurePlugin = definePlugin({
       onFailure: FunctionSchema.optional()
     }).array()
   }),
-  onApp({ config, bootstrap: bootstrap2 }) {
-    if (!hasOnFailure(config)) {
+  onApp({ config: config2, bootstrap: bootstrap2 }) {
+    if (!hasOnFailure(config2)) {
       return;
     }
     const queue2 = new Queue("on-failure", {
-      name: `${config.name}-failure`
+      name: `${config2.name}-failure`
     });
     bootstrap2.add(queue2).export("on-failure-queue-arn", queue2.arn);
   },
@@ -3841,9 +4012,9 @@ var vpcPlugin = definePlugin({
   // 		vpc: z.boolean().default(false),
   // 	}).default({}),
   // }),
-  onApp({ config, bootstrap: bootstrap2 }) {
+  onApp({ config: config2, bootstrap: bootstrap2 }) {
     const vpc = new Vpc("main", {
-      name: config.name,
+      name: config2.name,
       cidrBlock: Peer.ipv4("10.0.0.0/16")
     });
     const privateRouteTable = new RouteTable("private", {
@@ -3876,7 +4047,7 @@ var vpcPlugin = definePlugin({
         const subnet = new Subnet(id, {
           vpcId: vpc.id,
           cidrBlock: Peer.ipv4(`10.0.${block++}.0/24`),
-          availabilityZone: config.region + zones[i]
+          availabilityZone: config2.region + zones[i]
         }).dependsOn(vpc);
         const association = new SubnetRouteTableAssociation(id, {
           routeTableId: table.id,
@@ -4290,8 +4461,8 @@ var httpPlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onApp({ config, bootstrap: bootstrap2 }) {
-    if (Object.keys(config.defaults?.http || {}).length === 0) {
+  onApp({ config: config2, bootstrap: bootstrap2 }) {
+    if (Object.keys(config2.defaults?.http || {}).length === 0) {
       return;
     }
     const vpcId = bootstrap2.get("vpc-id");
@@ -4302,9 +4473,9 @@ var httpPlugin = definePlugin({
     securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(443));
     securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(443));
     bootstrap2.add(securityGroup);
-    for (const [id, props] of Object.entries(config.defaults?.http || {})) {
+    for (const [id, props] of Object.entries(config2.defaults?.http || {})) {
       const loadBalancer = new LoadBalancer(id, {
-        name: `${config.name}-${id}`,
+        name: `${config2.name}-${id}`,
         type: "application",
         securityGroups: [securityGroup.id],
         subnets: [
@@ -4341,9 +4512,9 @@ var httpPlugin = definePlugin({
     }
   },
   onStack(ctx) {
-    const { config, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    const { config: config2, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, routes] of Object.entries(stackConfig.http || {})) {
-      const props = config.defaults.http[id];
+      const props = config2.defaults.http[id];
       for (const [route, routeProps] of Object.entries(routes)) {
         const { method, path } = parseRoute(route);
         const lambda = toLambdaFunction(ctx, `http-${id}`, routeProps);
@@ -4420,22 +4591,24 @@ var searchPlugin = definePlugin({
       searchs: z19.array(ResourceIdSchema).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const gen = new TypeGen("@awsless/awsless", "SearchResources");
-    for (const stack of config.stacks) {
-      const list3 = new TypeObject();
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    for (const stack of config2.stacks) {
+      const list3 = new TypeObject(2);
       for (const id of stack.searchs || []) {
-        const name = formatName(`${config.name}-${stack.name}-${id}`);
+        const name = formatName(`${config2.name}-${stack.name}-${id}`);
         list3.addType(name, `{ readonly name: '${name}' }`);
       }
-      gen.addType(stack.name, list3.toString());
+      resources.addType(stack.name, list3);
     }
+    gen.addInterface("SearchResources", resources);
     return gen.toString();
   },
-  onStack({ config, stack, stackConfig, bind }) {
+  onStack({ config: config2, stack, stackConfig, bind }) {
     for (const id of stackConfig.searchs || []) {
       const collection = new Collection(id, {
-        name: `${config.name}-${stack.name}-${id}`,
+        name: `${config2.name}-${stack.name}-${id}`,
         type: "search"
       });
       bind((lambda) => {
@@ -4572,21 +4745,23 @@ var cachePlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const gen = new TypeGen("@awsless/awsless", "CacheResources");
-    gen.addCode(typeGenCode4);
-    for (const stack of config.stacks) {
-      const list3 = new TypeObject();
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    for (const stack of config2.stacks) {
+      const resource = new TypeObject(2);
       for (const name of Object.keys(stack.caches || {})) {
-        list3.addType(name, `Command`);
+        resource.addType(name, `Command`);
       }
-      gen.addType(stack.name, list3.toString());
+      resources.addType(stack.name, resource);
     }
+    gen.addCode(typeGenCode4);
+    gen.addInterface("CacheResources", resources);
     return gen.toString();
   },
-  onStack({ config, stack, stackConfig, bootstrap: bootstrap2, bind }) {
+  onStack({ config: config2, stack, stackConfig, bootstrap: bootstrap2, bind }) {
     for (const [id, props] of Object.entries(stackConfig.caches || {})) {
-      const name = `${config.name}-${stack.name}-${id}`;
+      const name = `${config2.name}-${stack.name}-${id}`;
       const subnetGroup = new SubnetGroup(id, {
         name,
         subnetIds: [bootstrap2.import(`private-subnet-1`), bootstrap2.import(`private-subnet-2`)]
@@ -4829,10 +5004,10 @@ var restPlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onApp({ config, bootstrap: bootstrap2 }) {
-    for (const [id, props] of Object.entries(config.defaults?.rest || {})) {
+  onApp({ config: config2, bootstrap: bootstrap2 }) {
+    for (const [id, props] of Object.entries(config2.defaults?.rest || {})) {
       const api = new Api(id, {
-        name: `${config.name}-${id}`,
+        name: `${config2.name}-${id}`,
         protocolType: "HTTP"
       });
       const stage = new Stage(id, {
@@ -4886,15 +5061,15 @@ import { z as z23 } from "zod";
 
 // src/util/param.ts
 import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterType, PutParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
-var configParameterPrefix = (config) => {
-  return `/.awsless/${config.name}`;
+var configParameterPrefix = (config2) => {
+  return `/.awsless/${config2.name}`;
 };
 var Params = class {
-  constructor(config) {
-    this.config = config;
+  constructor(config2) {
+    this.config = config2;
     this.client = new SSMClient({
-      credentials: config.credentials,
-      region: config.region
+      credentials: config2.credentials,
+      region: config2.region
     });
   }
   client;
@@ -4994,16 +5169,18 @@ var configPlugin = definePlugin({
       configs: z23.array(ConfigNameSchema).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const types2 = new TypeGen("@awsless/awsless", "ConfigResources", false);
-    for (const stack of config.stacks) {
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(0, false);
+    for (const stack of config2.stacks) {
       for (const name of stack.configs || []) {
-        types2.addConst(name, "string");
+        resources.addConst(name, "string");
       }
     }
-    return types2.toString();
+    gen.addInterface("ConfigResources", resources.toString());
+    return gen.toString();
   },
-  onStack({ bind, config, stackConfig }) {
+  onStack({ bind, config: config2, stackConfig }) {
     const configs = stackConfig.configs;
     bind((lambda) => {
       if (configs && configs.length) {
@@ -5014,7 +5191,7 @@ var configPlugin = definePlugin({
             return formatArn({
               service: "ssm",
               resource: "parameter",
-              resourceName: configParameterPrefix(config) + "/" + paramCase6(name),
+              resourceName: configParameterPrefix(config2) + "/" + paramCase6(name),
               seperator: ""
             });
           })
@@ -5151,11 +5328,11 @@ var OriginGroup = class {
 };
 
 // src/schema/local-directory.ts
-import { stat as stat2 } from "fs/promises";
+import { stat as stat3 } from "fs/promises";
 import { z as z24 } from "zod";
 var LocalDirectorySchema = z24.string().refine(async (path) => {
   try {
-    const s = await stat2(path);
+    const s = await stat3(path);
     return s.isDirectory();
   } catch (error) {
     return false;
@@ -5237,9 +5414,9 @@ var CachePolicy = class extends Resource {
 // src/formation/resource/s3/files.ts
 import { Glob } from "glob";
 import JSZip2 from "jszip";
-import { createHash as createHash2 } from "crypto";
+import { createHash as createHash3 } from "crypto";
 import { createReadStream } from "fs";
-import { join as join4 } from "path";
+import { join as join5 } from "path";
 var Files = class extends Asset {
   constructor(id, props) {
     super("bucket", id);
@@ -5248,7 +5425,7 @@ var Files = class extends Asset {
   hash;
   bundle;
   s3;
-  async build({ write }) {
+  async build({ read, write }) {
     const glob = new Glob(this.props.pattern ?? "**/*", {
       nodir: true,
       cwd: this.props.directory
@@ -5257,9 +5434,9 @@ var Files = class extends Asset {
     const hashes = [];
     let count = 0;
     for await (const path of glob) {
-      const file = join4(this.props.directory, path);
+      const file = join5(this.props.directory, path);
       const stream = createReadStream(file);
-      const hash2 = createHash2("sha1");
+      const hash2 = createHash3("sha1");
       stream.pipe(hash2);
       hashes.push(hash2);
       zip.file(path, stream);
@@ -5272,24 +5449,22 @@ var Files = class extends Asset {
         level: 9
       }
     });
-    const hash = createHash2("sha1");
+    const hash = createHash3("sha1");
     for (const item of hashes) {
       hash.update(item.digest());
     }
     this.hash = hash.digest("hex");
-    await write("HASH", this.hash);
-    await write("bundle.zip", this.bundle);
+    await write(this.hash, async (write2) => {
+      await write2("HASH", this.hash);
+      await write2("bundle.zip", this.bundle);
+    });
     return {
       files: style.success(String(count)),
       size: formatByteSize(this.bundle.byteLength)
     };
   }
   async publish({ publish }) {
-    this.s3 = await publish(
-      `${this.id}.zip`,
-      this.bundle,
-      this.hash
-    );
+    this.s3 = await publish(`${this.id}.zip`, this.bundle, this.hash);
   }
   get source() {
     return this.s3;
@@ -5584,7 +5759,7 @@ var sitePlugin = definePlugin({
     }).array()
   }),
   onStack(ctx) {
-    const { config, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
+    const { config: config2, stack, stackConfig, bootstrap: bootstrap2 } = ctx;
     for (const [id, props] of Object.entries(stackConfig.sites || {})) {
       const origins = [];
       const originGroups = [];
@@ -5616,7 +5791,7 @@ var sitePlugin = definePlugin({
       if (props.static) {
         bucket = new Bucket(`site-${id}`, {
           // name: props.domain,
-          name: `site-${config.name}-${stack.name}-${id}`,
+          name: `site-${config2.name}-${stack.name}-${id}`,
           accessControl: "private",
           website: {
             indexDocument: "index.html",
@@ -5664,14 +5839,14 @@ var sitePlugin = definePlugin({
         );
       }
       const cache = new CachePolicy(id, {
-        name: `site-${config.name}-${stack.name}-${id}`,
+        name: `site-${config2.name}-${stack.name}-${id}`,
         minTtl: Duration.seconds(1),
         maxTtl: Duration.days(365),
         defaultTtl: Duration.days(1),
         ...props.cache
       });
       const originRequest = new OriginRequestPolicy(id, {
-        name: `site-${config.name}-${stack.name}-${id}`,
+        name: `site-${config2.name}-${stack.name}-${id}`,
         header: {
           behavior: "all-except",
           values: ["host", "authorization"]
@@ -5681,12 +5856,12 @@ var sitePlugin = definePlugin({
       const hostedZoneId = bootstrap2.import(`hosted-zone-${props.domain}-id`);
       const certificateArn = bootstrap2.import(`us-east-certificate-${props.domain}-arn`);
       const responseHeaders = new ResponseHeadersPolicy(id, {
-        name: `site-${config.name}-${stack.name}-${id}`,
+        name: `site-${config2.name}-${stack.name}-${id}`,
         cors: props.cors,
         remove: ["server"]
       });
       const distribution = new Distribution(id, {
-        name: `site-${config.name}-${stack.name}-${id}`,
+        name: `site-${config2.name}-${stack.name}-${id}`,
         certificateArn,
         compress: true,
         aliases: [domainName],
@@ -5756,16 +5931,16 @@ var sitePlugin = definePlugin({
 // src/plugins/feature.ts
 var featurePlugin = definePlugin({
   name: "feature",
-  onApp({ config, bootstrap: bootstrap2 }) {
+  onApp({ config: config2, bootstrap: bootstrap2 }) {
     const deleteBucketLambda = new Function("delete-bucket", {
-      name: `${config.name}-delete-bucket`,
+      name: `${config2.name}-delete-bucket`,
       code: Code.fromFeature("delete-bucket")
     }).enableLogs(Duration.days(3)).addPermissions({
       actions: ["s3:*"],
       resources: ["*"]
     });
     const uploadBucketAssetLambda = new Function("upload-bucket-asset", {
-      name: `${config.name}-upload-bucket-asset`,
+      name: `${config2.name}-upload-bucket-asset`,
       code: Code.fromFeature("upload-bucket-asset"),
       memorySize: Size.gigaBytes(2)
     }).enableLogs(Duration.days(3)).addPermissions({
@@ -5773,7 +5948,7 @@ var featurePlugin = definePlugin({
       resources: ["*"]
     });
     const invalidateCacheLambda = new Function("invalidate-cache", {
-      name: `${config.name}-invalidate-cache`,
+      name: `${config2.name}-invalidate-cache`,
       code: Code.fromFeature("invalidate-cache")
     }).enableLogs(Duration.days(3)).addPermissions({
       actions: ["cloudfront:*"],
@@ -6185,15 +6360,17 @@ var authPlugin = definePlugin({
       ).optional()
     }).array()
   }),
-  onTypeGen({ config }) {
-    const gen = new TypeGen("@awsless/awsless", "AuthResources");
-    for (const name of Object.keys(config.defaults.auth)) {
-      const authName = formatName(`${config.name}-${name}`);
-      gen.addType(
+  onTypeGen({ config: config2 }) {
+    const gen = new TypeGen("@awsless/awsless");
+    const resources = new TypeObject(1);
+    for (const name of Object.keys(config2.defaults.auth)) {
+      const authName = formatName(`${config2.name}-${name}`);
+      resources.addType(
         name,
         `{ readonly name: '${authName}', readonly userPoolId: string, readonly clientId: string }`
       );
     }
+    gen.addInterface("AuthResources", resources);
     return gen.toString();
   },
   onStack({ bootstrap: bootstrap2, stackConfig, bind }) {
@@ -6216,12 +6393,12 @@ var authPlugin = definePlugin({
     }
   },
   onApp(ctx) {
-    const { config, bootstrap: bootstrap2 } = ctx;
-    if (Object.keys(config.defaults.auth).length === 0) {
+    const { config: config2, bootstrap: bootstrap2 } = ctx;
+    if (Object.keys(config2.defaults.auth).length === 0) {
       return;
     }
     const clientSecretLambda = new Function(`auth-client-secret`, {
-      name: `${config.name}-auth-client-secret`,
+      name: `${config2.name}-auth-client-secret`,
       code: Code.fromFeature("cognito-client-secret")
     });
     clientSecretLambda.addPermissions({
@@ -6229,7 +6406,7 @@ var authPlugin = definePlugin({
       resources: ["*"]
     });
     bootstrap2.add(clientSecretLambda);
-    for (const [id, props] of Object.entries(config.defaults.auth)) {
+    for (const [id, props] of Object.entries(config2.defaults.auth)) {
       const functions = /* @__PURE__ */ new Map();
       const triggers = {};
       for (const [trigger, fnProps] of Object.entries(props.triggers ?? {})) {
@@ -6237,7 +6414,7 @@ var authPlugin = definePlugin({
         functions.set(trigger, lambda);
         triggers[trigger] = lambda.arn;
       }
-      for (const stack of config.stacks) {
+      for (const stack of config2.stacks) {
         for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
           const lambda = toLambdaFunction(ctx, `auth-${id}-${trigger}`, fnProps);
           if (functions.has(trigger)) {
@@ -6263,7 +6440,7 @@ var authPlugin = definePlugin({
         });
       }
       const userPool = new UserPool(id, {
-        name: `${config.name}-${id}`,
+        name: `${config2.name}-${id}`,
         allowUserRegistration: props.allowUserRegistration,
         username: props.username,
         password: props.password,
@@ -6271,7 +6448,7 @@ var authPlugin = definePlugin({
         email: emailConfig
       });
       const client = userPool.addClient({
-        name: `${config.name}-${id}`,
+        name: `${config2.name}-${id}`,
         validity: props.validity,
         generateSecret: true,
         supportedIdentityProviders: ["cognito"],
@@ -6280,7 +6457,7 @@ var authPlugin = definePlugin({
         }
       });
       const domain = userPool.addDomain({
-        domain: `${config.name}-${id}`
+        domain: `${config2.name}-${id}`
       });
       const clientSecret = new CustomResource(`${id}-client-secret`, {
         serviceToken: clientSecretLambda.arn,
@@ -6299,6 +6476,28 @@ var authPlugin = definePlugin({
         }).dependsOn(lambda);
         bootstrap2.add(lambda, permission);
       }
+    }
+  }
+});
+
+// src/plugins/test.ts
+import { z as z27 } from "zod";
+var testPlugin = definePlugin({
+  name: "test",
+  schema: z27.object({
+    stacks: z27.object({
+      /** Define the location of your tests for your stack.
+       * @example
+       * {
+       *   tests: './test'
+       * }
+       */
+      tests: z27.union([LocalDirectorySchema.transform((v) => [v]), LocalDirectorySchema.array()]).optional()
+    }).array()
+  }),
+  onStack({ tests, stackConfig }) {
+    if (stackConfig.tests) {
+      tests.set(stackConfig.name, stackConfig.tests);
     }
   }
 });
@@ -6325,7 +6524,8 @@ var defaultPlugins = [
   httpPlugin,
   restPlugin,
   sitePlugin,
-  onFailurePlugin
+  onFailurePlugin,
+  testPlugin
 ];
 
 // src/formation/app.ts
@@ -6367,12 +6567,13 @@ var getAllDepends = (filters) => {
   walk(filters);
   return list3;
 };
-var toApp = async (config, filters) => {
-  const app = new App(config.name);
+var toApp = async (config2, filters) => {
+  const app = new App(config2.name);
   const stacks = [];
-  const plugins = [...defaultPlugins, ...config.plugins || []];
+  const plugins = [...defaultPlugins, ...config2.plugins || []];
+  const tests = /* @__PURE__ */ new Map();
   debug("Plugins detected:", plugins.map((plugin) => style.info(plugin.name)).join(", "));
-  const bootstrap2 = new Stack("bootstrap", config.region);
+  const bootstrap2 = new Stack("bootstrap", config2.region);
   const usEastBootstrap = new Stack("us-east-bootstrap", "us-east-1");
   app.add(bootstrap2, usEastBootstrap);
   debug("Run plugin onApp listeners");
@@ -6382,44 +6583,31 @@ var toApp = async (config, filters) => {
   };
   for (const plugin of plugins) {
     plugin.onApp?.({
-      config,
+      config: config2,
       app,
       bootstrap: bootstrap2,
       usEastBootstrap,
-      bind
+      bind,
+      tests
     });
   }
   debug("Stack filters:", filters.map((filter) => style.info(filter)).join(", "));
-  const filterdStacks = filters.length === 0 ? config.stacks : getAllDepends(
+  const filterdStacks = filters.length === 0 ? config2.stacks : getAllDepends(
     // config.stacks,
-    config.stacks.filter((stack) => filters.includes(stack.name))
+    config2.stacks.filter((stack) => filters.includes(stack.name))
   );
   for (const stackConfig of filterdStacks) {
     const { stack, bindings: bindings2 } = toStack({
-      config,
+      config: config2,
       stackConfig,
       bootstrap: bootstrap2,
       usEastBootstrap,
       plugins,
+      tests,
       app
     });
     app.add(stack);
     stacks.push({ stack, config: stackConfig, bindings: bindings2 });
-  }
-  debug(app.stacks);
-  for (const plugin of plugins) {
-    for (const stack of app.stacks) {
-      for (const resource of stack) {
-        plugin.onResource?.({
-          config,
-          app,
-          stack,
-          bootstrap: bootstrap2,
-          usEastBootstrap,
-          resource
-        });
-      }
-    }
   }
   const functions = app.find(Function);
   for (const bind2 of bindings) {
@@ -6451,12 +6639,13 @@ var toApp = async (config, filters) => {
   return {
     app,
     plugins,
-    deploymentLine
+    deploymentLine,
+    tests
   };
 };
 
 // src/config.ts
-import { join as join6 } from "path";
+import { join as join7 } from "path";
 
 // src/util/account.ts
 import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
@@ -6475,17 +6664,17 @@ var getCredentials = (profile) => {
 };
 
 // src/schema/app.ts
-import { z as z30 } from "zod";
+import { z as z31 } from "zod";
 
 // src/schema/stack.ts
-import { z as z27 } from "zod";
-var StackSchema = z27.object({
+import { z as z28 } from "zod";
+var StackSchema = z28.object({
   name: ResourceIdSchema,
-  depends: z27.array(z27.lazy(() => StackSchema)).optional()
+  depends: z28.array(z28.lazy(() => StackSchema)).optional()
 });
 
 // src/schema/region.ts
-import { z as z28 } from "zod";
+import { z as z29 } from "zod";
 var US = ["us-east-2", "us-east-1", "us-west-1", "us-west-2"];
 var AF = ["af-south-1"];
 var AP = ["ap-east-1", "ap-south-2", "ap-southeast-3", "ap-southeast-4", "ap-south-1", "ap-northeast-3", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "ap-northeast-1"];
@@ -6502,41 +6691,41 @@ var regions = [
   ...ME,
   ...SA
 ];
-var RegionSchema = z28.enum(regions);
+var RegionSchema = z29.enum(regions);
 
 // src/schema/plugin.ts
-import { z as z29 } from "zod";
-var PluginSchema = z29.object({
-  name: z29.string(),
-  schema: z29.custom().optional(),
+import { z as z30 } from "zod";
+var PluginSchema = z30.object({
+  name: z30.string(),
+  schema: z30.custom().optional(),
   // depends: z.array(z.lazy(() => PluginSchema)).optional(),
-  onApp: z29.function().returns(z29.void()).optional(),
-  onStack: z29.function().returns(z29.any()).optional(),
-  onResource: z29.function().returns(z29.any()).optional()
+  onApp: z30.function().returns(z30.void()).optional(),
+  onStack: z30.function().returns(z30.any()).optional(),
+  onResource: z30.function().returns(z30.any()).optional()
   // bind: z.function().optional(),
 });
 
 // src/schema/app.ts
-var AppSchema = z30.object({
+var AppSchema = z31.object({
   /** App name */
   name: ResourceIdSchema,
   /** The AWS region to deploy to. */
   region: RegionSchema,
   /** The AWS profile to deploy to. */
-  profile: z30.string(),
+  profile: z31.string(),
   /** The deployment stage.
    * @default 'prod'
    */
-  stage: z30.string().regex(/^[a-z]+$/).default("prod"),
+  stage: z31.string().regex(/^[a-z]+$/).default("prod"),
   /** Default properties. */
-  defaults: z30.object({}).default({}),
+  defaults: z31.object({}).default({}),
   /** The application stacks. */
-  stacks: z30.array(StackSchema).min(1).refine((stacks) => {
+  stacks: z31.array(StackSchema).min(1).refine((stacks) => {
     const unique = new Set(stacks.map((stack) => stack.name));
     return unique.size === stacks.length;
   }, "Must be an array of unique stacks"),
   /** Custom plugins. */
-  plugins: z30.array(PluginSchema).optional()
+  plugins: z31.array(PluginSchema).optional()
 });
 
 // src/util/import.ts
@@ -6544,7 +6733,7 @@ import { rollup as rollup3, watch } from "rollup";
 import { swc as swc3 } from "rollup-plugin-swc3";
 import replace from "rollup-plugin-replace";
 import { EventIterator } from "event-iterator";
-import { dirname as dirname3, join as join5 } from "path";
+import { dirname as dirname4, join as join6 } from "path";
 import { mkdir as mkdir2, writeFile as writeFile2 } from "fs/promises";
 var importFile = async (path) => {
   const bundle = await rollup3({
@@ -6555,18 +6744,18 @@ var importFile = async (path) => {
     plugins: [
       // @ts-ignore
       replace({
-        __dirname: (id) => `'${dirname3(id)}'`
-        // 'defineStackConfig({': id => `defineStackConfig({ cwd: '${dirname(id)}',`,
+        __dirname: (id) => `'${dirname4(id)}'`
+        // 'defineStackConfig({': (id: string) => `defineStackConfig({ cwd: '${dirname(id)}',`,
       }),
       swc3({
         minify: false,
         jsc: {
-          baseUrl: dirname3(path)
+          baseUrl: dirname4(path)
         }
       })
     ]
   });
-  const outputFile = join5(directories.cache, "config.js");
+  const outputFile = join6(directories.cache, "config.js");
   const result = await bundle.generate({
     format: "esm",
     exports: "default"
@@ -6592,13 +6781,13 @@ var watchFile = (path) => {
         plugins: [
           // @ts-ignore
           replace({
-            __dirname: (id) => `'${dirname3(id)}'`
-            // 'defineStackConfig({': id => `defineStackConfig({ cwd: '${dirname(id)}',`,
+            __dirname: (id) => `'${dirname4(id)}'`
+            // 'defineStackConfig({': (id: string) => `defineStackConfig({ cwd: '${dirname(id)}',`,
           }),
           swc3({
             minify: false,
             jsc: {
-              baseUrl: dirname3(path)
+              baseUrl: dirname4(path)
             }
           })
         ]
@@ -6620,12 +6809,12 @@ var watchFile = (path) => {
           event.result.close();
           const output = result.output[0];
           const code = output.code;
-          const outputFile = join5(directories.cache, "config.js");
+          const outputFile = join6(directories.cache, "config.js");
           await mkdir2(directories.cache, { recursive: true });
           await writeFile2(outputFile, code);
           debug("Save config file:", style.info(outputFile));
-          const config = await import(`${outputFile}?${Date.now()}`);
-          queue2.push(config);
+          const config2 = await import(`${outputFile}?${Date.now()}`);
+          queue2.push(config2);
         }
       });
       return () => {
@@ -6640,7 +6829,7 @@ var watchFile = (path) => {
 };
 
 // src/config.ts
-import { z as z31 } from "zod";
+import { z as z32 } from "zod";
 var ConfigError = class extends Error {
   constructor(error, data) {
     super(error.message);
@@ -6655,7 +6844,7 @@ var importConfig = async (options) => {
   setRoot(root2);
   debug("CWD:", style.info(root2));
   debug("Import config file");
-  const fileName = join6(root2, configFile);
+  const fileName = join7(root2, configFile);
   const module = await importFile(fileName);
   const appConfig = typeof module.default === "function" ? await module.default(options) : module.default;
   debug("Validate config file");
@@ -6669,22 +6858,22 @@ var importConfig = async (options) => {
       schema2 = schema2.and(plugin.schema);
     }
   }
-  let config;
+  let config2;
   try {
-    config = await schema2.parseAsync(appConfig);
+    config2 = await schema2.parseAsync(appConfig);
   } catch (error) {
-    if (error instanceof z31.ZodError) {
+    if (error instanceof z32.ZodError) {
       throw new ConfigError(error, appConfig);
     }
     throw error;
   }
-  debug("Load credentials", style.info(config.profile));
-  const credentials = getCredentials(config.profile);
+  debug("Load credentials", style.info(config2.profile));
+  const credentials = getCredentials(config2.profile);
   debug("Load AWS account ID");
-  const account = await getAccountId(credentials, config.region);
+  const account = await getAccountId(credentials, config2.region);
   debug("Account ID:", style.info(account));
   return {
-    ...config,
+    ...config2,
     account,
     credentials
   };
@@ -6696,7 +6885,7 @@ var watchConfig = async (options, resolve, reject) => {
   setRoot(root2);
   debug("CWD:", style.info(root2));
   debug("Import config file");
-  const fileName = join6(root2, configFile);
+  const fileName = join7(root2, configFile);
   for await (const module of watchFile(fileName)) {
     const appConfig = typeof module.default === "function" ? await module.default(options) : module.default;
     debug("Validate config file");
@@ -6710,24 +6899,24 @@ var watchConfig = async (options, resolve, reject) => {
         schema2 = schema2.and(plugin.schema);
       }
     }
-    let config;
+    let config2;
     try {
-      config = await schema2.parseAsync(appConfig);
+      config2 = await schema2.parseAsync(appConfig);
     } catch (error) {
-      if (error instanceof z31.ZodError) {
+      if (error instanceof z32.ZodError) {
         reject(new ConfigError(error, appConfig));
         continue;
       }
       reject(error);
       continue;
     }
-    debug("Load credentials", style.info(config.profile));
-    const credentials = getCredentials(config.profile);
+    debug("Load credentials", style.info(config2.profile));
+    const credentials = getCredentials(config2.profile);
     debug("Load AWS account ID");
-    const account = await getAccountId(credentials, config.region);
+    const account = await getAccountId(credentials, config2.region);
     debug("Account ID:", style.info(account));
     resolve({
-      ...config,
+      ...config2,
       account,
       credentials
     });
@@ -6740,39 +6929,38 @@ var br = () => {
 };
 var hr = () => {
   return (term) => {
-    term.out.write([
-      style.placeholder("\u2500".repeat(term.out.width())),
-      br()
-    ]);
+    term.out.write([style.placeholder("\u2500".repeat(term.out.width())), br()]);
   };
 };
 
 // src/cli/ui/layout/list.ts
 var list = (data) => {
-  const padding = 3;
+  const padding = 2;
   const gap = 1;
   const size = Object.keys(data).reduce((total, name) => {
     return name.length > total ? name.length : total;
   }, 0);
   return (term) => {
     term.out.gap();
-    term.out.write(Object.entries(data).map(([name, value]) => [
-      " ".repeat(padding),
-      style.label((name + ":").padEnd(size + gap + 1)),
-      value,
-      br()
-    ]));
+    term.out.write(
+      Object.entries(data).map(([name, value]) => [
+        " ".repeat(padding),
+        style.label((name + ":").padEnd(size + gap + 1)),
+        value,
+        br()
+      ])
+    );
     term.out.gap();
   };
 };
 
 // src/cli/ui/layout/header.ts
-var header = (config) => {
+var header = (config2) => {
   return list({
-    App: config.name,
-    Stage: config.stage,
-    Region: config.region,
-    Profile: config.profile
+    App: config2.name,
+    Stage: config2.stage,
+    Region: config2.region,
+    Profile: config2.profile
   });
 };
 
@@ -6842,15 +7030,17 @@ var createSpinner = () => {
 // src/cli/ui/layout/dialog.ts
 import wrapAnsi from "wrap-ansi";
 var dialog = (type, lines) => {
-  const padding = 3;
+  const padding = 2;
   const icon = style[type](symbol[type].padEnd(padding));
   return (term) => {
-    term.out.write(lines.map((line2, i) => {
-      if (i === 0) {
-        return icon + wrapAnsi(line2, term.out.width(), { hard: true });
-      }
-      return wrapAnsi(" ".repeat(padding) + line2, term.out.width(), { hard: true });
-    }).join(br()) + br());
+    term.out.write(
+      lines.map((line2, i) => {
+        if (i === 0) {
+          return icon + wrapAnsi(line2, term.out.width(), { hard: true });
+        }
+        return wrapAnsi(" ".repeat(padding) + line2, term.out.width(), { hard: true });
+      }).join(br()) + br()
+    );
   };
 };
 var loadingDialog = (message) => {
@@ -6859,14 +7049,7 @@ var loadingDialog = (message) => {
   const time = new Signal("");
   const timer = createTimer();
   return (term) => {
-    term.out.write([
-      icon,
-      "  ",
-      description,
-      " ",
-      time,
-      br()
-    ]);
+    term.out.write([icon, " ", description, " ", time, br()]);
     return (message2) => {
       description.set(message2);
       time.set(timer());
@@ -7073,9 +7256,11 @@ var Renderer = class {
       if (Array.isArray(fragment)) {
         return fragment.map(walk).join("");
       }
-      this.unsubs.push(fragment.subscribe(() => {
-        this.update();
-      }));
+      this.unsubs.push(
+        fragment.subscribe(() => {
+          this.update();
+        })
+      );
       return walk(fragment.get());
     };
     this.unsubs.forEach((unsub) => unsub());
@@ -7088,17 +7273,19 @@ var Renderer = class {
     const start = Math.max(oldSize - height, 0);
     this.flushing = true;
     for (let y = start; y < size; y++) {
-      const newLine = screen[y];
-      const oldLine = this.screen[y];
+      const newLine = screen.at(y);
+      const oldLine = this.screen.at(y);
       if (newLine !== oldLine) {
         if (y >= oldSize && y !== 0) {
           const p = y - start - 1;
-          const x = screen[y - 1]?.length || 0;
+          const x = screen.at(y - 1)?.length ?? 0;
           await this.setCursor(x, p);
-          await this.writeString("\n" + newLine);
+          await this.writeString(newLine ? "\n" + newLine : "\n");
         } else {
           await this.setCursor(0, y - start);
-          await this.writeString(newLine);
+          if (newLine) {
+            await this.writeString(newLine);
+          }
           await this.clearLine();
         }
       }
@@ -7128,11 +7315,7 @@ var createTerminal = (input = process.stdin, output = process.stdout) => {
 
 // src/cli/ui/layout/logo.ts
 var logo = () => {
-  return [
-    style.warning("\u26A1\uFE0F "),
-    style.primary("AWS"),
-    style.primary.dim("LESS")
-  ];
+  return [style.warning("\u26A1\uFE0F"), style.primary("AWS"), style.primary.dim("LESS")];
 };
 
 // src/cli/ui/layout/logs.ts
@@ -7148,23 +7331,27 @@ var logs = () => {
     term.out.write([
       hr(),
       br(),
-      " ".repeat(3),
+      " ".repeat(2),
       style.label("Debug Logs:"),
       br(),
       br(),
       logs2.map((log) => {
         const diff = log.date.getTime() - previous.getTime();
-        const time = `+${diff}`.padStart(8);
+        const time = `+${diff}`.padStart(6);
         previous = log.date;
-        return wrapAnsi2([
-          style.attr(`${time}${style.attr.dim("ms")}`),
-          " [ ",
-          log.type,
-          " ] ",
-          log.message,
-          br(),
-          log.type === "error" ? br() : ""
-        ].join(""), term.out.width(), { hard: true, trim: false });
+        return wrapAnsi2(
+          [
+            style.attr(`${time}${style.attr.dim("ms")}`),
+            " [ ",
+            log.type,
+            " ] ",
+            log.message,
+            br(),
+            log.type === "error" ? br() : ""
+          ].join(""),
+          term.out.width(),
+          { hard: true, trim: false }
+        );
       }),
       br(),
       hr()
@@ -7175,8 +7362,8 @@ var logs = () => {
 // src/cli/ui/layout/zod-error.ts
 var line = (value, level = 0, highlight = false) => {
   return [
-    highlight ? style.error(symbol.pointerSmall) + style.placeholder("  | ") : style.placeholder.dim("   | "),
-    "   ".repeat(level),
+    highlight ? style.error(symbol.pointerSmall) + style.placeholder(" | ") : style.placeholder.dim("  | "),
+    "  ".repeat(level),
     value,
     br()
   ];
@@ -7210,9 +7397,7 @@ var zodError = (error, data) => {
   return (term) => {
     for (const issue of error.issues) {
       term.out.gap();
-      term.out.write(dialog("error", [
-        style.error(issue.message)
-      ]));
+      term.out.write(dialog("error", [style.error(issue.message)]));
       term.out.gap();
       term.out.write(line("{"));
       let context = data;
@@ -7262,10 +7447,10 @@ var layout = async (cb) => {
   term.out.gap();
   try {
     const options = program.optsWithGlobals();
-    const config = await importConfig(options);
-    term.out.write(header(config));
+    const config2 = await importConfig(options);
+    term.out.write(header(config2));
     term.out.gap();
-    await cb(config, term.out.write.bind(term.out), term);
+    await cb(config2, term.out.write.bind(term.out), term);
   } catch (error) {
     term.out.gap();
     if (error instanceof ConfigError) {
@@ -7291,7 +7476,7 @@ var layout = async (cb) => {
 };
 
 // src/cli/ui/complex/builder.ts
-import { mkdir as mkdir3, writeFile as writeFile3 } from "fs/promises";
+import { mkdir as mkdir3, readFile as readFile4, writeFile as writeFile3 } from "fs/promises";
 
 // src/cli/ui/layout/flex-line.ts
 var stripEscapeCode = (str) => {
@@ -7314,7 +7499,7 @@ var flexLine = (term, left, right, reserveSpace = 0) => {
 };
 
 // src/cli/ui/complex/builder.ts
-import { dirname as dirname4, join as join7 } from "path";
+import { dirname as dirname5, join as join8 } from "path";
 var assetBuilder = (app) => {
   return async (term) => {
     const assets = [];
@@ -7339,63 +7524,104 @@ var assetBuilder = (app) => {
     }
     const stackNameSize = Math.max(...stacks.map((stack) => stack.name.length));
     const assetTypeSize = Math.max(...assets.map((asset) => asset.type.length));
-    await Promise.all(app.stacks.map(async (stack) => {
-      const group = new Signal([]);
-      groups.update((groups2) => [...groups2, group]);
-      await Promise.all([...stack.assets].map(async (asset) => {
-        if (!asset.build) {
-          return;
-        }
-        const [icon, stop] = createSpinner();
-        const details = new Signal({});
-        const line2 = flexLine(term, [
-          icon,
-          "  ",
-          style.label(stack.name),
-          " ".repeat(stackNameSize - stack.name.length),
-          " ",
-          style.placeholder(symbol.pointerSmall),
-          " ",
-          style.warning(asset.type),
-          " ".repeat(assetTypeSize - asset.type.length),
-          " ",
-          style.placeholder(symbol.pointerSmall),
-          " ",
-          style.info(asset.id),
-          " "
-        ], [
-          " ",
-          derive([details], (details2) => {
-            return Object.entries(details2).map(([key, value]) => {
-              return `${style.label(key)} ${value}`;
-            }).join(style.placeholder(" \u2500 "));
-          }),
-          br()
-        ]);
-        group.update((group2) => [...group2, line2]);
-        const timer = createTimer();
-        try {
-          const data = await asset.build({
-            async write(file, data2) {
-              const fullpath = join7(directories.asset, asset.type, app.name, stack.name, asset.id, file);
-              const basepath = dirname4(fullpath);
-              await mkdir3(basepath, { recursive: true });
-              await writeFile3(fullpath, data2);
+    await Promise.all(
+      app.stacks.map(async (stack) => {
+        const group = new Signal([]);
+        groups.update((groups2) => [...groups2, group]);
+        await Promise.all(
+          [...stack.assets].map(async (asset) => {
+            if (!asset.build) {
+              return;
             }
-          });
-          details.set({
-            ...data,
-            time: timer()
-          });
-          icon.set(style.success(symbol.success));
-        } catch (error) {
-          icon.set(style.error(symbol.error));
-          throw error;
-        } finally {
-          stop();
-        }
-      }));
-    }));
+            const [icon, stop] = createSpinner();
+            const details = new Signal({});
+            const line2 = flexLine(
+              term,
+              [
+                icon,
+                " ",
+                style.label(stack.name),
+                " ".repeat(stackNameSize - stack.name.length),
+                " ",
+                style.placeholder(symbol.pointerSmall),
+                " ",
+                style.warning(asset.type),
+                " ".repeat(assetTypeSize - asset.type.length),
+                " ",
+                style.placeholder(symbol.pointerSmall),
+                " ",
+                style.info(asset.id),
+                " "
+              ],
+              [
+                " ",
+                derive([details], (details2) => {
+                  return Object.entries(details2).map(([key, value]) => {
+                    return `${style.label(key)} ${value}`;
+                  }).join(style.placeholder(" \u2500 "));
+                }),
+                br()
+              ]
+            );
+            group.update((group2) => [...group2, line2]);
+            const timer = createTimer();
+            const getFullPath = (file) => {
+              return join8(directories.asset, asset.type, app.name, stack.name, asset.id, file);
+            };
+            const getFingerPrint = async () => {
+              let value;
+              try {
+                value = await readFile4(getFullPath("FINGER_PRINT"), "utf8");
+              } catch (_) {
+                return void 0;
+              }
+              return value;
+            };
+            try {
+              const data = await asset.build({
+                async write(fingerprint, cb) {
+                  const prev = await getFingerPrint();
+                  if (prev === fingerprint) {
+                    return;
+                  }
+                  const file = getFullPath("FINGER_PRINT");
+                  const basepath = dirname5(file);
+                  await mkdir3(basepath, { recursive: true });
+                  await writeFile3(file, fingerprint);
+                  await cb(async (file2, data2) => {
+                    const fullpath = getFullPath(file2);
+                    const basepath2 = dirname5(fullpath);
+                    await mkdir3(basepath2, { recursive: true });
+                    await writeFile3(fullpath, data2);
+                  });
+                },
+                async read(fingerprint, files) {
+                  const prev = await getFingerPrint();
+                  if (prev !== fingerprint) {
+                    throw new TypeError(`Outdated fingerprint: ${fingerprint}`);
+                  }
+                  return Promise.all(
+                    files.map((file) => {
+                      return readFile4(getFullPath(file));
+                    })
+                  );
+                }
+              });
+              details.set({
+                ...data,
+                time: timer()
+              });
+              icon.set(style.success(symbol.success));
+            } catch (error) {
+              icon.set(style.error(symbol.error));
+              throw error;
+            } finally {
+              stop();
+            }
+          })
+        );
+      })
+    );
     done("Done building stack assets");
     if (showDetailedView) {
       term.out.gap();
@@ -7408,31 +7634,39 @@ import { mkdir as mkdir4, rm } from "fs/promises";
 var cleanUp = async () => {
   debug("Clean up template, cache, and asset files");
   const paths = [
-    directories.asset,
+    // directories.asset,
     directories.cache,
     directories.types,
     directories.template
   ];
-  await Promise.all(paths.map((path) => rm(path, {
-    recursive: true,
-    force: true,
-    maxRetries: 2
-  })));
-  await Promise.all(paths.map((path) => mkdir4(path, {
-    recursive: true
-  })));
+  await Promise.all(
+    paths.map(
+      (path) => rm(path, {
+        recursive: true,
+        force: true,
+        maxRetries: 2
+      })
+    )
+  );
+  await Promise.all(
+    paths.map(
+      (path) => mkdir4(path, {
+        recursive: true
+      })
+    )
+  );
 };
 
 // src/cli/ui/complex/template.ts
 import { mkdir as mkdir5, writeFile as writeFile4 } from "fs/promises";
-import { join as join8 } from "path";
+import { join as join9 } from "path";
 var templateBuilder = (app) => {
   return async (term) => {
     const done = term.out.write(loadingDialog("Building stack templates..."));
     await Promise.all(app.stacks.map(async (stack) => {
       const template = stack.toString(true);
-      const path = join8(directories.template, app.name);
-      const file = join8(path, `${stack.name}.json`);
+      const path = join9(directories.template, app.name);
+      const file = join9(path, `${stack.name}.json`);
       await mkdir5(path, { recursive: true });
       await writeFile4(file, template);
     }));
@@ -7441,21 +7675,21 @@ var templateBuilder = (app) => {
 };
 
 // src/cli/ui/complex/types.ts
-var typesGenerator = (config) => {
+var typesGenerator = (config2) => {
   return async (term) => {
     const done = term.out.write(loadingDialog("Generate type definition files..."));
-    await generateResourceTypes(config);
+    await generateResourceTypes(config2);
     done("Done generating type definition files");
   };
 };
 
 // src/cli/command/build.ts
 var build = (program2) => {
-  program2.command("build").argument("[stack...]", "Optionally filter stacks to build").description("Build your app").action(async (filters) => {
-    await layout(async (config, write) => {
-      const { app } = await toApp(config, filters);
+  program2.command("build").argument("[stack...]", "Optionally filter stacks to build").description("Build your app assets").action(async (filters) => {
+    await layout(async (config2, write) => {
+      const { app } = await toApp(config2, filters);
       await cleanUp();
-      await write(typesGenerator(config));
+      await write(typesGenerator(config2));
       await write(assetBuilder(app));
       await write(templateBuilder(app));
     });
@@ -7796,7 +8030,20 @@ var togglePrompt = (label, options = {}) => {
       down: deactivate,
       up: activate
     });
-    term.out.write([icon, "  ", style.label(label), " ", sep, " ", inactiveText, " ", mid, " ", activeText, br()]);
+    term.out.write([
+      icon,
+      " ",
+      style.label(label),
+      " ",
+      sep,
+      " ",
+      inactiveText,
+      " ",
+      mid,
+      " ",
+      activeText,
+      br()
+    ]);
   });
 };
 
@@ -7810,11 +8057,11 @@ var confirmPrompt = (label, options = {}) => {
 };
 
 // src/cli/ui/complex/bootstrap.ts
-var bootstrapDeployer = (config) => {
+var bootstrapDeployer = (config2) => {
   return async (term) => {
     debug("Initializing bootstrap");
-    const { app, stack } = bootstrapStack(config.account, config.region);
-    const client = new StackClient(app, config.account, config.region, config.credentials);
+    const { app, stack } = bootstrapStack(config2.account, config2.region);
+    const client = new StackClient(app, config2.account, config2.region, config2.credentials);
     const shouldDeploy = await shouldDeployBootstrap(client, stack);
     if (shouldDeploy) {
       term.out.write(dialog("warning", [`Your app hasn't been bootstrapped yet`]));
@@ -7839,8 +8086,8 @@ var bootstrapDeployer = (config) => {
 // src/cli/command/bootstrap.ts
 var bootstrap = (program2) => {
   program2.command("bootstrap").description("Create the awsless bootstrap stack").action(async () => {
-    await layout(async (config, write) => {
-      await write(bootstrapDeployer(config));
+    await layout(async (config2, write) => {
+      await write(bootstrapDeployer(config2));
     });
   });
 };
@@ -7853,15 +8100,7 @@ var stacksDeployer = (deploymentLine) => {
     const ui = {};
     term.out.gap();
     for (const i in deploymentLine) {
-      const line2 = flexLine(
-        term,
-        ["   "],
-        [
-          " ",
-          style.placeholder(Number(i) + 1),
-          style.placeholder(" \u2500\u2500")
-        ]
-      );
+      const line2 = flexLine(term, ["  "], [" ", style.placeholder(Number(i) + 1), style.placeholder(" \u2500\u2500")]);
       term.out.write(line2);
       term.out.write(br());
       for (const stack of deploymentLine[i]) {
@@ -7871,7 +8110,7 @@ var stacksDeployer = (deploymentLine) => {
         let stopSpinner;
         term.out.write([
           icon,
-          "  ",
+          " ",
           name,
           " ".repeat(stackNameSize - stack.name.length),
           " ",
@@ -7906,11 +8145,7 @@ var stacksDeployer = (deploymentLine) => {
         };
       }
     }
-    term.out.write(flexLine(term, ["   "], [
-      " ",
-      style.warning("\u26A1\uFE0F"),
-      style.placeholder("\u2500\u2500")
-    ]));
+    term.out.write(flexLine(term, ["  "], [" ", style.warning("\u26A1\uFE0F"), style.placeholder("\u2500\u2500")]));
     term.out.gap();
     return ui;
   };
@@ -7918,32 +8153,34 @@ var stacksDeployer = (deploymentLine) => {
 
 // src/cli/command/status.ts
 var status = (program2) => {
-  program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the application status").action(async (filters) => {
-    await layout(async (config, write) => {
-      const { app, deploymentLine } = await toApp(config, filters);
+  program2.command("status").argument("[stacks...]", "Optionally filter stacks to lookup status").description("View the app status").action(async (filters) => {
+    await layout(async (config2, write) => {
+      const { app, deploymentLine } = await toApp(config2, filters);
       await cleanUp();
       await write(assetBuilder(app));
       await write(templateBuilder(app));
       const doneLoading = write(loadingDialog("Loading stack information..."));
-      const client = new StackClient(app, config.account, config.region, config.credentials);
+      const client = new StackClient(app, config2.account, config2.region, config2.credentials);
       const statuses = [];
       const ui = write(stacksDeployer(deploymentLine));
       debug("Load metadata for all deployed stacks on AWS");
-      await Promise.all(app.stacks.map(async (stack, i) => {
-        const item = ui[stack.name];
-        item.start("loading");
-        const info = await client.get(stack.name, stack.region);
-        if (!info) {
-          item.fail("NON EXISTENT");
-          statuses.push("non-existent");
-        } else if (info.template !== stack.toString()) {
-          item.warn("OUT OF DATE");
-          statuses.push("out-of-date");
-        } else {
-          item.done("UP TO DATE");
-          statuses.push("up-to-date");
-        }
-      }));
+      await Promise.all(
+        app.stacks.map(async (stack) => {
+          const item = ui[stack.name];
+          item.start("loading");
+          const info = await client.get(stack.name, stack.region);
+          if (!info) {
+            item.fail("NON EXISTENT");
+            statuses.push("non-existent");
+          } else if (info.template !== stack.toString()) {
+            item.warn("OUT OF DATE");
+            statuses.push("out-of-date");
+          } else {
+            item.done("UP TO DATE");
+            statuses.push("up-to-date");
+          }
+        })
+      );
       doneLoading("Done loading stack information");
       debug("Done loading data for all deployed stacks on AWS");
       if (statuses.includes("non-existent") || statuses.includes("out-of-date")) {
@@ -7956,13 +8193,13 @@ var status = (program2) => {
 };
 
 // src/cli/ui/complex/publisher.ts
-import { readFile as readFile3 } from "fs/promises";
-import { join as join9 } from "path";
+import { readFile as readFile5 } from "fs/promises";
+import { join as join10 } from "path";
 import { GetObjectCommand, ObjectCannedACL as ObjectCannedACL2, PutObjectCommand as PutObjectCommand2, S3Client as S3Client2, StorageClass as StorageClass2 } from "@aws-sdk/client-s3";
-var assetPublisher = (config, app) => {
+var assetPublisher = (config2, app) => {
   const client = new S3Client2({
-    credentials: config.credentials,
-    region: config.region,
+    credentials: config2.credentials,
+    region: config2.region,
     maxAttempts: 5
   });
   return async (term) => {
@@ -7971,22 +8208,24 @@ var assetPublisher = (config, app) => {
       app.stacks.map(async (stack) => {
         await Promise.all(
           [...stack.assets].map(async (asset) => {
+            const getFullPath = (file) => {
+              return join10(directories.asset, asset.type, app.name, stack.name, asset.id, file);
+            };
             await asset.publish?.({
-              async read(file) {
-                const path = join9(
-                  directories.asset,
-                  asset.type,
-                  app.name,
-                  stack.name,
-                  asset.id,
-                  file
+              async read(fingerprint, files) {
+                const prev = await readFile5(getFullPath("FINGER_PRINT"), "utf8");
+                if (prev !== fingerprint) {
+                  throw new TypeError(`Outdated fingerprint: ${fingerprint}`);
+                }
+                return Promise.all(
+                  files.map((file) => {
+                    return readFile5(getFullPath(file));
+                  })
                 );
-                const data = await readFile3(path);
-                return data;
               },
               async publish(name, data, hash) {
                 const key = `${app.name}/${stack.name}/${asset.type}/${name}`;
-                const bucket = assetBucketName(config.account, config.region);
+                const bucket = assetBucketName(config2.account, config2.region);
                 let getResult;
                 try {
                   getResult = await client.send(
@@ -8016,7 +8255,7 @@ var assetPublisher = (config, app) => {
                     ACL: ObjectCannedACL2.private,
                     StorageClass: StorageClass2.STANDARD,
                     Metadata: {
-                      hash
+                      hash: hash.toString("utf8")
                     }
                   })
                 );
@@ -8035,44 +8274,268 @@ var assetPublisher = (config, app) => {
   };
 };
 
+// src/cli/ui/complex/tester.ts
+import { configDefaults } from "vitest/config";
+import { startVitest } from "vitest/node";
+import commonjs3 from "@rollup/plugin-commonjs";
+import nodeResolve3 from "@rollup/plugin-node-resolve";
+import json3 from "@rollup/plugin-json";
+import { swc as swc4 } from "rollup-plugin-swc3";
+import { getTests } from "@vitest/runner/utils";
+import { basename as basename3, extname } from "path";
+var CustomReporter = class {
+  constructor(stack, out) {
+    this.stack = stack;
+    this.out = out;
+  }
+  started = false;
+  interval;
+  timer;
+  tasks;
+  ctx;
+  line = new Signal([]);
+  icon;
+  logs = [];
+  stopSpinner;
+  onInit(ctx) {
+    this.ctx = ctx;
+  }
+  onCollected() {
+    this.tasks = this.ctx?.state.getFiles();
+    if (!this.started) {
+      this.start();
+      this.started = true;
+    }
+  }
+  onFinished() {
+    this.stop();
+  }
+  start() {
+    const [icon, stop] = createSpinner();
+    this.icon = icon;
+    this.stopSpinner = stop;
+    this.interval = setInterval(this.update.bind(this), 33);
+    this.timer = createTimer();
+    this.update();
+    this.out.write(this.line);
+    this.out.gap();
+  }
+  stop() {
+    clearInterval(this.interval);
+    this.interval = void 0;
+    this.stopSpinner?.();
+    const tests = getTests(this.tasks);
+    const passed = tests.filter((t) => t.result?.state === "pass").length;
+    const failed = tests.filter((t) => t.result?.state === "fail").length;
+    const icon = failed > 0 ? style.error(symbol.error) : style.success(symbol.success);
+    const values = [icon, " ", style.label(this.stack)];
+    if (passed > 0) {
+      values.push(" ", style.placeholder(symbol.pointerSmall), style.success(` ${passed} passed`));
+    }
+    if (failed > 0) {
+      values.push(" ", style.placeholder(symbol.pointerSmall), style.error(` ${failed} failed`));
+    }
+    this.line.set([
+      ...values,
+      " ",
+      style.placeholder(symbol.pointerSmall),
+      " ",
+      this.timer?.(),
+      br(),
+      this.formatLogs(),
+      this.formatErrors()
+    ]);
+  }
+  update() {
+    const tasks = this.runningTasks(this.tasks);
+    this.line.set([
+      this.icon,
+      " ",
+      style.label(this.stack),
+      // ' ',
+      // style.placeholder(`(${tests.length})`),
+      ...tasks.map((task, i) => [
+        " ",
+        style.placeholder(symbol.pointerSmall),
+        " ",
+        i === 0 ? task.name : style.placeholder(task.name)
+      ]),
+      // style.placeholder(tests.length),
+      // ' ',
+      // style.placeholder(symbol.pointerSmall),
+      // ' ',
+      " ",
+      style.placeholder(symbol.pointerSmall),
+      " ",
+      this.timer?.(),
+      br(),
+      this.formatLogs()
+      // this.formatErrors(),
+      // ...this.renderTask(this.tasks!),
+    ]);
+  }
+  formatLogs() {
+    return this.logs.map((log) => {
+      return [style.placeholder(`${symbol.dot} LOG `), log];
+    });
+  }
+  formatErrors() {
+    const tests = getTests(this.tasks);
+    return tests.map((test2) => {
+      if (!test2.result?.errors || test2.result.errors.length === 0) {
+        return [];
+      }
+      return [
+        br(),
+        style.error(`${symbol.dot} `),
+        style.error.inverse(` FAIL `),
+        " ",
+        style.placeholder(symbol.pointerSmall),
+        " ",
+        test2.file?.name,
+        " ",
+        style.placeholder(`${symbol.pointerSmall} ${test2.name}`),
+        br(),
+        test2.result.errors.map((error) => {
+          const [message, ...comment] = error.message.split("//");
+          const values = [
+            "  ",
+            style.error(`${style.error.bold(error.name)}: ${message}`),
+            comment.length > 0 ? style.placeholder(`//${comment}`) : "",
+            br()
+          ];
+          if (error.showDiff && error.diff) {
+            values.push(br(), error.diff, br());
+          }
+          return values;
+        })
+      ];
+    });
+  }
+  onUserConsoleLog(log) {
+    if (log.taskId) {
+      const test2 = this.ctx?.state.idMap.get(log.taskId);
+      if (test2) {
+        test2.name;
+      }
+    }
+    this.logs.push(log.content);
+  }
+  formatFileName(path) {
+    const ext = extname(path);
+    const bas = basename3(path, ext);
+    return `${bas}${style.placeholder(ext)}`;
+  }
+  runningTask(tasks) {
+    return tasks.find((t) => t.result?.state === "run");
+  }
+  runningTasks(tasks) {
+    const task = this.runningTask(tasks);
+    if (!task) {
+      return [];
+    }
+    if (task.type === "suite") {
+      return [task, ...this.runningTasks(task.tasks)];
+    }
+    return [task];
+  }
+};
+var singleTester = (stack, dir) => {
+  return async (term) => {
+    await startVitest(
+      "test",
+      [],
+      {
+        // name: config.name,
+        watch: false,
+        ui: false,
+        silent: true,
+        // dir: '',
+        // dir: './test',
+        dir,
+        include: ["**/*.{js,jsx,ts,tsx}"],
+        exclude: ["**/_*", "**/_*/**", ...configDefaults.exclude],
+        globals: true,
+        reporters: new CustomReporter(stack, term.out)
+        // outputFile: {
+        // 	json: './.awsless/test/output.json',
+        // },
+      },
+      {
+        plugins: [
+          // @ts-ignore
+          commonjs3({ sourceMap: true }),
+          // @ts-ignore
+          nodeResolve3({ preferBuiltins: true }),
+          swc4({
+            jsc: {
+              // baseUrl: dirname(input),
+              minify: { sourceMap: true }
+            },
+            sourceMaps: true
+          }),
+          // @ts-ignore
+          json3()
+        ]
+      }
+    );
+  };
+};
+var runTester = (tests) => {
+  return async (term) => {
+    for (const [name, paths] of tests.entries()) {
+      for (const path of paths) {
+        await term.out.write(singleTester(name, path));
+      }
+    }
+  };
+};
+
 // src/cli/command/deploy.ts
 var deploy = (program2) => {
   program2.command("deploy").argument("[stacks...]", "Optionally filter stacks to deploy").description("Deploy your app to AWS").action(async (filters) => {
-    await layout(async (config, write) => {
-      await write(bootstrapDeployer(config));
-      const { app, deploymentLine } = await toApp(config, filters);
+    await layout(async (config2, write) => {
+      await write(bootstrapDeployer(config2));
+      const { app, deploymentLine, tests } = await toApp(config2, filters);
       const stackNames = app.stacks.map((stack) => stack.name);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
       debug("Stacks to deploy", formattedFilter);
       if (!process.env.SKIP_PROMPT) {
         const deployAll = filters.length === 0;
         const deploySingle = filters.length === 1;
-        const confirm = await write(confirmPrompt(deployAll ? `Are you sure you want to deploy ${style.warning("all")} stacks?` : deploySingle ? `Are you sure you want to deploy the ${formattedFilter} stack?` : `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`));
+        const confirm = await write(
+          confirmPrompt(
+            deployAll ? `Are you sure you want to deploy ${style.warning("all")} stacks?` : deploySingle ? `Are you sure you want to deploy the ${formattedFilter} stack?` : `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`
+          )
+        );
         if (!confirm) {
           throw new Cancelled();
         }
       }
       await cleanUp();
-      await write(typesGenerator(config));
+      await write(typesGenerator(config2));
+      await write(runTester(tests));
       await write(assetBuilder(app));
-      await write(assetPublisher(config, app));
+      await write(assetPublisher(config2, app));
       await write(templateBuilder(app));
       const doneDeploying = write(loadingDialog("Deploying stacks to AWS..."));
-      const client = new StackClient(app, config.account, config.region, config.credentials);
+      const client = new StackClient(app, config2.account, config2.region, config2.credentials);
       const ui = write(stacksDeployer(deploymentLine));
       for (const line2 of deploymentLine) {
-        const results = await Promise.allSettled(line2.map(async (stack) => {
-          const item = ui[stack.name];
-          item.start("deploying");
-          try {
-            await client.deploy(stack);
-          } catch (error) {
-            debugError(error);
-            item.fail("failed");
-            throw error;
-          }
-          item.done("deployed");
-        }));
+        const results = await Promise.allSettled(
+          line2.map(async (stack) => {
+            const item = ui[stack.name];
+            item.start("deploying");
+            try {
+              await client.deploy(stack);
+            } catch (error) {
+              debugError(error);
+              item.fail("failed");
+              throw error;
+            }
+            item.done("deployed");
+          })
+        );
         for (const result of results) {
           if (result.status === "rejected") {
             throw result.reason;
@@ -8123,11 +8586,7 @@ var textPrompt = (label, options = {}) => {
           resolve(value.get().join(""));
         },
         input: (chr) => {
-          value.update((value2) => [
-            ...value2.slice(0, cursor.get()),
-            chr,
-            ...value2.slice(cursor.get())
-          ]);
+          value.update((value2) => [...value2.slice(0, cursor.get()), chr, ...value2.slice(cursor.get())]);
           cursor.update((cursor2) => cursor2 + 1);
         },
         delete() {
@@ -8141,104 +8600,119 @@ var textPrompt = (label, options = {}) => {
           cursor.update((cursor2) => Math.min(value.get().length, cursor2 + 1));
         }
       });
-      term.out.write([icon, "  ", style.label(label), " ", sep, " ", formatted, br()]);
+      term.out.write([icon, " ", style.label(label), " ", sep, " ", formatted, br()]);
     });
   };
 };
 
-// src/cli/command/secrets/set.ts
+// src/cli/command/config/set.ts
 var set = (program2) => {
-  program2.command("set <name>").description("Set a secret value").action(async (name) => {
-    await layout(async (config, write) => {
-      const params = new Params(config);
-      write(list({
-        "Set secret parameter": style.info(name)
-      }));
-      const value = await write(textPrompt("Enter secret value"));
+  program2.command("set <name>").description("Set a config value").action(async (name) => {
+    await layout(async (config2, write) => {
+      const params = new Params(config2);
+      write(
+        list({
+          "Set config parameter": style.info(name)
+        })
+      );
+      const value = await write(textPrompt("Enter config value"));
       if (value === "") {
-        write(dialog("error", [`Provided secret value can't be empty`]));
+        write(dialog("error", [`Provided config value can't be empty`]));
       } else {
-        const done = write(loadingDialog(`Saving remote secret parameter`));
+        const done = write(loadingDialog(`Saving remote config parameter`));
         await params.set(name, value);
-        done(`Done saving remote secret parameter`);
+        done(`Done saving remote config parameter`);
       }
     });
   });
 };
 
-// src/cli/command/secrets/get.ts
+// src/cli/command/config/get.ts
 var get = (program2) => {
-  program2.command("get <name>").description("Get a secret value").action(async (name) => {
-    await layout(async (config, write) => {
-      const params = new Params(config);
-      const done = write(loadingDialog(`Getting remote secret parameter`));
+  program2.command("get <name>").description("Get a config value").action(async (name) => {
+    await layout(async (config2, write) => {
+      const params = new Params(config2);
+      const done = write(loadingDialog(`Getting remote config parameter`));
       const value = await params.get(name);
-      done(`Done getting remote secret parameter`);
-      write(list({
-        Name: name,
-        Value: value || style.error("(empty)")
-      }));
+      done(`Done getting remote config parameter`);
+      write(
+        list({
+          Name: name,
+          Value: value || style.error("(empty)")
+        })
+      );
     });
   });
 };
 
-// src/cli/command/secrets/delete.ts
+// src/cli/command/config/delete.ts
 var del = (program2) => {
-  program2.command("delete <name>").description("Delete a secret value").action(async (name) => {
-    await layout(async (config, write) => {
-      const params = new Params(config);
-      write(dialog("warning", [`Your deleting the ${style.info(name)} secret parameter`]));
+  program2.command("delete <name>").description("Delete a config value").action(async (name) => {
+    await layout(async (config2, write) => {
+      const params = new Params(config2);
+      write(dialog("warning", [`Your deleting the ${style.info(name)} config parameter`]));
       const confirm = await write(confirmPrompt("Are you sure?"));
       if (!confirm) {
         throw new Cancelled();
       }
-      const done = write(loadingDialog(`Deleting remote secret parameter`));
+      const done = write(loadingDialog(`Deleting remote config parameter`));
       const value = await params.get(name);
       await params.delete(name);
-      done(`Done deleting remote secret parameter`);
-      write(list({
-        Name: name,
-        Value: value || style.error("(empty)")
-      }));
+      done(`Done deleting remote config parameter`);
+      write(
+        list({
+          Name: name,
+          Value: value || style.error("(empty)")
+        })
+      );
     });
   });
 };
 
-// src/cli/command/secrets/list.ts
+// src/cli/command/config/list.ts
 var list2 = (program2) => {
-  program2.command("list").description(`List all secret value's`).action(async () => {
-    await layout(async (config, write) => {
-      const params = new Params(config);
-      const done = write(loadingDialog("Loading secret parameters..."));
+  program2.command("list").description(`List all config value's`).action(async () => {
+    await layout(async (config2, write) => {
+      const params = new Params(config2);
+      const done = write(loadingDialog("Loading config parameters..."));
       const values = await params.list();
-      done("Done loading secret values");
+      done("Done loading config values");
       if (Object.keys(values).length > 0) {
         write(list(values));
       } else {
-        write(dialog("warning", ["No secret parameters found"]));
+        write(dialog("warning", ["No config parameters found"]));
       }
     });
   });
 };
 
-// src/cli/command/secrets/index.ts
-var commands = [
-  set,
-  get,
-  del,
-  list2
-];
-var secrets = (program2) => {
-  const command = program2.command("secrets").description(`Manage app secrets`);
+// src/cli/command/config/index.ts
+var commands = [set, get, del, list2];
+var config = (program2) => {
+  const command = program2.command("config").description(`Manage app config`);
   commands.forEach((cb) => cb(command));
+};
+
+// src/cli/command/test.ts
+var test = (program2) => {
+  program2.command("test").argument("[stacks...]", "Optionally filter stacks to test").description("Test your app").action(async (filters) => {
+    await layout(async (config2, write) => {
+      const { tests } = await toApp(config2, filters);
+      if (tests.size === 0) {
+        write(dialog("warning", ["No tests found"]));
+        return;
+      }
+      await write(runTester(tests));
+    });
+  });
 };
 
 // src/cli/command/types.ts
 var types = (program2) => {
   program2.command("types").description("Generate type definition files").action(async () => {
-    await layout(async (config, write) => {
+    await layout(async (config2, write) => {
       await cleanUp();
-      await write(typesGenerator(config));
+      await write(typesGenerator(config2));
     });
   });
 };
@@ -8248,9 +8722,9 @@ var dev = (program2) => {
   program2.command("dev").description("Start the development service").action(async () => {
     await layout(async (_, write) => {
       const options = program2.optsWithGlobals();
-      await watchConfig(options, async (config) => {
+      await watchConfig(options, async (config2) => {
         await cleanUp();
-        await write(typesGenerator(config));
+        await write(typesGenerator(config2));
       }, (error) => {
         if (error instanceof ConfigError) {
           write(zodError(error.error, error.data));
@@ -8269,8 +8743,8 @@ var dev = (program2) => {
 // src/cli/command/delete.ts
 var del2 = (program2) => {
   program2.command("delete").argument("[stacks...]", "Optionally filter stacks to delete").description("Delete your app from AWS").action(async (filters) => {
-    await layout(async (config, write) => {
-      const { app, deploymentLine } = await toApp(config, filters);
+    await layout(async (config2, write) => {
+      const { app, deploymentLine } = await toApp(config2, filters);
       const deletingLine = deploymentLine.reverse();
       const stackNames = app.stacks.map((stack) => stack.name);
       const formattedFilter = stackNames.map((i) => style.info(i)).join(style.placeholder(", "));
@@ -8284,7 +8758,7 @@ var del2 = (program2) => {
         }
       }
       const doneDeploying = write(loadingDialog("Deleting stacks from AWS..."));
-      const client = new StackClient(app, config.account, config.region, config.credentials);
+      const client = new StackClient(app, config2.account, config2.region, config2.credentials);
       const ui = write(stacksDeployer(deletingLine));
       for (const line2 of deletingLine) {
         const results = await Promise.allSettled(line2.map(async (stack) => {
@@ -8337,8 +8811,8 @@ var commands2 = [
   deploy,
   del2,
   dev,
-  secrets
-  // test,
+  config,
+  test
   // diff,
   // remove,
 ];

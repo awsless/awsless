@@ -1,4 +1,3 @@
-
 import { togglePrompt } from './toggle.js'
 
 export type ConfirmPromptOptions = {

@@ -27,6 +27,7 @@ export const toApp = async (config: Config, filters: string[]) => {
 	const app = new App(config.name)
 	const stacks: { stack: Stack; config: StackConfig; bindings: Binding[] }[] = []
 	const plugins = [...defaultPlugins, ...(config.plugins || [])]
+	const tests = new Map<string, string[]>()
 
 	debug('Plugins detected:', plugins.map(plugin => style.info(plugin.name)).join(', '))
 
@@ -55,6 +56,7 @@ export const toApp = async (config: Config, filters: string[]) => {
 			bootstrap,
 			usEastBootstrap,
 			bind,
+			tests,
 		})
 	}
 
@@ -77,6 +79,7 @@ export const toApp = async (config: Config, filters: string[]) => {
 			bootstrap,
 			usEastBootstrap,
 			plugins,
+			tests,
 			app,
 		})
 
@@ -85,24 +88,24 @@ export const toApp = async (config: Config, filters: string[]) => {
 		stacks.push({ stack, config: stackConfig, bindings })
 	}
 
-	debug(app.stacks)
+	// debug(app.stacks)
 
 	// ---------------------------------------------------------------
 
-	for (const plugin of plugins) {
-		for (const stack of app.stacks) {
-			for (const resource of stack) {
-				plugin.onResource?.({
-					config,
-					app,
-					stack,
-					bootstrap,
-					usEastBootstrap,
-					resource,
-				})
-			}
-		}
-	}
+	// for (const plugin of plugins) {
+	// 	for (const stack of app.stacks) {
+	// 		for (const resource of stack) {
+	// 			plugin.onResource?.({
+	// 				config,
+	// 				app,
+	// 				stack,
+	// 				bootstrap,
+	// 				usEastBootstrap,
+	// 				resource,
+	// 			})
+	// 		}
+	// 	}
+	// }
 
 	// ---------------------------------------------------------------
 	// Global binds
@@ -170,5 +173,6 @@ export const toApp = async (config: Config, filters: string[]) => {
 		app,
 		plugins,
 		deploymentLine,
+		tests,
 	}
 }

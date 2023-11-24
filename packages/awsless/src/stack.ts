@@ -1,26 +1,26 @@
-
 import { Config } from './config.js'
 import { StackConfigOutput } from './schema/stack.js'
 import { Plugin } from './plugin.js'
-import { AnyZodObject } from "zod"
+import { AnyZodObject } from 'zod'
 import { debug } from './cli/logger.js'
 import { style } from './cli/style.js'
 import { App } from './formation/app.js'
 import { Function } from './formation/resource/lambda/function.js'
 import { Stack } from './formation/stack.js'
 
-export type Binding = (lambda:Function) => void
+export type Binding = (lambda: Function) => void
 
 type Context = {
 	config: Config
 	app: App
+	tests: Map<string, string[]>
 	bootstrap: Stack
 	usEastBootstrap: Stack
 	stackConfig: StackConfigOutput
 	plugins: Plugin<AnyZodObject | undefined>[]
 }
 
-export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, plugins }: Context) => {
+export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, plugins, tests }: Context) => {
 	const name = stackConfig.name
 	const stack = new Stack(name, config.region)
 		.tag('app', config.name)
@@ -35,12 +35,12 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 
 	debug('Run plugin onStack listeners')
 
-	const bindings:Binding[] = []
-	const bind = (cb:Binding) => {
+	const bindings: Binding[] = []
+	const bind = (cb: Binding) => {
 		bindings.push(cb)
 	}
 
-	for(const plugin of plugins) {
+	for (const plugin of plugins) {
 		plugin.onStack?.({
 			config,
 			app,
@@ -48,6 +48,7 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 			stackConfig,
 			bootstrap,
 			usEastBootstrap,
+			tests,
 			bind,
 		})
 	}
@@ -55,7 +56,7 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 	// ------------------------------------------------------
 	// Check if stack has resources
 
-	if(stack.size === 0) {
+	if (stack.size === 0) {
 		throw new Error(`Stack ${style.info(name)} has no resources defined`)
 	}
 
@@ -65,8 +66,8 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 
 	const functions = stack.find(Function)
 
-	for(const bind of bindings) {
-		for(const fn of functions) {
+	for (const bind of bindings) {
+		for (const fn of functions) {
 			bind(fn)
 		}
 	}

@@ -36,7 +36,7 @@ const ReservedConcurrentExecutionsSchema = z.number().int().min(0)
 const EnvironmentSchema = z.record(z.string(), z.string()).optional()
 const ArchitectureSchema = z.enum(['x86_64', 'arm64'])
 const RetryAttemptsSchema = z.number().int().min(0).max(2)
-const RuntimeSchema = z.enum(['nodejs18.x'])
+const RuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x'])
 
 const PermissionSchema = z.object({
 	effect: z.enum(['allow', 'deny']).default('allow'),
@@ -192,9 +192,9 @@ const schema = z.object({
 					timeout: TimeoutSchema.default('10 seconds'),
 
 					/** The identifier of the function's runtime.
-					 * @default 'nodejs18.x'
+					 * @default 'nodejs20.x'
 					 */
-					runtime: RuntimeSchema.default('nodejs18.x'),
+					runtime: RuntimeSchema.default('nodejs20.x'),
 
 					/** The amount of memory available to the function at runtime.
 					 * Increasing the function memory also increases its CPU allocation.
@@ -267,22 +267,38 @@ const schema = z.object({
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
+import type { PartialDeep } from 'type-fest'
+import type { Mock } from 'vitest'
 
-type Invoke<Name extends string, Func extends (...args: any[]) => any> = {
+type Func = (...args: any[]) => any
+
+type Invoke<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly async: (payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<Func>
-	(payload: Parameters<Func>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<Func>
-}`
+	readonly async: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
+	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<F>
+}
+
+type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurseIntoArrays: true }>
+type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => Promise<Response<F>> | Response<F> | void | Promise<void> | Promise<Promise<void>>
+type MockHandleOrResponse<F extends Func> = MockHandle<F> | Response<F>
+type MockBuilder<F extends Func> = (handleOrResponse?: MockHandleOrResponse<F>) => void
+type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
+`
 
 export const functionPlugin = definePlugin({
 	name: 'function',
 	schema,
 	onTypeGen({ config }) {
-		const types = new TypeGen('@awsless/awsless', 'FunctionResources')
-		types.addCode(typeGenCode)
+		const types = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(1)
+		const mocks = new TypeObject(1)
+		const mockResponses = new TypeObject(1)
 
 		for (const stack of config.stacks) {
-			const list = new TypeObject()
+			const resource = new TypeObject(2)
+			const mock = new TypeObject(2)
+			const mockResponse = new TypeObject(2)
+
 			for (const [name, fileOrProps] of Object.entries(stack.functions || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
 				const funcName = formatName(`${config.name}-${stack.name}-${name}`)
@@ -290,11 +306,20 @@ export const functionPlugin = definePlugin({
 				const relFile = relative(directories.types, file)
 
 				types.addImport(varName, relFile)
-				list.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				mock.addType(name, `MockBuilder<typeof ${varName}>`)
+				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 			}
 
-			types.addType(stack.name, list.toString())
+			mocks.addType(stack.name, mock)
+			resources.addType(stack.name, resource)
+			mockResponses.addType(stack.name, mockResponse)
 		}
+
+		types.addCode(typeGenCode)
+		types.addInterface('FunctionResources', resources)
+		types.addInterface('FunctionMock', mocks)
+		types.addInterface('FunctionMockResponse', mockResponses)
 
 		return types.toString()
 	},

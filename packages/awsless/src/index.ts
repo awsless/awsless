@@ -26,3 +26,8 @@ export { func, FunctionProps } from './node/handle/function.js'
 export { topic, TopicProps } from './node/handle/topic.js'
 export { queue, QueueProps } from './node/handle/queue.js'
 export { cron, CronProps } from './node/handle/cron.js'
+
+// Mocks
+export { mockFunction, FunctionMock, FunctionMockResponse } from './node/mock/function.js'
+export { mockTopic, TopicMock, TopicMockResponse } from './node/mock/topic.js'
+export { mockQueue, QueueMock, QueueMockResponse } from './node/mock/queue.js'

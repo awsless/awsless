@@ -1,5 +1,6 @@
 import { formatByteSize } from '../../../util/byte-size.js'
-import { Asset } from '../../asset.js'
+import { generateFingerprint } from '../../../util/fingerprint.js'
+import { Asset, BuildProps } from '../../asset.js'
 // import { readFile } from 'fs/promises'
 import { rollupResolver } from './util/rollup.js'
 
@@ -39,9 +40,17 @@ export class FileCode extends Asset implements ICode {
 		super('resolver', id)
 	}
 
-	async build() {
-		const code = await rollupResolver({ minify: false })(this.file)
+	async build({ read, write }: BuildProps) {
+		const fingerprint = await generateFingerprint(this.file)
 
+		await write(fingerprint, async write => {
+			const builder = rollupResolver({ minify: false })
+			const code = await builder(this.file)
+
+			await write('file.js', code)
+		})
+
+		const [code] = await read(fingerprint, ['file.js'])
 		this.code = code.toString('utf8')
 
 		return {

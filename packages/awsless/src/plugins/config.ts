@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js'
-import { TypeGen } from '../util/type-gen.js'
+import { TypeGen, TypeObject } from '../util/type-gen.js'
 import { formatArn } from '../formation/util.js'
 import { configParameterPrefix } from '../util/param.js'
 import { paramCase } from 'change-case'
@@ -33,14 +33,18 @@ export const configPlugin = definePlugin({
 			.array(),
 	}),
 	onTypeGen({ config }) {
-		const types = new TypeGen('@awsless/awsless', 'ConfigResources', false)
+		const gen = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(0, false)
+		// '@awsless/awsless', 'ConfigResources', false
 		for (const stack of config.stacks) {
 			for (const name of stack.configs || []) {
-				types.addConst(name, 'string')
+				resources.addConst(name, 'string')
 			}
 		}
 
-		return types.toString()
+		gen.addInterface('ConfigResources', resources.toString())
+
+		return gen.toString()
 	},
 	onStack({ bind, config, stackConfig }) {
 		const configs = stackConfig.configs

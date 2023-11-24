@@ -1,11 +1,10 @@
-
 import { Command } from 'commander'
 import { build } from './command/build.js'
 import { bootstrap } from './command/bootstrap.js'
 import { status } from './command/status.js'
 import { deploy } from './command/deploy.js'
-import { secrets } from './command/secrets/index.js'
-// import { test } from './command/test.js'
+import { config } from './command/config/index.js'
+import { test } from './command/test.js'
 import { logo } from './ui/layout/logo.js'
 import { types } from './command/types.js'
 import { dev } from './command/dev.js'
@@ -24,13 +23,13 @@ const program = new Command()
 
 program.name(logo().join('').replace(/\s+/, ''))
 
-program.option('--config-file <string>',	'The config file location')
-program.option('--stage <string>',			'The stage to use, defaults to prod stage', 'prod')
-program.option('--profile <string>',		'The AWS profile to use')
-program.option('--region <string>', 		'The AWS region to use')
-program.option('-s --skip-prompt', 			'Skip prompts')
-program.option('-m --mute',					'Mute sound effects')
-program.option('-v --verbose',				'Print verbose logs')
+program.option('--config-file <string>', 'The config file location')
+program.option('--stage <string>', 'The stage to use, defaults to prod stage', 'prod')
+program.option('--profile <string>', 'The AWS profile to use')
+program.option('--region <string>', 'The AWS region to use')
+program.option('-s --skip-prompt', 'Skip prompts')
+program.option('-m --mute', 'Mute sound effects')
+program.option('-v --verbose', 'Print verbose logs')
 
 program.exitOverride(() => {
 	process.exit(0)
@@ -52,9 +51,8 @@ const commands = [
 	deploy,
 	del,
 	dev,
-	secrets,
-
-	// test,
+	config,
+	test,
 
 	// diff,
 	// remove,

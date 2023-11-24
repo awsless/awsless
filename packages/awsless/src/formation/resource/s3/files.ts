@@ -1,12 +1,11 @@
-
-import { Asset, BuildProps, PublishProps } from '../../asset.js';
-import { formatByteSize } from '../../../util/byte-size.js';
+import { Asset, BuildProps, PublishProps } from '../../asset.js'
+import { formatByteSize } from '../../../util/byte-size.js'
 import { Glob } from 'glob'
-import JSZip from "jszip"
-import { Hash, createHash } from "crypto";
-import { createReadStream } from "fs";
-import { join } from 'path';
-import { style } from '../../../cli/style.js';
+import JSZip from 'jszip'
+import { Hash, createHash } from 'crypto'
+import { createReadStream } from 'fs'
+import { join } from 'path'
+import { style } from '../../../cli/style.js'
 
 export class Files extends Asset {
 	private hash?: string
@@ -18,28 +17,28 @@ export class Files extends Asset {
 		version: string
 	}
 
-	constructor(id:string, private props: {
-		directory: string
-		pattern?: string
-	}) {
+	constructor(
+		id: string,
+		private props: {
+			directory: string
+			pattern?: string
+		}
+	) {
 		super('bucket', id)
 	}
 
-	async build({ write }: BuildProps) {
+	async build({ read, write }: BuildProps) {
 		const glob = new Glob(this.props.pattern ?? '**/*', {
 			nodir: true,
-			cwd: this.props.directory
+			cwd: this.props.directory,
 		})
 
 		const zip = new JSZip()
 
-		const hashes:Hash[] = []
+		const hashes: Hash[] = []
 		let count = 0
 
 		for await (const path of glob) {
-
-			// debug('Path', path)
-
 			const file = join(this.props.directory, path)
 			const stream = createReadStream(file)
 			const hash = createHash('sha1')
@@ -55,21 +54,21 @@ export class Files extends Asset {
 			type: 'nodebuffer',
 			compression: 'DEFLATE',
 			compressionOptions: {
-				level: 9
-			}
+				level: 9,
+			},
 		})
 
 		const hash = createHash('sha1')
-		for(const item of hashes) {
+		for (const item of hashes) {
 			hash.update(item.digest())
 		}
 
 		this.hash = hash.digest('hex')
 
-		// debug('HASH', this.hash)
-
-		await write('HASH', this.hash)
-		await write('bundle.zip', this.bundle)
+		await write(this.hash, async write => {
+			await write('HASH', this.hash!)
+			await write('bundle.zip', this.bundle!)
+		})
 
 		return {
 			files: style.success(String(count)),
@@ -78,19 +77,13 @@ export class Files extends Asset {
 	}
 
 	async publish({ publish }: PublishProps) {
-		this.s3 = await publish(
-			`${ this.id }.zip`,
-			this.bundle!,
-			this.hash!
-		)
+		this.s3 = await publish(`${this.id}.zip`, this.bundle!, this.hash!)
 	}
 
 	get source() {
 		return this.s3
 	}
 }
-
-
 
 // import fs			from 'fs'
 // import util			from 'util'
