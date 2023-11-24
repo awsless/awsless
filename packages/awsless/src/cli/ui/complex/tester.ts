@@ -204,7 +204,7 @@ class CustomReporter implements Reporter {
 	}
 }
 
-export const singleTester = (stack: string, dir?: string): RenderFactory => {
+export const singleTester = (stack: string, dir: string): RenderFactory => {
 	return async term => {
 		await startVitest(
 			'test',
@@ -214,8 +214,6 @@ export const singleTester = (stack: string, dir?: string): RenderFactory => {
 				watch: false,
 				ui: false,
 				silent: true,
-				// dir: '',
-				// dir: './test',
 				dir,
 				include: ['**/*.{js,jsx,ts,tsx}'],
 				exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],

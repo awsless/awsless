@@ -26,7 +26,7 @@ export const generateFingerprint = async (file: string) => {
 
 	await generate(file)
 
-	const merge = Buffer.concat(Array.from(hashes.values()))
+	const merge = Buffer.concat(Array.from(hashes.values()).sort())
 
 	return createHash('sha1').update(merge).digest('hex')
 }
