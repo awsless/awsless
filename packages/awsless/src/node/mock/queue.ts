@@ -10,7 +10,7 @@ export const mockQueue = (cb: (mock: QueueMock) => void): QueueMockResponse => {
 	const mock: QueueMock = createProxy(stack => {
 		return createProxy(name => {
 			return (handle: unknown) => {
-				list[getQueueName(stack, name)] = handle ?? (() => {})
+				list[getQueueName(name, stack)] = handle ?? (() => {})
 			}
 		})
 	})
@@ -21,7 +21,7 @@ export const mockQueue = (cb: (mock: QueueMock) => void): QueueMockResponse => {
 
 	return createProxy(stack => {
 		return createProxy(name => {
-			return result[getQueueName(stack, name)]
+			return result[getQueueName(name, stack)]
 		})
 	})
 }

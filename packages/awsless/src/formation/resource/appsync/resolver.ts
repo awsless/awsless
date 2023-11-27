@@ -1,8 +1,7 @@
-
 // import { Asset } from '../../asset.js';
-import { Asset } from '../../asset.js';
-import { Resource } from '../../resource.js';
-import { ICode } from './code.js';
+import { Asset } from '../../asset.js'
+import { Resource } from '../../resource.js'
+import { ICode } from './code.js'
 // import { ICode } from './code.js';
 
 export type ResolverProps = {
@@ -15,7 +14,6 @@ export type ResolverProps = {
 }
 
 export class Resolver extends Resource {
-
 	constructor(logicalId: string, private props: ResolverProps) {
 		super('AWS::AppSync::Resolver', logicalId)
 	}
@@ -34,7 +32,7 @@ export class Resolver extends Resource {
 			Runtime: {
 				Name: 'APPSYNC_JS',
 				RuntimeVersion: '1.0.0',
-			}
+			},
 		}
 	}
 }

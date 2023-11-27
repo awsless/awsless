@@ -55,11 +55,17 @@ export const deploy = (program: Command) => {
 				}
 
 				// ---------------------------------------------------
-				// Building stack assets & templates
+				// Building stack assets & templates & tests
 
 				await cleanUp()
 				await write(typesGenerator(config))
-				await write(runTester(tests))
+
+				const passed = await write(runTester(tests))
+
+				if (!passed) {
+					throw new Cancelled()
+				}
+
 				await write(assetBuilder(app))
 				await write(assetPublisher(config, app))
 				await write(templateBuilder(app))

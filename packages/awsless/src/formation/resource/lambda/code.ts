@@ -6,7 +6,7 @@ import { Asset } from '../../asset.js'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { join } from 'path'
-import { generateFingerprint } from '../../../util/fingerprint.js'
+import { fingerprintFromFile } from '../../../util/fingerprint.js'
 
 export type CodeBundle = (file: string) => Promise<{
 	handler: string
@@ -83,7 +83,7 @@ export class InlineFileCode extends Asset implements ICode {
 	}
 
 	async build({ read, write }: BuildProps) {
-		const fingerprint = await generateFingerprint(this.file)
+		const fingerprint = await fingerprintFromFile(this.file)
 
 		await write(fingerprint, async write => {
 			const bundler = this.bundler ?? rollupBundle()
@@ -180,7 +180,7 @@ export class FileCode extends Asset implements ICode {
 	}
 
 	async build({ write, read }: BuildProps) {
-		this.fingerprint = await generateFingerprint(this.file)
+		this.fingerprint = await fingerprintFromFile(this.file)
 
 		// debug('fingerprint', this.id, fingerprint)
 

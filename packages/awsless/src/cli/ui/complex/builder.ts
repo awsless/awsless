@@ -111,7 +111,7 @@ export const assetBuilder = (app: App): RenderFactory => {
 							const data = await asset.build({
 								async write(fingerprint, cb) {
 									const prev = await getFingerPrint()
-									if (prev === fingerprint) {
+									if (prev === fingerprint && !process.env.NO_CACHE) {
 										return
 									}
 
