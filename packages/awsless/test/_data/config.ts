@@ -82,7 +82,7 @@ export default defineAppConfig(input => ({
 	stacks: [
 		// cacheStack,
 		// tableStack,
-		// queueStack,
+		queueStack,
 		// storeStack,
 		functionStack,
 		configStack,

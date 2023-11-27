@@ -9,67 +9,90 @@ export type TogglePromptOptions = {
 	inactive?: string
 }
 
-export const togglePrompt = (label: string, options: TogglePromptOptions = {}): RenderFactory<Promise<boolean>> => {
-	return (term) => new Promise(resolve => {
-		const { initial = false, active = 'on', inactive = 'off' } = options
-		const icon = new Signal(style.info(symbol.question))
-		const sep = new Signal(style.placeholder(symbol.pointerSmall))
-		const mid = style.placeholder('/')
-		const activeText = new Signal(active)
-		const inactiveText = new Signal(inactive)
+export const togglePrompt = (
+	label: string,
+	options: TogglePromptOptions = {}
+): RenderFactory<Promise<boolean>> => {
+	return term =>
+		new Promise(resolve => {
+			const { initial = false, active = 'on', inactive = 'off' } = options
+			const icon = new Signal(style.info(symbol.question))
+			const sep = new Signal(style.placeholder(symbol.pointerSmall))
+			const mid = style.placeholder('/')
+			const activeText = new Signal(active)
+			const inactiveText = new Signal(inactive)
 
-		let value = initial
+			let value = initial
 
-		const activate = () => {
-			activeText.set(style.success.underline(active))
-			inactiveText.set(style.normal(inactive))
-			value = true
-		}
+			const activate = () => {
+				activeText.set(style.success.underline(active))
+				inactiveText.set(style.normal(inactive))
+				value = true
+			}
 
-		const deactivate = () => {
-			activeText.set(style.normal(active))
-			inactiveText.set(style.success.underline(inactive))
-			value = false
-		}
+			const deactivate = () => {
+				activeText.set(style.normal(active))
+				inactiveText.set(style.success.underline(inactive))
+				value = false
+			}
 
-		const toggle = () => {
-			!value ? activate() : deactivate()
-		}
+			const toggle = () => {
+				!value ? activate() : deactivate()
+			}
 
-		const reset = () => {
-			initial ? activate() : deactivate()
-		}
+			const reset = () => {
+				initial ? activate() : deactivate()
+			}
 
-		reset()
+			reset()
 
-		const release = term.in.captureInput({
-			reset,
-			exit() {
-				release()
-				icon.set(style.error(symbol.error))
-				sep.set(symbol.ellipsis)
-				resolve(false)
-			},
-			submit() {
-				release()
-				icon.set(style.success(symbol.success))
-				sep.set(symbol.ellipsis)
-				resolve(value)
-			},
-			input(chr) {
-				switch(chr) {
-					case ' ': toggle(); break
-					case '1': activate(); break
-					case '0': deactivate(); break
-				}
-			},
-			delete: deactivate,
-			left: deactivate,
-			right: activate,
-			down: deactivate,
-			up: activate,
+			const release = term.in.captureInput({
+				reset,
+				exit() {
+					release()
+					icon.set(style.error(symbol.error))
+					sep.set(symbol.ellipsis)
+					resolve(false)
+				},
+				submit() {
+					release()
+					icon.set(style.success(symbol.success))
+					sep.set(symbol.ellipsis)
+					resolve(value)
+				},
+				input(chr) {
+					switch (chr) {
+						case ' ':
+							toggle()
+							break
+						case '1':
+							activate()
+							break
+						case '0':
+							deactivate()
+							break
+					}
+				},
+				delete: deactivate,
+				left: deactivate,
+				right: activate,
+				down: deactivate,
+				up: activate,
+			})
+
+			term.out.write([
+				icon,
+				' ',
+				style.label(label),
+				' ',
+				sep,
+				' ',
+				inactiveText,
+				' ',
+				mid,
+				' ',
+				activeText,
+				br(),
+			])
 		})
-
-		term.out.write([ icon, '  ', style.label(label), ' ', sep, ' ', inactiveText, ' ', mid, ' ', activeText, br() ])
-	})
 }

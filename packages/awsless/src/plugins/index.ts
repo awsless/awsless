@@ -20,6 +20,7 @@ import { configPlugin } from './config.js'
 import { sitePlugin } from './site.js'
 import { featurePlugin } from './feature.js'
 import { authPlugin } from './auth.js'
+import { testPlugin } from './test.js'
 // import { alertPlugin } from './__alert.js'
 
 export const defaultPlugins = [
@@ -44,6 +45,7 @@ export const defaultPlugins = [
 	restPlugin,
 	sitePlugin,
 	onFailurePlugin,
+	testPlugin,
 ]
 
 export type CombinedDefaultPluginsConfigOutput = ExtendedConfigOutput<(typeof defaultPlugins)[number]['schema']>

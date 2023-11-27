@@ -22,19 +22,22 @@ export const assetPublisher = (config: Config, app: App): RenderFactory => {
 			app.stacks.map(async stack => {
 				await Promise.all(
 					[...stack.assets].map(async asset => {
-						await asset.publish?.({
-							async read(file) {
-								const path = join(
-									directories.asset,
-									asset.type,
-									app.name,
-									stack.name,
-									asset.id,
-									file
-								)
-								const data = await readFile(path)
+						const getFullPath = (file: string) => {
+							return join(directories.asset, asset.type, app.name, stack.name, asset.id, file)
+						}
 
-								return data
+						await asset.publish?.({
+							async read(fingerprint, files) {
+								const prev = await readFile(getFullPath('FINGER_PRINT'), 'utf8')
+								if (prev !== fingerprint) {
+									throw new TypeError(`Outdated fingerprint: ${fingerprint}`)
+								}
+
+								return Promise.all(
+									files.map(file => {
+										return readFile(getFullPath(file))
+									})
+								)
 							},
 							async publish(name, data, hash) {
 								const key = `${app.name}/${stack.name}/${asset.type}/${name}`
@@ -73,7 +76,7 @@ export const assetPublisher = (config: Config, app: App): RenderFactory => {
 										ACL: ObjectCannedACL.private,
 										StorageClass: StorageClass.STANDARD,
 										Metadata: {
-											hash,
+											hash: hash.toString('utf8'),
 										},
 									})
 								)

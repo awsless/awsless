@@ -11,19 +11,19 @@ export type TextPromptOptions = {
 }
 
 export const textPrompt = (label: string, options: TextPromptOptions = {}): RenderFactory<Promise<string>> => {
-	return (term) => {
+	return term => {
 		return new Promise(resolve => {
 			const done = new Signal(false)
 			const cursor = new Signal(0)
 			const icon = new Signal(style.info(symbol.question))
 			const value = new Signal<string[]>([])
-			const custom = derive([ value ], options.renderer ?? (value => value))
-			const formatted = derive([ custom, cursor, done ] as const, (value, cursor, done) => {
-				if(done) {
+			const custom = derive([value], options.renderer ?? (value => value))
+			const formatted = derive([custom, cursor, done] as const, (value, cursor, done) => {
+				if (done) {
 					return value.join('')
 				}
 
-				return [ ...value, ' ' ]
+				return [...value, ' ']
 					.map((chr, i) => {
 						return i === cursor ? style.cursor(chr) : chr
 					})
@@ -54,16 +54,12 @@ export const textPrompt = (label: string, options: TextPromptOptions = {}): Rend
 
 					resolve(value.get().join(''))
 				},
-				input: (chr) => {
-					value.update(value => [
-						...value.slice(0, cursor.get()),
-						chr,
-						...value.slice(cursor.get()),
-					])
+				input: chr => {
+					value.update(value => [...value.slice(0, cursor.get()), chr, ...value.slice(cursor.get())])
 					cursor.update(cursor => cursor + 1)
 				},
 				delete() {
-					value.update(value => [ ...value ].filter((_, i) => i !== cursor.get() - 1))
+					value.update(value => [...value].filter((_, i) => i !== cursor.get() - 1))
 					cursor.update(cursor => Math.max(0, cursor - 1))
 				},
 				left() {
@@ -71,10 +67,10 @@ export const textPrompt = (label: string, options: TextPromptOptions = {}): Rend
 				},
 				right() {
 					cursor.update(cursor => Math.min(value.get().length, cursor + 1))
-				}
+				},
 			})
 
-			term.out.write([ icon, '  ', style.label(label), ' ', sep, ' ', formatted, br() ])
+			term.out.write([icon, ' ', style.label(label), ' ', sep, ' ', formatted, br()])
 		})
 	}
 }

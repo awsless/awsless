@@ -4,7 +4,7 @@ import { FunctionSchema, toLambdaFunction } from './function.js'
 import { Topic } from '../formation/resource/sns/topic.js'
 import { SnsEventSource } from '../formation/resource/lambda/event-source/sns.js'
 import { formatName, sub } from '../formation/util.js'
-import { TypeGen } from '../util/type-gen.js'
+import { TypeGen, TypeObject } from '../util/type-gen.js'
 import { EmailSchema, isEmail } from '../schema/email.js'
 import { Subscription } from '../formation/resource/sns/subscription.js'
 import { paramCase } from 'change-case'
@@ -17,12 +17,17 @@ export const TopicNameSchema = z
 	.transform(value => paramCase(value))
 
 const typeGenCode = `
-import { PublishOptions } from '@awsless/sns'
+import type { PublishOptions } from '@awsless/sns'
+import type { Mock } from 'vitest'
 
 type Publish<Name extends string> = {
 	readonly name: Name
 	(payload: unknown, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
-}`
+}
+
+type MockHandle = (payload: unknown) => void
+type MockBuilder = (handle?: MockHandle) => void
+`
 
 export const topicPlugin = definePlugin({
 	name: 'topic',
@@ -79,15 +84,25 @@ export const topicPlugin = definePlugin({
 			}),
 	}),
 	onTypeGen({ config }) {
-		const gen = new TypeGen('@awsless/awsless', 'TopicResources')
-		gen.addCode(typeGenCode)
+		const gen = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(1)
+		const mocks = new TypeObject(1)
+		const mockResponses = new TypeObject(1)
 
 		for (const stack of config.stacks) {
 			for (const topic of stack.topics || []) {
 				const name = formatName(`${config.name}-${topic}`)
-				gen.addType(topic, `Publish<'${name}'>`)
+
+				mockResponses.addType(topic, 'Mock')
+				resources.addType(topic, `Publish<'${name}'>`)
+				mocks.addType(topic, `MockBuilder`)
 			}
 		}
+
+		gen.addCode(typeGenCode)
+		gen.addInterface('TopicResources', resources)
+		gen.addInterface('TopicMock', mocks)
+		gen.addInterface('TopicMockResponse', mockResponses)
 
 		return gen.toString()
 	},

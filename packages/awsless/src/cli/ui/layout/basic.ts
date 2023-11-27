@@ -9,11 +9,14 @@ export const br = () => {
 	return '\n'
 }
 
+export const gap = (): RenderFactory => {
+	return term => {
+		term.out.gap()
+	}
+}
+
 export const hr = (): RenderFactory => {
-	return (term) => {
-		term.out.write([
-			style.placeholder('─'.repeat(term.out.width())),
-			br(),
-		])
+	return term => {
+		term.out.write([style.placeholder('─'.repeat(term.out.width())), br()])
 	}
 }

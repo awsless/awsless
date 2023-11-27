@@ -3,10 +3,10 @@ import { BuildProps, PublishProps } from '../../asset.js'
 import { rollupBundle } from './util/rollup.js'
 import { zipFiles } from './util/zip.js'
 import { Asset } from '../../asset.js'
-// import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { join } from 'path'
+import { generateFingerprint } from '../../../util/fingerprint.js'
 
 export type CodeBundle = (file: string) => Promise<{
 	handler: string
@@ -82,21 +82,33 @@ export class InlineFileCode extends Asset implements ICode {
 		super('function', id)
 	}
 
-	async build({ write }: BuildProps) {
-		const bundler = this.bundler ?? rollupBundle()
-		const {
-			hash,
-			files: [file],
-			handler,
-		} = await bundler(this.file)
+	async build({ read, write }: BuildProps) {
+		const fingerprint = await generateFingerprint(this.file)
 
-		await Promise.all([write('HASH', hash), write('file.js', file.code)])
+		await write(fingerprint, async write => {
+			const bundler = this.bundler ?? rollupBundle()
+			const {
+				hash,
+				files: [file],
+				handler,
+			} = await bundler(this.file)
 
-		this.handler = handler
-		this.code = file.code.toString('utf8')
+			await Promise.all([
+				write('HASH', hash),
+				write('SIZE', formatByteSize(file.code.byteLength)),
+				write('HANDLER', handler),
+				write('file.js', file.code),
+				file.map && write('file.map', file.map),
+			])
+		})
+
+		const [handler, size, code] = await read(fingerprint, ['HANDLER', 'SIZE', 'file.js'])
+
+		this.handler = handler.toString('utf8')
+		this.code = code.toString('utf8')
 
 		return {
-			size: formatByteSize(file.code.byteLength),
+			size: size.toString('utf8'),
 		}
 	}
 
@@ -153,9 +165,10 @@ export class InlineFileCode extends Asset implements ICode {
 // }
 
 export class FileCode extends Asset implements ICode {
+	private fingerprint?: string
 	private handler?: string
-	private hash?: string
-	private bundle?: Buffer
+	// private hash?: string
+	// private bundle?: Buffer
 	private s3?: {
 		bucket: string
 		key: string
@@ -166,34 +179,44 @@ export class FileCode extends Asset implements ICode {
 		super('function', id)
 	}
 
-	async build({ write }: BuildProps) {
-		const bundler = this.bundler ?? rollupBundle()
-		const { hash, files, handler } = await bundler(this.file)
-		const bundle = await zipFiles(files)
+	async build({ write, read }: BuildProps) {
+		this.fingerprint = await generateFingerprint(this.file)
 
-		await Promise.all([
-			write('HASH', hash),
-			write('bundle.zip', bundle),
-			...files.map(file => write(`files/${file.name}`, file.code)),
-			...files.map(file => (file.map ? write(`files/${file.name}.map`, file.map) : undefined)),
-		])
+		// debug('fingerprint', this.id, fingerprint)
 
-		this.handler = handler
-		this.bundle = bundle
-		this.hash = hash
+		await write(this.fingerprint, async write => {
+			const bundler = this.bundler ?? rollupBundle()
+			const { hash, files, handler } = await bundler(this.file)
+			const bundle = await zipFiles(files)
+
+			await Promise.all([
+				write('HASH', hash),
+				write('SIZE', formatByteSize(bundle.byteLength)),
+				write('HANDLER', handler),
+				write('bundle.zip', bundle),
+				...files.map(file => write(`files/${file.name}`, file.code)),
+				...files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
+			])
+		})
+
+		const [size] = await read(this.fingerprint, ['SIZE'])
 
 		return {
-			size: formatByteSize(bundle.byteLength),
+			size: size.toString('utf8'),
 		}
 	}
 
-	async publish({ publish }: PublishProps) {
-		this.s3 = await publish(`${this.id}.zip`, this.bundle!, this.hash!)
+	async publish({ publish, read }: PublishProps) {
+		const [hash, handler, bundle] = await read(this.fingerprint!, ['HASH', 'HANDLER', 'bundle.zip'])
+
+		this.handler = handler.toString('utf8')
+
+		this.s3 = await publish(`${this.id}.zip`, bundle, hash)
 	}
 
 	toCodeJson() {
 		return {
-			Handler: this.handler!,
+			Handler: this.handler ?? '',
 			Code: {
 				S3Bucket: this.s3?.bucket ?? '',
 				S3Key: this.s3?.key ?? '',

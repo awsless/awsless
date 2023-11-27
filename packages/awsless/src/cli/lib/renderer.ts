@@ -15,7 +15,7 @@ export class Renderer {
 	private flushing: boolean = false
 	private screen: string[] = []
 
-	constructor(readonly output:NodeJS.WriteStream, private ins: Interface) {}
+	constructor(readonly output: NodeJS.WriteStream, private ins: Interface) {}
 
 	width() {
 		return this.output.columns - 3
@@ -28,12 +28,12 @@ export class Renderer {
 	write<T extends RenderFactory>(fragment: T): ReturnType<T>
 	write<T extends Fragment>(fragment: T): T
 	write<T extends Fragment>(fragment: T) {
-		if(Array.isArray(fragment)) {
+		if (Array.isArray(fragment)) {
 			fragment.forEach(i => this.write(i))
 			return
 		}
 
-		if(typeof fragment === 'function') {
+		if (typeof fragment === 'function') {
 			return fragment({ out: this, in: this.ins })
 		}
 
@@ -46,11 +46,11 @@ export class Renderer {
 
 	gap() {
 		const walk = (fragment: VisibleValue): string => {
-			if(typeof fragment === 'string') {
+			if (typeof fragment === 'string') {
 				return fragment
 			}
 
-			if(Array.isArray(fragment)) {
+			if (Array.isArray(fragment)) {
 				return fragment.map(walk).join('')
 			}
 
@@ -59,9 +59,9 @@ export class Renderer {
 
 		const end = walk(this.fragments.slice(-2))
 
-		if(end.endsWith('\n\n')) {
+		if (end.endsWith('\n\n')) {
 			// gap already filled
-		} else if(end.endsWith('\n')) {
+		} else if (end.endsWith('\n')) {
 			// this.write('\n')
 			this.fragments.push('\n')
 		} else {
@@ -97,16 +97,15 @@ export class Renderer {
 		// this.output.cursorTo?.(0, y)
 
 		// console.log(this.screen);
-
 	}
 
-	private setCursor(x:number, y:number) {
+	private setCursor(x: number, y: number) {
 		return new Promise(resolve => {
 			this.output.cursorTo?.(x, y, () => resolve(undefined))
 		})
 	}
 
-	private writeString(value:string) {
+	private writeString(value: string) {
 		return new Promise(resolve => {
 			this.output.write?.(value, () => resolve(undefined))
 		})
@@ -121,23 +120,25 @@ export class Renderer {
 	async flush() {
 		clearTimeout(this.timeout)
 
-		if(this.flushing) {
+		if (this.flushing) {
 			this.update()
 			return
 		}
 
 		const walk = (fragment: VisibleValue): string => {
-			if(typeof fragment === 'string') {
+			if (typeof fragment === 'string') {
 				return fragment
 			}
 
-			if(Array.isArray(fragment)) {
+			if (Array.isArray(fragment)) {
 				return fragment.map(walk).join('')
 			}
 
-			this.unsubs.push(fragment.subscribe(() => {
-				this.update()
-			}))
+			this.unsubs.push(
+				fragment.subscribe(() => {
+					this.update()
+				})
+			)
 
 			return walk(fragment.get())
 		}
@@ -147,34 +148,36 @@ export class Renderer {
 
 		// ------------------------------------------------
 
-		const screen	= walk(this.fragments).split('\n')
-		const height	= this.height()
-		const oldSize	= this.screen.length
-		const newSize	= screen.length
-		const size		= Math.max(oldSize, newSize)
-		const start 	= Math.max(oldSize - height, 0)
+		const screen = walk(this.fragments).split('\n')
+		const height = this.height()
+		const oldSize = this.screen.length
+		const newSize = screen.length
+		const size = Math.max(oldSize, newSize)
+		const start = Math.max(oldSize - height, 0)
 
 		// ------------------------------------------------
 		// Extend the screen buffer
 
 		this.flushing = true
 
-		for(let y = start; y < size; y++) {
-			const newLine = screen[y]
-			const oldLine = this.screen[y]
+		for (let y = start; y < size; y++) {
+			const newLine = screen.at(y)
+			const oldLine = this.screen.at(y)
 
-			if(newLine !== oldLine) {
+			if (newLine !== oldLine) {
 				// Force a new line when we get over our viewport...
-				if(y >= oldSize && y !== 0) {
+				if (y >= oldSize && y !== 0) {
 					// force new line
 					const p = y - start - 1
-					const x = screen[y - 1]?.length || 0
+					const x = screen.at(y - 1)?.length ?? 0
 
 					await this.setCursor(x, p)
-					await this.writeString('\n' + newLine)
+					await this.writeString(newLine ? '\n' + newLine : '\n')
 				} else {
 					await this.setCursor(0, y - start)
-					await this.writeString(newLine)
+					if (newLine) {
+						await this.writeString(newLine)
+					}
 					await this.clearLine()
 				}
 			}
@@ -193,7 +196,7 @@ export class Renderer {
 		await this.writeString('\n'.repeat(this.height()))
 		await this.setCursor(0, 0)
 
-		if(this.output.clearScreenDown) {
+		if (this.output.clearScreenDown) {
 			await new Promise(resolve => {
 				this.output.clearScreenDown(() => resolve(undefined))
 			})

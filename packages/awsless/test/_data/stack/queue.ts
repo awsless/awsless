@@ -1,13 +1,13 @@
-import { StackConfig } from "../../../src/index.js";
+import { defineStackConfig } from '../../../src/index.js'
 
-export const queueStack: StackConfig = {
+export const queueStack = defineStackConfig({
 	name: 'queue',
 	// functions: {
 	// 	call: __dirname + '/../function/queue.ts'
 	// },
 	queues: {
 		process: {
-			consumer: __dirname + '/../function/queue.ts'
-		}
-	}
-}
+			consumer: __dirname + '/../function/queue.ts',
+		},
+	},
+})

@@ -7,6 +7,6 @@ export const passwordPrompt = (label: string, options: PasswordPromptOptions = {
 		...options,
 		renderer(value) {
 			return value.map(() => '*')
-		}
+		},
 	})
 }

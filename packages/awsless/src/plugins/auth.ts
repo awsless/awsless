@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { definePlugin } from '../plugin.js'
 import { ResourceIdSchema } from '../schema/resource-id.js'
-import { TypeGen } from '../util/type-gen.js'
+import { TypeGen, TypeObject } from '../util/type-gen.js'
 import { formatArn, formatName } from '../formation/util.js'
 import { FunctionSchema, toLambdaFunction } from './function.js'
 import { DurationSchema } from '../schema/duration.js'
@@ -208,15 +208,18 @@ export const authPlugin = definePlugin({
 			.array(),
 	}),
 	onTypeGen({ config }) {
-		const gen = new TypeGen('@awsless/awsless', 'AuthResources')
+		const gen = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(1)
 
 		for (const name of Object.keys(config.defaults.auth)) {
 			const authName = formatName(`${config.name}-${name}`)
-			gen.addType(
+			resources.addType(
 				name,
 				`{ readonly name: '${authName}', readonly userPoolId: string, readonly clientId: string }`
 			)
 		}
+
+		gen.addInterface('AuthResources', resources)
 
 		return gen.toString()
 	},

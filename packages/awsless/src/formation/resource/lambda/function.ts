@@ -14,7 +14,7 @@ export type FunctionProps = {
 	code: ICode
 	name?: string
 	description?: string
-	runtime?: 'nodejs18.x'
+	runtime?: 'nodejs18.x' | 'nodejs20.x'
 	architecture?: 'arm64' | 'x86_64'
 	memorySize?: Size
 	timeout?: Duration

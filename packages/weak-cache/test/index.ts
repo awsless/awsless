@@ -1,4 +1,3 @@
-
 import { WeakCache } from '../src'
 // @ts-ignore
 import gc from 'expose-gc'
@@ -12,7 +11,6 @@ const runGC = async () => {
 }
 
 describe('Weak Cache', () => {
-
 	it('should set & has & get cache item', () => {
 		const cache = new WeakCache<string, string>()
 		cache.set('test', 'value')
@@ -65,24 +63,24 @@ describe('Weak Cache', () => {
 
 		let count = 0
 
-		for(const [key, value] of cache) {
+		for (const [key, value] of cache) {
 			count++
 			expect(key).toStrictEqual(expect.any(Number))
 			expect(value).toStrictEqual(expect.any(String))
 		}
 
-		for(const [key, value] of cache.entries()) {
+		for (const [key, value] of cache.entries()) {
 			count++
 			expect(key).toStrictEqual(expect.any(Number))
 			expect(value).toStrictEqual(expect.any(String))
 		}
 
-		for(const key of cache.keys()) {
+		for (const key of cache.keys()) {
 			count++
 			expect(key).toStrictEqual(expect.any(Number))
 		}
 
-		for(const value of cache.values()) {
+		for (const value of cache.values()) {
 			count++
 			expect(value).toStrictEqual(expect.any(String))
 		}
@@ -116,10 +114,10 @@ describe('Weak Cache', () => {
 		expect(cache.size).toBe(limit)
 
 		let count = 0
-		for(const _ of cache) {
+		for (const _ of cache) {
 			count++
 
-			if(count === 10) {
+			if (count === 10) {
 				await runGC()
 			}
 		}

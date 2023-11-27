@@ -20,7 +20,7 @@ export const importFile = async (path: string) => {
 			// @ts-ignore
 			replace({
 				__dirname: (id: string) => `'${dirname(id)}'`,
-				// 'defineStackConfig({': id => `defineStackConfig({ cwd: '${dirname(id)}',`,
+				// 'defineStackConfig({': (id: string) => `defineStackConfig({ cwd: '${dirname(id)}',`,
 			}),
 			swc({
 				minify: false,
@@ -39,6 +39,8 @@ export const importFile = async (path: string) => {
 
 	const output = result.output[0]
 	const code = output.code
+
+	// debug(code)
 
 	await mkdir(directories.cache, { recursive: true })
 	await writeFile(outputFile, code)
@@ -63,7 +65,7 @@ export const watchFile = (path: string) => {
 					// @ts-ignore
 					replace({
 						__dirname: (id: string) => `'${dirname(id)}'`,
-						// 'defineStackConfig({': id => `defineStackConfig({ cwd: '${dirname(id)}',`,
+						// 'defineStackConfig({': (id: string) => `defineStackConfig({ cwd: '${dirname(id)}',`,
 					}),
 					swc({
 						minify: false,

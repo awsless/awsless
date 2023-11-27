@@ -118,18 +118,23 @@ export const tablePlugin = definePlugin({
 			.array(),
 	}),
 	onTypeGen({ config }) {
-		const types = new TypeGen('@awsless/awsless', 'TableResources')
+		const gen = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(1)
+
 		for (const stack of config.stacks) {
-			const list = new TypeObject()
+			const list = new TypeObject(2)
+
 			for (const name of Object.keys(stack.tables || {})) {
 				const tableName = formatName(`${config.name}-${stack.name}-${name}`)
 				list.addType(name, `'${tableName}'`)
 			}
 
-			types.addType(stack.name, list.toString())
+			resources.addType(stack.name, list)
 		}
 
-		return types.toString()
+		gen.addInterface('TableResources', resources)
+
+		return gen.toString()
 	},
 	onStack(ctx) {
 		const { config, stack, stackConfig, bind } = ctx
