@@ -2,10 +2,8 @@ import { configDefaults } from 'vitest/config'
 import { Vitest, startVitest } from 'vitest/node'
 import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
-import json from '@rollup/plugin-json'
 import { swc } from 'rollup-plugin-swc3'
 import { Reporter } from 'vitest'
-import { Renderer } from '../../lib/renderer.js'
 import { br } from '../ui/../layout/basic.js'
 import { Signal } from '../../lib/signal.js'
 import { createSpinner } from '../../ui/layout/spinner.js'
@@ -13,22 +11,48 @@ import { getTests } from '@vitest/runner/utils'
 import { style, symbol } from '../../style.js'
 import { Task } from 'vitest'
 import { createTimer } from '../../../util/timer.js'
-import { basename, extname } from 'path'
+import { basename, extname, join, relative } from 'path'
 import { UserConsoleLog } from 'vitest'
 import { RenderFactory } from '../../lib/renderer.js'
+import { textWrap } from '../layout/text-box.js'
+import { fingerprintFromDirectory } from '../../../util/fingerprint.js'
+import { directories, fileExist } from '../../../util/path.js'
+import { mkdir, readFile, writeFile } from 'fs/promises'
+import json from '@rollup/plugin-json'
+
+type TestError = {
+	file: string
+	test: string
+	diff?: string
+	type: string
+	message: string
+}
+
+type StoredState = {
+	fingerprint: string
+	duration: string
+	errors: TestError[]
+	passed: number
+	failed: number
+	logs: string[]
+}
 
 class CustomReporter implements Reporter {
-	private started = false
 	private interval?: NodeJS.Timer
-	private timer?: () => string
 	private tasks?: Task[]
 	private ctx?: Vitest
-	private line: Signal = new Signal([])
-	private icon?: Signal<string>
 	private logs: string[] = []
-	private stopSpinner?: () => void
+	private events: Record<string, undefined | ((event?: unknown) => void)> = {}
 
-	constructor(private stack: string, private out: Renderer) {}
+	on(event: 'start', cb: () => void): void
+	on(event: 'update', cb: (event: { tasks: Task[] }) => void): void
+	on(
+		event: 'finished',
+		cb: (event: { errors: TestError[]; passed: number; failed: number; logs: string[] }) => void
+	): void
+	on(event: string, cb: (event?: any) => void) {
+		this.events[event] = cb
+	}
 
 	onInit(ctx: Vitest) {
 		this.ctx = ctx
@@ -37,135 +61,42 @@ class CustomReporter implements Reporter {
 	onCollected() {
 		this.tasks = this.ctx?.state.getFiles()
 
-		if (!this.started) {
-			this.start()
-			this.started = true
+		if (!this.interval) {
+			this.interval = setInterval(this.update.bind(this), 33)
+			this.update()
+			this.events.start?.()
 		}
 	}
 
 	onFinished() {
-		this.stop()
-	}
-
-	start() {
-		const [icon, stop] = createSpinner()
-
-		this.icon = icon
-		this.stopSpinner = stop
-		this.interval = setInterval(this.update.bind(this), 33)
-		this.timer = createTimer()
-		this.update()
-
-		this.out.write(this.line)
-		this.out.gap()
-	}
-
-	stop() {
 		clearInterval(this.interval)
 		this.interval = undefined
-		this.stopSpinner?.()
 
 		const tests = getTests(this.tasks!)
 		const passed = tests.filter(t => t.result?.state === 'pass').length
 		const failed = tests.filter(t => t.result?.state === 'fail').length
-		const icon = failed > 0 ? style.error(symbol.error) : style.success(symbol.success)
-		const values: string[] = [icon, ' ', style.label(this.stack)]
+		const errors = tests
+			.map(test => {
+				if (!test.result?.errors || test.result.errors.length === 0) {
+					return []
+				}
 
-		if (passed > 0) {
-			values.push(' ', style.placeholder(symbol.pointerSmall), style.success(` ${passed} passed`))
-		}
+				return test.result.errors.map(error => ({
+					file: test.file?.name,
+					test: test.name,
+					diff: error.showDiff && error.diff ? error.diff : undefined,
+					type: error.name,
+					message: error.message,
+				}))
+			})
+			.flat()
 
-		if (failed > 0) {
-			values.push(' ', style.placeholder(symbol.pointerSmall), style.error(` ${failed} failed`))
-		}
-
-		this.line.set([
-			...values,
-			' ',
-			style.placeholder(symbol.pointerSmall),
-			' ',
-			this.timer?.(),
-			br(),
-			this.formatLogs(),
-			this.formatErrors(),
-		])
+		this.events.finished?.({ errors, passed, failed, logs: this.logs })
 	}
 
 	update() {
-		// const tests = getTests(this.tasks!)
 		const tasks = this.runningTasks(this.tasks!)
-		// const task = this.runningTask(this.tasks!)
-
-		this.line.set([
-			this.icon,
-			' ',
-			style.label(this.stack),
-			// ' ',
-			// style.placeholder(`(${tests.length})`),
-			...tasks.map((task, i) => [
-				' ',
-				style.placeholder(symbol.pointerSmall),
-				' ',
-				i === 0 ? task.name : style.placeholder(task.name),
-			]),
-			// style.placeholder(tests.length),
-			// ' ',
-			// style.placeholder(symbol.pointerSmall),
-			// ' ',
-			' ',
-			style.placeholder(symbol.pointerSmall),
-			' ',
-			this.timer?.(),
-			br(),
-			this.formatLogs(),
-			// this.formatErrors(),
-			// ...this.renderTask(this.tasks!),
-		])
-	}
-
-	formatLogs() {
-		return this.logs.map(log => {
-			return [style.placeholder(`${symbol.dot} LOG `), log]
-		})
-	}
-
-	formatErrors() {
-		const tests = getTests(this.tasks!)
-		return tests.map(test => {
-			if (!test.result?.errors || test.result.errors.length === 0) {
-				return []
-			}
-
-			return [
-				br(),
-				style.error(`${symbol.dot} `),
-				style.error.inverse(` FAIL `),
-				' ',
-				style.placeholder(symbol.pointerSmall),
-				' ',
-				test.file?.name,
-				' ',
-				style.placeholder(`${symbol.pointerSmall} ${test.name}`),
-				br(),
-				test.result.errors.map(error => {
-					const [message, ...comment] = error.message.split('//')
-					const values: string[] = [
-						'  ',
-						style.error(`${style.error.bold(error.name)}: ${message}`),
-						comment.length > 0 ? style.placeholder(`//${comment}`) : '',
-						br(),
-					]
-
-					if (error.showDiff && error.diff) {
-						values.push(br(), error.diff, br())
-					}
-
-					// values.push(error.diff, br())
-
-					return values
-				}),
-			]
-		})
+		this.events.update?.({ tasks })
 	}
 
 	onUserConsoleLog(log: UserConsoleLog) {
@@ -175,14 +106,8 @@ class CustomReporter implements Reporter {
 				test.name
 			}
 		}
-		this.logs.push(log.content)
-	}
 
-	formatFileName(path: string) {
-		const ext = extname(path)
-		const bas = basename(path, ext)
-
-		return `${bas}${style.placeholder(ext)}`
+		this.logs.push(log.content.trimEnd())
 	}
 
 	runningTask(tasks: Task[]) {
@@ -204,9 +129,161 @@ class CustomReporter implements Reporter {
 	}
 }
 
-export const singleTester = (stack: string, dir: string): RenderFactory => {
+// const fileExist = (file:string) => {
+
+// }
+
+export const singleTester = (stack: string, dir: string): RenderFactory<Promise<boolean>> => {
+	const formatFileName = (path?: string) => {
+		if (!path) {
+			return ''
+		}
+
+		path = join(process.cwd(), path)
+		path = relative(dir, path)
+
+		const ext = extname(path)
+		const bas = basename(path, ext)
+
+		return `${bas}${style.placeholder(ext)}`
+	}
+
+	const formatLogs = (logs: string[], width: number) => {
+		return logs
+			.map(log => {
+				return [
+					textWrap([style.placeholder(`${symbol.dot} LOG `), log].join(''), width, {
+						skipFirstLine: true,
+						indent: 2,
+					}),
+					br(),
+				]
+			})
+			.flat()
+	}
+
+	const formatErrors = (errors: TestError[], width: number) => {
+		return errors
+			.map(error => {
+				const [message, ...comment] = error.message.split('//')
+				const errorMessage = [
+					style.error(`${style.error.bold(error.type)}: ${message}`),
+					comment.length > 0 ? style.placeholder(`//${comment}`) : '',
+					br(),
+				].join('')
+
+				return [
+					br(),
+					style.error(`${symbol.dot} `),
+					style.error.inverse(` FAIL `),
+					' ',
+					style.placeholder(symbol.pointerSmall),
+					' ',
+					formatFileName(error.file),
+					' ',
+					style.placeholder(symbol.pointerSmall),
+					' ',
+					error.test,
+					br(),
+					textWrap(errorMessage, width, { indent: 2 }),
+					...(error.diff ? [br(), error.diff, br()] : []),
+				]
+			})
+			.flat()
+	}
+
+	const formatOutput = ({
+		passed,
+		failed,
+		width,
+		logs,
+		errors,
+		duration,
+		cached,
+	}: StoredState & { width: number; cached?: boolean }) => {
+		const icon = failed > 0 ? style.error(symbol.error) : style.success(symbol.success)
+		const values: string[] = [icon, ' ', style.label(stack), cached ? style.warning(' (from cache)') : '']
+
+		if (passed > 0) {
+			values.push(' ', style.placeholder(symbol.pointerSmall), style.success(` ${passed} passed`))
+		}
+
+		if (failed > 0) {
+			values.push(' ', style.placeholder(symbol.pointerSmall), style.error(` ${failed} failed`))
+		}
+
+		return [
+			...values,
+			' ',
+			style.placeholder(symbol.pointerSmall),
+			' ',
+			duration,
+			br(),
+			...formatLogs(logs, width),
+			...formatErrors(errors, width),
+		]
+	}
+
 	return async term => {
-		await startVitest(
+		const timer = createTimer()
+
+		await mkdir(directories.test, { recursive: true })
+
+		const fingerprint = await fingerprintFromDirectory(dir)
+		const file = join(directories.test, `${stack}.json`)
+		const exists = await fileExist(file)
+		const line = new Signal<Array<string | Signal<string>>>([])
+
+		term.out.write(line)
+
+		if (exists && !process.env.NO_CACHE) {
+			const raw = await readFile(file, { encoding: 'utf8' })
+			const data = JSON.parse(raw) as StoredState
+			if (data.fingerprint === fingerprint) {
+				line.set(formatOutput({ ...data, width: term.out.width(), duration: timer(), cached: true }))
+				return data.failed === 0
+			}
+		}
+
+		const [icon, stop] = createSpinner()
+
+		const reporter = new CustomReporter()
+		line.set([icon, ' ', style.label(stack)])
+
+		reporter.on('update', ({ tasks }) => {
+			line.set([
+				icon,
+				' ',
+				style.label(stack),
+				...tasks
+					.map((task, i) => [
+						' ',
+						style.placeholder(symbol.pointerSmall),
+						' ',
+						i === 0 ? formatFileName(task.name) : style.placeholder(task.name),
+					])
+					.flat(),
+				' ',
+				style.placeholder(symbol.pointerSmall),
+				' ',
+				timer(),
+				br(),
+			])
+		})
+
+		let data: StoredState
+
+		reporter.on('finished', ({ errors, passed, failed, logs }) => {
+			stop()
+
+			const duration = timer()
+			const width = term.out.width()
+
+			data = { fingerprint, errors, passed, failed, logs, duration }
+			line.set(formatOutput({ ...data, width }))
+		})
+
+		const result = await startVitest(
 			'test',
 			[],
 			{
@@ -218,7 +295,7 @@ export const singleTester = (stack: string, dir: string): RenderFactory => {
 				include: ['**/*.{js,jsx,ts,tsx}'],
 				exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 				globals: true,
-				reporters: new CustomReporter(stack, term.out),
+				reporters: reporter,
 				// outputFile: {
 				// 	json: './.awsless/test/output.json',
 				// },
@@ -241,15 +318,25 @@ export const singleTester = (stack: string, dir: string): RenderFactory => {
 				],
 			}
 		)
+
+		await writeFile(file, JSON.stringify(data!))
+
+		return result?.state.getCountOfFailedTests() === 0
 	}
 }
 
-export const runTester = (tests: Map<string, string[]>): RenderFactory => {
+export const runTester = (tests: Map<string, string[]>): RenderFactory<Promise<boolean>> => {
 	return async term => {
 		for (const [name, paths] of tests.entries()) {
 			for (const path of paths) {
-				await term.out.write(singleTester(name, path))
+				const result = await term.out.write(singleTester(name, path))
+
+				if (!result) {
+					return false
+				}
 			}
 		}
+
+		return true
 	}
 }

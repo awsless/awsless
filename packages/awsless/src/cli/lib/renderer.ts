@@ -1,3 +1,4 @@
+// import wrapAnsi from 'wrap-ansi'
 import { Interface } from './interface.js'
 import { Signal } from './signal.js'
 import { Terminal } from './terminal.js'
@@ -117,6 +118,23 @@ export class Renderer {
 		})
 	}
 
+	// private stripEscapeCode(str: string) {
+	// 	return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '')
+	// }
+
+	// private chunkString(str: string, size: number): string[] {
+	// 	const strLength: number = str.length
+	// 	const numChunks: number = Math.ceil(strLength / size)
+	// 	const chunks: string[] = new Array(numChunks)
+
+	// 	for (let i = 0; i < numChunks; ++i) {
+	// 		const s = i * size
+	// 		chunks[i] = str.substring(s, s + size)
+	// 	}
+
+	// 	return chunks
+	// }
+
 	async flush() {
 		clearTimeout(this.timeout)
 
@@ -148,8 +166,14 @@ export class Renderer {
 
 		// ------------------------------------------------
 
-		const screen = walk(this.fragments).split('\n')
+		// const width = this.width()
 		const height = this.height()
+		// const screen = wrapAnsi(walk(this.fragments), width, {
+		// 	trim: false,
+		// }).split('\n')
+
+		const screen = walk(this.fragments).split('\n')
+
 		const oldSize = this.screen.length
 		const newSize = screen.length
 		const size = Math.max(oldSize, newSize)

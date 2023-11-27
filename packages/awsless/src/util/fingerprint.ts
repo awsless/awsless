@@ -1,30 +1,48 @@
 import { createHash } from 'crypto'
-import { readFile, stat } from 'fs/promises'
-import { basename, dirname, join } from 'path'
+import { readFile, readdir, stat } from 'fs/promises'
+import { basename, dirname, extname, join } from 'path'
 import parseImports from 'parse-imports'
 
-export const generateFingerprint = async (file: string) => {
-	const hashes = new Map<string, Buffer>()
+const extensions = ['js', 'mjs', 'jsx', 'ts', 'mts', 'tsx']
 
-	const generate = async (file: string) => {
-		if (hashes.has(file)) {
-			return
-		}
-
-		const code = await readModuleFile(file)
-		const deps = await findDependencies(file, code)
-		const hash = createHash('sha1').update(code).digest()
-
-		hashes.set(file, hash)
-
-		for (const dep of deps) {
-			if (dep.startsWith('/')) {
-				await generate(dep)
-			}
-		}
+const generateFileHashes = async (file: string, hashes: Map<string, Buffer>) => {
+	if (hashes.has(file)) {
+		return
 	}
 
-	await generate(file)
+	const code = await readModuleFile(file)
+	const deps = await findDependencies(file, code)
+	const hash = createHash('sha1').update(code).digest()
+
+	hashes.set(file, hash)
+
+	for (const dep of deps) {
+		if (dep.startsWith('/')) {
+			await generateFileHashes(dep, hashes)
+		}
+	}
+}
+
+export const fingerprintFromFile = async (file: string) => {
+	const hashes = new Map<string, Buffer>()
+
+	await generateFileHashes(file, hashes)
+
+	const merge = Buffer.concat(Array.from(hashes.values()).sort())
+
+	return createHash('sha1').update(merge).digest('hex')
+}
+
+export const fingerprintFromDirectory = async (dir: string) => {
+	const hashes = new Map<string, Buffer>()
+
+	const files = await readdir(dir, { recursive: true })
+
+	for (const file of files) {
+		if (extensions.includes(extname(file).substring(1))) {
+			await generateFileHashes(join(dir, file), hashes)
+		}
+	}
 
 	const merge = Buffer.concat(Array.from(hashes.values()).sort())
 
@@ -37,7 +55,6 @@ const readModuleFile = (file: string) => {
 	}
 
 	if (!basename(file).includes('.')) {
-		const extensions = ['js', 'mjs', 'jsx', 'ts', 'mts', 'tsx']
 		return readFiles([
 			file,
 			...extensions.map(exp => `${file}.${exp}`),
