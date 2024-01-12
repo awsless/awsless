@@ -12,7 +12,7 @@ import { constantCase } from 'change-case'
 export const getQueueName = getLocalResourceName
 
 export const getQueueUrl = (name: string, stack: string = STACK) => {
-	return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`]!
+	return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`] || name
 }
 
 export interface QueueResources {}
@@ -26,7 +26,7 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 			[name]: (payload: unknown, options: Omit<SendMessageOptions, 'queue' | 'payload'> = {}) => {
 				return sendMessage({
 					...options,
-					queue: url,
+					queue: url || name,
 					payload,
 				})
 			},

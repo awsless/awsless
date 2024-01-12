@@ -11,7 +11,7 @@ export const mockRedis = () => {
 			const [port, release] = await requestPort()
 			releasePort = release
 
-			console.log(port)
+			// console.log(port)
 
 			await server.start(port)
 			await server.ping()
@@ -19,6 +19,7 @@ export const mockRedis = () => {
 			overrideOptions({
 				port,
 				host: 'localhost',
+				cluster: false,
 			})
 		})
 

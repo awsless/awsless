@@ -27,7 +27,7 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 		...optionOverrides,
 	}
 
-	if (!options.cluster) {
+	if (!props.cluster) {
 		return new Redis(props) as Client<O>
 	}
 

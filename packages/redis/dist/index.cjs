@@ -55,7 +55,7 @@ var redisClient = (options) => {
     ...options,
     ...optionOverrides
   };
-  if (!options.cluster) {
+  if (!props.cluster) {
     return new import_ioredis.Redis(props);
   }
   return new import_ioredis.Cluster(
@@ -89,12 +89,12 @@ var mockRedis = () => {
   beforeAll && beforeAll(async () => {
     const [port, release] = await (0, import_request_port.requestPort)();
     releasePort = release;
-    console.log(port);
     await server.start(port);
     await server.ping();
     overrideOptions({
       port,
-      host: "localhost"
+      host: "localhost",
+      cluster: false
     });
   });
   afterAll && afterAll(async () => {

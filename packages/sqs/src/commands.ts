@@ -22,7 +22,7 @@ const formatAttributes = (attributes: Attributes) => {
 }
 
 export const getQueueUrl = async (client: SQSClient, queue: string) => {
-	if(queue.includes('://')) {
+	if (queue.includes('://')) {
 		return queue
 	}
 
