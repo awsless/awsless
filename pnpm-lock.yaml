@@ -62,6 +62,9 @@ importers:
       '@awsless/code':
         specifier: workspace:^
         version: link:../code
+      '@awsless/graphql':
+        specifier: workspace:^
+        version: link:../graphql
       '@awsless/lambda':
         specifier: workspace:^
         version: link:../lambda
@@ -80,6 +83,9 @@ importers:
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
+      '@awsless/weak-cache':
+        specifier: workspace:^
+        version: link:../weak-cache
       '@graphql-tools/merge':
         specifier: ^9.0.0
         version: 9.0.0(graphql@16.7.1)
@@ -155,6 +161,9 @@ importers:
       parse-imports:
         specifier: ^1.1.2
         version: 1.1.2
+      parse-static-imports:
+        specifier: ^1.1.0
+        version: 1.1.0
       pretty-hrtime:
         specifier: ^1.0.3
         version: 1.0.3
@@ -317,6 +326,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
 
+  packages/duration: {}
+
   packages/dynamodb:
     dependencies:
       '@aws-sdk/client-dynamodb':
@@ -379,6 +390,12 @@ importers:
         version: 1.0.2
 
   packages/env: {}
+
+  packages/graphql:
+    dependencies:
+      graphql:
+        specifier: ^16.7.1
+        version: 16.7.1
 
   packages/iot:
     dependencies:
@@ -605,6 +622,9 @@ importers:
       '@awsless/big-float':
         specifier: workspace:^
         version: link:../big-float
+      '@awsless/duration':
+        specifier: workspace:^
+        version: link:../duration
       '@awsless/dynamodb':
         specifier: workspace:^
         version: link:../dynamodb
@@ -11646,6 +11666,10 @@ packages:
       json-parse-even-better-errors: 2.3.1
       lines-and-columns: 1.2.4
     dev: true
+
+  /parse-static-imports@1.1.0:
+    resolution: {integrity: sha512-HlxrZcISCblEV0lzXmAHheH/8qEkKgmqkdxyHTPbSqsTUV8GzqmN1L+SSti+VbNPfbBO3bYLPHDiUs2avbAdbA==}
+    dev: false
 
   /pascal-case@3.1.2:
     resolution: {integrity: sha512-uWlGT3YSnK9x3BQJaOdcZwrnV6hPpd8jFH1/ucpiLRPh/2zCVJKS19E4GvYHvaCcACn3foXZ0cLB9Wrx1KGe5g==}

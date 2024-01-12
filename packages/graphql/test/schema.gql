@@ -1,0 +1,74 @@
+scalar AWSDateTime
+
+enum Currency {
+	EUR
+	USD
+}
+
+type Dice {
+	number: Int!
+}
+
+type Keno {
+	numbers: [Int!]!
+}
+
+union Game = Dice | Keno
+
+interface Transaction {
+	id: ID!
+	amount: Float!
+	currency: Currency!
+	createdAt: AWSDateTime!
+	updatedAt: AWSDateTime
+}
+
+type Deposit implements Transaction {
+	id: ID!
+	amount: Float!
+	currency: Currency!
+	createdAt: AWSDateTime!
+	updatedAt: AWSDateTime
+	from: String!
+}
+
+type Withdraw implements Transaction {
+	id: ID!
+	amount: Float!
+	currency: Currency!
+	createdAt: AWSDateTime!
+	updatedAt: AWSDateTime
+	to: String!
+}
+
+input LogInput {
+	messages: [String!]!
+}
+
+type Rate {
+	amount: Float!
+	currency: Currency!
+	updatedAt: AWSDateTime
+}
+
+type TokenResponse {
+	idToken: String! @deprecated(reason: "not supported anymore")
+	accessToken: String!
+	refreshToken: String!
+}
+
+type Query {
+	status: Boolean
+	logs: [String]
+	# Get latest exchange rates
+	rates: [Rate!]!
+	transactions(limit: Int, cursor: String): [Transaction!]!
+	games: [Game!]!
+}
+
+type Mutation {
+	transact(amount: Float!, currency: Currency!): Transaction!
+	login(email:String!, password:String!): TokenResponse!
+	log(input: LogInput!): Boolean!
+	addProduct(products: [ID!]!): Boolean!
+}

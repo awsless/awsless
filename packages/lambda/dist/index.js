@@ -43,7 +43,7 @@ var ValidationError = class extends ViewableError {
   constructor(issues) {
     super("validation", "Validation Error", {
       issues: issues.map((issue) => ({
-        input: issue.input,
+        // input: issue.input,
         path: issue.path,
         reason: issue.reason,
         origin: issue.origin,

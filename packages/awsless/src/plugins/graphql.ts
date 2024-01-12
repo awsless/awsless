@@ -14,6 +14,11 @@ import { AppsyncEventSource } from '../formation/resource/lambda/event-source/ap
 import { DomainName, DomainNameApiAssociation } from '../formation/resource/appsync/domain-name.js'
 import { Asset } from '../formation/asset.js'
 import { basename } from 'path'
+import { TypeGen, TypeObject } from '../util/type-gen.js'
+import { mergeTypeDefs } from '@graphql-tools/merge'
+import { generate } from '@awsless/graphql'
+import { buildSchema, print } from 'graphql'
+import { readFile } from 'fs/promises'
 // import { debug } from '../cli/logger.js'
 
 const defaultResolver = Code.fromInline(
@@ -39,6 +44,18 @@ const resolverCache = new Map<string, ICode & Asset>()
 // 		.regex(/([a-z0-9\_]+)(\s){1}([a-z0-9\_]+)/gi)
 // 		.safeParse(value).success
 // }, `Invalid resolver field. Valid example: "Query list"`)
+
+const scalarSchema = `
+scalar AWSDate
+scalar AWSTime
+scalar AWSDateTime
+scalar AWSTimestamp
+scalar AWSEmail
+scalar AWSJSON
+scalar AWSURL
+scalar AWSPhone
+scalar AWSIPAddress
+`
 
 export const graphqlPlugin = definePlugin({
 	name: 'graphql',
@@ -93,6 +110,62 @@ export const graphqlPlugin = definePlugin({
 			})
 			.array(),
 	}),
+	async onTypeGen({ config, write }) {
+		const types = new TypeGen('@awsless/awsless')
+		const resources = new TypeObject(1)
+
+		const apis: Map<string, string[]> = new Map()
+
+		for (const stack of config.stacks) {
+			for (const id of Object.keys(stack.graphql || {})) {
+				apis.set(id, [])
+			}
+		}
+
+		for (const stack of config.stacks) {
+			for (const [id, props] of Object.entries(stack.graphql || {})) {
+				if (props.schema) {
+					apis.get(id)?.push(...[props.schema].flat())
+				}
+			}
+		}
+
+		for (const [id, files] of apis) {
+			const sources = await Promise.all(
+				files.map(file => {
+					return readFile(file, 'utf8')
+				})
+			)
+
+			if (sources.length) {
+				const defs = mergeTypeDefs([scalarSchema, ...sources])
+				const schema = buildSchema(print(defs))
+
+				const output = generate(schema, {
+					scalarTypes: {
+						AWSDate: 'string',
+						AWSTime: 'string',
+						AWSDateTime: 'string',
+						AWSTimestamp: 'number',
+						AWSEmail: 'string',
+						AWSJSON: 'string',
+						AWSURL: 'string',
+						AWSPhone: 'string',
+						AWSIPAddress: 'string',
+					},
+				})
+
+				await write(`graphql/${id}.ts`, output)
+
+				types.addImport({ Schema: id }, `./graphql/${id}.ts`)
+				resources.addType(id, id)
+			}
+		}
+
+		types.addInterface('GraphQL', resources)
+
+		await write('graphql.d.ts', types, true)
+	},
 	onApp(ctx) {
 		const { config, bootstrap } = ctx
 		const apis: Set<string> = new Set()

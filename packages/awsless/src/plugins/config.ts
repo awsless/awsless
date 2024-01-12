@@ -32,10 +32,10 @@ export const configPlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(0, false)
-		// '@awsless/awsless', 'ConfigResources', false
+
 		for (const stack of config.stacks) {
 			for (const name of stack.configs || []) {
 				resources.addConst(name, 'string')
@@ -44,7 +44,7 @@ export const configPlugin = definePlugin({
 
 		gen.addInterface('ConfigResources', resources.toString())
 
-		return gen.toString()
+		await write('config.d.ts', gen, true)
 	},
 	onStack({ bind, config, stackConfig }) {
 		const configs = stackConfig.configs

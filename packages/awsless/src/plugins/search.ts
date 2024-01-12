@@ -14,7 +14,7 @@ export const searchPlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 
@@ -31,7 +31,7 @@ export const searchPlugin = definePlugin({
 
 		gen.addInterface('SearchResources', resources)
 
-		return gen.toString()
+		await write('search.d.ts', gen, true)
 	},
 	onStack({ config, stack, stackConfig, bind }) {
 		for (const id of stackConfig.searchs || []) {

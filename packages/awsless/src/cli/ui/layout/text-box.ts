@@ -15,7 +15,7 @@ export const textWrap = (
 	{ indent = 0, skipFirstLine = false, ...rest }: Options = {}
 ) => {
 	const space = ' '.repeat(indent)
-	return wrapAnsi(text, width - indent, { hard: true, ...rest })
+	return wrapAnsi(text, width - indent, { hard: true, trim: false, ...rest })
 		.split(br())
 		.map((line, i) => (i === 0 && skipFirstLine ? line : `${space}${line}`))
 		.join(br())

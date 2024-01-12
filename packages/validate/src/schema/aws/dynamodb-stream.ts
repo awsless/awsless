@@ -14,10 +14,10 @@ export type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> 
 		}[]
 	},
 	{
-		event: EventName
+		event: Lowercase<EventName>
 		keys: PrimaryKey<T>
-		old?: Partial<T['schema']['OUTPUT']>
-		new?: Partial<T['schema']['OUTPUT']>
+		old?: T['schema']['OUTPUT']
+		new?: T['schema']['OUTPUT']
 	}[]
 >
 
@@ -50,7 +50,7 @@ export const dynamoDbStream = <T extends TableDefinition<any, any, any, any>>(ta
 					}
 				}
 				return {
-					event: record.eventName,
+					event: record.eventName.toLowerCase(),
 					keys: item.dynamodb.Keys,
 					old: item.dynamodb.OldImage,
 					new: item.dynamodb.NewImage,

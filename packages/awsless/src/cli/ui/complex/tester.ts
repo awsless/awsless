@@ -7,11 +7,11 @@ import { Reporter } from 'vitest'
 import { br } from '../ui/../layout/basic.js'
 import { Signal } from '../../lib/signal.js'
 import { createSpinner } from '../../ui/layout/spinner.js'
-import { getTests } from '@vitest/runner/utils'
+import { getSuites, getTests } from '@vitest/runner/utils'
 import { style, symbol } from '../../style.js'
 import { Task } from 'vitest'
 import { createTimer } from '../../../util/timer.js'
-import { basename, extname, join, relative } from 'path'
+import { basename, dirname, extname, join, relative } from 'path'
 import { UserConsoleLog } from 'vitest'
 import { RenderFactory } from '../../lib/renderer.js'
 import { textWrap } from '../layout/text-box.js'
@@ -19,10 +19,11 @@ import { fingerprintFromDirectory } from '../../../util/fingerprint.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import json from '@rollup/plugin-json'
+// import { debug } from '../../logger.js'
 
 type TestError = {
 	file: string
-	test: string
+	test?: string
 	diff?: string
 	type: string
 	message: string
@@ -72,18 +73,23 @@ class CustomReporter implements Reporter {
 		clearInterval(this.interval)
 		this.interval = undefined
 
+		// debug('DEBUG', this.ctx)
+
+		const suites = getSuites(this.tasks!)
 		const tests = getTests(this.tasks!)
-		const passed = tests.filter(t => t.result?.state === 'pass').length
-		const failed = tests.filter(t => t.result?.state === 'fail').length
-		const errors = tests
+		const tasks = [...suites, ...tests]
+		const passed = tasks.filter(t => t.result?.state === 'pass').length
+		const failed = tasks.filter(t => t.result?.state === 'fail').length
+
+		const errors = [...suites, ...tests]
 			.map(test => {
 				if (!test.result?.errors || test.result.errors.length === 0) {
 					return []
 				}
 
 				return test.result.errors.map(error => ({
-					file: test.file?.name,
-					test: test.name,
+					file: test.type === 'suite' ? test.name : test.file?.name,
+					test: test.type === 'test' ? test.name : undefined,
 					diff: error.showDiff && error.diff ? error.diff : undefined,
 					type: error.name,
 					message: error.message,
@@ -133,63 +139,110 @@ class CustomReporter implements Reporter {
 
 // }
 
-export const singleTester = (stack: string, dir: string): RenderFactory<Promise<boolean>> => {
+export const singleTester = (stack: string, dir: string, filters: string[]): RenderFactory<Promise<boolean>> => {
 	const formatFileName = (path?: string) => {
 		if (!path) {
 			return ''
 		}
 
-		path = join(process.cwd(), path)
-		path = relative(dir, path)
+		const abs = join(process.cwd(), path)
+		const rel = relative(dir, abs)
+		const ext = extname(rel)
 
-		const ext = extname(path)
-		const bas = basename(path, ext)
+		if (!ext) {
+			return path
+		}
 
-		return `${bas}${style.placeholder(ext)}`
+		const name = basename(rel, ext)
+		const base = dirname(rel)
+		const start = base === '.' ? '' : style.placeholder(base + '/')
+
+		return `${start}${name}${style.placeholder(ext)}`
 	}
 
 	const formatLogs = (logs: string[], width: number) => {
-		return logs
-			.map(log => {
-				return [
-					textWrap([style.placeholder(`${symbol.dot} LOG `), log].join(''), width, {
-						skipFirstLine: true,
-						indent: 2,
-					}),
-					br(),
-				]
-			})
-			.flat()
+		const length = logs.length
+
+		if (length === 0) {
+			return []
+		}
+
+		const header = ` Logs ${length} `
+		const lineSize = (width - 2) / 2 - header.length / 2
+
+		return [
+			'  ',
+			style.info(symbol.line.repeat(lineSize)),
+			style.info.inverse.bold(header),
+			style.info(symbol.line.repeat(lineSize + (header.length % 2 ? 0 : 1))),
+			br(),
+			br(),
+
+			...logs
+				.map(log => {
+					return [
+						textWrap([style.info(`${symbol.dot} `), log].join(''), width, {
+							skipFirstLine: true,
+							indent: 2,
+						}),
+						br(),
+						br(),
+					]
+				})
+				.flat(),
+		]
 	}
 
 	const formatErrors = (errors: TestError[], width: number) => {
-		return errors
-			.map(error => {
-				const [message, ...comment] = error.message.split('//')
-				const errorMessage = [
-					style.error(`${style.error.bold(error.type)}: ${message}`),
-					comment.length > 0 ? style.placeholder(`//${comment}`) : '',
-					br(),
-				].join('')
+		const length = errors.length
 
-				return [
-					br(),
-					style.error(`${symbol.dot} `),
-					style.error.inverse(` FAIL `),
-					' ',
-					style.placeholder(symbol.pointerSmall),
-					' ',
-					formatFileName(error.file),
-					' ',
-					style.placeholder(symbol.pointerSmall),
-					' ',
-					error.test,
-					br(),
-					textWrap(errorMessage, width, { indent: 2 }),
-					...(error.diff ? [br(), error.diff, br()] : []),
-				]
-			})
-			.flat()
+		if (length === 0) {
+			return []
+		}
+
+		const header = ` Failed Tests ${length} `
+		const lineSize = (width - 2) / 2 - header.length / 2
+
+		return [
+			'  ',
+			style.error(symbol.line.repeat(lineSize)),
+			style.error.inverse.bold(header),
+			style.error(symbol.line.repeat(lineSize + (header.length % 2 ? 0 : 1))),
+			br(),
+			...errors
+				.map((error, i) => {
+					const [message, ...comment] = error.message.split('//')
+					const errorMessage = [
+						style.error.bold(error.type + ':'),
+						' ',
+						message,
+						comment.length > 0 ? style.placeholder(`//${comment}`) : '',
+						br(),
+					].join('')
+					const pagination = `[${i + 1}/${length}]${symbol.line}`
+					const name = error.test ? [' ', style.placeholder(symbol.pointerSmall), ' ', error.test] : []
+
+					return [
+						br(),
+						style.error(`${symbol.error} `),
+						style.error.inverse.bold(` FAIL `),
+						' ',
+						style.placeholder(symbol.pointerSmall),
+						' ',
+						formatFileName(error.file),
+						...name,
+						br(),
+						br(),
+						textWrap(errorMessage, width, { indent: 2 }),
+						...(error.diff ? [br(), error.diff, br()] : []),
+						br(),
+						'  ',
+						style.error.dim(symbol.line.repeat(width - 2 - pagination.length) + pagination),
+						br(),
+					]
+				})
+				.flat(),
+		]
 	}
 
 	const formatOutput = ({
@@ -285,7 +338,7 @@ export const singleTester = (stack: string, dir: string): RenderFactory<Promise<
 
 		const result = await startVitest(
 			'test',
-			[],
+			filters,
 			{
 				// name: config.name,
 				watch: false,
@@ -325,11 +378,14 @@ export const singleTester = (stack: string, dir: string): RenderFactory<Promise<
 	}
 }
 
-export const runTester = (tests: Map<string, string[]>): RenderFactory<Promise<boolean>> => {
+export const runTester = (
+	tests: Map<string, string[]>,
+	filters: string[] = []
+): RenderFactory<Promise<boolean>> => {
 	return async term => {
 		for (const [name, paths] of tests.entries()) {
 			for (const path of paths) {
-				const result = await term.out.write(singleTester(name, path))
+				const result = await term.out.write(singleTester(name, path, filters))
 
 				if (!result) {
 					return false

@@ -1,7 +1,8 @@
 import { createHash } from 'crypto'
 import { readFile, readdir, stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
-import parseImports from 'parse-imports'
+// @ts-ignore
+import parseStaticImports from 'parse-static-imports'
 
 const extensions = ['js', 'mjs', 'jsx', 'ts', 'mts', 'tsx']
 
@@ -81,9 +82,9 @@ const readFiles = async (files: string[]) => {
 }
 
 const findDependencies = async (file: string, code: string) => {
-	const imports = Array.from(await parseImports(code))
+	const imports = (await parseStaticImports(code)) as { moduleName: string }[]
 	return imports
-		.map(entry => entry.moduleSpecifier.value!)
+		.map(entry => entry.moduleName)
 		.filter(Boolean)
 		.map(value => (value?.startsWith('.') ? join(dirname(file), value) : value))
 }

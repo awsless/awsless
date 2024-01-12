@@ -355,9 +355,9 @@ type StreamRequest<T extends AnyTableDefinition> = {
 };
 type Stream<T extends AnyTableDefinition> = {
     table: T;
-    fn: (payload: StreamRequest<T>) => void;
+    fn: (payload: StreamRequest<T>) => unknown | void;
 };
-declare const streamTable: <T extends AnyTableDefinition>(table: T, fn: (payload: StreamRequest<T>) => void) => Stream<AnyTableDefinition>;
+declare const streamTable: <T extends AnyTableDefinition>(table: T, fn: (payload: StreamRequest<T>) => unknown | void) => Stream<AnyTableDefinition>;
 
 type SeedTable<T extends AnyTableDefinition> = {
     table: T;

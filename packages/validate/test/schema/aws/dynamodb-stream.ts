@@ -29,7 +29,7 @@ describe('DynamoDB Stream', () => {
 
 		expect(result).toStrictEqual([
 			{
-				event: 'MODIFY',
+				event: 'modify',
 				keys: { id: 1 },
 				new: { id: 1, name: 'name' },
 				old: undefined,
@@ -64,15 +64,15 @@ describe('DynamoDB Stream', () => {
 
 		expectTypeOf<Output<typeof schema>>().toEqualTypeOf<
 			{
-				event: EventName
+				event: Lowercase<EventName>
 				keys: { id: number }
 				old?: {
-					id?: number
-					name?: string
+					id: number
+					name: string
 				}
 				new?: {
-					id?: number
-					name?: string
+					id: number
+					name: string
 				}
 			}[]
 		>()

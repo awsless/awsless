@@ -275,6 +275,7 @@ type Func = (...args: any[]) => any
 type Invoke<Name extends string, F extends Func> = {
 	readonly name: Name
 	readonly async: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
+	readonly cached: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
 	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<F>
 }
 
@@ -288,7 +289,7 @@ type MockObject<F extends Func> = Mock<Parameters<F>, ReturnType<F>>
 export const functionPlugin = definePlugin({
 	name: 'function',
 	schema,
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const types = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 		const mocks = new TypeObject(1)
@@ -321,7 +322,7 @@ export const functionPlugin = definePlugin({
 		types.addInterface('FunctionMock', mocks)
 		types.addInterface('FunctionMockResponse', mockResponses)
 
-		return types.toString()
+		await write('function.d.ts', types, true)
 	},
 	onStack(ctx) {
 		const { config, stack } = ctx

@@ -3,7 +3,9 @@ export { Unauthorized } from './error/unauthorized.js'
 export { NewPasswordRequired } from './error/new-password-required.js'
 
 export { srp, generateVerifier, generateDeviceSecret } from './srp.js'
+export { Token } from './token.js'
 export { Client } from './client.js'
+export { Session } from './session.js'
 
 export { CookieStore } from './store/cookie-store.js'
 export { MemoryStore } from './store/memory-store.js'

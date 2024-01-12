@@ -117,7 +117,7 @@ export const tablePlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 
@@ -134,7 +134,7 @@ export const tablePlugin = definePlugin({
 
 		gen.addInterface('TableResources', resources)
 
-		return gen.toString()
+		await write('table.d.ts', gen, true)
 	},
 	onStack(ctx) {
 		const { config, stack, stackConfig, bind } = ctx

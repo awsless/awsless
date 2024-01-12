@@ -1,7 +1,7 @@
-import { stat, mkdir } from 'fs/promises';
+import { stat, mkdir } from 'fs/promises'
 import { resolve, join } from 'path'
 import findCacheDir from 'find-cache-dir'
-import decompress from 'decompress';
+import decompress from 'decompress'
 // import { exec } from 'child_process';
 // import { promisify } from 'util';
 
@@ -10,23 +10,25 @@ export type Version = `${string}.${string}.${string}`
 const getArchiveName = (version: Version): string => {
 	switch (process.platform) {
 		case 'win32':
-			return `opensearch-${version}-windows-arm64.zip`;
+			return `opensearch-${version}-windows-arm64.zip`
 		default:
-			return `opensearch-${version}-linux-x64.tar.gz`;
+			return `opensearch-${version}-linux-x64.tar.gz`
 	}
 }
 
 const getDownloadPath = (): string => {
-	return resolve(findCacheDir({
-		name: '@awsless/open-search',
-		cwd: process.cwd(),
-	}) || '')
+	return resolve(
+		findCacheDir({
+			name: '@awsless/open-search',
+			cwd: process.cwd(),
+		}) || ''
+	)
 }
 
-const exists = async (path:string) => {
+const exists = async (path: string) => {
 	try {
 		await stat(path)
-	} catch(error) {
+	} catch (error) {
 		return false
 	}
 
@@ -38,13 +40,13 @@ export const download = async (version: Version) => {
 	const name = `opensearch-${version}`
 	const file = join(path, name)
 
-	if(await exists(file)) {
+	if (await exists(file)) {
 		return file
 	}
 
-	console.log(`Downloading OpenSearch ${version}`);
+	console.log(`Downloading OpenSearch ${version}`)
 
-	const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`;
+	const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`
 
 	const response = await fetch(url, { method: 'GET' })
 	const data = await response.arrayBuffer()

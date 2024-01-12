@@ -84,20 +84,37 @@ function date(arg1, arg2) {
 }
 
 // src/schema/uuid.ts
-import { string as string4, uuid as base2, transform as transform4 } from "valibot";
-var uuid = () => {
-  return transform4(string4([base2()]), (v) => v);
+import {
+  string as string4,
+  uuid as base2,
+  transform as transform4
+} from "valibot";
+var uuid = (error) => {
+  return transform4(string4(error ?? "Invalid UUID", [base2()]), (v) => v);
 };
 
+// src/schema/duration.ts
+import { getDefaultArgs as getDefaultArgs3, regex, string as string5, transform as transform5 } from "valibot";
+import { parse } from "@awsless/duration";
+function duration(arg1, arg2) {
+  const [msg, pipe] = getDefaultArgs3(arg1, arg2);
+  const error = msg ?? "Invalid duration";
+  return transform5(
+    string5(error, [regex(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
+    (value) => parse(value),
+    pipe
+  );
+}
+
 // src/schema/aws/sqs-queue.ts
-import { array, object as object2, transform as transform5, union as union3, unknown } from "valibot";
+import { array, object as object2, transform as transform6, union as union3, unknown } from "valibot";
 var sqsQueue = (body) => {
   const schema = body ?? unknown();
   return union3(
     [
-      transform5(schema, (input) => [input]),
+      transform6(schema, (input) => [input]),
       array(schema),
-      transform5(
+      transform6(
         object2({
           Records: array(
             object2({
@@ -115,14 +132,14 @@ var sqsQueue = (body) => {
 };
 
 // src/schema/aws/sns-topic.ts
-import { array as array2, object as object3, transform as transform6, union as union4, unknown as unknown2 } from "valibot";
+import { array as array2, object as object3, transform as transform7, union as union4, unknown as unknown2 } from "valibot";
 var snsTopic = (body) => {
   const schema = body ?? unknown2();
   return union4(
     [
-      transform6(schema, (input) => [input]),
+      transform7(schema, (input) => [input]),
       array2(schema),
-      transform6(
+      transform7(
         object3({
           Records: array2(
             object3({
@@ -142,10 +159,10 @@ var snsTopic = (body) => {
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, object as object4, optional, picklist, transform as transform7, unknown as unknown3 } from "valibot";
+import { array as array3, object as object4, optional, picklist, transform as transform8, unknown as unknown3 } from "valibot";
 var dynamoDbStream = (table) => {
-  const marshall = () => transform7(unknown3(), (value) => table.unmarshall(value));
-  return transform7(
+  const marshall = () => transform8(unknown3(), (value) => table.unmarshall(value));
+  return transform8(
     object4(
       {
         Records: array3(
@@ -165,7 +182,7 @@ var dynamoDbStream = (table) => {
       return input.Records.map((record) => {
         const item = record;
         return {
-          event: record.eventName,
+          event: record.eventName.toLowerCase(),
           keys: item.dynamodb.Keys,
           old: item.dynamodb.OldImage,
           new: item.dynamodb.NewImage
@@ -208,11 +225,23 @@ function unique(compare = (a, b) => a === b, error) {
     return getOutput4(input);
   };
 }
+
+// src/validation/duration.ts
+import { custom } from "valibot";
+function minDuration(min, error) {
+  return custom((input) => input.value >= min.value, error ?? "Invalid duration");
+}
+function maxDuration(max, error) {
+  return custom((input) => input.value <= max.value, error ?? "Invalid duration");
+}
 export {
   bigfloat,
   date,
+  duration,
   dynamoDbStream,
   json,
+  maxDuration,
+  minDuration,
   positive,
   precision,
   snsTopic,

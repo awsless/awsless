@@ -1,5 +1,24 @@
 import { randomUUID } from 'crypto'
-import { array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, set, string, uuid, query } from '../src'
+import {
+	array,
+	bigfloat,
+	bigint,
+	boolean,
+	date,
+	define,
+	deleteItem,
+	enums,
+	indexItem,
+	migrate,
+	mockOpenSearch,
+	number,
+	object,
+	search,
+	set,
+	string,
+	uuid,
+	query,
+} from '../src'
 import { BigFloat } from '@awsless/big-float'
 
 describe('Open Search Mock', () => {
@@ -95,20 +114,22 @@ describe('Open Search Mock', () => {
 		expect(result).toStrictEqual({
 			found: 1,
 			count: 1,
-			items: [{
-				id,
-				type: 'bar',
-				name: 'jacksclub',
-				enabled: true,
-				likes: 10n,
-				balance: new BigFloat(1),
-				tags: new Set([ 'tag' ]),
-				links: [ 1 ],
-				createdAt,
-				data: {
-					number: 1,
-				}
-			}]
+			items: [
+				{
+					id,
+					type: 'bar',
+					name: 'jacksclub',
+					enabled: true,
+					likes: 10n,
+					balance: new BigFloat(1),
+					tags: new Set(['tag']),
+					links: [1],
+					createdAt,
+					data: {
+						number: 1,
+					},
+				},
+			],
 		})
 	})
 
@@ -124,10 +145,10 @@ describe('Open Search Mock', () => {
 							fuzziness: 'AUTO',
 							fuzzy_transpositions: true,
 							allow_leading_wildcard: true,
-							fields: [ 'name' ],
-						}
-					}
-				}
+							fields: ['name'],
+						},
+					},
+				},
 			},
 		})
 
@@ -135,7 +156,7 @@ describe('Open Search Mock', () => {
 			cursor: undefined,
 			found: 0,
 			count: 0,
-			items: []
+			items: [],
 		})
 	})
 })

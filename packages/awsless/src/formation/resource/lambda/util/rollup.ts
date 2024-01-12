@@ -29,6 +29,7 @@ export const rollupBundle = ({
 				debugError(error.message)
 			},
 			treeshake: {
+				preset: 'smallest',
 				moduleSideEffects: id => input === id,
 			},
 			plugins: [

@@ -207,7 +207,7 @@ export const authPlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 
@@ -221,7 +221,7 @@ export const authPlugin = definePlugin({
 
 		gen.addInterface('AuthResources', resources)
 
-		return gen.toString()
+		await write('auth.d.ts', gen, true)
 	},
 	onStack({ bootstrap, stackConfig, bind }) {
 		for (const [id, props] of Object.entries(stackConfig.auth ?? {})) {

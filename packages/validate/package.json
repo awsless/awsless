@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/validate",
-	"version": "0.0.6",
+	"version": "0.0.10",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -30,11 +30,13 @@
 	},
 	"peerDependencies": {
 		"@awsless/big-float": "workspace:^",
-		"@awsless/dynamodb": "workspace:^"
+		"@awsless/dynamodb": "workspace:^",
+		"@awsless/duration": "workspace:^"
 	},
 	"devDependencies": {
 		"@awsless/big-float": "workspace:^",
-		"@awsless/dynamodb": "workspace:^"
+		"@awsless/dynamodb": "workspace:^",
+		"@awsless/duration": "workspace:^"
 	},
 	"dependencies": {
 		"valibot": "^0.20.1"

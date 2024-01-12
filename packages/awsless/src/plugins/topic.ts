@@ -83,7 +83,7 @@ export const topicPlugin = definePlugin({
 				}
 			}),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 		const mocks = new TypeObject(1)
@@ -104,7 +104,7 @@ export const topicPlugin = definePlugin({
 		gen.addInterface('TopicMock', mocks)
 		gen.addInterface('TopicMockResponse', mockResponses)
 
-		return gen.toString()
+		await write('topic.d.ts', gen, true)
 	},
 	onApp({ config, bootstrap }) {
 		for (const stack of config.stacks) {

@@ -26,7 +26,7 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 			[name]: (payload: unknown, options: Omit<SendMessageOptions, 'queue' | 'payload'> = {}) => {
 				return sendMessage({
 					...options,
-					queue: url || name,
+					queue: url ?? name,
 					payload,
 				})
 			},
@@ -38,7 +38,7 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 		send.batch = (items: BatchItem[], options: Omit<SendMessageBatchOptions, 'queue' | 'items'> = {}) => {
 			return sendMessageBatch({
 				...options,
-				queue: url,
+				queue: url ?? name,
 				items,
 			})
 		}

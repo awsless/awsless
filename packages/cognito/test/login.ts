@@ -8,31 +8,21 @@ describe('login', () => {
 		store: new MemoryStore(),
 	})
 
-	it('', async () => {
-		// const session = await signIn(client, {
-		// 	username: 'test',
-		// 	password: 'Test123!',
-		// })
-
+	it('http', async () => {
 		const session = await signIn(client, {
-			username: 'info@jacksclub.io',
+			username: 'test',
 			password: 'Test123!',
 		})
 
-		// await changePassword(client, {
-		// 	previousPassword: 'Test1234!',
-		// 	proposedPassword: 'Test123!',
+		// const session = await signIn(client, {
+		// 	username: 'info@jacksclub.io',
+		// 	password: 'Test123!',
 		// })
 
-		// const endpoint = 'https://pin5pl7eqrdhrpqxqk5ullrmem.appsync-api.eu-west-1.amazonaws.com/graphql'
-		const endpoint = 'https://graphql.crypto-trender.com/graphql'
-		const query = 'query Test { one }'
-		const variables = {}
+		const endpoint = 'https://http.crypto-trender.com/'
 		const response = await fetch(endpoint, {
-			method: 'POST',
-			body: JSON.stringify({ query, variables }),
+			method: 'GET',
 			headers: {
-				Origin: 'https://graphql.crypto-trender.com',
 				Authorization: session.accessToken.toString(),
 			},
 		})
@@ -43,13 +33,54 @@ describe('login', () => {
 		console.log(response.statusText)
 		console.log('------------------------------')
 
-		const result = await response.json()
+		const result = await response.text()
 
-		// console.log(result)
-
-		console.log(JSON.parse(result.data.one))
+		console.log(result)
 		console.log('------------------------------')
 	})
+
+	// it('graphql', async () => {
+	// 	// const session = await signIn(client, {
+	// 	// 	username: 'test',
+	// 	// 	password: 'Test123!',
+	// 	// })
+
+	// 	const session = await signIn(client, {
+	// 		username: 'info@jacksclub.io',
+	// 		password: 'Test123!',
+	// 	})
+
+	// 	// await changePassword(client, {
+	// 	// 	previousPassword: 'Test1234!',
+	// 	// 	proposedPassword: 'Test123!',
+	// 	// })
+
+	// 	// const endpoint = 'https://pin5pl7eqrdhrpqxqk5ullrmem.appsync-api.eu-west-1.amazonaws.com/graphql'
+	// 	const endpoint = 'https://graphql.crypto-trender.com/graphql'
+	// 	const query = 'query Test { one }'
+	// 	const variables = {}
+	// 	const response = await fetch(endpoint, {
+	// 		method: 'POST',
+	// 		body: JSON.stringify({ query, variables }),
+	// 		headers: {
+	// 			Origin: 'https://graphql.crypto-trender.com',
+	// 			Authorization: session.accessToken.toString(),
+	// 		},
+	// 	})
+
+	// 	console.log('------------------------------')
+	// 	console.log(response.ok)
+	// 	console.log(response.status)
+	// 	console.log(response.statusText)
+	// 	console.log('------------------------------')
+
+	// 	const result = await response.json()
+
+	// 	// console.log(result)
+
+	// 	console.log(JSON.parse(result.data.one))
+	// 	console.log('------------------------------')
+	// })
 
 	// it('', async () => {
 	// 	try {

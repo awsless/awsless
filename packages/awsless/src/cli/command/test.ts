@@ -8,17 +8,18 @@ export const test = (program: Command) => {
 	program
 		.command('test')
 		.argument('[stacks...]', 'Optionally filter stacks to test')
+		.option('-f --filters <string...>', 'Optionally filter test files')
 		.description('Test your app')
-		.action(async (filters: string[]) => {
+		.action(async (stacks: string[], options?: { filters?: string[] }) => {
 			await layout(async (config, write) => {
-				const { tests } = await toApp(config, filters)
+				const { tests } = await toApp(config, stacks)
 
 				if (tests.size === 0) {
 					write(dialog('warning', ['No tests found']))
 					return
 				}
 
-				await write(runTester(tests))
+				await write(runTester(tests, options?.filters))
 			})
 		})
 }

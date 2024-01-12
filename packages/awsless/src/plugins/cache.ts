@@ -76,7 +76,7 @@ export const cachePlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 
@@ -92,7 +92,7 @@ export const cachePlugin = definePlugin({
 		gen.addCode(typeGenCode)
 		gen.addInterface('CacheResources', resources)
 
-		return gen.toString()
+		await write('cache.d.ts', gen, true)
 	},
 	onStack({ config, stack, stackConfig, bootstrap, bind }) {
 		for (const [id, props] of Object.entries(stackConfig.caches || {})) {

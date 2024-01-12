@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import { Config } from '../config.js'
 import { defaultPlugins } from '../plugins/index.js'
 import { directories } from './path.js'
-import { join, relative } from 'path'
+import { dirname, join, relative } from 'path'
 import { camelCase, constantCase } from 'change-case'
 
 export const generateResourceTypes = async (config: Config) => {
@@ -10,17 +10,26 @@ export const generateResourceTypes = async (config: Config) => {
 
 	const files: string[] = []
 
-	for (const plugin of plugins) {
-		const code = plugin.onTypeGen?.({ config })
+	await Promise.all(
+		plugins.map(plugin => {
+			return plugin.onTypeGen?.({
+				config,
+				async write(file, data, include = false) {
+					const code = data?.toString('utf8')
+					const path = join(directories.types, file)
 
-		if (code) {
-			const file = join(directories.types, `${plugin.name}.d.ts`)
-			files.push(relative(directories.root, file))
+					if (code) {
+						if (include) {
+							files.push(relative(directories.root, path))
+						}
 
-			await mkdir(directories.types, { recursive: true })
-			await writeFile(file, code)
-		}
-	}
+						await mkdir(dirname(path), { recursive: true })
+						await writeFile(path, code)
+					}
+				},
+			})
+		})
+	)
 
 	if (files.length) {
 		const code = files.map(file => `/// <reference path='${file}' />`).join('\n')
@@ -31,11 +40,11 @@ export const generateResourceTypes = async (config: Config) => {
 export class TypeGen {
 	protected codes = new Set<string>()
 	protected interfaces = new Map<string, string>()
-	protected imports = new Map<string, string>()
+	protected imports = new Map<string | Record<string, string>, string>()
 
 	constructor(readonly module: string) {}
 
-	addImport(varName: string, path: string) {
+	addImport(varName: string | Record<string, string>, path: string) {
 		this.imports.set(varName, path)
 		return this
 	}
@@ -75,7 +84,13 @@ export class TypeGen {
 				...[
 					'// Imports',
 					...Array.from(this.imports.entries()).map(([varName, path]) => {
-						return `import ${camelCase(varName)} from '${path}'`
+						if (typeof varName === 'string') {
+							return `import ${camelCase(varName)} from '${path}'`
+						}
+
+						return `import { ${Object.entries(varName)
+							.map(([key, alias]) => `${key} as ${camelCase(alias)}`)
+							.join(', ')} } from '${path}'`
 					}),
 					'',
 				]
@@ -151,22 +166,22 @@ export class TypeObject {
 
 	constructor(readonly level: number, readonly readonly = true) {}
 
-	addType(name: string, type: string | TypeObject) {
+	add(name: string, type: string | TypeObject) {
 		const value = type.toString()
 
 		if (value) {
-			this.types.set(camelCase(name), value)
+			this.types.set(name, value)
 		}
 
 		return this
 	}
 
-	addConst(name: string, type: string) {
-		if (type) {
-			this.types.set(constantCase(name), type)
-		}
+	addType(name: string, type: string | TypeObject) {
+		return this.add(camelCase(name), type)
+	}
 
-		return this
+	addConst(name: string, type: string | TypeObject) {
+		return this.add(constantCase(name), type)
 	}
 
 	toString() {

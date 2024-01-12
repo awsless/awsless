@@ -11,6 +11,9 @@ npm install --save @awsless/cognito
 
 # using yarn:
 yarn add @awsless/cognito
+
+# using pnpm:
+pnpm install @awsless/cognito
 ```
 
 # Stores
@@ -21,7 +24,7 @@ Depending on your use case you might want to use one of the following stores.
 
 - __LocalStore__ - Used to store the login token on the client only.
 
-- __CookieStore__ - The CookieStore is useful in scenarios like SSR, when you need access to the login token on the client as well as on the server. (The server might need to polyfill the fetch & web crypto API)
+- __CookieStore__ - The CookieStore is useful in scenarios like SSR, when you need access to the login token on the client as well as on the server.
 
 # Examples
 
