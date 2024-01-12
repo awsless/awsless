@@ -1,10 +1,8 @@
-
 import { deleteItem, getItem, mockDynamoDB, putItem } from '../../src/index'
 import { users } from '../aws/tables'
 
 describe('Delete', () => {
-
-	mockDynamoDB({ tables: [ users ] })
+	mockDynamoDB({ tables: [users] })
 
 	const user = { id: 1, name: 'Jack' }
 
@@ -26,16 +24,20 @@ describe('Delete', () => {
 
 		const result = await deleteItem(users, { id: 1 }, { return: 'ALL_OLD' })
 
-		expectTypeOf(result).toEqualTypeOf<{ id: number, name: string } | undefined>()
+		expectTypeOf(result).toEqualTypeOf<{ id: number; name: string } | undefined>()
 		expect(result).toStrictEqual(user)
 	})
 
 	it('should delete with condition', async () => {
 		await putItem(users, user)
 
-		await deleteItem(users, { id: 1 }, {
-			condition: (exp) => exp.where('id').eq(1)
-		})
+		await deleteItem(
+			users,
+			{ id: 1 },
+			{
+				condition: exp => exp.where('id').eq(1),
+			}
+		)
 
 		const result = await getItem(users, { id: 1 })
 		expect(result).toBeUndefined()

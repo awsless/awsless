@@ -1,4 +1,4 @@
-import { StackConfig } from "../../../src/index.js";
+import { StackConfig } from '../../../src/index.js'
 
 export const httpStack: StackConfig = {
 	name: 'http',
@@ -6,6 +6,8 @@ export const httpStack: StackConfig = {
 		api: {
 			'GET /': __dirname + '/../function/route.ts',
 			'GET /path': __dirname + '/../function/route.ts',
-		}
+			'GET /path/{id}': __dirname + '/../function/route.ts',
+			'GET /path/{id}/some/{page}': __dirname + '/../function/route.ts',
+		},
 	},
 }

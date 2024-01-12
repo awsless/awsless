@@ -2,15 +2,15 @@ import chalk from 'chalk'
 
 export const symbol = {
 	info: 'ℹ',
-	success: '✔',
+	success: '✓',
 	warning: '⚠',
 	question: '?',
-	error: '✖',
+	error: '×',
 
 	dot: '·',
+	line: '─',
 	ellipsis: '…',
 	pointerSmall: '›',
-	// line: '─',
 	pointer: '❯',
 }
 

@@ -3,3 +3,5 @@
 /// <reference path='.awsless/types/queue.d.ts' />
 /// <reference path='.awsless/types/topic.d.ts' />
 /// <reference path='.awsless/types/auth.d.ts' />
+/// <reference path='.awsless/types/http.d.ts' />
+/// <reference path='.awsless/types/graphql.d.ts' />

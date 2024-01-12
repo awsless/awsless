@@ -32,7 +32,7 @@ export const storePlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 
@@ -49,7 +49,7 @@ export const storePlugin = definePlugin({
 
 		gen.addInterface('StoreResources', resources)
 
-		return gen.toString()
+		await write('store.d.ts', gen, true)
 	},
 	onStack({ config, stack, stackConfig, bootstrap, bind }) {
 		for (const id of stackConfig.stores || []) {

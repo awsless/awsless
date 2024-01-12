@@ -198,7 +198,7 @@ export const queuePlugin = definePlugin({
 			})
 			.array(),
 	}),
-	onTypeGen({ config }) {
+	async onTypeGen({ config, write }) {
 		const gen = new TypeGen('@awsless/awsless')
 		const resources = new TypeObject(1)
 		const mocks = new TypeObject(1)
@@ -237,7 +237,7 @@ export const queuePlugin = definePlugin({
 		gen.addInterface('QueueMock', mocks)
 		gen.addInterface('QueueMockResponse', mockResponses)
 
-		return gen.toString()
+		await write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
 		const { stack, config, stackConfig, bind } = ctx

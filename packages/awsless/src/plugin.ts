@@ -4,6 +4,7 @@ import { Binding } from './stack.js'
 import { AppConfigInput } from './schema/app.js'
 import { Stack } from './formation/stack.js'
 import { App } from './formation/app.js'
+import { TypeGen } from './util/type-gen.js'
 // import { Resource } from './formation/resource.js'
 
 export type PluginSchema = AnyZodObject | undefined
@@ -49,6 +50,7 @@ export type AppContext<S extends AnyZodObject | undefined = undefined> = {
 
 export type TypeGenContext<S extends AnyZodObject | undefined = undefined> = {
 	config: ExtendedConfigOutput<S>
+	write: (file: string, data?: TypeGen | Buffer | string, include?: boolean) => Promise<void>
 }
 
 export type Plugin<S extends AnyZodObject | undefined = undefined> = {
@@ -58,7 +60,7 @@ export type Plugin<S extends AnyZodObject | undefined = undefined> = {
 	onApp?: (context: AppContext<S>) => void
 	onStack?: (context: StackContext<S>) => void
 	// onResource?: (context: ResourceContext<S>) => void
-	onTypeGen?: (context: TypeGenContext<S>) => string | void
+	onTypeGen?: (context: TypeGenContext<S>) => void | Promise<void>
 }
 
 export const definePlugin = <S extends AnyZodObject | undefined = undefined>(plugin: Plugin<S>) => plugin

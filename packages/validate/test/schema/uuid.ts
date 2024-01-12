@@ -1,17 +1,8 @@
 import { UUID } from 'crypto'
-// import { parse, string, uuid } from 'valibot'
 import { testSchema } from '../_util'
-import { parse, uuid } from '../../src'
+import { Input, Output, parse, uuid } from '../../src'
 
-// it('uuid', () => {
-// 	const schema = string([uuid()])
-// 	const output = parse(schema, '')
-
-// 	// expectTypeOf<Input<typeof schema>>().toEqualTypeOf<string>()
-// 	// expectTypeOf<Output<typeof schema>>().toEqualTypeOf<{
-// 	// 	foo: string
-// 	// }>()
-// })
+const schema = uuid()
 
 testSchema('uuid', {
 	valid: [
@@ -38,9 +29,14 @@ testSchema('uuid', {
 		new Map(),
 	],
 	validate: value => {
-		const result = parse(uuid(), value)
+		const result = parse(schema, value)
 
 		expectTypeOf(result).toEqualTypeOf<UUID>()
 		expect(result).toBe(value)
 	},
+})
+
+it('uuid types', () => {
+	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<string>()
+	expectTypeOf<Output<typeof schema>>().toEqualTypeOf<UUID>()
 })

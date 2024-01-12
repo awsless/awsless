@@ -1,5 +1,6 @@
 import { number, transform } from '@awsless/validate'
 import { ValidationError, lambda } from '../src'
+// import { seconds } from '../../duration/dist/index'
 
 describe('Validation', () => {
 	it('should validate input', async () => {
@@ -20,4 +21,13 @@ describe('Validation', () => {
 		// @ts-ignore
 		await expect(handle()).rejects.toThrow(ValidationError)
 	})
+
+	// it('should validate input', async () => {
+	// 	const handle = lambda({
+	// 		schema: duration([minDuration(seconds(1))]),
+	// 		handle(input) {},
+	// 	})
+
+	// 	const result = await handle('0 minutes')
+	// })
 })

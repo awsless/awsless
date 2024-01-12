@@ -1068,95 +1068,136 @@ var emit = (stream, items) => {
 };
 var pipeStream = (streams, command, send) => {
   if (command instanceof import_client_dynamodb6.PutItemCommand) {
-    return pipeToTable({ streams, command, send, getKey: (command2, table) => {
-      const key3 = getPrimaryKey(table, command2.input.Item);
-      return table.unmarshall(key3);
-    } });
+    return pipeToTable({
+      streams,
+      command,
+      send,
+      getKey: (command2, table) => {
+        const key3 = getPrimaryKey(table, command2.input.Item);
+        return table.unmarshall(key3);
+      }
+    });
   }
   if (command instanceof import_client_dynamodb6.UpdateItemCommand || command instanceof import_client_dynamodb6.DeleteItemCommand) {
-    return pipeToTable({ streams, command, send, getKey: (command2, table) => {
-      return table.unmarshall(command2.input.Key);
-    } });
+    return pipeToTable({
+      streams,
+      command,
+      send,
+      getKey: (command2, table) => {
+        return table.unmarshall(command2.input.Key);
+      }
+    });
   }
   if (command instanceof import_client_dynamodb6.BatchWriteItemCommand) {
-    return pipeToTables({ command, send, getEntries: (command2) => {
-      return Object.entries(command2.input.RequestItems).map(([tableName, items]) => {
-        const stream = streams.find((stream2) => stream2.table.name === tableName);
-        if (!stream)
-          return;
-        return {
-          ...stream,
-          items: items.map((item) => {
-            if (item.PutRequest) {
-              const key3 = getPrimaryKey(stream.table, item.PutRequest.Item);
-              return { key: stream.table.unmarshall(key3) };
-            } else if (item.DeleteRequest) {
-              return { key: stream.table.unmarshall(item.DeleteRequest.Key) };
-            }
+    return pipeToTables({
+      command,
+      send,
+      getEntries: (command2) => {
+        return Object.entries(command2.input.RequestItems).map(([tableName, items]) => {
+          const stream = streams.find((stream2) => stream2.table.name === tableName);
+          if (!stream)
             return;
-          })
-        };
-      });
-    } });
+          return {
+            ...stream,
+            items: items.map((item) => {
+              if (item.PutRequest) {
+                const key3 = getPrimaryKey(stream.table, item.PutRequest.Item);
+                return { key: stream.table.unmarshall(key3) };
+              } else if (item.DeleteRequest) {
+                return { key: stream.table.unmarshall(item.DeleteRequest.Key) };
+              }
+              return;
+            })
+          };
+        });
+      }
+    });
   }
   if (command instanceof import_client_dynamodb6.TransactWriteItemsCommand) {
-    return pipeToTables({ command, send, getEntries: (command2) => {
-      return command2.input.TransactItems.map((item) => {
-        if (item.ConditionCheck)
-          return;
-        const keyed = item.Delete || item.Update;
-        const tableName = keyed?.TableName || item.Put?.TableName;
-        const stream = streams.find((stream2) => stream2.table.name === tableName);
-        if (!stream)
-          return;
-        const marshall = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
-        return {
-          ...stream,
-          items: [{ key: stream.table.unmarshall(marshall) }]
-        };
-      });
-    } });
+    return pipeToTables({
+      command,
+      send,
+      getEntries: (command2) => {
+        return command2.input.TransactItems.map((item) => {
+          if (item.ConditionCheck)
+            return;
+          const keyed = item.Delete || item.Update;
+          const tableName = keyed?.TableName || item.Put?.TableName;
+          const stream = streams.find((stream2) => stream2.table.name === tableName);
+          if (!stream)
+            return;
+          const marshall = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
+          return {
+            ...stream,
+            items: [{ key: stream.table.unmarshall(marshall) }]
+          };
+        });
+      }
+    });
   }
   return send();
 };
-var pipeToTables = async ({ command, send, getEntries }) => {
+var pipeToTables = async ({
+  command,
+  send,
+  getEntries
+}) => {
   const entries = getEntries(command);
-  await Promise.all(entries.map(async (entry) => {
-    if (entry) {
-      await Promise.all(entry.items.map(async (item) => {
-        if (item) {
-          item.OldImage = await getItem(entry.table, item.key);
-        }
-      }));
-    }
-  }));
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (entry) {
+        await Promise.all(
+          entry.items.map(async (item) => {
+            if (item) {
+              item.OldImage = await getItem(entry.table, item.key);
+            }
+          })
+        );
+      }
+    })
+  );
   const result = await send();
-  await Promise.all(entries.map(async (entry) => {
-    if (entry) {
-      await Promise.all(entry.items.map(async (item) => {
-        if (item) {
-          item.NewImage = await getItem(entry.table, item.key);
-        }
-      }));
-    }
-  }));
-  await Promise.all(entries.map((entry) => {
-    if (entry) {
-      return emit(entry, entry.items.map((item) => {
-        if (item) {
-          return {
-            Keys: entry.table.marshall(item.key),
-            OldImage: item.OldImage ? entry.table.marshall(item.OldImage) : void 0,
-            NewImage: item.NewImage ? entry.table.marshall(item.NewImage) : void 0
-          };
-        }
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (entry) {
+        await Promise.all(
+          entry.items.map(async (item) => {
+            if (item) {
+              item.NewImage = await getItem(entry.table, item.key);
+            }
+          })
+        );
+      }
+    })
+  );
+  await Promise.all(
+    entries.map((entry) => {
+      if (!entry) {
         return;
-      }).filter(Boolean));
-    }
-  }));
+      }
+      return emit(
+        entry,
+        entry.items.map((item) => {
+          if (item) {
+            return {
+              Keys: entry.table.marshall(item.key),
+              OldImage: item.OldImage ? entry.table.marshall(item.OldImage) : void 0,
+              NewImage: item.NewImage ? entry.table.marshall(item.NewImage) : void 0
+            };
+          }
+          return;
+        }).filter(Boolean)
+      );
+    })
+  );
   return result;
 };
-var pipeToTable = async ({ streams, command, send, getKey }) => {
+var pipeToTable = async ({
+  streams,
+  command,
+  send,
+  getKey
+}) => {
   const listeners = streams.filter((stream) => stream.table.name === command.input.TableName);
   if (listeners.length === 0) {
     return send();
@@ -1166,15 +1207,17 @@ var pipeToTable = async ({ streams, command, send, getKey }) => {
   const image1 = await getItem(table, key3);
   const result = await send();
   const image2 = await getItem(table, key3);
-  await Promise.all(listeners.map((stream) => {
-    return emit(stream, [
-      {
-        Keys: table.marshall(key3),
-        OldImage: image1 ? table.marshall(image1) : void 0,
-        NewImage: image2 ? table.marshall(image2) : void 0
-      }
-    ]);
-  }));
+  await Promise.all(
+    listeners.map((stream) => {
+      return emit(stream, [
+        {
+          Keys: table.marshall(key3),
+          OldImage: image1 ? table.marshall(image1) : void 0,
+          NewImage: image2 ? table.marshall(image2) : void 0
+        }
+      ]);
+    })
+  );
   return result;
 };
 

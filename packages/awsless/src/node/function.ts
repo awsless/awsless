@@ -1,6 +1,9 @@
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { getLocalResourceName } from './resource.js'
 import { createProxy } from './util.js'
+import { WeakCache } from '@awsless/weak-cache'
+
+const cache = new WeakCache<string, unknown>()
 
 export const getFunctionName = <S extends string, N extends string>(stack: S, name: N) => {
 	return getLocalResourceName(name, stack)
@@ -30,6 +33,22 @@ export const Function: FunctionResources = /*@__PURE__*/ createProxy(stackName =
 				name,
 				payload,
 			})
+		}
+
+		call.cached = async (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
+			const cacheKey = JSON.stringify({ name, payload, options })
+
+			if (!cache.has(cacheKey)) {
+				const result = await invoke({
+					...options,
+					name,
+					payload,
+				})
+
+				cache.set(cacheKey, result)
+			}
+
+			return cache.get(cacheKey)
 		}
 
 		return call

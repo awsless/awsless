@@ -20,6 +20,8 @@ export { getCacheProps, CacheResources, Cache } from './node/cache.js'
 export { getStoreName, StoreResources, Store } from './node/store.js'
 export { getConfigName, ConfigResources, Config } from './node/config.js'
 export { getSearchName, SearchResources, Search } from './node/search.js'
+export { HTTP, HttpFetcher, createHttpClient, createHttpFetcher } from './node/http.js'
+export { GraphQL } from './node/graphql.js'
 
 // Handlers
 export { func, FunctionProps } from './node/handle/function.js'

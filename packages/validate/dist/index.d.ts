@@ -1,7 +1,9 @@
+import * as valibot from 'valibot';
 import { BaseSchema, SchemaWithTransform, StringSchema, Output, Pipe, ErrorMessage, UnknownSchema, Input, PipeResult } from 'valibot';
 export * from 'valibot';
 import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
+import { DurationFormat, Duration } from '@awsless/duration';
 import { TableDefinition, PrimaryKey } from '@awsless/dynamodb';
 
 type JsonSchema<T extends BaseSchema> = SchemaWithTransform<StringSchema, Output<T>>;
@@ -19,7 +21,11 @@ declare function date(pipe?: Pipe<Date>): DateSchema;
 declare function date(error?: ErrorMessage, pipe?: Pipe<Date>): DateSchema;
 
 type UuidSchema = SchemaWithTransform<StringSchema | BaseSchema<UUID>, UUID>;
-declare const uuid: () => UuidSchema;
+declare const uuid: (error?: ErrorMessage) => UuidSchema;
+
+type DurationSchema = BaseSchema<DurationFormat, Duration>;
+declare function duration(pipe?: Pipe<Duration>): DurationSchema;
+declare function duration(error?: ErrorMessage, pipe?: Pipe<Duration>): DurationSchema;
 
 type SqsQueueSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> | Input<S>[] | {
     Records: {
@@ -48,10 +54,10 @@ type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> = BaseS
         };
     }[];
 }, {
-    event: EventName;
+    event: Lowercase<EventName>;
     keys: PrimaryKey<T>;
-    old?: Partial<T['schema']['OUTPUT']>;
-    new?: Partial<T['schema']['OUTPUT']>;
+    old?: T['schema']['OUTPUT'];
+    new?: T['schema']['OUTPUT'];
 }[]>;
 declare const dynamoDbStream: <T extends TableDefinition<any, any, any, any>>(table: T) => DynamoDBStreamSchema<T>;
 
@@ -61,4 +67,7 @@ declare function precision<T extends BigFloat | number>(decimals: number, error?
 
 declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) => boolean, error?: ErrorMessage): (input: T) => PipeResult<T>;
 
-export { BigFloatSchema, DateSchema, DynamoDBStreamSchema, JsonSchema, SnsTopicSchema, SqsQueueSchema, UuidSchema, bigfloat, date, dynamoDbStream, json, positive, precision, snsTopic, sqsQueue, unique, uuid };
+declare function minDuration<T extends Duration>(min: Duration, error?: ErrorMessage): (input: T) => valibot.PipeResult<T>;
+declare function maxDuration<T extends Duration>(max: Duration, error?: ErrorMessage): (input: T) => valibot.PipeResult<T>;
+
+export { BigFloatSchema, DateSchema, DurationSchema, DynamoDBStreamSchema, JsonSchema, SnsTopicSchema, SqsQueueSchema, UuidSchema, bigfloat, date, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, snsTopic, sqsQueue, unique, uuid };
