@@ -81,6 +81,7 @@
 		"filesize": "^10.0.7",
 		"glob": "^10.3.9",
 		"graphql": "^16.7.1",
+		"json5": "^2.2.3",
 		"jszip": "^3.10.1",
 		"mime-types": "^2.1.35",
 		"parse-imports": "^1.1.2",

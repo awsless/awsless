@@ -4,9 +4,10 @@ import { cleanUp } from '../../util/cleanup.js'
 import { typesGenerator } from '../ui/complex/types.js'
 import { watchConfig } from '../../config/watch.js'
 import { ProgramOptions } from '../program.js'
-import { zodError } from '../ui/layout/zod-error.js'
+import { configError } from '../ui/error/config.js'
 import { dialog } from '../ui/layout/dialog.js'
-import { ConfigError } from '../../config/load.js'
+import { ConfigError, FileError } from '../error.js'
+import { fileError } from '../ui/error/file.js'
 
 export const dev = (program: Command) => {
 	program
@@ -23,8 +24,10 @@ export const dev = (program: Command) => {
 						await write(typesGenerator(config))
 					},
 					error => {
-						if (error instanceof ConfigError) {
-							write(zodError(error))
+						if (error instanceof FileError) {
+							write(fileError(error))
+						} else if (error instanceof ConfigError) {
+							write(configError(error))
 						} else if (error instanceof Error) {
 							write(dialog('error', [error.message]))
 						} else if (typeof error === 'string') {

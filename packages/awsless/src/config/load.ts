@@ -12,10 +12,21 @@ import { readFile } from 'fs/promises'
 import { glob } from 'glob'
 import { StackConfig, StackSchema } from './stack.js'
 import { setLocalBasePath } from './schema/local-file.js'
+import { ConfigError, FileError } from '../cli/error.js'
+import JSON5 from 'json5'
 
-export class ConfigError extends Error {
-	constructor(readonly file: string, readonly error: z.ZodError, readonly data: any) {
-		super(error.message)
+const readConfig = async (file: string) => {
+	try {
+		const json = await readFile(file, 'utf8')
+		const data = JSON5.parse(json)
+
+		return data
+	} catch (error) {
+		if (error instanceof Error) {
+			throw new FileError(file, error.message)
+		}
+
+		throw error
 	}
 }
 
@@ -33,8 +44,7 @@ export const loadConfig = async (options: ProgramOptions): Promise<Config> => {
 	debug('Load app config file')
 
 	const appFileName = join(root, configFile)
-	const appJson = await readFile(appFileName, 'utf8')
-	const appConfig = JSON.parse(appJson)
+	const appConfig = await readConfig(appFileName)
 
 	debug('Validate app config file')
 
@@ -58,7 +68,7 @@ export const loadConfig = async (options: ProgramOptions): Promise<Config> => {
 
 	debug('Load stacks config files')
 
-	const stackFiles = await glob(['**/stack.json', '**/*.stack.json'], {
+	const stackFiles = await glob(['**/stack.{json,jsonc,json5}', '**/*.stack.{json,jsonc,json5}'], {
 		ignore: ['**/node_modules/**', '**/dist/**'],
 		cwd: root,
 	})
@@ -68,8 +78,7 @@ export const loadConfig = async (options: ProgramOptions): Promise<Config> => {
 	for (const file of stackFiles) {
 		debug(`Load stack: ${style.info(file)}`)
 
-		const stackJson = await readFile(file, 'utf8')
-		const stackConfig = JSON.parse(stackJson)
+		const stackConfig = await readConfig(file)
 
 		setLocalBasePath(join(process.cwd(), dirname(file)))
 

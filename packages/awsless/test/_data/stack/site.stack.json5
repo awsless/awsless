@@ -1,0 +1,15 @@
+{
+	$schema: "../../../dist/stack.json",
+	// Test comment
+	name: "site",
+	sites: {
+		news: {
+			domain: "crypto-trender.com",
+			static: "../public",
+			ssr: {
+				file: "../function/ssr.ts",
+				log: "1 day",
+			},
+		},
+	}
+}
