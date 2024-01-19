@@ -18,13 +18,13 @@ describe('client', () => {
 
 	it('should mutate log', async () => {
 		const result = await client.mutate({
-			log: [
-				{
+			log: {
+				__args: {
 					input: {
 						messages: ['Hello World'],
 					},
 				},
-			],
+			},
 		})
 
 		expectTypeOf(result).toEqualTypeOf<{ log: boolean }>()
@@ -42,11 +42,11 @@ describe('client', () => {
 
 	it('should mutate addProduct', async () => {
 		const result = await client.mutate({
-			addProduct: [
-				{
+			addProduct: {
+				__args: {
 					products: $('[ID!]!', ['1']),
 				},
-			],
+			},
 		})
 
 		expectTypeOf(result).toEqualTypeOf<{
@@ -66,13 +66,13 @@ describe('client', () => {
 
 	it('should mutate transact', async () => {
 		const result = await client.mutate({
-			transact: [
-				{
+			transact: {
+				__args: {
 					amount: 1,
 					currency: 'EUR',
 				},
-				{ id: true },
-			],
+				id: true,
+			},
 		})
 
 		expectTypeOf(result).toEqualTypeOf<{
@@ -89,14 +89,12 @@ describe('client', () => {
 		} as const
 
 		const result = await client.mutate({
-			login: [
-				args,
-				{
-					idToken: true,
-					accessToken: true,
-					refreshToken: true,
-				},
-			],
+			login: {
+				__args: args,
+				idToken: true,
+				accessToken: true,
+				refreshToken: true,
+			},
 		})
 
 		expectTypeOf(result).toEqualTypeOf<{
@@ -146,12 +144,10 @@ describe('client', () => {
 
 	it('should query paginated transactions', async () => {
 		const result = await client.query({
-			transactions: [
-				{ limit: $('Int', 10) },
-				{
-					id: true,
-				},
-			],
+			transactions: {
+				__args: { limit: $('Int', 10) },
+				id: true,
+			},
 		})
 
 		expectTypeOf(result).toEqualTypeOf<{
@@ -281,7 +277,11 @@ describe('client', () => {
 	})
 
 	it('should query complex fragments', async () => {
-		const fragment = () => [{ cursor: '1', limit: 10 }, { id: true }] as const
+		const fragment = () =>
+			({
+				__args: { cursor: '1', limit: 10 },
+				id: true,
+			} as const)
 
 		const result = await client.query({
 			't1:transactions': fragment(),

@@ -1,0 +1,11 @@
+{
+	"$schema": "../../dist/app.json",
+	"name": "app",
+	"region": "eu-west-1",
+	"profile": "jacksclub",
+	"defaults": {
+		"domains": {
+			"crypto-trender.com": []
+		}
+	}
+}

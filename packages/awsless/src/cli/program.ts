@@ -23,7 +23,7 @@ const program = new Command()
 
 program.name(logo().join('').replace(/\s+/, ''))
 
-program.option('--config-file <string>', 'The config file location')
+program.option('--config-file <string>', 'The app config file location')
 program.option('--stage <string>', 'The stage to use, defaults to prod stage', 'prod')
 program.option('--profile <string>', 'The AWS profile to use')
 program.option('--region <string>', 'The AWS region to use')

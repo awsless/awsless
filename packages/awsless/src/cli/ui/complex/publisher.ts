@@ -6,12 +6,12 @@ import { loadingDialog } from '../layout/dialog.js'
 import { join } from 'path'
 import { assetBucketName } from '../../../formation/bootstrap.js'
 import { GetObjectCommand, ObjectCannedACL, PutObjectCommand, S3Client, StorageClass } from '@aws-sdk/client-s3'
-import { Config } from '../../../config.js'
+import { Config } from '../../../config/config.js'
 
 export const assetPublisher = (config: Config, app: App): RenderFactory => {
 	const client = new S3Client({
 		credentials: config.credentials,
-		region: config.region,
+		region: config.app.region,
 		maxAttempts: 5,
 	})
 
@@ -41,7 +41,7 @@ export const assetPublisher = (config: Config, app: App): RenderFactory => {
 							},
 							async publish(name, data, hash) {
 								const key = `${app.name}/${stack.name}/${asset.type}/${name}`
-								const bucket = assetBucketName(config.account, config.region)
+								const bucket = assetBucketName(config.account, config.app.region)
 
 								let getResult
 

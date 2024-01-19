@@ -1,7 +1,6 @@
-import { Config } from './config.js'
-import { StackConfigOutput } from './schema/stack.js'
+import { Config } from './config/config.js'
+import { StackConfig } from './config/stack.js'
 import { Plugin } from './plugin.js'
-import { AnyZodObject } from 'zod'
 import { debug } from './cli/logger.js'
 import { style } from './cli/style.js'
 import { App } from './formation/app.js'
@@ -16,15 +15,15 @@ type Context = {
 	tests: Map<string, string[]>
 	bootstrap: Stack
 	usEastBootstrap: Stack
-	stackConfig: StackConfigOutput
-	plugins: Plugin<AnyZodObject | undefined>[]
+	stackConfig: StackConfig
+	plugins: Plugin[]
 }
 
 export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, plugins, tests }: Context) => {
 	const name = stackConfig.name
-	const stack = new Stack(name, config.region)
-		.tag('app', config.name)
-		.tag('stage', config.stage)
+	const stack = new Stack(name, config.app.region)
+		.tag('app', config.app.name)
+		.tag('stage', config.app.stage)
 		.tag('stack', name)
 
 	debug('Define stack:', style.info(name))

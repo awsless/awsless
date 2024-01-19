@@ -1,8 +1,8 @@
-import { z } from 'zod'
 import { Terminal } from '../../lib/terminal.js'
 import { br } from './basic.js'
 import { style, symbol } from '../../style.js'
 import { dialog } from './dialog.js'
+import { ConfigError } from '../../../config/load.js'
 
 const line = (value: string, level = 0, highlight = false) => {
 	return [
@@ -42,17 +42,18 @@ const format = (value: unknown): string => {
 	return ''
 }
 
-export const zodError = (error: z.ZodError, data: any) => {
+export const zodError = (error: ConfigError) => {
 	return (term: Terminal) => {
 		// term.out.write(JSON.stringify(error.errors))
-		for (const issue of error.issues) {
+		for (const issue of error.error.issues) {
 			term.out.gap()
 			term.out.write(dialog('error', [style.error(issue.message)]))
+			term.out.write('  ' + style.placeholder(error.file))
 
 			term.out.gap()
 			term.out.write(line('{'))
 
-			let context = data
+			let context = error.data
 
 			const inStack = issue.path[0] === 'stacks' && typeof issue.path[1] === 'number'
 			const length = issue.path.length
@@ -76,7 +77,7 @@ export const zodError = (error: z.ZodError, data: any) => {
 						end.unshift(line(']', index))
 					} else if (typeof context === 'object') {
 						if (inStack && index === 3) {
-							const name = data.stacks[issue.path[1]].name
+							const name = error.data.stacks[issue.path[1]].name
 							term.out.write(line('name: ' + style.info(`"${name}"`) + ',', index))
 						}
 

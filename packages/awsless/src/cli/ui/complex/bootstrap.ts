@@ -1,4 +1,4 @@
-import { Config } from '../../../config.js'
+import { Config } from '../../../config/config.js'
 import { bootstrapStack, shouldDeployBootstrap } from '../../../formation/bootstrap.js'
 import { StackClient } from '../../../formation/client.js'
 import { Cancelled } from '../../error.js'
@@ -7,22 +7,22 @@ import { debug } from '../../logger.js'
 import { dialog, loadingDialog } from '../layout/dialog.js'
 import { confirmPrompt } from '../prompt/confirm.js'
 
-export const bootstrapDeployer = (config:Config) => {
-	return async (term:Terminal) => {
+export const bootstrapDeployer = (config: Config) => {
+	return async (term: Terminal) => {
 		debug('Initializing bootstrap')
 
-		const { app, stack } = bootstrapStack(config.account, config.region)
-		const client = new StackClient(app, config.account, config.region, config.credentials)
+		const { app, stack } = bootstrapStack(config.account, config.app.region)
+		const client = new StackClient(app, config.account, config.app.region, config.credentials)
 
 		const shouldDeploy = await shouldDeployBootstrap(client, stack)
 
-		if(shouldDeploy) {
-			term.out.write(dialog('warning', [ `Your app hasn't been bootstrapped yet` ]))
+		if (shouldDeploy) {
+			term.out.write(dialog('warning', [`Your app hasn't been bootstrapped yet`]))
 
-			if(!process.env.SKIP_PROMPT) {
+			if (!process.env.SKIP_PROMPT) {
 				const confirmed = await term.out.write(confirmPrompt('Would you like to bootstrap?'))
 
-				if(!confirmed) {
+				if (!confirmed) {
 					throw new Cancelled()
 				}
 			}
@@ -32,11 +32,8 @@ export const bootstrapDeployer = (config:Config) => {
 			await client.deploy(stack)
 
 			done('Done deploying the bootstrap stack')
-
 		} else {
-			term.out.write(dialog('success', [
-				'App has already been bootstrapped'
-			]))
+			term.out.write(dialog('success', ['App has already been bootstrapped']))
 		}
 
 		debug('Bootstrap initialized')

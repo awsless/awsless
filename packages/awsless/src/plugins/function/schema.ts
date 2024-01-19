@@ -1,0 +1,137 @@
+import { z } from 'zod'
+import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
+import { LocalFileSchema } from '../../config/schema/local-file.js'
+import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
+import { Duration } from '../../formation/property/duration.js'
+import { Size } from '../../formation/property/size.js'
+
+const MemorySizeSchema = SizeSchema.refine(sizeMin(Size.megaBytes(128)), 'Minimum memory size is 128 MB')
+	.refine(sizeMax(Size.gigaBytes(10)), 'Minimum memory size is 10 GB')
+	.describe(
+		'The amount of memory available to the function at runtime. Increasing the function memory also increases its CPU allocation. The value can be any multiple of 1 MB. You can specify a size value from 128 MB to 10 GB.'
+	)
+
+const TimeoutSchema = DurationSchema.refine(
+	durationMin(Duration.seconds(10)),
+	'Minimum timeout duration is 10 seconds'
+)
+	.refine(durationMax(Duration.minutes(15)), 'Maximum timeout duration is 15 minutes')
+	.describe(
+		'The amount of time that Lambda allows a function to run before stopping it. You can specify a size value from 1 second to 15 minutes.'
+	)
+
+const EphemeralStorageSizeSchema = SizeSchema.refine(
+	sizeMin(Size.megaBytes(512)),
+	'Minimum ephemeral storage size is 512 MB'
+)
+	.refine(sizeMax(Size.gigaBytes(10)), 'Minimum ephemeral storage size is 10 GB')
+	.describe("The size of the function's /tmp directory. You can specify a size value from 512 MB to 10 GB.")
+
+const ReservedConcurrentExecutionsSchema = z
+	.number()
+	.int()
+	.min(0)
+	.describe(
+		'The number of simultaneous executions to reserve for the function. You can specify a number from 0.'
+	)
+
+const EnvironmentSchema = z
+	.record(z.string(), z.string())
+	.optional()
+	.describe('Environment variable key-value pairs.')
+
+const ArchitectureSchema = z
+	.enum(['x86_64', 'arm64'])
+	.describe('The instruction set architecture that the function supports.')
+
+const RetryAttemptsSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(2)
+	.describe(
+		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
+	)
+
+const RuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x']).describe("The identifier of the function's runtime.")
+
+const PermissionSchema = z.object({
+	effect: z.enum(['allow', 'deny']).default('allow'),
+	actions: z.string().array(),
+	resources: z.string().array(),
+})
+
+const PermissionsSchema = z
+	.union([PermissionSchema, PermissionSchema.array()])
+	.describe('Add IAM permissions to your function.')
+
+const LogSchema = z
+	.union([z.boolean(), DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day')])
+	.describe(
+		'Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.'
+	)
+
+const WarmSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(10)
+	.describe(
+		'Specify how many functions you want to warm up each 5 minutes. You can specify a number from 0 to 10.'
+	)
+
+const VPCSchema = z.boolean().describe('Put the function inside your global VPC.')
+
+const MinifySchema = z.boolean().describe('Minify the function code.')
+
+const HandlerSchema = z
+	.string()
+	.describe('The name of the exported method within your code that Lambda calls to run your function.')
+
+const FileSchema = LocalFileSchema.describe('The file path of the function code.')
+
+export const FunctionSchema = z.union([
+	LocalFileSchema,
+	z.object({
+		file: FileSchema,
+		handler: HandlerSchema.optional(),
+		minify: MinifySchema.optional(),
+		warm: WarmSchema.optional(),
+		vpc: VPCSchema.optional(),
+		log: LogSchema.optional(),
+		timeout: TimeoutSchema.optional(),
+		runtime: RuntimeSchema.optional(),
+		memorySize: MemorySizeSchema.optional(),
+		architecture: ArchitectureSchema.optional(),
+		ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
+		retryAttempts: RetryAttemptsSchema.optional(),
+		reserved: ReservedConcurrentExecutionsSchema.optional(),
+		environment: EnvironmentSchema.optional(),
+		permissions: PermissionsSchema.optional(),
+	}),
+])
+
+export const FunctionsSchema = z
+	.record(ResourceIdSchema, FunctionSchema)
+	.optional()
+	.describe('Define the functions in your stack.')
+
+export const FunctionDefaultSchema = z
+	.object({
+		handler: HandlerSchema.default('default'),
+		minify: MinifySchema.default(true),
+		warm: WarmSchema.default(0),
+		vpc: VPCSchema.default(false),
+		log: LogSchema.default(false),
+		timeout: TimeoutSchema.default('10 seconds'),
+		runtime: RuntimeSchema.default('nodejs20.x'),
+		memorySize: MemorySizeSchema.default('128 MB'),
+		architecture: ArchitectureSchema.default('arm64'),
+		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
+		retryAttempts: RetryAttemptsSchema.default(2),
+		reserved: ReservedConcurrentExecutionsSchema.optional(),
+		environment: EnvironmentSchema.optional(),
+		permissions: PermissionsSchema.optional(),
+	})
+	.default({})

@@ -98,13 +98,12 @@ export const assetBuilder = (app: App): RenderFactory => {
 						}
 
 						const getFingerPrint = async () => {
-							let value: string
 							try {
-								value = await readFile(getFullPath('FINGER_PRINT'), 'utf8')
+								const value = await readFile(getFullPath('FINGER_PRINT'), 'utf8')
+								return value
 							} catch (_) {
 								return undefined
 							}
-							return value
 						}
 
 						try {
@@ -115,19 +114,25 @@ export const assetBuilder = (app: App): RenderFactory => {
 										return
 									}
 
+									try {
+										await cb(async (file, data) => {
+											const fullpath = getFullPath(file)
+											const basepath = dirname(fullpath)
+
+											await mkdir(basepath, { recursive: true })
+											await writeFile(fullpath, data)
+										})
+									} catch (error) {
+										// Error building asset
+										// icon.set(style.error(symbol.error))
+										throw error
+									}
+
 									const file = getFullPath('FINGER_PRINT')
 									const basepath = dirname(file)
 
 									await mkdir(basepath, { recursive: true })
 									await writeFile(file, fingerprint)
-
-									await cb(async (file, data) => {
-										const fullpath = getFullPath(file)
-										const basepath = dirname(fullpath)
-
-										await mkdir(basepath, { recursive: true })
-										await writeFile(fullpath, data)
-									})
 								},
 								async read(fingerprint, files) {
 									const prev = await getFingerPrint()

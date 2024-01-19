@@ -14,7 +14,7 @@ type Context = Context$1 & {
     readonly event: unknown;
     readonly log: Logger;
 };
-type Handler<S extends Schema = undefined> = (event: Output<S>, context: Context) => unknown;
+type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R;
 type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>;
 type Loggers = Array<Logger | Loggers> | Logger;
 type ExtraMetaData = Record<string, unknown | Record<string, unknown>>;

@@ -35,11 +35,12 @@ First generate the types needed for the client.
 
 ```ts
 import { generate } from '@awsless/graphql';
+import { buildSchema } from 'graphql';
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-const schema = readFileSync(join(__dirname, 'schema.gql'), 'utf8')
-
+const string = readFileSync(join(__dirname, 'schema.gql'), 'utf8')
+const schema = buildSchema(string)
 const output = generate(schema, {
 	scalarTypes: {
 		AWSDateTime: 'string'
@@ -81,23 +82,46 @@ query {
 }
 ```
 
+## Query name
+
+You can set the query name by adding the ```__name``` property.
+
+```ts
+client.query({
+	__name: 'GetCountries',
+	countries: {
+		name: true,
+	}
+})
+```
+
+```gql
+query GetCountries {
+  countries {
+    name
+  }
+}
+```
+
 ## Passing arguments
 
-If you want to pass arguments to a query you must use an array where the first object represents the arguments and the second object the fields selection.
+<!-- If you want to pass arguments to a query you must use an array where the first object represents the arguments and the second object the fields selection. -->
+
+Arguments can be passed via the ```__args``` property.
 
 ```ts
 client.mutate({
-	addTodo: [{
-		// Pass an argument directly in the query.
-		title: 'Pick up groceries',
+	addTodo: {
+		__args: {
+			// Pass an argument directly in the query.
+			title: 'Pick up groceries',
 
-		// Pass an argument as dynamic variable.
-		done: $('Boolean', true)
-	},{
+			// Pass an argument as dynamic variable.
+			done: $('Boolean', true)
+		},
 		id: true
-	}]
+	}
 })
-
 ```
 
 ```gql
@@ -180,10 +204,11 @@ query {
 Reuseable fragments can be defined with simple JS objects.
 
 ```ts
-const getUserFragment = (id:string) => [
-	{ id },
-	{ id: true, name: true }
-] as const
+const getUserFragment = (id:string) => ({
+	__args: { id },
+	id: true,
+	name: true
+ })
 
 const { account } = await client.query({
 	'one:getUser': getUserFragment('1'),

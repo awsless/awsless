@@ -1,0 +1,12 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "table",
+	"functions": {
+		"get": "../function/table.ts"
+	},
+	"tables": {
+		"stats": {
+			"hash": "id"
+		}
+	}
+}

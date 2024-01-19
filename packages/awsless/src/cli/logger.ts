@@ -1,31 +1,30 @@
 import { style } from './style.js'
 
-const queue:{
+const queue: {
 	date: Date
 	// color: string
 	type: string
 	message: string
 }[] = []
 
-export const debugError = (error:unknown) => {
+export const debugError = (error: unknown) => {
 	queue.push({
 		date: new Date(),
 		type: style.error.dim('error'),
-		message: (
+		message:
 			typeof error === 'string'
-			? error
-			: error instanceof Error
-			? style.error(error.message || '')
-			: JSON.stringify(error)
-		)
+				? error
+				: error instanceof Error
+				? style.error(error.message || '')
+				: JSON.stringify(error),
 	})
 }
 
-export const debug = (...parts:unknown[]) => {
+export const debug = (...parts: unknown[]) => {
 	queue.push({
 		date: new Date(),
 		type: style.warning.dim('debug'),
-		message: parts.map(part => typeof part === 'string' ? part : JSON.stringify(part)).join(' '),
+		message: parts.map(part => (typeof part === 'string' ? part : JSON.stringify(part))).join(' '),
 	})
 }
 

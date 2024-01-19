@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DurationFormat, DurationSchema } from '../src/schema/duration.js'
+import { DurationSchema } from '../src/config/schema/duration.js'
 import {
 	CronExpression,
 	CronExpressionSchema,
@@ -9,12 +9,12 @@ import {
 	ScheduleExpressionSchema,
 } from '../src/plugins/cron/schema/schedule.js'
 import { Duration } from '../src/formation/property/duration.js'
-import { SizeFormat, SizeSchema } from '../src/schema/size.js'
+import { SizeSchema } from '../src/config/schema/size.js'
 import { Size } from '../src/formation/property/size.js'
 
 describe('schema', () => {
 	it('size', () => {
-		expectTypeOf<z.input<typeof SizeSchema>>().toEqualTypeOf<SizeFormat>()
+		expectTypeOf<z.input<typeof SizeSchema>>().toEqualTypeOf<string>()
 		expectTypeOf<z.output<typeof SizeSchema>>().toEqualTypeOf<Size>()
 
 		SizeSchema.parse('1 KB')
@@ -28,7 +28,7 @@ describe('schema', () => {
 	})
 
 	it('duration', () => {
-		expectTypeOf<z.input<typeof DurationSchema>>().toEqualTypeOf<DurationFormat>()
+		expectTypeOf<z.input<typeof DurationSchema>>().toEqualTypeOf<string>()
 		expectTypeOf<z.output<typeof DurationSchema>>().toEqualTypeOf<Duration>()
 
 		DurationSchema.parse('1 minute')

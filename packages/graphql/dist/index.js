@@ -10,39 +10,47 @@ var $ = (type, value) => {
 };
 
 // src/client/query.ts
-var parseRequest = (request, context, path) => {
-  if (Array.isArray(request)) {
-    const [args, fields] = request;
-    const argEntries = Object.entries(args);
-    if (argEntries.length === 0) {
-      return parseRequest(fields, context, path);
+var parseArgs = (args, ctx) => {
+  const argEntries = Object.entries(args).filter(([_, value]) => typeof value !== "undefined");
+  if (argEntries.length === 0) {
+    return "";
+  }
+  return argEntries.map(([name, value]) => {
+    if (value instanceof Arg) {
+      const varName = `v${++ctx.count}`;
+      ctx.vars.push({
+        name: varName,
+        type: value.type,
+        value: value.value
+      });
+      return `${name}:$${varName}`;
     }
-    return `(${argEntries.map(([name, value]) => {
-      if (value instanceof Arg) {
-        const varName = `v${++context.count}`;
-        context.vars.push({
-          name: varName,
-          type: value.type,
-          value: value.value
-        });
-        return `${name}:$${varName}`;
-      }
-      return `${name}:${JSON.stringify(value)}`;
-    })})${parseRequest(fields, context, path)}`;
-  } else if (typeof request === "object") {
-    const fields = request;
-    const fieldNames = Object.keys(fields).filter((k) => Boolean(fields[k]));
+    if (typeof value === "object" && !Array.isArray(value) && value !== null) {
+      return `${name}:{${parseArgs(value, ctx)}}`;
+    }
+    return `${name}:${JSON.stringify(value)}`;
+  }).join(",");
+};
+var excludedFields = ["__name", "__args"];
+var parseRequest = (request, ctx) => {
+  if (typeof request === "object") {
+    let args = "";
+    if (typeof request.__args === "object") {
+      const argsString = parseArgs(request.__args, ctx);
+      args = argsString ? `(${argsString})` : "";
+    }
+    const fieldNames = Object.keys(request).filter((f) => !excludedFields.includes(f)).filter((f) => Boolean(request[f]));
     if (fieldNames.length === 0) {
-      throw new Error("field selection should not be empty");
+      return args;
     }
-    const fieldsSelection = fieldNames.filter((f) => !["__name"].includes(f)).map((f) => `${f}${parseRequest(fields[f], context, [...path, f])}`).join(",");
-    return `{${fieldsSelection}}`;
+    const fieldsSelection = fieldNames.map((f) => `${f}${parseRequest(request[f], ctx)}`).join(",");
+    return `${args}{${fieldsSelection}}`;
   }
   return "";
 };
 function createQuery(operation, request) {
   const context = { count: 0, vars: [] };
-  const result = parseRequest(request, context, []);
+  const result = parseRequest(request, context);
   const operationName = request.__name || "";
   const variables = {};
   const varsString = context.count > 0 ? `(${context.vars.map((arg) => {
@@ -67,6 +75,14 @@ var createClient = (fetcher) => {
   };
 };
 
+// src/client/error.ts
+var GraphQLError = class extends Error {
+  constructor(errors) {
+    super(errors[0].message);
+    this.errors = errors;
+  }
+};
+
 // src/client/fetcher.ts
 var createFetcher = (propsOrFunc) => {
   return async (operation) => {
@@ -81,8 +97,11 @@ var createFetcher = (propsOrFunc) => {
       },
       body: JSON.stringify(operation)
     });
-    const data = await response.json();
-    return data;
+    const result = await response.json();
+    if (result.errors && result.errors.length > 1) {
+      throw new GraphQLError(result.errors);
+    }
+    return result.data;
   };
 };
 
@@ -234,22 +253,16 @@ function renderObject(type, ctx) {
     const argsString = toArgsString(field);
     const argsOptional = !argsString.match(/[^?]:/);
     if (argsPresent) {
-      if (resolvable) {
-        types2.push(`readonly [${argsString},${requestTypeName(resolvedType)}]`);
-      } else {
-        types2.push(`readonly [${argsString}]`);
-      }
+      types2.push(`{ __args${argsOptional ? "?" : ""}: ${argsString} }`);
     }
-    if (!argsPresent || argsOptional) {
-      if (resolvable) {
-        types2.push(`${requestTypeName(resolvedType)}`);
-      } else {
-        types2.push("boolean | number");
-      }
+    if (resolvable) {
+      types2.push(requestTypeName(resolvedType));
+    } else if (!argsPresent) {
+      types2.push("boolean | number");
     }
     return [
-      `${fieldComment(field)}${field.name}?: ${types2.join(" | ")}`,
-      `${fieldComment(field)}[key: \`\${string}:${field.name}\`]: ${types2.join(" | ")}`,
+      `${fieldComment(field)}${field.name}?: ${types2.join(" & ")}`,
+      `${fieldComment(field)}[key: \`\${string}:${field.name}\`]: ${types2.join(" & ")}`,
       ""
     ];
   }).flat(1);

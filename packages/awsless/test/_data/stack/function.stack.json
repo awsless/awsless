@@ -1,0 +1,18 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "function",
+	"tests": "../test",
+	"configs": ["test"],
+	"functions": {
+		"call": "../function/call.ts",
+		"other-call": "../function/call.ts",
+		"module": {
+			"file": "../function/module.ts",
+			"warm": 1,
+			"permissions": {
+				"actions": ["s3:PutObject"],
+				"resources": ["*"]
+			}
+		}
+	}
+}

@@ -1,5 +1,5 @@
 import { ProgramOptions, program } from '../../program.js'
-import { Config, ConfigError, importConfig } from '../../../config.js'
+import { ConfigError, loadConfig } from '../../../config/load.js'
 import { header } from './header.js'
 import { dialog } from './dialog.js'
 import { debug, debugError } from '../../logger.js'
@@ -9,8 +9,11 @@ import { logo } from './logo.js'
 import { logs } from './logs.js'
 import { br } from './basic.js'
 import { zodError } from './zod-error.js'
+import { Config } from '../../../config/config.js'
 
-export const layout = async (cb:(config:Config, write: Renderer['write'], term: Terminal) => Promise<void> | void) => {
+export const layout = async (
+	cb: (config: Config, write: Renderer['write'], term: Terminal) => Promise<void> | void
+) => {
 	const term = createTerminal()
 	await term.out.clear()
 
@@ -20,30 +23,28 @@ export const layout = async (cb:(config:Config, write: Renderer['write'], term: 
 
 	try {
 		const options = program.optsWithGlobals() as ProgramOptions
-		const config = await importConfig(options)
+		const config = await loadConfig(options)
 
 		// render header
-		term.out.write(header(config))
+		term.out.write(header(config.app))
 		term.out.gap()
 
 		// render page
 		await cb(config, term.out.write.bind(term.out), term)
-	} catch(error) {
-
+	} catch (error) {
 		term.out.gap()
 
-		if(error instanceof ConfigError) {
-			term.out.write(zodError(error.error, error.data))
-		} else if(error instanceof Error) {
-			term.out.write(dialog('error', [ error.message ]))
+		if (error instanceof ConfigError) {
+			term.out.write(zodError(error))
+		} else if (error instanceof Error) {
+			term.out.write(dialog('error', [error.message]))
 		} else if (typeof error === 'string') {
-			term.out.write(dialog('error', [ error ]))
+			term.out.write(dialog('error', [error]))
 		} else {
-			term.out.write(dialog('error', [ JSON.stringify(error) ]))
+			term.out.write(dialog('error', [JSON.stringify(error)]))
 		}
 
 		debugError(error)
-
 	} finally {
 		debug('Exit')
 

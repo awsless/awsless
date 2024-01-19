@@ -1,3 +1,5 @@
+import { GraphQLError, GraphQLErrorEntry } from './error'
+
 export type Operation = {
 	query: string
 	variables: { [name: string]: unknown }
@@ -27,8 +29,15 @@ export const createFetcher = (
 			body: JSON.stringify(operation),
 		})
 
-		const data = await response.json()
+		const result = (await response.json()) as {
+			data?: unknown
+			errors?: GraphQLErrorEntry[]
+		}
 
-		return data
+		if (result.errors && result.errors.length > 1) {
+			throw new GraphQLError(result.errors)
+		}
+
+		return result.data
 	}
 }

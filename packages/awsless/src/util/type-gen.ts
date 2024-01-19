@@ -1,13 +1,11 @@
 import { mkdir, writeFile } from 'fs/promises'
-import { Config } from '../config.js'
-import { defaultPlugins } from '../plugins/index.js'
+import { Config } from '../config/config.js'
+import { plugins } from '../plugins/index.js'
 import { directories } from './path.js'
 import { dirname, join, relative } from 'path'
 import { camelCase, constantCase } from 'change-case'
 
 export const generateResourceTypes = async (config: Config) => {
-	const plugins = [...defaultPlugins, ...(config.plugins || [])]
-
 	const files: string[] = []
 
 	await Promise.all(

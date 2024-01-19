@@ -12,7 +12,7 @@ export type Context = LambdaContext & {
 	readonly log: Logger
 }
 
-export type Handler<S extends Schema = undefined> = (event: Output<S>, context: Context) => unknown
+export type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R
 
 export type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>
 export type Loggers = Array<Logger | Loggers> | Logger

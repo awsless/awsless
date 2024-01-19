@@ -1,44 +1,60 @@
-import { Config } from './config.js'
+import { Config } from './config/config.js'
 import { Binding, toStack } from './stack.js'
 import { createDeploymentLine } from './util/deployment.js'
 import { debug } from './cli/logger.js'
 import { style } from './cli/style.js'
-import { StackConfig } from './schema/stack.js'
-import { defaultPlugins } from './plugins/index.js'
+import { StackConfig } from './config/stack.js'
+import { plugins } from './plugins/index.js'
 import { App } from './formation/app.js'
 import { Stack } from './formation/stack.js'
 import { Function } from './formation/resource/lambda/function.js'
 // import { extendWithGlobalExports } from './custom/global-export/extend.js'
 
-const getAllDepends = (filters: StackConfig[]) => {
-	const list: StackConfig[] = []
-	const walk = (deps: StackConfig[]) => {
+const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
+	const list: string[] = []
+	const walk = (deps: string[]) => {
 		deps.forEach(dep => {
-			!list.includes(dep) && list.push(dep)
-			dep.depends && walk(dep.depends)
+			const stack = stacks.find(stack => stack.name === dep)
+			if (stack) {
+				if (!list.includes(dep)) {
+					list.push(dep)
+					if (stack.depends) {
+						walk(stack.depends)
+					}
+				}
+			}
 		})
 	}
 
 	walk(filters)
 	return list
 }
+// const getAllDepends = (stacks: StackConfig[], filters: string[]) => {
+// 	const list: StackConfig[] = []
+// 	const walk = (deps: StackConfig[]) => {
+// 		deps.forEach(dep => {
+// 			!list.includes(dep) && list.push(dep)
+// 			dep.depends && walk(dep.depends)
+// 		})
+// 	}
+
+// 	walk(filters)
+// 	return list
+// }
 
 export const toApp = async (config: Config, filters: string[]) => {
-	const app = new App(config.name)
+	const app = new App(config.app.name)
 	const stacks: { stack: Stack; config: StackConfig; bindings: Binding[] }[] = []
-	const plugins = [...defaultPlugins, ...(config.plugins || [])]
 	const tests = new Map<string, string[]>()
 
 	debug('Plugins detected:', plugins.map(plugin => style.info(plugin.name)).join(', '))
 
 	// ---------------------------------------------------------------
 
-	const bootstrap = new Stack('bootstrap', config.region)
+	const bootstrap = new Stack('bootstrap', config.app.region)
 	const usEastBootstrap = new Stack('us-east-bootstrap', 'us-east-1')
 
 	// extendWithGlobalExports(config.name, usEastBootstrap, bootstrap)
-
-	app.add(bootstrap, usEastBootstrap)
 
 	// ---------------------------------------------------------------
 
@@ -64,13 +80,13 @@ export const toApp = async (config: Config, filters: string[]) => {
 
 	debug('Stack filters:', filters.map(filter => style.info(filter)).join(', '))
 
-	const filterdStacks =
-		filters.length === 0
-			? config.stacks
-			: getAllDepends(
-					// config.stacks,
-					config.stacks.filter(stack => filters.includes(stack.name))
-			  )
+	let filterdStacks = config.stacks
+	if (filters.length > 0) {
+		const filtersWithDeps = getFiltersWithDeps(filterdStacks, filters)
+		debug('Stack filters with deps:', filtersWithDeps.map(filter => style.info(filter)).join(', '))
+
+		filterdStacks = filterdStacks.filter(stack => filtersWithDeps.includes(stack.name))
+	}
 
 	for (const stackConfig of filterdStacks) {
 		const { stack, bindings } = toStack({
@@ -89,6 +105,16 @@ export const toApp = async (config: Config, filters: string[]) => {
 	}
 
 	// debug(app.stacks)
+
+	// ---------------------------------------------------------------
+
+	if (bootstrap.size > 0) {
+		app.add(bootstrap)
+	}
+
+	if (usEastBootstrap.size > 0) {
+		app.add(usEastBootstrap)
+	}
 
 	// ---------------------------------------------------------------
 
@@ -123,10 +149,10 @@ export const toApp = async (config: Config, filters: string[]) => {
 
 	for (const entry of stacks) {
 		for (const dep of entry.config.depends || []) {
-			const depStack = stacks.find(entry => entry.config.name === dep.name)
+			const depStack = stacks.find(entry => entry.config.name === dep)
 
 			if (!depStack) {
-				throw new Error(`Stack dependency not found: ${dep.name}`)
+				throw new Error(`Stack dependency not found: ${dep}`)
 			}
 
 			const functions = entry.stack.find(Function)

@@ -55,7 +55,12 @@ export class Renderer {
 				return fragment.map(walk).join('')
 			}
 
-			return walk(fragment.get())
+			if (fragment instanceof Signal) {
+				return walk(fragment.get())
+			}
+
+			// return walk(fragment.get())
+			return ''
 		}
 
 		const end = walk(this.fragments.slice(-2))
@@ -152,13 +157,17 @@ export class Renderer {
 				return fragment.map(walk).join('')
 			}
 
-			this.unsubs.push(
-				fragment.subscribe(() => {
-					this.update()
-				})
-			)
+			if (fragment instanceof Signal) {
+				this.unsubs.push(
+					fragment.subscribe(() => {
+						this.update()
+					})
+				)
 
-			return walk(fragment.get())
+				return walk(fragment.get())
+			}
+
+			return ''
 		}
 
 		this.unsubs.forEach(unsub => unsub())

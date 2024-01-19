@@ -7,15 +7,11 @@ declare class Arg<Type extends string = string, Value = unknown> {
 }
 declare const $: <Type extends string, Value extends unknown>(type: Type, value: Value) => Arg<Type, Value>;
 
-type Args = {
-    [arg: string]: Arg | unknown;
+type Request = {
+    [field: string]: boolean | number | Request | Arg | unknown;
 };
-type Fields = {
-    [field: string]: Request;
-};
-type Request = string | boolean | number | Fields | [Args, Fields?];
 type Operation$1 = 'query' | 'mutation' | 'subscription';
-declare function createQuery(operation: Operation$1, request: Fields): {
+declare function createQuery(operation: Operation$1, request: Request): {
     query: string;
     variables: Record<string, unknown>;
 };
@@ -40,12 +36,12 @@ type UnionLike = {
     __union: any;
 };
 type ObjectLike = {};
+type NilLike = undefined | null;
 type Scalar = string | number | boolean | undefined;
-type Nil = undefined | null;
 type Anify<T> = {
     [P in keyof T]?: any;
 };
-type FieldsToRemove = '__union' | '__name';
+type FieldsToRemove = '__union' | '__name' | '__args';
 type Optional<T, R> = T extends undefined ? R | undefined : R;
 type InferResponse<SRC extends Anify<DST> | undefined, DST> = {
     scalar: SRC;
@@ -54,7 +50,7 @@ type InferResponse<SRC extends Anify<DST> | undefined, DST> = {
     array: Optional<SRC, SRC extends ArrayLike ? SelectArray<SRC, DST> : never>;
     object: Optional<SRC, SRC extends ObjectLike ? SelectObject<SRC, DST> : never>;
     never: never;
-}[DST extends Nil ? 'never' : SRC extends Nil ? 'never' : DST extends TupleLike ? 'tuple' : DST extends NeverLike ? 'never' : SRC extends Scalar ? 'scalar' : SRC extends ArrayLike ? 'array' : SRC extends UnionLike ? 'union' : DST extends ObjectLike ? 'object' : 'never'];
+}[DST extends NilLike ? 'never' : SRC extends NilLike ? 'never' : DST extends TupleLike ? 'tuple' : DST extends NeverLike ? 'never' : SRC extends Scalar ? 'scalar' : SRC extends ArrayLike ? 'array' : SRC extends UnionLike ? 'union' : DST extends ObjectLike ? 'object' : 'never'];
 type SelectTuple<SRC extends Anify<DST>, DST> = DST extends readonly [any, infer PAYLOAD] ? InferResponse<SRC, PAYLOAD> : never;
 type SelectArray<SRC extends Anify<DST>, DST> = SRC extends (infer T)[] ? Array<InferResponse<T, DST>> : never;
 type RenameAliases<Object> = {

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.117",
+	"version": "0.0.124",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -21,15 +21,20 @@
 		".": {
 			"import": "./dist/index.js",
 			"types": "./dist/index.d.ts"
+		},
+		"./client": {
+			"import": "./dist/client.js",
+			"types": "./dist/client.d.ts"
 		}
 	},
 	"scripts": {
 		"test": "pnpm code test",
-		"term": "zsh -c 'node dist/bin.js ${*} --config-file=./test/_data/config.ts' --",
-		"berm": "zsh -c 'pnpm build; pnpm build-features; node dist/bin.js ${*} --config-file=./test/_data/config.ts' --",
-		"build": "pnpm tsup src/index.ts src/bin.ts --format esm --dts --clean",
+		"term": "zsh -c 'node dist/bin.js ${*} --config-file=./test/_data/app.json' --",
+		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; node dist/bin.js ${*} --config-file=./test/_data/app.json' --",
+		"build": "pnpm tsup src/index.ts src/bin.ts src/client.ts --format esm --dts --clean",
+		"build-json-schema": "pnpm tsup src/config/json.ts --format esm; node ./dist/json.js",
 		"build-features": "node ./features/build.js",
-		"prepublish": "if pnpm test schema; then pnpm build; pnpm build-features; else exit; fi"
+		"prepublish": "if pnpm test schema; then pnpm build; pnpm build-features; pnpm build-json-schema; else exit; fi"
 	},
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",
@@ -68,6 +73,7 @@
 		"aws-lambda": "^1.0.7",
 		"chalk": "^5.3.0",
 		"change-case": "^4.1.2",
+		"chokidar": "^3.5.3",
 		"chunk": "^0.0.3",
 		"commander": "^9.4.1",
 		"decompress": "^4.2.1",
@@ -87,6 +93,7 @@
 		"vite": "^5.0.0",
 		"vitest": "^0.34.6",
 		"wrap-ansi": "^8.1.0",
-		"zod": "^3.21.4"
+		"zod": "^3.21.4",
+		"zod-to-json-schema": "^3.22.3"
 	}
 }

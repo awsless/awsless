@@ -74,7 +74,7 @@ export const deploy = (program: Command) => {
 
 				const doneDeploying = write(loadingDialog('Deploying stacks to AWS...'))
 
-				const client = new StackClient(app, config.account, config.region, config.credentials)
+				const client = new StackClient(app, config.account, config.app.region, config.credentials)
 
 				const ui = write(stacksDeployer(deploymentLine))
 

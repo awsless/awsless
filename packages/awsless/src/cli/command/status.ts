@@ -30,7 +30,7 @@ export const status = (program: Command) => {
 
 				const doneLoading = write(loadingDialog('Loading stack information...'))
 
-				const client = new StackClient(app, config.account, config.region, config.credentials)
+				const client = new StackClient(app, config.account, config.app.region, config.credentials)
 				const statuses: Array<'non-existent' | 'out-of-date' | 'up-to-date'> = []
 
 				// render the stacks with a loading state
@@ -41,6 +41,7 @@ export const status = (program: Command) => {
 				await Promise.all(
 					app.stacks.map(async stack => {
 						const item = ui[stack.name]
+
 						item.start('loading')
 
 						const info = await client.get(stack.name, stack.region)

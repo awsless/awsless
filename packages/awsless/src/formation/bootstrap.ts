@@ -3,28 +3,30 @@ import { debug } from '../cli/logger.js'
 import { App } from '../formation/app.js'
 import { Bucket } from '../formation/resource/s3/bucket.js'
 import { Stack } from '../formation/stack.js'
-import { Region } from '../schema/region.js'
+import { Region } from '../config/schema/region.js'
 
-export const assetBucketName = (account:string, region:Region) => {
-	return `awsless-bootstrap-${ account }-${ region }`
+export const assetBucketName = (account: string, region: Region) => {
+	return `awsless-bootstrap-${account}-${region}`
 }
 
-export const assetBucketUrl = (account:string, region:Region, app:App, stack:Stack) => {
+export const assetBucketUrl = (account: string, region: Region, app: App, stack: Stack) => {
 	const bucket = assetBucketName(account, region)
-	return `https://${ bucket }.s3.${ region }.amazonaws.com/${ app.name }/${ stack.name }/cloudformation.json`
+	return `https://${bucket}.s3.${region}.amazonaws.com/${app.name}/${stack.name}/cloudformation.json`
 }
 
 const version = '1'
 
-export const bootstrapStack = (account:string, region:Region) => {
+export const bootstrapStack = (account: string, region: Region) => {
 	const app = new App('awsless')
 	const stack = new Stack('bootstrap', region)
 
-	stack.add(new Bucket('assets', {
-		name: assetBucketName(account, region),
-		accessControl: 'private',
-		versioning: true,
-	}))
+	stack.add(
+		new Bucket('assets', {
+			name: assetBucketName(account, region),
+			accessControl: 'private',
+			versioning: true,
+		})
+	)
 
 	stack.export('version', version)
 	app.add(stack)
@@ -37,12 +39,9 @@ export const shouldDeployBootstrap = async (client: StackClient, stack: Stack) =
 	const info = await client.get(stack.name, stack.region)
 
 	return (
-		!info ||
-		info.outputs.version !== version ||
-		![ 'CREATE_COMPLETE', 'UPDATE_COMPLETE' ].includes(info.status)
+		!info || info.outputs.version !== version || !['CREATE_COMPLETE', 'UPDATE_COMPLETE'].includes(info.status)
 	)
 }
-
 
 // import { IoTDataPlaneClient, PublishCommand } from '@aws-sdk/client-iot-data-plane'
 

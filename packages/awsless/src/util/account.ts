@@ -1,6 +1,6 @@
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts'
 import { Credentials } from './credentials.js'
-import { Region } from '../schema/region.js'
+import { Region } from '../config/schema/region.js'
 
 export const getAccountId = async (credentials: Credentials, region: Region): Promise<string> => {
 	const client = new STSClient({ credentials, region })

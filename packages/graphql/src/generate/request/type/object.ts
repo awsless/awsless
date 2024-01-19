@@ -10,15 +10,10 @@ import { RenderContext } from '../../common/context'
 import { requestTypeName } from '../name'
 import { fieldComment, typeComment } from '../../common/comment'
 import { toArgsString } from './argument'
-// import { toArgsString } from '../../common/args'
 import { INDENT } from '../../common/indent'
 
 export function renderObject(type: GraphQLObjectType | GraphQLInterfaceType, ctx: RenderContext) {
 	const fields = type.getFields()
-
-	//   if (ctx.config?.sortProperties) {
-	//     fields = sortKeys(fields);
-	//   }
 
 	const fieldStrings = Object.keys(fields)
 		.map(fieldName => {
@@ -32,24 +27,18 @@ export function renderObject(type: GraphQLObjectType | GraphQLInterfaceType, ctx
 			const argsOptional = !argsString.match(/[^?]:/)
 
 			if (argsPresent) {
-				if (resolvable) {
-					types.push(`readonly [${argsString},${requestTypeName(resolvedType)}]`)
-				} else {
-					types.push(`readonly [${argsString}]`)
-				}
+				types.push(`{ __args${argsOptional ? '?' : ''}: ${argsString} }`)
 			}
 
-			if (!argsPresent || argsOptional) {
-				if (resolvable) {
-					types.push(`${requestTypeName(resolvedType)}`)
-				} else {
-					types.push('boolean | number')
-				}
+			if (resolvable) {
+				types.push(requestTypeName(resolvedType))
+			} else if (!argsPresent) {
+				types.push('boolean | number')
 			}
 
 			return [
-				`${fieldComment(field)}${field.name}?: ${types.join(' | ')}`,
-				`${fieldComment(field)}[key: \`\${string}:${field.name}\`]: ${types.join(' | ')}`,
+				`${fieldComment(field)}${field.name}?: ${types.join(' & ')}`,
+				`${fieldComment(field)}[key: \`\${string}:${field.name}\`]: ${types.join(' & ')}`,
 				'',
 			]
 		})
@@ -65,7 +54,6 @@ export function renderObject(type: GraphQLObjectType | GraphQLInterfaceType, ctx
 
 	fieldStrings.push('__typename?: boolean | number')
 	fieldStrings.push('[key: `${string}:__typename`]: boolean | number')
-	// fieldStrings.push('__scalar?: boolean | number')
 
 	// add indentation
 	const types = fieldStrings.map(x =>

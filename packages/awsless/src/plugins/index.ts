@@ -1,52 +1,43 @@
-import { ExtendedConfigInput, ExtendedConfigOutput } from '../plugin.js'
-
+import { authPlugin } from './auth/index.js'
+import { cachePlugin } from './cache/index.js'
+import { configPlugin } from './config/index.js'
 import { cronPlugin } from './cron/index.js'
-import { functionPlugin } from './function.js'
-import { queuePlugin } from './queue.js'
-import { tablePlugin } from './table.js'
-import { storePlugin } from './store.js'
-import { topicPlugin } from './topic.js'
-import { extendPlugin } from './extend.js'
-import { pubsubPlugin } from './pubsub.js'
-import { graphqlPlugin } from './graphql.js'
-import { domainPlugin } from './domain.js'
+import { domainPlugin } from './domain/index.js'
+import { featurePlugin } from './feature/index.js'
+import { functionPlugin } from './function/index.js'
+import { graphqlPlugin } from './graphql/index.js'
+import { httpPlugin } from './http/index.js'
 import { onFailurePlugin } from './on-failure/index.js'
-import { vpcPlugin } from './vpc.js'
-import { httpPlugin } from './http.js'
-import { searchPlugin } from './search.js'
-import { cachePlugin } from './cache.js'
-import { restPlugin } from './rest.js'
-import { configPlugin } from './config.js'
-import { sitePlugin } from './site.js'
-import { featurePlugin } from './feature.js'
-import { authPlugin } from './auth.js'
-import { testPlugin } from './test.js'
-// import { alertPlugin } from './__alert.js'
+import { pubsubPlugin } from './pubsub/pubsub.js'
+import { queuePlugin } from './queue/queue.js'
+import { restPlugin } from './rest/rest.js'
+import { searchPlugin } from './search/search.js'
+import { sitePlugin } from './site/index.js'
+import { storePlugin } from './store/store.js'
+import { tablePlugin } from './table/table.js'
+import { testPlugin } from './test/index.js'
+import { topicPlugin } from './topic/index.js'
+import { vpcPlugin } from './vpc/index.js'
 
-export const defaultPlugins = [
-	extendPlugin,
-	featurePlugin,
-	vpcPlugin,
-	domainPlugin,
-	functionPlugin,
-	configPlugin,
-	cachePlugin,
-	cronPlugin,
-	queuePlugin,
-	tablePlugin,
-	storePlugin,
-	// alertPlugin,
-	topicPlugin,
-	pubsubPlugin,
-	searchPlugin,
+export const plugins = [
 	authPlugin,
+	cachePlugin,
+	configPlugin,
+	cronPlugin,
+	domainPlugin,
+	featurePlugin,
+	functionPlugin,
 	graphqlPlugin,
 	httpPlugin,
-	restPlugin,
-	sitePlugin,
 	onFailurePlugin,
+	pubsubPlugin,
+	queuePlugin,
+	restPlugin,
+	searchPlugin,
+	sitePlugin,
+	storePlugin,
+	tablePlugin,
 	testPlugin,
+	topicPlugin,
+	vpcPlugin,
 ]
-
-export type CombinedDefaultPluginsConfigOutput = ExtendedConfigOutput<(typeof defaultPlugins)[number]['schema']>
-export type CombinedDefaultPluginsConfigInput = ExtendedConfigInput<(typeof defaultPlugins)[number]['schema']>

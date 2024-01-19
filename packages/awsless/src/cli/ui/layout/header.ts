@@ -1,11 +1,11 @@
-import { Config } from '../../../config.js'
+import { AppConfig } from '../../../config/app.js'
 import { list } from './list.js'
 
-export const header = (config:Config) => {
+export const header = (app: AppConfig) => {
 	return list({
-		App: config.name,
-		Stage: config.stage,
-		Region: config.region,
-		Profile: config.profile,
+		App: app.name,
+		Stage: app.stage,
+		Region: app.region,
+		Profile: app.profile,
 	})
 }

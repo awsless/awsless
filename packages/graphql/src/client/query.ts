@@ -1,15 +1,8 @@
 import { Arg } from './argument'
-// import { GraphQLSchema, RootSchema } from './client'
 
-export type Args = {
-	[arg: string]: Arg | unknown
+export type Request = {
+	[field: string]: boolean | number | Request | Arg | unknown
 }
-
-export type Fields = {
-	[field: string]: Request
-}
-
-export type Request = string | boolean | number | Fields | [Args, Fields?]
 
 type Variable = {
 	name: string
@@ -22,39 +15,18 @@ type Context = {
 	vars: Variable[]
 }
 
-// export type GraphqlOperation = {
-// 	query: string
-// 	variables: { [name: string]: any }
-// }
+const parseArgs = (args: Request, ctx: Context): string => {
+	const argEntries = Object.entries(args).filter(([_, value]) => typeof value !== 'undefined')
 
-// const parseInput = (value: unknown): string => {
-// 	switch (typeof value) {
-// 		case 'object':
-// 		case 'number':
-// 		case 'boolean':
-// 		case 'undefined':
-// 		case 'string':
-// 			return JSON.stringify(value)
-// 	}
+	if (argEntries.length === 0) {
+		return ''
+	}
 
-// 	return ''
-// }
-
-const parseRequest = (request: Request | undefined, context: Context, path: string[]): string => {
-	if (Array.isArray(request)) {
-		const [args, fields] = request
-		const argEntries = Object.entries(args)
-			// Filter out undefined args
-			.filter(([_, value]) => typeof value !== 'undefined')
-
-		if (argEntries.length === 0) {
-			return parseRequest(fields, context, path)
-		}
-
-		return `(${argEntries.map(([name, value]) => {
+	return argEntries
+		.map(([name, value]) => {
 			if (value instanceof Arg) {
-				const varName = `v${++context.count}`
-				context.vars.push({
+				const varName = `v${++ctx.count}`
+				ctx.vars.push({
 					name: varName,
 					type: value.type,
 					value: value.value,
@@ -62,23 +34,37 @@ const parseRequest = (request: Request | undefined, context: Context, path: stri
 				return `${name}:$${varName}`
 			}
 
-			return `${name}:${JSON.stringify(value)}`
-		})})${parseRequest(fields, context, path)}`
-	} else if (typeof request === 'object') {
-		const fields = request
-		const fieldNames = Object.keys(fields).filter(k => Boolean(fields[k]))
+			// Maybe this is a bad idea.
+			if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+				return `${name}:{${parseArgs(value as Request, ctx)}}`
+			}
 
-		if (fieldNames.length === 0) {
-			// TODO if fields are empty just return?
-			throw new Error('field selection should not be empty')
+			return `${name}:${JSON.stringify(value)}`
+		})
+		.join(',')
+}
+
+const excludedFields = ['__name', '__args']
+const parseRequest = (request: Request, ctx: Context): string => {
+	if (typeof request === 'object') {
+		// Maybe this is a bad idea.
+		let args = ''
+		if (typeof request.__args === 'object') {
+			const argsString = parseArgs(request.__args as Request, ctx)
+			args = argsString ? `(${argsString})` : ''
 		}
 
-		const fieldsSelection = fieldNames
-			.filter(f => !['__name'].includes(f))
-			.map(f => `${f}${parseRequest(fields[f], context, [...path, f])}`)
-			.join(',')
+		const fieldNames = Object.keys(request)
+			.filter(f => !excludedFields.includes(f))
+			.filter(f => Boolean(request[f]))
 
-		return `{${fieldsSelection}}`
+		if (fieldNames.length === 0) {
+			return args
+		}
+
+		const fieldsSelection = fieldNames.map(f => `${f}${parseRequest(request[f] as Request, ctx)}`).join(',')
+
+		return `${args}{${fieldsSelection}}`
 	}
 
 	return ''
@@ -86,37 +72,9 @@ const parseRequest = (request: Request | undefined, context: Context, path: stri
 
 export type Operation = 'query' | 'mutation' | 'subscription'
 
-// export class Query<R extends Fields = Fields> {
-// 	private cache?: string
-
-// 	constructor(readonly operation: Operation, readonly request: R) {}
-
-// 	toString() {
-// 		if (!this.cache) {
-// 			const vars: Arg[] = []
-// 			const result = parseRequest(this.request, vars, [])
-// 			const operationName = this.request.__name || ''
-// 			const varsString = vars.length > 0 ? `(${vars.map(arg => `$${arg.name}:${arg.type}`)})` : ''
-
-// 			return `${this.operation} ${operationName}${varsString}${result}`
-// 		}
-
-// 		return this.cache
-// 	}
-// }
-
-// export function createQuery<S extends RootSchema>(operation: Operation, request: S['request']) {
-// 	return new Query(operation, request)
-// }
-
-// export type QueryString<O = Operation, R = Fields> = {
-// 	operation: O
-// 	request: R
-// }
-
-export function createQuery(operation: Operation, request: Fields) {
+export function createQuery(operation: Operation, request: Request) {
 	const context: Context = { count: 0, vars: [] }
-	const result = parseRequest(request, context, [])
+	const result = parseRequest(request, context)
 	const operationName = request.__name || ''
 	const variables: Record<string, unknown> = {}
 	const varsString =

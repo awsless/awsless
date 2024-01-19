@@ -1,10 +1,17 @@
 import { debug } from '../cli/logger.js'
 import { style } from '../cli/style.js'
-import { Config } from '../config.js'
-import { DeleteParameterCommand, GetParameterCommand, GetParametersByPathCommand, ParameterType, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm'
+import { Config } from '../config/config.js'
+import {
+	DeleteParameterCommand,
+	GetParameterCommand,
+	GetParametersByPathCommand,
+	ParameterType,
+	PutParameterCommand,
+	SSMClient,
+} from '@aws-sdk/client-ssm'
 
 export const configParameterPrefix = (config: Config) => {
-	return `/.awsless/${config.name}`
+	return `/.awsless/${config.app.name}`
 }
 
 export class Params {
@@ -13,7 +20,7 @@ export class Params {
 	constructor(private config: Config) {
 		this.client = new SSMClient({
 			credentials: config.credentials,
-			region: config.region,
+			region: config.app.region,
 		})
 	}
 
@@ -27,12 +34,14 @@ export class Params {
 
 		let result
 		try {
-			result = await this.client.send(new GetParameterCommand({
-				Name: this.getName(name),
-				WithDecryption: true,
-			}))
-		} catch(error) {
-			if(error instanceof Error && error.name === 'ParameterNotFound') {
+			result = await this.client.send(
+				new GetParameterCommand({
+					Name: this.getName(name),
+					WithDecryption: true,
+				})
+			)
+		} catch (error) {
+			if (error instanceof Error && error.name === 'ParameterNotFound') {
 				debug('Parameter not found')
 				return
 			}
@@ -53,12 +62,14 @@ export class Params {
 		debug('Name:', style.info(name))
 		debug('Value:', style.info(value))
 
-		await this.client.send(new PutParameterCommand({
-			Type: ParameterType.STRING,
-			Name: this.getName(name),
-			Value: value,
-			Overwrite: true,
-		}))
+		await this.client.send(
+			new PutParameterCommand({
+				Type: ParameterType.STRING,
+				Name: this.getName(name),
+				Value: value,
+				Overwrite: true,
+			})
+		)
 
 		debug('Done saving remote config value')
 	}
@@ -68,11 +79,13 @@ export class Params {
 		debug('Name:', style.info(name))
 
 		try {
-			await this.client.send(new DeleteParameterCommand({
-				Name: this.getName(name),
-			}))
-		} catch(error) {
-			if(error instanceof Error && error.name === 'ParameterNotFound') {
+			await this.client.send(
+				new DeleteParameterCommand({
+					Name: this.getName(name),
+				})
+			)
+		} catch (error) {
+			if (error instanceof Error && error.name === 'ParameterNotFound') {
 				debug('Remote config value was already deleted')
 				return
 			}
@@ -84,24 +97,23 @@ export class Params {
 	}
 
 	async list() {
-
 		debug('Load remote config values')
 
-		const result = await this.client.send(new GetParametersByPathCommand({
-			Path: configParameterPrefix(this.config),
-			WithDecryption: true,
-			MaxResults: 10,
-			Recursive: true,
-		}))
+		const result = await this.client.send(
+			new GetParametersByPathCommand({
+				Path: configParameterPrefix(this.config),
+				WithDecryption: true,
+				MaxResults: 10,
+				Recursive: true,
+			})
+		)
 
 		debug('Done loading remote config values')
 
 		const values: Record<string, string> = {}
 
 		result.Parameters?.forEach(param => {
-			const name = param.Name!
-				.substring(configParameterPrefix(this.config).length)
-				.substring(1)
+			const name = param.Name!.substring(configParameterPrefix(this.config).length).substring(1)
 
 			values[name] = param.Value || ''
 		})

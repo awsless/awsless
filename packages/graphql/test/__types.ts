@@ -147,8 +147,8 @@ export type QueryRequest = {
 	rates?: RateRequest
 	[key: `${string}:rates`]: RateRequest
 
-	transactions?: readonly [{limit?:Arg<'Int', (Scalars['Int'] | undefined)> | (Scalars['Int'] | undefined),cursor?:Arg<'String', (Scalars['String'] | undefined)> | (Scalars['String'] | undefined)},TransactionRequest] | TransactionRequest
-	[key: `${string}:transactions`]: readonly [{limit?:Arg<'Int', (Scalars['Int'] | undefined)> | (Scalars['Int'] | undefined),cursor?:Arg<'String', (Scalars['String'] | undefined)> | (Scalars['String'] | undefined)},TransactionRequest] | TransactionRequest
+	transactions?: { __args?: {limit?:Arg<'Int', (Scalars['Int'] | undefined)> | (Scalars['Int'] | undefined),cursor?:Arg<'String', (Scalars['String'] | undefined)> | (Scalars['String'] | undefined)} } & TransactionRequest
+	[key: `${string}:transactions`]: { __args?: {limit?:Arg<'Int', (Scalars['Int'] | undefined)> | (Scalars['Int'] | undefined),cursor?:Arg<'String', (Scalars['String'] | undefined)> | (Scalars['String'] | undefined)} } & TransactionRequest
 
 	games?: GameRequest
 	[key: `${string}:games`]: GameRequest
@@ -158,17 +158,17 @@ export type QueryRequest = {
 }
 
 export type MutationRequest = {
-	transact?: readonly [{amount:Arg<'Float!', Scalars['Float']> | Scalars['Float'],currency:Arg<'Currency!', Currency> | Currency},TransactionRequest]
-	[key: `${string}:transact`]: readonly [{amount:Arg<'Float!', Scalars['Float']> | Scalars['Float'],currency:Arg<'Currency!', Currency> | Currency},TransactionRequest]
+	transact?: { __args: {amount:Arg<'Float!', Scalars['Float']> | Scalars['Float'],currency:Arg<'Currency!', Currency> | Currency} } & TransactionRequest
+	[key: `${string}:transact`]: { __args: {amount:Arg<'Float!', Scalars['Float']> | Scalars['Float'],currency:Arg<'Currency!', Currency> | Currency} } & TransactionRequest
 
-	login?: readonly [{email:Arg<'String!', Scalars['String']> | Scalars['String'],password:Arg<'String!', Scalars['String']> | Scalars['String']},TokenResponseRequest]
-	[key: `${string}:login`]: readonly [{email:Arg<'String!', Scalars['String']> | Scalars['String'],password:Arg<'String!', Scalars['String']> | Scalars['String']},TokenResponseRequest]
+	login?: { __args: {email:Arg<'String!', Scalars['String']> | Scalars['String'],password:Arg<'String!', Scalars['String']> | Scalars['String']} } & TokenResponseRequest
+	[key: `${string}:login`]: { __args: {email:Arg<'String!', Scalars['String']> | Scalars['String'],password:Arg<'String!', Scalars['String']> | Scalars['String']} } & TokenResponseRequest
 
-	log?: readonly [{input:Arg<'LogInput!', LogInput> | LogInput}]
-	[key: `${string}:log`]: readonly [{input:Arg<'LogInput!', LogInput> | LogInput}]
+	log?: { __args: {input:Arg<'LogInput!', LogInput> | LogInput} }
+	[key: `${string}:log`]: { __args: {input:Arg<'LogInput!', LogInput> | LogInput} }
 
-	addProduct?: readonly [{products:Arg<'[ID!]!', Scalars['ID'][]> | Scalars['ID'][]}]
-	[key: `${string}:addProduct`]: readonly [{products:Arg<'[ID!]!', Scalars['ID'][]> | Scalars['ID'][]}]
+	addProduct?: { __args: {products:Arg<'[ID!]!', Scalars['ID'][]> | Scalars['ID'][]} }
+	[key: `${string}:addProduct`]: { __args: {products:Arg<'[ID!]!', Scalars['ID'][]> | Scalars['ID'][]} }
 
 	__typename?: boolean | number
 	[key: `${string}:__typename`]: boolean | number

@@ -1,6 +1,6 @@
-import { ReadLine, createInterface, emitKeypressEvents } from "readline";
-import { debug } from '../logger.js';
-import { exec } from "child_process";
+import { ReadLine, createInterface, emitKeypressEvents } from 'readline'
+import { debug } from '../logger.js'
+import { exec } from 'child_process'
 
 type Key = {
 	sequence: string
@@ -10,16 +10,22 @@ type Key = {
 	ctrl: boolean
 }
 
-type Action = (
-	'abort' |
-	'reset' | 'exit' |
-	'first' | 'last' |
-	'previous' | 'next' |
-	'submit' |
-	'delete' | 'deleteForward' |
-	'up' | 'down' | 'left' | 'right' |
-	'input'
-)
+type Action =
+	| 'abort'
+	| 'reset'
+	| 'exit'
+	| 'first'
+	| 'last'
+	| 'previous'
+	| 'next'
+	| 'submit'
+	| 'delete'
+	| 'deleteForward'
+	| 'up'
+	| 'down'
+	| 'left'
+	| 'right'
+	| 'input'
 
 type Callback = (value: string, key: Key) => void
 export type Actions = Partial<Record<Action, Callback>>
@@ -68,14 +74,14 @@ export class Interface {
 		emitKeypressEvents(this.input, this.readline)
 		this.hideCursor()
 
-		if(this.input.isTTY) {
+		if (this.input.isTTY) {
 			this.input.setRawMode(true)
 		}
 
-		this.input.on('keypress', (_, key:Key) => {
+		this.input.on('keypress', (_, key: Key) => {
 			const action = parseAction(key)
 
-			if(action === 'abort') {
+			if (action === 'abort') {
 				this.unref()
 				process.exit(1)
 			}
@@ -87,19 +93,18 @@ export class Interface {
 		this.input.unref()
 	}
 
-	captureInput(actions:Actions) {
+	captureInput(actions: Actions) {
 		debug('Subscribe to user input...')
 
 		const keypress = (value: string, key: Key) => {
 			const action = parseAction(key)
 
-			if(typeof action === 'undefined') {
+			if (typeof action === 'undefined') {
 				// do something ???
 				this.bell()
-			}
-			else {
+			} else {
 				const cb = actions[action]
-				if(typeof cb === 'function') {
+				if (typeof cb === 'function') {
 					cb(value, key)
 				} else {
 					// BELL
@@ -117,19 +122,19 @@ export class Interface {
 	}
 
 	hideCursor() {
-		if(this.input.isTTY) {
+		if (this.input.isTTY) {
 			this.input.write('\u001B[?25l')
 		}
 	}
 
 	showCursor() {
-		if(this.input.isTTY) {
+		if (this.input.isTTY) {
 			this.input.write('\u001B[?25h')
 		}
 	}
 
 	bell() {
-		if(this.input.isTTY) {
+		if (this.input.isTTY) {
 			// this.input.write('\x07')
 			// this.input.write('\u0007')
 			exec('afplay /System/Library/Sounds/Tink.aiff')
