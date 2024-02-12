@@ -1,8 +1,8 @@
 import { Terminal } from '../../lib/terminal.js'
-import { br } from './basic.js'
+import { br } from '../layout/basic.js'
 import { style, symbol } from '../../style.js'
-import { dialog } from './dialog.js'
-import { ConfigError } from '../../../config/load.js'
+import { dialog } from '../layout/dialog.js'
+import { ConfigError } from '../../error.js'
 
 const line = (value: string, level = 0, highlight = false) => {
 	return [
@@ -42,7 +42,7 @@ const format = (value: unknown): string => {
 	return ''
 }
 
-export const zodError = (error: ConfigError) => {
+export const configError = (error: ConfigError) => {
 	return (term: Terminal) => {
 		// term.out.write(JSON.stringify(error.errors))
 		for (const issue of error.error.issues) {

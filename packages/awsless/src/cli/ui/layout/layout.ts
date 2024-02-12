@@ -1,5 +1,5 @@
 import { ProgramOptions, program } from '../../program.js'
-import { ConfigError, loadConfig } from '../../../config/load.js'
+import { loadConfig } from '../../../config/load.js'
 import { header } from './header.js'
 import { dialog } from './dialog.js'
 import { debug, debugError } from '../../logger.js'
@@ -8,8 +8,10 @@ import { Renderer } from '../../lib/renderer.js'
 import { logo } from './logo.js'
 import { logs } from './logs.js'
 import { br } from './basic.js'
-import { zodError } from './zod-error.js'
+import { configError } from '../error/config.js'
 import { Config } from '../../../config/config.js'
+import { ConfigError, FileError } from '../../error.js'
+import { fileError } from '../error/file.js'
 
 export const layout = async (
 	cb: (config: Config, write: Renderer['write'], term: Terminal) => Promise<void> | void
@@ -34,8 +36,10 @@ export const layout = async (
 	} catch (error) {
 		term.out.gap()
 
-		if (error instanceof ConfigError) {
-			term.out.write(zodError(error))
+		if (error instanceof FileError) {
+			term.out.write(fileError(error))
+		} else if (error instanceof ConfigError) {
+			term.out.write(configError(error))
 		} else if (error instanceof Error) {
 			term.out.write(dialog('error', [error.message]))
 		} else if (typeof error === 'string') {
