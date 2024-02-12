@@ -1,17 +1,23 @@
 import { Client } from '@opensearch-project/opensearch'
-// import { fromEnv }		from '@aws-sdk/credential-providers'
-import createConnector from 'aws-opensearch-connector'
+import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
+import { fromEnv } from '@aws-sdk/credential-providers'
+// import { defaultProvider } from '@aws-sdk/credential-provider-node'
 
 let client: Client
 
-export const searchClient = async () => {
+export const searchClient = () => {
 	if (!client) {
 		client = new Client({
-			...createConnector({
-				region: process.env.AWS_REGION,
-				// credentials: await fromEnv()(),
-			}),
 			node: 'https://' + process.env.SEARCH_DOMAIN,
+			...AwsSigv4Signer({
+				region: process.env.AWS_REGION!,
+				service: 'es',
+				getCredentials: fromEnv(),
+				// getCredentials: () => {
+				// 	const credentialsProvider = defaultProvider();
+				// 	return credentialsProvider();
+				// },
+			}),
 		})
 	}
 

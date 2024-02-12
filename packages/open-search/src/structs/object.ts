@@ -1,33 +1,32 @@
-
-import { AnyStruct, Props, Struct } from "./struct";
+import { AnyStruct, Props, Struct } from './struct'
 
 type Schema = Record<string, AnyStruct>
 
 type InferInput<S extends Schema> = {
-	[ K in keyof S ]: S[K]['INPUT']
+	[K in keyof S]: S[K]['INPUT']
 }
 
 type InferOutput<S extends Schema> = {
-	[ K in keyof S ]: S[K]['OUTPUT']
+	[K in keyof S]: S[K]['OUTPUT']
 }
 
 type InferEncoded<S extends Schema> = {
-	[ K in keyof S ]: S[K]['ENCODED']
+	[K in keyof S]: S[K]['ENCODED']
 }
 
-export const object = <S extends Schema>(schema:S) => {
-	const properties:Record<string, Props> = {}
+export const object = <S extends Schema>(schema: S) => {
+	const properties: Record<string, Props> = {}
 
-	for(const key in schema) {
+	for (const key in schema) {
 		properties[key] = schema[key].props
 	}
 
 	return new Struct<InferEncoded<S>, InferInput<S>, InferOutput<S>>(
-		(input) => {
-			const encoded:Record<string, unknown> = {}
-			for(const key in schema) {
-				if(typeof input[key] === 'undefined') {
-					throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(input)}`)
+		input => {
+			const encoded: Record<string, unknown> = {}
+			for (const key in input) {
+				if (typeof schema[key] === 'undefined') {
+					throw new TypeError(`No '${key}' property present on schema.`)
 				}
 
 				encoded[key] = schema[key].encode(input[key])
@@ -35,11 +34,11 @@ export const object = <S extends Schema>(schema:S) => {
 
 			return encoded as InferEncoded<S>
 		},
-		(encoded) => {
-			const output:Record<string, unknown> = {}
-			for(const key in schema) {
-				if(typeof encoded[key] === 'undefined') {
-					throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(encoded)}`)
+		encoded => {
+			const output: Record<string, unknown> = {}
+			for (const key in encoded) {
+				if (typeof schema[key] === 'undefined') {
+					throw new TypeError(`No '${key}' property present on schema.`)
 				}
 
 				output[key] = schema[key].decode(encoded[key])

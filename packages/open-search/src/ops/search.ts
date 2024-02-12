@@ -70,6 +70,6 @@ export const search = async <T extends AnyTable>(
 		cursor: nextCursor,
 		found: total.value,
 		count: items.length,
-		items: items.map(item => table.schema.decode(item._source))
+		items: items.map(item => table.schema.decode(item._source)),
 	}
 }

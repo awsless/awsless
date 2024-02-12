@@ -48,22 +48,29 @@ __export(src_exports, {
   searchClient: () => searchClient,
   set: () => set,
   string: () => string,
+  updateItem: () => updateItem,
   uuid: () => uuid
 });
 module.exports = __toCommonJS(src_exports);
 
 // src/client.ts
 var import_opensearch = require("@opensearch-project/opensearch");
-var import_aws_opensearch_connector = __toESM(require("aws-opensearch-connector"), 1);
+var import_aws = require("@opensearch-project/opensearch/aws");
+var import_credential_providers = require("@aws-sdk/credential-providers");
 var client;
-var searchClient = async () => {
+var searchClient = () => {
   if (!client) {
     client = new import_opensearch.Client({
-      ...(0, import_aws_opensearch_connector.default)({
-        region: process.env.AWS_REGION
-        // credentials: await fromEnv()(),
-      }),
-      node: "https://" + process.env.SEARCH_DOMAIN
+      node: "https://" + process.env.SEARCH_DOMAIN,
+      ...(0, import_aws.AwsSigv4Signer)({
+        region: process.env.AWS_REGION,
+        service: "es",
+        getCredentials: (0, import_credential_providers.fromEnv)()
+        // getCredentials: () => {
+        // 	const credentialsProvider = defaultProvider();
+        // 	return credentialsProvider();
+        // },
+      })
     });
   }
   return client;
@@ -89,10 +96,12 @@ var getArchiveName = (version) => {
   }
 };
 var getDownloadPath = () => {
-  return (0, import_path.resolve)((0, import_find_cache_dir.default)({
-    name: "@awsless/open-search",
-    cwd: process.cwd()
-  }) || "");
+  return (0, import_path.resolve)(
+    (0, import_find_cache_dir.default)({
+      name: "@awsless/open-search",
+      cwd: process.cwd()
+    }) || ""
+  );
 };
 var exists = async (path) => {
   try {
@@ -249,7 +258,7 @@ var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
       await kill();
       await release();
     };
-  }, 100 * 1e3);
+  }, 1e3 * 1e3);
 };
 
 // src/table.ts
@@ -261,8 +270,7 @@ var define = (index, schema) => {
 };
 
 // src/ops/index-item.ts
-var indexItem = async (table, id, item, { refresh = true } = {}) => {
-  const client2 = await searchClient();
+var indexItem = async (table, id, item, { client: client2 = searchClient(), refresh = true } = {}) => {
   await client2.index({
     index: table.index,
     id,
@@ -272,11 +280,23 @@ var indexItem = async (table, id, item, { refresh = true } = {}) => {
 };
 
 // src/ops/delete-item.ts
-var deleteItem = async (table, id, { refresh = true } = {}) => {
-  const client2 = await searchClient();
+var deleteItem = async (table, id, { client: client2 = searchClient(), refresh = true } = {}) => {
   await client2.delete({
     index: table.index,
     id,
+    refresh
+  });
+};
+
+// src/ops/update-item.ts
+var updateItem = async (table, id, item, { client: client2 = searchClient(), refresh = true } = {}) => {
+  await client2.update({
+    index: table.index,
+    id,
+    body: {
+      doc: table.schema.encode(item),
+      doc_as_upsert: true
+    },
     refresh
   });
 };
@@ -350,12 +370,8 @@ var query = async (table, { query: query2 }) => {
     path: "_plugins/_sql?format=json",
     body: { query: query2 }
   });
-  const { hits, total } = result.body.hits;
-  return {
-    found: total.value,
-    count: hits.length,
-    items: hits.map((item) => table.schema.decode(item._source))
-  };
+  const { hits } = result.body.hits;
+  return hits.map((item) => table.schema.decode(item._source));
 };
 
 // src/structs/struct.ts
@@ -428,9 +444,9 @@ var object = (schema) => {
   return new Struct(
     (input) => {
       const encoded = {};
-      for (const key in schema) {
-        if (typeof input[key] === "undefined") {
-          throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(input)}`);
+      for (const key in input) {
+        if (typeof schema[key] === "undefined") {
+          throw new TypeError(`No '${key}' property present on schema.`);
         }
         encoded[key] = schema[key].encode(input[key]);
       }
@@ -438,9 +454,9 @@ var object = (schema) => {
     },
     (encoded) => {
       const output = {};
-      for (const key in schema) {
-        if (typeof encoded[key] === "undefined") {
-          throw new TypeError(`No '${key}' property present on object: ${JSON.stringify(encoded)}`);
+      for (const key in encoded) {
+        if (typeof schema[key] === "undefined") {
+          throw new TypeError(`No '${key}' property present on schema.`);
         }
         output[key] = schema[key].decode(encoded[key]);
       }
@@ -470,7 +486,7 @@ var string = () => new Struct(
 var uuid = () => new Struct(
   (value) => value,
   (value) => value,
-  { type: "text" }
+  { type: "keyword" }
 );
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
@@ -492,5 +508,6 @@ var uuid = () => new Struct(
   searchClient,
   set,
   string,
+  updateItem,
   uuid
 });

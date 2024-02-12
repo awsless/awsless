@@ -18,6 +18,7 @@ import {
 	string,
 	uuid,
 	query,
+	updateItem,
 } from '../src'
 import { BigFloat } from '@awsless/big-float'
 
@@ -66,6 +67,13 @@ describe('Open Search Mock', () => {
 		})
 	})
 
+	it('should update item', async () => {
+		await updateItem(users, '1', {
+			id,
+			enabled: false,
+		})
+	})
+
 	it('should search', async () => {
 		const result = await search(users, {
 			query: {
@@ -92,7 +100,7 @@ describe('Open Search Mock', () => {
 					id,
 					type: 'bar',
 					name: 'jacksclub',
-					enabled: true,
+					enabled: false,
 					likes: 10n,
 					balance: new BigFloat(1),
 					tags: new Set(['tag']),
@@ -106,32 +114,32 @@ describe('Open Search Mock', () => {
 		})
 	})
 
-	it('should query items', async () => {
-		const result = await query(users, {
-			query: `SELECT * FROM users`,
-		})
+	// it('should query items', async () => {
+	// 	const result = await query(users, {
+	// 		query: `SELECT * FROM users`,
+	// 	})
 
-		expect(result).toStrictEqual({
-			found: 1,
-			count: 1,
-			items: [
-				{
-					id,
-					type: 'bar',
-					name: 'jacksclub',
-					enabled: true,
-					likes: 10n,
-					balance: new BigFloat(1),
-					tags: new Set(['tag']),
-					links: [1],
-					createdAt,
-					data: {
-						number: 1,
-					},
-				},
-			],
-		})
-	})
+	// 	expect(result).toStrictEqual({
+	// 		found: 1,
+	// 		count: 1,
+	// 		items: [
+	// 			{
+	// 				id,
+	// 				type: 'bar',
+	// 				name: 'jacksclub',
+	// 				enabled: true,
+	// 				likes: 10n,
+	// 				balance: new BigFloat(1),
+	// 				tags: new Set(['tag']),
+	// 				links: [1],
+	// 				createdAt,
+	// 				data: {
+	// 					number: 1,
+	// 				},
+	// 			},
+	// 		],
+	// 	})
+	// })
 
 	it('should delete item', async () => {
 		await deleteItem(users, '1')

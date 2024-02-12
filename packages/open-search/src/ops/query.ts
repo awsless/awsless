@@ -5,10 +5,7 @@ type Options = {
 	query: string
 }
 
-export const query = async <T>(
-	table: AnyTable,
-	{ query }: Options
-): Promise<T> => {
+export const query = async <T>(table: AnyTable, { query }: Options): Promise<T> => {
 	const client = await searchClient()
 	const result = await client.transport.request({
 		method: 'POST',
