@@ -1,4 +1,3 @@
-
 enum Unit {
 	kilo = 1024,
 	mega = Unit.kilo * 1024,
@@ -6,19 +5,19 @@ enum Unit {
 }
 
 export class Size {
-	static bytes(value:number) {
+	static bytes(value: number) {
 		return new Size(value)
 	}
 
-	static kiloBytes(value:number) {
+	static kiloBytes(value: number) {
 		return new Size(value * Unit.kilo)
 	}
 
-	static megaBytes(value:number) {
+	static megaBytes(value: number) {
 		return new Size(value * Unit.mega)
 	}
 
-	static gigaBytes(value:number) {
+	static gigaBytes(value: number) {
 		return new Size(value * Unit.giga)
 	}
 

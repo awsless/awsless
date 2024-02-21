@@ -97,11 +97,11 @@ function createQuery(operation, request) {
 // src/client/client.ts
 var createClient = (fetcher) => {
   return {
-    query(request) {
-      return fetcher(createQuery("query", request));
+    query(request, props) {
+      return fetcher(createQuery("query", request), props);
     },
-    mutate(request) {
-      return fetcher(createQuery("mutation", request));
+    mutate(request, props) {
+      return fetcher(createQuery("mutation", request), props);
     }
   };
 };
@@ -115,21 +115,23 @@ var GraphQLError = class extends Error {
 };
 
 // src/client/fetcher.ts
-var createFetcher = (propsOrFunc) => {
-  return async (operation) => {
-    const props = typeof propsOrFunc === "function" ? await propsOrFunc() : propsOrFunc;
+var createFetcher = (optionsOrFunc) => {
+  return async (operation, props = {}) => {
+    const options = typeof optionsOrFunc === "function" ? await optionsOrFunc() : optionsOrFunc;
     const mime = "application/json";
-    const response = await fetch(props.url, {
+    const response = await (props?.fetch ?? fetch)(options.url, {
       method: "POST",
       headers: {
         accept: mime,
         "content-type": mime,
+        ...options.headers ?? {},
         ...props.headers ?? {}
       },
-      body: JSON.stringify(operation)
+      body: JSON.stringify(operation),
+      signal: props.signal
     });
     const result = await response.json();
-    if (result.errors && result.errors.length > 1) {
+    if (result.errors && result.errors.length > 0) {
       throw new GraphQLError(result.errors);
     }
     return result.data;

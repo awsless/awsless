@@ -7,6 +7,7 @@ export const CronsSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
+			enabled: z.boolean().default(true).describe('If the cron is enabled.'),
 			consumer: FunctionSchema.describe('The consuming lambda function properties.'),
 			schedule: ScheduleExpressionSchema.describe(
 				'The scheduling expression.\n\nexample: "0 20 * * ? *"\nexample: "5 minutes"'

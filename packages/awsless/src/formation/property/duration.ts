@@ -1,4 +1,3 @@
-
 enum Unit {
 	seconds = 1000,
 	minutes = Unit.seconds * 60,

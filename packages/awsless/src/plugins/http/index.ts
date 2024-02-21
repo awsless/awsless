@@ -13,6 +13,9 @@ import { relative } from 'path'
 import { directories } from '../../util/path.js'
 import { camelCase } from 'change-case'
 import { Route } from './schema.js'
+import { shortId } from '../../util/id.js'
+import { formatFullDomainName } from '../domain/util.js'
+import { Subnet, Vpc } from '../../formation/resource/ec2/vpc.js'
 
 const parseRoute = (route: Route) => {
 	const [method, ...paths] = route.split(' ') as [HttpRequestMethod, string]
@@ -109,14 +112,23 @@ export const httpPlugin = definePlugin({
 			return
 		}
 
-		const vpcId = bootstrap.get('vpc-id')
+		const vpc = bootstrap.findByLogicalId<Vpc>('MainEc2Vpc')
+		const subnet1 = bootstrap.findByLogicalId<Subnet>('Public0Ec2Subnet')
+		const subnet2 = bootstrap.findByLogicalId<Subnet>('Public1Ec2Subnet')
+
+		if (!vpc || !subnet1 || !subnet2) {
+			throw new TypeError('The HTTP plugin needs a global vpc to be defined.')
+		}
+
 		const securityGroup = new SecurityGroup('http', {
 			description: 'http security group',
-			vpcId,
-		})
+			vpcId: vpc.id,
+		}).dependsOn(vpc)
 
-		securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(443))
-		securityGroup.addIngressRule(Peer.anyIpv6(), Port.tcp(443))
+		const port = Port.tcp(443)
+
+		securityGroup.addIngressRule(Peer.anyIpv4(), port)
+		securityGroup.addIngressRule(Peer.anyIpv6(), port)
 
 		bootstrap.add(securityGroup)
 
@@ -125,8 +137,8 @@ export const httpPlugin = definePlugin({
 				name: `${config.app.name}-${id}`,
 				type: 'application',
 				securityGroups: [securityGroup.id],
-				subnets: [bootstrap.get('public-subnet-1'), bootstrap.get('public-subnet-2')],
-			}).dependsOn(securityGroup)
+				subnets: [subnet1.id, subnet2.id],
+			}).dependsOn(securityGroup, subnet1, subnet2)
 
 			const listener = new Listener(id, {
 				loadBalancerArn: loadBalancer.arn,
@@ -177,9 +189,11 @@ export const httpPlugin = definePlugin({
 			// 	bootstrap.add(rule)
 			// }
 
+			const domainName = formatFullDomainName(config, props.domain, props.subDomain)
+
 			const record = new RecordSet(`${id}-http`, {
 				hostedZoneId: bootstrap.import(`hosted-zone-${props.domain}-id`),
-				name: props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain,
+				name: domainName,
 				type: 'A',
 				alias: {
 					hostedZoneId: loadBalancer.hostedZoneId,
@@ -196,13 +210,14 @@ export const httpPlugin = definePlugin({
 		for (const [id, routes] of Object.entries(stackConfig.http || {})) {
 			const props = config.app.defaults.http![id]
 
-			for (const [route, routeProps] of Object.entries(routes)) {
-				const { method, path } = parseRoute(route as Route)
+			for (const [routeKey, routeProps] of Object.entries(routes)) {
+				const { method, path } = parseRoute(routeKey as Route)
+				const routeId = shortId(routeKey)
 
 				const lambda = toLambdaFunction(ctx as any, `http-${id}`, routeProps!)
-				const source = new ElbEventSource(`http-${id}-${route}`, lambda, {
+				const source = new ElbEventSource(`http-${id}-${routeId}`, lambda, {
 					listenerArn: bootstrap.import(`http-${id}-listener-arn`),
-					priority: generatePriority(stackConfig.name, route),
+					priority: generatePriority(stackConfig.name, routeKey),
 					conditions: [
 						ListenerCondition.httpRequestMethods([method]),
 						ListenerCondition.pathPatterns([path]),

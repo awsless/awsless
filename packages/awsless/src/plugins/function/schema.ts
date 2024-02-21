@@ -66,12 +66,6 @@ const PermissionsSchema = z
 	.union([PermissionSchema, PermissionSchema.array()])
 	.describe('Add IAM permissions to your function.')
 
-const LogSchema = z
-	.union([z.boolean(), DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day')])
-	.describe(
-		'Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.'
-	)
-
 const WarmSchema = z
 	.number()
 	.int()
@@ -90,6 +84,38 @@ const HandlerSchema = z
 	.describe('The name of the exported method within your code that Lambda calls to run your function.')
 
 const FileSchema = LocalFileSchema.describe('The file path of the function code.')
+
+const LogRetentionSchema = DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day')
+
+const LogSchema = z
+	.union([
+		z.boolean(),
+		LogRetentionSchema,
+		z.object({
+			retention: LogRetentionSchema.describe('The log retention duration.'),
+			format: z
+				.enum(['text', 'json'])
+				.describe(
+					`The format in which Lambda sends your function's application and system logs to CloudWatch. Select between plain text and structured JSON.`
+				)
+				.optional(),
+			system: z
+				.enum(['debug', 'info', 'warn'])
+				.describe(
+					'Set this property to filter the system logs for your function that Lambda sends to CloudWatch. Lambda only sends system logs at the selected level of detail and lower, where DEBUG is the highest level and WARN is the lowest.'
+				)
+				.optional(),
+			level: z
+				.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+				.describe(
+					'Set this property to filter the application logs for your function that Lambda sends to CloudWatch. Lambda only sends application logs at the selected level of detail and lower, where TRACE is the highest level and FATAL is the lowest.'
+				)
+				.optional(),
+		}),
+	])
+	.describe(
+		'Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.'
+	)
 
 export const FunctionSchema = z.union([
 	LocalFileSchema,
@@ -123,7 +149,12 @@ export const FunctionDefaultSchema = z
 		minify: MinifySchema.default(true),
 		warm: WarmSchema.default(0),
 		vpc: VPCSchema.default(false),
-		log: LogSchema.default(false),
+		log: LogSchema.default({
+			retention: '7 days',
+			level: 'error',
+			system: 'warn',
+			format: 'json',
+		}),
 		timeout: TimeoutSchema.default('10 seconds'),
 		runtime: RuntimeSchema.default('nodejs20.x'),
 		memorySize: MemorySizeSchema.default('128 MB'),

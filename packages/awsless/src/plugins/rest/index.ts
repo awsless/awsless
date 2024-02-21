@@ -6,6 +6,8 @@ import { ApiGatewayV2EventSource } from '../../formation/resource/lambda/event-s
 import { DomainName } from '../../formation/resource/api-gateway-v2/domain-name.js'
 import { Stage } from '../../formation/resource/api-gateway-v2/stage.js'
 import { ApiMapping } from '../../formation/resource/api-gateway-v2/api-mapping.js'
+import { shortId } from '../../util/id.js'
+import { formatFullDomainName } from '../domain/util.js'
 
 export const restPlugin = definePlugin({
 	name: 'rest',
@@ -24,7 +26,8 @@ export const restPlugin = definePlugin({
 			bootstrap.add(api, stage).export(`rest-${id}-id`, api.id)
 
 			if (props.domain) {
-				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
+				const domainName = formatFullDomainName(config, props.domain, props.subDomain)
+				// const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
 				const hostedZoneId = bootstrap.import(`hosted-zone-${props.domain}-id`)
 				const certificateArn = bootstrap.import(`certificate-${props.domain}-arn`)
 
@@ -58,8 +61,9 @@ export const restPlugin = definePlugin({
 
 		for (const [id, routes] of Object.entries(stackConfig.rest || {})) {
 			for (const [routeKey, props] of Object.entries(routes)) {
-				const lambda = toLambdaFunction(ctx as any, `rest-${id}-${routeKey}`, props!)
-				const source = new ApiGatewayV2EventSource(`rest-${id}-${routeKey}`, lambda, {
+				const routeId = shortId(routeKey)
+				const lambda = toLambdaFunction(ctx as any, `rest-${id}-${routeId}`, props!)
+				const source = new ApiGatewayV2EventSource(`rest-${id}-${routeId}`, lambda, {
 					apiId: bootstrap.import(`rest-${id}-id`),
 					routeKey,
 				})

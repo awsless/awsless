@@ -82,6 +82,10 @@ export class Stack {
 		return [...this.resources].filter(resource => resource instanceof resourceType) as T[]
 	}
 
+	findByLogicalId<T = Resource>(id: string): T | undefined {
+		return [...this.resources].find(resource => resource.logicalId === id) as T | undefined
+	}
+
 	[Symbol.iterator]() {
 		return this.resources.values()
 	}

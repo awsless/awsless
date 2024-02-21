@@ -28,7 +28,7 @@ export const layout = async (
 		const config = await loadConfig(options)
 
 		// render header
-		term.out.write(header(config.app))
+		term.out.write(header(config))
 		term.out.gap()
 
 		// render page

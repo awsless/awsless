@@ -11,6 +11,7 @@ export const cronPlugin = definePlugin({
 			const lambda = toLambdaFunction(ctx, id, props.consumer)
 			const source = new EventsEventSource(id, lambda, {
 				schedule: props.schedule,
+				enabled: props.enabled,
 				payload: props.payload,
 			})
 

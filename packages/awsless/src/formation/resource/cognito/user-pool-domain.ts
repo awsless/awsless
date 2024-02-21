@@ -1,5 +1,5 @@
-import { Resource } from '../../resource.js';
-import { formatName, getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt, ref } from '../../util.js'
 
 export type UserPoolDomainProps = {
 	userPoolId: string

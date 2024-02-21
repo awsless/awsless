@@ -6,7 +6,7 @@ export const createTimer = () => {
 
 	return () => {
 		const end = process.hrtime(start)
-		const [ time, unit ] = hrtime(end).split(' ')
+		const [time, unit] = hrtime(end).split(' ')
 
 		return style.attr(time) + style.attr.dim(unit)
 	}

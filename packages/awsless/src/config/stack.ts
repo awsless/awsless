@@ -23,7 +23,7 @@ const DependsSchema = ResourceIdSchema.array()
 	.describe('Define the stacks that this stack is depended on.')
 
 export const StackSchema = z.object({
-	$schema: z.string(),
+	$schema: z.string().optional(),
 	name: ResourceIdSchema,
 	depends: DependsSchema,
 	onFailure: OnFailureSchema,
@@ -47,4 +47,4 @@ export const StackSchema = z.object({
 })
 
 // export type StackConfigInput = z.input<typeof StackSchema>
-export type StackConfig = z.output<typeof StackSchema>
+export type StackConfig = z.output<typeof StackSchema> & { file: string }

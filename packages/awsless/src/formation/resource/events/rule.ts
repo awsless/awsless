@@ -1,8 +1,9 @@
-import { Resource } from '../../resource.js';
-import { formatName, getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt, ref } from '../../util.js'
 
 export type RuleProps = {
 	name?: string
+	enabled?: boolean
 	description?: string
 	roleArn?: string
 	eventBusName?: string
@@ -37,7 +38,7 @@ export class Rule extends Resource {
 	properties() {
 		return {
 			Name: this.name,
-			...this.attr('State', 'ENABLED'),
+			...this.attr('State', this.props.enabled ? 'ENABLED' : 'DISABLED'),
 			...this.attr('Description', this.props.description),
 			...this.attr('ScheduleExpression', this.props.schedule),
 			...this.attr('RoleArn', this.props.roleArn),
@@ -47,7 +48,7 @@ export class Rule extends Resource {
 				Arn: target.arn,
 				Id: target.id,
 				...this.attr('Input', target.input && JSON.stringify(target.input)),
-			}))
+			})),
 		}
 	}
 }

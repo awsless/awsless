@@ -1,8 +1,7 @@
-
 export const toArray = <T>(value: T[] | T): T[] => {
-	if(Array.isArray(value)) {
+	if (Array.isArray(value)) {
 		return value
 	}
 
-	return [ value ]
+	return [value]
 }

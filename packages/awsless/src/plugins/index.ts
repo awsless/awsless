@@ -8,18 +8,21 @@ import { functionPlugin } from './function/index.js'
 import { graphqlPlugin } from './graphql/index.js'
 import { httpPlugin } from './http/index.js'
 import { onFailurePlugin } from './on-failure/index.js'
-import { pubsubPlugin } from './pubsub/pubsub.js'
-import { queuePlugin } from './queue/queue.js'
-import { restPlugin } from './rest/rest.js'
-import { searchPlugin } from './search/search.js'
+import { pubsubPlugin } from './pubsub/index.js'
+import { queuePlugin } from './queue/index.js'
+import { restPlugin } from './rest/index.js'
+import { searchPlugin } from './search/index.js'
 import { sitePlugin } from './site/index.js'
-import { storePlugin } from './store/store.js'
-import { tablePlugin } from './table/table.js'
+import { storePlugin } from './store/index.js'
+import { tablePlugin } from './table/index.js'
 import { testPlugin } from './test/index.js'
 import { topicPlugin } from './topic/index.js'
 import { vpcPlugin } from './vpc/index.js'
 
 export const plugins = [
+	// The VPC needs to be defined.
+	vpcPlugin,
+
 	authPlugin,
 	cachePlugin,
 	configPlugin,
@@ -39,5 +42,4 @@ export const plugins = [
 	tablePlugin,
 	testPlugin,
 	topicPlugin,
-	vpcPlugin,
 ]

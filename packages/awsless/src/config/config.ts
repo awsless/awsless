@@ -4,6 +4,7 @@ import { StackConfig } from './stack.js'
 
 export type Config = {
 	app: AppConfig
+	stage: string
 	stacks: StackConfig[]
 	account: string
 	credentials: Credentials

@@ -1,17 +1,13 @@
-
-import { Resource } from '../../resource.js';
-import { ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { ref } from '../../util.js'
 
 export type HostedZoneProps = {
 	domainName?: string
 }
 
 export class HostedZone extends Resource {
-	readonly name: string
-
 	constructor(logicalId: string, private props: HostedZoneProps = {}) {
 		super('AWS::Route53::HostedZone', logicalId)
-		this.name = this.props.domainName || logicalId
 	}
 
 	get id() {
@@ -20,7 +16,7 @@ export class HostedZone extends Resource {
 
 	properties() {
 		return {
-			Name: this.name + '.'
+			Name: this.props.domainName + '.',
 		}
 	}
 }

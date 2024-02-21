@@ -1,21 +1,24 @@
-import { Duration } from '../../property/duration.js';
-import { Resource } from '../../resource.js';
-import { formatName, getAtt } from '../../util.js';
+import { Duration } from '../../property/duration.js'
+import { Resource } from '../../resource.js'
+import { formatName, getAtt } from '../../util.js'
 
 export class CachePolicy extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		name?: string
-		minTtl: Duration
-		maxTtl: Duration
-		defaultTtl: Duration
-		acceptBrotli?: boolean
-		acceptGzip?: boolean
-		cookies?: string[]
-		headers?: string[]
-		queries?: string[]
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			minTtl: Duration
+			maxTtl: Duration
+			defaultTtl: Duration
+			acceptBrotli?: boolean
+			acceptGzip?: boolean
+			cookies?: string[]
+			headers?: string[]
+			queries?: string[]
+		}
+	) {
 		super('AWS::CloudFront::CachePolicy', logicalId)
 		this.name = formatName(this.props.name || logicalId)
 	}
@@ -46,8 +49,8 @@ export class CachePolicy extends Resource {
 						QueryStringBehavior: this.props.queries ? 'whitelist' : 'none',
 						...this.attr('QueryStrings', this.props.queries),
 					},
-				}
-			}
+				},
+			},
 		}
 	}
 }

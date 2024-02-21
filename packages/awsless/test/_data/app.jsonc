@@ -5,7 +5,12 @@
 	"profile": "jacksclub",
 	"defaults": {
 		"domains": {
-			"crypto-trender.com": []
+			"main": {
+				"domain": "crypto-trender.com"
+			}
+		},
+		"auth": {
+			"users": {}
 		}
 	}
 }

@@ -2,7 +2,7 @@
 	"$schema": "../../../dist/stack.json",
 	"name": "table",
 	"functions": {
-		"get": "../function/table.ts"
+		"get": "../function/simple.ts"
 	},
 	"tables": {
 		"stats": {

@@ -1,34 +1,34 @@
-import { paramCase, pascalCase } from "change-case"
-import { Lazy } from './resource.js';
-import { Stack } from "./stack.js";
+import { paramCase, pascalCase } from 'change-case'
+import { Lazy } from './resource.js'
+import { Stack } from './stack.js'
 
-export type ConstructorOf<C> = { new (...args: any[]): C; };
+export type ConstructorOf<C> = { new (...args: any[]): C }
 
 export const ref = <T = string>(logicalId: string): T => {
 	return { Ref: logicalId } as T
 }
 
 export const sub = <T = string>(value: string, params?: Record<string, string>): T => {
-	if(params) {
-		return { 'Fn::Sub': [ value, params ] } as T
+	if (params) {
+		return { 'Fn::Sub': [value, params] } as T
 	}
 
 	return { 'Fn::Sub': value } as T
 }
 
 export const split = <T = string>(seperator: string, value: string): T => {
-	return { 'Fn::Split': [ seperator, value ] } as T
+	return { 'Fn::Split': [seperator, value] } as T
 }
 
 export const select = <T = string>(index: number, value: string): T => {
-	return { 'Fn::Select': [ index, value ] } as T
+	return { 'Fn::Select': [index, value] } as T
 }
 
 export const getAtt = <T = string>(logicalId: string, attr: string): T => {
-	return { 'Fn::GetAtt': [ logicalId, attr ] } as T
+	return { 'Fn::GetAtt': [logicalId, attr] } as T
 }
 
-export const lazy = <T = string>(cb: (stack:Stack) => T): T => {
+export const lazy = <T = string>(cb: (stack: Stack) => T): T => {
 	return new Lazy(cb) as T
 }
 
@@ -48,17 +48,25 @@ export const formatName = (name: string) => {
 	return paramCase(name)
 }
 
-export const formatArn = (props: { service: string, resource?: string, resourceName?: string, seperator?: string }) => {
-	if(!props.resource) {
+export const formatArn = (props: {
+	service: string
+	resource?: string
+	resourceName?: string
+	seperator?: string
+}) => {
+	if (!props.resource) {
 		return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}', props)
 	}
 
-	if(!props.resourceName) {
+	if (!props.resourceName) {
 		return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}', props)
 	}
 
-	return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}', {
-		seperator: '/',
-		...props
-	})
+	return sub(
+		'arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}',
+		{
+			seperator: '/',
+			...props,
+		}
+	)
 }

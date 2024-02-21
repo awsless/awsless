@@ -29,10 +29,10 @@ export const AuthSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			access: z
-				.boolean()
-				.default(false)
-				.describe('Give access to every function in this stack to your cognito instance.'),
+			// access: z
+			// 	.boolean()
+			// 	.default(false)
+			// 	.describe('Give access to every function in this stack to your cognito instance.'),
 
 			triggers: TriggersSchema.optional(),
 		})
@@ -59,6 +59,8 @@ export const AuthDefaultSchema = z
 				})
 				.optional()
 				.describe('The email configuration for sending messages.'),
+
+			secret: z.boolean().default(false).describe('Specifies whether you want to generate a client secret.'),
 
 			username: z
 				.object({

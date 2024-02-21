@@ -209,7 +209,7 @@ export const sitePlugin = definePlugin({
 				name: domainName,
 				alias: {
 					dnsName: distribution.domainName,
-					hostedZoneId: 'Z2FDTNDATAQYW2',
+					hostedZoneId: distribution.hostedZoneId,
 				},
 			}).dependsOn(distribution)
 

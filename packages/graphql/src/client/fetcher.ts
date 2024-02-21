@@ -5,28 +5,36 @@ export type Operation = {
 	variables: { [name: string]: unknown }
 }
 
-export type Fetcher = (opt: Operation) => unknown
+export type Fetcher = (opt: Operation, props?: FetchProps) => unknown
 
-export type FetcherProps = {
+export type FetcherOptions = {
 	url: string
 	headers?: Record<string, string>
 }
 
+export type FetchProps = {
+	fetch?: typeof fetch
+	headers?: Record<string, string>
+	signal?: AbortSignal
+}
+
 export const createFetcher = (
-	propsOrFunc: FetcherProps | (() => FetcherProps | Promise<FetcherProps>)
+	optionsOrFunc: FetcherOptions | (() => FetcherOptions | Promise<FetcherOptions>)
 ): Fetcher => {
-	return async operation => {
-		const props = typeof propsOrFunc === 'function' ? await propsOrFunc() : propsOrFunc
+	return async (operation, props = {}) => {
+		const options = typeof optionsOrFunc === 'function' ? await optionsOrFunc() : optionsOrFunc
 		const mime = 'application/json'
 
-		const response = await fetch(props.url, {
+		const response = await (props?.fetch ?? fetch)(options.url, {
 			method: 'POST',
 			headers: {
 				accept: mime,
 				'content-type': mime,
+				...(options.headers ?? {}),
 				...(props.headers ?? {}),
 			},
 			body: JSON.stringify(operation),
+			signal: props.signal,
 		})
 
 		const result = (await response.json()) as {
@@ -34,7 +42,7 @@ export const createFetcher = (
 			errors?: GraphQLErrorEntry[]
 		}
 
-		if (result.errors && result.errors.length > 1) {
+		if (result.errors && result.errors.length > 0) {
 			throw new GraphQLError(result.errors)
 		}
 

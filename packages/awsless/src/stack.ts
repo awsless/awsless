@@ -23,7 +23,7 @@ export const toStack = ({ config, app, stackConfig, bootstrap, usEastBootstrap, 
 	const name = stackConfig.name
 	const stack = new Stack(name, config.app.region)
 		.tag('app', config.app.name)
-		.tag('stage', config.app.stage)
+		.tag('stage', config.stage)
 		.tag('stack', name)
 
 	debug('Define stack:', style.info(name))

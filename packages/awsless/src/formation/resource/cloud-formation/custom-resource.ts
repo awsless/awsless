@@ -1,5 +1,5 @@
-import { Resource } from '../../resource.js';
-import { getAtt } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { getAtt } from '../../util.js'
 
 export type CustomResourceProps = {
 	serviceToken: string
@@ -11,7 +11,7 @@ export class CustomResource extends Resource {
 		super('AWS::CloudFormation::CustomResource', logicalId)
 	}
 
-	getAtt<T = string>(name:string) {
+	getAtt<T = string>(name: string) {
 		return getAtt(this.logicalId, name) as T
 	}
 
@@ -22,7 +22,6 @@ export class CustomResource extends Resource {
 		}
 	}
 }
-
 
 // import { CustomResource, Fn, Stack, Token } from 'aws-cdk-lib';
 // import { Construct } from 'constructs';
@@ -102,9 +101,6 @@ export class CustomResource extends Resource {
 // // 	// Crazy
 // // 	return Math.random().toString(36).replace(/[^a-z0-9]+/g, '')
 // // }
-
-
-
 
 // // import { CfnOutput, CfnResource, CustomResource, CustomResourceProvider, Fn, Stack, Token } from 'aws-cdk-lib';
 // // import { Construct } from 'constructs';

@@ -18,6 +18,8 @@ import { generate } from '@awsless/graphql'
 import { buildSchema, print } from 'graphql'
 import { readFile } from 'fs/promises'
 import { FunctionSchema } from '../function/schema.js'
+import { shortId } from '../../util/id.js'
+import { formatFullDomainName } from '../domain/util.js'
 
 const defaultResolver = Code.fromInline(
 	'graphql-default-resolver',
@@ -161,7 +163,8 @@ export const graphqlPlugin = definePlugin({
 			// }
 
 			if (props.domain) {
-				const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
+				// const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
+				const domainName = formatFullDomainName(config, props.domain, props.subDomain)
 				const hostedZoneId = bootstrap.import(`hosted-zone-${props.domain}-id`)
 				const certificateArn = bootstrap.import(`us-east-certificate-${props.domain}-arn`)
 
@@ -205,7 +208,7 @@ export const graphqlPlugin = definePlugin({
 						resolver?: string
 					} = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps
 
-					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
+					const entryId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
 					const lambda = toLambdaFunction(ctx as any, `graphql-${entryId}`, props.consumer)
 					const resolver = props.resolver ?? defaultProps?.resolver
 

@@ -12,7 +12,7 @@ import { constantCase } from 'change-case'
 export const getQueueName = getLocalResourceName
 
 export const getQueueUrl = (name: string, stack: string = STACK) => {
-	return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`] || name
+	return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`]
 }
 
 export interface QueueResources {}

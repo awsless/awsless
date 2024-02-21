@@ -5,13 +5,17 @@ const supported = typeof window !== 'undefined' && typeof localStorage !== 'unde
 export class LocalStore implements Store {
 	private serverSideData: StoreData = {}
 
+	constructor(private prefix = '') {}
+
 	hydrate(serverSideData: StoreData) {
 		this.serverSideData = serverSideData
+
 		return this
 	}
 
 	get<T>(key: string) {
-		const value = supported ? localStorage.getItem(key) : this.serverSideData[key]
+		const name = this.prefix + key
+		const value = supported ? localStorage.getItem(name) : this.serverSideData[name]
 
 		if (typeof value === 'undefined' || value === null) {
 			return
@@ -25,26 +29,29 @@ export class LocalStore implements Store {
 	}
 
 	set(key: string, value: unknown) {
+		const name = this.prefix + key
 		const json = JSON.stringify(value)
 
 		if (supported) {
 			try {
-				localStorage.setItem(key, json)
+				localStorage.setItem(name, json)
 			} catch (error) {
 				// storing something in localstorage can fail.
 			}
 		} else {
-			this.serverSideData[key] = json
+			this.serverSideData[name] = json
 		}
 
 		return this
 	}
 
 	remove(key: string) {
+		const name = this.prefix + key
+
 		if (supported) {
-			localStorage.removeItem(key)
+			localStorage.removeItem(name)
 		} else {
-			delete this.serverSideData[key]
+			delete this.serverSideData[name]
 		}
 
 		return this

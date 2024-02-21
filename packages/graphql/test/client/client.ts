@@ -10,10 +10,13 @@ describe('client', () => {
 			old: true,
 		})
 
-		expect(mock).toBeCalledWith({
-			query: 'query {old}',
-			variables: {},
-		})
+		expect(mock).toBeCalledWith(
+			{
+				query: 'query {old}',
+				variables: {},
+			},
+			undefined
+		)
 	})
 
 	it('should mutate log', async () => {

@@ -27,28 +27,32 @@ export const authPlugin = definePlugin({
 
 		await write('auth.d.ts', gen, true)
 	},
-	onStack({ bootstrap, stackConfig, bind }) {
-		for (const [id, props] of Object.entries(stackConfig.auth ?? {})) {
-			if (props.access) {
-				const userPoolId = bootstrap.import(`auth-${id}-user-pool-id`)
-				const clientId = bootstrap.import(`auth-${id}-client-id`)
-				const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
-				const name = constantCase(id)
+	// onStack({ config, bootstrap, stackConfig, bind }) {
+	// 	for (const [id, props] of Object.entries(stackConfig.auth ?? {})) {
+	// 		if (props.access) {
+	// 			const userPoolId = bootstrap.import(`auth-${id}-user-pool-id`)
+	// 			const clientId = bootstrap.import(`auth-${id}-client-id`)
+	// 			const name = constantCase(id)
 
-				bind(lambda => {
-					lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
-					lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
-					lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
-					lambda.addPermissions({
-						actions: ['cognito:*'],
-						resources: ['*'],
-					})
-				})
-			}
-		}
-	},
+	// 			bind(lambda => {
+	// 				lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
+	// 				lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
+
+	// 				if (config.app.defaults.auth?.[id]?.secret) {
+	// 					const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
+	// 					lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
+	// 				}
+
+	// 				lambda.addPermissions({
+	// 					actions: ['cognito:*'],
+	// 					resources: ['*'],
+	// 				})
+	// 			})
+	// 		}
+	// 	}
+	// },
 	onApp(ctx) {
-		const { config, bootstrap } = ctx
+		const { config, bootstrap, bind } = ctx
 
 		if (Object.keys(config.app.defaults.auth).length === 0) {
 			return
@@ -130,7 +134,7 @@ export const authPlugin = definePlugin({
 			const client = userPool.addClient({
 				name: `${config.app.name}-${id}`,
 				validity: props.validity,
-				generateSecret: true,
+				generateSecret: props.secret,
 				supportedIdentityProviders: ['cognito'],
 				authFlows: {
 					userSrp: true,
@@ -150,21 +154,23 @@ export const authPlugin = definePlugin({
 			// 	})
 			// 	.dependsOn(client, userPool)
 
-			const clientSecret = new CustomResource(`${id}-client-secret`, {
-				serviceToken: clientSecretLambda.arn,
-				properties: {
-					userPoolId: userPool.id,
-					clientId: client.id,
-				},
-			}).dependsOn(client, userPool)
+			if (props.secret) {
+				const clientSecret = new CustomResource(`${id}-client-secret`, {
+					serviceToken: clientSecretLambda.arn,
+					properties: {
+						userPoolId: userPool.id,
+						clientId: client.id,
+					},
+				}).dependsOn(client, userPool)
+
+				bootstrap.add(clientSecret).export(`auth-${id}-client-secret`, clientSecret.getAtt('secret'))
+			}
 
 			bootstrap
 				.add(userPool)
-				.add(clientSecret)
 				.export(`auth-${id}-user-pool-arn`, userPool.arn)
 				.export(`auth-${id}-user-pool-id`, userPool.id)
 				.export(`auth-${id}-client-id`, client.id)
-				.export(`auth-${id}-client-secret`, clientSecret.getAtt('secret'))
 				.export(`auth-${id}-domain`, domain.domain)
 
 			for (const [event, lambda] of functions) {
@@ -177,6 +183,31 @@ export const authPlugin = definePlugin({
 
 				bootstrap.add(lambda, permission)
 			}
+
+			// Give access to every lambda function in our app to our cognito instance.
+			bind(lambda => {
+				const userPoolArn = bootstrap.import(`auth-${id}-user-pool-arn`)
+				const userPoolId = bootstrap.import(`auth-${id}-user-pool-id`)
+				const clientId = bootstrap.import(`auth-${id}-client-id`)
+
+				const name = constantCase(id)
+
+				lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
+				lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
+
+				// lambda.addEnvironment(`AWSLESS_PUBLIC_AUTH_${name}_USER_POOL_ID`, userPoolId)
+				// lambda.addEnvironment(`AWSLESS_PUBLIC_AUTH_${name}_CLIENT_ID`, clientId)
+
+				if (props.secret) {
+					const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
+					lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
+				}
+
+				lambda.addPermissions({
+					actions: ['cognito:*'],
+					resources: [userPoolArn],
+				})
+			})
 		}
 
 		// bind(lambda => {

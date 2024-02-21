@@ -23,7 +23,7 @@ export abstract class Resource {
 		logicalId: string,
 		readonly children: Array<Resource | Asset | Group> = []
 	) {
-		this.logicalId = formatLogicalId(`${ logicalId }-${ type.replace(/^AWS::/, '') }`)
+		this.logicalId = formatLogicalId(`${logicalId}-${type.replace(/^AWS::/, '')}`)
 	}
 
 	addChild(...children: Array<Resource | Asset | Group>) {
@@ -33,7 +33,7 @@ export abstract class Resource {
 	}
 
 	dependsOn(...dependencies: Resource[]) {
-		for(const dependency of dependencies) {
+		for (const dependency of dependencies) {
 			this.deps.add(dependency)
 		}
 
@@ -46,17 +46,17 @@ export abstract class Resource {
 		return this
 	}
 
-	protected attr(name:string, value:unknown) {
-		if(typeof value === 'undefined') {
+	protected attr(name: string, value: unknown) {
+		if (typeof value === 'undefined') {
 			return {}
 		}
 
 		return {
-			[name]: value
+			[name]: value,
 		}
 	}
 
-	setStack(stack:Stack) {
+	setStack(stack: Stack) {
 		this.stack = stack
 
 		return this
@@ -66,15 +66,15 @@ export abstract class Resource {
 		return this.getAtt('ref')
 	}
 
-	protected getAtt<T = string>(attr:string) {
-		return new Lazy((stack) => {
-			if(!this.stack) {
+	protected getAtt<T = string>(attr: string) {
+		return new Lazy(stack => {
+			if (!this.stack) {
 				throw new TypeError('Resource stack not defined before building template')
 			}
 
 			const value = attr === 'ref' ? ref<T>(this.logicalId) : getAtt<T>(this.logicalId, attr)
 
-			if(stack === this.stack) {
+			if (stack === this.stack) {
 				return value
 			}
 
@@ -87,19 +87,21 @@ export abstract class Resource {
 
 	toJSON() {
 		return {
-			[ this.logicalId ]: {
+			[this.logicalId]: {
 				Type: this.type,
-				DependsOn: [ ...this.deps ].map(dep => dep.logicalId),
+				DependsOn: [...this.deps].map(dep => dep.logicalId),
 				Properties: {
-					...(this.tags.size ? {
-						Tags: Array.from(this.tags.entries()).map(([ key, value ]) => ({
-							Key: key,
-							Value: value,
-						}))
-					 } : {}),
+					...(this.tags.size
+						? {
+								Tags: Array.from(this.tags.entries()).map(([key, value]) => ({
+									Key: key,
+									Value: value,
+								})),
+						  }
+						: {}),
 					...this.properties(),
-				}
-			}
+				},
+			},
 		}
 	}
 
@@ -107,9 +109,9 @@ export abstract class Resource {
 }
 
 export class Group {
-	constructor(readonly children:Array<Resource | Asset>) {}
+	constructor(readonly children: Array<Resource | Asset>) {}
 }
 
 export class Lazy {
-	constructor(readonly callback:(stack:Stack) => unknown) {}
+	constructor(readonly callback: (stack: Stack) => unknown) {}
 }

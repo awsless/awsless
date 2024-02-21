@@ -1,15 +1,18 @@
-import { Resource } from '../../resource.js';
-import { formatName, getAtt } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt } from '../../util.js'
 
 export class OriginAccessControl extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		name?: string
-		type: 'mediastore' | 's3'
-		behavior?: 'always' | 'never' | 'no-override'
-		protocol?: 'sigv4'
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			type: 'mediastore' | 's3'
+			behavior?: 'always' | 'never' | 'no-override'
+			protocol?: 'sigv4'
+		}
+	) {
 		super('AWS::CloudFront::OriginAccessControl', logicalId)
 		this.name = formatName(this.props.name || logicalId)
 	}
@@ -25,7 +28,7 @@ export class OriginAccessControl extends Resource {
 				OriginAccessControlOriginType: this.props.type,
 				SigningBehavior: this.props.behavior ?? 'always',
 				SigningProtocol: this.props.protocol ?? 'sigv4',
-			}
+			},
 		}
 	}
 }

@@ -7,7 +7,8 @@ import { confirmPrompt } from '../ui/prompt/confirm.js'
 import { style } from '../style.js'
 import { Cancelled } from '../error.js'
 import { StackClient } from '../../formation/client.js'
-import { stacksDeployer } from '../ui/complex/deployer.js'
+// import { stacksDeployer } from '../ui/complex/deployer.js'
+import { runTaskGroup } from '../ui/complex/task-group.js'
 
 export const del = (program: Command) => {
 	program
@@ -15,7 +16,7 @@ export const del = (program: Command) => {
 		.argument('[stacks...]', 'Optionally filter stacks to delete')
 		.description('Delete your app from AWS')
 		.action(async (filters: string[]) => {
-			await layout(async (config, write) => {
+			await layout(async (config, write, term) => {
 				// ---------------------------------------------------
 
 				const { app, deploymentLine } = await toApp(config, filters)
@@ -53,33 +54,62 @@ export const del = (program: Command) => {
 
 				const client = new StackClient(app, config.account, config.app.region, config.credentials)
 
-				const ui = write(stacksDeployer(deletingLine))
+				term.out.gap()
 
-				for (const line of deletingLine) {
-					const results = await Promise.allSettled(
-						line.map(async stack => {
-							const item = ui[stack.name]
+				for (const stacks of deletingLine) {
+					await write(
+						runTaskGroup(
+							5,
+							stacks.map(stack => ({
+								label: stack.name,
+								task: async update => {
+									update('deleting...')
 
-							item.start('deleting')
+									try {
+										await client.delete(stack.name, stack.region)
+									} catch (error) {
+										debugError(error)
+										update('failed')
+										throw error
+									}
 
-							try {
-								await client.delete(stack.name, stack.region)
-							} catch (error) {
-								debugError(error)
-								item.fail('failed')
-								throw error
-							}
-
-							item.done('deleted')
-						})
+									update('deleted')
+									return 'done'
+								},
+							}))
+						)
 					)
-
-					for (const result of results) {
-						if (result.status === 'rejected') {
-							throw result.reason
-						}
-					}
 				}
+
+				term.out.gap()
+
+				// const ui = write(stacksDeployer(deletingLine))
+
+				// for (const line of deletingLine) {
+				// 	const results = await Promise.allSettled(
+				// 		line.map(async stack => {
+				// 			const item = ui[stack.name]
+
+				// 			item.start('deleting')
+
+				// 			try {
+				// 				await client.delete(stack.name, stack.region)
+				// 			} catch (error) {
+				// 				debugError(error)
+				// 				item.fail('failed')
+				// 				throw error
+				// 			}
+
+				// 			item.done('deleted')
+				// 		})
+				// 	)
+
+				// 	for (const result of results) {
+				// 		if (result.status === 'rejected') {
+				// 			throw result.reason
+				// 		}
+				// 	}
+				// }
 
 				doneDeploying('Done deleting stacks from AWS')
 			})

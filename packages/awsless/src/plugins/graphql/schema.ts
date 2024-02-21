@@ -7,7 +7,7 @@ export const GraphQLDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: z.string().optional(),
+			domain: ResourceIdSchema.describe('The domain id to link your API with.').optional(),
 			subDomain: z.string().optional(),
 			auth: ResourceIdSchema.optional(),
 			// authorization: z.object({

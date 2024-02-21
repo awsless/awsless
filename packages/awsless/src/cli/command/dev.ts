@@ -8,14 +8,18 @@ import { configError } from '../ui/error/config.js'
 import { dialog } from '../ui/layout/dialog.js'
 import { ConfigError, FileError } from '../error.js'
 import { fileError } from '../ui/error/file.js'
+// import { plugins } from '../../plugins/index.js'
 
 export const dev = (program: Command) => {
 	program
 		.command('dev')
 		.description('Start the development service')
 		.action(async () => {
-			await layout(async (_, write) => {
+			await layout(async (config, write) => {
 				const options = program.optsWithGlobals() as ProgramOptions
+
+				await cleanUp()
+				await write(typesGenerator(config))
 
 				await watchConfig(
 					options,
@@ -37,6 +41,12 @@ export const dev = (program: Command) => {
 						}
 					}
 				)
+
+				// We should give plugins the opportunity to watch for files aswell.
+				// plugins.map()
+
+				// idle forever...
+				await new Promise(() => {})
 			})
 		})
 }

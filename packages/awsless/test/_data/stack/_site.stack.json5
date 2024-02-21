@@ -4,7 +4,7 @@
 	name: "site",
 	sites: {
 		news: {
-			domain: "crypto-trender.com",
+			domain: "main",
 			static: "../public",
 			ssr: {
 				file: "../function/ssr.ts",

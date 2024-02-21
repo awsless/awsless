@@ -1,7 +1,6 @@
 import { StackContext, definePlugin } from '../../plugin.js'
 import { z } from 'zod'
 import { Function } from '../../formation/resource/lambda/function.js'
-import { Duration } from '../../formation/property/duration.js'
 import { Code } from '../../formation/resource/lambda/code.js'
 import { EventInvokeConfig } from '../../formation/resource/lambda/event-invoke-config.js'
 import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
@@ -138,12 +137,12 @@ export const toLambdaFunction = (ctx: StackContext, id: string, fileOrProps: z.i
 
 	lambda
 		.addEnvironment('APP', config.app.name)
-		.addEnvironment('STAGE', config.app.stage)
+		.addEnvironment('STAGE', config.stage)
 		.addEnvironment('STACK', stack.name)
 
-	if (props.log) {
-		lambda.enableLogs(props.log instanceof Duration ? props.log : undefined)
-	}
+	// if (props.log) {
+	// 	lambda.enableLogs(props.log instanceof Duration ? props.log : undefined)
+	// }
 
 	// debug(id, props.warm);
 

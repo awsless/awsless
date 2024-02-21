@@ -9,12 +9,14 @@ import { logo } from './ui/layout/logo.js'
 import { types } from './command/types.js'
 import { dev } from './command/dev.js'
 import { del } from './command/delete.js'
+import { bind } from './command/bind.js'
+// import { draw } from './command/__draw.js'
 
 export type ProgramOptions = {
 	configFile?: string
-	stage?: string
-	profile?: string
-	region?: string
+	stage: string
+	// profile?: string
+	// region?: string
 	mute?: boolean
 	verbose?: boolean
 }
@@ -25,8 +27,8 @@ program.name(logo().join('').replace(/\s+/, ''))
 
 program.option('--config-file <string>', 'The app config file location')
 program.option('--stage <string>', 'The stage to use, defaults to prod stage', 'prod')
-program.option('--profile <string>', 'The AWS profile to use')
-program.option('--region <string>', 'The AWS region to use')
+// program.option('--profile <string>', 'The AWS profile to use')
+// program.option('--region <string>', 'The AWS region to use')
 program.option('-c --no-cache', 'Always build & test without the cache')
 program.option('-s --skip-prompt', 'Skip prompts')
 program.option('-v --verbose', 'Print verbose logs')
@@ -56,8 +58,10 @@ const commands = [
 	deploy,
 	del,
 	dev,
+	bind,
 	config,
 	test,
+	// draw,
 
 	// diff,
 	// remove,

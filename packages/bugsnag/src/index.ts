@@ -1,4 +1,3 @@
-
 import { Bugsnag } from './bugsnag.js'
 import { Logger, ExtraMetaData } from '@awsless/lambda'
 
@@ -12,22 +11,18 @@ type ExtendedError = {
 }
 
 const isTestEnv = () => {
-	return !!(
-		process.env.TEST ||
-		process.env.JEST_WORKER_ID ||
-		process.env.VITEST_WORDER_ID
-	)
+	return !!(process.env.TEST || process.env.JEST_WORKER_ID || process.env.VITEST_WORDER_ID)
 }
 
 /**
  * Logging errors into Bugsnag
  * @param apiKey - The bugsnag api key. Default is `process.env.BUGSNAG_API_KEY`
  */
-export const bugsnag = ({ apiKey = process.env.BUGSNAG_API_KEY }:BugsnagOptions = {}): Logger => {
+export const bugsnag = ({ apiKey = process.env.BUGSNAG_API_KEY }: BugsnagOptions = {}): Logger => {
 	const client = new Bugsnag(apiKey || '')
 
-	return async (error:Error, metaData:ExtraMetaData = {}) => {
-		if(isTestEnv()) {
+	return async (error: Error, metaData: ExtraMetaData = {}) => {
+		if (isTestEnv()) {
 			return
 		}
 
@@ -37,7 +32,7 @@ export const bugsnag = ({ apiKey = process.env.BUGSNAG_API_KEY }:BugsnagOptions 
 			metaData: {
 				errorData: err.metadata || err.metaData || undefined,
 				...metaData,
-			}
+			},
 		})
 	}
 }

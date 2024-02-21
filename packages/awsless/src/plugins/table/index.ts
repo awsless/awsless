@@ -39,12 +39,21 @@ export const tablePlugin = definePlugin({
 			stack.add(table)
 
 			if (props.stream) {
+				const onFailure = getGlobalOnFailure(ctx)
 				const lambda = toLambdaFunction(ctx, `stream-${id}`, props.stream.consumer)
 				const source = new DynamoDBEventSource(id, lambda, {
-					tableArn: table.arn,
-					onFailure: getGlobalOnFailure(ctx),
+					streamArn: table.streamArn,
+					startingPosition: 'latest',
+					onFailure,
 					...props.stream,
 				})
+
+				if (onFailure) {
+					lambda.addPermissions({
+						actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+						resources: [onFailure],
+					})
+				}
 
 				stack.add(lambda, source)
 			}

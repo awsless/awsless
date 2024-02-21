@@ -41,6 +41,9 @@ importers:
       '@aws-sdk/client-cognito-identity-provider':
         specifier: ^3.441.0
         version: 3.441.0
+      '@aws-sdk/client-lambda':
+        specifier: 3.329.0
+        version: 3.329.0
       '@aws-sdk/client-route-53':
         specifier: ^3.369.0
         version: 3.369.0
@@ -143,9 +146,15 @@ importers:
       decompress:
         specifier: ^4.2.1
         version: 4.2.1
+      deepmerge:
+        specifier: ^4.3.1
+        version: 4.3.1
       event-iterator:
         specifier: ^2.0.0
         version: 2.0.0
+      fastq:
+        specifier: ^1.16.0
+        version: 1.16.0
       filesize:
         specifier: ^10.0.7
         version: 10.0.7
@@ -1121,7 +1130,7 @@ packages:
       '@aws-sdk/util-user-agent-node': 3.329.0
       '@aws-sdk/util-utf8': 3.310.0
       '@aws-sdk/util-waiter': 3.329.0
-      tslib: 2.5.1
+      tslib: 2.6.2
     transitivePeerDependencies:
       - aws-crt
     dev: false
@@ -6967,7 +6976,7 @@ packages:
     engines: {node: '>= 8'}
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
-      fastq: 1.15.0
+      fastq: 1.16.0
     dev: true
 
   /@opensearch-project/opensearch@2.5.0:
@@ -10256,11 +10265,10 @@ packages:
       strnum: 1.0.5
     dev: false
 
-  /fastq@1.15.0:
-    resolution: {integrity: sha512-wBrocU2LCXXa+lWBt8RoIRD89Fi8OdABODa/kEnyeyjS5aZO5/GNvI5sEINADqP/h8M29UHTHUb53sUu5Ihqdw==}
+  /fastq@1.16.0:
+    resolution: {integrity: sha512-ifCoaXsDrsdkWTtiNJX5uzHDsrck5TzfKKDcuFFTIrrc/BS076qgEIfoIy1VeZqViznfKiysPYTh/QeHtnIsYA==}
     dependencies:
       reusify: 1.0.4
-    dev: true
 
   /fb-watchman@2.0.2:
     resolution: {integrity: sha512-p5161BqbuCaSnB8jIbzQHOlpgsPmK5rJVDfDKO91Axs5NC1uu3HRQm6wt9cd9/+GtQQIO53JdGXXoyDpTAsgYA==}
@@ -12159,7 +12167,6 @@ packages:
   /reusify@1.0.4:
     resolution: {integrity: sha512-U9nH88a3fc/ekCF1l0/UP1IosiuIjyTh7hBvXVMHYgVcfGvt897Xguj2UOLDeI5BG2m7/uwyaLVT6fbtCwTyzw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
-    dev: true
 
   /rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}

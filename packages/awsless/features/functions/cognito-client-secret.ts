@@ -18,14 +18,13 @@ export const handler = async (event: CloudFormationCustomResourceEvent) => {
 
 	try {
 		if (type === 'Create' || type === 'Update') {
-			const input = {
+			const command = new DescribeUserPoolClientCommand({
 				UserPoolId: userPoolId,
 				ClientId: clientId,
-			}
+			})
 
-			const command = new DescribeUserPoolClientCommand(input)
 			const response = await client.send(command)
-			const secret = response.UserPoolClient?.ClientSecret
+			const secret = response.UserPoolClient?.ClientSecret ?? ''
 
 			await send(event, clientId, 'SUCCESS', {
 				secret,

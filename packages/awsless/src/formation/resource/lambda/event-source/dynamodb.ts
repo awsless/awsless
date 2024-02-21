@@ -4,22 +4,26 @@ import { EventSourceMapping, StartingPosition } from '../event-source-mapping.js
 import { Function } from '../function.js'
 
 export class DynamoDBEventSource extends Group {
-	constructor(id: string, lambda:Function, props: {
-		tableArn: string
-		batchSize?: number
-		bisectBatchOnError?: boolean
-		maxBatchingWindow?: Duration
-		maxRecordAge?: Duration
-		retryAttempts?: number
-		parallelizationFactor?: number
-		startingPosition?: StartingPosition
-		startingPositionTimestamp?: number
-		tumblingWindow?: Duration
-		onFailure?: string
-	}) {
+	constructor(
+		id: string,
+		lambda: Function,
+		props: {
+			streamArn: string
+			batchSize?: number
+			bisectBatchOnError?: boolean
+			maxBatchingWindow?: Duration
+			maxRecordAge?: Duration
+			retryAttempts?: number
+			parallelizationFactor?: number
+			startingPosition: StartingPosition
+			startingPositionTimestamp?: number
+			tumblingWindow?: Duration
+			onFailure?: string
+		}
+	) {
 		const source = new EventSourceMapping(id, {
 			functionArn: lambda.arn,
-			sourceArn: props.tableArn,
+			sourceArn: props.streamArn,
 			batchSize: props.batchSize ?? 100,
 			bisectBatchOnError: props.bisectBatchOnError ?? true,
 			maxBatchingWindow: props.maxBatchingWindow,
@@ -39,9 +43,9 @@ export class DynamoDBEventSource extends Group {
 				'dynamodb:GetRecords',
 				'dynamodb:GetShardIterator',
 			],
-			resources: [ props.tableArn ]
+			resources: [props.streamArn],
 		})
 
-		super([ source ])
+		super([source])
 	}
 }

@@ -8,7 +8,6 @@ import { plugins } from './plugins/index.js'
 import { App } from './formation/app.js'
 import { Stack } from './formation/stack.js'
 import { Function } from './formation/resource/lambda/function.js'
-// import { extendWithGlobalExports } from './custom/global-export/extend.js'
 
 const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
 	const list: string[] = []
@@ -29,18 +28,6 @@ const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
 	walk(filters)
 	return list
 }
-// const getAllDepends = (stacks: StackConfig[], filters: string[]) => {
-// 	const list: StackConfig[] = []
-// 	const walk = (deps: StackConfig[]) => {
-// 		deps.forEach(dep => {
-// 			!list.includes(dep) && list.push(dep)
-// 			dep.depends && walk(dep.depends)
-// 		})
-// 	}
-
-// 	walk(filters)
-// 	return list
-// }
 
 export const toApp = async (config: Config, filters: string[]) => {
 	const app = new App(config.app.name)
@@ -178,22 +165,6 @@ export const toApp = async (config: Config, filters: string[]) => {
 	if (usEastBootstrap.size > 0) {
 		deploymentLine.unshift([usEastBootstrap])
 	}
-
-	// let dependencyTree:StackNode[] = createDependencyTree(stacks)
-
-	// if(bootstrap.size > 0) {
-	// 	dependencyTree = [{
-	// 		stack: bootstrap,
-	// 		children: dependencyTree,
-	// 	}]
-	// }
-
-	// if(usEastBootstrap.size > 0) {
-	// 	dependencyTree = [{
-	// 		stack: usEastBootstrap,
-	// 		children: dependencyTree,
-	// 	}]
-	// }
 
 	return {
 		app,

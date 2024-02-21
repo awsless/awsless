@@ -2,3 +2,4 @@
 .awsless
 dist
 build
+awsless.d.ts

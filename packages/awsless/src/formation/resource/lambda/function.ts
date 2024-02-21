@@ -1,3 +1,4 @@
+import { constantCase } from 'change-case'
 import { Asset } from '../../asset.js'
 import { Duration } from '../../property/duration.js'
 import { Size } from '../../property/size.js'
@@ -27,8 +28,15 @@ export type FunctionProps = {
 		subnetIds: string[]
 	}
 
-	// retryAttempts
-	// role?: string
+	log?:
+		| boolean
+		| Duration
+		| {
+				retention: Duration
+				format?: 'text' | 'json'
+				level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+				system?: 'debug' | 'info' | 'warn'
+		  }
 }
 
 export class Function extends Resource {
@@ -36,6 +44,11 @@ export class Function extends Resource {
 	private role: Role
 	private policy: InlinePolicy
 	private environmentVariables: Record<string, string>
+	private logConfig: {
+		format?: 'text' | 'json'
+		level?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+		system?: 'debug' | 'info' | 'warn'
+	} = {}
 
 	constructor(private _logicalId: string, private props: FunctionProps) {
 		const policy = new InlinePolicy(_logicalId)
@@ -63,9 +76,24 @@ export class Function extends Resource {
 		this.environmentVariables = props.environment ? { ...props.environment } : {}
 
 		this.tag('name', this.name)
+
+		if (this.name.length > 64) {
+			throw new TypeError(`Lambda function name length can't be greater then 64. ${this.name}`)
+		}
+
+		if (props.log) {
+			if (typeof props.log === 'boolean') {
+				this.enableLogs(Duration.days(7))
+			} else if (props.log instanceof Duration) {
+				this.enableLogs(props.log)
+			} else {
+				this.enableLogs(props.log.retention)
+				this.logConfig = props.log
+			}
+		}
 	}
 
-	enableLogs(retention?: Duration) {
+	private enableLogs(retention?: Duration) {
 		const logGroup = new LogGroup(this._logicalId, {
 			name: sub('/aws/lambda/${name}', {
 				name: this.name,
@@ -91,6 +119,7 @@ export class Function extends Resource {
 	warmUp(concurrency: number) {
 		const source = new EventsEventSource(`${this._logicalId}-warmer`, this, {
 			schedule: 'rate(5 minutes)',
+			enabled: true,
 			payload: {
 				warmer: true,
 				concurrency,
@@ -162,6 +191,15 @@ export class Function extends Resource {
 			EphemeralStorage: {
 				Size: this.props.ephemeralStorageSize?.toMegaBytes() ?? 512,
 			},
+			...(this.props.log
+				? {
+						LoggingConfig: {
+							LogFormat: this.logConfig.format === 'text' ? 'Text' : 'JSON',
+							ApplicationLogLevel: constantCase(this.logConfig.level ?? 'error'),
+							SystemLogLevel: constantCase(this.logConfig.system ?? 'warn'),
+						},
+				  }
+				: {}),
 			...(this.props.vpc
 				? {
 						VpcConfig: {

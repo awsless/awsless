@@ -49,15 +49,18 @@ export const domainPlugin = definePlugin({
 
 		bootstrap.add(configurationSet)
 
-		for (const [domain, records] of domains) {
-			const hostedZone = new HostedZone(domain)
-
-			const usEastCertificate = new Certificate(domain, {
-				hostedZoneId: hostedZone.id,
-				alternativeNames: [`*.${domain}`],
+		for (const [id, props] of domains) {
+			const hostedZone = new HostedZone(id, {
+				domainName: props.domain,
 			})
 
-			const deleteHostedZone = new CustomResource(domain, {
+			const usEastCertificate = new Certificate(id, {
+				domainName: props.domain,
+				hostedZoneId: hostedZone.id,
+				alternativeNames: [`*.${props.domain}`],
+			})
+
+			const deleteHostedZone = new CustomResource(id, {
 				serviceToken: deleteHostedZoneLambda.arn,
 				properties: {
 					hostedZoneId: hostedZone.id,
@@ -68,24 +71,25 @@ export const domainPlugin = definePlugin({
 				.add(hostedZone)
 				.add(deleteHostedZone)
 				.add(usEastCertificate)
-				.export(`certificate-${domain}-arn`, usEastCertificate.arn)
-				.export(`hosted-zone-${domain}-id`, hostedZone.id)
+				.export(`certificate-${id}-arn`, usEastCertificate.arn)
+				.export(`hosted-zone-${id}-id`, hostedZone.id)
 
-			const certificate = new Certificate(domain, {
-				hostedZoneId: usEastExports.import(`hosted-zone-${domain}-id`),
-				alternativeNames: [`*.${domain}`],
+			const certificate = new Certificate(id, {
+				domainName: props.domain,
+				hostedZoneId: usEastExports.import(`hosted-zone-${id}-id`),
+				alternativeNames: [`*.${props.domain}`],
 			})
 
-			const emailIdentity = new EmailIdentity(domain, {
-				domain,
+			const emailIdentity = new EmailIdentity(id, {
+				domain: props.domain,
 				subDomain: 'mailer',
 				configurationSetName: configurationSet.name,
 				feedback: true,
 				rejectOnMxFailure: true,
 			}).dependsOn(configurationSet)
 
-			const emailRecordGroup = new RecordSetGroup(`${domain}-mail`, {
-				hostedZoneId: usEastExports.import(`hosted-zone-${domain}-id`),
+			const emailRecordGroup = new RecordSetGroup(`${id}-mail`, {
+				hostedZoneId: usEastExports.import(`hosted-zone-${id}-id`),
 				records: emailIdentity.records,
 			}).dependsOn(emailIdentity)
 
@@ -93,14 +97,14 @@ export const domainPlugin = definePlugin({
 				.add(certificate)
 				.add(emailIdentity)
 				.add(emailRecordGroup)
-				.export(`certificate-${domain}-arn`, certificate.arn)
-				.export(`hosted-zone-${domain}-id`, usEastExports.import(`hosted-zone-${domain}-id`))
-				.export(`us-east-certificate-${domain}-arn`, usEastExports.import(`certificate-${domain}-arn`))
+				.export(`certificate-${id}-arn`, certificate.arn)
+				.export(`hosted-zone-${id}-id`, usEastExports.import(`hosted-zone-${id}-id`))
+				.export(`us-east-certificate-${id}-arn`, usEastExports.import(`certificate-${id}-arn`))
 
-			if (records.length > 0) {
-				const group = new RecordSetGroup(domain, {
+			if (props.dns?.length) {
+				const group = new RecordSetGroup(id, {
 					hostedZoneId: hostedZone.id,
-					records,
+					records: props.dns,
 				}).dependsOn(hostedZone)
 
 				usEastBootstrap.add(group)

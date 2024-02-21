@@ -18,7 +18,7 @@ type Payload<F extends Func> = Parameters<F>[0]['Records'][number]['body']
 
 type Send<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly batch(items:BatchItem<Payload<F>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	batch(items:BatchItem<Payload<F>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
 	(payload: Payload<F>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
 }
 

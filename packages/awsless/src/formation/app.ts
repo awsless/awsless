@@ -19,12 +19,12 @@ export class App {
 		return this.stacks.map(stack => stack.find(resourceType)).flat() as T[]
 	}
 
-	[ Symbol.iterator ]() {
+	[Symbol.iterator]() {
 		return this.list.values()
 	}
 
 	get stacks() {
-		return [ ...this.list.values() ]
+		return [...this.list.values()]
 	}
 
 	// get resources() {

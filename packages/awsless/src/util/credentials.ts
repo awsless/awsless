@@ -5,6 +5,6 @@ export type Credentials = AwsCredentialIdentityProvider
 
 export const getCredentials = (profile: string): Credentials => {
 	return fromIni({
-		profile
+		profile,
 	})
 }

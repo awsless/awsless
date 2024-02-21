@@ -29,19 +29,21 @@ export const setRoot = (path: string = root) => {
 	directories.root = path
 }
 
-export const findRootDir = async (path: string, configFile: string, level = 5): Promise<string> => {
+export const findRootDir = async (path: string, configFiles: string[], level = 5): Promise<[string, string]> => {
 	if (!level) {
 		throw new TypeError('No awsless project found')
 	}
 
-	const file = join(path, configFile)
-	const exists = await fileExist(file)
+	for (const configFile of configFiles) {
+		const file = join(path, configFile)
+		const exists = await fileExist(file)
 
-	if (exists) {
-		return path
+		if (exists) {
+			return [file, path]
+		}
 	}
 
-	return findRootDir(normalize(join(path, '..')), configFile, level - 1)
+	return findRootDir(normalize(join(path, '..')), configFiles, level - 1)
 }
 
 export const fileExist = async (file: string) => {

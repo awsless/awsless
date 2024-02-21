@@ -12,9 +12,9 @@ import { assetBuilder } from '../ui/complex/builder.js'
 import { cleanUp } from '../../util/cleanup.js'
 import { templateBuilder } from '../ui/complex/template.js'
 import { assetPublisher } from '../ui/complex/publisher.js'
-import { stacksDeployer } from '../ui/complex/deployer.js'
 import { typesGenerator } from '../ui/complex/types.js'
 import { runTester } from '../ui/complex/tester.js'
+import { runTaskGroup } from '../ui/complex/task-group.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -22,7 +22,7 @@ export const deploy = (program: Command) => {
 		.argument('[stacks...]', 'Optionally filter stacks to deploy')
 		.description('Deploy your app to AWS')
 		.action(async (filters: string[]) => {
-			await layout(async (config, write) => {
+			await layout(async (config, write, term) => {
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
 
@@ -76,33 +76,90 @@ export const deploy = (program: Command) => {
 
 				const client = new StackClient(app, config.account, config.app.region, config.credentials)
 
-				const ui = write(stacksDeployer(deploymentLine))
+				term.out.gap()
 
-				for (const line of deploymentLine) {
-					const results = await Promise.allSettled(
-						line.map(async stack => {
-							const item = ui[stack.name]
+				for (const stacks of deploymentLine) {
+					await write(
+						runTaskGroup(
+							5,
+							stacks.map(stack => ({
+								label: stack.name,
+								task: async update => {
+									update('deploying...')
 
-							item.start('deploying')
+									try {
+										await client.deploy(stack)
+									} catch (error) {
+										debugError(error)
+										update('failed')
+										throw error
+									}
 
-							try {
-								await client.deploy(stack)
-							} catch (error) {
-								debugError(error)
-								item.fail('failed')
-								throw error
-							}
-
-							item.done('deployed')
-						})
+									update('deployed')
+									return 'done'
+								},
+							}))
+						)
 					)
-
-					for (const result of results) {
-						if (result.status === 'rejected') {
-							throw result.reason
-						}
-					}
 				}
+
+				term.out.gap()
+
+				// const ui = write(stacksDeployer(deploymentLine))
+
+				// for (const line of deploymentLine) {
+				// 	const results = await Promise.allSettled(
+				// 		line.map(async stack => {
+				// 			const item = ui[stack.name]
+
+				// 			item.start('deploying')
+
+				// 			try {
+				// 				await client.deploy(stack)
+				// 			} catch (error) {
+				// 				debugError(error)
+				// 				item.fail('failed')
+				// 				throw error
+				// 			}
+
+				// 			item.done('deployed')
+				// 		})
+				// 	)
+
+				// 	for (const result of results) {
+				// 		if (result.status === 'rejected') {
+				// 			throw result.reason
+				// 		}
+				// 	}
+				// }
+
+				// const ui = write(stacksDeployer(deploymentLine))
+
+				// for (const line of deploymentLine) {
+				// 	const results = await Promise.allSettled(
+				// 		line.map(async stack => {
+				// 			const item = ui[stack.name]
+
+				// 			item.start('deploying')
+
+				// 			try {
+				// 				await client.deploy(stack)
+				// 			} catch (error) {
+				// 				debugError(error)
+				// 				item.fail('failed')
+				// 				throw error
+				// 			}
+
+				// 			item.done('deployed')
+				// 		})
+				// 	)
+
+				// 	for (const result of results) {
+				// 		if (result.status === 'rejected') {
+				// 			throw result.reason
+				// 		}
+				// 	}
+				// }
 
 				doneDeploying('Done deploying stacks to AWS')
 			})

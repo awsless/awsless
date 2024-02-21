@@ -10,15 +10,15 @@ import { QueueDefaultSchema } from '../plugins/queue/schema.js'
 import { RestDefaultSchema } from '../plugins/rest/schema.js'
 
 export const AppSchema = z.object({
-	$schema: z.string(),
+	$schema: z.string().optional(),
 	name: ResourceIdSchema.describe('App name.'),
 	region: RegionSchema.describe('The AWS region to deploy to.'),
 	profile: z.string().describe('The AWS profile to deploy to.'),
-	stage: z
-		.string()
-		.regex(/^[a-z]+$/)
-		.default('prod')
-		.describe('The deployment stage.'),
+	// stage: z
+	// 	.string()
+	// 	.regex(/^[a-z]+$/)
+	// 	.default('prod')
+	// 	.describe('The deployment stage.'),
 
 	defaults: z
 		.object({

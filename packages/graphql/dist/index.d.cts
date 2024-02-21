@@ -22,12 +22,17 @@ type Operation = {
         [name: string]: unknown;
     };
 };
-type Fetcher = (opt: Operation) => unknown;
-type FetcherProps = {
+type Fetcher = (opt: Operation, props?: FetchProps) => unknown;
+type FetcherOptions = {
     url: string;
     headers?: Record<string, string>;
 };
-declare const createFetcher: (propsOrFunc: FetcherProps | (() => FetcherProps | Promise<FetcherProps>)) => Fetcher;
+type FetchProps = {
+    fetch?: typeof fetch;
+    headers?: Record<string, string>;
+    signal?: AbortSignal;
+};
+declare const createFetcher: (optionsOrFunc: FetcherOptions | (() => FetcherOptions | Promise<FetcherOptions>)) => Fetcher;
 
 type TupleLike = readonly [any, any];
 type ArrayLike = any[];
@@ -79,7 +84,7 @@ type GraphQLSchema = {
 type Client<S extends GraphQLSchema> = {
     [T in keyof S]: S[T] extends RootSchema ? <R extends S[T]['request'] & {
         __name?: string;
-    }>(request: R) => Promise<InferResponse<S[T]['response'], R>> : never;
+    }>(request: R, props?: FetchProps) => Promise<InferResponse<S[T]['response'], R>> : never;
 };
 declare const createClient: <S extends GraphQLSchema>(fetcher: Fetcher) => Client<S>;
 

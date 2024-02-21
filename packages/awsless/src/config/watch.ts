@@ -11,17 +11,20 @@ export const watchConfig = async (
 	resolve: (config: Config) => void,
 	reject: (error: unknown) => void
 ) => {
-	const configFile = options.configFile || 'app.json'
-	const root = await findRootDir(process.cwd(), configFile)
+	const configFileOptions = options.configFile ? [options.configFile] : ['app.json', 'app.jsonc', 'app.json5']
+	const [_, root] = await findRootDir(process.cwd(), configFileOptions)
 
 	setRoot(root)
 
 	debug('CWD:', style.info(root))
 	debug('Start watching...')
 
-	const watcher = watch(['app.json', '**/stack.json', '**/*.stack.json'], {
+	const ext = '{json,jsonc,json5}'
+
+	const watcher = watch([`app.${ext}`, `**/stack.${ext}`, `**/*.stack.${ext}`], {
 		cwd: root,
 		ignored: ['**/node_modules/**', '**/dist/**'],
+		awaitWriteFinish: true,
 	})
 
 	watcher.on('change', async () => {

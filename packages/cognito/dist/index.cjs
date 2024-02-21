@@ -432,13 +432,17 @@ var Session = class {
 var import_js_cookie = __toESM(require("js-cookie"), 1);
 var browser = typeof window !== "undefined";
 var CookieStore = class {
+  constructor(prefix = "") {
+    this.prefix = prefix;
+  }
   serverSideData = {};
   hydrate(serverSideData) {
     this.serverSideData = serverSideData;
     return this;
   }
   get(key) {
-    const value = browser ? import_js_cookie.default.get(key) : this.serverSideData[key];
+    const name = this.prefix + key;
+    const value = browser ? import_js_cookie.default.get(name) : this.serverSideData[name];
     if (typeof value === "undefined") {
       return;
     }
@@ -449,23 +453,25 @@ var CookieStore = class {
     }
   }
   set(key, value) {
+    const name = this.prefix + key;
     const json = JSON.stringify(value);
     if (browser) {
-      import_js_cookie.default.set(key, json, {
+      import_js_cookie.default.set(name, json, {
         secure: location.hostname !== "localhost",
         expires: 3650,
         sameSite: "strict"
       });
     } else {
-      this.serverSideData[key] = json;
+      this.serverSideData[name] = json;
     }
     return this;
   }
   remove(key) {
+    const name = this.prefix + key;
     if (browser) {
-      import_js_cookie.default.remove(key);
+      import_js_cookie.default.remove(name);
     } else {
-      delete this.serverSideData[key];
+      delete this.serverSideData[name];
     }
     return this;
   }
@@ -494,13 +500,17 @@ var MemoryStore = class {
 // src/store/local-store.ts
 var supported = typeof window !== "undefined" && typeof localStorage !== "undefined";
 var LocalStore = class {
+  constructor(prefix = "") {
+    this.prefix = prefix;
+  }
   serverSideData = {};
   hydrate(serverSideData) {
     this.serverSideData = serverSideData;
     return this;
   }
   get(key) {
-    const value = supported ? localStorage.getItem(key) : this.serverSideData[key];
+    const name = this.prefix + key;
+    const value = supported ? localStorage.getItem(name) : this.serverSideData[name];
     if (typeof value === "undefined" || value === null) {
       return;
     }
@@ -511,22 +521,24 @@ var LocalStore = class {
     }
   }
   set(key, value) {
+    const name = this.prefix + key;
     const json = JSON.stringify(value);
     if (supported) {
       try {
-        localStorage.setItem(key, json);
+        localStorage.setItem(name, json);
       } catch (error) {
       }
     } else {
-      this.serverSideData[key] = json;
+      this.serverSideData[name] = json;
     }
     return this;
   }
   remove(key) {
+    const name = this.prefix + key;
     if (supported) {
-      localStorage.removeItem(key);
+      localStorage.removeItem(name);
     } else {
-      delete this.serverSideData[key];
+      delete this.serverSideData[name];
     }
     return this;
   }

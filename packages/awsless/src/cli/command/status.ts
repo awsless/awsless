@@ -7,7 +7,9 @@ import { assetBuilder } from '../ui/complex/builder.js'
 import { cleanUp } from '../../util/cleanup.js'
 import { dialog, loadingDialog } from '../ui/layout/dialog.js'
 import { templateBuilder } from '../ui/complex/template.js'
-import { stacksDeployer } from '../ui/complex/deployer.js'
+// import { stacksDeployer } from '../ui/complex/deployer.js'
+import { typesGenerator } from '../ui/complex/types.js'
+import { runTaskGroup } from '../ui/complex/task-group.js'
 
 export const status = (program: Command) => {
 	program
@@ -15,13 +17,14 @@ export const status = (program: Command) => {
 		.argument('[stacks...]', 'Optionally filter stacks to lookup status')
 		.description('View the app status')
 		.action(async (filters: string[]) => {
-			await layout(async (config, write) => {
+			await layout(async (config, write, term) => {
 				const { app, deploymentLine } = await toApp(config, filters)
 
 				// --------------------------------------------------------
 				// Build stack assets
 
 				await cleanUp()
+				await write(typesGenerator(config))
 				await write(assetBuilder(app))
 				await write(templateBuilder(app))
 
@@ -31,40 +34,44 @@ export const status = (program: Command) => {
 				const doneLoading = write(loadingDialog('Loading stack information...'))
 
 				const client = new StackClient(app, config.account, config.app.region, config.credentials)
-				const statuses: Array<'non-existent' | 'out-of-date' | 'up-to-date'> = []
-
-				// render the stacks with a loading state
-				const ui = write(stacksDeployer(deploymentLine))
+				let hasUndeployedChanges = false
 
 				debug('Load metadata for all deployed stacks on AWS')
 
-				await Promise.all(
-					app.stacks.map(async stack => {
-						const item = ui[stack.name]
+				term.out.gap()
 
-						item.start('loading')
+				await write(
+					runTaskGroup(
+						5,
+						deploymentLine.flat().map(stack => ({
+							label: stack.name,
+							task: async update => {
+								update('Loading...')
+								const info = await client.get(stack.name, stack.region)
 
-						const info = await client.get(stack.name, stack.region)
-
-						// await new Promise(resolve => setTimeout(resolve, i * 1000))
-
-						if (!info) {
-							item.fail('NON EXISTENT')
-							statuses.push('non-existent')
-						} else if (info.template !== stack.toString()) {
-							item.warn('OUT OF DATE')
-							statuses.push('out-of-date')
-						} else {
-							item.done('UP TO DATE')
-							statuses.push('up-to-date')
-						}
-					})
+								if (!info) {
+									update('NON EXISTENT')
+									hasUndeployedChanges = true
+									return 'fail'
+								} else if (info.template !== stack.toString()) {
+									update('OUT OF DATE')
+									hasUndeployedChanges = true
+									return 'warn'
+								} else {
+									update('UP TO DATE')
+									return 'done'
+								}
+							},
+						}))
+					)
 				)
+
+				term.out.gap()
 
 				doneLoading('Done loading stack information')
 				debug('Done loading data for all deployed stacks on AWS')
 
-				if (statuses.includes('non-existent') || statuses.includes('out-of-date')) {
+				if (hasUndeployedChanges) {
 					write(dialog('warning', ['Your app has undeployed changes !!!']))
 				} else {
 					write(dialog('success', ['Your app has not been changed']))

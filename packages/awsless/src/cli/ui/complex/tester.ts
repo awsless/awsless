@@ -383,6 +383,8 @@ export const runTester = (
 	filters: string[] = []
 ): RenderFactory<Promise<boolean>> => {
 	return async term => {
+		term.out.gap()
+
 		for (const [name, paths] of tests.entries()) {
 			for (const path of paths) {
 				const result = await term.out.write(singleTester(name, path, filters))
@@ -392,6 +394,8 @@ export const runTester = (
 				}
 			}
 		}
+
+		term.out.gap()
 
 		return true
 	}

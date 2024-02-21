@@ -1,19 +1,15 @@
-
-import { Resource } from '../../resource.js';
-import { ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { ref } from '../../util.js'
 
 export type CertificateProps = {
 	hostedZoneId: string
-	domainName?: string
+	domainName: string
 	alternativeNames?: string[]
 }
 
 export class Certificate extends Resource {
-	readonly name: string
-
 	constructor(logicalId: string, private props: CertificateProps) {
 		super('AWS::CertificateManager::Certificate', logicalId)
-		this.name = this.props.domainName || logicalId
 	}
 
 	get arn() {
@@ -22,13 +18,15 @@ export class Certificate extends Resource {
 
 	properties() {
 		return {
-			DomainName: this.name,
+			DomainName: this.props.domainName,
 			SubjectAlternativeNames: this.props.alternativeNames || [],
 			ValidationMethod: 'DNS',
-			DomainValidationOptions: [{
-				DomainName: this.name,
-				HostedZoneId: this.props.hostedZoneId
-			}]
+			DomainValidationOptions: [
+				{
+					DomainName: this.props.domainName,
+					HostedZoneId: this.props.hostedZoneId,
+				},
+			],
 		}
 	}
 }

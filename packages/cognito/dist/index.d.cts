@@ -76,7 +76,9 @@ declare class Session {
 }
 
 declare class CookieStore implements Store {
+    private prefix;
     private serverSideData;
+    constructor(prefix?: string);
     hydrate(serverSideData: StoreData): this;
     get<T>(key: string): T | undefined;
     set(key: string, value: unknown): this;
@@ -92,7 +94,9 @@ declare class MemoryStore implements Store {
 }
 
 declare class LocalStore implements Store {
+    private prefix;
     private serverSideData;
+    constructor(prefix?: string);
     hydrate(serverSideData: StoreData): this;
     get<T>(key: string): T | undefined;
     set(key: string, value: unknown): this;

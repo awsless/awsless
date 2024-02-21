@@ -38,11 +38,16 @@ export const SitesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: z.string().describe('The domain to link your site with.'),
+			domain: ResourceIdSchema.describe('The domain id to link your site with.'),
 			subDomain: z.string().optional(),
 
 			static: LocalDirectorySchema.optional().describe('Specifies the path to the static files directory.'),
 			ssr: FunctionSchema.optional().describe('Specifies the ssr file.'),
+
+			// bind: z.object({
+			// 	auth:
+			// 	h
+			// }).optional(),
 
 			// ssr: z.union([
 			// 	FunctionSchema.optional(),

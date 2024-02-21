@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DurationSchema } from '../../config/schema/duration.js'
+import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
 const DomainNameSchema = z
 	.string()
@@ -34,15 +35,20 @@ const RecordsSchema = z
  */
 export const DomainsDefaultSchema = z
 	.record(
-		DomainNameSchema,
-		z
-			.object({
-				name: DomainNameSchema.optional(),
-				type: DNSTypeSchema,
-				ttl: TTLSchema,
-				records: RecordsSchema,
-			})
-			.array()
+		ResourceIdSchema,
+		z.object({
+			domain: DomainNameSchema.describe('Define the domain name'),
+			dns: z
+				.object({
+					name: DomainNameSchema.optional(),
+					type: DNSTypeSchema,
+					ttl: TTLSchema,
+					records: RecordsSchema,
+				})
+				.array()
+				.optional()
+				.describe('Define the domain dns records'),
+		})
 	)
 	.optional()
 	.describe('Define the domains for your application.')
