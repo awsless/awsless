@@ -38,7 +38,7 @@ export const search = async <T extends AnyTable>(
 	table: T,
 	{ query, aggs, limit = 10, cursor, sort }: Options
 ): Promise<Response<T>> => {
-	const client = await searchClient()
+	const client = searchClient()
 	const result = await client.search({
 		index: table.index,
 		body: {

@@ -1,5 +1,5 @@
 import { testSchema } from '../_util'
-import { duration, parse, Input, Output } from '../../src'
+import { duration, parse, Input, Output, transform, string, regex } from '../../src'
 import { Duration, DurationFormat } from '@awsless/duration'
 
 testSchema('duration', {

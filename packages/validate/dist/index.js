@@ -21,35 +21,23 @@ var json = (schema) => {
 import { BigFloat } from "@awsless/big-float";
 import {
   bigint,
-  getDefaultArgs,
+  defaultArgs,
   instance,
   number,
   object,
   string as string2,
   transform as transform2,
   union,
-  getPipeIssues,
-  getOutput
+  custom
 } from "valibot";
 var make = (value) => new BigFloat(value);
 function bigfloat(arg1, arg2) {
-  const [msg, pipe] = getDefaultArgs(arg1, arg2);
+  const [msg, pipe] = defaultArgs(arg1, arg2);
   const error = msg ?? "Invalid bigfloat";
   return union(
     [
       instance(BigFloat, pipe),
-      transform2(
-        string2([
-          (input) => {
-            if (input === "" || isNaN(Number(input))) {
-              return getPipeIssues("bigfloat", error, input);
-            }
-            return getOutput(input);
-          }
-        ]),
-        make,
-        pipe
-      ),
+      transform2(string2([custom((input) => input !== "" && !isNaN(Number(input)), error)]), make, pipe),
       transform2(number(), make, pipe),
       transform2(
         object({
@@ -65,9 +53,9 @@ function bigfloat(arg1, arg2) {
 }
 
 // src/schema/date.ts
-import { getDefaultArgs as getDefaultArgs2, date as base, string as string3, union as union2, transform as transform3 } from "valibot";
+import { defaultArgs as defaultArgs2, date as base, string as string3, union as union2, transform as transform3 } from "valibot";
 function date(arg1, arg2) {
-  const [error, pipe] = getDefaultArgs2(arg1, arg2);
+  const [error, pipe] = defaultArgs2(arg1, arg2);
   return union2(
     [
       base(pipe),
@@ -84,24 +72,22 @@ function date(arg1, arg2) {
 }
 
 // src/schema/uuid.ts
-import {
-  string as string4,
-  uuid as base2,
-  transform as transform4
-} from "valibot";
+import { string as string4, uuid as base2, transform as transform4 } from "valibot";
 var uuid = (error) => {
   return transform4(string4(error ?? "Invalid UUID", [base2()]), (v) => v);
 };
 
 // src/schema/duration.ts
-import { getDefaultArgs as getDefaultArgs3, regex, string as string5, transform as transform5 } from "valibot";
+import { defaultArgs as defaultArgs3, regex, string as string5, transform as transform5 } from "valibot";
 import { parse } from "@awsless/duration";
 function duration(arg1, arg2) {
-  const [msg, pipe] = getDefaultArgs3(arg1, arg2);
+  const [msg, pipe] = defaultArgs3(arg1, arg2);
   const error = msg ?? "Invalid duration";
   return transform5(
     string5(error, [regex(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
-    (value) => parse(value),
+    (value) => {
+      return parse(value);
+    },
     pipe
   );
 }
@@ -159,7 +145,13 @@ var snsTopic = (body) => {
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, object as object4, optional, picklist, transform as transform8, unknown as unknown3 } from "valibot";
+import { array as array3, object as object4, optional, enum_, transform as transform8, unknown as unknown3 } from "valibot";
+var EventName = /* @__PURE__ */ ((EventName2) => {
+  EventName2["modify"] = "MODIFY";
+  EventName2["insert"] = "INSERT";
+  EventName2["remove"] = "REMOVE";
+  return EventName2;
+})(EventName || {});
 var dynamoDbStream = (table) => {
   const marshall = () => transform8(unknown3(), (value) => table.unmarshall(value));
   return transform8(
@@ -167,7 +159,8 @@ var dynamoDbStream = (table) => {
       {
         Records: array3(
           object4({
-            eventName: picklist(["MODIFY", "INSERT", "REMOVE"]),
+            eventName: enum_(EventName),
+            // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
             dynamodb: object4({
               Keys: marshall(),
               OldImage: optional(marshall()),
@@ -194,45 +187,43 @@ var dynamoDbStream = (table) => {
 
 // src/validation/positive.ts
 import { ZERO, gt } from "@awsless/big-float";
-import { getOutput as getOutput2, getPipeIssues as getPipeIssues2 } from "valibot";
+import { custom as custom2 } from "valibot";
 function positive(error) {
-  return (input) => {
-    return gt(input, ZERO) ? getOutput2(input) : getPipeIssues2("positive", error ?? "Invalid positive number", input);
-  };
+  return custom2((input) => gt(input, ZERO), error ?? "Invalid positive number");
 }
 
 // src/validation/precision.ts
 import { BigFloat as BigFloat3 } from "@awsless/big-float";
-import { getOutput as getOutput3, getPipeIssues as getPipeIssues3 } from "valibot";
+import { custom as custom3 } from "valibot";
 function precision(decimals, error) {
-  return (input) => {
+  return custom3((input) => {
     const big = new BigFloat3(input.toString());
-    return -big.exponent <= decimals ? getOutput3(input) : getPipeIssues3("precision", error ?? `Invalid ${decimals} precision number`, input);
-  };
+    return -big.exponent <= decimals;
+  }, error ?? `Invalid ${decimals} precision number`);
 }
 
 // src/validation/unique.ts
-import { getOutput as getOutput4, getPipeIssues as getPipeIssues4 } from "valibot";
+import { custom as custom4 } from "valibot";
 function unique(compare = (a, b) => a === b, error) {
-  return (input) => {
+  return custom4((input) => {
     for (const x in input) {
       for (const y in input) {
         if (x !== y && compare(input[x], input[y])) {
-          return getPipeIssues4("unique", error ?? "None unique array", input);
+          return false;
         }
       }
     }
-    return getOutput4(input);
-  };
+    return true;
+  }, error ?? "None unique array");
 }
 
 // src/validation/duration.ts
-import { custom } from "valibot";
+import { custom as custom5 } from "valibot";
 function minDuration(min, error) {
-  return custom((input) => input.value >= min.value, error ?? "Invalid duration");
+  return custom5((input) => input.value >= min.value, error ?? "Invalid duration");
 }
 function maxDuration(max, error) {
-  return custom((input) => input.value <= max.value, error ?? "Invalid duration");
+  return custom5((input) => input.value <= max.value, error ?? "Invalid duration");
 }
 export {
   bigfloat,

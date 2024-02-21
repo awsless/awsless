@@ -1,3 +1,5 @@
+import * as types from '@opensearch-project/opensearch/api/types';
+export { types as Types };
 import { Client } from '@opensearch-project/opensearch';
 import { Numeric, BigFloat } from '@awsless/big-float';
 

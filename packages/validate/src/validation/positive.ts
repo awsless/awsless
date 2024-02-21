@@ -1,10 +1,14 @@
 import { BigFloat, ZERO, gt } from '@awsless/big-float'
-import { ErrorMessage, PipeResult, getOutput, getPipeIssues } from 'valibot'
+import { ErrorMessage, custom } from 'valibot'
+
+// export function positive<T extends BigFloat | number>(error?: ErrorMessage) {
+// 	return (input: T): PipeActionResult<T> => {
+// 		return gt(input, ZERO)
+// 			? actionOutput(input)
+// 			: actionIssue({}, 'positive', error ?? 'Invalid positive number', input)
+// 	}
+// }
 
 export function positive<T extends BigFloat | number>(error?: ErrorMessage) {
-	return (input: T): PipeResult<T> => {
-		return gt(input, ZERO)
-			? getOutput(input)
-			: getPipeIssues('positive', error ?? 'Invalid positive number', input)
-	}
+	return custom<T>(input => gt(input, ZERO), error ?? 'Invalid positive number')
 }

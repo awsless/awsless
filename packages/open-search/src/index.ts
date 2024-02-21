@@ -1,3 +1,6 @@
+import type * as Types from '@opensearch-project/opensearch/api/types'
+export { Types }
+
 export { searchClient } from './client'
 
 // mock

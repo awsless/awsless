@@ -337,7 +337,7 @@ var decodeCursor = (cursor) => {
   }
 };
 var search = async (table, { query: query2, aggs, limit = 10, cursor, sort }) => {
-  const client2 = await searchClient();
+  const client2 = searchClient();
   const result = await client2.search({
     index: table.index,
     body: {

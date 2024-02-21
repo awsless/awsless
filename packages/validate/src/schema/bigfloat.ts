@@ -4,15 +4,14 @@ import {
 	ErrorMessage,
 	Pipe,
 	bigint,
-	getDefaultArgs,
+	defaultArgs,
 	instance,
 	number,
 	object,
 	string,
 	transform,
 	union,
-	getPipeIssues,
-	getOutput,
+	custom,
 } from 'valibot'
 
 const make = (value: any) => new BigFloat(value)
@@ -31,25 +30,13 @@ export type BigFloatSchema = BaseSchema<
 export function bigfloat(pipe?: Pipe<BigFloat>): BigFloatSchema
 export function bigfloat(error?: ErrorMessage, pipe?: Pipe<BigFloat>): BigFloatSchema
 export function bigfloat(arg1?: ErrorMessage | Pipe<BigFloat>, arg2?: Pipe<BigFloat>): BigFloatSchema {
-	const [msg, pipe] = getDefaultArgs(arg1, arg2)
+	const [msg, pipe] = defaultArgs(arg1, arg2)
 	const error = msg ?? 'Invalid bigfloat'
 
 	return union(
 		[
 			instance(BigFloat, pipe),
-			transform(
-				string([
-					input => {
-						if (input === '' || isNaN(Number(input))) {
-							return getPipeIssues('bigfloat', error, input)
-						}
-
-						return getOutput(input)
-					},
-				]),
-				make,
-				pipe
-			),
+			transform(string([custom(input => input !== '' && !isNaN(Number(input)), error)]), make, pipe),
 			transform(number(), make, pipe),
 			transform(
 				object({

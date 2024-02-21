@@ -59,23 +59,12 @@ var import_big_float = require("@awsless/big-float");
 var import_valibot2 = require("valibot");
 var make = (value) => new import_big_float.BigFloat(value);
 function bigfloat(arg1, arg2) {
-  const [msg, pipe] = (0, import_valibot2.getDefaultArgs)(arg1, arg2);
+  const [msg, pipe] = (0, import_valibot2.defaultArgs)(arg1, arg2);
   const error = msg ?? "Invalid bigfloat";
   return (0, import_valibot2.union)(
     [
       (0, import_valibot2.instance)(import_big_float.BigFloat, pipe),
-      (0, import_valibot2.transform)(
-        (0, import_valibot2.string)([
-          (input) => {
-            if (input === "" || isNaN(Number(input))) {
-              return (0, import_valibot2.getPipeIssues)("bigfloat", error, input);
-            }
-            return (0, import_valibot2.getOutput)(input);
-          }
-        ]),
-        make,
-        pipe
-      ),
+      (0, import_valibot2.transform)((0, import_valibot2.string)([(0, import_valibot2.custom)((input) => input !== "" && !isNaN(Number(input)), error)]), make, pipe),
       (0, import_valibot2.transform)((0, import_valibot2.number)(), make, pipe),
       (0, import_valibot2.transform)(
         (0, import_valibot2.object)({
@@ -93,7 +82,7 @@ function bigfloat(arg1, arg2) {
 // src/schema/date.ts
 var import_valibot3 = require("valibot");
 function date(arg1, arg2) {
-  const [error, pipe] = (0, import_valibot3.getDefaultArgs)(arg1, arg2);
+  const [error, pipe] = (0, import_valibot3.defaultArgs)(arg1, arg2);
   return (0, import_valibot3.union)(
     [
       (0, import_valibot3.date)(pipe),
@@ -119,11 +108,13 @@ var uuid = (error) => {
 var import_valibot5 = require("valibot");
 var import_duration = require("@awsless/duration");
 function duration(arg1, arg2) {
-  const [msg, pipe] = (0, import_valibot5.getDefaultArgs)(arg1, arg2);
+  const [msg, pipe] = (0, import_valibot5.defaultArgs)(arg1, arg2);
   const error = msg ?? "Invalid duration";
   return (0, import_valibot5.transform)(
     (0, import_valibot5.string)(error, [(0, import_valibot5.regex)(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
-    (value) => (0, import_duration.parse)(value),
+    (value) => {
+      return (0, import_duration.parse)(value);
+    },
     pipe
   );
 }
@@ -182,6 +173,12 @@ var snsTopic = (body) => {
 
 // src/schema/aws/dynamodb-stream.ts
 var import_valibot8 = require("valibot");
+var EventName = /* @__PURE__ */ ((EventName2) => {
+  EventName2["modify"] = "MODIFY";
+  EventName2["insert"] = "INSERT";
+  EventName2["remove"] = "REMOVE";
+  return EventName2;
+})(EventName || {});
 var dynamoDbStream = (table) => {
   const marshall = () => (0, import_valibot8.transform)((0, import_valibot8.unknown)(), (value) => table.unmarshall(value));
   return (0, import_valibot8.transform)(
@@ -189,7 +186,8 @@ var dynamoDbStream = (table) => {
       {
         Records: (0, import_valibot8.array)(
           (0, import_valibot8.object)({
-            eventName: (0, import_valibot8.picklist)(["MODIFY", "INSERT", "REMOVE"]),
+            eventName: (0, import_valibot8.enum_)(EventName),
+            // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
             dynamodb: (0, import_valibot8.object)({
               Keys: marshall(),
               OldImage: (0, import_valibot8.optional)(marshall()),
@@ -218,34 +216,32 @@ var dynamoDbStream = (table) => {
 var import_big_float2 = require("@awsless/big-float");
 var import_valibot9 = require("valibot");
 function positive(error) {
-  return (input) => {
-    return (0, import_big_float2.gt)(input, import_big_float2.ZERO) ? (0, import_valibot9.getOutput)(input) : (0, import_valibot9.getPipeIssues)("positive", error ?? "Invalid positive number", input);
-  };
+  return (0, import_valibot9.custom)((input) => (0, import_big_float2.gt)(input, import_big_float2.ZERO), error ?? "Invalid positive number");
 }
 
 // src/validation/precision.ts
 var import_big_float3 = require("@awsless/big-float");
 var import_valibot10 = require("valibot");
 function precision(decimals, error) {
-  return (input) => {
+  return (0, import_valibot10.custom)((input) => {
     const big = new import_big_float3.BigFloat(input.toString());
-    return -big.exponent <= decimals ? (0, import_valibot10.getOutput)(input) : (0, import_valibot10.getPipeIssues)("precision", error ?? `Invalid ${decimals} precision number`, input);
-  };
+    return -big.exponent <= decimals;
+  }, error ?? `Invalid ${decimals} precision number`);
 }
 
 // src/validation/unique.ts
 var import_valibot11 = require("valibot");
 function unique(compare = (a, b) => a === b, error) {
-  return (input) => {
+  return (0, import_valibot11.custom)((input) => {
     for (const x in input) {
       for (const y in input) {
         if (x !== y && compare(input[x], input[y])) {
-          return (0, import_valibot11.getPipeIssues)("unique", error ?? "None unique array", input);
+          return false;
         }
       }
     }
-    return (0, import_valibot11.getOutput)(input);
-  };
+    return true;
+  }, error ?? "None unique array");
 }
 
 // src/validation/duration.ts

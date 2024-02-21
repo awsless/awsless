@@ -9,16 +9,16 @@ type TestSchemaOptions = {
 export const testSchema = (type: string, { valid, invalid, validate }: TestSchemaOptions) => {
 	describe(type, () => {
 		if (valid) {
-			it(`valid`, () => {
-				valid.forEach(value => {
+			valid.forEach(value => {
+				it(`valid (${JSON.stringify(value)})`, () => {
 					validate(value)
 				})
 			})
 		}
 
 		if (invalid) {
-			it(`invalid`, () => {
-				invalid.forEach(value => {
+			invalid.forEach(value => {
+				it(`invalid (${JSON.stringify(value)})`, () => {
 					expect(() => validate(value)).toThrow(ValiError)
 				})
 			})
