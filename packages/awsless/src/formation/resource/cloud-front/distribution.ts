@@ -58,7 +58,7 @@ export class Distribution extends Resource {
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'Id')
+		return this.getAtt('Id')
 	}
 
 	get arn() {

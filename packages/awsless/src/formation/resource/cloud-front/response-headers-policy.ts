@@ -1,6 +1,6 @@
 import { Duration } from '../../property/duration.js'
 import { Resource } from '../../resource.js'
-import { formatName, getAtt } from '../../util.js'
+import { formatName } from '../../util.js'
 
 export class ResponseHeadersPolicy extends Resource {
 	readonly name: string
@@ -62,7 +62,7 @@ export class ResponseHeadersPolicy extends Resource {
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'Id')
+		return this.getAtt('Id')
 	}
 
 	protected properties() {

@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt, ref } from '../../util.js'
 
 export class DomainName extends Resource {
 	constructor(
@@ -13,15 +12,15 @@ export class DomainName extends Resource {
 	}
 
 	get name() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get regionalDomainName() {
-		return getAtt(this.logicalId, 'RegionalDomainName')
+		return this.getAtt('RegionalDomainName')
 	}
 
 	get regionalHostedZoneId() {
-		return getAtt(this.logicalId, 'RegionalHostedZoneId')
+		return this.getAtt('RegionalHostedZoneId')
 	}
 
 	protected properties() {

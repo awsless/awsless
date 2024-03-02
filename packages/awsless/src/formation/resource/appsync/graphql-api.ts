@@ -1,6 +1,6 @@
 // import { constantCase } from "change-case";
 import { Resource } from '../../resource.js'
-import { formatName, getAtt, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 // import { Duration } from '../../property/duration.js';
 
 export class GraphQLApi extends Resource {
@@ -25,19 +25,19 @@ export class GraphQLApi extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'ApiId')
+		return this.getAtt('ApiId')
 	}
 
 	get url() {
-		return getAtt(this.logicalId, 'GraphQLUrl')
+		return this.getAtt('GraphQLUrl')
 	}
 
 	get dns() {
-		return getAtt(this.logicalId, 'GraphQLDns')
+		return this.getAtt('GraphQLDns')
 	}
 
 	setDefaultAuthorization(auth: GraphQLAuthorization) {

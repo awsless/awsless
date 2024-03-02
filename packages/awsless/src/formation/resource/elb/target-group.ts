@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, getAtt, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 
 export class TargetGroup extends Resource {
 	readonly name: string
@@ -17,11 +17,11 @@ export class TargetGroup extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get fullName() {
-		return getAtt(this.logicalId, 'TargetGroupFullName')
+		return this.getAtt('TargetGroupFullName')
 	}
 
 	protected properties() {

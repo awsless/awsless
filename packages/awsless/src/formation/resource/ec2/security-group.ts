@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 import { Port } from './port.js'
 import { Peer } from './peer.js'
 
@@ -27,7 +27,7 @@ export class SecurityGroup extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	addIngressRule(peer: Peer, port: Port, description?: string) {

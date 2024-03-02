@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatArn, formatName, ref } from '../../util.js'
+import { formatArn, formatName } from '../../util.js'
 
 export type TopicProps = {
 	name?: string
@@ -17,7 +17,7 @@ export class Topic extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get permissions() {

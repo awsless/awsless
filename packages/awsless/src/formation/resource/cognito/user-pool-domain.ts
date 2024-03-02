@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, getAtt, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 
 export type UserPoolDomainProps = {
 	userPoolId: string
@@ -12,11 +12,11 @@ export class UserPoolDomain extends Resource {
 	}
 
 	get domain() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get cloudFrontDistribution() {
-		return getAtt(this.logicalId, 'CloudFrontDistribution')
+		return this.getAtt('CloudFrontDistribution')
 	}
 
 	protected properties() {

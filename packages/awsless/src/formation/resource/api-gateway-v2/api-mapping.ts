@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt } from '../../util.js'
 
 export class ApiMapping extends Resource {
 	constructor(
@@ -14,7 +13,7 @@ export class ApiMapping extends Resource {
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'ApiMappingId')
+		return this.getAtt('ApiMappingId')
 	}
 
 	protected properties() {

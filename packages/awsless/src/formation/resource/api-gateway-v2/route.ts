@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt } from '../../util.js'
 
 export class Route extends Resource {
 	constructor(
@@ -14,7 +13,7 @@ export class Route extends Resource {
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'RouteId')
+		return this.getAtt('RouteId')
 	}
 
 	protected properties() {

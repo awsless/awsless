@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatArn, getAtt, ref } from '../../util.js'
+import { formatArn } from '../../util.js'
 
 export class Collection extends Resource {
 	readonly name: string
@@ -19,15 +19,15 @@ export class Collection extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	get endpoint() {
-		return getAtt(this.logicalId, 'CollectionEndpoint')
+		return this.getAtt('CollectionEndpoint')
 	}
 
 	get permissions() {

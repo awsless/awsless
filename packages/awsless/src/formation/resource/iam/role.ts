@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt } from '../../util.js'
 import { InlinePolicy } from './inline-policy.js'
 import { ManagedPolicy } from './managed-policy.js'
 
@@ -17,7 +16,7 @@ export class Role extends Resource {
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	addManagedPolicy(...policies: ManagedPolicy[]) {

@@ -1,6 +1,5 @@
 import { Duration } from '../../property/duration.js'
 import { Resource } from '../../resource.js'
-import { getAtt } from '../../util.js'
 import { constantCase } from 'change-case'
 
 export type UrlProps = {
@@ -28,7 +27,7 @@ export class Url extends Resource {
 	}
 
 	get url() {
-		return getAtt(this.logicalId, 'FunctionUrl')
+		return this.getAtt('FunctionUrl')
 	}
 
 	protected properties() {
