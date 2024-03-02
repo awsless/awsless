@@ -1,6 +1,5 @@
 import { snakeCase } from 'change-case'
 import { Resource } from '../../resource.js'
-import { ref } from '../../util.js'
 
 export type DataSourceProps = {
 	apiId: string
@@ -52,7 +51,7 @@ export class DataSource extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {

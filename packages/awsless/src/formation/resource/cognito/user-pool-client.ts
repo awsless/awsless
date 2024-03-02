@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 import { Duration } from '../../property/duration.js'
 
 export type UserPoolClientProps = {
@@ -36,7 +36,7 @@ export class UserPoolClient extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	private formatAuthFlows() {

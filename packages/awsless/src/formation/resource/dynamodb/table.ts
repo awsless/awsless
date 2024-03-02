@@ -1,6 +1,6 @@
 import { constantCase } from 'change-case'
 import { Resource } from '../../resource.js'
-import { formatArn, formatName, getAtt, ref } from '../../util.js'
+import { formatArn, formatName } from '../../util.js'
 
 export type IndexProps = {
 	hash: string
@@ -45,15 +45,15 @@ export class Table extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	get streamArn() {
-		return getAtt(this.logicalId, 'StreamArn')
+		return this.getAtt('StreamArn')
 	}
 
 	get permissions() {

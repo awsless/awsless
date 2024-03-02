@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { ref } from '../../util.js'
 
 export type CertificateProps = {
 	hostedZoneId: string
@@ -13,7 +12,7 @@ export class Certificate extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {

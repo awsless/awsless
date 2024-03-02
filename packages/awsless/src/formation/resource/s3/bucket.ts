@@ -1,6 +1,6 @@
 import { pascalCase } from 'change-case'
 import { Resource } from '../../resource.js'
-import { formatArn, formatName, getAtt } from '../../util.js'
+import { formatArn, formatName } from '../../util.js'
 
 export type BucketProps = {
 	name?: string
@@ -31,23 +31,23 @@ export class Bucket extends Resource {
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	get domainName() {
-		return getAtt(this.logicalId, 'DomainName')
+		return this.getAtt('DomainName')
 	}
 
 	get dealStackDomainName() {
-		return getAtt(this.logicalId, 'DualStackDomainName')
+		return this.getAtt('DualStackDomainName')
 	}
 
 	get regionalDomainName() {
-		return getAtt(this.logicalId, 'RegionalDomainName')
+		return this.getAtt('RegionalDomainName')
 	}
 
 	get url() {
-		return getAtt(this.logicalId, 'WebsiteURL')
+		return this.getAtt('WebsiteURL')
 	}
 
 	get permissions() {

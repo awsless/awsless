@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt, ref } from '../../util.js'
 import { ListenerAction } from './listener.js'
 
 export class ListenerRule extends Resource {
@@ -16,11 +15,11 @@ export class ListenerRule extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'ListenerArn')
+		return this.getAtt('ListenerArn')
 	}
 
 	protected properties() {

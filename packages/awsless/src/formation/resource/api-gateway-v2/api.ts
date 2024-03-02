@@ -1,6 +1,6 @@
 import { Duration } from '../../property/duration.js'
 import { Resource } from '../../resource.js'
-import { formatName, getAtt } from '../../util.js'
+import { formatName } from '../../util.js'
 
 export class Api extends Resource {
 	readonly name: string
@@ -31,11 +31,11 @@ export class Api extends Resource {
 	}
 
 	get endpoint() {
-		return getAtt(this.logicalId, 'ApiEndpoint')
+		return this.getAtt('ApiEndpoint')
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'ApiId')
+		return this.getAtt('ApiId')
 	}
 
 	protected properties() {

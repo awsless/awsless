@@ -53,20 +53,28 @@ export const formatArn = (props: {
 	resource?: string
 	resourceName?: string
 	seperator?: string
+	includeRegion?: boolean
 }) => {
+	const regionPart = props.includeRegion === false ? '' : '${AWS::Region}'
+	const globalPart = 'arn:${AWS::Partition}:${service}:' + regionPart + ':${AWS::AccountId}'
+
 	if (!props.resource) {
-		return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}', props)
+		return sub(globalPart, {
+			service: props.service,
+		})
 	}
 
 	if (!props.resourceName) {
-		return sub('arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}', props)
+		return sub(globalPart + ':${resource}', {
+			service: props.service,
+			resource: props.resource,
+		})
 	}
 
-	return sub(
-		'arn:${AWS::Partition}:${service}:${AWS::Region}:${AWS::AccountId}:${resource}${seperator}${resourceName}',
-		{
-			seperator: '/',
-			...props,
-		}
-	)
+	return sub(globalPart + ':${resource}${seperator}${resourceName}', {
+		service: props.service,
+		resource: props.resource,
+		seperator: props.seperator ?? '/',
+		resourceName: props.resourceName,
+	})
 }

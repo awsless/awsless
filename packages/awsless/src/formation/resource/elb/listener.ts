@@ -1,6 +1,5 @@
 import { constantCase } from 'change-case'
 import { Resource } from '../../resource.js'
-import { getAtt, ref } from '../../util.js'
 import { Duration } from '../../property/duration.js'
 
 export class Listener extends Resource {
@@ -18,11 +17,11 @@ export class Listener extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'ListenerArn')
+		return this.getAtt('ListenerArn')
 	}
 
 	protected properties() {

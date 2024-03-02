@@ -1,7 +1,7 @@
 import { Duration } from '../../property/duration.js'
 import { Size } from '../../property/size.js'
 import { Resource } from '../../resource.js'
-import { formatArn, formatName, getAtt } from '../../util.js'
+import { formatArn, formatName } from '../../util.js'
 
 export type QueueProps = {
 	name?: string
@@ -31,11 +31,11 @@ export class Queue extends Resource {
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	get url() {
-		return getAtt(this.logicalId, 'QueueUrl')
+		return this.getAtt('QueueUrl')
 	}
 
 	get permissions() {

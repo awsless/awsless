@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { ref } from '../../util.js'
 
 export type HostedZoneProps = {
 	domainName?: string
@@ -11,7 +10,7 @@ export class HostedZone extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {

@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, getAtt, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 
 export type RuleProps = {
 	name?: string
@@ -28,11 +28,11 @@ export class Rule extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	protected properties() {

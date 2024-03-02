@@ -1,6 +1,5 @@
 import { Duration } from '../../property/duration.js'
 import { Resource } from '../../resource.js'
-import { getAtt } from '../../util.js'
 
 export class LogGroup extends Resource {
 	constructor(
@@ -14,7 +13,7 @@ export class LogGroup extends Resource {
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	protected properties() {

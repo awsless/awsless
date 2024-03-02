@@ -1,6 +1,5 @@
 import { Asset } from '../../asset.js'
 import { Resource } from '../../resource.js'
-import { getAtt, ref } from '../../util.js'
 import { ICode } from './code.js'
 import { snakeCase } from 'change-case'
 
@@ -21,11 +20,11 @@ export class FunctionConfiguration extends Resource {
 	}
 
 	get id() {
-		return getAtt(this.logicalId, 'FunctionId')
+		return this.getAtt('FunctionId')
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {

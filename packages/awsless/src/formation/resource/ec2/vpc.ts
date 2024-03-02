@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, getAtt, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 import { Peer } from './peer.js'
 
 // export type VpcProps = {
@@ -23,15 +23,15 @@ export class Vpc extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get defaultNetworkAcl() {
-		return getAtt(this.logicalId, 'DefaultNetworkAcl')
+		return this.getAtt('DefaultNetworkAcl')
 	}
 
 	get defaultSecurityGroup() {
-		return getAtt(this.logicalId, 'DefaultSecurityGroup')
+		return this.getAtt('DefaultSecurityGroup')
 	}
 
 	protected properties() {
@@ -56,7 +56,7 @@ export class RouteTable extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {
@@ -72,7 +72,7 @@ export class InternetGateway extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {
@@ -92,7 +92,7 @@ export class VPCGatewayAttachment extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {
@@ -116,7 +116,7 @@ export class Route extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {
@@ -141,7 +141,7 @@ export class Subnet extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {
@@ -165,7 +165,7 @@ export class SubnetRouteTableAssociation extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	protected properties() {

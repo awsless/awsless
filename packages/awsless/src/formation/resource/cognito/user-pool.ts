@@ -1,6 +1,6 @@
 import { constantCase } from 'change-case'
 import { Resource } from '../../resource.js'
-import { formatName, getAtt, ref } from '../../util.js'
+import { formatName } from '../../util.js'
 import { Duration } from '../../property/duration.js'
 import { UserPoolClient, UserPoolClientProps } from './user-pool-client.js'
 import { UserPoolDomain, UserPoolDomainProps } from './user-pool-domain.js'
@@ -56,19 +56,19 @@ export class UserPool extends Resource {
 	}
 
 	get id() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	get providerName() {
-		return getAtt(this.logicalId, 'ProviderName')
+		return this.getAtt('ProviderName')
 	}
 
 	get providerUrl() {
-		return getAtt(this.logicalId, 'ProviderURL')
+		return this.getAtt('ProviderURL')
 	}
 
 	addDomain(props: Omit<UserPoolDomainProps, 'userPoolId'>) {

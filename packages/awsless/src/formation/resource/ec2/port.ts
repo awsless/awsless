@@ -1,4 +1,3 @@
-
 export enum Protocol {
 	ALL = '-1',
 	HOPOPT = '0',
@@ -150,9 +149,9 @@ export enum Protocol {
 }
 
 export interface PortProps {
-	readonly protocol: Protocol;
-	readonly from?: number;
-	readonly to?: number;
+	readonly protocol: Protocol
+	readonly from?: number
+	readonly to?: number
 }
 
 export class Port {
@@ -161,7 +160,7 @@ export class Port {
 			protocol: Protocol.TCP,
 			from: port,
 			to: port,
-		});
+		})
 	}
 
 	public static tcpRange(startPort: number, endPort: number) {
@@ -169,7 +168,7 @@ export class Port {
 			protocol: Protocol.TCP,
 			from: startPort,
 			to: endPort,
-		});
+		})
 	}
 
 	public static allTcp() {
@@ -177,13 +176,13 @@ export class Port {
 			protocol: Protocol.TCP,
 			from: 0,
 			to: 65535,
-		});
+		})
 	}
 
 	public static allTraffic() {
 		return new Port({
 			protocol: Protocol.ALL,
-		});
+		})
 	}
 
 	readonly protocol: Protocol

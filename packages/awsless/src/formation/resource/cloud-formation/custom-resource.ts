@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt } from '../../util.js'
 
 export type CustomResourceProps = {
 	serviceToken: string
@@ -12,7 +11,7 @@ export class CustomResource extends Resource {
 	}
 
 	getAtt<T = string>(name: string) {
-		return getAtt(this.logicalId, name) as T
+		return super.getAtt<T>(name)
 	}
 
 	protected properties() {

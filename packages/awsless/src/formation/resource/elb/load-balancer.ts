@@ -1,5 +1,4 @@
 import { Resource } from '../../resource.js'
-import { getAtt, ref } from '../../util.js'
 
 export class LoadBalancer extends Resource {
 	readonly name: string
@@ -19,15 +18,15 @@ export class LoadBalancer extends Resource {
 	}
 
 	get arn() {
-		return ref(this.logicalId)
+		return this.ref()
 	}
 
 	get dnsName() {
-		return getAtt(this.logicalId, 'DNSName')
+		return this.getAtt('DNSName')
 	}
 
 	get hostedZoneId() {
-		return getAtt(this.logicalId, 'CanonicalHostedZoneID')
+		return this.getAtt('CanonicalHostedZoneID')
 	}
 
 	protected properties() {

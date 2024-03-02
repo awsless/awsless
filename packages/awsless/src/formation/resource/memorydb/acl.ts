@@ -1,5 +1,5 @@
 import { Resource } from '../../resource.js'
-import { formatName, getAtt } from '../../util.js'
+import { formatName } from '../../util.js'
 
 export class Acl extends Resource {
 	readonly name: string
@@ -16,7 +16,7 @@ export class Acl extends Resource {
 	}
 
 	get arn() {
-		return getAtt(this.logicalId, 'Arn')
+		return this.getAtt('Arn')
 	}
 
 	protected properties() {
