@@ -1,8 +1,7 @@
-
-import { Resource } from '../../resource.js';
-import { formatName, ref } from '../../util.js';
-import { Port } from './port.js';
-import { Peer } from './peer.js';
+import { Resource } from '../../resource.js'
+import { formatName, ref } from '../../util.js'
+import { Port } from './port.js'
+import { Peer } from './peer.js'
 
 export type SecurityGroupProps = {
 	vpcId: string
@@ -11,17 +10,16 @@ export type SecurityGroupProps = {
 }
 
 type Rule = {
-	peer: Peer,
-	port: Port,
+	peer: Peer
+	port: Port
 	description?: string
 }
 
 export class SecurityGroup extends Resource {
-
 	readonly name: string
 
-	private ingress:Rule[] = []
-	private egress:Rule[] = []
+	private ingress: Rule[] = []
+	private egress: Rule[] = []
 
 	constructor(logicalId: string, private props: SecurityGroupProps) {
 		super('AWS::EC2::SecurityGroup', logicalId)
@@ -32,7 +30,7 @@ export class SecurityGroup extends Resource {
 		return ref(this.logicalId)
 	}
 
-	addIngressRule(peer:Peer, port:Port, description?: string) {
+	addIngressRule(peer: Peer, port: Port, description?: string) {
 		this.ingress.push({
 			peer,
 			port,
@@ -42,7 +40,7 @@ export class SecurityGroup extends Resource {
 		return this
 	}
 
-	addEgressRule(peer:Peer, port:Port, description?: string) {
+	addEgressRule(peer: Peer, port: Port, description?: string) {
 		this.egress.push({
 			peer,
 			port,
@@ -52,7 +50,7 @@ export class SecurityGroup extends Resource {
 		return this
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			VpcId: this.props.vpcId,
 			GroupName: this.name,
@@ -66,7 +64,7 @@ export class SecurityGroup extends Resource {
 				Description: rule.description || '',
 				...rule.port.toRuleJson(),
 				...rule.peer.toRuleJson(),
-			}))
+			})),
 		}
 	}
 }

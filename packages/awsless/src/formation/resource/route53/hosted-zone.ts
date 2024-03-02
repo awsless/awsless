@@ -14,7 +14,7 @@ export class HostedZone extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.props.domainName + '.',
 		}

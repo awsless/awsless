@@ -1,7 +1,6 @@
-
-import { Resource } from '../../resource.js';
-import { formatName, getAtt, ref } from '../../util.js';
-import { Peer } from './peer.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt, ref } from '../../util.js'
+import { Peer } from './peer.js'
 
 // export type VpcProps = {
 // 	availabilityZones: string[]
@@ -12,10 +11,13 @@ import { Peer } from './peer.js';
 // }
 
 export class Vpc extends Resource {
-	constructor(logicalId: string, private props: {
-		name: string
-		cidrBlock: Peer
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name: string
+			cidrBlock: Peer
+		}
+	) {
 		super('AWS::EC2::VPC', logicalId)
 		this.tag('Name', props.name)
 	}
@@ -32,19 +34,22 @@ export class Vpc extends Resource {
 		return getAtt(this.logicalId, 'DefaultSecurityGroup')
 	}
 
-	properties() {
+	protected properties() {
 		return {
-			CidrBlock: this.props.cidrBlock.ip
+			CidrBlock: this.props.cidrBlock.ip,
 		}
 	}
 }
 
 export class RouteTable extends Resource {
 	readonly name: string
-	constructor(logicalId: string, private props: {
-		vpcId: string
-		name: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			vpcId: string
+			name: string
+		}
+	) {
 		super('AWS::EC2::RouteTable', logicalId)
 		this.name = formatName(props.name || logicalId)
 		this.tag('name', this.name)
@@ -54,7 +59,7 @@ export class RouteTable extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			VpcId: this.props.vpcId,
 		}
@@ -70,16 +75,19 @@ export class InternetGateway extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {}
 	}
 }
 
 export class VPCGatewayAttachment extends Resource {
-	constructor(logicalId: string, private props: {
-		vpcId: string
-		internetGatewayId: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			vpcId: string
+			internetGatewayId: string
+		}
+	) {
 		super('AWS::EC2::VPCGatewayAttachment', logicalId)
 	}
 
@@ -87,7 +95,7 @@ export class VPCGatewayAttachment extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			VpcId: this.props.vpcId,
 			InternetGatewayId: this.props.internetGatewayId,
@@ -96,11 +104,14 @@ export class VPCGatewayAttachment extends Resource {
 }
 
 export class Route extends Resource {
-	constructor(logicalId: string, private props: {
-		gatewayId: string
-		routeTableId: string
-		destination: Peer
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			gatewayId: string
+			routeTableId: string
+			destination: Peer
+		}
+	) {
 		super('AWS::EC2::Route', logicalId)
 	}
 
@@ -108,7 +119,7 @@ export class Route extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			GatewayId: this.props.gatewayId,
 			RouteTableId: this.props.routeTableId,
@@ -118,11 +129,14 @@ export class Route extends Resource {
 }
 
 export class Subnet extends Resource {
-	constructor(logicalId: string, private props: {
-		vpcId: string
-		cidrBlock: Peer
-		availabilityZone: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			vpcId: string
+			cidrBlock: Peer
+			availabilityZone: string
+		}
+	) {
 		super('AWS::EC2::Subnet', logicalId)
 	}
 
@@ -130,7 +144,7 @@ export class Subnet extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			VpcId: this.props.vpcId,
 			CidrBlock: this.props.cidrBlock.ip,
@@ -140,10 +154,13 @@ export class Subnet extends Resource {
 }
 
 export class SubnetRouteTableAssociation extends Resource {
-	constructor(logicalId: string, private props: {
-		subnetId: string
-		routeTableId: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			subnetId: string
+			routeTableId: string
+		}
+	) {
 		super('AWS::EC2::SubnetRouteTableAssociation', logicalId)
 	}
 
@@ -151,7 +168,7 @@ export class SubnetRouteTableAssociation extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			SubnetId: this.props.subnetId,
 			RouteTableId: this.props.routeTableId,
@@ -159,34 +176,33 @@ export class SubnetRouteTableAssociation extends Resource {
 	}
 }
 
+// get privateSubnetIds() {
+// 	return this.props.availabilityZones.map((_, x) => {
+// 		return this.props.subnetConfiguration
+// 			.filter(config => config.subnetType === 'private')
+// 			.map((_, y) => {
+// 				return ref(`${ this.logicalId }Subnet${x + y}`)
+// 			})
+// 	})
+// }
 
-	// get privateSubnetIds() {
-	// 	return this.props.availabilityZones.map((_, x) => {
-	// 		return this.props.subnetConfiguration
-	// 			.filter(config => config.subnetType === 'private')
-	// 			.map((_, y) => {
-	// 				return ref(`${ this.logicalId }Subnet${x + y}`)
-	// 			})
-	// 	})
-	// }
+// get publicSubnets() {
+// 	return this.props.availabilityZones.map((_, x) => {
+// 		return this.props.subnetConfiguration
+// 			.filter(config => config.subnetType === 'public')
+// 			.map((_, y) => {
+// 				return ref(`${ this.logicalId }Subnet${x + y}`)
+// 			})
+// 	})
+// }
 
-	// get publicSubnets() {
-	// 	return this.props.availabilityZones.map((_, x) => {
-	// 		return this.props.subnetConfiguration
-	// 			.filter(config => config.subnetType === 'public')
-	// 			.map((_, y) => {
-	// 				return ref(`${ this.logicalId }Subnet${x + y}`)
-	// 			})
-	// 	})
-	// }
+// private hasPublicSubnets() {
+// 	return this.props.subnetConfiguration.filter(config => config.subnetType === 'public').length > 0
+// }
 
-	// private hasPublicSubnets() {
-	// 	return this.props.subnetConfiguration.filter(config => config.subnetType === 'public').length > 0
-	// }
-
-	// private hasPrivateSubnets() {
-	// 	return this.props.subnetConfiguration.filter(config => config.subnetType === 'private').length > 0
-	// }
+// private hasPrivateSubnets() {
+// 	return this.props.subnetConfiguration.filter(config => config.subnetType === 'private').length > 0
+// }
 
 // 	template() {
 // 		return {
@@ -270,22 +286,6 @@ export class SubnetRouteTableAssociation extends Resource {
 // 		}
 // 	}
 // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // const vpc = new Vpc(stack, toId('vpc', 'http'), {
 // 	subnetConfiguration: [{

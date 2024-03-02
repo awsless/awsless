@@ -35,7 +35,7 @@ export class Rule extends Resource {
 		return getAtt(this.logicalId, 'Arn')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			...this.attr('State', this.props.enabled ? 'ENABLED' : 'DISABLED'),

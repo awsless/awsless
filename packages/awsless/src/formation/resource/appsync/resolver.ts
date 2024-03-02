@@ -18,7 +18,7 @@ export class Resolver extends Resource {
 		super('AWS::AppSync::Resolver', logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			Kind: 'PIPELINE',

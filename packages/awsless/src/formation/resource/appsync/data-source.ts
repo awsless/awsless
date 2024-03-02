@@ -1,7 +1,6 @@
-
-import { snakeCase } from "change-case";
-import { Resource } from '../../resource.js';
-import { ref } from '../../util.js';
+import { snakeCase } from 'change-case'
+import { Resource } from '../../resource.js'
+import { ref } from '../../util.js'
 
 export type DataSourceProps = {
 	apiId: string
@@ -17,11 +16,14 @@ export type DataSourceProps = {
 }
 
 export class DataSource extends Resource {
-
-	static fromLambda(logicalId: string, apiId:string, props: {
-		serviceRoleArn: string
-		functionArn: string
-	}) {
+	static fromLambda(
+		logicalId: string,
+		apiId: string,
+		props: {
+			serviceRoleArn: string
+			functionArn: string
+		}
+	) {
 		return new DataSource(logicalId, {
 			apiId,
 			type: 'AWS_LAMBDA',
@@ -29,12 +31,12 @@ export class DataSource extends Resource {
 			config: {
 				lambda: {
 					functionArn: props.functionArn,
-				}
-			}
+				},
+			},
 		})
 	}
 
-	static fromNone(logicalId: string, apiId:string) {
+	static fromNone(logicalId: string, apiId: string) {
 		return new DataSource(logicalId, {
 			apiId,
 			type: 'NONE',
@@ -53,18 +55,20 @@ export class DataSource extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			Name: this.name,
 			Type: this.props.type,
 			ServiceRoleArn: this.props.serviceRoleArn,
 
-			...(this.props.config?.lambda ? {
-				LambdaConfig: {
-					LambdaFunctionArn: this.props.config.lambda.functionArn,
-				}
-			} : {}),
+			...(this.props.config?.lambda
+				? {
+						LambdaConfig: {
+							LambdaFunctionArn: this.props.config.lambda.functionArn,
+						},
+				  }
+				: {}),
 		}
 	}
 }

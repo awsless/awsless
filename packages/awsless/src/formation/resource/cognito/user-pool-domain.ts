@@ -19,7 +19,7 @@ export class UserPoolDomain extends Resource {
 		return getAtt(this.logicalId, 'CloudFrontDistribution')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			UserPoolId: this.props.userPoolId,
 			Domain: formatName(this.props.domain),

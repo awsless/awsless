@@ -1,28 +1,30 @@
-import { Duration } from '../../property/duration.js';
-import { Resource } from '../../resource.js';
-import { formatName, getAtt } from '../../util.js';
+import { Duration } from '../../property/duration.js'
+import { Resource } from '../../resource.js'
+import { formatName, getAtt } from '../../util.js'
 
 export class Api extends Resource {
-
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		name?: string
-		description?: string
-		protocolType: 'HTTP'
-		cors?: {
-			allow?: {
-				credentials?: boolean
-				headers?: string[]
-				methods?: string[]
-				origins?: string[]
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			description?: string
+			protocolType: 'HTTP'
+			cors?: {
+				allow?: {
+					credentials?: boolean
+					headers?: string[]
+					methods?: string[]
+					origins?: string[]
+				}
+				expose?: {
+					headers?: string[]
+				}
+				maxAge?: Duration
 			}
-			expose?: {
-				headers?: string[]
-			}
-			maxAge?: Duration
 		}
-	}) {
+	) {
 		super('AWS::ApiGatewayV2::Api', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
@@ -36,7 +38,7 @@ export class Api extends Resource {
 		return getAtt(this.logicalId, 'ApiId')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			ProtocolType: this.props.protocolType,

@@ -65,7 +65,7 @@ export class ResponseHeadersPolicy extends Resource {
 		return getAtt(this.logicalId, 'Id')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ResponseHeadersPolicyConfig: {
 				Name: this.name,

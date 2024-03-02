@@ -1,14 +1,17 @@
-import { Resource } from '../../resource.js';
-import { formatName, getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt, ref } from '../../util.js'
 
 export class TargetGroup extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		name?: string
-		type: 'lambda'
-		targets: string[]
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			type: 'lambda'
+			targets: string[]
+		}
+	) {
 		super('AWS::ElasticLoadBalancingV2::TargetGroup', logicalId)
 		this.name = formatName(this.props.name || logicalId)
 	}
@@ -21,13 +24,13 @@ export class TargetGroup extends Resource {
 		return getAtt(this.logicalId, 'TargetGroupFullName')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			TargetType: this.props.type,
 			Targets: this.props.targets.map(target => ({
 				Id: target,
-			}))
+			})),
 		}
 	}
 }

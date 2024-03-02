@@ -16,7 +16,7 @@ export class Certificate extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			DomainName: this.props.domainName,
 			SubjectAlternativeNames: this.props.alternativeNames || [],

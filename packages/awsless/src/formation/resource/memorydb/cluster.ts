@@ -1,44 +1,43 @@
+import { Resource } from '../../resource.js'
+import { formatName } from '../../util.js'
 
-import { Resource } from '../../resource.js';
-import { formatName } from '../../util.js';
-
-export type NodeType = (
-	't4g.small' |
-	't4g.medium' |
-
-	'r6g.large' |
-	'r6g.xlarge' |
-	'r6g.2xlarge' |
-	'r6g.4xlarge' |
-	'r6g.8xlarge' |
-	'r6g.12xlarge' |
-	'r6g.16xlarge' |
-
-	'r6gd.xlarge' |
-	'r6gd.2xlarge' |
-	'r6gd.4xlarge' |
-	'r6gd.8xlarge'
-)
+export type NodeType =
+	| 't4g.small'
+	| 't4g.medium'
+	| 'r6g.large'
+	| 'r6g.xlarge'
+	| 'r6g.2xlarge'
+	| 'r6g.4xlarge'
+	| 'r6g.8xlarge'
+	| 'r6g.12xlarge'
+	| 'r6g.16xlarge'
+	| 'r6gd.xlarge'
+	| 'r6gd.2xlarge'
+	| 'r6gd.4xlarge'
+	| 'r6gd.8xlarge'
 
 export class Cluster extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		aclName: string
-		subnetGroupName?: string
-		securityGroupIds?: string[]
-		name?: string
-		description?: string
-		port?: number
-		engine?: '6.2' | '7.0'
-		type: NodeType
-		dataTiering?: boolean
-		shards?: number
-		replicasPerShard?: number
-		tls?: boolean
-		autoMinorVersionUpgrade?: boolean
-		maintenanceWindow?: `${string}:${number}:${number}-${string}:${number}:${number}`
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			aclName: string
+			subnetGroupName?: string
+			securityGroupIds?: string[]
+			name?: string
+			description?: string
+			port?: number
+			engine?: '6.2' | '7.0'
+			type: NodeType
+			dataTiering?: boolean
+			shards?: number
+			replicasPerShard?: number
+			tls?: boolean
+			autoMinorVersionUpgrade?: boolean
+			maintenanceWindow?: `${string}:${number}:${number}-${string}:${number}:${number}`
+		}
+	) {
 		super('AWS::MemoryDB::Cluster', logicalId)
 		this.name = formatName(this.props.name || logicalId)
 
@@ -61,7 +60,7 @@ export class Cluster extends Resource {
 		return this.getAtt<number>('ClusterEndpoint.Port')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ClusterName: this.name,
 			ClusterEndpoint: {
@@ -83,7 +82,6 @@ export class Cluster extends Resource {
 		}
 	}
 }
-
 
 // ACLName: String
 //   AutoMinorVersionUpgrade: Boolean

@@ -33,30 +33,64 @@ var import_client_s3 = require("@aws-sdk/client-s3");
 var import_utils = require("@awsless/utils");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_util_stream_node = require("@aws-sdk/util-stream-node");
+var import_stream2 = require("stream");
+
+// src/hash.ts
+var import_crypto = require("crypto");
 var import_stream = require("stream");
+var hashSHA1 = async (data) => {
+  if (!data) {
+    return "";
+  }
+  if (typeof data === "string") {
+    data = Buffer.from(data);
+  }
+  if (data instanceof Blob) {
+    const arrayBuffer = await data.arrayBuffer();
+    data = Buffer.from(arrayBuffer);
+  }
+  if (data instanceof import_stream.Readable) {
+    return "";
+  }
+  if (data instanceof ReadableStream) {
+    return "";
+  }
+  return (0, import_crypto.createHash)("sha1").update(data).digest("hex");
+};
+
+// src/mock.ts
 var mockS3 = () => {
   const fn = vi.fn();
-  const cache = {};
+  const store = {};
   const s3ClientMock = (0, import_aws_sdk_client_mock.mockClient)(import_client_s3.S3Client);
   s3ClientMock.on(import_client_s3.PutObjectCommand).callsFake(async (input) => {
     await (0, import_utils.nextTick)(fn);
-    cache[input.Key] = input.Body;
-    return {};
+    const sha1 = await hashSHA1(input.Body);
+    store[input.Key] = {
+      body: input.Body,
+      sha1
+    };
+    return {
+      ChecksumSHA1: sha1
+    };
   });
   s3ClientMock.on(import_client_s3.GetObjectCommand).callsFake(async (input) => {
     await (0, import_utils.nextTick)(fn);
-    const file = cache[input.Key];
-    if (file) {
-      const stream = new import_stream.Readable();
-      stream.push(file);
+    const data = store[input.Key];
+    if (data) {
+      const stream = new import_stream2.Readable();
+      stream.push(data.body);
       stream.push(null);
-      return { Body: (0, import_util_stream_node.sdkStreamMixin)(stream) };
+      return {
+        ChecksumSHA1: data.sha1,
+        Body: (0, import_util_stream_node.sdkStreamMixin)(stream)
+      };
     }
     return;
   });
   s3ClientMock.on(import_client_s3.DeleteObjectCommand).callsFake(async (input) => {
     await (0, import_utils.nextTick)(fn);
-    delete cache[input.Key];
+    delete store[input.Key];
     return {};
   });
   beforeEach(() => {
@@ -74,42 +108,48 @@ var s3Client = (0, import_utils2.globalClient)(() => {
 
 // src/commands.ts
 var import_client_s33 = require("@aws-sdk/client-s3");
-var putObject = ({
+var putObject = async ({
   client = s3Client(),
   bucket,
-  name,
+  key,
   body,
-  metaData,
+  metadata,
   storageClass = "STANDARD"
 }) => {
   const command = new import_client_s33.PutObjectCommand({
     Bucket: bucket,
-    Key: name,
+    Key: key,
     Body: body,
-    Metadata: metaData,
-    StorageClass: storageClass
+    Metadata: metadata,
+    StorageClass: storageClass,
+    ChecksumAlgorithm: "SHA1"
   });
-  return client.send(command);
+  const result = await client.send(command);
+  return {
+    sha1: result.ChecksumSHA1
+  };
 };
-var getObject = async ({ client = s3Client(), bucket, name }) => {
+var getObject = async ({ client = s3Client(), bucket, key }) => {
   const command = new import_client_s33.GetObjectCommand({
     Bucket: bucket,
-    Key: name
+    Key: key
   });
   const result = await client.send(command);
   if (!result || !result.Body) {
     return;
   }
   return {
-    body: await result.Body.transformToString()
+    metadata: result.Metadata ?? {},
+    sha1: result.ChecksumSHA1,
+    body: result.Body
   };
 };
-var deleteObject = ({ client = s3Client(), bucket, name }) => {
+var deleteObject = async ({ client = s3Client(), bucket, key }) => {
   const command = new import_client_s33.DeleteObjectCommand({
     Bucket: bucket,
-    Key: name
+    Key: key
   });
-  return client.send(command);
+  await client.send(command);
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

@@ -27,7 +27,7 @@ export class Files extends Asset {
 		super('bucket', id)
 	}
 
-	async build({ read, write }: BuildProps) {
+	async build({ write }: BuildProps) {
 		const glob = new Glob(this.props.pattern ?? '**/*', {
 			nodir: true,
 			cwd: this.props.directory,

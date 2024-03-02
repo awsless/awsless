@@ -105,7 +105,7 @@ export abstract class Resource {
 		}
 	}
 
-	abstract properties(): object
+	protected abstract properties(): object
 }
 
 export class Group {

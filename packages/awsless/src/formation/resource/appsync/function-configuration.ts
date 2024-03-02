@@ -28,7 +28,7 @@ export class FunctionConfiguration extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			Name: this.name,

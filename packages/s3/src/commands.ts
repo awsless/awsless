@@ -1,30 +1,35 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { s3Client } from './client'
-import { PutObject, GetObject, DeleteObject } from './types'
+import { PutObjectProps, GetObjectProps, DeleteObjectProps } from './types'
 
-export const putObject = ({
+export const putObject = async ({
 	client = s3Client(),
 	bucket,
-	name,
+	key,
 	body,
-	metaData,
+	metadata,
 	storageClass = 'STANDARD',
-}: PutObject) => {
+}: PutObjectProps) => {
 	const command = new PutObjectCommand({
 		Bucket: bucket,
-		Key: name,
+		Key: key,
 		Body: body,
-		Metadata: metaData,
+		Metadata: metadata,
 		StorageClass: storageClass,
+		ChecksumAlgorithm: 'SHA1',
 	})
 
-	return client.send(command)
+	const result = await client.send(command)
+
+	return {
+		sha1: result.ChecksumSHA1!,
+	}
 }
 
-export const getObject = async ({ client = s3Client(), bucket, name }: GetObject) => {
+export const getObject = async ({ client = s3Client(), bucket, key }: GetObjectProps) => {
 	const command = new GetObjectCommand({
 		Bucket: bucket,
-		Key: name,
+		Key: key,
 	})
 
 	const result = await client.send(command)
@@ -34,15 +39,17 @@ export const getObject = async ({ client = s3Client(), bucket, name }: GetObject
 	}
 
 	return {
-		body: await result.Body.transformToString(),
+		metadata: result.Metadata ?? {},
+		sha1: result.ChecksumSHA1!,
+		body: result.Body,
 	}
 }
 
-export const deleteObject = ({ client = s3Client(), bucket, name }: DeleteObject) => {
+export const deleteObject = async ({ client = s3Client(), bucket, key }: DeleteObjectProps) => {
 	const command = new DeleteObjectCommand({
 		Bucket: bucket,
-		Key: name,
+		Key: key,
 	})
 
-	return client.send(command)
+	await client.send(command)
 }

@@ -1,6 +1,6 @@
-import { constantCase } from "change-case";
-import { Resource } from '../../resource.js';
-import { formatArn, formatName, getAtt, ref } from '../../util.js';
+import { constantCase } from 'change-case'
+import { Resource } from '../../resource.js'
+import { formatArn, formatName, getAtt, ref } from '../../util.js'
 
 export type IndexProps = {
 	hash: string
@@ -40,7 +40,7 @@ export class Table extends Resource {
 		this.props.stream = viewType
 	}
 
-	addIndex(name:string, props: IndexProps) {
+	addIndex(name: string, props: IndexProps) {
 		this.indexes[name] = props
 	}
 
@@ -57,38 +57,42 @@ export class Table extends Resource {
 	}
 
 	get permissions() {
-		const permissions = [{
-			actions: [
-				'dynamodb:DescribeTable',
-				'dynamodb:PutItem',
-				'dynamodb:GetItem',
-				'dynamodb:DeleteItem',
-				'dynamodb:TransactWrite',
-				'dynamodb:BatchWriteItem',
-				'dynamodb:BatchGetItem',
-				'dynamodb:ConditionCheckItem',
-				'dynamodb:Query',
-				'dynamodb:Scan',
-			],
-			resources: [
-				formatArn({
-					service: 'dynamodb',
-					resource: 'table',
-					resourceName: this.name,
-				}),
-			 ],
-		}]
+		const permissions = [
+			{
+				actions: [
+					'dynamodb:DescribeTable',
+					'dynamodb:PutItem',
+					'dynamodb:GetItem',
+					'dynamodb:DeleteItem',
+					'dynamodb:TransactWrite',
+					'dynamodb:BatchWriteItem',
+					'dynamodb:BatchGetItem',
+					'dynamodb:ConditionCheckItem',
+					'dynamodb:Query',
+					'dynamodb:Scan',
+				],
+				resources: [
+					formatArn({
+						service: 'dynamodb',
+						resource: 'table',
+						resourceName: this.name,
+					}),
+				],
+			},
+		]
 
 		const indexNames = Object.keys(this.indexes ?? {})
 
-		if(indexNames.length > 0) {
+		if (indexNames.length > 0) {
 			permissions.push({
-				actions: [ 'dynamodb:Query' ],
-				resources: indexNames.map(indexName => formatArn({
-					service: 'dynamodb',
-					resource: 'table',
-					resourceName: `${ this.name }/index/${ indexName }`,
-				}))
+				actions: ['dynamodb:Query'],
+				resources: indexNames.map(indexName =>
+					formatArn({
+						service: 'dynamodb',
+						resource: 'table',
+						resourceName: `${this.name}/index/${indexName}`,
+					})
+				),
 			})
 		}
 
@@ -97,14 +101,15 @@ export class Table extends Resource {
 
 	private attributeDefinitions() {
 		const fields = this.props.fields || {}
-		const attributes = new Set([
-			this.props.hash,
-			this.props.sort,
-			...Object.values(this.props.indexes || {}).map(index => [
-				index.hash,
-				index.sort,
-			])
-		].flat().filter(Boolean) as string[])
+		const attributes = new Set(
+			[
+				this.props.hash,
+				this.props.sort,
+				...Object.values(this.props.indexes || {}).map(index => [index.hash, index.sort]),
+			]
+				.flat()
+				.filter(Boolean) as string[]
+		)
 
 		const types = {
 			string: 'S',
@@ -112,48 +117,54 @@ export class Table extends Resource {
 			binary: 'B',
 		} as const
 
-		return [ ...attributes ].map(name => ({
+		return [...attributes].map(name => ({
 			AttributeName: name,
-			AttributeType: types[fields[name] || 'string']
+			AttributeType: types[fields[name] || 'string'],
 		}))
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			TableName: this.name,
 			BillingMode: 'PAY_PER_REQUEST',
 			TableClass: constantCase(this.props.class || 'standard'),
 			PointInTimeRecoverySpecification: {
-				PointInTimeRecoveryEnabled: this.props.pointInTimeRecovery || false
+				PointInTimeRecoveryEnabled: this.props.pointInTimeRecovery || false,
 			},
 			KeySchema: [
 				{ KeyType: 'HASH', AttributeName: this.props.hash },
-				...(this.props.sort ? [{ KeyType: 'RANGE', AttributeName: this.props.sort }] : [])
+				...(this.props.sort ? [{ KeyType: 'RANGE', AttributeName: this.props.sort }] : []),
 			],
 			AttributeDefinitions: this.attributeDefinitions(),
-			...(this.props.stream ? {
-				StreamSpecification: {
-					StreamViewType: constantCase(this.props.stream),
-				},
-			} : {}),
-			...(this.props.timeToLiveAttribute ? {
-				TimeToLiveSpecification: {
-					AttributeName: this.props.timeToLiveAttribute,
-					Enabled: true,
-				},
-			} : {}),
-			...(Object.keys(this.indexes).length ? {
-				GlobalSecondaryIndexes: Object.entries(this.indexes).map(([name, props]) => ({
-					IndexName: name,
-					KeySchema: [
-						{ KeyType: 'HASH', AttributeName: props.hash },
-						...(props.sort ? [{ KeyType: 'RANGE', AttributeName: props.sort }] : [])
-					],
-					Projection: {
-						ProjectionType: constantCase(props.projection || 'all')
-					},
-				}))
-			} : {}),
+			...(this.props.stream
+				? {
+						StreamSpecification: {
+							StreamViewType: constantCase(this.props.stream),
+						},
+				  }
+				: {}),
+			...(this.props.timeToLiveAttribute
+				? {
+						TimeToLiveSpecification: {
+							AttributeName: this.props.timeToLiveAttribute,
+							Enabled: true,
+						},
+				  }
+				: {}),
+			...(Object.keys(this.indexes).length
+				? {
+						GlobalSecondaryIndexes: Object.entries(this.indexes).map(([name, props]) => ({
+							IndexName: name,
+							KeySchema: [
+								{ KeyType: 'HASH', AttributeName: props.hash },
+								...(props.sort ? [{ KeyType: 'RANGE', AttributeName: props.sort }] : []),
+							],
+							Projection: {
+								ProjectionType: constantCase(props.projection || 'all'),
+							},
+						})),
+				  }
+				: {}),
 		}
 	}
 }

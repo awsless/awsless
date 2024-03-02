@@ -11,7 +11,7 @@ export class RecordSetGroup extends Resource {
 		super('AWS::Route53::RecordSetGroup', logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			HostedZoneId: this.props.hostedZoneId,
 			RecordSets: this.props.records.map(props => ({

@@ -40,7 +40,7 @@ export class RecordSet extends Resource {
 		this.name = this.props.name || this.logicalId
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			HostedZoneId: this.props.hostedZoneId,
 			Name: typeof this.name === 'string' ? this.name + '.' : this.name,

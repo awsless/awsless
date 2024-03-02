@@ -13,29 +13,48 @@ import { sdkStreamMixin } from '@aws-sdk/util-stream-node'
 // @ts-ignore
 import { Mock } from 'vitest'
 import { Readable } from 'stream'
+import { Body } from './types'
+import { hashSHA1 } from './hash'
 
 export const mockS3 = () => {
 	const fn = vi.fn()
-	const store: Record<string, string> = {}
+	const store: Record<
+		string,
+		{
+			body: Body
+			sha1: string
+		}
+	> = {}
 
 	const s3ClientMock = mockClient(S3Client)
 
 	s3ClientMock.on(PutObjectCommand).callsFake(async (input: PutObjectCommandInput) => {
 		await nextTick(fn)
-		store[input.Key!] = input.Body as string
-		return {}
+		const sha1 = await hashSHA1(input.Body)
+
+		store[input.Key!] = {
+			body: input.Body,
+			sha1: sha1,
+		}
+
+		return {
+			ChecksumSHA1: sha1,
+		}
 	})
 
 	s3ClientMock.on(GetObjectCommand).callsFake(async (input: GetObjectCommandInput) => {
 		await nextTick(fn)
 
-		const file = store[input.Key!]
+		const data = store[input.Key!]
 
-		if (file) {
+		if (data) {
 			const stream = new Readable()
-			stream.push(file)
+			stream.push(data.body)
 			stream.push(null)
-			return { Body: sdkStreamMixin(stream) }
+			return {
+				ChecksumSHA1: data.sha1,
+				Body: sdkStreamMixin(stream),
+			}
 		}
 
 		return

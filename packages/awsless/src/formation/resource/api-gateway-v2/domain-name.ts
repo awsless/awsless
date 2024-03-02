@@ -1,13 +1,14 @@
-
-import { Resource } from '../../resource.js';
-import { getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { getAtt, ref } from '../../util.js'
 
 export class DomainName extends Resource {
-
-	constructor(logicalId: string, private props: {
-		name: string
-		certificateArn: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name: string
+			certificateArn: string
+		}
+	) {
 		super('AWS::ApiGatewayV2::DomainName', logicalId)
 	}
 
@@ -23,12 +24,14 @@ export class DomainName extends Resource {
 		return getAtt(this.logicalId, 'RegionalHostedZoneId')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			DomainName: this.props.name,
-			DomainNameConfigurations: [{
-				CertificateArn: this.props.certificateArn,
-			}]
+			DomainNameConfigurations: [
+				{
+					CertificateArn: this.props.certificateArn,
+				},
+			],
 		}
 	}
 }

@@ -14,6 +14,17 @@ export const hasStores = (config: Config) => {
 	return !!stores
 }
 
+const typeGenCode = `
+import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
+
+type Store<Name extends string> = {
+	readonly name: Name
+	readonly put: (key: string, body: Body, options?: Pick<PutObjectProps, 'metadata' | 'storageClass'>) => Promise<void>
+	readonly get: (key: string) => Promise<BodyStream>
+	readonly delete: (key: string) => Promise<void>
+}
+`
+
 export const storePlugin = definePlugin({
 	name: 'store',
 	async onTypeGen({ config, write }) {
@@ -25,12 +36,13 @@ export const storePlugin = definePlugin({
 
 			for (const name of stack.stores || []) {
 				const storeName = formatName(`${config.app.name}-${stack.name}-${name}`)
-				list.addType(name, `{ readonly name: '${storeName}' }`)
+				list.addType(name, `Store<'${storeName}'>`)
 			}
 
 			resources.addType(stack.name, list)
 		}
 
+		gen.addCode(typeGenCode)
 		gen.addInterface('StoreResources', resources)
 
 		await write('store.d.ts', gen, true)

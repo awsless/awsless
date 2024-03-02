@@ -1,17 +1,18 @@
-
-import { Resource } from '../../resource.js';
-import { ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { ref } from '../../util.js'
 
 export class Integration extends Resource {
-
-	constructor(logicalId: string, private props: {
-		apiId: string
-		description?: string
-		type: 'AWS' | 'AWS_PROXY' | 'HTTP' | 'HTTP_PROXY' | 'MOCK'
-		uri: string
-		method: string
-		payloadFormatVersion?: '1.0' | '2.0'
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			apiId: string
+			description?: string
+			type: 'AWS' | 'AWS_PROXY' | 'HTTP' | 'HTTP_PROXY' | 'MOCK'
+			uri: string
+			method: string
+			payloadFormatVersion?: '1.0' | '2.0'
+		}
+	) {
 		super('AWS::ApiGatewayV2::Integration', logicalId)
 	}
 
@@ -19,7 +20,7 @@ export class Integration extends Resource {
 		return ref(this.logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			IntegrationType: this.props.type,
@@ -30,7 +31,6 @@ export class Integration extends Resource {
 		}
 	}
 }
-
 
 // Integration:
 //   Type: 'AWS::ApiGatewayV2::Integration'

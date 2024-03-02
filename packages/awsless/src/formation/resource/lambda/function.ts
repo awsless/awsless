@@ -178,7 +178,7 @@ export class Function extends Resource {
 		}
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			FunctionName: this.name,
 			MemorySize: this.props.memorySize?.toMegaBytes() ?? 128,

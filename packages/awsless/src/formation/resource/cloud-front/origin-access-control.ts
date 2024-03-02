@@ -21,7 +21,7 @@ export class OriginAccessControl extends Resource {
 		return getAtt(this.logicalId, 'Id')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			OriginAccessControlConfig: {
 				Name: this.name,

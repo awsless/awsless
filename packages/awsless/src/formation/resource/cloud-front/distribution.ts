@@ -75,7 +75,7 @@ export class Distribution extends Resource {
 		return 'Z2FDTNDATAQYW2'
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			DistributionConfig: {
 				Enabled: true,

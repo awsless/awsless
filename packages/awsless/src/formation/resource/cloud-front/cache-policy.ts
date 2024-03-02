@@ -27,7 +27,7 @@ export class CachePolicy extends Resource {
 		return getAtt(this.logicalId, 'Id')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			CachePolicyConfig: {
 				Name: this.name,

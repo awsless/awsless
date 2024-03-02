@@ -1,6 +1,5 @@
-
-import { constantCase } from 'change-case';
-import { Resource } from '../../resource.js';
+import { constantCase } from 'change-case'
+import { Resource } from '../../resource.js'
 
 export type PermissionProps = {
 	functionArn: string
@@ -11,12 +10,11 @@ export type PermissionProps = {
 }
 
 export class Permission extends Resource {
-
 	constructor(logicalId: string, private props: PermissionProps) {
 		super('AWS::Lambda::Permission', logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			FunctionName: this.props.functionArn,
 			Action: this.props.action || 'lambda:InvokeFunction',

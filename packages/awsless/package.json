@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.147",
+	"version": "0.0.150",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -39,6 +39,7 @@
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",
 		"@awsless/redis": "workspace:^",
+		"@awsless/s3": "workspace:^",
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",

@@ -1,15 +1,17 @@
-
-import { Resource } from '../../resource.js';
-import { formatArn, getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatArn, getAtt, ref } from '../../util.js'
 
 export class Collection extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		type: 'search' | 'timeseries' | 'vectorsearch'
-		name?: string
-		description?: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			type: 'search' | 'timeseries' | 'vectorsearch'
+			name?: string
+			description?: string
+		}
+	) {
 		super('AWS::OpenSearchServerless::Collection', logicalId)
 		this.name = this.props.name || logicalId
 
@@ -30,18 +32,18 @@ export class Collection extends Resource {
 
 	get permissions() {
 		return {
-			actions: [ 'aoss:APIAccessAll' ],
+			actions: ['aoss:APIAccessAll'],
 			resources: [
 				formatArn({
 					service: 'aoss',
 					resource: 'collection',
 					resourceName: this.name,
-				})
+				}),
 			],
 		}
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			Type: this.props.type.toUpperCase(),

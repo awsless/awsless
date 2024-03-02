@@ -1,15 +1,17 @@
-
-import { Resource } from '../../resource.js';
-import { formatName, getAtt } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt } from '../../util.js'
 
 export class SubnetGroup extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		subnetIds: string[]
-		name?: string
-		description?: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			subnetIds: string[]
+			name?: string
+			description?: string
+		}
+	) {
 		super('AWS::MemoryDB::SubnetGroup', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
@@ -19,7 +21,7 @@ export class SubnetGroup extends Resource {
 		return getAtt(this.logicalId, 'Arn')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			SubnetGroupName: this.name,
 			SubnetIds: this.props.subnetIds,

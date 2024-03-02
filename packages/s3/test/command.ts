@@ -1,40 +1,49 @@
 import { mockS3, putObject, getObject, deleteObject } from '../src'
+import { hashSHA1 } from '../src/hash'
 
 describe('S3 Commands', () => {
 	const mock = mockS3()
+	const body = 'payload'
 
 	it('should store a file in s3', async () => {
-		await putObject({
+		const result = await putObject({
 			bucket: 'test',
-			name: 'test',
-			body: 'hello world',
+			key: 'test',
+			body,
 		})
 
 		expect(mock).toBeCalledTimes(1)
+		expect(result).toStrictEqual({
+			sha1: await hashSHA1(body),
+		})
 	})
 
 	it('should retrieve a file from s3', async () => {
 		const result = await getObject({
 			bucket: 'test',
-			name: 'test',
+			key: 'test',
 		})
-		expect(result?.body).toBe('hello world')
+
+		expect(await result?.body.transformToString()).toBe(body)
+		expect(result?.sha1).toBe(await hashSHA1(body))
 		expect(mock).toBeCalledTimes(1)
 	})
 
 	it('should delete a file from s3', async () => {
 		await deleteObject({
 			bucket: 'test',
-			name: 'test',
+			key: 'test',
 		})
+
 		expect(mock).toBeCalledTimes(1)
 	})
 
 	it('should not retrieve a file from s3', async () => {
 		const result = await getObject({
 			bucket: 'test',
-			name: 'test',
+			key: 'test',
 		})
+
 		expect(result).toBe(undefined)
 	})
 })

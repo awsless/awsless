@@ -11,7 +11,7 @@ export class Subscription extends Resource {
 		super('AWS::SNS::Subscription', logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			TopicArn: this.props.topicArn,
 			Protocol: this.props.protocol,

@@ -1,16 +1,19 @@
-import { Resource } from '../../resource.js';
-import { getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { getAtt, ref } from '../../util.js'
 
 export class LoadBalancer extends Resource {
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		name?: string
-		securityGroups: string[]
-		subnets: string[]
-		type: 'application' | 'gateway' | 'network'
-		schema?: 'internal' | 'internet-facing'
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			securityGroups: string[]
+			subnets: string[]
+			type: 'application' | 'gateway' | 'network'
+			schema?: 'internal' | 'internet-facing'
+		}
+	) {
 		super('AWS::ElasticLoadBalancingV2::LoadBalancer', logicalId)
 		this.name = this.props.name || logicalId
 	}
@@ -27,7 +30,7 @@ export class LoadBalancer extends Resource {
 		return getAtt(this.logicalId, 'CanonicalHostedZoneID')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			Type: this.props.type,

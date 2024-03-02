@@ -1,6 +1,6 @@
-import { snakeCase } from "change-case";
-import { Resource } from '../../resource.js';
-import { getAtt } from '../../util.js';
+import { snakeCase } from 'change-case'
+import { Resource } from '../../resource.js'
+import { getAtt } from '../../util.js'
 
 export type TopicRuleSqlVersion = '2015-10-08' | '2016-03-23' | 'beta'
 
@@ -24,7 +24,7 @@ export class TopicRule extends Resource {
 		return getAtt(this.logicalId, 'Arn')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			RuleName: this.name,
 			TopicRulePayload: {
@@ -33,8 +33,8 @@ export class TopicRule extends Resource {
 				RuleDisabled: false,
 				Actions: this.props.actions.map(action => ({
 					Lambda: { FunctionArn: action.lambda.functionArn },
-				}))
-			}
+				})),
+			},
 		}
 	}
 }

@@ -1,7 +1,6 @@
-
-import { Duration } from '../../property/duration.js';
-import { Resource } from '../../resource.js';
-import { getAtt } from '../../util.js';
+import { Duration } from '../../property/duration.js'
+import { Resource } from '../../resource.js'
+import { getAtt } from '../../util.js'
 import { constantCase } from 'change-case'
 
 export type UrlProps = {
@@ -24,7 +23,6 @@ export type UrlProps = {
 }
 
 export class Url extends Resource {
-
 	constructor(logicalId: string, private props: UrlProps) {
 		super('AWS::Lambda::Url', logicalId)
 	}
@@ -33,7 +31,7 @@ export class Url extends Resource {
 		return getAtt(this.logicalId, 'FunctionUrl')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			AuthType: constantCase(this.props.authType ?? 'none'),
 			InvokeMode: constantCase(this.props.invokeMode ?? 'buffered'),

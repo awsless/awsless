@@ -1,11 +1,18 @@
-import { pascalCase } from "change-case";
-import { Resource } from '../../resource.js';
-import { formatArn, formatName, getAtt } from '../../util.js';
+import { pascalCase } from 'change-case'
+import { Resource } from '../../resource.js'
+import { formatArn, formatName, getAtt } from '../../util.js'
 
 export type BucketProps = {
 	name?: string
-	accessControl?: 'private' | 'public-read' | 'public-read-write' | 'authenticated-read' | 'bucket-owner-read' | 'bucket-owner-full-control' | 'log-delivery-write'
-	versioning?: boolean,
+	accessControl?:
+		| 'private'
+		| 'public-read'
+		| 'public-read-write'
+		| 'authenticated-read'
+		| 'bucket-owner-read'
+		| 'bucket-owner-full-control'
+		| 'log-delivery-write'
+	versioning?: boolean
 	website?: {
 		indexDocument?: string
 		errorDocument?: string
@@ -45,37 +52,36 @@ export class Bucket extends Resource {
 
 	get permissions() {
 		return {
-			actions: [
-				's3:SendMessage',
-				's3:ReceiveMessage',
-				's3:GetQueueUrl',
-				's3:GetQueueAttributes',
-			],
+			actions: ['s3:SendMessage', 's3:ReceiveMessage', 's3:GetQueueUrl', 's3:GetQueueAttributes'],
 			resources: [
 				formatArn({
 					service: 's3',
 					resource: 'bucket',
 					resourceName: this.name,
-				})
+				}),
 			],
 		}
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			BucketName: this.name,
 			AccessControl: pascalCase(this.props.accessControl ?? 'private'),
-			...( this.props.versioning ? {
-				VersioningConfiguration: {
-					Status: 'Enabled'
-				}
-			} : {}),
-			...( this.props.website ? {
-				WebsiteConfiguration: {
-					...this.attr('IndexDocument', this.props.website.indexDocument),
-					...this.attr('ErrorDocument', this.props.website.errorDocument),
-				}
-			} : {}),
+			...(this.props.versioning
+				? {
+						VersioningConfiguration: {
+							Status: 'Enabled',
+						},
+				  }
+				: {}),
+			...(this.props.website
+				? {
+						WebsiteConfiguration: {
+							...this.attr('IndexDocument', this.props.website.indexDocument),
+							...this.attr('ErrorDocument', this.props.website.errorDocument),
+						},
+				  }
+				: {}),
 		}
 	}
 }

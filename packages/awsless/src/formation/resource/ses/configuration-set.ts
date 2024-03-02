@@ -17,7 +17,7 @@ export class ConfigurationSet extends Resource {
 		this.name = formatName(this.props.name || logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			VdmOptions: {

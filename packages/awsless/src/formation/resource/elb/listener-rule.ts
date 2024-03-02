@@ -1,14 +1,17 @@
-import { Resource } from '../../resource.js';
-import { getAtt, ref } from '../../util.js';
-import { ListenerAction } from './listener.js';
+import { Resource } from '../../resource.js'
+import { getAtt, ref } from '../../util.js'
+import { ListenerAction } from './listener.js'
 
 export class ListenerRule extends Resource {
-	constructor(logicalId: string, private props: {
-		listenerArn: string
-		priority: number
-		conditions: ListenerCondition[]
-		actions: ListenerAction[]
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			listenerArn: string
+			priority: number
+			conditions: ListenerCondition[]
+			actions: ListenerAction[]
+		}
+	) {
 		super('AWS::ElasticLoadBalancingV2::ListenerRule', logicalId)
 	}
 
@@ -20,7 +23,7 @@ export class ListenerRule extends Resource {
 		return getAtt(this.logicalId, 'ListenerArn')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ListenerArn: this.props.listenerArn,
 			Priority: this.props.priority,
@@ -29,7 +32,7 @@ export class ListenerRule extends Resource {
 			Actions: this.props.actions?.map((action, i) => {
 				return {
 					Order: i + 1,
-					...action.toJSON()
+					...action.toJSON(),
 				}
 			}),
 		}
@@ -39,7 +42,7 @@ export class ListenerRule extends Resource {
 export type HttpRequestMethod = 'POST' | 'GET' | 'PUT' | 'DELETE' | 'HEAD' | 'OPTIONS'
 
 export class ListenerCondition {
-	static httpRequestMethods(methods:HttpRequestMethod[]) {
+	static httpRequestMethods(methods: HttpRequestMethod[]) {
 		return new ListenerCondition({
 			field: 'http-request-method',
 			methods,
@@ -53,27 +56,35 @@ export class ListenerCondition {
 		})
 	}
 
-	constructor(private props: {
-		field: 'http-request-method'
-		methods: HttpRequestMethod[]
-	} | {
-		field: 'path-pattern'
-		paths: string[]
-	}) {}
+	constructor(
+		private props:
+			| {
+					field: 'http-request-method'
+					methods: HttpRequestMethod[]
+			  }
+			| {
+					field: 'path-pattern'
+					paths: string[]
+			  }
+	) {}
 
 	toJSON() {
 		return {
 			Field: this.props.field,
-			...(this.props.field === 'http-request-method' ? {
-				HttpRequestMethodConfig: {
-					Values: this.props.methods
-				},
-			} : {}),
-			...(this.props.field === 'path-pattern' ? {
-				PathPatternConfig: {
-					Values: this.props.paths
-				},
-			} : {}),
+			...(this.props.field === 'http-request-method'
+				? {
+						HttpRequestMethodConfig: {
+							Values: this.props.methods,
+						},
+				  }
+				: {}),
+			...(this.props.field === 'path-pattern'
+				? {
+						PathPatternConfig: {
+							Values: this.props.paths,
+						},
+				  }
+				: {}),
 		}
 	}
 }

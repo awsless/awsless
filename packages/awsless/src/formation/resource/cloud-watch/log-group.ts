@@ -17,7 +17,7 @@ export class LogGroup extends Resource {
 		return getAtt(this.logicalId, 'Arn')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			LogGroupName: this.props.name,
 			...this.attr('RetentionInDays', this.props.retention?.toDays()),

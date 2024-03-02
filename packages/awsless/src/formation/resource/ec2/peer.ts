@@ -1,6 +1,4 @@
-
 export class Peer {
-
 	static ipv4(cidrIp: string) {
 		const cidrMatch = cidrIp.match(/^(\d{1,3}\.){3}\d{1,3}(\/\d+)?$/)
 
@@ -20,14 +18,14 @@ export class Peer {
 	}
 
 	static ipv6(cidrIpv6: string) {
-		const cidrMatch = cidrIpv6.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/);
+		const cidrMatch = cidrIpv6.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/)
 
 		if (!cidrMatch) {
-			throw new Error(`Invalid IPv6 CIDR: "${cidrIpv6}"`);
+			throw new Error(`Invalid IPv6 CIDR: "${cidrIpv6}"`)
 		}
 
 		if (!cidrMatch[3]) {
-			throw new Error(`CIDR mask is missing in IPv6: "${cidrIpv6}". Did you mean "${cidrIpv6}/128"?`);
+			throw new Error(`CIDR mask is missing in IPv6: "${cidrIpv6}". Did you mean "${cidrIpv6}/128"?`)
 		}
 
 		return new Peer(cidrIpv6, 'v6')
@@ -40,9 +38,11 @@ export class Peer {
 	constructor(readonly ip: string, readonly type: 'v4' | 'v6') {}
 
 	toRuleJson() {
-		switch(this.type) {
-			case 'v4': return { CidrIp: this.ip }
-			case 'v6': return { CidrIpv6: this.ip }
+		switch (this.type) {
+			case 'v4':
+				return { CidrIp: this.ip }
+			case 'v6':
+				return { CidrIpv6: this.ip }
 		}
 	}
 

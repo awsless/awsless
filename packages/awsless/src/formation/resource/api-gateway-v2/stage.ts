@@ -1,23 +1,25 @@
-import { Resource } from '../../resource.js';
-import { formatName } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName } from '../../util.js'
 
 export class Stage extends Resource {
-
 	readonly name: string
 
-	constructor(logicalId: string, private props: {
-		apiId: string
-		deploymentId?: string
-		name: string
-		description?: string
-		autoDeploy?: boolean
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			apiId: string
+			deploymentId?: string
+			name: string
+			description?: string
+			autoDeploy?: boolean
+		}
+	) {
 		super('AWS::ApiGatewayV2::Stage', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			StageName: this.name,
@@ -44,7 +46,6 @@ export class Stage extends Resource {
 //   StageName: String
 //   StageVariables: Json
 //   Tags: Json
-
 
 // V1Stage:
 //   Type: AWS::ApiGatewayV2::Stage

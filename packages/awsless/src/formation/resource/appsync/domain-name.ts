@@ -2,10 +2,13 @@ import { Resource } from '../../resource.js'
 import { getAtt } from '../../util.js'
 
 export class DomainName extends Resource {
-	constructor(logicalId: string, private props: {
-		domainName: string
-		certificateArn: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			domainName: string
+			certificateArn: string
+		}
+	) {
 		super('AWS::AppSync::DomainName', logicalId)
 	}
 
@@ -21,7 +24,7 @@ export class DomainName extends Resource {
 		return getAtt(this.logicalId, 'HostedZoneId')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			DomainName: this.props.domainName,
 			CertificateArn: this.props.certificateArn,
@@ -30,14 +33,17 @@ export class DomainName extends Resource {
 }
 
 export class DomainNameApiAssociation extends Resource {
-	constructor(logicalId: string, private props: {
-		apiId: string
-		domainName: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			apiId: string
+			domainName: string
+		}
+	) {
 		super('AWS::AppSync::DomainNameApiAssociation', logicalId)
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			DomainName: this.props.domainName,

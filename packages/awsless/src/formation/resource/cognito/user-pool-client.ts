@@ -87,7 +87,7 @@ export class UserPoolClient extends Resource {
 		return providers
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ClientName: this.name,
 			UserPoolId: this.props.userPoolId,

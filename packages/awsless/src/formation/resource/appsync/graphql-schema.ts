@@ -15,7 +15,7 @@ export class GraphQLSchema extends Resource {
 		super('AWS::AppSync::GraphQLSchema', logicalId, [props.definition])
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ApiId: this.props.apiId,
 			Definition: this.props.definition.toString(),

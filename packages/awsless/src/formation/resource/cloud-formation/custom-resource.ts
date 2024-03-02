@@ -15,7 +15,7 @@ export class CustomResource extends Resource {
 		return getAtt(this.logicalId, name) as T
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ServiceToken: this.props.serviceToken,
 			...this.props.properties,

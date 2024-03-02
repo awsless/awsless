@@ -1,6 +1,5 @@
-
-import { Duration } from '../../property/duration.js';
-import { Resource } from '../../resource.js';
+import { Duration } from '../../property/duration.js'
+import { Resource } from '../../resource.js'
 
 export type EventInvokeConfigProps = {
 	functionName: string
@@ -12,7 +11,6 @@ export type EventInvokeConfigProps = {
 }
 
 export class EventInvokeConfig extends Resource {
-
 	constructor(logicalId: string, private props: EventInvokeConfigProps) {
 		super('AWS::Lambda::EventInvokeConfig', logicalId)
 	}
@@ -29,28 +27,34 @@ export class EventInvokeConfig extends Resource {
 		return this
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			FunctionName: this.props.functionName,
 			Qualifier: this.props.qualifier || '$LATEST',
 
-			...this.attr('MaximumEventAgeInSeconds',	this.props.maxEventAge?.toSeconds()),
-			...this.attr('MaximumRetryAttempts', 		this.props.retryAttempts),
+			...this.attr('MaximumEventAgeInSeconds', this.props.maxEventAge?.toSeconds()),
+			...this.attr('MaximumRetryAttempts', this.props.retryAttempts),
 
-			...(this.props.onFailure || this.props.onSuccess ? {
-				DestinationConfig: {
-					...(this.props.onFailure ? {
-						OnFailure: {
-							Destination: this.props.onFailure,
-						}
-					} : {}),
-					...(this.props.onSuccess ? {
-						OnSuccess: {
-							Destination: this.props.onSuccess,
-						}
-					} : {}),
-				}
-			} : {}),
+			...(this.props.onFailure || this.props.onSuccess
+				? {
+						DestinationConfig: {
+							...(this.props.onFailure
+								? {
+										OnFailure: {
+											Destination: this.props.onFailure,
+										},
+								  }
+								: {}),
+							...(this.props.onSuccess
+								? {
+										OnSuccess: {
+											Destination: this.props.onSuccess,
+										},
+								  }
+								: {}),
+						},
+				  }
+				: {}),
 		}
 	}
 }

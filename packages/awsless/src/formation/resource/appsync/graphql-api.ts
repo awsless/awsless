@@ -1,19 +1,21 @@
 // import { constantCase } from "change-case";
-import { Resource } from '../../resource.js';
-import { formatName, getAtt, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt, ref } from '../../util.js'
 // import { Duration } from '../../property/duration.js';
 
 export class GraphQLApi extends Resource {
-
 	readonly name: string
 	private defaultAuthorization?: GraphQLAuthorization
 	// private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
 
-	constructor(logicalId: string, private props: {
-		name?: string
-		defaultAuthorization?: GraphQLAuthorization
-		// authenticationType?: 'api-key'
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			defaultAuthorization?: GraphQLAuthorization
+			// authenticationType?: 'api-key'
+		}
+	) {
 		super('AWS::AppSync::GraphQLApi', logicalId)
 
 		this.name = formatName(this.props.name || logicalId)
@@ -38,7 +40,7 @@ export class GraphQLApi extends Resource {
 		return getAtt(this.logicalId, 'GraphQLDns')
 	}
 
-	setDefaultAuthorization(auth:GraphQLAuthorization) {
+	setDefaultAuthorization(auth: GraphQLAuthorization) {
 		this.defaultAuthorization = auth
 		return this
 	}
@@ -61,7 +63,7 @@ export class GraphQLApi extends Resource {
 	// 	return this
 	// }
 
-	properties() {
+	protected properties() {
 		return {
 			Name: this.name,
 			...(this.defaultAuthorization?.toJSON() ?? {}),
@@ -78,7 +80,7 @@ export class GraphQLApi extends Resource {
 }
 
 export class GraphQLAuthorization {
-	static withCognito(props:GraphQLCognitoAuthorizationProps) {
+	static withCognito(props: GraphQLCognitoAuthorizationProps) {
 		return new GraphQLCognitoAuthorization(props)
 	}
 
@@ -111,7 +113,7 @@ export class GraphQLCognitoAuthorization implements GraphQLAuthorization {
 				...(this.props.region ? { AwsRegion: this.props.region } : {}),
 				...(this.props.defaultAction ? { DefaultAction: this.props.defaultAction } : {}),
 				...(this.props.appIdClientRegex ? { AppIdClientRegex: this.props.appIdClientRegex } : {}),
-			}
+			},
 		}
 	}
 }

@@ -11,8 +11,8 @@ export class InlinePolicy {
 	readonly name: string
 	private statements: Statement[]
 
-	constructor(name:string, props: { statements?: Statement[] } = {}) {
-		this.statements = props.statements || []
+	constructor(name: string, props: { statements?: Statement[] } = {}) {
+		this.statements = props.statements ?? []
 		this.name = formatName(name)
 	}
 
@@ -31,8 +31,8 @@ export class InlinePolicy {
 					Effect: capitalCase(statement.effect || 'allow'),
 					Action: statement.actions,
 					Resource: statement.resources,
-				}))
-			}
+				})),
+			},
 		}
 	}
 }

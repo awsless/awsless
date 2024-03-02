@@ -36,7 +36,7 @@ export class OriginRequestPolicy extends Resource {
 		return getAtt(this.logicalId, 'Id')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			OriginRequestPolicyConfig: {
 				Name: this.name,

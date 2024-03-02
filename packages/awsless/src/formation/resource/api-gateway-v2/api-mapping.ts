@@ -1,14 +1,15 @@
-
-import { Resource } from '../../resource.js';
-import { getAtt } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { getAtt } from '../../util.js'
 
 export class ApiMapping extends Resource {
-
-	constructor(logicalId: string, private props: {
-		domainName: string
-		apiId: string
-		stage: string
-	}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			domainName: string
+			apiId: string
+			stage: string
+		}
+	) {
 		super('AWS::ApiGatewayV2::ApiMapping', logicalId)
 	}
 
@@ -16,11 +17,11 @@ export class ApiMapping extends Resource {
 		return getAtt(this.logicalId, 'ApiMappingId')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			DomainName: this.props.domainName,
 			ApiId: this.props.apiId,
-			Stage: this.props.stage
+			Stage: this.props.stage,
 		}
 	}
 }

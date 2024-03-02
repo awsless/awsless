@@ -117,7 +117,7 @@ export class UserPool extends Resource {
 	// 	}]
 	// }
 
-	properties() {
+	protected properties() {
 		return {
 			UserPoolName: this.name,
 			// UserPoolTags: [],

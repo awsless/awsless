@@ -74,6 +74,9 @@ importers:
       '@awsless/redis':
         specifier: workspace:^
         version: link:../redis
+      '@awsless/s3':
+        specifier: workspace:^
+        version: link:../s3
       '@awsless/sns':
         specifier: workspace:^
         version: link:../sns

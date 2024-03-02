@@ -68,7 +68,7 @@ export class EmailIdentity extends Resource {
 		]
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			EmailIdentity: this.props.domain,
 			...(this.props.configurationSetName

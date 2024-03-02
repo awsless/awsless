@@ -1,5 +1,5 @@
-import { Resource } from '../../resource.js';
-import { formatArn, formatName, ref } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatArn, formatName, ref } from '../../util.js'
 
 export type TopicProps = {
 	name?: string
@@ -22,18 +22,18 @@ export class Topic extends Resource {
 
 	get permissions() {
 		return {
-			actions: [ 'sns:Publish' ],
+			actions: ['sns:Publish'],
 			resources: [
 				formatArn({
 					service: 'sns',
 					resource: 'topic',
 					resourceName: this.name,
-				})
-			 ],
+				}),
+			],
 		}
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			TopicName: this.name,
 			DisplayName: this.name,

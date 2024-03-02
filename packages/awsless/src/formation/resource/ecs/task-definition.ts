@@ -1,20 +1,22 @@
-import { Resource } from '../../resource.js';
-import { formatName, getAtt } from '../../util.js';
+import { Resource } from '../../resource.js'
+import { formatName, getAtt } from '../../util.js'
 
 export class TaskDefinition extends Resource {
-
-	constructor(logicalId: string, private props: {
-		cpu:
-		// name?: string
-		// insights?: boolean
-		// logging?: boolean
-		// capacityProviders?: Array<'FARGATE' | 'FARGATE_SPOT'>
-		// capacityProviderStrategy?: {
-		// 	capacityProvider: 'FARGATE' | 'FARGATE_SPOT'
-		// 	weight: number
-		// 	base: number
-		// }[]
-	} = {}) {
+	constructor(
+		logicalId: string,
+		private props: {
+			name?: string
+			// cpu:
+			// insights?: boolean
+			// logging?: boolean
+			// capacityProviders?: Array<'FARGATE' | 'FARGATE_SPOT'>
+			// capacityProviderStrategy?: {
+			// 	capacityProvider: 'FARGATE' | 'FARGATE_SPOT'
+			// 	weight: number
+			// 	base: number
+			// }[]
+		} = {}
+	) {
 		super('AWS::ECS::TaskDefinition', logicalId)
 	}
 
@@ -22,7 +24,7 @@ export class TaskDefinition extends Resource {
 		return getAtt(this.logicalId, 'Arn')
 	}
 
-	properties() {
+	protected properties() {
 		return {
 			ContainerDefinitions: this.name,
 			Cpu: this.props.cpu,
@@ -48,7 +50,6 @@ export class TaskDefinition extends Resource {
 		}
 	}
 }
-
 
 // {
 // 	"Type" : "AWS::ECS::TaskDefinition",
