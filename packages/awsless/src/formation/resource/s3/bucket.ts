@@ -1,6 +1,6 @@
 import { pascalCase } from 'change-case'
 import { Resource } from '../../resource.js'
-import { formatArn, formatName, getAtt } from '../../util.js'
+import { formatName, getAtt, sub } from '../../util.js'
 
 export type BucketProps = {
 	name?: string
@@ -52,11 +52,16 @@ export class Bucket extends Resource {
 
 	get permissions() {
 		return {
-			actions: ['s3:SendMessage', 's3:ReceiveMessage', 's3:GetQueueUrl', 's3:GetQueueAttributes'],
+			actions: [
+				's3:ListBucket',
+				's3:GetObject',
+				's3:PutObject',
+				's3:DeleteObject',
+				's3:GetObjectAttributes',
+			],
 			resources: [
-				formatArn({
+				sub('arn:${AWS::Partition}:${service}:::${resourceName}', {
 					service: 's3',
-					resource: 'bucket',
 					resourceName: this.name,
 				}),
 			],
