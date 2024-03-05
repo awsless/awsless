@@ -22,6 +22,7 @@ var src_exports = {};
 __export(src_exports, {
   $: () => $,
   Arg: () => Arg,
+  GraphQLError: () => GraphQLError,
   createClient: () => createClient,
   createFetcher: () => createFetcher,
   createQuery: () => createQuery,
@@ -520,6 +521,7 @@ var generate = (schema, config = {}) => {
 0 && (module.exports = {
   $,
   Arg,
+  GraphQLError,
   createClient,
   createFetcher,
   createQuery,

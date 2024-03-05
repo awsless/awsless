@@ -2,7 +2,9 @@ import { getLocalResourceName } from './resource.js'
 import { createProxy } from './util.js'
 import { putObject, getObject, deleteObject, StorageClass, Body } from '@awsless/s3'
 
-export const getStoreName = getLocalResourceName
+export const getStoreName = <N extends string, S extends string>(name: N, stack: S) => {
+	return getLocalResourceName(name, stack, 'store')
+}
 
 export interface StoreResources {}
 
@@ -10,8 +12,6 @@ type Options = {
 	metadata?: Record<string, string>
 	storageClass?: StorageClass
 }
-
-// type LOL = Awaited<ReturnType<typeof getObject>>
 
 export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {

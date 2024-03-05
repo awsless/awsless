@@ -88,6 +88,17 @@ type Client<S extends GraphQLSchema> = {
 };
 declare const createClient: <S extends GraphQLSchema>(fetcher: Fetcher) => Client<S>;
 
+type GraphQLErrorEntry = {
+    path: (string | number)[] | null;
+    errorType?: string;
+    message: string;
+    data?: unknown;
+};
+declare class GraphQLError extends Error {
+    readonly errors: GraphQLErrorEntry[];
+    constructor(errors: GraphQLErrorEntry[]);
+}
+
 type Config = {
     package?: string;
     scalarTypes?: {
@@ -97,4 +108,4 @@ type Config = {
 
 declare const generate: (schema: GraphQLSchema$1, config?: Config) => string;
 
-export { $, Arg, Client, Fetcher, GraphQLSchema, RootSchema, createClient, createFetcher, createQuery, generate };
+export { $, Arg, Client, Fetcher, GraphQLError, GraphQLSchema, RootSchema, createClient, createFetcher, createQuery, generate };

@@ -81,12 +81,14 @@ var ValidationError = class extends ViewableError {
   constructor(issues) {
     super("validation", "Validation Error", {
       issues: issues.map((issue) => ({
-        // input: issue.input,
-        path: issue.path,
+        path: issue.path?.map((path) => ({
+          key: path.key,
+          type: path.type
+        })),
         reason: issue.reason,
-        origin: issue.origin,
         message: issue.message,
-        validation: issue.validation
+        received: issue.received,
+        expected: issue.expected
       }))
     });
   }

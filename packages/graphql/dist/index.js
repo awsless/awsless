@@ -508,6 +508,7 @@ var generate = (schema, config = {}) => {
 export {
   $,
   Arg,
+  GraphQLError,
   createClient,
   createFetcher,
   createQuery,
