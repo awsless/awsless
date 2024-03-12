@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  createPresignedPost: () => createPresignedPost,
   deleteObject: () => deleteObject,
   getObject: () => getObject,
   mockS3: () => mockS3,
@@ -29,8 +30,8 @@ __export(src_exports, {
 module.exports = __toCommonJS(src_exports);
 
 // src/mock.ts
-var import_client_s3 = require("@aws-sdk/client-s3");
-var import_utils = require("@awsless/utils");
+var import_client_s33 = require("@aws-sdk/client-s3");
+var import_utils2 = require("@awsless/utils");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_util_stream_node = require("@aws-sdk/util-stream-node");
 var import_stream2 = require("stream");
@@ -58,56 +59,20 @@ var hashSHA1 = async (data) => {
   return (0, import_crypto.createHash)("sha1").update(data).digest("hex");
 };
 
-// src/mock.ts
-var mockS3 = () => {
-  const fn = vi.fn();
-  const store = {};
-  const s3ClientMock = (0, import_aws_sdk_client_mock.mockClient)(import_client_s3.S3Client);
-  s3ClientMock.on(import_client_s3.PutObjectCommand).callsFake(async (input) => {
-    await (0, import_utils.nextTick)(fn);
-    const sha1 = await hashSHA1(input.Body);
-    store[input.Key] = {
-      body: input.Body,
-      sha1
-    };
-    return {
-      ChecksumSHA1: sha1
-    };
-  });
-  s3ClientMock.on(import_client_s3.GetObjectCommand).callsFake(async (input) => {
-    await (0, import_utils.nextTick)(fn);
-    const data = store[input.Key];
-    if (data) {
-      const stream = new import_stream2.Readable();
-      stream.push(data.body);
-      stream.push(null);
-      return {
-        ChecksumSHA1: data.sha1,
-        Body: (0, import_util_stream_node.sdkStreamMixin)(stream)
-      };
-    }
-    return;
-  });
-  s3ClientMock.on(import_client_s3.DeleteObjectCommand).callsFake(async (input) => {
-    await (0, import_utils.nextTick)(fn);
-    delete store[input.Key];
-    return {};
-  });
-  beforeEach(() => {
-    fn.mockClear();
-  });
-  return fn;
-};
+// src/commands.ts
+var import_client_s32 = require("@aws-sdk/client-s3");
 
 // src/client.ts
-var import_client_s32 = require("@aws-sdk/client-s3");
-var import_utils2 = require("@awsless/utils");
-var s3Client = (0, import_utils2.globalClient)(() => {
-  return new import_client_s32.S3Client({});
+var import_client_s3 = require("@aws-sdk/client-s3");
+var import_utils = require("@awsless/utils");
+var s3Client = (0, import_utils.globalClient)(() => {
+  return new import_client_s3.S3Client({});
 });
 
 // src/commands.ts
-var import_client_s33 = require("@aws-sdk/client-s3");
+var import_s3_presigned_post = require("@aws-sdk/s3-presigned-post");
+var import_duration = require("@awsless/duration");
+var import_size = require("@awsless/size");
 var putObject = async ({
   client = s3Client(),
   bucket,
@@ -116,7 +81,7 @@ var putObject = async ({
   metadata,
   storageClass = "STANDARD"
 }) => {
-  const command = new import_client_s33.PutObjectCommand({
+  const command = new import_client_s32.PutObjectCommand({
     Bucket: bucket,
     Key: key,
     Body: body,
@@ -130,7 +95,7 @@ var putObject = async ({
   };
 };
 var getObject = async ({ client = s3Client(), bucket, key }) => {
-  const command = new import_client_s33.GetObjectCommand({
+  const command = new import_client_s32.GetObjectCommand({
     Bucket: bucket,
     Key: key
   });
@@ -145,14 +110,91 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
   };
 };
 var deleteObject = async ({ client = s3Client(), bucket, key }) => {
-  const command = new import_client_s33.DeleteObjectCommand({
+  const command = new import_client_s32.DeleteObjectCommand({
     Bucket: bucket,
     Key: key
   });
   await client.send(command);
 };
+var mock;
+var setPresignedMock = (m) => {
+  mock = m;
+};
+var createPresignedPost = async ({
+  client = s3Client(),
+  bucket,
+  key,
+  fields,
+  /** Duration before the presigned post expires. */
+  expires,
+  contentLengthRange
+}) => {
+  if (mock) {
+    return mock;
+  }
+  const result = await (0, import_s3_presigned_post.createPresignedPost)(client, {
+    Bucket: bucket,
+    Key: key,
+    Fields: fields,
+    Expires: expires ? Number((0, import_duration.toSeconds)(expires)) : void 0,
+    Conditions: contentLengthRange ? [
+      [
+        "content-length-range",
+        Number((0, import_size.toBytes)(contentLengthRange[0])),
+        Number((0, import_size.toBytes)(contentLengthRange[1]))
+      ]
+    ] : void 0
+  });
+  return result;
+};
+
+// src/mock.ts
+var mockS3 = () => {
+  const fn = vi.fn();
+  const store = {};
+  const s3ClientMock = (0, import_aws_sdk_client_mock.mockClient)(import_client_s33.S3Client);
+  s3ClientMock.on(import_client_s33.PutObjectCommand).callsFake(async (input) => {
+    await (0, import_utils2.nextTick)(fn);
+    const sha1 = await hashSHA1(input.Body);
+    store[input.Key] = {
+      body: input.Body,
+      sha1
+    };
+    return {
+      ChecksumSHA1: sha1
+    };
+  });
+  s3ClientMock.on(import_client_s33.GetObjectCommand).callsFake(async (input) => {
+    await (0, import_utils2.nextTick)(fn);
+    const data = store[input.Key];
+    if (data) {
+      const stream = new import_stream2.Readable();
+      stream.push(data.body);
+      stream.push(null);
+      return {
+        ChecksumSHA1: data.sha1,
+        Body: (0, import_util_stream_node.sdkStreamMixin)(stream)
+      };
+    }
+    return;
+  });
+  s3ClientMock.on(import_client_s33.DeleteObjectCommand).callsFake(async (input) => {
+    await (0, import_utils2.nextTick)(fn);
+    delete store[input.Key];
+    return {};
+  });
+  setPresignedMock({
+    url: "http://s3-upload-url.com",
+    fields: {}
+  });
+  beforeEach(() => {
+    fn.mockClear();
+  });
+  return fn;
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  createPresignedPost,
   deleteObject,
   getObject,
   mockS3,

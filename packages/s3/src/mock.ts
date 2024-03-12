@@ -15,6 +15,7 @@ import { Mock } from 'vitest'
 import { Readable } from 'stream'
 import { Body } from './types'
 import { hashSHA1 } from './hash'
+import { setPresignedMock } from './commands'
 
 export const mockS3 = () => {
 	const fn = vi.fn()
@@ -64,6 +65,11 @@ export const mockS3 = () => {
 		await nextTick(fn)
 		delete store[input.Key!]
 		return {}
+	})
+
+	setPresignedMock({
+		url: 'http://s3-upload-url.com',
+		fields: {},
 	})
 
 	beforeEach(() => {

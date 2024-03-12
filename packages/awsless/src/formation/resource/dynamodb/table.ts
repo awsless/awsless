@@ -63,6 +63,7 @@ export class Table extends Resource {
 					'dynamodb:DescribeTable',
 					'dynamodb:PutItem',
 					'dynamodb:GetItem',
+					'dynamodb:UpdateItem',
 					'dynamodb:DeleteItem',
 					'dynamodb:TransactWrite',
 					'dynamodb:BatchWriteItem',

@@ -34,6 +34,7 @@ export const assetPublisher = (config: Config, app: App): RenderFactory => {
 				async read(fingerprint, files) {
 					const prev = await readFile(getFullPath('FINGER_PRINT'), 'utf8')
 					if (prev !== fingerprint) {
+						debug('Outdated fingerprint:', stack.name, asset.type, asset.id)
 						throw new TypeError(`Outdated fingerprint: ${fingerprint}`)
 					}
 

@@ -1,6 +1,24 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import {
+	DeleteObjectCommand,
+	GetObjectCommand,
+	PutObjectCommand,
+	S3Client,
+	StorageClass,
+} from '@aws-sdk/client-s3'
 import { s3Client } from './client'
-import { PutObjectProps, GetObjectProps, DeleteObjectProps } from './types'
+import { PresignedPost, createPresignedPost as signedPost } from '@aws-sdk/s3-presigned-post'
+import { Body } from './types'
+import { Duration, toSeconds } from '@awsless/duration'
+import { Size, toBytes } from '@awsless/size'
+
+export type PutObjectProps = {
+	client?: S3Client
+	bucket: string
+	key: string
+	body: Body
+	metadata?: Record<string, string>
+	storageClass?: StorageClass
+}
 
 export const putObject = async ({
 	client = s3Client(),
@@ -26,6 +44,12 @@ export const putObject = async ({
 	}
 }
 
+export type GetObjectProps = {
+	client?: S3Client
+	bucket: string
+	key: string
+}
+
 export const getObject = async ({ client = s3Client(), bucket, key }: GetObjectProps) => {
 	const command = new GetObjectCommand({
 		Bucket: bucket,
@@ -45,6 +69,12 @@ export const getObject = async ({ client = s3Client(), bucket, key }: GetObjectP
 	}
 }
 
+export type DeleteObjectProps = {
+	client?: S3Client
+	bucket: string
+	key: string
+}
+
 export const deleteObject = async ({ client = s3Client(), bucket, key }: DeleteObjectProps) => {
 	const command = new DeleteObjectCommand({
 		Bucket: bucket,
@@ -52,4 +82,50 @@ export const deleteObject = async ({ client = s3Client(), bucket, key }: DeleteO
 	})
 
 	await client.send(command)
+}
+
+export type CreatePresignedPostProps = {
+	client?: S3Client
+	bucket: string
+	key: string
+	fields?: Record<string, string>
+	expires?: Duration
+	contentLengthRange?: [Size, Size]
+}
+
+let mock: PresignedPost | undefined
+export const setPresignedMock = (m: PresignedPost) => {
+	mock = m
+}
+
+export const createPresignedPost = async ({
+	client = s3Client(),
+	bucket,
+	key,
+	fields,
+	/** Duration before the presigned post expires. */
+	expires,
+	contentLengthRange,
+}: CreatePresignedPostProps) => {
+	if (mock) {
+		return mock
+	}
+
+	const result = await signedPost(client, {
+		Bucket: bucket,
+		Key: key,
+		Fields: fields,
+		Expires: expires ? Number(toSeconds(expires)) : undefined,
+		Conditions: contentLengthRange
+			? [
+					[
+						'content-length-range',
+						Number(toBytes(contentLengthRange[0])),
+						Number(toBytes(contentLengthRange[1])),
+					],
+			  ]
+			: undefined,
+	})
+
+	return result
 }

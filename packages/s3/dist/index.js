@@ -1,9 +1,9 @@
 // src/mock.ts
 import {
-  S3Client,
-  GetObjectCommand,
-  PutObjectCommand,
-  DeleteObjectCommand
+  S3Client as S3Client3,
+  GetObjectCommand as GetObjectCommand2,
+  PutObjectCommand as PutObjectCommand2,
+  DeleteObjectCommand as DeleteObjectCommand2
 } from "@aws-sdk/client-s3";
 import { nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";
@@ -33,56 +33,24 @@ var hashSHA1 = async (data) => {
   return createHash("sha1").update(data).digest("hex");
 };
 
-// src/mock.ts
-var mockS3 = () => {
-  const fn = vi.fn();
-  const store = {};
-  const s3ClientMock = mockClient(S3Client);
-  s3ClientMock.on(PutObjectCommand).callsFake(async (input) => {
-    await nextTick(fn);
-    const sha1 = await hashSHA1(input.Body);
-    store[input.Key] = {
-      body: input.Body,
-      sha1
-    };
-    return {
-      ChecksumSHA1: sha1
-    };
-  });
-  s3ClientMock.on(GetObjectCommand).callsFake(async (input) => {
-    await nextTick(fn);
-    const data = store[input.Key];
-    if (data) {
-      const stream = new Readable2();
-      stream.push(data.body);
-      stream.push(null);
-      return {
-        ChecksumSHA1: data.sha1,
-        Body: sdkStreamMixin(stream)
-      };
-    }
-    return;
-  });
-  s3ClientMock.on(DeleteObjectCommand).callsFake(async (input) => {
-    await nextTick(fn);
-    delete store[input.Key];
-    return {};
-  });
-  beforeEach(() => {
-    fn.mockClear();
-  });
-  return fn;
-};
+// src/commands.ts
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand
+} from "@aws-sdk/client-s3";
 
 // src/client.ts
-import { S3Client as S3Client2 } from "@aws-sdk/client-s3";
+import { S3Client } from "@aws-sdk/client-s3";
 import { globalClient } from "@awsless/utils";
 var s3Client = globalClient(() => {
-  return new S3Client2({});
+  return new S3Client({});
 });
 
 // src/commands.ts
-import { DeleteObjectCommand as DeleteObjectCommand2, GetObjectCommand as GetObjectCommand2, PutObjectCommand as PutObjectCommand2 } from "@aws-sdk/client-s3";
+import { createPresignedPost as signedPost } from "@aws-sdk/s3-presigned-post";
+import { toSeconds } from "@awsless/duration";
+import { toBytes } from "@awsless/size";
 var putObject = async ({
   client = s3Client(),
   bucket,
@@ -91,7 +59,7 @@ var putObject = async ({
   metadata,
   storageClass = "STANDARD"
 }) => {
-  const command = new PutObjectCommand2({
+  const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
     Body: body,
@@ -105,7 +73,7 @@ var putObject = async ({
   };
 };
 var getObject = async ({ client = s3Client(), bucket, key }) => {
-  const command = new GetObjectCommand2({
+  const command = new GetObjectCommand({
     Bucket: bucket,
     Key: key
   });
@@ -120,13 +88,90 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
   };
 };
 var deleteObject = async ({ client = s3Client(), bucket, key }) => {
-  const command = new DeleteObjectCommand2({
+  const command = new DeleteObjectCommand({
     Bucket: bucket,
     Key: key
   });
   await client.send(command);
 };
+var mock;
+var setPresignedMock = (m) => {
+  mock = m;
+};
+var createPresignedPost = async ({
+  client = s3Client(),
+  bucket,
+  key,
+  fields,
+  /** Duration before the presigned post expires. */
+  expires,
+  contentLengthRange
+}) => {
+  if (mock) {
+    return mock;
+  }
+  const result = await signedPost(client, {
+    Bucket: bucket,
+    Key: key,
+    Fields: fields,
+    Expires: expires ? Number(toSeconds(expires)) : void 0,
+    Conditions: contentLengthRange ? [
+      [
+        "content-length-range",
+        Number(toBytes(contentLengthRange[0])),
+        Number(toBytes(contentLengthRange[1]))
+      ]
+    ] : void 0
+  });
+  return result;
+};
+
+// src/mock.ts
+var mockS3 = () => {
+  const fn = vi.fn();
+  const store = {};
+  const s3ClientMock = mockClient(S3Client3);
+  s3ClientMock.on(PutObjectCommand2).callsFake(async (input) => {
+    await nextTick(fn);
+    const sha1 = await hashSHA1(input.Body);
+    store[input.Key] = {
+      body: input.Body,
+      sha1
+    };
+    return {
+      ChecksumSHA1: sha1
+    };
+  });
+  s3ClientMock.on(GetObjectCommand2).callsFake(async (input) => {
+    await nextTick(fn);
+    const data = store[input.Key];
+    if (data) {
+      const stream = new Readable2();
+      stream.push(data.body);
+      stream.push(null);
+      return {
+        ChecksumSHA1: data.sha1,
+        Body: sdkStreamMixin(stream)
+      };
+    }
+    return;
+  });
+  s3ClientMock.on(DeleteObjectCommand2).callsFake(async (input) => {
+    await nextTick(fn);
+    delete store[input.Key];
+    return {};
+  });
+  setPresignedMock({
+    url: "http://s3-upload-url.com",
+    fields: {}
+  });
+  beforeEach(() => {
+    fn.mockClear();
+  });
+  return fn;
+};
 export {
+  createPresignedPost,
   deleteObject,
   getObject,
   mockS3,

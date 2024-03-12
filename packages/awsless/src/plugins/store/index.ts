@@ -20,7 +20,7 @@ import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
 type Store<Name extends string> = {
 	readonly name: Name
 	readonly put: (key: string, body: Body, options?: Pick<PutObjectProps, 'metadata' | 'storageClass'>) => Promise<void>
-	readonly get: (key: string) => Promise<BodyStream>
+	readonly get: (key: string) => Promise<BodyStream | undefined>
 	readonly delete: (key: string) => Promise<void>
 }
 `
@@ -52,6 +52,16 @@ export const storePlugin = definePlugin({
 			const bucket = new Bucket(id, {
 				name: `store-${config.app.name}-${stack.name}-${id}`,
 				accessControl: 'private',
+				cors: [
+					// ---------------------------------------------
+					// support for presigned post requests
+					// ---------------------------------------------
+					{
+						origins: ['*'],
+						methods: ['POST'],
+					},
+					// ---------------------------------------------
+				],
 			})
 
 			const custom = new CustomResource(id, {
