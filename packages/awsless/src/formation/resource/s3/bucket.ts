@@ -1,6 +1,7 @@
 import { pascalCase } from 'change-case'
 import { Resource } from '../../resource.js'
 import { formatName, sub } from '../../util.js'
+import { Duration } from '../../property/duration.js'
 
 export type BucketProps = {
 	name?: string
@@ -17,6 +18,13 @@ export type BucketProps = {
 		indexDocument?: string
 		errorDocument?: string
 	}
+	cors?: {
+		maxAge?: Duration
+		exposeHeaders?: string[]
+		headers?: string[]
+		origins: string[]
+		methods: Array<'GET' | 'PUT' | 'HEAD' | 'POST' | 'DELETE'>
+	}[]
 }
 
 export class Bucket extends Resource {
@@ -60,9 +68,11 @@ export class Bucket extends Resource {
 				's3:GetObjectAttributes',
 			],
 			resources: [
-				sub('arn:${AWS::Partition}:${service}:::${resourceName}', {
-					service: 's3',
-					resourceName: this.name,
+				sub('arn:${AWS::Partition}:s3:::${bucket}', {
+					bucket: this.name,
+				}),
+				sub('arn:${AWS::Partition}:s3:::${bucket}/*', {
+					bucket: this.name,
 				}),
 			],
 		}
@@ -84,6 +94,19 @@ export class Bucket extends Resource {
 						WebsiteConfiguration: {
 							...this.attr('IndexDocument', this.props.website.indexDocument),
 							...this.attr('ErrorDocument', this.props.website.errorDocument),
+						},
+				  }
+				: {}),
+			...(this.props.cors
+				? {
+						CorsConfiguration: {
+							CorsRules: this.props.cors.map(rule => ({
+								...this.attr('MaxAge', rule.maxAge),
+								...this.attr('AllowedHeaders', rule.headers),
+								...this.attr('AllowedMethods', rule.methods),
+								...this.attr('AllowedOrigins', rule.origins),
+								...this.attr('ExposedHeaders', rule.exposeHeaders),
+							})),
 						},
 				  }
 				: {}),

@@ -5,6 +5,7 @@ import { style, symbol } from '../../style.js'
 import { br } from '../layout/basic.js'
 import { padText } from '../layout/pad-text.js'
 import { createSpinner } from '../layout/spinner.js'
+import { debugError } from '../../logger.js'
 
 type Status = 'done' | 'fail' | 'warn'
 
@@ -40,7 +41,16 @@ export const runTaskGroup = (concurrency: number, tasks: Task[]) => {
 					status.set(text)
 				})
 			} catch (error) {
+				debugError(error)
+
 				icon.set(style.error(symbol.error))
+
+				if (error instanceof Error) {
+					status.set(error.message)
+				} else {
+					status.set('Error')
+				}
+
 				status.update(style.error)
 				throw error
 			} finally {
@@ -71,6 +81,9 @@ export const runTaskGroup = (concurrency: number, tasks: Task[]) => {
 
 		for (const result of results) {
 			if (result.status === 'rejected') {
+				// term.out.write(dialog('error', [
+				// 	result.reason
+				// ]))
 				throw result.reason
 			}
 		}

@@ -145,6 +145,7 @@ export const assetBuilder = (app: App): RenderFactory => {
 					async read(fingerprint, files) {
 						const prev = await getFingerPrint()
 						if (prev !== fingerprint) {
+							debug('Outdated fingerprint:', stack.name, asset.type, asset.id)
 							throw new TypeError(`Outdated fingerprint: ${fingerprint}`)
 						}
 

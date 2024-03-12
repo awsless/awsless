@@ -1,6 +1,6 @@
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
-import { Input as Input$1, BaseSchema, Output as Output$1, Issues } from '@awsless/validate';
+import { Input as Input$1, BaseSchema, Output as Output$1, SchemaIssues } from '@awsless/validate';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Jsonify, AsyncReturnType } from 'type-fest';
@@ -57,7 +57,7 @@ declare const parseViewableErrorString: (value: string) => ViewableErrorData;
 declare const getViewableErrorData: (error: ViewableError) => ViewableErrorData;
 
 declare class ValidationError extends ViewableError {
-    constructor(issues: Issues);
+    constructor(issues: SchemaIssues);
 }
 
 declare class TimeoutError extends Error {

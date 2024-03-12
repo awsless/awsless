@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/s3",
-	"version": "0.0.8",
+	"version": "0.0.10",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -29,9 +29,13 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-s3": "3.329.0",
+		"@aws-sdk/client-s3": "3.525.0",
+		"@aws-sdk/s3-presigned-post": "^3.525.0",
 		"@aws-sdk/util-stream-node": "^3.370.0",
+		"@awsless/duration": "workspace:^",
+		"@awsless/size": "workspace:^",
 		"@awsless/utils": "workspace:^",
-		"aws-sdk-client-mock": "^2.1.1"
+		"@smithy/types": "^2.10.1",
+		"aws-sdk-client-mock": "^3.0.1"
 	}
 }

@@ -1,4 +1,4 @@
-import { mockS3, putObject, getObject, deleteObject } from '../src'
+import { mockS3, putObject, getObject, deleteObject, createPresignedPost } from '../src'
 import { hashSHA1 } from '../src/hash'
 
 describe('S3 Commands', () => {
@@ -45,5 +45,17 @@ describe('S3 Commands', () => {
 		})
 
 		expect(result).toBe(undefined)
+	})
+
+	it('should create a presigned post', async () => {
+		const result = await createPresignedPost({
+			bucket: 'test',
+			key: 'test',
+		})
+
+		expect(result).toStrictEqual({
+			url: expect.any(String),
+			fields: expect.any(Object),
+		})
 	})
 })

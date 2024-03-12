@@ -87,13 +87,19 @@ export const deploy = (program: Command) => {
 								task: async update => {
 									update('deploying...')
 
-									try {
-										await client.deploy(stack)
-									} catch (error) {
-										debugError(error)
-										update('failed')
-										throw error
-									}
+									await client.deploy(stack)
+
+									// try {
+									// } catch (error) {
+									// 	debugError(error)
+									// 	if (error instanceof Error) {
+									// 		update(error.message)
+									// 	} else {
+									// 		update('failed')
+									// 	}
+
+									// 	throw error
+									// }
 
 									update('deployed')
 									return 'done'
