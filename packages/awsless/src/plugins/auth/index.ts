@@ -152,6 +152,7 @@ export const authPlugin = definePlugin({
 
 			const userPool = new UserPool(id, {
 				name: `${config.app.name}-${id}`,
+				deletionProtection: true,
 				allowUserRegistration: props.allowUserRegistration,
 				username: props.username,
 				password: props.password,

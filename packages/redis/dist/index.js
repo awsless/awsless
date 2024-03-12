@@ -36,19 +36,23 @@ var redisClient = (options) => {
       }
     ],
     {
-      dnsLookup: (address, callback) => callback(null, address),
-      enableReadyCheck: false,
-      redisOptions: {
-        ...props,
-        // username: options.username,
-        // password: options.password,
-        tls: {
-          checkServerIdentity: () => {
-            return void 0;
-          }
-        }
-      }
+      redisOptions: props
     }
+    // {
+    // 	dnsLookup: (address, callback) => callback(null, address),
+    // 	enableReadyCheck: false,
+    // 	redisOptions: {
+    // 		...props,
+    // 		// username: options.username,
+    // 		// password: options.password,
+    // 		tls: {
+    // 			checkServerIdentity: (/*host, cert*/) => {
+    // 				// skip certificate hostname validation
+    // 				return undefined
+    // 			},
+    // 		},
+    // 	},
+    // }
   );
 };
 

@@ -15,6 +15,7 @@ import { UserPoolDomain, UserPoolDomainProps } from './user-pool-domain.js'
 
 export type UserPoolProps = {
 	name?: string
+	deletionProtection?: boolean
 	allowUserRegistration?: boolean
 	email?: UserPoolEmail
 	username?: {
@@ -120,6 +121,9 @@ export class UserPool extends Resource {
 	protected properties() {
 		return {
 			UserPoolName: this.name,
+
+			DeletionProtection: this.props.deletionProtection ? 'ACTIVE' : 'INACTIVE',
+
 			// UserPoolTags: [],
 			...(this.props.username?.emailAlias
 				? {

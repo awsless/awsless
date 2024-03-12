@@ -31,8 +31,6 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 		return new Redis(props) as Client<O>
 	}
 
-	// return new Redis(props) as Client<O>
-
 	return new Cluster(
 		[
 			{
@@ -41,19 +39,22 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 			},
 		],
 		{
-			dnsLookup: (address, callback) => callback(null, address),
-			enableReadyCheck: false,
-			redisOptions: {
-				...props,
-				// username: options.username,
-				// password: options.password,
-				tls: {
-					checkServerIdentity: (/*host, cert*/) => {
-						// skip certificate hostname validation
-						return undefined
-					},
-				},
-			},
+			redisOptions: props,
 		}
+		// {
+		// 	dnsLookup: (address, callback) => callback(null, address),
+		// 	enableReadyCheck: false,
+		// 	redisOptions: {
+		// 		...props,
+		// 		// username: options.username,
+		// 		// password: options.password,
+		// 		tls: {
+		// 			checkServerIdentity: (/*host, cert*/) => {
+		// 				// skip certificate hostname validation
+		// 				return undefined
+		// 			},
+		// 		},
+		// 	},
+		// }
 	) as Client<O>
 }
