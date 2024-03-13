@@ -1,4 +1,4 @@
-import { RedisServer } from '@awsless/redis-server'
+import { RedisServer } from './server'
 import { requestPort } from '@heat/request-port'
 import { overrideOptions } from './client'
 

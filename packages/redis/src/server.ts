@@ -1,26 +1,28 @@
 import { RedisMemoryServer } from 'redis-memory-server'
-import { Redis } from 'ioredis'
+import { Redis, Cluster } from 'ioredis'
 
 export class RedisServer {
-	private client?: Redis
+	private client?: Redis | Cluster
 	private process?: RedisMemoryServer
 
-	async start(port? : number) {
+	async start(port?: number) {
 		if (this.process) {
 			throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`)
 		}
 
-		if(port && (port < 0 || port >= 65536)) {
+		if (port && (port < 0 || port >= 65536)) {
 			throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
 		}
 
 		this.process = await RedisMemoryServer.create({
-			instance: { port },
-			binary: { systemBinary: '/usr/local/bin/redis-server' },
+			instance: {
+				port,
+				args: [],
+			},
+			// binary: { systemBinary: '/usr/local/bin/redis-server' },
 		})
 	}
 
-	/** Kill the Redis server. */
 	async kill() {
 		if (this.process) {
 			await this.client?.disconnect()
@@ -29,13 +31,11 @@ export class RedisServer {
 		}
 	}
 
-	/** Ping the Redis server if its ready. */
 	async ping() {
 		const client = await this.getClient()
 		return (await client.ping()) === 'PONG'
 	}
 
-	/** Get RedisClient connected to redis memory server. */
 	async getClient() {
 		if (!this.client) {
 			this.client = new Redis({

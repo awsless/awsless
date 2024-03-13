@@ -1,4 +1,4 @@
-import { RedisServer } from '../src/index'
+import { RedisServer } from '../src/server'
 
 describe('Redis Server', () => {
 	const server = new RedisServer()

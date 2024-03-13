@@ -1,9 +1,59 @@
+// src/server.ts
+import { RedisMemoryServer } from "redis-memory-server";
+import { Redis } from "ioredis";
+var RedisServer = class {
+  client;
+  process;
+  async start(port) {
+    if (this.process) {
+      throw new Error(`Redis server is already listening on port: ${await this.process.getPort()}`);
+    }
+    if (port && (port < 0 || port >= 65536)) {
+      throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
+    }
+    this.process = await RedisMemoryServer.create({
+      instance: {
+        port,
+        args: []
+      }
+      // binary: { systemBinary: '/usr/local/bin/redis-server' },
+    });
+  }
+  async kill() {
+    if (this.process) {
+      await this.client?.disconnect();
+      await this.process.stop();
+      this.process = void 0;
+    }
+  }
+  async ping() {
+    const client = await this.getClient();
+    return await client.ping() === "PONG";
+  }
+  async getClient() {
+    if (!this.client) {
+      this.client = new Redis({
+        host: await this.process?.getHost(),
+        port: await this.process?.getPort(),
+        stringNumbers: true,
+        keepAlive: 0,
+        noDelay: true,
+        enableReadyCheck: false,
+        maxRetriesPerRequest: null
+        // retryStrategy: (options) => {
+        // 	return
+        // },
+      });
+    }
+    return this.client;
+  }
+};
+
 // src/mock.ts
-import { RedisServer } from "@awsless/redis-server";
 import { requestPort } from "@heat/request-port";
 
 // src/client.ts
-import { Cluster, Redis } from "ioredis";
+import { Cluster as Cluster2, Redis as Redis2 } from "ioredis";
 var optionOverrides = {};
 var overrideOptions = (options) => {
   optionOverrides = options;
@@ -26,9 +76,9 @@ var redisClient = (options) => {
     ...optionOverrides
   };
   if (!props.cluster) {
-    return new Redis(props);
+    return new Redis2(props);
   }
-  return new Cluster(
+  return new Cluster2(
     [
       {
         host: props.host,
@@ -92,10 +142,10 @@ var command = async (options, callback) => {
 };
 
 // src/index.ts
-import { Redis as Redis2, Cluster as Cluster2 } from "ioredis";
+import { Redis as Redis3, Cluster as Cluster3 } from "ioredis";
 export {
-  Cluster2 as Cluster,
-  Redis2 as Redis,
+  Cluster3 as Cluster,
+  Redis3 as Redis,
   command,
   mockRedis,
   redisClient
