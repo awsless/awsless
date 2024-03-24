@@ -1,0 +1,304 @@
+{
+  "urn:App:{test}:Stack:{test}": {
+    "urn:App:{test}:Stack:{test}:AWS::S3::Bucket:{test}": {
+      "id": "awsless-formation-test",
+      "type": "AWS::S3::Bucket",
+      "provider": "aws-s3-bucket",
+      "local": {
+        "BucketName": "awsless-formation-test",
+        "AccessControl": "Private",
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
+      },
+      "assets": {},
+      "dependencies": [],
+      "extra": {
+        "forceDelete": true
+      },
+      "remote": {
+        "PublicAccessBlockConfiguration": {
+          "RestrictPublicBuckets": true,
+          "BlockPublicPolicy": true,
+          "BlockPublicAcls": true,
+          "IgnorePublicAcls": true
+        },
+        "BucketName": "awsless-formation-test",
+        "RegionalDomainName": "awsless-formation-test.s3.eu-west-1.amazonaws.com",
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerEnforced"
+            }
+          ]
+        },
+        "DomainName": "awsless-formation-test.s3.amazonaws.com",
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "BucketKeyEnabled": false,
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "WebsiteURL": "http://awsless-formation-test.s3-website-eu-west-1.amazonaws.com",
+        "DualStackDomainName": "awsless-formation-test.s3.dualstack.eu-west-1.amazonaws.com",
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "Arn": "arn:aws:s3:::awsless-formation-test"
+      }
+    },
+    "urn:App:{test}:Stack:{test}:AWS::IAM::Role:{test}": {
+      "id": "70KGALUZzm69N03PLVuAQjjd1-5hUMjL4HZikF",
+      "type": "AWS::IAM::Role",
+      "provider": "aws-cloud-control-api",
+      "local": {
+        "ManagedPolicyArns": [],
+        "Policies": [],
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": [
+                "sts:AssumeRole"
+              ],
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "lambda.amazonaws.com"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "assets": {},
+      "dependencies": [],
+      "extra": {},
+      "remote": {
+        "Path": "/",
+        "MaxSessionDuration": 3600,
+        "RoleName": "70KGALUZzm69N03PLVuAQjjd1-5hUMjL4HZikF",
+        "Description": "",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ]
+        },
+        "Arn": "arn:aws:iam::468004125411:role/70KGALUZzm69N03PLVuAQjjd1-5hUMjL4HZikF",
+        "RoleId": "AROAWZ5ZYHLRT4SZJOMI2"
+      }
+    },
+    "urn:App:{test}:Stack:{test}:AWS::Lambda::Function:{test}": {
+      "id": "awsless-formation-test",
+      "type": "AWS::Lambda::Function",
+      "provider": "aws-cloud-control-api",
+      "local": {
+        "FunctionName": "awsless-formation-test",
+        "Description": "Test",
+        "MemorySize": 128,
+        "Handler": "index.default",
+        "Runtime": "nodejs18.x",
+        "Timeout": 10,
+        "Architectures": [
+          "arm64"
+        ],
+        "Role": "arn:aws:iam::468004125411:role/70KGALUZzm69N03PLVuAQjjd1-5hUMjL4HZikF",
+        "Code": {
+          "ZipFile": "exports.default = function(){ return Promise.resolve({ statusCode: 200, body: 'HELLO' }) }"
+        },
+        "EphemeralStorage": {
+          "Size": 512
+        },
+        "LoggingConfig": {
+          "LogFormat": "JSON",
+          "ApplicationLogLevel": "ERROR",
+          "SystemLogLevel": "WARN"
+        },
+        "Environment": {
+          "Variables": {
+            "TEST": "1"
+          }
+        }
+      },
+      "assets": {},
+      "dependencies": [
+        "urn:App:{test}:Stack:{test}:AWS::IAM::Role:{test}"
+      ],
+      "extra": {},
+      "remote": {
+        "MemorySize": 128,
+        "Description": "Test",
+        "TracingConfig": {
+          "Mode": "PassThrough"
+        },
+        "VpcConfig": {
+          "Ipv6AllowedForDualStack": false,
+          "SecurityGroupIds": [],
+          "SubnetIds": []
+        },
+        "Timeout": 10,
+        "RuntimeManagementConfig": {
+          "UpdateRuntimeOn": "Auto"
+        },
+        "Handler": "index.default",
+        "SnapStartResponse": {
+          "OptimizationStatus": "Off",
+          "ApplyOn": "None"
+        },
+        "Role": "arn:aws:iam::468004125411:role/70KGALUZzm69N03PLVuAQjjd1-5hUMjL4HZikF",
+        "FileSystemConfigs": [],
+        "FunctionName": "awsless-formation-test",
+        "Runtime": "nodejs18.x",
+        "PackageType": "Zip",
+        "LoggingConfig": {
+          "LogFormat": "JSON",
+          "ApplicationLogLevel": "ERROR",
+          "LogGroup": "/aws/lambda/awsless-formation-test",
+          "SystemLogLevel": "WARN"
+        },
+        "Environment": {
+          "Variables": {
+            "TEST": "1"
+          }
+        },
+        "Arn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test",
+        "EphemeralStorage": {
+          "Size": 512
+        },
+        "Architectures": [
+          "arm64"
+        ]
+      }
+    },
+    "urn:App:{test}:Stack:{test}:AWS::Lambda::Function:{test}:AWS::Lambda::Url:{url}": {
+      "id": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test",
+      "type": "AWS::Lambda::Url",
+      "provider": "aws-cloud-control-api",
+      "local": {
+        "AuthType": "NONE",
+        "InvokeMode": "BUFFERED",
+        "TargetFunctionArn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test",
+        "Cors": {}
+      },
+      "assets": {},
+      "dependencies": [
+        "urn:App:{test}:Stack:{test}:AWS::Lambda::Function:{test}"
+      ],
+      "extra": {},
+      "remote": {
+        "FunctionArn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test",
+        "FunctionUrl": "https://5x2nibuquexeamy7s56e2wmnmu0evkhh.lambda-url.eu-west-1.on.aws/",
+        "Qualifier": "",
+        "InvokeMode": "BUFFERED",
+        "AuthType": "NONE",
+        "TargetFunctionArn": "awsless-formation-test"
+      }
+    },
+    "urn:App:{test}:Stack:{test}:AWS::Lambda::Function:{test}:AWS::Lambda::Permission:{url}": {
+      "id": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test|tkPPqEHncxLZPgNJdDitCpYKd-pq4BpbOnCK4R",
+      "type": "AWS::Lambda::Permission",
+      "provider": "aws-cloud-control-api",
+      "local": {
+        "FunctionName": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test",
+        "Action": "lambda:InvokeFunctionUrl",
+        "Principal": "*",
+        "FunctionUrlAuthType": "NONE"
+      },
+      "assets": {},
+      "dependencies": [
+        "urn:App:{test}:Stack:{test}:AWS::Lambda::Function:{test}"
+      ],
+      "extra": {},
+      "remote": {
+        "FunctionName": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-test",
+        "Action": "lambda:InvokeFunctionUrl",
+        "FunctionUrlAuthType": "NONE",
+        "Id": "tkPPqEHncxLZPgNJdDitCpYKd-pq4BpbOnCK4R",
+        "Principal": "*"
+      }
+    },
+    "urn:App:{test}:Stack:{test}:AWS::Route53::HostedZone:{test}": {
+      "id": "Z0157889170MJQ0XTIRZD",
+      "type": "AWS::Route53::HostedZone",
+      "provider": "aws-cloud-control-api",
+      "local": {
+        "Name": "mycustomdomain123.com."
+      },
+      "assets": {},
+      "dependencies": [],
+      "extra": {},
+      "remote": {
+        "VPCs": [],
+        "HostedZoneConfig": {},
+        "Id": "Z0157889170MJQ0XTIRZD",
+        "NameServers": [
+          "ns-935.awsdns-52.net",
+          "ns-8.awsdns-01.com",
+          "ns-1437.awsdns-51.org",
+          "ns-1827.awsdns-36.co.uk"
+        ],
+        "Name": "mycustomdomain123.com."
+      }
+    },
+    "urn:App:{test}:Stack:{test}:AWS::CertificateManager::Certificate:{test}": {
+      "id": "arn:aws:acm:us-east-1:468004125411:certificate/1b6cee1f-51f1-4ba0-8d9b-ade8ad653eed",
+      "type": "AWS::CertificateManager::Certificate",
+      "provider": "aws-acm-certificate",
+      "local": {
+        "DomainName": "example.com",
+        "ValidationMethod": "DNS",
+        "DomainValidationOptions": [
+          {
+            "DomainName": "example.com",
+            "ValidationDomain": "example.com"
+          }
+        ]
+      },
+      "assets": {},
+      "dependencies": [],
+      "extra": {
+        "region": "us-east-1"
+      },
+      "remote": {
+        "CertificateArn": "arn:aws:acm:us-east-1:468004125411:certificate/1b6cee1f-51f1-4ba0-8d9b-ade8ad653eed",
+        "CreatedAt": "2024-03-24T00:33:08.194Z",
+        "DomainName": "example.com",
+        "DomainValidationOptions": [
+          {
+            "DomainName": "example.com",
+            "ValidationDomain": "example.com",
+            "ValidationMethod": "DNS",
+            "ValidationStatus": "PENDING_VALIDATION"
+          }
+        ],
+        "ExtendedKeyUsages": [],
+        "InUseBy": [],
+        "Issuer": "Amazon",
+        "KeyAlgorithm": "RSA-2048",
+        "KeyUsages": [],
+        "Options": {
+          "CertificateTransparencyLoggingPreference": "ENABLED"
+        },
+        "RenewalEligibility": "INELIGIBLE",
+        "SignatureAlgorithm": "SHA256WITHRSA",
+        "Status": "PENDING_VALIDATION",
+        "Subject": "CN=example.com",
+        "SubjectAlternativeNames": [
+          "example.com"
+        ],
+        "Type": "AMAZON_ISSUED"
+      }
+    }
+  }
+}
