@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { toApp } from '../../app.js'
-import { debug, debugError } from '../logger.js'
+import { debug } from '../logger.js'
 import { bootstrapDeployer } from '../ui/complex/bootstrap.js'
 import { layout } from '../ui/layout/layout.js'
 import { loadingDialog } from '../ui/layout/dialog.js'

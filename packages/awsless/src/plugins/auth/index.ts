@@ -27,58 +27,58 @@ export const authPlugin = definePlugin({
 
 		await write('auth.d.ts', gen, true)
 	},
-	// onStack({ config, bootstrap, stackConfig, bind }) {
-	// 	for (const [id, props] of Object.entries(stackConfig.auth ?? {})) {
-	// 		if (props.access) {
-	// 			const userPoolId = bootstrap.import(`auth-${id}-user-pool-id`)
-	// 			const clientId = bootstrap.import(`auth-${id}-client-id`)
-	// 			const name = constantCase(id)
-
-	// 			bind(lambda => {
-	// 				lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
-	// 				lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
-
-	// 				if (config.app.defaults.auth?.[id]?.secret) {
-	// 					const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
-	// 					lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
-	// 				}
-
-	// 				lambda.addPermissions({
-	// 					actions: ['cognito:*'],
-	// 					resources: ['*'],
-	// 				})
-	// 			})
-	// 		}
-	// 	}
-	// },
-	onStack({ config, bootstrap, bind }) {
-		// Give access to every lambda function in our app to our cognito instance.
-		for (const [id, props] of Object.entries(config.app.defaults.auth)) {
-			bind(lambda => {
-				const userPoolArn = bootstrap.import(`auth-${id}-user-pool-arn`)
+	onStack({ config, bootstrap, stackConfig, bind }) {
+		for (const [id, props] of Object.entries(stackConfig.auth ?? {})) {
+			if (props.access) {
 				const userPoolId = bootstrap.import(`auth-${id}-user-pool-id`)
 				const clientId = bootstrap.import(`auth-${id}-client-id`)
-
 				const name = constantCase(id)
 
-				lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
-				lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
+				bind(lambda => {
+					lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
+					lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
 
-				// lambda.addEnvironment(`AWSLESS_PUBLIC_AUTH_${name}_USER_POOL_ID`, userPoolId)
-				// lambda.addEnvironment(`AWSLESS_PUBLIC_AUTH_${name}_CLIENT_ID`, clientId)
+					if (config.app.defaults.auth?.[id]?.secret) {
+						const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
+						lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
+					}
 
-				if (props.secret) {
-					const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
-					lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
-				}
-
-				lambda.addPermissions({
-					actions: ['cognito:*'],
-					resources: [userPoolArn],
+					lambda.addPermissions({
+						actions: ['cognito:*'],
+						resources: ['*'],
+					})
 				})
-			})
+			}
 		}
 	},
+	// onStack({ config, bootstrap, bind }) {
+	// 	// Give access to every lambda function in our app to our cognito instance.
+	// 	for (const [id, props] of Object.entries(config.app.defaults.auth)) {
+	// 		bind(lambda => {
+	// 			const userPoolArn = bootstrap.import(`auth-${id}-user-pool-arn`)
+	// 			const userPoolId = bootstrap.import(`auth-${id}-user-pool-id`)
+	// 			const clientId = bootstrap.import(`auth-${id}-client-id`)
+
+	// 			const name = constantCase(id)
+
+	// 			lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
+	// 			lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
+
+	// 			// lambda.addEnvironment(`AWSLESS_PUBLIC_AUTH_${name}_USER_POOL_ID`, userPoolId)
+	// 			// lambda.addEnvironment(`AWSLESS_PUBLIC_AUTH_${name}_CLIENT_ID`, clientId)
+
+	// 			if (props.secret) {
+	// 				const clientSecret = bootstrap.import(`auth-${id}-client-secret`)
+	// 				lambda.addEnvironment(`AUTH_${name}_CLIENT_SECRET`, clientSecret)
+	// 			}
+
+	// 			lambda.addPermissions({
+	// 				actions: ['cognito:*'],
+	// 				resources: [userPoolArn],
+	// 			})
+	// 		})
+	// 	}
+	// },
 	onApp(ctx) {
 		const { config, bootstrap } = ctx
 

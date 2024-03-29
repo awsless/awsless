@@ -16,6 +16,10 @@ export const isFunctionProps = (input: unknown): input is z.output<typeof Functi
 	return typeof input === 'string' || typeof (input as { file?: string }).file === 'string'
 }
 
+export const toFunctionProps = (fileOrProps: z.output<typeof FunctionSchema>) => {
+	return typeof fileOrProps === 'string' ? { file: fileOrProps } : fileOrProps
+}
+
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
 import type { PartialDeep } from 'type-fest'
@@ -108,10 +112,10 @@ export const toLambdaFunction = (ctx: StackContext, id: string, fileOrProps: z.i
 	const stack = ctx.stack ?? ctx.bootstrap
 	const bootstrap = ctx.bootstrap
 
-	const props =
-		typeof fileOrProps === 'string'
-			? { ...config.app.defaults?.function, file: fileOrProps }
-			: { ...config.app.defaults?.function, ...fileOrProps }
+	const props = {
+		...config.app.defaults?.function,
+		...toFunctionProps(fileOrProps),
+	}
 
 	const lambda = new Function(id, {
 		name: `${config.app.name}-${stack.name}-${id}`,

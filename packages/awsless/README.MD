@@ -5,6 +5,8 @@
 - add cache plugin & think about VPC lambda solutions
 - add fargate container stuff for long lived services
 - add check for existing graphql resolver field in schema
+- add check for conflicting types inside graphql (Like duplicate type names)
+  - Types should probably only allowed to defined once. And should be extended after that.
 
 ---
 ---

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { definePlugin } from '../../plugin.js'
-import { isFunctionProps, toLambdaFunction } from '../function/index.js'
+import { isFunctionProps, toFunctionProps, toLambdaFunction } from '../function/index.js'
 import { toArray } from '../../util/array.js'
 import { paramCase } from 'change-case'
 // import { DurationSchema } from '../schema/duration.js';
@@ -208,8 +208,13 @@ export const graphqlPlugin = definePlugin({
 						resolver?: string
 					} = isFunctionProps(resolverProps) ? { consumer: resolverProps } : resolverProps
 
-					const entryId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
-					const lambda = toLambdaFunction(ctx as any, `graphql-${entryId}`, props.consumer)
+					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
+					const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
+					const lambda = toLambdaFunction(ctx as any, `graphql-${funcId}`, {
+						description: entryId,
+						...toFunctionProps(props.consumer),
+					})
+
 					const resolver = props.resolver ?? defaultProps?.resolver
 
 					let code: ICode & Asset = defaultResolver

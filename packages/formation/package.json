@@ -1,0 +1,38 @@
+{
+	"name": "@awsless/formation",
+	"version": "0.0.1",
+	"license": "MIT",
+	"type": "module",
+	"main": "./bin/index.js",
+	"scripts": {
+		"build": "pnpm tsup ./src/simple.ts",
+		"exec": "node ./dist/simple.cjs",
+		"start": "pnpm run build && pnpm run exec",
+		"example": "pnpm tsup ./src/example.ts && node ./dist/example.cjs"
+	},
+	"dependencies": {
+		"@aws-sdk/client-acm": "^3.540.0",
+		"@aws-sdk/client-cloudcontrol": "^3.533.0",
+		"@aws-sdk/client-dynamodb": "3.363.0",
+		"@aws-sdk/client-ec2": "^3.537.0",
+		"@aws-sdk/client-iam": "^3.535.0",
+		"@aws-sdk/client-route-53": "^3.369.0",
+		"@aws-sdk/client-s3": "^3.537.0",
+		"@aws-sdk/credential-providers": "^3.369.0",
+		"@aws-sdk/util-dynamodb": "3.363.0",
+		"@awsless/duration": "workspace:^",
+		"@awsless/size": "workspace:^",
+		"@pulumi/aws": "^6.25.1",
+		"@pulumi/awsx": "^2.5.0",
+		"@pulumi/pulumi": "^3.110.0",
+		"@types/promise-dag": "^1.0.4",
+		"@types/proper-lockfile": "^4.1.4",
+		"change-case": "^4.1.2",
+		"promise-dag": "^1.0.0",
+		"proper-lockfile": "^4.1.2",
+		"rfc6902": "^5.1.1",
+		"tsup": "^7.2.0",
+		"typed-emitter": "^2.1.0",
+		"typescript": "^5.4.2"
+	}
+}

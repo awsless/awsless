@@ -85,6 +85,8 @@ const HandlerSchema = z
 
 const FileSchema = LocalFileSchema.describe('The file path of the function code.')
 
+const DescriptionSchema = z.string().describe('A description of the function.')
+
 const LogRetentionSchema = DurationSchema.refine(durationMin(Duration.days(1)), 'Minimum log retention is 1 day')
 
 const LogSchema = z
@@ -121,6 +123,7 @@ export const FunctionSchema = z.union([
 	LocalFileSchema,
 	z.object({
 		file: FileSchema,
+		description: DescriptionSchema.optional(),
 		handler: HandlerSchema.optional(),
 		minify: MinifySchema.optional(),
 		warm: WarmSchema.optional(),

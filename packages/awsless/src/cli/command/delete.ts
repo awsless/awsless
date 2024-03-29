@@ -65,13 +65,15 @@ export const del = (program: Command) => {
 								task: async update => {
 									update('deleting...')
 
-									try {
-										await client.delete(stack.name, stack.region)
-									} catch (error) {
-										debugError(error)
-										update('failed')
-										throw error
-									}
+									await client.delete(stack.name, stack.region)
+
+									// try {
+									// 	await client.delete(stack.name, stack.region)
+									// } catch (error) {
+									// 	debugError(error)
+									// 	update('failed')
+									// 	throw error
+									// }
 
 									update('deleted')
 									return 'done'
