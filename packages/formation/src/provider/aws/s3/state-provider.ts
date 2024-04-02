@@ -1,5 +1,5 @@
-import { URN } from '../../../resource/resource'
-import { AppState, StateProvider as Provider } from '../../../resource/state'
+import { URN } from '../../../core/resource'
+import { AppState, StateProvider as Provider } from '../../../core/state'
 
 export class StateProvider implements Provider {
 	async lock(urn: URN) {

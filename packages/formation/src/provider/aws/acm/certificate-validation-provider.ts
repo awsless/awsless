@@ -1,5 +1,5 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, GetProps, UpdateProps } from '../../../resource/cloud'
+import { CloudProvider, CreateProps, GetProps, UpdateProps } from '../../../core/cloud'
 import { ACMClient, DescribeCertificateCommand } from '@aws-sdk/client-acm'
 
 type ProviderProps = {
@@ -16,19 +16,34 @@ type Document = {
 }
 
 export class CertificateValidationProvider implements CloudProvider {
-	protected client: ACMClient
+	protected clients: Record<string, ACMClient> = {}
 
-	constructor(props: ProviderProps) {
-		this.client = new ACMClient(props)
-	}
+	constructor(private props: ProviderProps) {}
 
 	own(id: string) {
 		return id === 'aws-acm-certificate-validation'
 	}
 
-	async get({ id }: GetProps<Document, Extra>) {
+	private client(region: string = this.props.region) {
+		if (!this.clients[region]) {
+			this.clients[region] = new ACMClient({
+				...this.props,
+				region,
+			})
+		}
+
+		return this.clients[region]!
+	}
+
+	private wait(delay: number) {
+		return new Promise(r => setTimeout(r, delay))
+	}
+
+	async get({ id, extra }: GetProps<Document, Extra>) {
+		const client = this.client(extra.region)
+
 		while (true) {
-			const result = await this.client.send(
+			const result = await client.send(
 				new DescribeCertificateCommand({
 					CertificateArn: id,
 				})
@@ -51,10 +66,10 @@ export class CertificateValidationProvider implements CloudProvider {
 					throw new Error(`Certificate revoked`)
 
 				case 'ISSUED':
-					return { Status: 'ISSUED' }
+					return result.Certificate!
 			}
 
-			await new Promise(resolve => setTimeout(resolve, 5000))
+			await this.wait(5000)
 		}
 	}
 

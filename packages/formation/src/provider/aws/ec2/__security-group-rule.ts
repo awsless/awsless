@@ -1,7 +1,7 @@
 import { Port } from './port.js'
 import { Peer } from './peer.js'
-import { Input, unwrap } from '../../../resource/output.js'
-import { Resource } from '../../../resource/resource.js'
+import { Input, unwrap } from '../../../core/output.js'
+import { Resource } from '../../../core/resource.js'
 
 export class SecurityGroupRule extends Resource {
 	cloudProviderId = 'aws-ec2-security-group-rule'

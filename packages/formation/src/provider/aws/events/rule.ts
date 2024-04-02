@@ -1,6 +1,6 @@
 import { AwsResource } from '../resource.js'
 import { ARN } from '../types.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 
 export type RuleProps = {
 	name: Input<string>

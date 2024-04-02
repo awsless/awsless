@@ -1,36 +1,43 @@
 import { Asset } from '../../../asset.js'
 import { Group } from '../../../resource.js'
-import { ICode } from '../../appsync/code.js'
+import { ICode } from '../../appsync/__code.js'
 import { DataSource } from '../../appsync/data-source.js'
 import { FunctionConfiguration } from '../../appsync/function-configuration.js'
 import { Resolver } from '../../appsync/resolver.js'
-import { InlinePolicy } from '../../iam/inline-policy.js'
+import { InlinePolicy } from '../../iam/__inline-policy.js'
 import { Role } from '../../iam/role.js'
 import { Function } from '../function.js'
 
 export class AppsyncEventSource extends Group {
-	constructor(id: string, lambda:Function, props: {
-		apiId: string
-		typeName: string
-		fieldName: string
-		code: ICode & Asset
-	}) {
+	constructor(
+		id: string,
+		lambda: Function,
+		props: {
+			apiId: string
+			typeName: string
+			fieldName: string
+			code: ICode & Asset
+		}
+	) {
 		const role = new Role(id + 'AppSync', {
-			assumedBy: 'appsync.amazonaws.com'
+			assumedBy: 'appsync.amazonaws.com',
 		}).dependsOn(lambda)
 
-		role.addInlinePolicy(new InlinePolicy(id, {
-			statements: [{
-				actions: [ 'lambda:InvokeFunction' ],
-				resources: [ lambda.arn ]
-			}]
-		}))
-
-		const source = DataSource
-			.fromLambda(id, props.apiId, {
-				functionArn: lambda.arn,
-				serviceRoleArn: role.arn
+		role.addInlinePolicy(
+			new InlinePolicy(id, {
+				statements: [
+					{
+						actions: ['lambda:InvokeFunction'],
+						resources: [lambda.arn],
+					},
+				],
 			})
+		)
+
+		const source = DataSource.fromLambda(id, props.apiId, {
+			functionArn: lambda.arn,
+			serviceRoleArn: role.arn,
+		})
 			.dependsOn(role)
 			.dependsOn(lambda)
 
@@ -44,10 +51,10 @@ export class AppsyncEventSource extends Group {
 			apiId: props.apiId,
 			typeName: props.typeName,
 			fieldName: props.fieldName,
-			functions: [ config.id ],
+			functions: [config.id],
 			code: props.code,
 		}).dependsOn(config)
 
-		super([ role, source, config, resolver ])
+		super([role, source, config, resolver])
 	}
 }

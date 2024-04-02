@@ -1,4 +1,4 @@
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { Peer } from './peer'
 import { SubnetRouteTableAssociation } from './subnet-route-table-association'

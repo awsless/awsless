@@ -1,9 +1,10 @@
 import { constantCase } from 'change-case'
 import { ARN } from '../types'
 import { AwsResource } from '../resource'
-import { unwrap, Input } from '../../../resource/output'
-import { Asset } from '../../../resource/asset'
+import { unwrap, Input } from '../../../core/output'
+import { Asset } from '../../../core/asset'
 import { TableItem } from './table-item'
+import { Statement } from '../iam'
 
 export type IndexProps = {
 	hash: string
@@ -40,6 +41,10 @@ export class Table extends AwsResource {
 		return this.output<ARN>(v => v.Arn)
 	}
 
+	get streamArn() {
+		return this.output<ARN>(v => v.StreamArn)
+	}
+
 	get name() {
 		return this.output<string>(v => v.TableName)
 	}
@@ -71,8 +76,20 @@ export class Table extends AwsResource {
 		return tableItem
 	}
 
+	get streamPermissions() {
+		return {
+			actions: [
+				'dynamodb:ListStreams',
+				'dynamodb:DescribeStream',
+				'dynamodb:GetRecords',
+				'dynamodb:GetShardIterator',
+			],
+			resources: [this.streamArn],
+		}
+	}
+
 	get permissions() {
-		const permissions = [
+		const permissions: Statement[] = [
 			{
 				actions: [
 					'dynamodb:DescribeTable',

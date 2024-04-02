@@ -1,13 +1,15 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps } from '../../../resource/cloud'
+import { CloudProvider, CreateProps, DeleteProps, GetProps } from '../../../core/cloud'
 import {
 	ACMClient,
 	DeleteCertificateCommand,
 	DescribeCertificateCommand,
 	RequestCertificateCommand,
+	ResourceNotFoundException,
 } from '@aws-sdk/client-acm'
 import { KeyAlgorithm } from './certificate'
-import { sha256 } from '../../../resource/hash'
+import { sha256 } from '../../../core/hash'
+import { ResourceNotFound } from '../../../core/error'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -38,6 +40,10 @@ export class CertificateProvider implements CloudProvider {
 		return id === 'aws-acm-certificate'
 	}
 
+	private wait(delay: number) {
+		return new Promise(r => setTimeout(r, delay))
+	}
+
 	private client(region: string = this.props.region) {
 		if (!this.clients[region]) {
 			this.clients[region] = new ACMClient({
@@ -46,17 +52,24 @@ export class CertificateProvider implements CloudProvider {
 			})
 		}
 
-		return this.clients[region]
+		return this.clients[region]!
 	}
 
 	async get({ id, extra }: GetProps<Document, Extra>) {
-		const result = await this.client(extra.region).send(
-			new DescribeCertificateCommand({
-				CertificateArn: id,
-			})
-		)
+		const client = this.client(extra.region)
+		while (true) {
+			const result = await client.send(
+				new DescribeCertificateCommand({
+					CertificateArn: id,
+				})
+			)
 
-		return result.Certificate!
+			if (result.Certificate?.DomainValidationOptions?.at(0)?.ResourceRecord) {
+				return result.Certificate
+			}
+
+			await this.wait(5000)
+		}
 	}
 
 	async create({ urn, document, extra }: CreateProps<Document, Extra>) {
@@ -77,10 +90,18 @@ export class CertificateProvider implements CloudProvider {
 	}
 
 	async delete({ id, extra }: DeleteProps<Document, Extra>) {
-		await this.client(extra.region).send(
-			new DeleteCertificateCommand({
-				CertificateArn: id,
-			})
-		)
+		try {
+			await this.client(extra.region).send(
+				new DeleteCertificateCommand({
+					CertificateArn: id,
+				})
+			)
+		} catch (error) {
+			if (error instanceof ResourceNotFoundException) {
+				throw new ResourceNotFound(error.message)
+			}
+
+			throw error
+		}
 	}
 }

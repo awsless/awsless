@@ -1,4 +1,4 @@
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 import { AwsResource } from '../resource'
 import { Record, formatRecordSet } from './record-set'
 

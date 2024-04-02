@@ -1,56 +1,56 @@
 import { camelCase } from 'change-case'
-import { Resource } from '../../resource.js'
-import { formatName } from '../../util.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource'
+import { Input, unwrap } from '../../../core/output'
 
-export class OriginRequestPolicy extends Resource {
-	readonly name: string
-
+export class OriginRequestPolicy extends CloudControlApiResource {
 	constructor(
-		logicalId: string,
+		id: string,
 		private props: {
-			name?: string
-			cookie?: {
-				behavior: 'all' | 'all-except' | 'none' | 'whitelist'
-				values?: string[]
-			}
-			header?: {
-				behavior:
-					| 'all-except'
-					| 'all-viewer'
-					| 'all-viewer-and-whitelist-cloudfront'
-					| 'none'
-					| 'whitelist'
-				values?: string[]
-			}
-			query?: {
-				behavior: 'all' | 'all-except' | 'none' | 'whitelist'
-				values?: string[]
-			}
-		} = {}
+			name: Input<string>
+			cookie?: Input<{
+				behavior: Input<'all' | 'all-except' | 'none' | 'whitelist'>
+				values?: Input<Input<string>[]>
+			}>
+			header?: Input<{
+				behavior: Input<
+					'all-except' | 'all-viewer' | 'all-viewer-and-whitelist-cloudfront' | 'none' | 'whitelist'
+				>
+				values?: Input<Input<string>[]>
+			}>
+			query?: Input<{
+				behavior: Input<'all' | 'all-except' | 'none' | 'whitelist'>
+				values?: Input<Input<string>[]>
+			}>
+		}
 	) {
-		super('AWS::CloudFront::OriginRequestPolicy', logicalId)
-		this.name = formatName(this.props.name || logicalId)
+		super('AWS::CloudFront::OriginRequestPolicy', id, props)
 	}
 
 	get id() {
-		return this.getAtt('Id')
+		return this.output<string>(v => v.Id)
 	}
 
-	protected properties() {
+	toState() {
+		const cookie = unwrap(this.props.cookie)
+		const header = unwrap(this.props.header)
+		const query = unwrap(this.props.query)
+
 		return {
-			OriginRequestPolicyConfig: {
-				Name: this.name,
-				CookiesConfig: {
-					CookieBehavior: camelCase(this.props.cookie?.behavior ?? 'all'),
-					...this.attr('Cookies', this.props.cookie?.values),
-				},
-				HeadersConfig: {
-					HeaderBehavior: camelCase(this.props.header?.behavior ?? 'allViewer'),
-					...this.attr('Headers', this.props.header?.values),
-				},
-				QueryStringsConfig: {
-					QueryStringBehavior: camelCase(this.props.query?.behavior ?? 'all'),
-					...this.attr('QueryStrings', this.props.query?.values),
+			document: {
+				OriginRequestPolicyConfig: {
+					Name: this.props.name,
+					CookiesConfig: {
+						CookieBehavior: camelCase(unwrap(cookie?.behavior, 'all')),
+						...this.attr('Cookies', cookie?.values),
+					},
+					HeadersConfig: {
+						HeaderBehavior: camelCase(unwrap(header?.behavior, 'all-viewer')),
+						...this.attr('Headers', header?.values),
+					},
+					QueryStringsConfig: {
+						QueryStringBehavior: camelCase(unwrap(query?.behavior, 'all')),
+						...this.attr('QueryStrings', query?.values),
+					},
 				},
 			},
 		}

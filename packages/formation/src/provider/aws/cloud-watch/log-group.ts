@@ -1,6 +1,6 @@
 import { Duration, toDays } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 
 export class LogGroup extends CloudControlApiResource {

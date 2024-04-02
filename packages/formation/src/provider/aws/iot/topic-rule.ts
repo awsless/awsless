@@ -1,6 +1,6 @@
 import { AwsResource } from '../resource'
 import { ARN } from '../types'
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 
 export type TopicRuleSqlVersion = '2015-10-08' | '2016-03-23' | 'beta'
 

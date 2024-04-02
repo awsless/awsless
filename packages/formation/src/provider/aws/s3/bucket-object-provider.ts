@@ -1,5 +1,5 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../resource/cloud'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 import { DeleteObjectCommand, GetObjectAttributesCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
 type ProviderProps = {
@@ -44,7 +44,7 @@ export class BucketObjectProvider implements CloudProvider {
 			new PutObjectCommand({
 				Bucket: document.bucket,
 				Key: document.key,
-				Body: assets.body.data,
+				Body: assets.body?.data,
 			})
 		)
 
@@ -71,7 +71,7 @@ export class BucketObjectProvider implements CloudProvider {
 			new PutObjectCommand({
 				Bucket: newDocument.bucket,
 				Key: newDocument.key,
-				Body: assets.body.data,
+				Body: assets.body?.data,
 			})
 		)
 

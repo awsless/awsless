@@ -1,6 +1,6 @@
-import { Asset } from '../../../resource/asset'
-import { Input } from '../../../resource/output'
-import { Resource } from '../../../resource/resource'
+import { Asset } from '../../../core/asset'
+import { Input } from '../../../core/output'
+import { Resource } from '../../../core/resource'
 
 export type BucketObjectProps = {
 	bucket: Input<string>

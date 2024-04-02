@@ -1,7 +1,7 @@
 import { Port } from './port.js'
 import { Peer } from './peer.js'
-import { Input } from '../../../resource/output.js'
-import { Resource } from '../../../resource/resource.js'
+import { Input } from '../../../core/output.js'
+import { Resource } from '../../../core/resource.js'
 import { SecurityGroupRule } from './__security-group-rule.js'
 
 type Rule = {

@@ -1,4 +1,4 @@
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Peer } from './peer.js'
 

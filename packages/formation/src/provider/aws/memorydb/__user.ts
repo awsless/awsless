@@ -1,4 +1,4 @@
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
 

@@ -1,6 +1,6 @@
 import { constantCase } from 'change-case'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { Record } from '../route53/record-set.js'
 import { minutes } from '@awsless/duration'
 

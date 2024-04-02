@@ -1,4 +1,4 @@
-import { Resource } from '../../resource/resource'
+import { Resource } from '../../core/resource'
 
 export abstract class AwsResource extends Resource {
 	readonly cloudProviderId = 'aws-cloud-control-api'

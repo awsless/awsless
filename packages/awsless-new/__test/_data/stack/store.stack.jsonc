@@ -1,0 +1,6 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "store",
+	"stores": ["files"]
+	// allow comments
+}

@@ -1,4 +1,4 @@
-import { Input } from '../../../resource/output'
+import { Input } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class SubnetRouteTableAssociation extends CloudControlApiResource {

@@ -1,60 +1,64 @@
-import { Duration } from '../../property/duration.js'
-import { Resource } from '../../resource.js'
+import { Duration, toSeconds } from '@awsless/duration'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Input, unwrap } from '../../../core/output.js'
+import { ARN } from '../types.js'
 
 export type EventInvokeConfigProps = {
-	functionName: string
-	maxEventAge?: Duration
-	onFailure?: string
-	onSuccess?: string
-	qualifier?: string
-	retryAttempts?: number
+	functionArn: Input<ARN>
+	maxEventAge?: Input<Duration>
+	onFailure?: Input<ARN>
+	onSuccess?: Input<ARN>
+	qualifier?: Input<string>
+	retryAttempts?: Input<number>
 }
 
-export class EventInvokeConfig extends Resource {
-	constructor(logicalId: string, private props: EventInvokeConfigProps) {
-		super('AWS::Lambda::EventInvokeConfig', logicalId)
+export class EventInvokeConfig extends CloudControlApiResource {
+	constructor(id: string, private props: EventInvokeConfigProps) {
+		super('AWS::Lambda::EventInvokeConfig', id, props)
 	}
 
-	setOnFailure(arn: string) {
+	setOnFailure(arn: Input<ARN>) {
 		this.props.onFailure = arn
 
 		return this
 	}
 
-	setOnSuccess(arn: string) {
+	setOnSuccess(arn: Input<ARN>) {
 		this.props.onSuccess = arn
 
 		return this
 	}
 
-	protected properties() {
+	toState() {
 		return {
-			FunctionName: this.props.functionName,
-			Qualifier: this.props.qualifier || '$LATEST',
+			document: {
+				FunctionName: this.props.functionArn,
+				Qualifier: unwrap(this.props.qualifier, '$LATEST'),
 
-			...this.attr('MaximumEventAgeInSeconds', this.props.maxEventAge?.toSeconds()),
-			...this.attr('MaximumRetryAttempts', this.props.retryAttempts),
+				...this.attr('MaximumEventAgeInSeconds', this.props.maxEventAge, toSeconds),
+				...this.attr('MaximumRetryAttempts', this.props.retryAttempts),
 
-			...(this.props.onFailure || this.props.onSuccess
-				? {
-						DestinationConfig: {
-							...(this.props.onFailure
-								? {
-										OnFailure: {
-											Destination: this.props.onFailure,
-										},
-								  }
-								: {}),
-							...(this.props.onSuccess
-								? {
-										OnSuccess: {
-											Destination: this.props.onSuccess,
-										},
-								  }
-								: {}),
-						},
-				  }
-				: {}),
+				...(this.props.onFailure || this.props.onSuccess
+					? {
+							DestinationConfig: {
+								...(this.props.onFailure
+									? {
+											OnFailure: {
+												Destination: this.props.onFailure,
+											},
+									  }
+									: {}),
+								...(this.props.onSuccess
+									? {
+											OnSuccess: {
+												Destination: this.props.onSuccess,
+											},
+									  }
+									: {}),
+							},
+					  }
+					: {}),
+			},
 		}
 	}
 }

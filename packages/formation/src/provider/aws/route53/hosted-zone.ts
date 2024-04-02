@@ -1,5 +1,6 @@
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, all, unwrap } from '../../../core/output.js'
 import { AwsResource } from '../resource.js'
+import { Record, RecordSet } from './record-set.js'
 
 export type HostedZoneProps = {
 	name: Input<string>
@@ -20,6 +21,20 @@ export class HostedZone extends AwsResource {
 
 	get nameServers() {
 		return this.output<string[]>(v => v.NameServers)
+	}
+
+	addRecord(id: string, record: Input<Record>) {
+		const recordSet = new RecordSet(
+			id,
+			all([this.id, record]).apply(([hostedZoneId, record]) => ({
+				hostedZoneId,
+				...record,
+			}))
+		)
+
+		this.add(recordSet)
+
+		return recordSet
 	}
 
 	toState() {

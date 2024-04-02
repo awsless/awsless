@@ -1,5 +1,5 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../resource/cloud'
+import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
 import { AttributeValue, DeleteItemCommand, DynamoDB, PutItemCommand } from '@aws-sdk/client-dynamodb'
 import { marshall } from '@aws-sdk/util-dynamodb'
 
@@ -32,7 +32,7 @@ export class TableItemProvider implements CloudProvider {
 	}
 
 	private primaryKey(document: Document, item: Record<string, AttributeValue>) {
-		const key: Record<string, AttributeValue> = {
+		const key: Record<string, AttributeValue | undefined> = {
 			[document.hash]: item[document.hash],
 		}
 
@@ -48,7 +48,7 @@ export class TableItemProvider implements CloudProvider {
 	}
 
 	async create({ document, assets }: CreateProps<Document>) {
-		const item = JSON.parse(assets.item.data.toString('utf8'))
+		const item = JSON.parse(assets.item!.data.toString('utf8'))
 		const key = this.primaryKey(document, item)
 
 		await this.client.send(
@@ -75,7 +75,7 @@ export class TableItemProvider implements CloudProvider {
 		}
 
 		const [_, oldKey] = JSON.parse(id)
-		const item = JSON.parse(assets.item.data.toString('utf8'))
+		const item = JSON.parse(assets.item!.data.toString('utf8'))
 		const key = this.primaryKey(newDocument, item)
 
 		if (JSON.stringify(oldKey) !== JSON.stringify(key)) {

@@ -2,7 +2,7 @@ import { constantCase } from 'change-case'
 import { AwsResource } from '../resource.js'
 import { Duration, toSeconds } from '@awsless/duration'
 import { ARN } from '../types.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 
 export type UrlProps = {
 	targetArn: Input<ARN>
@@ -52,7 +52,7 @@ export class Url extends AwsResource {
 			...this.attr('AllowMethods', allow.methods),
 			...this.attr('AllowOrigins', allow.origins),
 			...this.attr('ExposeHeaders', expose.headers),
-			...this.attr('MaxAge', cors.maxAge && toSeconds(unwrap(cors.maxAge))),
+			...this.attr('MaxAge', cors.maxAge, toSeconds),
 		}
 	}
 

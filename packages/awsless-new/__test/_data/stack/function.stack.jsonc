@@ -1,0 +1,19 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "function",
+	// "tests": "../test",
+	"configs": ["test"],
+	"functions": {
+		"module": {
+			"file": "../function/module.ts",
+			// "warm": 1,
+			"permissions": {
+				"actions": ["s3:PutObject"],
+				"resources": ["*"]
+			},
+			"log": {
+				"retention": "1 day"
+			}
+		}
+	}
+}

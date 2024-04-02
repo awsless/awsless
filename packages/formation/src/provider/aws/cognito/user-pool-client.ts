@@ -1,6 +1,6 @@
 import { Duration, toDays, toHours, toMinutes } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 
 export type UserPoolClientProps = {
 	name: Input<string>

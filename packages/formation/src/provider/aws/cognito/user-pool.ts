@@ -3,7 +3,7 @@ import { UserPoolClient, UserPoolClientProps } from './user-pool-client.js'
 // import { UserPoolDomain, UserPoolDomainProps } from './user-pool-domain.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Duration, days, toDays } from '@awsless/duration'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 
 export type UserPoolProps = {

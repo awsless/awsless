@@ -1,8 +1,8 @@
-import { Input } from '../../../resource/output'
-import { Resource } from '../../../resource/resource'
+import { Input } from '../../../core/output'
+import { Resource } from '../../../core/resource'
 // import { sha256 } from '../../../resource/hash'
 import { Table } from './table'
-import { Asset } from '../../../resource/asset'
+import { Asset } from '../../../core/asset'
 
 export class TableItem extends Resource {
 	cloudProviderId = 'aws-dynamodb-table-item'

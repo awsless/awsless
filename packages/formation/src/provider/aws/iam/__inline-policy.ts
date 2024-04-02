@@ -1,5 +1,5 @@
 import { capitalCase } from 'change-case'
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 import { ARN } from '../types'
 
 export type Statement = {

@@ -1,6 +1,6 @@
-import { Duration, toSeconds } from '@awsless/duration'
-import { Input, unwrap } from '../../../resource/output.js'
-import { Resource } from '../../../resource/resource.js'
+import { Duration, minutes, toSeconds } from '@awsless/duration'
+import { Input, unwrap } from '../../../core/output.js'
+import { Resource } from '../../../core/resource.js'
 
 export type RecordType =
 	| 'A'
@@ -21,16 +21,17 @@ export type Record = {
 	type: Input<RecordType>
 	name: Input<string>
 	weight?: Input<number>
-	ttl?: Input<Duration>
 } & (
 	| {
+			ttl?: Input<Duration>
 			records?: Input<Input<string>[]>
 	  }
 	| {
-			alias?: {
+			alias?: Input<{
 				dnsName: Input<string>
 				hostedZoneId: Input<string>
-			}
+				evaluateTargetHealth: Input<boolean>
+			}>
 	  }
 )
 
@@ -53,21 +54,19 @@ export const formatRecordSet = (record: Record) => {
 		Name: name.endsWith('.') ? name : name + '.',
 		Type: record.type,
 		Weight: unwrap(record.weight, 0),
-		...(record.ttl
-			? {
-					TTL: toSeconds(unwrap(record.ttl)),
-			  }
-			: {}),
+		// ...(record.ttl ? {} : {}),
 		...('records' in record
 			? {
+					TTL: toSeconds(unwrap(record.ttl, minutes(5))),
 					ResourceRecords: record.records,
 			  }
 			: {}),
-		...('alias' in record && record.alias
+		...('alias' in record && unwrap(record.alias)
 			? {
 					AliasTarget: {
-						DNSName: unwrap(record.alias).dnsName,
-						HostedZoneId: unwrap(record.alias).hostedZoneId,
+						DNSName: unwrap(record.alias)!.dnsName,
+						HostedZoneId: unwrap(record.alias)!.hostedZoneId,
+						EvaluateTargetHealth: unwrap(record.alias)!.evaluateTargetHealth,
 					},
 			  }
 			: {}),
@@ -78,15 +77,15 @@ export const formatRecordSet = (record: Record) => {
 export class RecordSet extends Resource {
 	cloudProviderId = 'aws-route53-record-set'
 
-	constructor(id: string, private props: RecordSetProps) {
+	constructor(id: string, private props: Input<RecordSetProps>) {
 		super('AWS::Route53::RecordSet', id, props)
 	}
 
 	toState() {
 		return {
 			document: {
-				HostedZoneId: this.props.hostedZoneId,
-				...formatRecordSet(this.props),
+				HostedZoneId: unwrap(this.props).hostedZoneId,
+				...formatRecordSet(unwrap(this.props)),
 			},
 		}
 	}

@@ -1,4 +1,4 @@
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { AwsResource } from '../resource.js'
 import { ARN } from '../types.js'
 import { PolicyDocument, formatPolicyDocument } from './__policy.js'

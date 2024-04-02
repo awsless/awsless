@@ -1,4 +1,4 @@
-import { Input } from '../../../resource/output.js'
+import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
 

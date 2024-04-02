@@ -1,7 +1,7 @@
 import { constantCase } from 'change-case'
 import { AwsResource } from '../resource.js'
 import { ARN } from '../types.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 
 export type PermissionProps = {
 	functionArn: Input<ARN>
@@ -23,10 +23,7 @@ export class Permission extends AwsResource {
 				Action: unwrap(this.props.action, 'lambda:InvokeFunction'),
 				Principal: this.props.principal,
 				...this.attr('SourceArn', this.props.sourceArn),
-				...this.attr(
-					'FunctionUrlAuthType',
-					this.props.urlAuthType && constantCase(unwrap(this.props.urlAuthType))
-				),
+				...this.attr('FunctionUrlAuthType', this.props.urlAuthType, constantCase),
 
 				// ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
 				// ...(this.props.urlAuthType

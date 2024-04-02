@@ -1,6 +1,6 @@
 import { Port } from './port.js'
 import { Peer } from './peer.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
 type Rule = {

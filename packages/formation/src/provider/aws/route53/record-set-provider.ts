@@ -1,5 +1,5 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../resource/cloud'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 import {
 	ChangeResourceRecordSetsCommand,
 	ListResourceRecordSetsCommand,

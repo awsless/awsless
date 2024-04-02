@@ -1,6 +1,6 @@
 import { Duration, toSeconds } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 
 type Type = 'viewer-request' | 'viewer-response' | 'origin-request' | 'origin-response'
@@ -77,22 +77,30 @@ export class Distribution extends CloudControlApiResource {
 		super('AWS::CloudFront::Distribution', id, props)
 	}
 
-	// get id() {
-	// 	return this.getAtt('Id')
-	// }
-
 	// get arn() {
 	// 	return sub('arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${id}', {
 	// 		id: this.id,
 	// 	})
 	// }
 
-	// get domainName() {
-	// 	return getAtt(this.logicalId, 'DomainName')
-	// }
+	get id() {
+		return this.output<string>(v => v.Id)
+	}
+
+	get domainName() {
+		return this.output<string>(v => v.DomainName)
+	}
 
 	get hostedZoneId() {
 		return 'Z2FDTNDATAQYW2'
+	}
+
+	get aliasTarget() {
+		return {
+			dnsName: this.domainName,
+			hostedZoneId: this.hostedZoneId,
+			evaluateTargetHealth: false,
+		}
 	}
 
 	toState() {

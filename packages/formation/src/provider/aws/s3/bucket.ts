@@ -1,21 +1,21 @@
 import { pascalCase } from 'change-case'
 import { ARN } from '../types'
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 import { Duration } from '@awsless/duration'
-import { Resource } from '../../../resource/resource'
+import { Resource } from '../../../core/resource'
 import { BucketObject, BucketObjectProps } from './bucket-object'
 
 export type BucketProps = {
 	name?: Input<string>
-	accessControl?: Input<
-		| 'private'
-		| 'public-read'
-		| 'public-read-write'
-		| 'authenticated-read'
-		| 'bucket-owner-read'
-		| 'bucket-owner-full-control'
-		| 'log-delivery-write'
-	>
+	// accessControl?: Input<
+	// 	| 'private'
+	// 	| 'public-read'
+	// 	| 'public-read-write'
+	// 	| 'authenticated-read'
+	// 	| 'bucket-owner-read'
+	// 	| 'bucket-owner-full-control'
+	// 	| 'log-delivery-write'
+	// >
 	versioning?: Input<boolean>
 	forceDelete?: Input<boolean>
 	website?: Input<{
@@ -100,7 +100,7 @@ export class Bucket extends Resource {
 			},
 			document: {
 				BucketName: unwrap(this.props.name, this.identifier),
-				AccessControl: pascalCase(unwrap(this.props.accessControl, 'private')),
+				// AccessControl: pascalCase(unwrap(this.props.accessControl, 'private')),
 				...(unwrap(this.props.versioning, false)
 					? {
 							VersioningConfiguration: {

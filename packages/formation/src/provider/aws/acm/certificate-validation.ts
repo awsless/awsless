@@ -1,9 +1,10 @@
-import { Input } from '../../../resource/output'
-import { Resource } from '../../../resource/resource'
+import { Input } from '../../../core/output'
+import { Resource } from '../../../core/resource'
 import { ARN } from '../types'
 
 export type CertificateValidationProps = {
 	certificateArn: Input<ARN>
+	region?: Input<string>
 }
 
 export class CertificateValidation extends Resource {
@@ -11,18 +12,22 @@ export class CertificateValidation extends Resource {
 
 	constructor(id: string, private props: CertificateValidationProps) {
 		super('AWS::CertificateManager::CertificateValidation', id, props)
+
+		// This resource isn't a real resource.
+		// So we can just skip the deletion part.
+
+		this.deletionPolicy = 'retain'
 	}
 
 	get arn() {
 		return this.output<ARN>(v => v.CertificateArn)
 	}
 
-	// get issuer() {
-	// 	return this.output<string>(v => v.Issuer)
-	// }
-
 	toState() {
 		return {
+			extra: {
+				region: this.props.region,
+			},
 			document: {
 				CertificateArn: this.props.certificateArn,
 			},

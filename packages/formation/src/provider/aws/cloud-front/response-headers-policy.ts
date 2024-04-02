@@ -1,39 +1,39 @@
-import { Duration } from '../../property/duration.js'
-import { Resource } from '../../resource.js'
-import { formatName } from '../../util.js'
+import { Duration, days, toSeconds } from '@awsless/duration'
+import { CloudControlApiResource } from '../cloud-control-api/resource'
+import { Input, unwrap } from '../../../core/output'
 
-export class ResponseHeadersPolicy extends Resource {
-	readonly name: string
-
+export class ResponseHeadersPolicy extends CloudControlApiResource {
 	constructor(
-		logicalId: string,
+		id: string,
 		private props: {
-			name?: string
+			name: Input<string>
 			// add?: Record<string, string | { value: string, override: boolean }>
-			remove?: string[]
-			cors?: {
-				override?: boolean
-				maxAge?: Duration
-				exposeHeaders?: string[]
-				credentials?: boolean
-				headers?: string[]
-				origins?: string[]
-				methods?: Array<'GET' | 'DELETE' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PUT' | 'ALL'>
-			}
-			contentSecurityPolicy?: {
-				override?: boolean
-				contentSecurityPolicy: string
-			}
-			contentTypeOptions?: {
-				override?: boolean
-			}
-			frameOptions?: {
-				override?: boolean
-				frameOption?: 'deny' | 'same-origin'
-			}
-			referrerPolicy?: {
-				override?: boolean
-				referrerPolicy?:
+			remove?: Input<Input<string>[]>
+			cors?: Input<{
+				override?: Input<boolean>
+				maxAge?: Input<Duration>
+				exposeHeaders?: Input<Input<string>[]>
+				credentials?: Input<boolean>
+				headers?: Input<Input<string>[]>
+				origins?: Input<Input<string>[]>
+				methods?: Input<
+					Array<Input<'GET' | 'DELETE' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PUT' | 'ALL'>>
+				>
+			}>
+			contentSecurityPolicy?: Input<{
+				override?: Input<boolean>
+				contentSecurityPolicy: Input<string>
+			}>
+			contentTypeOptions?: Input<{
+				override?: Input<boolean>
+			}>
+			frameOptions?: Input<{
+				override?: Input<boolean>
+				frameOption?: Input<'deny' | 'same-origin'>
+			}>
+			referrerPolicy?: Input<{
+				override?: Input<boolean>
+				referrerPolicy?: Input<
 					| 'no-referrer'
 					| 'no-referrer-when-downgrade'
 					| 'origin'
@@ -42,94 +42,106 @@ export class ResponseHeadersPolicy extends Resource {
 					| 'strict-origin'
 					| 'strict-origin-when-cross-origin'
 					| 'unsafe-url'
-			}
-			strictTransportSecurity?: {
-				maxAge?: Duration
-				includeSubdomains?: boolean
-				override?: boolean
-				preload?: boolean
-			}
-			xssProtection?: {
-				override?: boolean
-				enable?: boolean
-				modeBlock?: boolean
-				reportUri?: string
-			}
+				>
+			}>
+			strictTransportSecurity?: Input<{
+				maxAge?: Input<Duration>
+				includeSubdomains?: Input<boolean>
+				override?: Input<boolean>
+				preload?: Input<boolean>
+			}>
+			xssProtection?: Input<{
+				override?: Input<boolean>
+				enable?: Input<boolean>
+				modeBlock?: Input<boolean>
+				reportUri?: Input<string>
+			}>
 		}
 	) {
-		super('AWS::CloudFront::ResponseHeadersPolicy', logicalId)
-		this.name = formatName(this.props.name || logicalId)
+		super('AWS::CloudFront::ResponseHeadersPolicy', id, props)
 	}
 
 	get id() {
-		return this.getAtt('Id')
+		return this.output<string>(v => v.Id)
 	}
 
-	protected properties() {
+	toState() {
+		const remove = unwrap(this.props.remove, [])
+		const cors = unwrap(this.props.cors, {})
+		const contentSecurityPolicy = unwrap(this.props.contentSecurityPolicy)
+		const contentTypeOptions = unwrap(this.props.contentTypeOptions, {})
+		const frameOptions = unwrap(this.props.frameOptions, {})
+		const referrerPolicy = unwrap(this.props.referrerPolicy, {})
+		const strictTransportSecurity = unwrap(this.props.strictTransportSecurity, {})
+		const xssProtection = unwrap(this.props.xssProtection, {})
+
 		return {
-			ResponseHeadersPolicyConfig: {
-				Name: this.name,
-				...(this.props.remove && this.props.remove.length > 0
-					? {
-							RemoveHeadersConfig: {
-								Items: this.props.remove?.map(value => ({
-									Header: value,
-								})),
-							},
-					  }
-					: {}),
-				CorsConfig: {
-					OriginOverride: this.props.cors?.override ?? false,
-					AccessControlAllowCredentials: this.props.cors?.credentials ?? false,
-					AccessControlMaxAgeSec: this.props.cors?.maxAge?.toSeconds() ?? Duration.days(365).toSeconds(),
-					AccessControlAllowHeaders: {
-						Items: this.props.cors?.headers ?? ['*'],
-					},
-					AccessControlAllowMethods: {
-						Items: this.props.cors?.methods ?? ['ALL'],
-					},
-					AccessControlAllowOrigins: {
-						Items: this.props.cors?.origins ?? ['*'],
-					},
-					AccessControlExposeHeaders: {
-						Items: this.props.cors?.exposeHeaders ?? ['*'],
-					},
-				},
-				SecurityHeadersConfig: {
-					...(this.props.contentSecurityPolicy
+			document: {
+				ResponseHeadersPolicyConfig: {
+					Name: this.props.name,
+					...(remove.length > 0
 						? {
-								ContentSecurityPolicy: {
-									Override: this.props.contentSecurityPolicy?.override ?? false,
-									ContentSecurityPolicy: this.props.contentSecurityPolicy?.contentSecurityPolicy,
+								RemoveHeadersConfig: {
+									Items: remove.map(value => ({
+										Header: value,
+									})),
 								},
 						  }
 						: {}),
-					ContentTypeOptions: {
-						Override: this.props.contentTypeOptions?.override ?? false,
+					CorsConfig: {
+						OriginOverride: unwrap(cors.override, false),
+						AccessControlAllowCredentials: unwrap(cors.credentials, false),
+						AccessControlMaxAgeSec: toSeconds(unwrap(cors.maxAge, days(365))),
+						AccessControlAllowHeaders: {
+							Items: unwrap(cors.headers, ['*']),
+						},
+						AccessControlAllowMethods: {
+							Items: unwrap(cors.methods, ['ALL']),
+						},
+						AccessControlAllowOrigins: {
+							Items: unwrap(cors.origins, ['*']),
+						},
+						AccessControlExposeHeaders: {
+							Items: unwrap(cors.exposeHeaders, ['*']),
+						},
 					},
-					FrameOptions: {
-						Override: this.props.frameOptions?.override ?? false,
-						FrameOption:
-							(this.props.frameOptions?.frameOption ?? 'same-origin') === 'same-origin'
-								? 'SAMEORIGIN'
-								: 'DENY',
-					},
-					ReferrerPolicy: {
-						Override: this.props.referrerPolicy?.override ?? false,
-						ReferrerPolicy: this.props.referrerPolicy?.referrerPolicy ?? 'same-origin',
-					},
-					StrictTransportSecurity: {
-						Override: this.props.strictTransportSecurity?.override ?? false,
-						Preload: this.props.strictTransportSecurity?.preload ?? true,
-						AccessControlMaxAgeSec:
-							this.props.strictTransportSecurity?.maxAge?.toSeconds() ?? 31536000,
-						IncludeSubdomains: this.props.strictTransportSecurity?.includeSubdomains ?? true,
-					},
-					XSSProtection: {
-						Override: this.props.xssProtection?.override ?? false,
-						ModeBlock: this.props.xssProtection?.modeBlock ?? true,
-						Protection: this.props.xssProtection?.enable ?? true,
-						...this.attr('ReportUri', this.props.xssProtection?.reportUri),
+					SecurityHeadersConfig: {
+						...(contentSecurityPolicy
+							? {
+									ContentSecurityPolicy: {
+										Override: unwrap(contentSecurityPolicy.override, false),
+										ContentSecurityPolicy: unwrap(
+											contentSecurityPolicy?.contentSecurityPolicy
+										),
+									},
+							  }
+							: {}),
+						ContentTypeOptions: {
+							Override: unwrap(contentTypeOptions.override, false),
+						},
+						FrameOptions: {
+							Override: unwrap(frameOptions.override, false),
+							FrameOption:
+								unwrap(frameOptions.frameOption, 'same-origin') === 'same-origin'
+									? 'SAMEORIGIN'
+									: 'DENY',
+						},
+						ReferrerPolicy: {
+							Override: unwrap(referrerPolicy.override, false),
+							ReferrerPolicy: unwrap(referrerPolicy.referrerPolicy, 'same-origin'),
+						},
+						StrictTransportSecurity: {
+							Override: unwrap(strictTransportSecurity.override, false),
+							Preload: unwrap(strictTransportSecurity.preload, true),
+							AccessControlMaxAgeSec: toSeconds(unwrap(strictTransportSecurity.maxAge, days(365))),
+							IncludeSubdomains: unwrap(strictTransportSecurity.includeSubdomains, true),
+						},
+						XSSProtection: {
+							Override: unwrap(xssProtection.override, false),
+							ModeBlock: unwrap(xssProtection.modeBlock, true),
+							Protection: unwrap(xssProtection.enable, true),
+							...this.attr('ReportUri', unwrap(xssProtection.reportUri)),
+						},
 					},
 				},
 			},

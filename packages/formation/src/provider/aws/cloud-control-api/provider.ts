@@ -15,19 +15,23 @@ import {
 	GetProps,
 	ResourceDocument,
 	UpdateProps,
-} from '../../../resource/cloud'
+} from '../../../core/cloud'
 
 import { createPatch } from 'rfc6902'
+import { sleep } from '../../../core/hash'
+import { Duration, minutes, toMilliSeconds } from '@awsless/duration'
+import { ResourceNotFound } from '../../../core/error'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
 	region: string
+	timeout?: Duration
 }
 
 export class CloudControlApiProvider implements CloudProvider {
 	protected client: CloudControlClient
 
-	constructor(props: ProviderProps) {
+	constructor(private props: ProviderProps) {
 		this.client = new CloudControlClient(props)
 	}
 
@@ -35,12 +39,10 @@ export class CloudControlApiProvider implements CloudProvider {
 		return id === 'aws-cloud-control-api'
 	}
 
-	private wait(delay: number) {
-		return new Promise(r => setTimeout(r, delay))
-	}
-
 	private async progressStatus(event: ProgressEvent) {
 		const token = event.RequestToken!
+		const start = new Date()
+		const timeout = Number(toMilliSeconds(this.props.timeout ?? minutes(1)))
 
 		while (true) {
 			if (event.OperationStatus === 'SUCCESS') {
@@ -48,14 +50,24 @@ export class CloudControlApiProvider implements CloudProvider {
 			}
 
 			if (event.OperationStatus === 'FAILED') {
+				if (event.ErrorCode === 'NotFound') {
+					throw new ResourceNotFound(event.StatusMessage)
+				}
+
 				throw new Error(`[${event.ErrorCode}] ${event.StatusMessage}`)
 			}
 
 			const now = Date.now()
+			const elapsed = now - start.getTime()
+
+			if (elapsed > timeout) {
+				throw new Error('AWS Cloud Control API operation timeout.')
+			}
+
 			const after = event.RetryAfter?.getTime() ?? 0
 			const delay = Math.min(Math.max(after - now, 1000), 5000)
 
-			await this.wait(delay)
+			await sleep(delay)
 
 			const status = await this.client.send(
 				new GetResourceRequestStatusCommand({
@@ -124,5 +136,13 @@ export class CloudControlApiProvider implements CloudProvider {
 		)
 
 		await this.progressStatus(result.ProgressEvent!)
+
+		// try {
+		// 	await this.progressStatus(result.ProgressEvent!)
+		// } catch (error) {
+		// 	console.log('DELETE _WRONG_')
+		// 	console.log(error)
+		// 	throw error
+		// }
 	}
 }

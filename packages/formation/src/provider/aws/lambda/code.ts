@@ -1,4 +1,4 @@
-import { Input } from '../../../resource/output'
+import { Input } from '../../../core/output'
 
 export type Code =
 	| {

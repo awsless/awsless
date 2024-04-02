@@ -1,72 +1,73 @@
+import { Duration, toSeconds } from '@awsless/duration'
 import { constantCase } from 'change-case'
-import { Duration } from '../../property/duration.js'
-import { Resource } from '../../resource.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource'
+import { ARN } from '../types'
+import { Input } from '../../../core/output'
 
 export type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp'
 
 export type EventSourceMappingProps = {
-	functionArn: string
-	sourceArn: string
-	batchSize?: number
-	maxBatchingWindow?: Duration
-	maxConcurrency?: number
-	maxRecordAge?: Duration
-	bisectBatchOnError?: boolean
-	parallelizationFactor?: number
-	retryAttempts?: number
-	tumblingWindow?: Duration
-	onFailure?: string
-	startingPosition?: StartingPosition
-	startingPositionTimestamp?: number
+	functionArn: Input<ARN>
+	sourceArn: Input<ARN>
+	batchSize?: Input<number>
+	maxBatchingWindow?: Input<Duration>
+	maxConcurrency?: Input<number>
+	maxRecordAge?: Input<Duration>
+	bisectBatchOnError?: Input<boolean>
+	parallelizationFactor?: Input<number>
+	retryAttempts?: Input<number>
+	tumblingWindow?: Input<Duration>
+	onFailure?: Input<ARN>
+	startingPosition?: Input<StartingPosition>
+	startingPositionTimestamp?: Input<number>
 }
 
-export class EventSourceMapping extends Resource {
-	constructor(logicalId: string, private props: EventSourceMappingProps) {
-		super('AWS::Lambda::EventSourceMapping', logicalId)
+export class EventSourceMapping extends CloudControlApiResource {
+	constructor(id: string, private props: EventSourceMappingProps) {
+		super('AWS::Lambda::EventSourceMapping', id, props)
 	}
 
-	setOnFailure(arn: string) {
+	setOnFailure(arn: Input<ARN>) {
 		this.props.onFailure = arn
 
 		return this
 	}
 
-	protected properties() {
+	toState() {
 		return {
-			Enabled: true,
-			FunctionName: this.props.functionArn,
-			EventSourceArn: this.props.sourceArn,
+			document: {
+				Enabled: true,
+				FunctionName: this.props.functionArn,
+				EventSourceArn: this.props.sourceArn,
 
-			...this.attr('BatchSize', this.props.batchSize),
-			...this.attr('MaximumBatchingWindowInSeconds', this.props.maxBatchingWindow?.toSeconds()),
-			...this.attr('MaximumRecordAgeInSeconds', this.props.maxRecordAge?.toSeconds()),
-			...this.attr('MaximumRetryAttempts', this.props.retryAttempts),
-			...this.attr('ParallelizationFactor', this.props.parallelizationFactor),
-			...this.attr('TumblingWindowInSeconds', this.props.tumblingWindow?.toSeconds()),
-			...this.attr('BisectBatchOnFunctionError', this.props.bisectBatchOnError),
-			...this.attr(
-				'StartingPosition',
-				this.props.startingPosition && constantCase(this.props.startingPosition)
-			),
-			...this.attr('StartingPositionTimestamp', this.props.startingPositionTimestamp),
+				...this.attr('BatchSize', this.props.batchSize),
+				...this.attr('MaximumBatchingWindowInSeconds', this.props.maxBatchingWindow, toSeconds),
+				...this.attr('MaximumRecordAgeInSeconds', this.props.maxRecordAge, toSeconds),
+				...this.attr('MaximumRetryAttempts', this.props.retryAttempts),
+				...this.attr('ParallelizationFactor', this.props.parallelizationFactor),
+				...this.attr('TumblingWindowInSeconds', this.props.tumblingWindow, toSeconds),
+				...this.attr('BisectBatchOnFunctionError', this.props.bisectBatchOnError),
+				...this.attr('StartingPosition', this.props.startingPosition, constantCase),
+				...this.attr('StartingPositionTimestamp', this.props.startingPositionTimestamp),
 
-			...(this.props.maxConcurrency
-				? {
-						ScalingConfig: {
-							MaximumConcurrency: this.props.maxConcurrency,
-						},
-				  }
-				: {}),
-
-			...(this.props.onFailure
-				? {
-						DestinationConfig: {
-							OnFailure: {
-								Destination: this.props.onFailure,
+				...(this.props.maxConcurrency
+					? {
+							ScalingConfig: {
+								MaximumConcurrency: this.props.maxConcurrency,
 							},
-						},
-				  }
-				: {}),
+					  }
+					: {}),
+
+				...(this.props.onFailure
+					? {
+							DestinationConfig: {
+								OnFailure: {
+									Destination: this.props.onFailure,
+								},
+							},
+					  }
+					: {}),
+			},
 		}
 	}
 }

@@ -6,13 +6,15 @@ import { RecordSetProvider } from './route53/record-set-provider'
 import { BucketProvider } from './s3/bucket-provider'
 import { CertificateProvider } from './acm/certificate-provider'
 import { CertificateValidationProvider } from './acm/certificate-validation-provider'
-// import { SecurityGroupProvider } from './ec2/__security-group-provider'
-// import { SecurityGroupRuleProvider } from './ec2/__security-group-rule-provider'
-// import { PolicyProvider } from './iam/policy-provider'
+import { GraphQLApiProvider } from './appsync/graphql-api-provider'
+import { GraphQLSchemaProvider } from './appsync/graphql-schema-provider'
+import { DataSourceProvider } from './appsync/data-source-provider'
+import { Duration } from '@awsless/duration'
 
 type ConfigProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
 	region: string
+	timeout?: Duration
 }
 
 export const createCloudProviders = (config: ConfigProps) => {
@@ -20,14 +22,14 @@ export const createCloudProviders = (config: ConfigProps) => {
 	return [
 		//
 		cloudControlApiProvider,
-		// new SecurityGroupProvider(config),
-		// new SecurityGroupRuleProvider(config),
 		new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
 		new BucketObjectProvider(config),
 		new TableItemProvider(config),
 		new RecordSetProvider(config),
-		new CertificateProvider({ ...config }),
-		new CertificateValidationProvider({ ...config }),
-		// new PolicyProvider(config),
+		new CertificateProvider(config),
+		new CertificateValidationProvider(config),
+		new GraphQLApiProvider(config),
+		new GraphQLSchemaProvider(config),
+		new DataSourceProvider(config),
 	]
 }

@@ -2,7 +2,7 @@ import { Duration, days, seconds, toSeconds } from '@awsless/duration'
 import { AwsResource } from '../resource.js'
 import { ARN } from '../types.js'
 import { Size, kibibytes, toBytes } from '@awsless/size'
-import { Input, unwrap } from '../../../resource/output.js'
+import { Input, unwrap } from '../../../core/output.js'
 
 export type QueueProps = {
 	name: Input<string>
@@ -11,7 +11,7 @@ export type QueueProps = {
 	deliveryDelay?: Input<Duration>
 	receiveMessageWaitTime?: Input<Duration>
 	maxMessageSize?: Input<Size>
-	deadLetterArn?: Input<string>
+	deadLetterArn?: Input<ARN>
 	maxReceiveCount?: Input<number>
 }
 
@@ -20,7 +20,7 @@ export class Queue extends AwsResource {
 		super('AWS::SQS::Queue', id, props)
 	}
 
-	setDeadLetter(arn: string) {
+	setDeadLetter(arn: Input<ARN>) {
 		this.props.deadLetterArn = arn
 		return this
 	}

@@ -1,6 +1,6 @@
 import { capitalCase } from 'change-case'
 import { AwsResource } from '../resource'
-import { Input, unwrap } from '../../../resource/output'
+import { Input, unwrap } from '../../../core/output'
 
 export class BucketPolicy extends AwsResource {
 	constructor(
