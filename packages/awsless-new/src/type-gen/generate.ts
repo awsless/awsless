@@ -5,14 +5,13 @@ import { features } from '../feature/index.js'
 import { AppConfig } from '../config/app.js'
 import { StackConfig } from '../config/stack.js'
 
-export const generateTypes = async (appConfig: AppConfig, stackConfigs: StackConfig[]) => {
+export const generateTypes = async (props: { appConfig: AppConfig; stackConfigs: StackConfig[] }) => {
 	const files: string[] = []
 
 	await Promise.all(
 		features.map(feature => {
 			return feature.onTypeGen?.({
-				appConfig,
-				stackConfigs,
+				...props,
 				async write(file, data, include = false) {
 					const code = data?.toString('utf8')
 					const path = join(directories.types, file)

@@ -27,11 +27,16 @@ export class App extends Node {
 	import<T>(stack: string, key: string) {
 		return new Output<T>([], resolve => {
 			const get = (data: ExportedData) => {
-				if (typeof data[stack]?.[key] === 'undefined') {
-					throw new ImportValueNotFound(stack, key)
+				if (typeof data[stack]?.[key] !== 'undefined') {
+					resolve(data[stack]![key] as T)
+					this.listeners.delete(get)
 				}
 
-				resolve(data[stack]![key] as T)
+				// if (typeof data[stack]?.[key] === 'undefined') {
+				// 	throw new ImportValueNotFound(stack, key)
+				// }
+
+				// resolve(data[stack]![key] as T)
 			}
 
 			if (this.exported) {
@@ -43,11 +48,13 @@ export class App extends Node {
 	}
 
 	setExportedData(data: ExportedData) {
+		// console.log('exports', data)
+
 		for (const listener of this.listeners) {
 			listener(data)
 		}
 
-		this.listeners.clear()
+		// this.listeners.clear()
 		this.exported = data
 	}
 }

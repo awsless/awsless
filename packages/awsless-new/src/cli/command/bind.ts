@@ -1,6 +1,4 @@
 import { Command } from 'commander'
-// import { layout } from '../__ui/layout/layout.js'
-// import { dialog, loadingDialog } from '../__ui/layout/dialog.js'
 import { spawn } from 'child_process'
 import { paramCase } from 'change-case'
 import { GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'

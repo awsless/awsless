@@ -1,1 +1,101 @@
-{}
+{
+  "urn:App:{test}:Stack:{test}": {
+    "name": "test",
+    "exports": {
+      "table-arn": "arn:aws:dynamodb:eu-west-1:468004125411:table/TEST"
+    },
+    "resources": {
+      "urn:App:{test}:Stack:{test}:AWS::DynamoDB::Table:{test}": {
+        "id": "TEST",
+        "type": "AWS::DynamoDB::Table",
+        "provider": "aws-cloud-control-api",
+        "local": {
+          "TableName": "TEST",
+          "BillingMode": "PAY_PER_REQUEST",
+          "KeySchema": [
+            {
+              "KeyType": "HASH",
+              "AttributeName": "key"
+            }
+          ],
+          "AttributeDefinitions": [
+            {
+              "AttributeName": "key",
+              "AttributeType": "S"
+            }
+          ],
+          "TableClass": "STANDARD",
+          "DeletionProtectionEnabled": false,
+          "PointInTimeRecoverySpecification": {
+            "PointInTimeRecoveryEnabled": false
+          },
+          "StreamSpecification": {
+            "StreamViewType": "KEYS_ONLY"
+          }
+        },
+        "assets": {},
+        "dependencies": [],
+        "extra": {},
+        "policies": {
+          "deletion": "before-deployment"
+        },
+        "remote": {
+          "SSESpecification": {
+            "SSEEnabled": false
+          },
+          "StreamSpecification": {
+            "StreamViewType": "KEYS_ONLY"
+          },
+          "ContributorInsightsSpecification": {
+            "Enabled": false
+          },
+          "PointInTimeRecoverySpecification": {
+            "PointInTimeRecoveryEnabled": false
+          },
+          "TableName": "TEST",
+          "AttributeDefinitions": [
+            {
+              "AttributeType": "S",
+              "AttributeName": "key"
+            }
+          ],
+          "BillingMode": "PAY_PER_REQUEST",
+          "KeySchema": [
+            {
+              "KeyType": "HASH",
+              "AttributeName": "key"
+            }
+          ],
+          "Arn": "arn:aws:dynamodb:eu-west-1:468004125411:table/TEST",
+          "StreamArn": "arn:aws:dynamodb:eu-west-1:468004125411:table/TEST/stream/2024-04-02T23:43:17.861",
+          "DeletionProtectionEnabled": false,
+          "TableClass": "STANDARD",
+          "Tags": [],
+          "TimeToLiveSpecification": {
+            "Enabled": false
+          }
+        }
+      },
+      "urn:App:{test}:Stack:{test}:AWS::DynamoDB::Table:{test}:AWS::DynamoDB::Table::Item:{test}": {
+        "id": "[\"TEST\",{\"key\":\"2\"}]",
+        "type": "AWS::DynamoDB::Table::Item",
+        "provider": "aws-dynamodb-table-item",
+        "local": {
+          "table": "TEST",
+          "hash": "key"
+        },
+        "assets": {
+          "item": "c198580938ad24c4570e19a1226088556fc5446e425801ff3ccb7ebdb3b50007"
+        },
+        "dependencies": [
+          "urn:App:{test}:Stack:{test}:AWS::DynamoDB::Table:{test}"
+        ],
+        "extra": {},
+        "policies": {
+          "deletion": "before-deployment"
+        },
+        "remote": {}
+      }
+    }
+  }
+}

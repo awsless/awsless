@@ -5,10 +5,6 @@ import { getCredentials } from '../../../util/aws.js'
 import { log, spinner } from '@clack/prompts'
 import { table } from '../../ui/util.js'
 import chalk from 'chalk'
-// import { Params } from '../../../util/ssm.js'
-// import { dialog, loadingDialog } from '../../__ui/layout/dialog.js'
-// import { list as listUI } from '../../__ui/layout/list.js'
-// import { layout } from '../../__ui/layout/layout.js'
 
 export const list = (program: Command) => {
 	program

@@ -1,8 +1,8 @@
 import { constantCase } from 'change-case'
-import { AwsResource } from '../resource.js'
 import { Duration, toSeconds } from '@awsless/duration'
 import { ARN } from '../types.js'
 import { Input, unwrap } from '../../../core/output.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
 export type UrlProps = {
 	targetArn: Input<ARN>
@@ -23,7 +23,7 @@ export type UrlProps = {
 	}>
 }
 
-export class Url extends AwsResource {
+export class Url extends CloudControlApiResource {
 	constructor(id: string, private props: UrlProps) {
 		super('AWS::Lambda::Url', id, props)
 	}

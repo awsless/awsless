@@ -137,7 +137,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 	protected compare<T>(left: T, right: T) {
 		// order the object keys so that the comparison works.
-		const replacer = (_, value: unknown) => {
+		const replacer = (_: unknown, value: unknown) => {
 			if (value !== null && value instanceof Object && !Array.isArray(value)) {
 				return Object.keys(value)
 					.sort()
@@ -364,6 +364,9 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 			// -------------------------------------------------------------------
 			// Save stack exports
 
+			// const exports = this.unwrapDocument(stack.urn, stack.exports)
+			// console.log('unwrapped-exports', exports, stack.exports)
+
 			stackState.exports = this.unwrapDocument(stack.urn, stack.exports)
 
 			await this.props.stateProvider.update(app.urn, appState)
@@ -466,7 +469,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 							status: 'in-progress',
 						})
 
-						let id
+						let id: string
 						try {
 							id = await provider.create({
 								urn: resource.urn,
@@ -534,7 +537,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 						// this.resolveDocumentAssets(this.copy(document), assets),
 
-						let id
+						let id: string
 						try {
 							id = await provider.update({
 								urn: resource.urn,

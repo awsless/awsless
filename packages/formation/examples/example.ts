@@ -72,6 +72,10 @@ table.addItem(
 stack.add(table)
 stack.export('table-arn', table.arn)
 
+app.import('test', 'table-arn').apply(v => {
+	console.log(v)
+})
+
 // const bucket = new aws.s3.Bucket('test', {
 // 	name: 'awsless-bucket-123',
 // })
@@ -89,11 +93,11 @@ const main = async () => {
 	const diff1 = await workspace.diffStack(stack)
 	console.log(diff1)
 
-	await workspace.deleteStack(stack)
-	// await workspace.deployStack(stack)
+	// await workspace.deleteStack(stack)
+	await workspace.deployStack(stack)
 
-	const diff2 = await workspace.diffStack(stack)
-	console.log(diff2)
+	// const diff2 = await workspace.diffStack(stack)
+	// console.log(diff2)
 }
 
 main()

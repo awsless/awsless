@@ -6,6 +6,7 @@
 		// "module": "CommonJS",
 		// "removeComments": false,
 		"strictNullChecks": true,
+		"noUncheckedIndexedAccess": true,
 		"moduleResolution": "Node16",
 		"declaration": false,
 		"rootDir": ".",
@@ -20,7 +21,7 @@
 	},
 	"exclude": [
 		"./old",
-		"./test"
+		"__test"
 	]
 	// "ts-node": {
 	//     "esm": true,

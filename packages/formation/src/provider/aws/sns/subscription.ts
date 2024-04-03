@@ -1,14 +1,16 @@
 import { Input } from '../../../core/output.js'
-import { AwsResource } from '../resource.js'
+import { Resource } from '../../../core/resource.js'
 import { ARN } from '../types.js'
 
 export type SubscriptionProps = {
 	topicArn: Input<ARN>
 	protocol: Input<'lambda' | 'email'>
-	endpoint: Input<string>
+	endpoint: Input<string> | Input<ARN>
 }
 
-export class Subscription extends AwsResource {
+export class Subscription extends Resource {
+	cloudProviderId = 'aws-sns-subscription'
+
 	constructor(id: string, private props: SubscriptionProps) {
 		super('AWS::SNS::Subscription', id, props)
 	}

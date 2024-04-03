@@ -32,7 +32,7 @@ export const tableFeature = defineFeature({
 
 			ctx.stack.add(group)
 
-			const table = new aws.dynamodb.Table(id, {
+			const table = new aws.dynamodb.Table('table', {
 				...props,
 				name: formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, 'table', id),
 				stream: props.stream?.type,

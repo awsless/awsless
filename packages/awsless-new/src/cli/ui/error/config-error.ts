@@ -1,7 +1,7 @@
-import { ConfigError } from '../../error.js'
+import { ConfigError } from '../../../error.js'
 import * as p from '@clack/prompts'
-import { wrap } from './util.js'
-import { color, icon } from './style.js'
+import { wrap } from '../util.js'
+import { color, icon } from '../style.js'
 
 const codeLine = (value: string, level = 0) => {
 	return [
@@ -67,7 +67,7 @@ export const configError = (error: ConfigError) => {
 					end.unshift(codeLine(']', index))
 				} else if (typeof context === 'object') {
 					if (inStack && index === 3) {
-						const name = error.data.stacks[issue.path[1]].name
+						const name = error.data.stacks[issue.path[1]!].name
 						message.push(codeLine('name: ' + color.info(`"${name}"`) + ',', index))
 					}
 					message.push(codeLine(key + '{', index))
@@ -76,6 +76,11 @@ export const configError = (error: ConfigError) => {
 			} else if (typeof context === 'object') {
 				message.push(codeLine('{', index))
 				end.unshift(codeLine('}', index))
+			} else if (typeof context === 'string') {
+				message.push(codeLine(color.warning(`"${context}"`), index))
+
+				const error = icon.arrow.top.repeat(context.length + 2)
+				message.push(codeLine(color.error(error), index))
 			}
 		})
 
