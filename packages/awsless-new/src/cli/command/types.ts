@@ -8,8 +8,8 @@ export const types = (program: Command) => {
 		.command('types')
 		.description('Generate type definition files')
 		.action(async () => {
-			await layout('types', async ({ appConfig, stackConfigs }) => {
-				await buildTypes(appConfig, stackConfigs)
+			await layout('types', async props => {
+				await buildTypes(props)
 
 				return `Ready to use the ${color.info('@awsless/awsless')} libary!`
 			})

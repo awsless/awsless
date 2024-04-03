@@ -85,15 +85,6 @@ __export(src_exports, {
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/core/error.ts
-var ResourceNotFound = class extends Error {
-};
-var ImportValueNotFound = class extends Error {
-  constructor(stack, key) {
-    super(`Import value "${key}" doesn't exist for the "${stack}" stack`);
-  }
-};
-
 // src/core/node.ts
 var Node = class {
   constructor(type, identifier) {
@@ -304,10 +295,10 @@ var App = class extends Node {
     return new Output([], (resolve) => {
       const get = (data) => {
         var _a;
-        if (typeof ((_a = data[stack]) == null ? void 0 : _a[key]) === "undefined") {
-          throw new ImportValueNotFound(stack, key);
+        if (typeof ((_a = data[stack]) == null ? void 0 : _a[key]) !== "undefined") {
+          resolve(data[stack][key]);
+          this.listeners.delete(get);
         }
-        resolve(data[stack][key]);
       };
       if (this.exported) {
         get(this.exported);
@@ -320,7 +311,6 @@ var App = class extends Node {
     for (const listener of this.listeners) {
       listener(data);
     }
-    this.listeners.clear();
     this.exported = data;
   }
 };
@@ -381,6 +371,12 @@ var RemoteAsset = class extends Asset {
 // src/core/workspace.ts
 var import_events = __toESM(require("events"), 1);
 var import_promise_dag = require("promise-dag");
+
+// src/core/error.ts
+var ResourceNotFound = class extends Error {
+};
+
+// src/core/workspace.ts
 var WorkSpace = class extends import_events.default {
   constructor(props) {
     super();
@@ -2547,25 +2543,7 @@ var TableItem = class extends Resource {
 
 // src/provider/aws/dynamodb/table.ts
 var import_change_case3 = require("change-case");
-
-// src/provider/aws/resource.ts
-var AwsResource = class extends Resource {
-  constructor() {
-    super(...arguments);
-    this.cloudProviderId = "aws-cloud-control-api";
-  }
-  // protected _region: string | undefined
-  // get region() {
-  // 	return this._region
-  // }
-  // setRegion(region: string) {
-  // 	this._region = region
-  // 	return this
-  // }
-};
-
-// src/provider/aws/dynamodb/table.ts
-var Table = class extends AwsResource {
+var Table = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::DynamoDB::Table", id, props);
     this.props = props;
@@ -3188,7 +3166,7 @@ __export(events_exports, {
 });
 
 // src/provider/aws/events/rule.ts
-var Rule = class extends AwsResource {
+var Rule = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Events::Rule", id, props);
     this.props = props;
@@ -3218,12 +3196,12 @@ var iam_exports = {};
 __export(iam_exports, {
   Role: () => Role,
   RolePolicy: () => RolePolicy,
-  formatPolicyDocument: () => formatPolicyDocument2,
-  formatStatement: () => formatStatement2,
+  formatPolicyDocument: () => formatPolicyDocument,
+  formatStatement: () => formatStatement,
   fromAwsManagedPolicyName: () => fromAwsManagedPolicyName
 });
 
-// src/provider/aws/iam/__policy.ts
+// src/provider/aws/iam/role-policy.ts
 var import_change_case4 = require("change-case");
 var formatPolicyDocument = (policy) => ({
   PolicyName: policy.name,
@@ -3234,21 +3212,6 @@ var formatPolicyDocument = (policy) => ({
 });
 var formatStatement = (statement) => ({
   Effect: (0, import_change_case4.capitalCase)(unwrap(statement.effect, "allow")),
-  Action: statement.actions,
-  Resource: statement.resources
-});
-
-// src/provider/aws/iam/role-policy.ts
-var import_change_case5 = require("change-case");
-var formatPolicyDocument2 = (policy) => ({
-  PolicyName: policy.name,
-  PolicyDocument: {
-    Version: unwrap(policy.version, "2012-10-17"),
-    Statement: unwrap(policy.statements, []).map((v) => unwrap(v)).map(formatStatement2)
-  }
-});
-var formatStatement2 = (statement) => ({
-  Effect: (0, import_change_case5.capitalCase)(unwrap(statement.effect, "allow")),
   Action: statement.actions,
   Resource: statement.resources
 });
@@ -3276,7 +3239,7 @@ var RolePolicy = class extends CloudControlApiResource {
     return {
       document: __spreadValues({
         RoleName: this.props.role
-      }, formatPolicyDocument2(__spreadProps(__spreadValues({}, this.props), {
+      }, formatPolicyDocument(__spreadProps(__spreadValues({}, this.props), {
         statements: [...unwrap(this.props.statements, []), ...this.statements]
       })))
     };
@@ -3284,7 +3247,7 @@ var RolePolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/iam/role.ts
-var Role = class extends AwsResource {
+var Role = class extends CloudControlApiResource {
   constructor(id, props = {}) {
     super("AWS::IAM::Role", id, props);
     this.props = props;
@@ -3358,7 +3321,7 @@ __export(iot_exports, {
 });
 
 // src/provider/aws/iot/topic-rule.ts
-var TopicRule = class extends AwsResource {
+var TopicRule = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::IoT::TopicRule", id, props);
     this.props = props;
@@ -3395,9 +3358,9 @@ __export(lambda_exports, {
 });
 
 // src/provider/aws/lambda/url.ts
-var import_change_case6 = require("change-case");
+var import_change_case5 = require("change-case");
 var import_duration9 = require("@awsless/duration");
-var Url = class extends AwsResource {
+var Url = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::Url", id, props);
     this.props = props;
@@ -3420,8 +3383,8 @@ var Url = class extends AwsResource {
   toState() {
     return {
       document: __spreadProps(__spreadValues({
-        AuthType: (0, import_change_case6.constantCase)(unwrap(this.props.authType, "none")),
-        InvokeMode: (0, import_change_case6.constantCase)(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: (0, import_change_case5.constantCase)(unwrap(this.props.authType, "none")),
+        InvokeMode: (0, import_change_case5.constantCase)(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn
       }, this.attr("Qualifier", this.props.qualifier)), {
         Cors: this.cors()
@@ -3431,8 +3394,8 @@ var Url = class extends AwsResource {
 };
 
 // src/provider/aws/lambda/permission.ts
-var import_change_case7 = require("change-case");
-var Permission = class extends AwsResource {
+var import_change_case6 = require("change-case");
+var Permission = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::Permission", id, props);
     this.props = props;
@@ -3443,13 +3406,13 @@ var Permission = class extends AwsResource {
         FunctionName: this.props.functionArn,
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal
-      }, this.attr("SourceArn", this.props.sourceArn)), this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case7.constantCase))
+      }, this.attr("SourceArn", this.props.sourceArn)), this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case6.constantCase))
     };
   }
 };
 
 // src/provider/aws/lambda/function.ts
-var import_change_case8 = require("change-case");
+var import_change_case7 = require("change-case");
 
 // src/provider/aws/lambda/code.ts
 var formatCode = (code) => {
@@ -3473,7 +3436,7 @@ var formatCode = (code) => {
 // src/provider/aws/lambda/function.ts
 var import_size = require("@awsless/size");
 var import_duration10 = require("@awsless/duration");
-var Function = class extends AwsResource {
+var Function = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::Function", id, props);
     this.props = props;
@@ -3545,8 +3508,8 @@ var Function = class extends AwsResource {
       }), this.props.log ? {
         LoggingConfig: {
           LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-          ApplicationLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
-          SystemLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
+          ApplicationLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
+          SystemLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
         }
       } : {}), this.props.vpc ? {
         VpcConfig: {
@@ -3599,7 +3562,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 
 // src/provider/aws/lambda/event-source-mapping.ts
 var import_duration12 = require("@awsless/duration");
-var import_change_case9 = require("change-case");
+var import_change_case8 = require("change-case");
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::EventSourceMapping", id, props);
@@ -3615,7 +3578,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
         Enabled: true,
         FunctionName: this.props.functionArn,
         EventSourceArn: this.props.sourceArn
-      }, this.attr("BatchSize", this.props.batchSize)), this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration12.toSeconds)), this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration12.toSeconds)), this.attr("MaximumRetryAttempts", this.props.retryAttempts)), this.attr("ParallelizationFactor", this.props.parallelizationFactor)), this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration12.toSeconds)), this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError)), this.attr("StartingPosition", this.props.startingPosition, import_change_case9.constantCase)), this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp)), this.props.maxConcurrency ? {
+      }, this.attr("BatchSize", this.props.batchSize)), this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration12.toSeconds)), this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration12.toSeconds)), this.attr("MaximumRetryAttempts", this.props.retryAttempts)), this.attr("ParallelizationFactor", this.props.parallelizationFactor)), this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration12.toSeconds)), this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError)), this.attr("StartingPosition", this.props.startingPosition, import_change_case8.constantCase)), this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp)), this.props.maxConcurrency ? {
         ScalingConfig: {
           MaximumConcurrency: this.props.maxConcurrency
         }
@@ -3708,7 +3671,7 @@ __export(open_search_serverless_exports, {
 });
 
 // src/provider/aws/open-search-serverless/collection.ts
-var Collection = class extends AwsResource {
+var Collection = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::OpenSearchServerless::Collection", id, props);
     this.props = props;
@@ -3884,7 +3847,7 @@ var RecordSetProvider = class {
 };
 
 // src/provider/aws/route53/hosted-zone.ts
-var HostedZone = class extends AwsResource {
+var HostedZone = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Route53::HostedZone", id, props);
     this.props = props;
@@ -4041,9 +4004,9 @@ var Bucket = class extends Resource {
           CorsRules: unwrap(this.props.cors, []).map((rule) => unwrap(rule)).map((rule) => ({
             MaxAge: rule.maxAge,
             AllowedHeaders: rule.headers,
-            AllowedMethods: rule.headers,
-            AllowedOrigins: rule.headers,
-            ExposedHeaders: rule.headers
+            AllowedMethods: rule.methods,
+            AllowedOrigins: rule.origins,
+            ExposedHeaders: rule.exposeHeaders
           }))
         }
       } : {})
@@ -4149,8 +4112,8 @@ var BucketProvider = class {
 };
 
 // src/provider/aws/s3/bucket-policy.ts
-var import_change_case10 = require("change-case");
-var BucketPolicy = class extends AwsResource {
+var import_change_case9 = require("change-case");
+var BucketPolicy = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::S3::BucketPolicy", id);
     this.props = props;
@@ -4165,7 +4128,7 @@ var BucketPolicy = class extends AwsResource {
           Statement: unwrap(this.props.statements, []).map((s) => unwrap(s)).map((statement) => {
             var _a2;
             return __spreadValues(__spreadProps(__spreadValues({
-              Effect: (0, import_change_case10.capitalCase)((_a2 = statement.effect) != null ? _a2 : "allow")
+              Effect: (0, import_change_case9.capitalCase)((_a2 = statement.effect) != null ? _a2 : "allow")
             }, statement.principal ? {
               Principal: {
                 Service: statement.principal
@@ -4297,7 +4260,7 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-var import_change_case11 = require("change-case");
+var import_change_case10 = require("change-case");
 var import_duration14 = require("@awsless/duration");
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(id, props) {
@@ -4365,7 +4328,7 @@ var EmailIdentity = class extends CloudControlApiResource {
           SigningEnabled: true
         },
         DkimSigningAttributes: {
-          NextSigningKeyLength: (0, import_change_case11.constantCase)(unwrap(this.props.dkim))
+          NextSigningKeyLength: (0, import_change_case10.constantCase)(unwrap(this.props.dkim))
         }
       } : {}), {
         FeedbackAttributes: {
@@ -4413,14 +4376,62 @@ var ConfigurationSet = class extends CloudControlApiResource {
 var sns_exports = {};
 __export(sns_exports, {
   Subscription: () => Subscription,
+  SubscriptionProvider: () => SubscriptionProvider,
   Topic: () => Topic
 });
 
+// src/provider/aws/sns/subscription-provider.ts
+var import_client_sns = require("@aws-sdk/client-sns");
+var SubscriptionProvider = class {
+  constructor(props) {
+    this.client = new import_client_sns.SNSClient(props);
+  }
+  own(id) {
+    return id === "aws-sns-subscription";
+  }
+  get(_0) {
+    return __async(this, arguments, function* ({ id }) {
+      const result = yield this.client.send(
+        new import_client_sns.GetSubscriptionAttributesCommand({
+          SubscriptionArn: id
+        })
+      );
+      return result.Attributes;
+    });
+  }
+  create(_0) {
+    return __async(this, arguments, function* ({ document }) {
+      const result = yield this.client.send(
+        new import_client_sns.SubscribeCommand(__spreadProps(__spreadValues({}, document), {
+          ReturnSubscriptionArn: true
+        }))
+      );
+      return result.SubscriptionArn;
+    });
+  }
+  update(_0) {
+    return __async(this, arguments, function* ({}) {
+      throw new Error(`SNS Subscription can't be changed after creation.`);
+      return "";
+    });
+  }
+  delete(_0) {
+    return __async(this, arguments, function* ({ id }) {
+      yield this.client.send(
+        new import_client_sns.UnsubscribeCommand({
+          SubscriptionArn: id
+        })
+      );
+    });
+  }
+};
+
 // src/provider/aws/sns/subscription.ts
-var Subscription = class extends AwsResource {
+var Subscription = class extends Resource {
   constructor(id, props) {
     super("AWS::SNS::Subscription", id, props);
     this.props = props;
+    this.cloudProviderId = "aws-sns-subscription";
   }
   toState() {
     return {
@@ -4434,13 +4445,13 @@ var Subscription = class extends AwsResource {
 };
 
 // src/provider/aws/sns/topic.ts
-var Topic = class extends AwsResource {
+var Topic = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::SNS::Topic", id, props);
     this.props = props;
   }
   get arn() {
-    return this.output((v) => v.Arn);
+    return this.output((v) => v.TopicArn);
   }
   get name() {
     return this.output((v) => v.TopicName);
@@ -4471,7 +4482,7 @@ __export(sqs_exports, {
 // src/provider/aws/sqs/queue.ts
 var import_duration15 = require("@awsless/duration");
 var import_size2 = require("@awsless/size");
-var Queue = class extends AwsResource {
+var Queue = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::SQS::Queue", id, props);
     this.props = props;
@@ -4535,7 +4546,8 @@ var createCloudProviders = (config) => {
     new CertificateValidationProvider(config),
     new GraphQLApiProvider(config),
     new GraphQLSchemaProvider(config),
-    new DataSourceProvider(config)
+    new DataSourceProvider(config),
+    new SubscriptionProvider(config)
   ];
 };
 

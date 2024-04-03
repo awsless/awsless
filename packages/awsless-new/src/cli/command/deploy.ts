@@ -11,6 +11,7 @@ import { debug } from '../debug.js'
 import { Cancelled } from '../../error.js'
 import { Step, run } from 'promise-dag'
 import { task } from '../ui/util.js'
+import { runTests } from '../ui/complex/run-tests.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -29,7 +30,7 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, base, tests, builders } = createApp({ appConfig, stackConfigs }, filters)
+				const { app, tests, builders } = createApp({ appConfig, stackConfigs }, filters)
 
 				const stackNames = [...app.stacks].map(stack => stack.name)
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
@@ -52,15 +53,13 @@ export const deploy = (program: Command) => {
 				}
 
 				// ---------------------------------------------------
-				// Building stack assets & templates & tests
+				// Building stack assets & run tests
 
-				// await buildTypes(appConfig, stackConfigs)
+				const passed = await runTests(tests)
 
-				// const passed = await write(runTester(tests))
-
-				// if (!passed) {
-				// 	throw new Cancelled()
-				// }
+				if (!passed) {
+					throw new Cancelled()
+				}
 
 				await buildAssets(builders)
 
@@ -93,7 +92,11 @@ export const deploy = (program: Command) => {
 					graph[stack.name] = [
 						...deps,
 						async () => {
+							// console.log(stack.name)
+
 							await workspace.deployStack(stack)
+
+							// console.log(stack.name, 'DONE')
 						},
 					]
 				}

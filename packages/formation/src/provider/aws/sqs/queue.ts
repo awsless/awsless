@@ -1,8 +1,8 @@
 import { Duration, days, seconds, toSeconds } from '@awsless/duration'
-import { AwsResource } from '../resource.js'
 import { ARN } from '../types.js'
 import { Size, kibibytes, toBytes } from '@awsless/size'
 import { Input, unwrap } from '../../../core/output.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
 export type QueueProps = {
 	name: Input<string>
@@ -15,7 +15,7 @@ export type QueueProps = {
 	maxReceiveCount?: Input<number>
 }
 
-export class Queue extends AwsResource {
+export class Queue extends CloudControlApiResource {
 	constructor(id: string, private props: QueueProps) {
 		super('AWS::SQS::Queue', id, props)
 	}

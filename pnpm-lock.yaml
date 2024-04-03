@@ -259,12 +259,33 @@ importers:
       '@awsless/graphql':
         specifier: workspace:^
         version: link:../graphql
+      '@awsless/lambda':
+        specifier: workspace:^
+        version: link:../lambda
+      '@awsless/redis':
+        specifier: workspace:^
+        version: link:../redis
+      '@awsless/s3':
+        specifier: workspace:^
+        version: link:../s3
       '@awsless/size':
         specifier: workspace:^
         version: link:../size
+      '@awsless/sns':
+        specifier: workspace:^
+        version: link:../sns
+      '@awsless/sqs':
+        specifier: workspace:^
+        version: link:../sqs
+      '@awsless/ssm':
+        specifier: workspace:^
+        version: link:../ssm
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
+      '@awsless/weak-cache':
+        specifier: workspace:^
+        version: link:../weak-cache
       '@clack/prompts':
         specifier: ^0.7.0
         version: 0.7.0
@@ -623,6 +644,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.537.0
         version: 3.537.0
+      '@aws-sdk/client-sns':
+        specifier: 3.329.0
+        version: 3.329.0
       '@aws-sdk/credential-providers':
         specifier: ^3.369.0
         version: 3.369.0
@@ -2068,7 +2092,7 @@ packages:
       '@aws-sdk/util-user-agent-node': 3.329.0
       '@aws-sdk/util-utf8': 3.310.0
       fast-xml-parser: 4.1.2
-      tslib: 2.5.1
+      tslib: 2.6.2
     transitivePeerDependencies:
       - aws-crt
     dev: false

@@ -57,7 +57,8 @@ export const createLambdaFunction = (
 
 	group.add(role)
 
-	const policy = role.addPolicy('policy', {
+	const policy = new aws.iam.RolePolicy('policy', {
+		role: role.name,
 		name: 'lambda-policy',
 		statements: [
 			{
@@ -67,6 +68,19 @@ export const createLambdaFunction = (
 			},
 		],
 	})
+
+	group.add(policy)
+
+	// const policy = role.addPolicy('policy', {
+	// 	name: 'lambda-policy',
+	// 	statements: [
+	// 		{
+	// 			// Give lambda access to all lambda's inside your app.
+	// 			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
+	// 			resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
+	// 		},
+	// 	],
+	// })
 
 	const lambda = new aws.lambda.Function('function', {
 		...props,
@@ -94,13 +108,13 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 	// Async Invoke Config
 
-	const invoke = new aws.lambda.EventInvokeConfig(id, {
+	const invoke = new aws.lambda.EventInvokeConfig('async', {
 		functionArn: lambda.arn,
 		retryAttempts: props.retryAttempts,
 		// onFailure: getGlobalOnFailure(ctx),
 	})
 
-	lambda.add(invoke)
+	group.add(invoke)
 
 	// if (hasOnFailure(ctx.appConfig)) {
 	// 	policy.addStatement({
@@ -118,7 +132,7 @@ export const createLambdaFunction = (
 			retention: props.log.retention,
 		})
 
-		lambda.add(logGroup)
+		group.add(logGroup)
 
 		policy.addStatement(
 			{
@@ -147,7 +161,7 @@ export const createLambdaFunction = (
 	// Warm up cron
 
 	if (props.warm) {
-		const rule = new aws.events.Rule(id, {
+		const rule = new aws.events.Rule('warm', {
 			name: `${name}--warm`,
 			schedule: 'rate(5 minutes)',
 			enabled: true,
@@ -163,16 +177,16 @@ export const createLambdaFunction = (
 			],
 		})
 
-		lambda.add(rule)
+		group.add(rule)
 
-		const permission = new aws.lambda.Permission(`${id}-warm`, {
+		const permission = new aws.lambda.Permission(`warm`, {
 			action: 'lambda:InvokeFunction',
 			principal: 'events.amazonaws.com',
 			functionArn: lambda.arn,
 			sourceArn: rule.arn,
 		})
 
-		lambda.add(permission)
+		group.add(permission)
 	}
 
 	// ------------------------------------------------------------

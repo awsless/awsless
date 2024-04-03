@@ -2,7 +2,7 @@ import { note } from '@clack/prompts'
 import { AppConfig } from '../../config/app.js'
 import { list, wrap } from './util.js'
 
-export const showApp = (app: AppConfig) => {
+export const logApp = (app: AppConfig) => {
 	note(
 		wrap(
 			list({

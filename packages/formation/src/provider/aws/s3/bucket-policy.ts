@@ -1,8 +1,8 @@
 import { capitalCase } from 'change-case'
-import { AwsResource } from '../resource'
 import { Input, unwrap } from '../../../core/output'
+import { CloudControlApiResource } from '../cloud-control-api'
 
-export class BucketPolicy extends AwsResource {
+export class BucketPolicy extends CloudControlApiResource {
 	constructor(
 		id: string,
 		private props: {

@@ -8,9 +8,9 @@ import {
 	ResourceNotFoundException,
 	ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb'
-import { confirm, log, spinner } from '@clack/prompts'
+import { confirm, log } from '@clack/prompts'
 import { Cancelled } from '../../../error.js'
-import { color } from '../style.js'
+import { task } from '../util.js'
 
 const hasStateTable = async (client: DynamoDB) => {
 	try {
@@ -69,17 +69,11 @@ export const bootstrapAwsless = async (opts: DynamoDBClientConfig) => {
 			}
 		}
 
-		const spin = spinner()
-		spin.start('Bootstrapping')
-
-		try {
+		await task('Bootstrapping', async update => {
 			await createStateTable(client)
-		} catch (error) {
-			spin.stop(color.error`Failed.`, 4)
-			throw error
-		}
 
-		spin.stop('Done deploying the bootstrap stack')
+			update('Done deploying the bootstrap stack')
+		})
 	} else {
 		log.step('Awsless has already been bootstrapped.')
 	}

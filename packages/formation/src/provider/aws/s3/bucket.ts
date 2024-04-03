@@ -25,10 +25,10 @@ export type BucketProps = {
 	cors?: Input<
 		Input<{
 			maxAge?: Input<Duration>
-			exposeHeaders?: Input<Input<string>[]>
-			headers?: Input<Input<string>[]>
 			origins: Input<Input<string>[]>
 			methods: Input<Array<Input<'GET' | 'PUT' | 'HEAD' | 'POST' | 'DELETE'>>>
+			headers?: Input<Input<string>[]>
+			exposeHeaders?: Input<Input<string>[]>
 		}>[]
 	>
 }
@@ -75,7 +75,7 @@ export class Bucket extends Resource {
 			],
 			resources: [
 				this.arn,
-				this.arn.apply(arn => `${arn}/*`),
+				this.arn.apply<ARN>(arn => `${arn}/*`),
 				// `arn:aws:s3:::${this.name}`,
 				// `arn:aws:s3:::${this.name}/*`,
 			],
@@ -124,9 +124,9 @@ export class Bucket extends Resource {
 									.map(rule => ({
 										MaxAge: rule.maxAge,
 										AllowedHeaders: rule.headers,
-										AllowedMethods: rule.headers,
-										AllowedOrigins: rule.headers,
-										ExposedHeaders: rule.headers,
+										AllowedMethods: rule.methods,
+										AllowedOrigins: rule.origins,
+										ExposedHeaders: rule.exposeHeaders,
 									})),
 							},
 					  }

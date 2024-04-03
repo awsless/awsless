@@ -1,11 +1,16 @@
 import { Input, unwrap } from '../../../core/output.js'
-import { AwsResource } from '../resource.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
-import { PolicyDocument, formatPolicyDocument } from './__policy.js'
-import { PolicyDocumentVersion, RolePolicy, Statement } from './role-policy.js'
+import {
+	PolicyDocument,
+	PolicyDocumentVersion,
+	RolePolicy,
+	Statement,
+	formatPolicyDocument,
+} from './role-policy.js'
 // import { ManagedPolicy } from './managed-policy.js'
 
-export class Role extends AwsResource {
+export class Role extends CloudControlApiResource {
 	private inlinePolicies: PolicyDocument[] = []
 	private managedPolicies = new Set<Input<ARN>>()
 

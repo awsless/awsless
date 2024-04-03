@@ -2,7 +2,6 @@ import wrapAnsi, { Options } from 'wrap-ansi'
 import { char, color } from './style.js'
 import Table from 'cli-table3'
 import { capitalCase } from 'change-case'
-import chalk from 'chalk'
 import { spinner } from '@clack/prompts'
 
 export const wrap = (lines: string | string[], options?: Options) => {
@@ -40,7 +39,7 @@ export const task = async <T>(
 		spin.stop(last)
 		return result
 	} catch (error) {
-		spin.stop('Failed.')
+		spin.stop('Failed.', 2)
 		throw error
 	}
 }
@@ -57,6 +56,12 @@ export const table = (props: { head: string[]; body: (string | number | boolean)
 	console.log(color.line('│'))
 
 	const table = new Table({
+		// wordWrap: true,
+		// wrapOnWordBoundary: false,
+		// truncate: '...',
+		// colWidths: props.colWidths,
+
+		// head: props.head.map(h => color.label(capitalCase(h))),
 		head: props.head.map(h => '\n' + color.label(capitalCase(h))),
 		// colWidths: [100, 200],
 		style: {

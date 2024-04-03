@@ -1,18 +1,18 @@
 import { Input } from '../../../core/output.js'
-import { AwsResource } from '../resource.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
 
 export type TopicProps = {
 	name: Input<string>
 }
 
-export class Topic extends AwsResource {
+export class Topic extends CloudControlApiResource {
 	constructor(id: string, private props: TopicProps) {
 		super('AWS::SNS::Topic', id, props)
 	}
 
 	get arn() {
-		return this.output<ARN>(v => v.Arn)
+		return this.output<ARN>(v => v.TopicArn)
 	}
 
 	get name() {

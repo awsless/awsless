@@ -3,16 +3,21 @@
 	"name": "stack",
 	"tests": "./test",
 	"functions": {
-		"echo": "./function.ts",
-		"echo-2": "./function.ts",
-		"echo-3": "./function.ts"
+		"echo-1": "./function.ts"
 	},
 	"queues": {
 		"queue": "./function.ts"
+	},
+	"topics": [
+		"login"
+	],
+	"subscribers": {
+		"login": "./function.ts"
 	},
 	"tables": {
 		"users": {
 			"hash": "id"
 		}
-	}
+	},
+	"stores": ["files"]
 }

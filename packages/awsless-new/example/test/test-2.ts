@@ -11,7 +11,11 @@ describe('Test 2', () => {
 	// 	await new Promise(r => setTimeout(r, 1000))
 	// })
 
-	it('error', async () => {
-		throw new Error('Random Error')
-	})
+	// it('error', async () => {
+	// 	throw new Error('Random Error')
+	// })
+
+	// it('error 2', async () => {
+	// 	expect({ some: false }).toStrictEqual({ other: true })
+	// })
 })

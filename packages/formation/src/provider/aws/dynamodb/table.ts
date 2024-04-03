@@ -1,10 +1,10 @@
 import { constantCase } from 'change-case'
 import { ARN } from '../types'
-import { AwsResource } from '../resource'
 import { unwrap, Input } from '../../../core/output'
 import { Asset } from '../../../core/asset'
 import { TableItem } from './table-item'
 import { Statement } from '../iam'
+import { CloudControlApiResource } from '../cloud-control-api'
 
 export type IndexProps = {
 	hash: string
@@ -28,7 +28,7 @@ export type TableProps = {
 	indexes?: Record<string, IndexProps>
 }
 
-export class Table extends AwsResource {
+export class Table extends CloudControlApiResource {
 	private indexes: Record<string, IndexProps>
 
 	constructor(id: string, private props: TableProps) {

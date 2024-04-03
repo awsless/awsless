@@ -1,18 +1,6 @@
 import { Command } from 'commander'
-import { build } from './command/build.js'
 import { logo } from './ui/logo.js'
-import { bootstrap } from './command/bootstrap.js'
-// import { status } from './command/status.js'
-import { deploy } from './command/deploy.js'
-import { config } from './command/config/index.js'
-import { test } from './command/test.js'
-// import { logo } from './__ui/layout/logo.js'
-import { types } from './command/types.js'
-import { diff } from './command/diff.js'
-// import { dev } from './command/dev.js'
-import { del } from './command/delete.js'
-// import { bind } from './command/bind.js'
-// import { draw } from './command/__draw.js'
+import { commands } from './command/index.js'
 
 export type ProgramOptions = {
 	configFile?: string
@@ -51,19 +39,6 @@ program.on('option:skip-prompt', () => {
 program.on('option:no-cache', () => {
 	process.env.NO_CACHE = program.opts().noCache ? '1' : undefined
 })
-
-const commands = [
-	bootstrap,
-	types,
-	build,
-	deploy,
-	diff,
-	del,
-	// dev,
-	// bind,
-	config,
-	test,
-]
 
 commands.forEach(fn => fn(program))
 

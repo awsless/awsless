@@ -1,6 +1,6 @@
-import { AwsResource } from '../resource.js'
 import { ARN } from '../types.js'
 import { Input, unwrap } from '../../../core/output.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
 export type RuleProps = {
 	name: Input<string>
@@ -19,7 +19,7 @@ export type RuleTarget = {
 	input?: Input<unknown>
 }
 
-export class Rule extends AwsResource {
+export class Rule extends CloudControlApiResource {
 	constructor(id: string, private props: RuleProps) {
 		super('AWS::Events::Rule', id, props)
 	}

@@ -1,12 +1,12 @@
 import { Input, all, unwrap } from '../../../core/output.js'
-import { AwsResource } from '../resource.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Record, RecordSet } from './record-set.js'
 
 export type HostedZoneProps = {
 	name: Input<string>
 }
 
-export class HostedZone extends AwsResource {
+export class HostedZone extends CloudControlApiResource {
 	constructor(id: string, private props: HostedZoneProps) {
 		super('AWS::Route53::HostedZone', id, props)
 	}

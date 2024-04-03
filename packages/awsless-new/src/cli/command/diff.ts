@@ -98,7 +98,7 @@ export const diff = (program: Command) => {
 					)
 				}
 
-				return `${total} resources have changed.`
+				return `${color.warning(total)} resources have changed.`
 			})
 		})
 }

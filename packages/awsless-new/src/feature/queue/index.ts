@@ -81,7 +81,7 @@ export const queueFeature = defineFeature({
 
 			ctx.stack.add(group)
 
-			const queue = new aws.sqs.Queue(id, {
+			const queue = new aws.sqs.Queue('queue', {
 				name: formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'queue', id),
 				deadLetterArn: getGlobalOnFailure(ctx),
 				...props,
@@ -98,7 +98,7 @@ export const queueFeature = defineFeature({
 			// 	maxBatchingWindow: props.maxBatchingWindow,
 			// })
 
-			const source = new aws.lambda.EventSourceMapping(id, {
+			const source = new aws.lambda.EventSourceMapping('event', {
 				functionArn: lambda.arn,
 				sourceArn: queue.arn,
 				batchSize: props.batchSize,

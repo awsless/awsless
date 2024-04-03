@@ -1,0 +1,51 @@
+import { Command } from 'commander'
+import { layout } from '../../ui/complex/layout.js'
+import { table } from '../../ui/util.js'
+import { createApp } from '../../../app.js'
+import { Stack, URN } from '@awsless/formation'
+import { color } from '../../ui/style.js'
+import chalk from 'chalk'
+
+export const list = (program: Command) => {
+	program
+		.command('list')
+		.description(`List all defined resources`)
+		.action(async () => {
+			await layout('resource list', async props => {
+				// ---------------------------------------------------
+
+				const { app } = createApp(props)
+				const resources: string[][] = []
+
+				const formatResource = (stack: Stack, urn: URN) => {
+					return urn
+						.replace(stack.urn + ':', '')
+						.replace(/\{([a-z0-9\-]+)\}/gi, (_, v) => {
+							return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
+						})
+						.replaceAll(':', color.dim(':'))
+				}
+
+				for (const stack of app.stacks) {
+					for (const resource of stack.resources) {
+						resources.push([
+							chalk.magenta(stack.name),
+							resource.type,
+							formatResource(stack, resource.urn),
+						])
+					}
+				}
+
+				// const maxWidth = process.stdout.columns - 8
+				// const colWidths = [Math.floor(maxWidth / 8), Math.floor(maxWidth / 4), Math.floor(maxWidth / 1.5)]
+
+				console.log(
+					table({
+						// colWidths,
+						head: ['stack', 'type', 'urn'],
+						body: resources,
+					})
+				)
+			})
+		})
+}

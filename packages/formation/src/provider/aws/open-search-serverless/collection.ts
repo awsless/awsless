@@ -1,8 +1,8 @@
 import { Input, unwrap } from '../../../core/output.js'
-import { AwsResource } from '../resource.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
 
-export class Collection extends AwsResource {
+export class Collection extends CloudControlApiResource {
 	constructor(
 		id: string,
 		private props: {

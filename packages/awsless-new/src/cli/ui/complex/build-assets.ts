@@ -1,8 +1,7 @@
-import { spinner } from '@clack/prompts'
 import { BuildTask } from '../../../app.js'
 import { Metadata, build } from '../../../build/index.js'
 import chalk from 'chalk'
-import { table } from '../util.js'
+import { table, task } from '../util.js'
 
 export const buildAssets = async (builders: BuildTask[], showResult = false) => {
 	if (builders.length === 0) {
@@ -14,16 +13,15 @@ export const buildAssets = async (builders: BuildTask[], showResult = false) => 
 			result: Metadata
 		}
 	> = []
-	const spin = spinner()
 
-	spin.start(`Building assets`)
+	await task('Building assets', async update => {
+		for (const builder of builders) {
+			const result = await build(builder.type, builder.name, builder.builder)
+			results.push({ ...builder, result })
+		}
 
-	for (const builder of builders) {
-		const result = await build(builder.type, builder.name, builder.builder)
-		results.push({ ...builder, result })
-	}
-
-	spin.stop(`Done building assets.`)
+		update('Done building assets.')
+	})
 
 	if (showResult) {
 		console.log(
