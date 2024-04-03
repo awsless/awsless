@@ -73,7 +73,10 @@ __export(src_exports, {
   Output: () => Output,
   RemoteAsset: () => RemoteAsset,
   Resource: () => Resource,
+  ResourceError: () => ResourceError,
+  ResourceNotFound: () => ResourceNotFound,
   Stack: () => Stack,
+  StackError: () => StackError,
   StringAsset: () => StringAsset,
   WorkSpace: () => WorkSpace,
   all: () => all,
@@ -368,15 +371,33 @@ var RemoteAsset = class extends Asset {
   }
 };
 
-// src/core/workspace.ts
-var import_events = __toESM(require("events"), 1);
-var import_promise_dag = require("promise-dag");
-
 // src/core/error.ts
+var ResourceError = class _ResourceError extends Error {
+  constructor(urn, type, operation, message) {
+    super(message);
+    this.urn = urn;
+    this.type = type;
+    this.operation = operation;
+  }
+  static wrap(urn, type, operation, error) {
+    if (error instanceof Error) {
+      return new _ResourceError(urn, type, operation, error.message);
+    }
+    return new _ResourceError(urn, type, operation, "Unknown Error");
+  }
+};
+var StackError = class extends Error {
+  constructor(issues, message) {
+    super(message);
+    this.issues = issues;
+  }
+};
 var ResourceNotFound = class extends Error {
 };
 
 // src/core/workspace.ts
+var import_events = __toESM(require("events"), 1);
+var import_promise_dag = require("promise-dag");
 var WorkSpace = class extends import_events.default {
   constructor(props) {
     super();
@@ -513,7 +534,7 @@ var WorkSpace = class extends import_events.default {
       var _a, _b, _c;
       const app = stack.parent;
       if (!app || !(app instanceof App)) {
-        throw new TypeError("Stack must belong to an App");
+        throw new StackError([], "Stack must belong to an App");
       }
       const appState = yield this.props.stateProvider.get(app.urn);
       const stackState = appState[stack.urn] = (_a = appState[stack.urn]) != null ? _a : {
@@ -565,7 +586,7 @@ var WorkSpace = class extends import_events.default {
     return __async(this, null, function* () {
       const app = stack.parent;
       if (!app || !(app instanceof App)) {
-        throw new TypeError("Stack must belong to an App");
+        throw new StackError([], "Stack must belong to an App");
       }
       return this.lockedOperation(app.urn, () => __async(this, null, function* () {
         var _a;
@@ -611,7 +632,7 @@ var WorkSpace = class extends import_events.default {
             operation: "deploy",
             status: "error",
             stack,
-            reason: error instanceof Error ? error : new Error("Unknown Error")
+            reason: error
           });
           throw error;
         }
@@ -631,13 +652,13 @@ var WorkSpace = class extends import_events.default {
     return __async(this, null, function* () {
       const app = stack.parent;
       if (!app || !(app instanceof App)) {
-        throw new TypeError("Stack must belong to an App");
+        throw new StackError([], "Stack must belong to an App");
       }
       return this.lockedOperation(app.urn, () => __async(this, null, function* () {
         const appState = yield this.props.stateProvider.get(app.urn);
         const stackState = appState[stack.urn];
         if (!stackState) {
-          throw new Error(`Stack already deleted: ${stack.name}`);
+          throw new StackError([], `Stack already deleted: ${stack.name}`);
         }
         this.emit("stack", {
           urn: stack.urn,
@@ -653,7 +674,7 @@ var WorkSpace = class extends import_events.default {
             operation: "delete",
             status: "error",
             stack,
-            reason: error instanceof Error ? error : new Error("Unknown Error")
+            reason: error
           });
           throw error;
         }
@@ -700,14 +721,15 @@ var WorkSpace = class extends import_events.default {
                   extra
                 });
               } catch (error) {
+                const resourceError = ResourceError.wrap(resource.urn, resource.type, "create", error);
                 this.emit("resource", {
                   urn: resource.urn,
                   type: resource.type,
                   operation: "create",
                   status: "error",
-                  reason: error instanceof Error ? error : new Error("Unknown Error")
+                  reason: resourceError
                 });
-                throw error;
+                throw resourceError;
               }
               resourceState = stackState.resources[resource.urn] = {
                 id,
@@ -766,14 +788,15 @@ var WorkSpace = class extends import_events.default {
                   extra
                 });
               } catch (error) {
+                const resourceError = ResourceError.wrap(resource.urn, resource.type, "update", error);
                 this.emit("resource", {
                   urn: resource.urn,
                   type: resource.type,
                   operation: "update",
                   status: "error",
-                  reason: error instanceof Error ? error : new Error("Unknown Error")
+                  reason: resourceError
                 });
-                throw error;
+                throw resourceError;
               }
               resourceState.id = id;
               resourceState.local = document;
@@ -802,10 +825,9 @@ var WorkSpace = class extends import_events.default {
       }
       const results = yield Promise.allSettled(Object.values((0, import_promise_dag.run)(deployGraph)));
       yield this.props.stateProvider.update(appUrn, appState);
-      for (const result of results) {
-        if (result.status === "rejected") {
-          throw result.reason;
-        }
+      const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length > 0) {
+        throw new StackError(errors, "Deploying resources failed.");
       }
     });
   }
@@ -845,14 +867,15 @@ var WorkSpace = class extends import_events.default {
             } catch (error) {
               if (error instanceof ResourceNotFound) {
               } else {
+                const resourceError = ResourceError.wrap(urn, state.type, "delete", error);
                 this.emit("resource", {
                   urn,
                   type: state.type,
                   operation: "delete",
                   status: "error",
-                  reason: error instanceof Error ? error : new Error("Unknown Error")
+                  reason: resourceError
                 });
-                throw error;
+                throw resourceError;
               }
             }
             delete stackState.resources[urn];
@@ -867,10 +890,9 @@ var WorkSpace = class extends import_events.default {
       }
       const deleteResults = yield Promise.allSettled(Object.values((0, import_promise_dag.run)(deleteGraph)));
       yield this.props.stateProvider.update(appUrn, appState);
-      for (const result of deleteResults) {
-        if (result.status === "rejected") {
-          throw result.reason;
-        }
+      const errors = deleteResults.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length > 0) {
+        throw new StackError(errors, "Deleting resources failed.");
       }
     });
   }
@@ -889,16 +911,28 @@ var WorkSpace = class extends import_events.default {
               extra: resourceState.extra
             });
             if (typeof remote === "undefined") {
-              throw new Error(`Fetching remote state returned undefined: ${urn}`);
+              const resourceError = new ResourceError(
+                urn,
+                resourceState.type,
+                "heal",
+                `Fetching remote state returned undefined`
+              );
+              this.emit("resource", {
+                urn,
+                type: resourceState.type,
+                operation: "heal",
+                status: "error",
+                reason: resourceError
+              });
+              throw resourceError;
             }
             resourceState.remote = remote;
           }
         }))
       );
-      for (const result of results) {
-        if (result.status === "rejected") {
-          throw result.reason;
-        }
+      const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length > 0) {
+        throw new StackError(errors, "Healing remote state failed.");
       }
     });
   }
@@ -4619,7 +4653,10 @@ var LocalStateProvider = class {
   Output,
   RemoteAsset,
   Resource,
+  ResourceError,
+  ResourceNotFound,
   Stack,
+  StackError,
   StringAsset,
   WorkSpace,
   all,

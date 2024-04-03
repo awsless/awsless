@@ -1,6 +1,7 @@
 export * from './core/app'
 export * from './core/asset'
 export * from './core/cloud'
+export * from './core/error'
 export * from './core/node'
 export * from './core/output'
 export * from './core/resource'

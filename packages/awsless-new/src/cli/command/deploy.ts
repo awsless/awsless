@@ -12,6 +12,7 @@ import { Cancelled } from '../../error.js'
 import { Step, run } from 'promise-dag'
 import { task } from '../ui/util.js'
 import { runTests } from '../ui/complex/run-tests.js'
+import { minutes } from '@awsless/duration'
 
 export const deploy = (program: Command) => {
 	program
@@ -74,6 +75,7 @@ export const deploy = (program: Command) => {
 					cloudProviders: aws.createCloudProviders({
 						credentials,
 						region: appConfig.region,
+						timeout: minutes(15),
 					}),
 				})
 

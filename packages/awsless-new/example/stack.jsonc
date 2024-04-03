@@ -1,23 +1,10 @@
 {
 	"$schema": "https://tinyurl.com/awsless-stack",
 	"name": "stack",
-	"tests": "./test",
-	"functions": {
-		"echo-1": "./function.ts"
-	},
-	"queues": {
-		"queue": "./function.ts"
-	},
-	"topics": [
-		"login"
-	],
-	"subscribers": {
-		"login": "./function.ts"
-	},
-	"tables": {
-		"users": {
-			"hash": "id"
+	"pubsub": {
+		"test": {
+			"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
+			"consumer": "./function.ts"
 		}
-	},
-	"stores": ["files"]
+	}
 }

@@ -191,19 +191,21 @@ type ResourceState = {
     };
 };
 
+type ResourceOperation = 'create' | 'update' | 'delete' | 'heal';
+type StackOperation = 'deploy' | 'delete';
 type ResourceEvent = {
     urn: URN;
     type: string;
-    operation: 'create' | 'update' | 'delete';
+    operation: ResourceOperation;
     status: 'success' | 'in-progress' | 'error';
-    reason?: Error;
+    reason?: ResourceError;
 };
 type StackEvent = {
     urn: URN;
-    operation: 'deploy' | 'delete';
+    operation: StackOperation;
     status: 'success' | 'in-progress' | 'error';
     stack: Stack;
-    reason?: Error;
+    reason?: StackError;
 };
 type Events = {
     stack: (event: StackEvent) => void;
@@ -238,6 +240,20 @@ declare class WorkSpace extends WorkSpace_base {
     private dependentsOn;
     private deleteStackResources;
     private healFromUnknownRemoteState;
+}
+
+declare class ResourceError extends Error {
+    readonly urn: URN;
+    readonly type: string;
+    readonly operation: ResourceOperation;
+    static wrap(urn: URN, type: string, operation: ResourceOperation, error: unknown): ResourceError;
+    constructor(urn: URN, type: string, operation: ResourceOperation, message: string);
+}
+declare class StackError extends Error {
+    readonly issues: ResourceError[];
+    constructor(issues: ResourceError[], message: string);
+}
+declare class ResourceNotFound extends Error {
 }
 
 type RecordType = 'A' | 'AAAA' | 'CAA' | 'CNAME' | 'DS' | 'MX' | 'NAPTR' | 'NS' | 'PTR' | 'SOA' | 'SPF' | 'SRV' | 'TXT';
@@ -2682,10 +2698,10 @@ type BucketProps = {
     }>;
     cors?: Input<Input<{
         maxAge?: Input<Duration>;
-        exposeHeaders?: Input<Input<string>[]>;
-        headers?: Input<Input<string>[]>;
         origins: Input<Input<string>[]>;
         methods: Input<Array<Input<'GET' | 'PUT' | 'HEAD' | 'POST' | 'DELETE'>>>;
+        headers?: Input<Input<string>[]>;
+        exposeHeaders?: Input<Input<string>[]>;
     }>[]>;
 };
 declare class Bucket extends Resource {
@@ -3106,4 +3122,4 @@ declare namespace index {
   };
 }
 
-export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceDeletionPolicy, ResourceDocument, ResourceExtra, ResourcePolicies, ResourceState, Stack, StackState, StateProvider$1 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };
+export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$1 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };
