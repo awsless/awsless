@@ -1,7 +1,7 @@
 import { constantCase } from 'change-case'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
-import { Record } from '../route53/record-set.js'
+import { Record, RecordType } from '../route53/record-set.js'
 import { minutes } from '@awsless/duration'
 
 export class EmailIdentity extends CloudControlApiResource {
@@ -43,22 +43,16 @@ export class EmailIdentity extends CloudControlApiResource {
 		]
 	}
 
-	dnsRecords(region: string): Input<Input<Record>[]> {
+	dnsRecords(region: string): Record[] {
 		const ttl = minutes(5)
 
 		return [
-			...this.dkimDnsTokens.map(token =>
-				token.apply(token => {
-					const record: Record = {
-						name: token.name,
-						type: 'CNAME',
-						ttl,
-						records: [token.value],
-					}
-
-					return record
-				})
-			),
+			...this.dkimDnsTokens.map(token => ({
+				name: token.apply(token => token.name),
+				type: 'CNAME' as const,
+				ttl,
+				records: [token.apply(token => token.value)],
+			})),
 			{
 				name: this.props.emailIdentity,
 				type: 'TXT',

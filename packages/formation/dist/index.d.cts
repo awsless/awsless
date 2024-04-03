@@ -311,6 +311,7 @@ declare class Certificate extends Resource {
     get arn(): Output<`arn:${string}`>;
     get issuer(): Output<string>;
     validationRecord(index: number): Output<Record$1>;
+    get validationRecords(): Output<Record$1[]>;
     get issuedArn(): Output<`arn:${string}`>;
     toState(): {
         extra: {
@@ -2682,10 +2683,10 @@ type BucketProps = {
     }>;
     cors?: Input<Input<{
         maxAge?: Input<Duration>;
-        exposeHeaders?: Input<Input<string>[]>;
-        headers?: Input<Input<string>[]>;
         origins: Input<Input<string>[]>;
         methods: Input<Array<Input<'GET' | 'PUT' | 'HEAD' | 'POST' | 'DELETE'>>>;
+        headers?: Input<Input<string>[]>;
+        exposeHeaders?: Input<Input<string>[]>;
     }>[]>;
 };
 declare class Bucket extends Resource {
@@ -2859,7 +2860,7 @@ declare class EmailIdentity extends CloudControlApiResource {
         name: string;
         value: string;
     }>[];
-    dnsRecords(region: string): Input<Input<Record$1>[]>;
+    dnsRecords(region: string): Record$1[];
     toState(): {
         document: {
             FeedbackAttributes: {

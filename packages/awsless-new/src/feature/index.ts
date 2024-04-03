@@ -1,3 +1,4 @@
+import { domainFeature } from './domain/index.js'
 import { functionFeature } from './function/index.js'
 import { onFailureFeature } from './on-failure/index.js'
 import { pubsubFeature } from './pubsub/index.js'
@@ -17,4 +18,5 @@ export const features = [
 	queueFeature,
 	storeFeature,
 	testFeature,
+	domainFeature,
 ]

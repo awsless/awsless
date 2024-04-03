@@ -1,16 +1,18 @@
-import { Config } from '../../config/config.js'
+import { AppConfig } from '../../config/app.js'
 
-export const getDomainNameById = (config: Config, id: string) => {
-	const domains = config.app.defaults.domains ?? {}
+export const getDomainNameById = (config: AppConfig, id: string) => {
+	const domains = config.defaults.domains ?? {}
 
 	if (id in domains) {
-		return domains[id].domain
+		if (domains[id]) {
+			return domains[id]!.domain
+		}
 	}
 
 	throw new TypeError(`No domain registered with id: ${id}`)
 }
 
-export const formatFullDomainName = (config: Config, id: string, subDomain?: string) => {
+export const formatFullDomainName = (config: AppConfig, id: string, subDomain?: string) => {
 	const domain = getDomainNameById(config, id)
 
 	if (subDomain) {

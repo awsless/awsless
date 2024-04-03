@@ -67,18 +67,18 @@ export class Certificate extends Resource {
 		})
 	}
 
-	// get validationRecords() {
-	// 	return this.output<Record[]>(v =>
-	// 		v.DomainValidationOptions.map(opt => {
-	// 			const record = opt.ResourceRecord
-	// 			return {
-	// 				name: record.Name,
-	// 				type: record.Type,
-	// 				records: [record.Value],
-	// 			} satisfies Record
-	// 		})
-	// 	)
-	// }
+	get validationRecords() {
+		return this.output<Record[]>(v =>
+			v.DomainValidationOptions.map(opt => {
+				const record = opt.ResourceRecord
+				return {
+					name: record.Name,
+					type: record.Type,
+					records: [record.Value],
+				} satisfies Record
+			})
+		)
+	}
 
 	get issuedArn() {
 		if (!this.validation) {

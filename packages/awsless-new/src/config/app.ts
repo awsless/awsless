@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ResourceIdSchema } from './schema/resource-id.js'
 import { RegionSchema } from './schema/region.js'
 // import { AuthDefaultSchema } from '../feature/auth/schema.js'
-// import { DomainsDefaultSchema } from '../feature/domain/schema.js'
+import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 import { FunctionDefaultSchema } from '../feature/function/schema.js'
 // import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
 // import { HttpDefaultSchema } from '../feature/http/schema.js'
@@ -25,7 +25,7 @@ export const AppSchema = z.object({
 	defaults: z
 		.object({
 			// auth: AuthDefaultSchema,
-			// domains: DomainsDefaultSchema,
+			domains: DomainsDefaultSchema,
 			function: FunctionDefaultSchema,
 			queue: QueueDefaultSchema,
 			// graphql: GraphQLDefaultSchema,

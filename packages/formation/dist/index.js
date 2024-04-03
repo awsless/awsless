@@ -1097,18 +1097,18 @@ var Certificate = class extends Resource {
       };
     });
   }
-  // get validationRecords() {
-  // 	return this.output<Record[]>(v =>
-  // 		v.DomainValidationOptions.map(opt => {
-  // 			const record = opt.ResourceRecord
-  // 			return {
-  // 				name: record.Name,
-  // 				type: record.Type,
-  // 				records: [record.Value],
-  // 			} satisfies Record
-  // 		})
-  // 	)
-  // }
+  get validationRecords() {
+    return this.output(
+      (v) => v.DomainValidationOptions.map((opt) => {
+        const record = opt.ResourceRecord;
+        return {
+          name: record.Name,
+          type: record.Type,
+          records: [record.Value]
+        };
+      })
+    );
+  }
   get issuedArn() {
     if (!this.validation) {
       this.validation = new CertificateValidation("validation", {
@@ -4289,17 +4289,12 @@ var EmailIdentity = class extends CloudControlApiResource {
   dnsRecords(region) {
     const ttl = minutes3(5);
     return [
-      ...this.dkimDnsTokens.map(
-        (token) => token.apply((token2) => {
-          const record = {
-            name: token2.name,
-            type: "CNAME",
-            ttl,
-            records: [token2.value]
-          };
-          return record;
-        })
-      ),
+      ...this.dkimDnsTokens.map((token) => ({
+        name: token.apply((token2) => token2.name),
+        type: "CNAME",
+        ttl,
+        records: [token.apply((token2) => token2.value)]
+      })),
       {
         name: this.props.emailIdentity,
         type: "TXT",
