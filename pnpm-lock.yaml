@@ -1,5 +1,9 @@
 lockfileVersion: '6.0'
 
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
 importers:
 
   .:
@@ -259,12 +263,33 @@ importers:
       '@awsless/graphql':
         specifier: workspace:^
         version: link:../graphql
+      '@awsless/lambda':
+        specifier: workspace:^
+        version: link:../lambda
+      '@awsless/redis':
+        specifier: workspace:^
+        version: link:../redis
+      '@awsless/s3':
+        specifier: workspace:^
+        version: link:../s3
       '@awsless/size':
         specifier: workspace:^
         version: link:../size
+      '@awsless/sns':
+        specifier: workspace:^
+        version: link:../sns
+      '@awsless/sqs':
+        specifier: workspace:^
+        version: link:../sqs
+      '@awsless/ssm':
+        specifier: workspace:^
+        version: link:../ssm
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
+      '@awsless/weak-cache':
+        specifier: workspace:^
+        version: link:../weak-cache
       '@clack/prompts':
         specifier: ^0.7.0
         version: 0.7.0
@@ -4596,9 +4621,9 @@ packages:
       '@aws-sdk/client-s3': ^3.0.0
     dependencies:
       '@aws-sdk/client-s3': 3.369.0
-      '@smithy/abort-controller': 2.0.10
-      '@smithy/middleware-endpoint': 2.0.10
-      '@smithy/smithy-client': 2.1.9
+      '@smithy/abort-controller': 2.2.0
+      '@smithy/middleware-endpoint': 2.5.0
+      '@smithy/smithy-client': 2.5.0
       buffer: 5.6.0
       events: 3.3.0
       stream-browserify: 3.0.0
@@ -10224,14 +10249,6 @@ packages:
     engines: {node: '>=14.0.0'}
     dependencies:
       '@smithy/types': 1.1.1
-      tslib: 2.6.2
-    dev: false
-
-  /@smithy/abort-controller@2.0.10:
-    resolution: {integrity: sha512-xn7PnFD3m4rQIG00h1lPuDVnC2QMtTFhzRLX3y56KkgFaCysS7vpNevNBgmNUtmJ4eVFc+66Zucwo2KDLdicOg==}
-    engines: {node: '>=14.0.0'}
-    dependencies:
-      '@smithy/types': 2.12.0
       tslib: 2.6.2
     dev: false
 
@@ -17508,7 +17525,3 @@ packages:
   /zod@3.21.4:
     resolution: {integrity: sha512-m46AKbrzKVzOzs/DZgVnG5H55N1sv1M8qZU3A8RIKbs3mrACDNeIOeilDymVb2HdmP8uwshOCF4uJ8uM9rCqJw==}
     dev: false
-
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
