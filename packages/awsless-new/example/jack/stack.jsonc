@@ -3,15 +3,19 @@
 	"name": "stack",
 	"tests": "./test",
 	"configs": ["test"],
-	"crons": {
-		"test": {
-			"consumer": "./function.ts",
-			"schedule": "60 minutes"
-		}
-	},
-	"caches": {
-		"test": {
-			"type": "t4g.small"
+	// "caches": {
+	// 	"test": {
+	// 		"type": "t4g.small"
+	// 	}
+	// },
+	"graphql": {
+		"api": {
+			"schema": "./graphql/schema.gql",
+			"resolvers": {
+				"Query": {
+					"test": "./function.ts"
+				}
+			}
 		}
 	}
 	// "functions": {

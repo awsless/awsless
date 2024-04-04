@@ -1,9 +1,10 @@
+import { ImportValueNotFound } from './error'
 import { Node, flatten } from './node'
 import { Input } from './output'
 import { Resource } from './resource'
 
 export class Stack extends Node {
-	readonly exports: Record<string, Input<unknown>> = {}
+	readonly exported: Record<string, Input<unknown>> = {}
 
 	constructor(readonly name: string) {
 		super('Stack', name)
@@ -14,8 +15,16 @@ export class Stack extends Node {
 	}
 
 	export(key: string, value: Input<unknown>) {
-		this.exports[key] = value
+		this.exported[key] = value
 
 		return this
+	}
+
+	import(key: string) {
+		if (key in this.exported) {
+			return this.exported[key]
+		}
+
+		throw new ImportValueNotFound(this.name, key)
 	}
 }

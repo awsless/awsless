@@ -1,5 +1,5 @@
 export default (event: unknown) => {
-	console.log('WORLD !!!')
+	console.log('HELLO !!!')
 
 	return Promise.resolve(event)
 }

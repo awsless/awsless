@@ -33,7 +33,8 @@
 		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; node dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
 		"build": "pnpm tsup src/index.ts src/bin.ts src/client.ts --format esm --dts --clean",
 		"build-json-schema": "pnpm tsup src/config/json.ts --format esm; node ./dist/json.js",
-		"example": "pnpm tsup ./example/example.ts --format esm; node ./dist/example.js",
+		"jack": "pnpm tsup ./example/jack/jack.ts --format esm; node ./dist/jack.js",
+		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm; node ./dist/kennedy.js",
 		"prepublish": "if pnpm test schema; then pnpm build; pnpm build-json-schema; else exit; fi"
 	},
 	"peerDependencies": {

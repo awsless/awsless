@@ -1,0 +1,35 @@
+{
+	"$schema": "https://tinyurl.com/awsless-stack",
+	"name": "stack",
+	"tests": "./test",
+	"configs": ["test"],
+	"caches": {
+		"test": {
+			"type": "t4g.small"
+		}
+	}
+	// "functions": {
+	// 	"echo-1": "./function.ts"
+	// },
+	// "queues": {
+	// 	"queue": "./function.ts"
+	// },
+	// "topics": [
+	// 	"login"
+	// ],
+	// "subscribers": {
+	// 	"login": "./function.ts"
+	// },
+	// "tables": {
+	// 	"users": {
+	// 		"hash": "id"
+	// 	}
+	// },
+	// "stores": ["files"]
+	// "pubsub": {
+	// 	"test": {
+	// 		"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// }
+}
