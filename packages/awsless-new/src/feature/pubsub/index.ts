@@ -9,7 +9,7 @@ export const pubsubFeature = defineFeature({
 		ctx.onFunction(({ policy }) => {
 			policy.addStatement({
 				actions: ['iot:publish'],
-				resources: ['arn:*'],
+				resources: ['arn:aws:iot:*:*:rule/*'],
 			})
 		})
 	},
@@ -21,7 +21,7 @@ export const pubsubFeature = defineFeature({
 			const { lambda } = createLambdaFunction(group, ctx, `pubsub`, 'function', props.consumer)
 
 			const topic = new aws.iot.TopicRule('rule', {
-				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id),
+				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id).replaceAll('-', '_'),
 				sql: props.sql,
 				sqlVersion: props.sqlVersion,
 				actions: [{ lambda: { functionArn: lambda.arn } }],

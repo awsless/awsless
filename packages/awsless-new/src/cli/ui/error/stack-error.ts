@@ -27,7 +27,6 @@ export const logStackError = (error: StackError) => {
 	)
 
 	for (const issue of error.issues) {
-		if (issue.operation === 'create') color.error.bold.inverse(` ${capitalCase(issue.operation)} `)
 		log.message(
 			[
 				formatOperation(issue.operation) + ' ',

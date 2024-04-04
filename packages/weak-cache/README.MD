@@ -1,10 +1,7 @@
-[![npm version](https://img.shields.io/npm/dw/@awsless/weak-cache)](https://www.npmjs.org/package/@awsless/weak-cache)
-[![npm version](https://img.shields.io/npm/v/@awsless/weak-cache.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/weak-cache)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
 
-# weak-cache
+# @awsless/weak-cache
 
-The @awsless/weak-cache package provides a fully typed simple cache that works with the JS garbage collection (GC). It uses weak references (and finalization registry) to allow GC to remove the cached data as part of the normal GC cycles, but still continue to provide cached access to the data as long as it still resides in memory and hasn't been collected.
+The @awsless/weak-cache package provides a fully typed simple cache that works with the JS garbage collector (GC). It uses weak references (and finalization registry) to allow GC to remove the cached data as part of the normal GC cycles, but still continue to provide cached access to the data as long as it still resides in memory and hasn't been collected.
 
 
 ## Setup

@@ -5,9 +5,9 @@ import { ResourceIdSchema } from './schema/resource-id.js'
 import { OnFailureSchema } from '../feature/on-failure/schema.js'
 // import { AuthSchema } from '../feature/auth/schema.js'
 // import { CachesSchema } from '../feature/cache/schema.js'
-// import { ConfigsSchema } from '../feature/config/schema.js'
+import { ConfigsSchema } from '../feature/config/schema.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
-// import { GraphQLSchema } from '../feature/graphql/schema.js'
+import { GraphQLSchema } from '../feature/graphql/schema.js'
 import { TablesSchema } from '../feature/table/schema.js'
 // import { HttpSchema } from '../feature/http/schema.js'
 import { StoresSchema } from '../feature/store/schema.js'
@@ -29,10 +29,10 @@ export const StackSchema = z.object({
 	depends: DependsSchema,
 	onFailure: OnFailureSchema,
 	// auth: AuthSchema,
-	// graphql: GraphQLSchema,
+	graphql: GraphQLSchema,
 	// http: HttpSchema,
 	// rest: RestSchema,
-	// configs: ConfigsSchema,
+	configs: ConfigsSchema,
 	// crons: CronsSchema,
 	// caches: CachesSchema,
 	topics: TopicsSchema,

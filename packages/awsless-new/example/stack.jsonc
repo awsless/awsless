@@ -1,6 +1,7 @@
 {
 	"$schema": "https://tinyurl.com/awsless-stack",
 	"name": "stack",
+	"configs": ["test"],
 	"pubsub": {
 		"test": {
 			"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
