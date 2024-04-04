@@ -1,10 +1,12 @@
 import { paramCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
-import { TypeObject } from '../../type-gen/object.js'
 import { TypeFile } from '../../type-gen/file.js'
+import { TypeObject } from '../../type-gen/object.js'
+import { configParameterPrefix } from '../../util/ssm.js'
 
 export const configFeature = defineFeature({
 	name: 'config',
+
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('@awsless/awsless')
 		const resources = new TypeObject(0, false)
@@ -21,21 +23,24 @@ export const configFeature = defineFeature({
 	},
 	onStack(ctx) {
 		const configs = ctx.stackConfig.configs
-		ctx.onFunction(({ lambda }) => {
+
+		ctx.onFunction(({ lambda, policy }) => {
 			if (configs && configs.length) {
 				lambda.addEnvironment('CONFIG', configs.join(','))
-				// lambda.permissions.
-				// lambda.addPermissions({
-				// 	actions: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
-				// 	resources: configs.map(name => {
-				// 		return formatArn({
-				// 			service: 'ssm',
-				// 			resource: 'parameter',
-				// 			resourceName: configParameterPrefix(config) + '/' + paramCase(name),
-				// 			seperator: '',
-				// 		})
-				// 	}),
-				// })
+				policy.addStatement({
+					actions: [
+						'ssm:GetParameter',
+						'ssm:GetParameters',
+						'ssm:GetParametersByPath',
+						'ssm:GetParameterHistory',
+					],
+					resources: configs.map(
+						name =>
+							`arn:aws:ssm:${ctx.appConfig.region}:*:parameter${configParameterPrefix(
+								ctx.app.name
+							)}/${paramCase(name)}` as const
+					),
+				})
 			}
 		})
 	},

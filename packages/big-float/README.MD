@@ -1,7 +1,4 @@
-
-[![npm version](https://img.shields.io/npm/dw/@awsless/big-float)](https://www.npmjs.org/package/@awsless/big-float)
-[![npm version](https://img.shields.io/npm/v/@awsless/big-float.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/big-float)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
+# @awsless/big-float
 
 A library for arbitrary precision decimal floating point arithmetic that can exactly represent all decimal fractions,
 unlike JavaScript's number data type which is 64-bit binary floating point.

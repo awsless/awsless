@@ -1,0 +1,311 @@
+import { z } from 'zod'
+// import { definePlugin } from '../../feature.js'
+// import { isFunctionProps, toFunctionProps, toLambdaFunction } from '../function/index.js'
+// import { toArray } from '../../util/array.js'
+import { paramCase } from 'change-case'
+import { basename } from 'path'
+import { mergeTypeDefs } from '@graphql-tools/merge'
+import { generate } from '@awsless/graphql'
+import { buildSchema, print } from 'graphql'
+import { readFile } from 'fs/promises'
+import { FunctionSchema } from '../function/schema.js'
+import { defineFeature } from '../../feature.js'
+import { TypeFile } from '../../type-gen/file.js'
+import { TypeObject } from '../../type-gen/object.js'
+import { Asset, Node, aws } from '@awsless/formation'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { createLambdaFunction } from '../function/util.js'
+// import { shortId } from '../../util/id.js'
+// import { formatFullDomainName } from '../domain/util.js'
+
+const defaultResolver = `
+export function request(ctx) {
+	return {
+		operation: 'Invoke',
+		payload: ctx,
+	};
+}
+
+export function response(ctx) {
+	return ctx.result
+}
+`
+
+const scalarSchema = `
+scalar AWSDate
+scalar AWSTime
+scalar AWSDateTime
+scalar AWSTimestamp
+scalar AWSEmail
+scalar AWSJSON
+scalar AWSURL
+scalar AWSPhone
+scalar AWSIPAddress
+`
+
+export const graphqlFeature = defineFeature({
+	name: 'graphql',
+	async onTypeGen(ctx) {
+		const types = new TypeFile('@awsless/awsless')
+		const resources = new TypeObject(1)
+
+		const apis: Map<string, string[]> = new Map()
+
+		for (const stack of ctx.stackConfigs) {
+			for (const id of Object.keys(stack.graphql || {})) {
+				apis.set(id, [])
+			}
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, props] of Object.entries(stack.graphql || {})) {
+				if (props.schema) {
+					apis.get(id)?.push(...[props.schema].flat())
+				}
+			}
+		}
+
+		for (const [id, files] of apis) {
+			const sources = await Promise.all(
+				files.map(file => {
+					return readFile(file, 'utf8')
+				})
+			)
+
+			if (sources.length) {
+				const defs = mergeTypeDefs([scalarSchema, ...sources])
+				const schema = buildSchema(print(defs))
+
+				const output = generate(schema, {
+					scalarTypes: {
+						AWSDate: 'string',
+						AWSTime: 'string',
+						AWSDateTime: 'string',
+						AWSTimestamp: 'number',
+						AWSEmail: 'string',
+						AWSJSON: 'string',
+						AWSURL: 'string',
+						AWSPhone: 'string',
+						AWSIPAddress: 'string',
+					},
+				})
+
+				await ctx.write(`graphql/${id}.ts`, output)
+
+				types.addImport({ Schema: id }, `./graphql/${id}.ts`)
+				resources.addType(id, id)
+			}
+		}
+
+		types.addInterface('GraphQL', resources)
+
+		await ctx.write('graphql.d.ts', types, true)
+	},
+	onApp(ctx) {
+		for (const [id, props] of Object.entries(ctx.appConfig.defaults.graphql ?? {})) {
+			const group = new Node('graphql', id)
+
+			ctx.base.add(group)
+
+			const role = new aws.iam.Role('merged', {
+				assumedBy: 'appsync.amazonaws.com',
+				policies: [
+					{
+						name: 'merge-policy',
+						statements: [
+							{
+								actions: [
+									//
+									'appsync:StartSchemaMerge',
+									'appsync:SourceGraphQL',
+								],
+								resources: ['arn:aws:appsync:*:*:apis/*'],
+							},
+						],
+					},
+				],
+			})
+
+			group.add(role)
+
+			const api = new aws.appsync.GraphQLApi('api', {
+				name: formatGlobalResourceName(ctx.app.name, 'graphql', id),
+				type: 'merged',
+				role: role.arn,
+				auth: {
+					default: props.auth
+						? {
+								type: 'cognito',
+								region: ctx.appConfig.region,
+								userPoolId: ctx.app.import('base', `auth-${props.auth}-user-pool-id`),
+						  }
+						: {
+								type: 'iam',
+						  },
+				},
+			})
+
+			ctx.base.export(`graphql-${id}-id`, api.id)
+
+			group.add(api)
+
+			// if (props.domain) {
+			// 	// const domainName = formatFullDomainName(config, props.domain, props.subDomain)
+			// 	const domainName = formatFullDomainName(config, props.domain, props.subDomain)
+			// 	const hostedZoneId = ctx.app.import('base', `hosted-zone-${props.domain}-id`)
+			// 	const certificateArn = ctx.app.import('base', `us-east-certificate-${props.domain}-arn`)
+			// }
+		}
+
+		// 	if (props.domain) {
+		// 		// const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
+
+		// 		// debug('DEBUG CERT', certificateArn)
+
+		// 		const domain = new DomainName(id, {
+		// 			domainName,
+		// 			certificateArn,
+		// 		})
+
+		// 		const association = new DomainNameApiAssociation(id, {
+		// 			apiId: api.id,
+		// 			domainName: domain.domainName,
+		// 		}).dependsOn(api, domain)
+
+		// 		const record = new RecordSet(`${id}-graphql`, {
+		// 			hostedZoneId,
+		// 			type: 'A',
+		// 			name: domainName,
+		// 			alias: {
+		// 				dnsName: domain.appSyncDomainName,
+		// 				hostedZoneId: domain.hostedZoneId,
+		// 			},
+		// 		}).dependsOn(domain, association)
+
+		// 		bootstrap.add(domain, association, record)
+		// 	}
+		// }
+	},
+	onStack(ctx) {
+		for (const [id, props] of Object.entries(ctx.stackConfig.graphql ?? {})) {
+			const defaultProps = ctx.appConfig.defaults.graphql?.[id]
+
+			if (!defaultProps) {
+				throw new Error(`GraphQL definition is not defined on app level for "${id}"`)
+			}
+
+			const group = new Node('graphql', id)
+
+			ctx.stack.add(group)
+
+			const api = new aws.appsync.GraphQLApi('api', {
+				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'graphql', id),
+				visibility: false,
+				auth: {
+					default: {
+						type: 'iam',
+					},
+				},
+			})
+
+			group.add(api)
+
+			const association = new aws.appsync.SourceApiAssociation('association', {
+				mergedApiId: ctx.app.import('base', `graphql-${id}-id`),
+				sourceApiId: api.id,
+			})
+
+			group.add(association)
+
+			const schema = new aws.appsync.GraphQLSchema('schema', {
+				apiId: api.id,
+				definition: Asset.fromFile(props.schema),
+			})
+
+			group.add(schema)
+
+			for (const [typeName, fields] of Object.entries(props.resolvers ?? {})) {
+				for (const [fieldName, props] of Object.entries(fields ?? {})) {
+					const resolverGroup = new Node('resolver', `${typeName}.${fieldName}`)
+
+					group.add(resolverGroup)
+
+					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
+					const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
+					const { lambda } = createLambdaFunction(resolverGroup, ctx, `graphql`, funcId, {
+						...props.consumer,
+						// name: '',
+						description: entryId,
+					})
+
+					// let code: Asset = Asset.fromString(defaultResolver)
+
+					// if ('resolver' in props && props.resolver) {
+					// 	code = Asset.fromFile(props.resolver)
+					// }
+
+					// if (defaultProps.resolver) {
+					// 	code = Asset.fromString(defaultProps.resolver)
+					// }
+
+					const role = new aws.iam.Role('service-role', {
+						assumedBy: 'appsync.amazonaws.com',
+						policies: [
+							{
+								name: 'invoke',
+								statements: [
+									{
+										actions: ['lambda:InvokeFunction'],
+										resources: [lambda.arn],
+									},
+								],
+							},
+						],
+					})
+
+					resolverGroup.add(role)
+
+					const source = new aws.appsync.DataSource('source', {
+						type: 'lambda',
+						name: formatLocalResourceName(
+							ctx.app.name,
+							ctx.stack.name,
+							'graphql',
+							`${typeName}.${fieldName}`
+						),
+						apiId: api.id,
+						role: role.arn,
+						functionArn: lambda.arn,
+					})
+
+					resolverGroup.add(source)
+
+					const config = new aws.appsync.FunctionConfiguration(id, {
+						apiId: props.apiId,
+						code: props.code,
+						dataSourceName: source.name,
+					})
+
+					resolverGroup.add(config)
+
+					const resolver = new Resolver(id, {
+						apiId: props.apiId,
+						typeName: props.typeName,
+						fieldName: props.fieldName,
+						functions: [config.id],
+						code: props.code,
+					}).dependsOn(config)
+
+					// const source = new AppsyncEventSource(entryId, lambda, {
+					// 	apiId,
+					// 	typeName,
+					// 	fieldName,
+					// 	code,
+					// })
+
+					// stack.add(lambda, source)
+				}
+			}
+		}
+	},
+})

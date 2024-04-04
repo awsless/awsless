@@ -1,7 +1,5 @@
 
-[![npm version](https://img.shields.io/npm/dw/@awsless/ssm)](https://www.npmjs.org/package/@awsless/ssm)
-[![npm version](https://img.shields.io/npm/v/@awsless/ssm.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/ssm)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
+# @awsless/ssm
 
 Helper functions to fetch parameters from AWS SSM Parameter Store & easily mock the SSM client.
 

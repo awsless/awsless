@@ -7,14 +7,14 @@ const deviceStore = new MemoryStore()
 const store = new MemoryStore()
 
 const client = new Client({
-	id: '',
-	userPoolId: '',
+	id: 'CLIENT_ID',
+	userPoolId: 'USER_POOL_ID',
 	store,
 	deviceStore,
 })
 
-const username = ''
-const password = ''
+const username = 'user'
+const password = 'pass'
 
 // -------------------------------------------------------------------
 // The first time you login a new device will be confirmed.
@@ -30,6 +30,7 @@ console.log('---------------------------------')
 
 // -------------------------------------------------------------------
 // The second time you login the device will need to be verified.
+
 await signIn(client, {
 	username,
 	password,

@@ -1,6 +1,3 @@
-[![npm version](https://img.shields.io/npm/dw/@awsless/dynamodb)](https://www.npmjs.org/package/@awsless/dynamodb)
-[![npm version](https://img.shields.io/npm/v/@awsless/dynamodb.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/dynamodb)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
 
 # @awsless/dynamodb
 

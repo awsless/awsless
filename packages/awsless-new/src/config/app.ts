@@ -4,7 +4,7 @@ import { RegionSchema } from './schema/region.js'
 // import { AuthDefaultSchema } from '../feature/auth/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 import { FunctionDefaultSchema } from '../feature/function/schema.js'
-// import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
+import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
 // import { HttpDefaultSchema } from '../feature/http/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 // import { RestDefaultSchema } from '../feature/rest/schema.js'
@@ -28,7 +28,7 @@ export const AppSchema = z.object({
 			domains: DomainsDefaultSchema,
 			function: FunctionDefaultSchema,
 			queue: QueueDefaultSchema,
-			// graphql: GraphQLDefaultSchema,
+			graphql: GraphQLDefaultSchema,
 			// http: HttpDefaultSchema,
 			// rest: RestDefaultSchema,
 		})
