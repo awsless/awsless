@@ -8,6 +8,11 @@
 			"schedule": "60 minutes"
 		}
 	},
+	"caches": {
+		"test": {
+			"type": "t4g.small"
+		}
+	}
 	// "functions": {
 	// 	"echo-1": "./function.ts"
 	// },
@@ -26,10 +31,10 @@
 	// 	}
 	// },
 	// "stores": ["files"]
-	"pubsub": {
-		"test": {
-			"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
-			"consumer": "./function.ts"
-		}
-	}
+	// "pubsub": {
+	// 	"test": {
+	// 		"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// }
 }

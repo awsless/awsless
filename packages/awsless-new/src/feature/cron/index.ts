@@ -10,32 +10,29 @@ export const cronFeature = defineFeature({
 			const group = new Node(this.name, id)
 			ctx.stack.add(group)
 
-			console.log(this.name, id, props.consumer)
-
 			const { lambda } = createLambdaFunction(group, ctx, this.name, id, props.consumer)
 
-			// const rule = new aws.events.Rule(id, {
-			// 	name: 'app--stack--cron--test',
-			// 	// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
-			// 	schedule: props.schedule,
-			// 	enabled: props.enabled,
-			// 	targets: [
-			// 		{
-			// 			id: 'default',
-			// 			arn: lambda.arn,
-			// 			input: props.payload,
-			// 		},
-			// 	],
-			// })
+			const rule = new aws.events.Rule(id, {
+				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
+				schedule: props.schedule,
+				enabled: props.enabled,
+				targets: [
+					{
+						id: 'default',
+						arn: lambda.arn,
+						input: props.payload,
+					},
+				],
+			})
 
-			// const permission = new aws.lambda.Permission(id, {
-			// 	action: 'lambda:InvokeFunction',
-			// 	principal: 'events.amazonaws.com',
-			// 	functionArn: lambda.arn,
-			// 	sourceArn: rule.arn,
-			// })
+			const permission = new aws.lambda.Permission(id, {
+				action: 'lambda:InvokeFunction',
+				principal: 'events.amazonaws.com',
+				functionArn: lambda.arn,
+				sourceArn: rule.arn,
+			})
 
-			// group.add(rule)
+			group.add(rule, permission)
 		}
 	},
 })

@@ -50,16 +50,17 @@ export const createLambdaFunction = (
 
 	group.add(code)
 
-	const role = new aws.iam.Role('role', {
+	const role = new aws.iam.Role('role1', {
 		name,
 		assumedBy: 'lambda.amazonaws.com',
 	})
 
 	group.add(role)
 
-	const policy = new aws.iam.RolePolicy('policy', {
+	const policy = new aws.iam.RolePolicy('policy1', {
 		role: role.name,
 		name: 'lambda-policy',
+		version: '2012-10-17',
 		statements: [
 			{
 				// Give lambda access to all lambda's inside your app.

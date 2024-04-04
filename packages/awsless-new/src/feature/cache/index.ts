@@ -1,11 +1,9 @@
-import { definePlugin } from '../../feature.js'
-import { Cluster } from '../../formation/resource/memorydb/cluster.js'
-import { SecurityGroup } from '../../formation/resource/ec2/security-group.js'
-import { SubnetGroup } from '../../formation/resource/memorydb/subnet-group.js'
-import { Peer } from '../../formation/resource/ec2/peer.js'
-import { Port } from '../../formation/resource/ec2/port.js'
-import { TypeGen, TypeObject } from '../../util/type-gen.js'
 import { constantCase } from 'change-case'
+import { defineFeature } from '../../feature.js'
+import { TypeFile } from '../../type-gen/file.js'
+import { TypeObject } from '../../type-gen/object.js'
+import { formatLocalResourceName } from '../../util/name.js'
+import { Node, aws } from '@awsless/formation'
 
 const typeGenCode = `
 import { Cluster, CommandOptions } from '@awsless/redis'
@@ -19,13 +17,13 @@ type Command = {
 	<T>(options:Omit<CommandOptions, 'cluster'>, callback: Callback<T>): T
 }`
 
-export const cachePlugin = definePlugin({
+export const cacheFeature = defineFeature({
 	name: 'cache',
-	async onTypeGen({ config, write }) {
-		const gen = new TypeGen('@awsless/awsless')
+	async onTypeGen(ctx) {
+		const gen = new TypeFile('@awsless/awsless')
 		const resources = new TypeObject(1)
 
-		for (const stack of config.stacks) {
+		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
 			for (const name of Object.keys(stack.caches || {})) {
 				resource.addType(name, `Command`)
@@ -37,63 +35,71 @@ export const cachePlugin = definePlugin({
 		gen.addCode(typeGenCode)
 		gen.addInterface('CacheResources', resources)
 
-		await write('cache.d.ts', gen, true)
+		await ctx.write('cache.d.ts', gen, true)
 	},
-	onStack({ config, stack, stackConfig, bootstrap, bind }) {
-		for (const [id, props] of Object.entries(stackConfig.caches || {})) {
-			const name = `${config.app.name}-${stack.name}-${id}`
+	onStack(ctx) {
+		for (const [id, props] of Object.entries(ctx.stackConfig.caches ?? {})) {
+			const group = new Node(this.name, id)
+			ctx.stack.add(group)
 
-			const subnetGroup = new SubnetGroup(id, {
+			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, this.name, id)
+
+			const subnetGroup = new aws.memorydb.SubnetGroup(id, {
 				name,
-				subnetIds: [bootstrap.import(`private-subnet-1`), bootstrap.import(`private-subnet-2`)],
+				subnetIds: [
+					ctx.app.import<string>('base', `vpc-public-subnet-1`),
+					ctx.app.import<string>('base', `vpc-public-subnet-2`),
+				],
 			})
 
-			const securityGroup = new SecurityGroup(id, {
+			const securityGroup = new aws.ec2.SecurityGroup(id, {
 				name,
-				vpcId: bootstrap.import(`vpc-id`),
+				vpcId: ctx.app.import<string>('base', `vpc-id`),
 				description: name,
 			})
 
-			const port = Port.tcp(props.port)
+			const port = aws.ec2.Port.tcp(props.port)
 
-			securityGroup.addIngressRule(Peer.anyIpv4(), port)
-			securityGroup.addIngressRule(Peer.anyIpv6(), port)
+			securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv4() })
+			securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv6() })
 
-			const cluster = new Cluster(id, {
+			const cluster = new aws.memorydb.Cluster(id, {
 				name,
 				aclName: 'open-access',
 				securityGroupIds: [securityGroup.id],
 				subnetGroupName: subnetGroup.name,
 				...props,
-			}).dependsOn(subnetGroup, securityGroup)
+			})
 
-			stack.add(subnetGroup, securityGroup, cluster)
+			group.add(subnetGroup, securityGroup, cluster)
 
-			bind(lambda => {
-				lambda
-					// .setVpc({
-					// 	securityGroupIds: [ securityGroup.id ],
-					// 	subnetIds: [
-					// 		bootstrap.import(`public-subnet-1`),
-					// 		bootstrap.import(`public-subnet-2`),
-					// 	]
-					// })
-					// .addPermissions({
-					// 	actions: [
-					// 		'ec2:CreateNetworkInterface',
-					// 		'ec2:DescribeNetworkInterfaces',
-					// 		'ec2:DeleteNetworkInterface',
-					// 		'ec2:AssignPrivateIpAddresses',
-					// 		'ec2:UnassignPrivateIpAddresses',
-					// 	],
-					// 	resources: [ '*' ],
-					// })
-					.addEnvironment(`CACHE_${constantCase(stack.name)}_${constantCase(id)}_HOST`, cluster.address)
-					.addEnvironment(
-						`CACHE_${constantCase(stack.name)}_${constantCase(id)}_PORT`,
-						props.port.toString()
-					)
-				// .dependsOn(cluster)
+			ctx.onFunction(({ lambda }) => {
+				lambda.addEnvironment(
+					`CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}_HOST`,
+					cluster.address
+				)
+				lambda.addEnvironment(
+					`CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}_PORT`,
+					props.port.toString()
+				)
+
+				// .setVpc({
+				// 	securityGroupIds: [ securityGroup.id ],
+				// 	subnetIds: [
+				// 		bootstrap.import(`public-subnet-1`),
+				// 		bootstrap.import(`public-subnet-2`),
+				// 	]
+				// })
+				// .addPermissions({
+				// 	actions: [
+				// 		'ec2:CreateNetworkInterface',
+				// 		'ec2:DescribeNetworkInterfaces',
+				// 		'ec2:DeleteNetworkInterface',
+				// 		'ec2:AssignPrivateIpAddresses',
+				// 		'ec2:UnassignPrivateIpAddresses',
+				// 	],
+				// 	resources: [ '*' ],
+				// })
 			})
 		}
 	},

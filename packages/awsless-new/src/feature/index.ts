@@ -1,3 +1,4 @@
+import { cacheFeature } from './cache/index.js'
 import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
 import { functionFeature } from './function/index.js'
@@ -21,4 +22,5 @@ export const features = [
 	testFeature,
 	domainFeature,
 	cronFeature,
+	cacheFeature,
 ]
