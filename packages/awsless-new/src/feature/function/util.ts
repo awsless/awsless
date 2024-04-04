@@ -1,5 +1,5 @@
 import { Asset, Node, aws } from '@awsless/formation'
-import { StackContext } from '../../feature.js'
+import { AppContext, StackContext } from '../../feature.js'
 import { FunctionSchema } from './schema.js'
 import { z } from 'zod'
 import deepmerge from 'deepmerge'
@@ -12,12 +12,18 @@ import { getBuildPath } from '../../build/index.js'
 
 export const createLambdaFunction = (
 	group: Node,
-	ctx: StackContext,
+	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
 	local: z.infer<typeof FunctionSchema>
 ) => {
-	const name = formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, ns, id)
+	let name: string
+	if ('stackConfig' in ctx) {
+		name = formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, ns, id)
+	} else {
+		name = formatGlobalResourceName(ctx.appConfig.name, ns, id)
+	}
+
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
 
 	// const group = new Node('function', id)
@@ -104,7 +110,10 @@ export const createLambdaFunction = (
 
 	lambda.addEnvironment('APP', ctx.appConfig.name)
 	// lambda.addEnvironment('STAGE', ctx.stage)
-	lambda.addEnvironment('STACK', ctx.stackConfig.name)
+
+	if ('stackConfig' in ctx) {
+		lambda.addEnvironment('STACK', ctx.stackConfig.name)
+	}
 
 	// ------------------------------------------------------------
 	// Async Invoke Config

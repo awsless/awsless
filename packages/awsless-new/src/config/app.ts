@@ -7,6 +7,7 @@ import { FunctionDefaultSchema } from '../feature/function/schema.js'
 import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
 // import { HttpDefaultSchema } from '../feature/http/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
+import { AuthDefaultSchema } from '../feature/auth/schema.js'
 // import { RestDefaultSchema } from '../feature/rest/schema.js'
 
 export const AppSchema = z.object({
@@ -24,7 +25,7 @@ export const AppSchema = z.object({
 
 	defaults: z
 		.object({
-			// auth: AuthDefaultSchema,
+			auth: AuthDefaultSchema,
 			domains: DomainsDefaultSchema,
 			function: FunctionDefaultSchema,
 			queue: QueueDefaultSchema,

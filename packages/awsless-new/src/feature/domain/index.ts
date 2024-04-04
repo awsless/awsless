@@ -36,7 +36,7 @@ export const domainFeature = defineFeature({
 			hostedZone.addRecord('certificate-1', usEastCertificate.validationRecord(0))
 			hostedZone.addRecord('certificate-2', usEastCertificate.validationRecord(1))
 
-			ctx.base.export(`certificate-${id}-arn`, usEastCertificate.arn)
+			ctx.base.export(`us-east-certificate-${id}-arn`, usEastCertificate.arn)
 			ctx.base.export(`hosted-zone-${id}-id`, hostedZone.id)
 
 			// const certificate = new aws.acm.Certificate('cert', {

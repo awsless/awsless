@@ -3,6 +3,7 @@ import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { Record, RecordType } from '../route53/record-set.js'
 import { minutes } from '@awsless/duration'
+import { ARN } from '../types.js'
 
 export class EmailIdentity extends CloudControlApiResource {
 	constructor(

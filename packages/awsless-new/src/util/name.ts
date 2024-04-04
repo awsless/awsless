@@ -11,7 +11,13 @@ export const formatGlobalResourceName = (appName: string, ns: string, id: string
 		.join('--')
 }
 
-export const formatLocalResourceName = (appName: string, stackName: string, ns: string, id: string) => {
+export const formatLocalResourceName = (
+	appName: string,
+	stackName: string,
+	ns: string,
+	id: string,
+	seperator = '--'
+) => {
 	return [
 		//
 		appName,
@@ -20,5 +26,5 @@ export const formatLocalResourceName = (appName: string, stackName: string, ns: 
 		id,
 	]
 		.map(v => paramCase(v))
-		.join('--')
+		.join(seperator)
 }

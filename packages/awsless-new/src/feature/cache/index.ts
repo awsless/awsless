@@ -42,13 +42,13 @@ export const cacheFeature = defineFeature({
 			const group = new Node(this.name, id)
 			ctx.stack.add(group)
 
-			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, this.name, id)
+			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, this.name, id, '-')
 
 			const subnetGroup = new aws.memorydb.SubnetGroup(id, {
 				name,
 				subnetIds: [
-					ctx.app.import<string>('base', `vpc-private-subnet-id-a`),
-					ctx.app.import<string>('base', `vpc-private-subnet-id-b`),
+					ctx.app.import<string>('base', 'vpc-private-subnet-id-1'),
+					ctx.app.import<string>('base', 'vpc-private-subnet-id-2'),
 				],
 			})
 

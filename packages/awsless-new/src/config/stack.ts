@@ -20,6 +20,7 @@ import { TestsSchema } from '../feature/test/schema.js'
 import { SubscribersSchema, TopicsSchema } from '../feature/topic/schema.js'
 import { CronsSchema } from '../feature/cron/schema/index.js'
 import { CachesSchema } from '../feature/cache/schema.js'
+import { AuthSchema } from '../feature/auth/schema.js'
 
 const DependsSchema = ResourceIdSchema.array()
 	.optional()
@@ -30,7 +31,7 @@ export const StackSchema = z.object({
 	name: ResourceIdSchema,
 	depends: DependsSchema,
 	onFailure: OnFailureSchema,
-	// auth: AuthSchema,
+	auth: AuthSchema,
 	graphql: GraphQLSchema,
 	// http: HttpSchema,
 	// rest: RestSchema,
