@@ -63,6 +63,8 @@ export class DynamoDBStateProvider implements StateProvider {
 	}
 
 	async update(urn: URN, state: AppState) {
+		// console.log('update', urn, JSON.stringify(state))
+
 		await this.client.send(
 			new UpdateItemCommand({
 				TableName: this.props.tableName,
@@ -71,7 +73,7 @@ export class DynamoDBStateProvider implements StateProvider {
 				ExpressionAttributeNames: { '#state': 'state' },
 				ExpressionAttributeValues: marshall(
 					{
-						':state': state,
+						':state': JSON.parse(JSON.stringify(state)),
 					},
 					{
 						removeUndefinedValues: true,

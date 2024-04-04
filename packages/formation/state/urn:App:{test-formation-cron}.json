@@ -1,0 +1,192 @@
+{
+  "urn:App:{test-formation-cron}:Stack:{cron}": {
+    "name": "cron",
+    "exports": {},
+    "resources": {
+      "urn:App:{test-formation-cron}:Stack:{cron}:AWS::IAM::Role:{cron-test}": {
+        "id": "u8NghATajqJwSA6zNARykDMj4-LdIyoghr9yYu",
+        "type": "AWS::IAM::Role",
+        "provider": "aws-cloud-control-api",
+        "local": {
+          "ManagedPolicyArns": [],
+          "Policies": [],
+          "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Action": [
+                  "sts:AssumeRole"
+                ],
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": [
+                    "lambda.amazonaws.com"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "assets": {},
+        "dependencies": [],
+        "extra": {},
+        "policies": {
+          "deletion": "before-deployment"
+        },
+        "remote": {
+          "Path": "/",
+          "MaxSessionDuration": 3600,
+          "RoleName": "u8NghATajqJwSA6zNARykDMj4-LdIyoghr9yYu",
+          "Description": "",
+          "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Action": "sts:AssumeRole",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "lambda.amazonaws.com"
+                }
+              }
+            ]
+          },
+          "Arn": "arn:aws:iam::468004125411:role/u8NghATajqJwSA6zNARykDMj4-LdIyoghr9yYu",
+          "RoleId": "AROAWZ5ZYHLRQGNKOUKU2"
+        }
+      },
+      "urn:App:{test-formation-cron}:Stack:{cron}:AWS::Lambda::Function:{cron-lambda}": {
+        "id": "awsless-formation-cron",
+        "type": "AWS::Lambda::Function",
+        "provider": "aws-cloud-control-api",
+        "local": {
+          "FunctionName": "awsless-formation-cron",
+          "MemorySize": 128,
+          "Handler": "index.default",
+          "Runtime": "nodejs18.x",
+          "Timeout": 10,
+          "Architectures": [
+            "arm64"
+          ],
+          "Role": "arn:aws:iam::468004125411:role/u8NghATajqJwSA6zNARykDMj4-LdIyoghr9yYu",
+          "Code": {
+            "ZipFile": "module.exports.default = async () => ({ statusCode: 200, body: \"Hello World\" })"
+          },
+          "EphemeralStorage": {
+            "Size": 512
+          },
+          "Environment": {
+            "Variables": {}
+          }
+        },
+        "assets": {},
+        "dependencies": [
+          "urn:App:{test-formation-cron}:Stack:{cron}:AWS::IAM::Role:{cron-test}"
+        ],
+        "extra": {},
+        "policies": {
+          "deletion": "before-deployment"
+        },
+        "remote": {
+          "MemorySize": 128,
+          "Description": "",
+          "TracingConfig": {
+            "Mode": "PassThrough"
+          },
+          "Timeout": 10,
+          "RuntimeManagementConfig": {
+            "UpdateRuntimeOn": "Auto"
+          },
+          "Handler": "index.default",
+          "SnapStartResponse": {
+            "OptimizationStatus": "Off",
+            "ApplyOn": "None"
+          },
+          "Role": "arn:aws:iam::468004125411:role/u8NghATajqJwSA6zNARykDMj4-LdIyoghr9yYu",
+          "FileSystemConfigs": [],
+          "FunctionName": "awsless-formation-cron",
+          "Runtime": "nodejs18.x",
+          "PackageType": "Zip",
+          "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/awsless-formation-cron"
+          },
+          "Environment": {
+            "Variables": {}
+          },
+          "Arn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cron",
+          "EphemeralStorage": {
+            "Size": 512
+          },
+          "Architectures": [
+            "arm64"
+          ]
+        }
+      },
+      "urn:App:{test-formation-cron}:Stack:{cron}:AWS::Events::Rule:{cron-test-2}": {
+        "id": "arn:aws:events:eu-west-1:468004125411:rule/app--stack--cron--test",
+        "type": "AWS::Events::Rule",
+        "provider": "aws-cloud-control-api",
+        "local": {
+          "Name": "app--stack--cron--test",
+          "State": "ENABLED",
+          "ScheduleExpression": "rate(60 minutes)",
+          "Targets": [
+            {
+              "Arn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cron",
+              "Id": "cron-test"
+            }
+          ]
+        },
+        "assets": {},
+        "dependencies": [
+          "urn:App:{test-formation-cron}:Stack:{cron}:AWS::Lambda::Function:{cron-lambda}"
+        ],
+        "extra": {},
+        "policies": {
+          "deletion": "before-deployment"
+        },
+        "remote": {
+          "EventBusName": "default",
+          "ScheduleExpression": "rate(60 minutes)",
+          "State": "ENABLED",
+          "Targets": [
+            {
+              "Id": "cron-test",
+              "Arn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cron"
+            }
+          ],
+          "Id": "app--stack--cron--test",
+          "Arn": "arn:aws:events:eu-west-1:468004125411:rule/app--stack--cron--test",
+          "Name": "app--stack--cron--test"
+        }
+      },
+      "urn:App:{test-formation-cron}:Stack:{cron}:AWS::Lambda::Permission:{cron-test-2}": {
+        "id": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cron|pWmNoXf2ioaj7fz7rG8nA6SMw-0i6ze5YqPhfg",
+        "type": "AWS::Lambda::Permission",
+        "provider": "aws-cloud-control-api",
+        "local": {
+          "FunctionName": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cron",
+          "Action": "lambda:InvokeFunction",
+          "Principal": "events.amazonaws.com",
+          "SourceArn": "arn:aws:events:eu-west-1:468004125411:rule/app--stack--cron--test"
+        },
+        "assets": {},
+        "dependencies": [
+          "urn:App:{test-formation-cron}:Stack:{cron}:AWS::Lambda::Function:{cron-lambda}",
+          "urn:App:{test-formation-cron}:Stack:{cron}:AWS::Events::Rule:{cron-test-2}"
+        ],
+        "extra": {},
+        "policies": {
+          "deletion": "before-deployment"
+        },
+        "remote": {
+          "FunctionName": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cron",
+          "Action": "lambda:InvokeFunction",
+          "SourceArn": "arn:aws:events:eu-west-1:468004125411:rule/app--stack--cron--test",
+          "Id": "pWmNoXf2ioaj7fz7rG8nA6SMw-0i6ze5YqPhfg",
+          "Principal": "events.amazonaws.com"
+        }
+      }
+    }
+  }
+}

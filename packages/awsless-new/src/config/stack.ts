@@ -18,6 +18,7 @@ import { PubSubSchema } from '../feature/pubsub/schema.js'
 // import { SitesSchema } from '../feature/site/schema.js'
 import { TestsSchema } from '../feature/test/schema.js'
 import { SubscribersSchema, TopicsSchema } from '../feature/topic/schema.js'
+import { CronsSchema } from '../feature/cron/schema/index.js'
 
 const DependsSchema = ResourceIdSchema.array()
 	.optional()
@@ -33,7 +34,7 @@ export const StackSchema = z.object({
 	// http: HttpSchema,
 	// rest: RestSchema,
 	// configs: ConfigsSchema,
-	// crons: CronsSchema,
+	crons: CronsSchema,
 	// caches: CachesSchema,
 	topics: TopicsSchema,
 	subscribers: SubscribersSchema,

@@ -1,3 +1,4 @@
+import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
 import { functionFeature } from './function/index.js'
 import { onFailureFeature } from './on-failure/index.js'
@@ -19,4 +20,5 @@ export const features = [
 	storeFeature,
 	testFeature,
 	domainFeature,
+	cronFeature,
 ]

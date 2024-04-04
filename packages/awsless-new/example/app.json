@@ -1,6 +1,0 @@
-{
-	"$schema": "https://tinyurl.com/awsless-app",
-	"name": "app",
-	"region": "eu-west-1",
-	"profile": "jacksclub"
-}

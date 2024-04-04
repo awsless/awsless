@@ -20,16 +20,18 @@ export const domainFeature = defineFeature({
 
 		for (const [id, props] of domains) {
 			const group = new Node('domain', id)
+			ctx.base.add(group)
 
-			const hostedZone = new aws.route53.HostedZone('zone', {
-				name: props.domain,
-			})
+			const hostedZone = new aws.route53.HostedZone('zone', { name: props.domain })
+			group.add(hostedZone)
 
 			const usEastCertificate = new aws.acm.Certificate('us-east-cert', {
 				domainName: props.domain,
 				alternativeNames: [`*.${props.domain}`],
 				region: 'us-east-1',
 			})
+			// new aws.acm.CertificateValidation()
+			group.add(usEastCertificate)
 
 			hostedZone.addRecord('certificate-1', usEastCertificate.validationRecord(0))
 			hostedZone.addRecord('certificate-2', usEastCertificate.validationRecord(1))
@@ -41,6 +43,7 @@ export const domainFeature = defineFeature({
 			// 	domainName: props.domain,
 			// 	alternativeNames: [`*.${props.domain}`],
 			// })
+			// group.add(certificate)
 			// ctx.base.export(`certificate-${id}-arn`, certificate.arn)
 
 			const emailIdentity = new aws.ses.EmailIdentity('email-identity', {
@@ -50,16 +53,16 @@ export const domainFeature = defineFeature({
 				feedback: true,
 				rejectOnMxFailure: true,
 			})
+			group.add(emailIdentity)
 
+			let i = 0
 			for (const record of emailIdentity.dnsRecords(ctx.appConfig.region)) {
-				const recordSet = new aws.route53.RecordSet(`${record.name}-${record.type}`, {
+				const recordSet = new aws.route53.RecordSet(`mail-${++i}`, {
 					hostedZoneId: hostedZone.id,
 					...record,
 				})
 				group.add(recordSet)
 			}
-
-			group.add(usEastCertificate, emailIdentity)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain

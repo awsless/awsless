@@ -76,6 +76,48 @@ app.import('test', 'table-arn').apply(v => {
 	console.log(v)
 })
 
+const id = 'app'
+const domain = 'example.com'
+
+const configurationSet = new aws.ses.ConfigurationSet('default', {
+	name: 'test',
+	engagementMetrics: true,
+	reputationMetrics: true,
+})
+
+stack.add(configurationSet)
+
+const hostedZone = new aws.route53.HostedZone('zone', { name: domain })
+stack.add(hostedZone)
+
+const usEastCertificate = new aws.acm.Certificate('us-east-cert', {
+	domainName: domain,
+	alternativeNames: [`*.${domain}`],
+	region: 'us-east-1',
+})
+stack.add(usEastCertificate)
+
+hostedZone.addRecord('certificate-1', usEastCertificate.validationRecord(0))
+hostedZone.addRecord('certificate-2', usEastCertificate.validationRecord(1))
+
+stack.export(`certificate-${id}-arn`, usEastCertificate.arn)
+stack.export(`hosted-zone-${id}-id`, hostedZone.id)
+
+// const certificate = new aws.acm.Certificate('cert', {
+// 	domainName: props.domain,
+// 	alternativeNames: [`*.${props.domain}`],
+// })
+// ctx.base.export(`certificate-${id}-arn`, certificate.arn)
+
+const emailIdentity = new aws.ses.EmailIdentity('email-identity', {
+	emailIdentity: domain,
+	mailFromDomain: `mailer.${domain}`,
+	configurationSetName: configurationSet.name,
+	feedback: true,
+	rejectOnMxFailure: true,
+})
+stack.add(emailIdentity)
+
 // const bucket = new aws.s3.Bucket('test', {
 // 	name: 'awsless-bucket-123',
 // })

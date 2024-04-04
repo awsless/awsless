@@ -26,6 +26,7 @@
 	"scripts": {
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"example": "pnpm tsup ./examples/example.ts && node ./dist/example.cjs",
+		"example-resource": "zsh -c 'pnpm tsup ./examples/resources/${1}.ts && node ./dist/${1}.cjs' --",
 		"test": "pnpm code test",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},

@@ -2,22 +2,28 @@
 	"$schema": "https://tinyurl.com/awsless-stack",
 	"name": "stack",
 	"tests": "./test",
-	"functions": {
-		"echo-1": "./function.ts"
-	},
-	"queues": {
-		"queue": "./function.ts"
-	},
-	"topics": [
-		"login"
-	],
-	"subscribers": {
-		"login": "./function.ts"
-	},
-	"tables": {
-		"users": {
-			"hash": "id"
+	"crons": {
+		"test": {
+			"consumer": "./function.ts",
+			"schedule": "60 minutes"
 		}
-	},
-	"stores": ["files"]
+	}
+	// "functions": {
+	// 	"echo-1": "./function.ts"
+	// },
+	// "queues": {
+	// 	"queue": "./function.ts"
+	// },
+	// "topics": [
+	// 	"login"
+	// ],
+	// "subscribers": {
+	// 	"login": "./function.ts"
+	// },
+	// "tables": {
+	// 	"users": {
+	// 		"hash": "id"
+	// 	}
+	// },
+	// "stores": ["files"]
 }
