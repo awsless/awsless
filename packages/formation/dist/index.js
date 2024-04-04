@@ -181,19 +181,54 @@ function unwrap(input, defaultValue) {
   return input;
 }
 
+// src/core/error.ts
+var ResourceError = class _ResourceError extends Error {
+  constructor(urn, type, operation, message) {
+    super(message);
+    this.urn = urn;
+    this.type = type;
+    this.operation = operation;
+  }
+  static wrap(urn, type, operation, error) {
+    if (error instanceof Error) {
+      return new _ResourceError(urn, type, operation, error.message);
+    }
+    return new _ResourceError(urn, type, operation, "Unknown Error");
+  }
+};
+var StackError = class extends Error {
+  constructor(issues, message) {
+    super(message);
+    this.issues = issues;
+  }
+};
+var ResourceNotFound = class extends Error {
+};
+var ImportValueNotFound = class extends Error {
+  constructor(stack, key) {
+    super(`Import value "${key}" doesn't exist for the "${stack}" stack`);
+  }
+};
+
 // src/core/stack.ts
 var Stack = class extends Node {
   constructor(name) {
     super("Stack", name);
     this.name = name;
   }
-  exports = {};
+  exported = {};
   get resources() {
     return flatten(this).filter((node) => node instanceof Resource);
   }
   export(key, value) {
-    this.exports[key] = value;
+    this.exported[key] = value;
     return this;
+  }
+  import(key) {
+    if (key in this.exported) {
+      return this.exported[key];
+    }
+    throw new ImportValueNotFound(this.name, key);
   }
 };
 
@@ -282,30 +317,6 @@ var RemoteAsset = class extends Asset {
     const data = await response.arrayBuffer();
     return Buffer.from(data);
   }
-};
-
-// src/core/error.ts
-var ResourceError = class _ResourceError extends Error {
-  constructor(urn, type, operation, message) {
-    super(message);
-    this.urn = urn;
-    this.type = type;
-    this.operation = operation;
-  }
-  static wrap(urn, type, operation, error) {
-    if (error instanceof Error) {
-      return new _ResourceError(urn, type, operation, error.message);
-    }
-    return new _ResourceError(urn, type, operation, "Unknown Error");
-  }
-};
-var StackError = class extends Error {
-  constructor(issues, message) {
-    super(message);
-    this.issues = issues;
-  }
-};
-var ResourceNotFound = class extends Error {
 };
 
 // src/core/workspace.ts
@@ -539,7 +550,7 @@ var WorkSpace = class extends EventEmitter {
         });
         throw error;
       }
-      stackState.exports = this.unwrapDocument(stack.urn, stack.exports);
+      stackState.exports = this.unwrapDocument(stack.urn, stack.exported);
       await this.props.stateProvider.update(app.urn, appState);
       this.emit("stack", {
         urn: stack.urn,
@@ -1580,7 +1591,7 @@ var SourceApiAssociation = class extends CloudControlApiResource {
         MergedApiIdentifier: this.props.mergedApiId,
         SourceApiIdentifier: this.props.sourceApiId,
         SourceApiAssociationConfig: {
-          MergeType: unwrap(this.props.mergeType, "auto") ? "AUTO_MERGE" : "MANUAL_MERGE"
+          MergeType: unwrap(this.props.mergeType, "auto") === "auto" ? "AUTO_MERGE" : "MANUAL_MERGE"
         }
       }
     };
@@ -4597,6 +4608,7 @@ export {
   App,
   Asset,
   FileAsset,
+  ImportValueNotFound,
   Node,
   Output,
   RemoteAsset,

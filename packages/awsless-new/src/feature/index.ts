@@ -3,6 +3,7 @@ import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
 import { configFeature } from './config/index.js'
 import { functionFeature } from './function/index.js'
+import { graphqlFeature } from './graphql/index.js'
 import { onFailureFeature } from './on-failure/index.js'
 import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
@@ -17,6 +18,7 @@ export const features = [
 	vpcFeature,
 	onFailureFeature,
 	functionFeature,
+	graphqlFeature,
 	configFeature,
 	pubsubFeature,
 	tableFeature,

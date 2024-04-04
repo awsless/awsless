@@ -25,10 +25,12 @@ export const AppSchema = z.object({
 	defaults: z
 		.object({
 			// auth: AuthDefaultSchema,
-			domains: DomainsDefaultSchema,
-			function: FunctionDefaultSchema,
+
+			// domains: DomainsDefaultSchema,
 			queue: QueueDefaultSchema,
 			graphql: GraphQLDefaultSchema,
+			domains: DomainsDefaultSchema,
+			function: FunctionDefaultSchema,
 			// http: HttpDefaultSchema,
 			// rest: RestDefaultSchema,
 		})

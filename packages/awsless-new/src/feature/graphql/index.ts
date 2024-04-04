@@ -1,14 +1,14 @@
-import { z } from 'zod'
+// import { z } from 'zod'
 // import { definePlugin } from '../../feature.js'
 // import { isFunctionProps, toFunctionProps, toLambdaFunction } from '../function/index.js'
 // import { toArray } from '../../util/array.js'
 import { paramCase } from 'change-case'
-import { basename } from 'path'
+// import { basename } from 'path'
 import { mergeTypeDefs } from '@graphql-tools/merge'
 import { generate } from '@awsless/graphql'
 import { buildSchema, print } from 'graphql'
 import { readFile } from 'fs/promises'
-import { FunctionSchema } from '../function/schema.js'
+// import { FunctionSchema } from '../function/schema.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -107,7 +107,7 @@ export const graphqlFeature = defineFeature({
 
 			ctx.base.add(group)
 
-			const role = new aws.iam.Role('merged', {
+			const role = new aws.iam.Role('role', {
 				assumedBy: 'appsync.amazonaws.com',
 				policies: [
 					{
@@ -226,29 +226,27 @@ export const graphqlFeature = defineFeature({
 
 			for (const [typeName, fields] of Object.entries(props.resolvers ?? {})) {
 				for (const [fieldName, props] of Object.entries(fields ?? {})) {
-					const resolverGroup = new Node('resolver', `${typeName}.${fieldName}`)
+					const name = `${typeName}__${fieldName}`
+					const resolverGroup = new Node('resolver', name)
 
 					group.add(resolverGroup)
 
+					// const name = formatLocalResourceName(
+					// 	ctx.app.name,
+					// 	ctx.stack.name,
+					// 	'graphql',
+					// 	`${id}.${typeName}.${fieldName}`
+					// ).replaceAll('-', '_')
+
 					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
-					const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
-					const { lambda } = createLambdaFunction(resolverGroup, ctx, `graphql`, funcId, {
+					// const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
+					const { lambda } = createLambdaFunction(resolverGroup, ctx, `graphql`, entryId, {
 						...props.consumer,
 						// name: '',
-						description: entryId,
+						description: `${id} ${typeName}.${fieldName}`,
 					})
 
-					// let code: Asset = Asset.fromString(defaultResolver)
-
-					// if ('resolver' in props && props.resolver) {
-					// 	code = Asset.fromFile(props.resolver)
-					// }
-
-					// if (defaultProps.resolver) {
-					// 	code = Asset.fromString(defaultProps.resolver)
-					// }
-
-					const role = new aws.iam.Role('service-role', {
+					const role = new aws.iam.Role('source-role', {
 						assumedBy: 'appsync.amazonaws.com',
 						policies: [
 							{
@@ -266,44 +264,43 @@ export const graphqlFeature = defineFeature({
 					resolverGroup.add(role)
 
 					const source = new aws.appsync.DataSource('source', {
-						type: 'lambda',
-						name: formatLocalResourceName(
-							ctx.app.name,
-							ctx.stack.name,
-							'graphql',
-							`${typeName}.${fieldName}`
-						),
 						apiId: api.id,
+						type: 'lambda',
+						name,
 						role: role.arn,
 						functionArn: lambda.arn,
 					})
 
 					resolverGroup.add(source)
 
-					const config = new aws.appsync.FunctionConfiguration(id, {
-						apiId: props.apiId,
-						code: props.code,
+					let code: Asset = Asset.fromString(defaultResolver)
+
+					if ('resolver' in props && props.resolver) {
+						code = Asset.fromFile(props.resolver)
+					}
+
+					if (defaultProps.resolver) {
+						code = Asset.fromString(defaultProps.resolver)
+					}
+
+					const config = new aws.appsync.FunctionConfiguration('config', {
+						apiId: api.id,
+						name,
+						code,
 						dataSourceName: source.name,
 					})
 
 					resolverGroup.add(config)
 
-					const resolver = new Resolver(id, {
-						apiId: props.apiId,
-						typeName: props.typeName,
-						fieldName: props.fieldName,
+					const resolver = new aws.appsync.Resolver('resolver', {
+						apiId: api.id,
+						typeName,
+						fieldName,
 						functions: [config.id],
-						code: props.code,
-					}).dependsOn(config)
+						code,
+					})
 
-					// const source = new AppsyncEventSource(entryId, lambda, {
-					// 	apiId,
-					// 	typeName,
-					// 	fieldName,
-					// 	code,
-					// })
-
-					// stack.add(lambda, source)
+					resolverGroup.add(resolver)
 				}
 			}
 		}

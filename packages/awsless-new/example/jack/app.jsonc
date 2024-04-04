@@ -1,0 +1,13 @@
+{
+	"$schema": "https://tinyurl.com/awsless-app",
+	"name": "app-2",
+	"region": "eu-west-1",
+	"profile": "jacksclub",
+	"defaults": {
+		"graphql": {
+			"api": {
+
+			}
+		}
+	}
+}

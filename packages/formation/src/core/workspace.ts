@@ -372,7 +372,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 			// const exports = this.unwrapDocument(stack.urn, stack.exports)
 			// console.log('unwrapped-exports', exports, stack.exports)
 
-			stackState.exports = this.unwrapDocument(stack.urn, stack.exports)
+			stackState.exports = this.unwrapDocument(stack.urn, stack.exported)
 
 			await this.props.stateProvider.update(app.urn, appState)
 

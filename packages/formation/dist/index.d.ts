@@ -148,10 +148,11 @@ declare const flatten: (node: Node) => Node[];
 
 declare class Stack extends Node {
     readonly name: string;
-    readonly exports: Record<string, Input<unknown>>;
+    readonly exported: Record<string, Input<unknown>>;
     constructor(name: string);
     get resources(): Resource[];
     export(key: string, value: Input<unknown>): this;
+    import(key: string): unknown;
 }
 
 declare class App extends Node {
@@ -254,6 +255,9 @@ declare class StackError extends Error {
     constructor(issues: ResourceError[], message: string);
 }
 declare class ResourceNotFound extends Error {
+}
+declare class ImportValueNotFound extends Error {
+    constructor(stack: string, key: string);
 }
 
 type RecordType = 'A' | 'AAAA' | 'CAA' | 'CNAME' | 'DS' | 'MX' | 'NAPTR' | 'NS' | 'PTR' | 'SOA' | 'SPF' | 'SRV' | 'TXT';
@@ -3123,4 +3127,4 @@ declare namespace index {
   };
 }
 
-export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$1 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };
+export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, ImportValueNotFound, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$1 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };

@@ -19,7 +19,7 @@ export class SourceApiAssociation extends CloudControlApiResource {
 				MergedApiIdentifier: this.props.mergedApiId,
 				SourceApiIdentifier: this.props.sourceApiId,
 				SourceApiAssociationConfig: {
-					MergeType: unwrap(this.props.mergeType, 'auto') ? 'AUTO_MERGE' : 'MANUAL_MERGE',
+					MergeType: unwrap(this.props.mergeType, 'auto') === 'auto' ? 'AUTO_MERGE' : 'MANUAL_MERGE',
 				},
 			},
 		}
