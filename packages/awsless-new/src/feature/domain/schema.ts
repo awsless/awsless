@@ -24,12 +24,15 @@ const RecordsSchema = z
  * @example
  * {
  *   domains: {
- *     'example.com': [{
- *       name: 'www',
- *       type: 'TXT',
- *       ttl: '60 seconds',
- *       records: [ 'value' ]
- *     }]
+ *     DOMAIN_ID: {
+ *       domain: "example.com"
+ *       dns: [{
+ *         name: 'www',
+ *         type: 'TXT',
+ *         ttl: '60 seconds',
+ *         records: [ 'value' ]
+ *       }]
+ *     }
  *   }
  * }
  */

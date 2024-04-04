@@ -20,6 +20,10 @@ export class Node {
 
 	add(...nodes: Node[]) {
 		for (const node of nodes) {
+			if (node.parental) {
+				throw new Error(`Node already has a parent: ${node.urn}`)
+			}
+
 			node.parental = this
 
 			for (const child of this.childs) {
