@@ -47,8 +47,8 @@ export const cacheFeature = defineFeature({
 			const subnetGroup = new aws.memorydb.SubnetGroup(id, {
 				name,
 				subnetIds: [
-					ctx.app.import<string>('base', `vpc-public-subnet-1`),
-					ctx.app.import<string>('base', `vpc-public-subnet-2`),
+					ctx.app.import<string>('base', `vpc-private-subnet-id-a`),
+					ctx.app.import<string>('base', `vpc-private-subnet-id-b`),
 				],
 			})
 

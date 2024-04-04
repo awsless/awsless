@@ -1,10 +1,7 @@
-<<<<<<< HEAD
 import { cacheFeature } from './cache/index.js'
 import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
-=======
 import { configFeature } from './config/index.js'
->>>>>>> 52d32c2fc5b71fbbdefd029abb1e7e8bc82ea726
 import { functionFeature } from './function/index.js'
 import { onFailureFeature } from './on-failure/index.js'
 import { pubsubFeature } from './pubsub/index.js'
