@@ -48,11 +48,7 @@ export const authFeature = defineFeature({
 		}
 	},
 	onApp(ctx) {
-		if (Object.keys(ctx.appConfig.defaults.auth).length === 0) {
-			return
-		}
-
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth)) {
+		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
 			const group = new Node(this.name, id)
 			ctx.base.add(group)
 

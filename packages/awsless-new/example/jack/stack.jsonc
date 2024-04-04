@@ -1,23 +1,23 @@
 {
 	"$schema": "https://tinyurl.com/awsless-stack",
 	"name": "stack",
-	"tests": "./test",
-	"configs": ["test"],
+	// "tests": "./test",
+	// "configs": ["test"],
 	// "caches": {
 	// 	"test": {
 	// 		"type": "t4g.small"
 	// 	}
 	// },
-	"graphql": {
-		"api": {
-			"schema": "./graphql/schema.gql",
-			"resolvers": {
-				"Query": {
-					"test": "./function.ts"
-				}
-			}
-		}
-	}
+	// "graphql": {
+	// 	"api": {
+	// 		"schema": "./graphql/schema.gql",
+	// 		"resolvers": {
+	// 			"Query": {
+	// 				"test": "./function.ts"
+	// 			}
+	// 		}
+	// 	}
+	// }
 	// "functions": {
 	// 	"echo-1": "./function.ts"
 	// },

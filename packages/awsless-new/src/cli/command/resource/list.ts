@@ -30,7 +30,7 @@ export const list = (program: Command) => {
 					for (const resource of stack.resources) {
 						resources.push([
 							chalk.magenta(stack.name),
-							resource.type,
+							// resource.type,
 							formatResource(stack, resource.urn),
 						])
 					}
@@ -42,7 +42,7 @@ export const list = (program: Command) => {
 				console.log(
 					table({
 						// colWidths,
-						head: ['stack', 'type', 'urn'],
+						head: ['stack', 'urn'],
 						body: resources,
 					})
 				)

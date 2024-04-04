@@ -150,43 +150,37 @@ export const graphqlFeature = defineFeature({
 
 			group.add(api)
 
-			if (props.domain) {
-				// const domainName = formatFullDomainName(config, props.domain, props.subDomain)
-				// const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-				// const hostedZoneId = ctx.base.import(`hosted-zone-${props.domain}-id`)
-				// // const certificateArn = ctx.base.import(`us-east-certificate-${props.domain}-arn`)
-				// const domain = new aws.appsync.DomainName(id, {
-				// 	domainName,
-				// 	certificateArn: ctx.base.import(`us-east-certificate-${props.domain}-arn`),
-				// })
-			}
+			// if (props.domain) {
+			// 	const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+
+			// 	const domain = new aws.appsync.DomainName('domain', {
+			// 		domainName,
+			// 		certificateArn: ctx.base.import(`us-east-certificate-${props.domain}-arn`),
+			// 	})
+
+			// 	group.add(domain)
+
+			// 	const association = new aws.appsync.DomainNameApiAssociation('association', {
+			// 		apiId: api.id,
+			// 		domainName: domain.domainName,
+			// 	})
+
+			// 	group.add(association)
+
+			// 	const record = new aws.route53.RecordSet('record', {
+			// 		hostedZoneId: ctx.base.import(`hosted-zone-${props.domain}-id`),
+			// 		type: 'A',
+			// 		name: domainName,
+			// 		alias: {
+			// 			dnsName: domain.appSyncDomainName,
+			// 			hostedZoneId: domain.hostedZoneId,
+			// 			evaluateTargetHealth: false,
+			// 		},
+			// 	})
+
+			// 	group.add(record)
+			// }
 		}
-
-		// 	if (props.domain) {
-
-		// 		const domain = new DomainName(id, {
-		// 			domainName,
-		// 			certificateArn,
-		// 		})
-
-		// 		const association = new DomainNameApiAssociation(id, {
-		// 			apiId: api.id,
-		// 			domainName: domain.domainName,
-		// 		}).dependsOn(api, domain)
-
-		// 		const record = new RecordSet(`${id}-graphql`, {
-		// 			hostedZoneId,
-		// 			type: 'A',
-		// 			name: domainName,
-		// 			alias: {
-		// 				dnsName: domain.appSyncDomainName,
-		// 				hostedZoneId: domain.hostedZoneId,
-		// 			},
-		// 		}).dependsOn(domain, association)
-
-		// 		bootstrap.add(domain, association, record)
-		// 	}
-		// }
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.graphql ?? {})) {
@@ -232,13 +226,6 @@ export const graphqlFeature = defineFeature({
 					const resolverGroup = new Node('resolver', name)
 
 					group.add(resolverGroup)
-
-					// const name = formatLocalResourceName(
-					// 	ctx.app.name,
-					// 	ctx.stack.name,
-					// 	'graphql',
-					// 	`${id}.${typeName}.${fieldName}`
-					// ).replaceAll('-', '_')
 
 					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
 					// const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
