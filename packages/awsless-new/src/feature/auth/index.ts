@@ -38,6 +38,7 @@ export const authFeature = defineFeature({
 					policy.addStatement({
 						actions: ['cognito:*'],
 						resources: [
+							// Not yet known if this is correct way to grant access to all resources
 							`arn:aws:cognito-idp:*:*:userpool/${userPoolId}`,
 							`arn:aws:cognito-idp:*:*:userpool/${userPoolId}*`,
 						],
@@ -67,21 +68,21 @@ export const authFeature = defineFeature({
 				triggers[trigger] = lambda.arn
 			}
 
-			// for (const stack of ctx.stackConfigs) {
-			// 	for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
-			// 		if (functions.has(trigger)) {
-			// 			throw new TypeError(
-			// 				`Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
-			// 			)
-			// 		}
-			// 		const triggerGroup = new Node('trigger', trigger)
-			// 		group.add(triggerGroup)
+			for (const stack of ctx.stackConfigs) {
+				for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
+					if (functions.has(trigger)) {
+						throw new TypeError(
+							`Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
+						)
+					}
+					const triggerGroup = new Node('trigger', trigger)
+					group.add(triggerGroup)
 
-			// 		const { lambda } = createLambdaFunction(triggerGroup, ctx, `${id}-${trigger}`, id, fnProps)
-			// 		functions.set(trigger, lambda)
-			// 		triggers[trigger] = lambda.arn
-			// 	}
-			// }
+					const { lambda } = createLambdaFunction(triggerGroup, ctx, `${id}-${trigger}`, id, fnProps)
+					functions.set(trigger, lambda)
+					triggers[trigger] = lambda.arn
+				}
+			}
 
 			let emailConfig: aws.cognito.UserPoolEmail | undefined
 
@@ -134,7 +135,7 @@ export const authFeature = defineFeature({
 					sourceArn: userPool.arn,
 				})
 
-				ctx.base.add(lambda, permission)
+				ctx.base.add(permission)
 			}
 		}
 	},
