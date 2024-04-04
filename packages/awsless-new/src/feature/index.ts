@@ -12,6 +12,7 @@ import { tableFeature } from './table/index.js'
 import { testFeature } from './test/index.js'
 import { topicFeature } from './topic/index.js'
 import { vpcFeature } from './vpc/index.js'
+import { authFeature } from './auth/index.js'
 
 export const features = [
 	//
@@ -29,4 +30,5 @@ export const features = [
 	domainFeature,
 	cronFeature,
 	cacheFeature,
+	authFeature,
 ]

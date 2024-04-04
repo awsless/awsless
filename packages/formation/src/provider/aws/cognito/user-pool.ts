@@ -93,7 +93,11 @@ export class UserPool extends CloudControlApiResource {
 				UserPoolName: this.props.name,
 				DeletionProtection: unwrap(this.props.deletionProtection) ? 'ACTIVE' : 'INACTIVE',
 
+				AccountRecoverySetting: {
+					RecoveryMechanisms: [{ Name: 'verified_email', Priority: 1 }],
+				},
 				// UserPoolTags: [],
+
 				...(unwrap(username?.emailAlias)
 					? {
 							AliasAttributes: ['email'],
@@ -107,8 +111,8 @@ export class UserPool extends CloudControlApiResource {
 									Required: true,
 									Mutable: false,
 									StringAttributeConstraints: {
-										MinLength: 5,
-										MaxLength: 100,
+										MinLength: '5',
+										MaxLength: '100',
 									},
 								},
 							],
@@ -130,7 +134,7 @@ export class UserPool extends CloudControlApiResource {
 				},
 				Policies: {
 					PasswordPolicy: {
-						MinimumLength: unwrap(password?.minLength, 8),
+						MinimumLength: unwrap(password?.minLength, 12),
 						RequireUppercase: unwrap(password?.uppercase, false),
 						RequireLowercase: unwrap(password?.lowercase, false),
 						RequireNumbers: unwrap(password?.numbers, false),

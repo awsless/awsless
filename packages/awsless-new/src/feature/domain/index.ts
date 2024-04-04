@@ -1,5 +1,6 @@
 import { Node, aws } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
+import { minutes } from '@awsless/duration'
 
 export const domainFeature = defineFeature({
 	name: 'domain',
@@ -54,6 +55,35 @@ export const domainFeature = defineFeature({
 				rejectOnMxFailure: true,
 			})
 			group.add(emailIdentity)
+			ctx.base.export(`ses-${id}-arn`, '')
+
+			group.add(
+				new aws.route53.RecordSet(`mail-from-mx`, {
+					hostedZoneId: hostedZone.id,
+					name: `mailer.${props.domain}`,
+					type: 'MX',
+					ttl: minutes(5),
+					records: ['10 feedback-smtp.eu-west-1.amazonses.com'],
+				})
+			)
+			group.add(
+				new aws.route53.RecordSet(`mail-from-spf`, {
+					hostedZoneId: hostedZone.id,
+					name: `mailer.${props.domain}`,
+					type: 'TXT',
+					ttl: minutes(5),
+					records: ['"v=spf1 include:amazonses.com -all"'],
+				})
+			)
+			group.add(
+				new aws.route53.RecordSet(`mail-dmarc`, {
+					hostedZoneId: hostedZone.id,
+					name: `_dmarc.${props.domain}`,
+					type: 'TXT',
+					ttl: minutes(5),
+					records: ['"v=DMARC1; p=none;"'],
+				})
+			)
 
 			let i = 0
 			for (const record of emailIdentity.dnsRecords(ctx.appConfig.region)) {
@@ -75,11 +105,13 @@ export const domainFeature = defineFeature({
 			}
 		}
 
-		ctx.onFunction(({ policy }) =>
+		ctx.onFunction(({ policy }) => {
 			policy.addStatement({
 				actions: ['ses:*'],
-				resources: ['arn:*'],
+				resources: domains.map(
+					([_, props]) => `arn:aws:ses:*:*:identity/${props.domain}*`
+				) as `arn:${string}`[],
 			})
-		)
+		})
 	},
 })

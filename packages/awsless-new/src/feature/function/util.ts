@@ -26,9 +26,6 @@ export const createLambdaFunction = (
 
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
 
-	// const group = new Node('function', id)
-	// ctx.stack.add(group)
-
 	ctx.registerBuild('function', name, async build => {
 		const version = await fingerprintFromFile(props.file)
 
@@ -56,14 +53,14 @@ export const createLambdaFunction = (
 
 	group.add(code)
 
-	const role = new aws.iam.Role('role1', {
+	const role = new aws.iam.Role('role', {
 		name,
 		assumedBy: 'lambda.amazonaws.com',
 	})
 
 	group.add(role)
 
-	const policy = new aws.iam.RolePolicy('policy1', {
+	const policy = new aws.iam.RolePolicy('policy', {
 		role: role.name,
 		name: 'lambda-policy',
 		version: '2012-10-17',
@@ -89,7 +86,7 @@ export const createLambdaFunction = (
 	// 	],
 	// })
 
-	const lambda = new aws.lambda.Function('function', {
+	const lambda = new aws.lambda.Function(`function`, {
 		...props,
 		name,
 		code,

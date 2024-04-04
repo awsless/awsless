@@ -1382,12 +1382,18 @@ declare class UserPool extends CloudControlApiResource {
                 Required: boolean;
                 Mutable: boolean;
                 StringAttributeConstraints: {
-                    MinLength: number;
-                    MaxLength: number;
+                    MinLength: string;
+                    MaxLength: string;
                 };
             }[] | undefined;
             UserPoolName: Input<string>;
             DeletionProtection: string;
+            AccountRecoverySetting: {
+                RecoveryMechanisms: {
+                    Name: string;
+                    Priority: number;
+                }[];
+            };
         };
     };
 }

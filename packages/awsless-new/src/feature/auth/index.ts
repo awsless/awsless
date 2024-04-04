@@ -59,23 +59,29 @@ export const authFeature = defineFeature({
 			const triggers: Record<string, Output<`arn:${string}`>> = {}
 
 			for (const [trigger, fnProps] of Object.entries(props.triggers ?? {})) {
-				const { lambda } = createLambdaFunction(group, ctx, this.name, `${id}-${trigger}`, fnProps)
+				const triggerGroup = new Node('trigger', trigger)
+				group.add(triggerGroup)
+
+				const { lambda } = createLambdaFunction(triggerGroup, ctx, this.name, `${id}-${trigger}`, fnProps)
 				functions.set(trigger, lambda)
 				triggers[trigger] = lambda.arn
 			}
 
-			for (const stack of ctx.stackConfigs) {
-				for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
-					if (functions.has(trigger)) {
-						throw new TypeError(
-							`Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
-						)
-					}
-					const { lambda } = createLambdaFunction(group, ctx, `${id}-${trigger}`, id, fnProps)
-					functions.set(trigger, lambda)
-					triggers[trigger] = lambda.arn
-				}
-			}
+			// for (const stack of ctx.stackConfigs) {
+			// 	for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
+			// 		if (functions.has(trigger)) {
+			// 			throw new TypeError(
+			// 				`Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
+			// 			)
+			// 		}
+			// 		const triggerGroup = new Node('trigger', trigger)
+			// 		group.add(triggerGroup)
+
+			// 		const { lambda } = createLambdaFunction(triggerGroup, ctx, `${id}-${trigger}`, id, fnProps)
+			// 		functions.set(trigger, lambda)
+			// 		triggers[trigger] = lambda.arn
+			// 	}
+			// }
 
 			let emailConfig: aws.cognito.UserPoolEmail | undefined
 
@@ -85,11 +91,7 @@ export const authFeature = defineFeature({
 
 				emailConfig = aws.cognito.UserPoolEmail.withSES({
 					...props.messaging,
-					sourceArn: formatArn({
-						service: 'ses',
-						resource: 'identity',
-						resourceName: domainName,
-					}),
+					sourceArn: `arn:aws:ses:eu-west-1:468004125411:identity/${domainName}`,
 				})
 			}
 
