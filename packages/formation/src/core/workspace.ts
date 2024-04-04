@@ -27,7 +27,7 @@ type StackEvent = {
 	operation: StackOperation
 	status: 'success' | 'in-progress' | 'error'
 	stack: Stack
-	reason?: StackError
+	reason?: StackError | Error | unknown
 }
 
 type Events = {
@@ -144,8 +144,8 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 			if (value !== null && value instanceof Object && !Array.isArray(value)) {
 				return Object.keys(value)
 					.sort()
-					.reduce((sorted, key) => {
-						sorted[key] = value[key]
+					.reduce((sorted: Record<string, unknown>, key) => {
+						sorted[key] = value[key as keyof typeof value]
 						return sorted
 					}, {})
 			}
@@ -619,7 +619,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 		const errors: ResourceError[] = results
 			.filter(r => r.status === 'rejected')
-			.map((r: PromiseRejectedResult) => r.reason)
+			.map(r => (r as PromiseRejectedResult).reason)
 
 		if (errors.length > 0) {
 			throw new StackError(errors, 'Deploying resources failed.')
@@ -706,16 +706,16 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 			]
 		}
 
-		const deleteResults = await Promise.allSettled(Object.values(run(deleteGraph)))
+		const results = await Promise.allSettled(Object.values(run(deleteGraph)))
 
 		// -------------------------------------------------------------------
 		// Save changed AppState
 
 		await this.props.stateProvider.update(appUrn, appState)
 
-		const errors: ResourceError[] = deleteResults
+		const errors: ResourceError[] = results
 			.filter(r => r.status === 'rejected')
-			.map((r: PromiseRejectedResult) => r.reason)
+			.map(r => (r as PromiseRejectedResult).reason)
 
 		if (errors.length > 0) {
 			throw new StackError(errors, 'Deleting resources failed.')
@@ -762,7 +762,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 		const errors: ResourceError[] = results
 			.filter(r => r.status === 'rejected')
-			.map((r: PromiseRejectedResult) => r.reason)
+			.map(r => (r as PromiseRejectedResult).reason)
 
 		if (errors.length > 0) {
 			throw new StackError(errors, 'Healing remote state failed.')

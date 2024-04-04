@@ -843,9 +843,9 @@ var WorkSpace = class extends import_events.default {
         }
       ];
     }
-    const deleteResults = await Promise.allSettled(Object.values((0, import_promise_dag.run)(deleteGraph)));
+    const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(deleteGraph)));
     await this.props.stateProvider.update(appUrn, appState);
-    const errors = deleteResults.filter((r) => r.status === "rejected").map((r) => r.reason);
+    const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
     if (errors.length > 0) {
       throw new StackError(errors, "Deleting resources failed.");
     }

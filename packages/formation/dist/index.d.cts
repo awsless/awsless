@@ -152,7 +152,7 @@ declare class Stack extends Node {
     constructor(name: string);
     get resources(): Resource[];
     export(key: string, value: Input<unknown>): this;
-    import(key: string): unknown;
+    import<T>(key: string): Input<T>;
 }
 
 declare class App extends Node {
@@ -206,7 +206,7 @@ type StackEvent = {
     operation: StackOperation;
     status: 'success' | 'in-progress' | 'error';
     stack: Stack;
-    reason?: StackError;
+    reason?: StackError | Error | unknown;
 };
 type Events = {
     stack: (event: StackEvent) => void;

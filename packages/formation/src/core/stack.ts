@@ -20,9 +20,9 @@ export class Stack extends Node {
 		return this
 	}
 
-	import(key: string) {
+	import<T>(key: string): Input<T> {
 		if (key in this.exported) {
-			return this.exported[key]
+			return this.exported[key] as Input<T>
 		}
 
 		throw new ImportValueNotFound(this.name, key)

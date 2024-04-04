@@ -15,6 +15,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { Asset, Node, aws } from '@awsless/formation'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
+import { formatFullDomainName } from '../domain/util.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
 
@@ -149,18 +150,19 @@ export const graphqlFeature = defineFeature({
 
 			group.add(api)
 
-			// if (props.domain) {
-			// 	// const domainName = formatFullDomainName(config, props.domain, props.subDomain)
-			// 	const domainName = formatFullDomainName(config, props.domain, props.subDomain)
-			// 	const hostedZoneId = ctx.app.import('base', `hosted-zone-${props.domain}-id`)
-			// 	const certificateArn = ctx.app.import('base', `us-east-certificate-${props.domain}-arn`)
-			// }
+			if (props.domain) {
+				// const domainName = formatFullDomainName(config, props.domain, props.subDomain)
+				// const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				// const hostedZoneId = ctx.base.import(`hosted-zone-${props.domain}-id`)
+				// // const certificateArn = ctx.base.import(`us-east-certificate-${props.domain}-arn`)
+				// const domain = new aws.appsync.DomainName(id, {
+				// 	domainName,
+				// 	certificateArn: ctx.base.import(`us-east-certificate-${props.domain}-arn`),
+				// })
+			}
 		}
 
 		// 	if (props.domain) {
-		// 		// const domainName = props.subDomain ? `${props.subDomain}.${props.domain}` : props.domain
-
-		// 		// debug('DEBUG CERT', certificateArn)
 
 		// 		const domain = new DomainName(id, {
 		// 			domainName,
@@ -242,7 +244,6 @@ export const graphqlFeature = defineFeature({
 					// const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
 					const { lambda } = createLambdaFunction(resolverGroup, ctx, `graphql`, entryId, {
 						...props.consumer,
-						// name: '',
 						description: `${id} ${typeName}.${fieldName}`,
 					})
 
