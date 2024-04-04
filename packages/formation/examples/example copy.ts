@@ -300,6 +300,8 @@ stack.add(certificate)
 // Add certificate validation record to DNS record
 zone.addRecord('test-1', certificate.validationRecord(0))
 
+certificate.
+
 // certificate.addValidationRecords({
 // 	hostedZoneId: hostedZone.id,
 // })

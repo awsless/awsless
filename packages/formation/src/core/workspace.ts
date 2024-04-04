@@ -7,24 +7,27 @@ import { Stack } from './stack'
 import { AppState, ResourceState, StackState, StateProvider } from './state'
 import { Step, run } from 'promise-dag'
 import TypedEmitter from 'typed-emitter'
-import { ResourceNotFound } from './error'
+import { ResourceError, ResourceNotFound, StackError } from './error'
 import { App } from './app'
 import { ExportedData } from './export'
+
+export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal'
+export type StackOperation = 'deploy' | 'delete'
 
 type ResourceEvent = {
 	urn: URN
 	type: string
-	operation: 'create' | 'update' | 'delete'
+	operation: ResourceOperation
 	status: 'success' | 'in-progress' | 'error'
-	reason?: Error
+	reason?: ResourceError
 }
 
 type StackEvent = {
 	urn: URN
-	operation: 'deploy' | 'delete'
+	operation: StackOperation
 	status: 'success' | 'in-progress' | 'error'
 	stack: Stack
-	reason?: Error
+	reason?: StackError
 }
 
 type Events = {
@@ -208,7 +211,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 		const app = stack.parent
 
 		if (!app || !(app instanceof App)) {
-			throw new TypeError('Stack must belong to an App')
+			throw new StackError([], 'Stack must belong to an App')
 		}
 
 		const appState = await this.props.stateProvider.get(app.urn)
@@ -277,7 +280,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 		const app = stack.parent
 
 		if (!app || !(app instanceof App)) {
-			throw new TypeError('Stack must belong to an App')
+			throw new StackError([], 'Stack must belong to an App')
 		}
 
 		return this.lockedOperation(app.urn, async () => {
@@ -350,12 +353,14 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 				// -------------------------------------------------------------------
 			} catch (error) {
+				// const resourceError = new ResourceError()
+
 				this.emit('stack', {
 					urn: stack.urn,
 					operation: 'deploy',
 					status: 'error',
 					stack,
-					reason: error instanceof Error ? error : new Error('Unknown Error'),
+					reason: error,
 				})
 
 				throw error
@@ -388,7 +393,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 		const app = stack.parent
 
 		if (!app || !(app instanceof App)) {
-			throw new TypeError('Stack must belong to an App')
+			throw new StackError([], 'Stack must belong to an App')
 		}
 
 		return this.lockedOperation(app.urn, async () => {
@@ -396,7 +401,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 			const stackState = appState[stack.urn]
 
 			if (!stackState) {
-				throw new Error(`Stack already deleted: ${stack.name}`)
+				throw new StackError([], `Stack already deleted: ${stack.name}`)
 			}
 
 			this.emit('stack', {
@@ -414,7 +419,7 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 					operation: 'delete',
 					status: 'error',
 					stack,
-					reason: error instanceof Error ? error : new Error('Unknown Error'),
+					reason: error,
 				})
 
 				throw error
@@ -479,15 +484,17 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 								extra,
 							})
 						} catch (error) {
+							const resourceError = ResourceError.wrap(resource.urn, resource.type, 'create', error)
+
 							this.emit('resource', {
 								urn: resource.urn,
 								type: resource.type,
 								operation: 'create',
 								status: 'error',
-								reason: error instanceof Error ? error : new Error('Unknown Error'),
+								reason: resourceError,
 							})
 
-							throw error
+							throw resourceError
 						}
 
 						resourceState = stackState.resources[resource.urn] = {
@@ -553,15 +560,17 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 								extra,
 							})
 						} catch (error) {
+							const resourceError = ResourceError.wrap(resource.urn, resource.type, 'update', error)
+
 							this.emit('resource', {
 								urn: resource.urn,
 								type: resource.type,
 								operation: 'update',
 								status: 'error',
-								reason: error instanceof Error ? error : new Error('Unknown Error'),
+								reason: resourceError,
 							})
 
-							throw error
+							throw resourceError
 						}
 
 						resourceState.id = id
@@ -602,10 +611,18 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 		await this.props.stateProvider.update(appUrn, appState)
 
-		for (const result of results) {
-			if (result.status === 'rejected') {
-				throw result.reason
-			}
+		// for (const result of results) {
+		// 	if (result.status === 'rejected') {
+		// 		throw result.reason
+		// 	}
+		// }
+
+		const errors: ResourceError[] = results
+			.filter(r => r.status === 'rejected')
+			.map((r: PromiseRejectedResult) => r.reason)
+
+		if (errors.length > 0) {
+			throw new StackError(errors, 'Deploying resources failed.')
 		}
 	}
 
@@ -660,15 +677,17 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 							// The resource has already been deleted.
 							// Let's skip this issue.
 						} else {
+							const resourceError = ResourceError.wrap(urn, state.type, 'delete', error)
+
 							this.emit('resource', {
 								urn,
 								type: state.type,
 								operation: 'delete',
 								status: 'error',
-								reason: error instanceof Error ? error : new Error('Unknown Error'),
+								reason: resourceError,
 							})
 
-							throw error
+							throw resourceError
 						}
 					}
 
@@ -694,10 +713,12 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 
 		await this.props.stateProvider.update(appUrn, appState)
 
-		for (const result of deleteResults) {
-			if (result.status === 'rejected') {
-				throw result.reason
-			}
+		const errors: ResourceError[] = deleteResults
+			.filter(r => r.status === 'rejected')
+			.map((r: PromiseRejectedResult) => r.reason)
+
+		if (errors.length > 0) {
+			throw new StackError(errors, 'Deleting resources failed.')
 		}
 	}
 
@@ -716,7 +737,22 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 					})
 
 					if (typeof remote === 'undefined') {
-						throw new Error(`Fetching remote state returned undefined: ${urn}`)
+						const resourceError = new ResourceError(
+							urn,
+							resourceState.type,
+							'heal',
+							`Fetching remote state returned undefined`
+						)
+
+						this.emit('resource', {
+							urn,
+							type: resourceState.type,
+							operation: 'heal',
+							status: 'error',
+							reason: resourceError,
+						})
+
+						throw resourceError
 					}
 
 					resourceState.remote = remote
@@ -724,10 +760,12 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 			})
 		)
 
-		for (const result of results) {
-			if (result.status === 'rejected') {
-				throw result.reason
-			}
+		const errors: ResourceError[] = results
+			.filter(r => r.status === 'rejected')
+			.map((r: PromiseRejectedResult) => r.reason)
+
+		if (errors.length > 0) {
+			throw new StackError(errors, 'Healing remote state failed.')
 		}
 	}
 }

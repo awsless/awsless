@@ -40,7 +40,7 @@ const format = (value: unknown): string => {
 	return ''
 }
 
-export const configError = (error: ConfigError) => {
+export const logConfigError = (error: ConfigError) => {
 	for (const issue of error.error.errors) {
 		const message = [color.error(issue.message), color.dim(error.file), '\n{']
 		let context = error.data

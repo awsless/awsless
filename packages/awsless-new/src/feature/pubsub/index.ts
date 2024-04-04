@@ -20,14 +20,14 @@ export const pubsubFeature = defineFeature({
 
 			const { lambda } = createLambdaFunction(group, ctx, `pubsub`, 'function', props.consumer)
 
-			const topic = new aws.iot.TopicRule(id, {
+			const topic = new aws.iot.TopicRule('rule', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id),
 				sql: props.sql,
 				sqlVersion: props.sqlVersion,
 				actions: [{ lambda: { functionArn: lambda.arn } }],
 			})
 
-			const permission = new aws.lambda.Permission(id, {
+			const permission = new aws.lambda.Permission('permission', {
 				action: 'lambda:InvokeFunction',
 				principal: 'iot.amazonaws.com',
 				functionArn: lambda.arn,

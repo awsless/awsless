@@ -1,18 +1,22 @@
 import { log } from '@clack/prompts'
-import { configError } from './config-error.js'
+import { logConfigError } from './config-error.js'
 import { Cancelled, ConfigError } from '../../../error.js'
 import { color, icon } from '../style.js'
 import { wrap } from '../util.js'
+import { StackError } from '@awsless/formation'
+import { logStackError } from './stack-error.js'
 
 export const logError = (error: unknown) => {
 	// console.log(error)
 
 	if (error instanceof ConfigError) {
-		configError(error)
+		logConfigError(error)
 	} else if (error instanceof Cancelled) {
 		log.message(color.error('Cancelled.'), {
 			symbol: color.error(icon.error),
 		})
+	} else if (error instanceof StackError) {
+		logStackError(error)
 	} else if (error instanceof Error) {
 		const message = `${error.name}: ${error.message}`
 		const stack = error.stack ? color.dim(error.stack.replace(message, '')) : ''

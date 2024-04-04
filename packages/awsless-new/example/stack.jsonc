@@ -7,7 +7,7 @@
 			"consumer": "./function.ts",
 			"schedule": "60 minutes"
 		}
-	}
+	},
 	// "functions": {
 	// 	"echo-1": "./function.ts"
 	// },
@@ -26,4 +26,10 @@
 	// 	}
 	// },
 	// "stores": ["files"]
+	"pubsub": {
+		"test": {
+			"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
+			"consumer": "./function.ts"
+		}
+	}
 }
