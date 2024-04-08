@@ -77,26 +77,26 @@ export class Function extends CloudControlApiResource {
 		}
 	}
 
-	enableUrlAccess(props: Omit<UrlProps, 'targetArn'> = {}) {
-		const url = new Url('url', {
-			...props,
-			targetArn: this.arn,
-		})
+	// enableUrlAccess(props: Omit<UrlProps, 'targetArn'> = {}) {
+	// 	const url = new Url('url', {
+	// 		...props,
+	// 		targetArn: this.arn,
+	// 	})
 
-		const permissions = new Permission('url', {
-			principal: '*',
-			// principal: 'cloudfront.amazonaws.com',
-			// sourceArn: distribution.arn,
-			action: 'lambda:InvokeFunctionUrl',
-			functionArn: this.arn,
-			urlAuthType: props.authType ?? 'none',
-		})
+	// 	const permissions = new Permission('url', {
+	// 		principal: '*',
+	// 		// principal: 'cloudfront.amazonaws.com',
+	// 		// sourceArn: distribution.arn,
+	// 		action: 'lambda:InvokeFunctionUrl',
+	// 		functionArn: this.arn,
+	// 		urlAuthType: props.authType ?? 'none',
+	// 	})
 
-		this.add(permissions)
-		this.add(url)
+	// 	this.add(permissions)
+	// 	this.add(url)
 
-		return url
-	}
+	// 	return url
+	// }
 
 	toState() {
 		if (unwrap(this.props.name).length > 64) {

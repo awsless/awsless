@@ -1,5 +1,11 @@
-export default (event: unknown) => {
-	console.log('HELLO !!!')
+export default () => {
+	// console.log('HELLO !!!')
 
-	return Promise.resolve(event)
+	return Promise.resolve({
+		statusCode: 200,
+		headers: {
+			'content-type': 'application/json',
+		},
+		body: 'HELLO',
+	})
 }

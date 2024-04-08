@@ -5,6 +5,7 @@ import { Resource } from './resource'
 
 export class Stack extends Node {
 	readonly exported: Record<string, Input<unknown>> = {}
+	readonly dependencies = new Set<Stack>()
 
 	constructor(readonly name: string) {
 		super('Stack', name)

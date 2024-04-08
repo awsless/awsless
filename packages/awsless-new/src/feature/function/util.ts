@@ -220,5 +220,5 @@ export const createLambdaFunction = (
 		})
 	}
 
-	return { group, lambda, policy }
+	return { group, lambda, policy, code }
 }

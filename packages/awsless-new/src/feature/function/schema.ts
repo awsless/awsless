@@ -152,7 +152,7 @@ export const FunctionsSchema = z
 
 export const FunctionDefaultSchema = z
 	.object({
-		handler: HandlerSchema.default('default'),
+		handler: HandlerSchema.default('index.default'),
 		minify: MinifySchema.default(true),
 		warm: WarmSchema.default(0),
 		vpc: VPCSchema.default(false),

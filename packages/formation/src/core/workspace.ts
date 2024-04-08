@@ -11,7 +11,7 @@ import { ResourceError, ResourceNotFound, StackError } from './error'
 import { App } from './app'
 import { ExportedData } from './export'
 
-export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal'
+export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get'
 export type StackOperation = 'deploy' | 'delete'
 
 type ResourceEvent = {
@@ -438,6 +438,48 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 		})
 	}
 
+	private async getRemoteResource(props: {
+		urn: URN
+		type: string
+		id: string
+		document: ResourceDocument
+		extra: ResourceDocument
+		provider: CloudProvider
+	}) {
+		this.emit('resource', {
+			urn: props.urn,
+			type: props.type,
+			operation: 'get',
+			status: 'in-progress',
+		})
+
+		let remote: any
+		try {
+			remote = await props.provider.get(props)
+		} catch (error) {
+			const resourceError = ResourceError.wrap(props.urn, props.type, 'get', error)
+
+			this.emit('resource', {
+				urn: props.urn,
+				type: props.type,
+				operation: 'get',
+				status: 'error',
+				reason: resourceError,
+			})
+
+			throw resourceError
+		}
+
+		this.emit('resource', {
+			urn: props.urn,
+			type: props.type,
+			operation: 'get',
+			status: 'success',
+		})
+
+		return remote
+	}
+
 	private async deployStackResources(
 		appUrn: URN,
 		appState: AppState,
@@ -511,12 +553,13 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 							// deletionPolicy: unwrap(state.deletionPolicy),
 						}
 
-						const remote = await provider.get({
-							urn: resource.urn,
+						const remote = await this.getRemoteResource({
 							id,
+							urn: resource.urn,
 							type: resource.type,
 							document,
 							extra,
+							provider,
 						})
 
 						resourceState.remote = remote
@@ -580,12 +623,13 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 						// This command might fail.
 						// We will need to heal the state if this fails.
 
-						const remote = await provider.get({
+						const remote = await this.getRemoteResource({
+							id,
 							urn: resource.urn,
-							id: resourceState.id,
 							type: resource.type,
 							document,
 							extra,
+							provider,
 						})
 
 						resourceState.remote = remote
@@ -726,14 +770,16 @@ export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) 
 		const results = await Promise.allSettled(
 			Object.entries(stackState.resources).map(async ([urnStr, resourceState]) => {
 				const urn = urnStr as URN
+
 				if (typeof resourceState.remote === 'undefined') {
 					const provider = this.getCloudProvider(resourceState.provider, urn)
-					const remote = await provider.get({
+					const remote = await this.getRemoteResource({
 						urn,
 						id: resourceState.id,
 						type: resourceState.type,
 						document: resourceState.local,
 						extra: resourceState.extra,
+						provider,
 					})
 
 					if (typeof remote === 'undefined') {

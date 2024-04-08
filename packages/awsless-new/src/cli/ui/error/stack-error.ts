@@ -1,4 +1,4 @@
-import { ResourceOperation, StackError } from '@awsless/formation'
+import { ResourceError, ResourceOperation, StackError } from '@awsless/formation'
 import { log } from '@clack/prompts'
 import { color, icon } from '../style.js'
 import { wrap } from '../util.js'
@@ -6,6 +6,7 @@ import { capitalCase } from 'change-case'
 
 const formatOperation = (operation: ResourceOperation) => {
 	const value = ` ${capitalCase(operation)} `
+
 	switch (operation) {
 		case 'create':
 			return color.success.bold.inverse(value)
@@ -15,6 +16,8 @@ const formatOperation = (operation: ResourceOperation) => {
 			return color.error.bold.inverse(value)
 		case 'heal':
 			return color.warning.bold.inverse(value)
+		case 'get':
+			return color.info.bold.inverse(value)
 	}
 }
 
@@ -27,15 +30,21 @@ export const logStackError = (error: StackError) => {
 	)
 
 	for (const issue of error.issues) {
-		log.message(
-			[
-				formatOperation(issue.operation) + ' ',
-				wrap(issue.urn, { hard: true }),
-				'\n\n',
-				wrap(color.error(issue.message), { hard: true }),
-				// , '\n', color.error(issue.message)
-			].join(''),
-			{ symbol: color.error(icon.error) }
-		)
+		if (issue instanceof ResourceError) {
+			log.message(
+				[
+					formatOperation(issue.operation) + ' ',
+					wrap(issue.urn, { hard: true }),
+					'\n\n',
+					wrap(color.error(issue.message), { hard: true }),
+					// , '\n', color.error(issue.message)
+				].join(''),
+				{ symbol: color.error(icon.error) }
+			)
+		} else if (error instanceof Error) {
+			log.message(wrap(color.error(issue.message), { hard: true }), {
+				symbol: color.error(icon.error),
+			})
+		}
 	}
 }

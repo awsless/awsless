@@ -20,6 +20,10 @@ export class EmailIdentity extends CloudControlApiResource {
 		super('AWS::SES::EmailIdentity', id, props)
 	}
 
+	// get arn() {
+	// 	return this.output(() => `arn:aws:ses:eu-west-1:468004125411:identity/${this.props.emailIdentity}`)
+	// }
+
 	private getDnsToken(index: 1 | 2 | 3) {
 		return this.output<{ name: string; value: string }>(v => ({
 			name: v[`DkimDNSTokenName${index}`],
@@ -44,29 +48,15 @@ export class EmailIdentity extends CloudControlApiResource {
 		]
 	}
 
-	dnsRecords(region: string): Record[] {
+	get dkimRecords(): Record[] {
 		const ttl = minutes(5)
 
-		return [
-			...this.dkimDnsTokens.map(token => ({
-				name: token.apply(token => token.name),
-				type: 'CNAME' as const,
-				ttl,
-				records: [token.apply(token => token.value)],
-			})),
-			{
-				name: this.props.emailIdentity,
-				type: 'TXT',
-				ttl,
-				records: ['"v=spf1 include:amazonses.com -all"'],
-			},
-			{
-				name: this.props.emailIdentity,
-				type: 'MX',
-				ttl,
-				records: [`10 feedback-smtp.${region}.amazonses.com.`],
-			},
-		]
+		return this.dkimDnsTokens.map(token => ({
+			name: token.apply(token => token.name),
+			type: 'CNAME' as const,
+			ttl,
+			records: [token.apply(token => token.value)],
+		}))
 	}
 
 	toState() {

@@ -44,17 +44,17 @@ export const cacheFeature = defineFeature({
 
 			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, this.name, id, '-')
 
-			const subnetGroup = new aws.memorydb.SubnetGroup(id, {
+			const subnetGroup = new aws.memorydb.SubnetGroup('subnets', {
 				name,
 				subnetIds: [
-					ctx.app.import<string>('base', 'vpc-private-subnet-id-1'),
-					ctx.app.import<string>('base', 'vpc-private-subnet-id-2'),
+					ctx.app.import('base', 'vpc-private-subnet-id-1'),
+					ctx.app.import('base', 'vpc-private-subnet-id-2'),
 				],
 			})
 
-			const securityGroup = new aws.ec2.SecurityGroup(id, {
+			const securityGroup = new aws.ec2.SecurityGroup('security', {
 				name,
-				vpcId: ctx.app.import<string>('base', `vpc-id`),
+				vpcId: ctx.app.import('base', `vpc-id`),
 				description: name,
 			})
 
@@ -63,7 +63,7 @@ export const cacheFeature = defineFeature({
 			securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv4() })
 			securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv6() })
 
-			const cluster = new aws.memorydb.Cluster(id, {
+			const cluster = new aws.memorydb.Cluster('cluster', {
 				name,
 				aclName: 'open-access',
 				securityGroupIds: [securityGroup.id],
@@ -82,24 +82,6 @@ export const cacheFeature = defineFeature({
 					`CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}_PORT`,
 					props.port.toString()
 				)
-
-				// .setVpc({
-				// 	securityGroupIds: [ securityGroup.id ],
-				// 	subnetIds: [
-				// 		bootstrap.import(`public-subnet-1`),
-				// 		bootstrap.import(`public-subnet-2`),
-				// 	]
-				// })
-				// .addPermissions({
-				// 	actions: [
-				// 		'ec2:CreateNetworkInterface',
-				// 		'ec2:DescribeNetworkInterfaces',
-				// 		'ec2:DeleteNetworkInterface',
-				// 		'ec2:AssignPrivateIpAddresses',
-				// 		'ec2:UnassignPrivateIpAddresses',
-				// 	],
-				// 	resources: [ '*' ],
-				// })
 			})
 		}
 	},

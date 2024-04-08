@@ -10,7 +10,6 @@ export type UserPoolProps = {
 	name: Input<string>
 	deletionProtection?: Input<boolean>
 	allowUserRegistration?: Input<boolean>
-	email?: Input<UserPoolEmail>
 	username?: Input<{
 		emailAlias?: Input<boolean>
 		caseSensitive?: Input<boolean>
@@ -22,6 +21,12 @@ export type UserPoolProps = {
 		numbers?: Input<boolean>
 		symbols?: Input<boolean>
 		temporaryPasswordValidity?: Input<Duration>
+	}>
+	email?: Input<{
+		type?: Input<'developer' | 'cognito-default'>
+		from?: Input<string>
+		replyTo?: Input<string>
+		sourceArn?: Input<ARN>
 	}>
 	triggers?: Input<{
 		beforeToken?: Input<ARN>
@@ -84,6 +89,7 @@ export class UserPool extends CloudControlApiResource {
 	}
 
 	toState() {
+		const email = unwrap(this.props.email)
 		const username = unwrap(this.props.username)
 		const password = unwrap(this.props.password)
 		const triggers = unwrap(this.props.triggers)
@@ -123,7 +129,15 @@ export class UserPool extends CloudControlApiResource {
 					CaseSensitive: unwrap(username?.caseSensitive, false),
 				},
 
-				...this.attr('EmailConfiguration', unwrap(this.props.email)?.toJSON()),
+				...this.attr(
+					'EmailConfiguration',
+					email && {
+						...this.attr('EmailSendingAccount', email.type, constantCase),
+						...this.attr('From', email.from),
+						...this.attr('ReplyToEmailAddress', email.replyTo),
+						...this.attr('SourceArn', email.sourceArn),
+					}
+				),
 
 				DeviceConfiguration: {
 					DeviceOnlyRememberedOnUserPrompt: false,
@@ -171,34 +185,34 @@ export class UserPool extends CloudControlApiResource {
 	}
 }
 
-export class UserPoolEmail {
-	static withSES(props: { fromEmail: string; fromName?: string; replyTo?: string; sourceArn: string }) {
-		return new UserPoolEmail({
-			type: 'developer',
-			replyTo: props.replyTo,
-			from: props.fromName ? `${props.fromName} <${props.fromEmail}>` : props.fromEmail,
-			sourceArn: props.sourceArn,
-		})
-	}
+// export class UserPoolEmail {
+// 	static withSES(props: { fromEmail: string; fromName?: string; replyTo?: string; sourceArn: string }) {
+// 		return new UserPoolEmail({
+// 			type: 'developer',
+// 			replyTo: props.replyTo,
+// 			from: props.fromName ? `${props.fromName} <${props.fromEmail}>` : props.fromEmail,
+// 			sourceArn: props.sourceArn,
+// 		})
+// 	}
 
-	constructor(
-		private props: {
-			type?: 'developer' | 'cognito-default'
-			from?: string
-			replyTo?: string
-			sourceArn?: string
-		}
-	) {}
+// 	constructor(
+// 		private props: {
+// 			type?: 'developer' | 'cognito-default'
+// 			from?: string
+// 			replyTo?: string
+// 			sourceArn?: string
+// 		}
+// 	) {}
 
-	toJSON() {
-		return {
-			...(this.props.type ? { EmailSendingAccount: constantCase(this.props.type) } : {}),
-			...(this.props.from ? { From: this.props.from } : {}),
-			...(this.props.replyTo ? { ReplyToEmailAddress: this.props.replyTo } : {}),
-			...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
-		}
-	}
-}
+// 	toJSON() {
+// 		return {
+// 			...(this.props.type ? { EmailSendingAccount: constantCase(this.props.type) } : {}),
+// 			...(this.props.from ? { From: this.props.from } : {}),
+// 			...(this.props.replyTo ? { ReplyToEmailAddress: this.props.replyTo } : {}),
+// 			...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
+// 		}
+// 	}
+// }
 
 // AccountRecoverySetting:
 // AccountRecoverySetting

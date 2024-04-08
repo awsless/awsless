@@ -56,6 +56,7 @@ export class Certificate extends Resource {
 		// 	type: this.output<RecordType>(v => v.DomainValidationOptions.at(index).ResourceRecord.Type),
 		// 	records: [this.output<string>(v => v.DomainValidationOptions.at(index).ResourceRecord.Value)],
 		// }
+
 		return this.output<Record>(v => {
 			const record = v.DomainValidationOptions.at(index).ResourceRecord
 

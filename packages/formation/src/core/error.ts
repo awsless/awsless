@@ -28,6 +28,7 @@ export class StackError extends Error {
 }
 
 export class ResourceNotFound extends Error {}
+export class ResourceAlreadyExists extends Error {}
 
 export class ImportValueNotFound extends Error {
 	constructor(stack: string, key: string) {
