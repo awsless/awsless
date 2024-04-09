@@ -1,4 +1,4 @@
-import { Asset, Node, Input, aws, Output } from '@awsless/formation'
+import { Asset, Node, Input, aws } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { createLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
@@ -205,15 +205,6 @@ export const siteFeature = defineFeature({
 			})
 
 			group.add(invalidate)
-
-			// const invalidateCache = new CustomResource(`site-${id}-invalidate-cache`, {
-			// 	serviceToken: bootstrap.import('feature-invalidate-cache'),
-			// 	properties: {
-			// 		key: new Date().toISOString(),
-			// 		distributionId: distribution.id,
-			// 		paths: ['/*'],
-			// 	},
-			// }).dependsOn(distribution)
 
 			// if (props.ssr) {
 			// 	const permissions = new aws.lambda.Permission('permission', {

@@ -116,11 +116,12 @@ export class CloudControlApiProvider implements CloudProvider {
 		return JSON.parse(result.ResourceDescription!.Properties!)
 	}
 
-	async create({ type, document }: CreateProps) {
+	async create({ urn, type, document }: CreateProps) {
 		const result = await this.client.send(
 			new CreateResourceCommand({
 				TypeName: type,
 				DesiredState: JSON.stringify(document),
+				// ClientToken: urn,
 			})
 		)
 
@@ -139,11 +140,12 @@ export class CloudControlApiProvider implements CloudProvider {
 		return this.progressStatus(result.ProgressEvent!)
 	}
 
-	async delete({ type, id }: DeleteProps) {
+	async delete({ urn, type, id }: DeleteProps) {
 		const result = await this.client.send(
 			new DeleteResourceCommand({
 				TypeName: type,
 				Identifier: id,
+				// ClientToken: urn,
 			})
 		)
 

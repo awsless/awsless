@@ -16,7 +16,12 @@ export const createLambdaFunction = (
 	ns: string,
 	id: string,
 	local: z.infer<typeof FunctionSchema>
-) => {
+): {
+	group: Node
+	lambda: aws.lambda.Function
+	policy: aws.iam.RolePolicy
+	code: aws.s3.BucketObject
+} => {
 	let name: string
 	if ('stackConfig' in ctx) {
 		name = formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, ns, id)

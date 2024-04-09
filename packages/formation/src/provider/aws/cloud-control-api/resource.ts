@@ -3,6 +3,8 @@ import { Resource } from '../../../core/resource'
 export abstract class CloudControlApiResource extends Resource {
 	readonly cloudProviderId = 'aws-cloud-control-api'
 
+	// readonly
+
 	// protected _region: string | undefined
 
 	// get region() {
