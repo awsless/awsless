@@ -1695,14 +1695,20 @@ var CloudControlApiProvider = class {
         throw new Error("AWS Cloud Control API operation timeout.");
       }
       const after = event.RetryAfter?.getTime() ?? 0;
-      const delay = Math.min(Math.max(after - now, 1e3), 5e3);
+      const delay = Math.max(after - now, 1e3);
       await sleep(delay);
-      const status = await this.client.send(
-        new GetResourceRequestStatusCommand({
-          RequestToken: token
-        })
-      );
-      event = status.ProgressEvent;
+      try {
+        const status = await this.client.send(
+          new GetResourceRequestStatusCommand({
+            RequestToken: token
+          })
+        );
+        event = status.ProgressEvent;
+      } catch (error) {
+        console.log(error);
+        console.log(error.StatusMessage);
+        console.log(["EHOSTUNREACH"].includes(error.StatusMessage));
+      }
     }
   }
   updateOperations(remoteDocument, oldDocument, newDocument) {

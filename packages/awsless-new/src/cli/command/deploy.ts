@@ -76,7 +76,7 @@ export const deploy = (program: Command) => {
 					cloudProviders: aws.createCloudProviders({
 						credentials,
 						region: appConfig.region,
-						timeout: minutes(15),
+						timeout: minutes(60),
 					}),
 				})
 

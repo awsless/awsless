@@ -1,12 +1,12 @@
 {
 	"$schema": "https://tinyurl.com/awsless-stack",
 	"name": "stack-kennedy",
-	"crons": {
-		"test": {
-			"schedule": "60 minutes",
-			"consumer": "./function.ts"
-		}
-	},
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "60 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
 	// "auth": {
 	// 	"admin": {
 	// 		"access": true,
@@ -19,9 +19,9 @@
 	// 		// }
 	// 	}
 	// },
-	// "caches": {
-	// 	"test": {
-	// 		"type": "t4g.small"
-	// 	}
-	// }
+	"caches": {
+		"test": {
+			"type": "t4g.small"
+		}
+	}
 }

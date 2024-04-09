@@ -8,7 +8,7 @@
 		"strictNullChecks": true,
 		"noUncheckedIndexedAccess": true,
 		"moduleResolution": "Node16",
-		"declaration": false,
+		// "declaration": false,
 		"rootDir": ".",
 		// "preserveSymlinks": true,
 		// "types": [ "node" ],
