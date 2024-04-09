@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
-import { getCredentials } from '../../util/aws.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { createApp } from '../../app.js'
@@ -15,8 +15,9 @@ export const diff = (program: Command) => {
 		.description('Diff your app with AWS')
 		.action(async (filters: string[]) => {
 			await layout('diff', async ({ appConfig, stackConfigs }) => {
-				const credentials = getCredentials(appConfig.profile)
 				const region = appConfig.region
+				const credentials = getCredentials(appConfig.profile)
+				const accountId = await getAccountId(credentials, region)
 
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
@@ -25,7 +26,7 @@ export const diff = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, builders } = createApp({ appConfig, stackConfigs }, filters)
+				const { app, builders } = createApp({ appConfig, stackConfigs, accountId }, filters)
 
 				// ---------------------------------------------------
 				// Building stack assets & templates & tests

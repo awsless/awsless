@@ -7,7 +7,9 @@ export type BucketObjectProps = {
 	key: Input<string>
 	body: Input<Asset>
 	// deletionPolicy?: 'delete' | 'retain'
-	// metadata: Input<Record<>>
+	cacheControl?: Input<string>
+	contentType?: Input<string>
+	metadata?: Input<Record<string, Input<string>>>
 }
 
 export class BucketObject extends Resource {
@@ -51,8 +53,11 @@ export class BucketObject extends Resource {
 				body: this.props.body,
 			},
 			document: {
-				bucket: this.props.bucket,
-				key: this.props.key,
+				Bucket: this.props.bucket,
+				Key: this.props.key,
+				CacheControl: this.props.cacheControl,
+				ContentType: this.props.contentType,
+				Metadata: this.props.metadata,
 			},
 		}
 	}

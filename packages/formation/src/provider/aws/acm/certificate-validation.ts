@@ -25,10 +25,8 @@ export class CertificateValidation extends Resource {
 
 	toState() {
 		return {
-			extra: {
-				region: this.props.region,
-			},
 			document: {
+				Region: this.props.region,
 				CertificateArn: this.props.certificateArn,
 			},
 		}

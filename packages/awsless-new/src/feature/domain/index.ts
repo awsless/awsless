@@ -11,8 +11,8 @@ export const domainFeature = defineFeature({
 			return
 		}
 
-		// const group = new Node('domain', 'core')
-		// ctx.base.add(group)
+		const group = new Node('domain', 'mail')
+		ctx.base.add(group)
 
 		const configurationSet = new aws.ses.ConfigurationSet('config', {
 			name: ctx.app.name,
@@ -20,7 +20,7 @@ export const domainFeature = defineFeature({
 			reputationMetrics: true,
 		})
 
-		ctx.base.add(configurationSet)
+		group.add(configurationSet)
 
 		for (const [id, props] of domains) {
 			const group = new Node('domain', id)
@@ -39,10 +39,16 @@ export const domainFeature = defineFeature({
 			})
 
 			group.add(certificate)
-			ctx.base.export(`local-certificate-${id}-arn`, certificate.arn)
 
 			hostedZone.addRecord('local-cert-1', certificate.validationRecord(0))
 			hostedZone.addRecord('local-cert-2', certificate.validationRecord(1))
+
+			const validation = new aws.acm.CertificateValidation('local', {
+				certificateArn: certificate.arn,
+			})
+
+			group.add(validation)
+			ctx.base.export(`local-certificate-${id}-arn`, validation.arn)
 
 			if (ctx.appConfig.region !== 'us-east-1') {
 				const globalCertificate = new aws.acm.Certificate('global', {
@@ -52,82 +58,76 @@ export const domainFeature = defineFeature({
 				})
 
 				group.add(globalCertificate)
-				ctx.base.export(`global-certificate-${id}-arn`, globalCertificate.arn)
 
 				hostedZone.addRecord('global-cert-1', globalCertificate.validationRecord(0))
 				hostedZone.addRecord('global-cert-2', globalCertificate.validationRecord(1))
+
+				const globalValidation = new aws.acm.CertificateValidation('global', {
+					certificateArn: globalCertificate.arn,
+					region: 'us-east-1',
+				})
+
+				group.add(globalValidation)
+				ctx.base.export(`global-certificate-${id}-arn`, globalValidation.arn)
 			} else {
 				// If we deploy this app in the us-east-1 region,
 				// then we just use alias the local cert.
-				ctx.base.export(`global-certificate-${id}-arn`, certificate.arn)
+
+				ctx.base.export(`global-certificate-${id}-arn`, validation.arn)
 			}
 
-			// new aws.acm.CertificateValidation()
+			const emailIdentity = new aws.ses.EmailIdentity('mail', {
+				emailIdentity: props.domain,
+				mailFromDomain: `mail.${props.domain}`,
+				configurationSetName: configurationSet.name,
+				feedback: true,
+				rejectOnMxFailure: true,
+			})
 
-			// ctx.base.export(`certificate-${id}-arn`, usEastCertificate.arn)
-			// ctx.base.export(`hosted-zone-${id}-id`, hostedZone.id)
+			group.add(emailIdentity)
 
-			// const certificate = new aws.acm.Certificate('cert', {
-			// 	domainName: props.domain,
-			// 	alternativeNames: [`*.${props.domain}`],
-			// })
-			// group.add(certificate)
-			// ctx.base.export(`certificate-${id}-arn`, certificate.arn)
+			let i = 0
+			for (const record of emailIdentity.dkimRecords) {
+				const recordSet = new aws.route53.RecordSet(`dkim-${++i}`, {
+					hostedZoneId: hostedZone.id,
+					...record,
+				})
 
-			// const emailIdentity = new aws.ses.EmailIdentity('email-identity', {
-			// 	emailIdentity: props.domain,
-			// 	mailFromDomain: `mailer.${props.domain}`,
-			// 	configurationSetName: configurationSet.name,
-			// 	feedback: true,
-			// 	rejectOnMxFailure: true,
-			// })
-			// group.add(emailIdentity)
-			// ctx.base.export(`ses-${id}-arn`, '')
+				group.add(recordSet)
+			}
 
-			// group.add(
-			// 	new aws.route53.RecordSet(`mail-from-mx`, {
-			// 		hostedZoneId: hostedZone.id,
-			// 		name: `mailer.${props.domain}`,
-			// 		type: 'MX',
-			// 		ttl: minutes(5),
-			// 		records: ['10 feedback-smtp.eu-west-1.amazonses.com'],
-			// 	})
-			// )
-			// group.add(
-			// 	new aws.route53.RecordSet(`mail-from-spf`, {
-			// 		hostedZoneId: hostedZone.id,
-			// 		name: `mailer.${props.domain}`,
-			// 		type: 'TXT',
-			// 		ttl: minutes(5),
-			// 		records: ['"v=spf1 include:amazonses.com -all"'],
-			// 	})
-			// )
-			// group.add(
-			// 	new aws.route53.RecordSet(`mail-dmarc`, {
-			// 		hostedZoneId: hostedZone.id,
-			// 		name: `_dmarc.${props.domain}`,
-			// 		type: 'TXT',
-			// 		ttl: minutes(5),
-			// 		records: ['"v=DMARC1; p=none;"'],
-			// 	})
-			// )
-			// const emailIdentity = new aws.ses.EmailIdentity('email-identity', {
-			// 	emailIdentity: props.domain,
-			// 	mailFromDomain: `mailer.${props.domain}`,
-			// 	configurationSetName: configurationSet.name,
-			// 	feedback: true,
-			// 	rejectOnMxFailure: true,
-			// })
-			// group.add(emailIdentity)
+			const record1 = new aws.route53.RecordSet(`MX`, {
+				hostedZoneId: hostedZone.id,
+				name: `mail.${props.domain}`,
+				type: 'MX',
+				ttl: minutes(5),
+				records: [`10 feedback-smtp.${ctx.appConfig.region}.amazonses.com`],
+			})
 
-			// let i = 0
-			// for (const record of emailIdentity.dnsRecords(ctx.appConfig.region)) {
-			// 	const recordSet = new aws.route53.RecordSet(`mail-${++i}`, {
-			// 		hostedZoneId: hostedZone.id,
-			// 		...record,
-			// 	})
-			// 	group.add(recordSet)
-			// }
+			const record2 = new aws.route53.RecordSet(`SPF`, {
+				hostedZoneId: hostedZone.id,
+				name: `mail.${props.domain}`,
+				type: 'TXT',
+				ttl: minutes(5),
+				records: ['"v=spf1 include:amazonses.com -all"'],
+			})
+
+			const record3 = new aws.route53.RecordSet(`DMARC`, {
+				hostedZoneId: hostedZone.id,
+				name: `_dmarc.${props.domain}`,
+				type: 'TXT',
+				ttl: minutes(5),
+				records: ['"v=DMARC1; p=none;"'],
+			})
+
+			group.add(record1, record2, record3)
+
+			ctx.base.export(
+				`mail-${id}-arn`,
+				emailIdentity.output(() => {
+					return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
+				})
+			)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
@@ -140,20 +140,11 @@ export const domainFeature = defineFeature({
 			}
 		}
 
-		// ctx.onFunction(({ policy }) => {
-		// 	policy.addStatement({
-		// 		actions: ['ses:*'],
-		// 		resources: domains.map(
-		// 			([_, props]) => `arn:aws:ses:*:*:identity/${props.domain}*`
-		// 		) as `arn:${string}`[],
-		// 	})
-		// })
-
-		// ctx.onFunction(({ policy }) =>
-		// 	policy.addStatement({
-		// 		actions: ['ses:*'],
-		// 		resources: ['arn:aws:ses:*:*:'],
-		// 	})
-		// )
+		ctx.onFunction(({ policy }) =>
+			policy.addStatement({
+				actions: ['ses:*'],
+				resources: [`arn:aws:ses:${ctx.appConfig.region}:*:identity/*`],
+			})
+		)
 	},
 })

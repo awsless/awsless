@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
-import { getCredentials } from '../../util/aws.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { createApp } from '../../app.js'
@@ -21,8 +21,9 @@ export const deploy = (program: Command) => {
 		.description('Deploy your app to AWS')
 		.action(async (filters: string[]) => {
 			await layout('deploy', async ({ appConfig, stackConfigs }) => {
-				const credentials = getCredentials(appConfig.profile)
 				const region = appConfig.region
+				const credentials = getCredentials(appConfig.profile)
+				const accountId = await getAccountId(credentials, region)
 
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
@@ -31,7 +32,7 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, tests, builders } = createApp({ appConfig, stackConfigs }, filters)
+				const { app, tests, builders } = createApp({ appConfig, stackConfigs, accountId }, filters)
 
 				const stackNames = [...app.stacks].map(stack => stack.name)
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))

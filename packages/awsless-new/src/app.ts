@@ -31,6 +31,7 @@ const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
 export type CreateAppProps = {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
+	accountId: string
 }
 
 export type TestCase = {

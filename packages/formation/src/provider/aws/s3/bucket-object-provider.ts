@@ -8,8 +8,11 @@ type ProviderProps = {
 }
 
 type Document = {
-	bucket: string
-	key: string
+	Bucket: string
+	Key: string
+	CacheControl?: string
+	ContentType?: string
+	Metadata?: Record<string, string>
 }
 
 export class BucketObjectProvider implements CloudProvider {
@@ -26,8 +29,8 @@ export class BucketObjectProvider implements CloudProvider {
 	async get({ document }: GetProps<Document>) {
 		const result = await this.client.send(
 			new GetObjectAttributesCommand({
-				Bucket: document.bucket,
-				Key: document.key,
+				Bucket: document.Bucket,
+				Key: document.Key,
 				ObjectAttributes: ['ETag', 'Checksum'],
 			})
 		)
@@ -42,47 +45,45 @@ export class BucketObjectProvider implements CloudProvider {
 	async create({ document, assets }: CreateProps<Document>) {
 		await this.client.send(
 			new PutObjectCommand({
-				Bucket: document.bucket,
-				Key: document.key,
+				...document,
 				Body: assets.body?.data,
 			})
 		)
 
-		return JSON.stringify([document.bucket, document.key])
+		return JSON.stringify([document.Bucket, document.Key])
 	}
 
 	async update({ oldDocument, newDocument, assets }: UpdateProps<Document>) {
 		// Note: We could also allow changing buckets.
 
-		if (oldDocument.bucket !== newDocument.bucket) {
+		if (oldDocument.Bucket !== newDocument.Bucket) {
 			throw new Error(`BucketObject can't change the bucket name`)
 		}
 
-		if (oldDocument.key !== newDocument.key) {
+		if (oldDocument.Key !== newDocument.Key) {
 			await this.client.send(
 				new DeleteObjectCommand({
-					Bucket: oldDocument.bucket,
-					Key: oldDocument.key,
+					Bucket: oldDocument.Bucket,
+					Key: oldDocument.Key,
 				})
 			)
 		}
 
 		await this.client.send(
 			new PutObjectCommand({
-				Bucket: newDocument.bucket,
-				Key: newDocument.key,
+				...newDocument,
 				Body: assets.body?.data,
 			})
 		)
 
-		return JSON.stringify([newDocument.bucket, newDocument.key])
+		return JSON.stringify([newDocument.Bucket, newDocument.Key])
 	}
 
 	async delete({ document }: DeleteProps<Document>) {
 		await this.client.send(
 			new DeleteObjectCommand({
-				Bucket: document.bucket,
-				Key: document.key,
+				Bucket: document.Bucket,
+				Key: document.Key,
 			})
 		)
 	}

@@ -37,6 +37,7 @@ __export(src_exports, {
   Output: () => Output,
   RemoteAsset: () => RemoteAsset,
   Resource: () => Resource,
+  ResourceAlreadyExists: () => ResourceAlreadyExists,
   ResourceError: () => ResourceError,
   ResourceNotFound: () => ResourceNotFound,
   Stack: () => Stack,
@@ -71,6 +72,9 @@ var Node = class {
   }
   add(...nodes) {
     for (const node of nodes) {
+      if (node.parental) {
+        throw new Error(`Node already has a parent: ${node.urn}`);
+      }
       node.parental = this;
       for (const child of this.childs) {
         if (child.urn === node.urn) {
@@ -252,6 +256,8 @@ var StackError = class extends Error {
 };
 var ResourceNotFound = class extends Error {
 };
+var ResourceAlreadyExists = class extends Error {
+};
 var ImportValueNotFound = class extends Error {
   constructor(stack, key) {
     super(`Import value "${key}" doesn't exist for the "${stack}" stack`);
@@ -265,6 +271,7 @@ var Stack = class extends Node {
     this.name = name;
   }
   exported = {};
+  dependencies = /* @__PURE__ */ new Set();
   get resources() {
     return flatten(this).filter((node) => node instanceof Resource);
   }
@@ -648,6 +655,35 @@ var WorkSpace = class extends import_events.default {
       });
     });
   }
+  async getRemoteResource(props) {
+    this.emit("resource", {
+      urn: props.urn,
+      type: props.type,
+      operation: "get",
+      status: "in-progress"
+    });
+    let remote;
+    try {
+      remote = await props.provider.get(props);
+    } catch (error) {
+      const resourceError = ResourceError.wrap(props.urn, props.type, "get", error);
+      this.emit("resource", {
+        urn: props.urn,
+        type: props.type,
+        operation: "get",
+        status: "error",
+        reason: resourceError
+      });
+      throw resourceError;
+    }
+    this.emit("resource", {
+      urn: props.urn,
+      type: props.type,
+      operation: "get",
+      status: "success"
+    });
+    return remote;
+  }
   async deployStackResources(appUrn, appState, stackState, resources) {
     await this.healFromUnknownRemoteState(stackState);
     const deployGraph = {};
@@ -701,12 +737,13 @@ var WorkSpace = class extends import_events.default {
               }
               // deletionPolicy: unwrap(state.deletionPolicy),
             };
-            const remote = await provider.get({
-              urn: resource.urn,
+            const remote = await this.getRemoteResource({
               id,
+              urn: resource.urn,
               type: resource.type,
               document,
-              extra
+              extra,
+              provider
             });
             resourceState.remote = remote;
             this.emit("resource", {
@@ -758,12 +795,13 @@ var WorkSpace = class extends import_events.default {
             resourceState.id = id;
             resourceState.local = document;
             resourceState.assets = assetHashes;
-            const remote = await provider.get({
+            const remote = await this.getRemoteResource({
+              id,
               urn: resource.urn,
-              id: resourceState.id,
               type: resource.type,
               document,
-              extra
+              extra,
+              provider
             });
             resourceState.remote = remote;
             this.emit("resource", {
@@ -856,12 +894,13 @@ var WorkSpace = class extends import_events.default {
         const urn = urnStr;
         if (typeof resourceState.remote === "undefined") {
           const provider = this.getCloudProvider(resourceState.provider, urn);
-          const remote = await provider.get({
+          const remote = await this.getRemoteResource({
             urn,
             id: resourceState.id,
             type: resourceState.type,
             document: resourceState.local,
-            extra: resourceState.extra
+            extra: resourceState.extra,
+            provider
           });
           if (typeof remote === "undefined") {
             const resourceError = new ResourceError(
@@ -902,6 +941,7 @@ __export(aws_exports, {
   createCloudProviders: () => createCloudProviders,
   dynamodb: () => dynamodb_exports,
   ec2: () => ec2_exports,
+  elb: () => elb_exports,
   events: () => events_exports,
   iam: () => iam_exports,
   iot: () => iot_exports,
@@ -1023,8 +1063,8 @@ var CertificateValidationProvider = class {
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
   }
-  async get({ id, extra }) {
-    const client = this.client(extra.region);
+  async get({ id, document }) {
+    const client = this.client(document.Region);
     while (true) {
       const result = await client.send(
         new import_client_acm2.DescribeCertificateCommand({
@@ -1071,10 +1111,8 @@ var CertificateValidation = class extends Resource {
   }
   toState() {
     return {
-      extra: {
-        region: this.props.region
-      },
       document: {
+        Region: this.props.region,
         CertificateArn: this.props.certificateArn
       }
     };
@@ -1417,11 +1455,22 @@ var GraphQLApi = class extends Resource {
   }
   // addDataSource(id: string, props:) {
   // }
-  assignDomainName(id, props) {
-    const domain = new DomainName(id, props);
-    this.add(domain);
-    return domain;
-  }
+  // assignDomainName(
+  // 	id: string,
+  // 	props: {
+  // 		domainName: Input<string>
+  // 		certificateArn: Input<ARN>
+  // 	}
+  // ) {
+  // 	const domain = new DomainName(id, props)
+  // 	this.add(domain)
+  // 	// const association = new DomainNameApiAssociation(id, {
+  // 	// 	apiId: this.id,
+  // 	// 	domainName: domain.domainName,
+  // 	// })
+  // 	// domain.add(association)
+  // 	return domain
+  // }
   // setDefaultAuthorization(auth: GraphQLAuthorization) {
   // 	this.defaultAuthorization = auth
   // 	return this
@@ -1454,8 +1503,8 @@ var GraphQLApi = class extends Resource {
         authenticationType: "AMAZON_COGNITO_USER_POOLS",
         userPoolConfig: {
           userPoolId: prop2.userPoolId,
+          defaultAction: prop2.defaultAction ?? "ALLOW",
           ...this.attr("awsRegion", prop2.region),
-          ...this.attr("defaultAction", prop2.defaultAction),
           ...this.attr("appIdClientRegex", prop2.appIdClientRegex)
         }
       };
@@ -1649,6 +1698,8 @@ var CloudControlApiProvider = class {
         return event.Identifier;
       }
       if (event.OperationStatus === "FAILED") {
+        if (event.ErrorCode === "AlreadyExists") {
+        }
         if (event.ErrorCode === "NotFound") {
           throw new ResourceNotFound(event.StatusMessage);
         }
@@ -1723,13 +1774,55 @@ var cloud_front_exports = {};
 __export(cloud_front_exports, {
   CachePolicy: () => CachePolicy,
   Distribution: () => Distribution,
+  InvalidateCache: () => InvalidateCache,
+  InvalidateCacheProvider: () => InvalidateCacheProvider,
   OriginAccessControl: () => OriginAccessControl,
   OriginRequestPolicy: () => OriginRequestPolicy,
   ResponseHeadersPolicy: () => ResponseHeadersPolicy
 });
 
-// src/provider/aws/cloud-front/distribution.ts
+// src/provider/aws/cloud-front/cache-policy.ts
 var import_duration3 = require("@awsless/duration");
+var CachePolicy = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::CloudFront::CachePolicy", id, props);
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.Id);
+  }
+  toState() {
+    return {
+      document: {
+        CachePolicyConfig: {
+          Name: this.props.name,
+          MinTTL: (0, import_duration3.toSeconds)(unwrap(this.props.minTtl)),
+          MaxTTL: (0, import_duration3.toSeconds)(unwrap(this.props.maxTtl)),
+          DefaultTTL: (0, import_duration3.toSeconds)(unwrap(this.props.defaultTtl)),
+          ParametersInCacheKeyAndForwardedToOrigin: {
+            EnableAcceptEncodingGzip: unwrap(this.props.acceptGzip, false),
+            EnableAcceptEncodingBrotli: unwrap(this.props.acceptBrotli, false),
+            CookiesConfig: {
+              CookieBehavior: unwrap(this.props.cookies) ? "whitelist" : "none",
+              ...this.attr("Cookies", this.props.cookies)
+            },
+            HeadersConfig: {
+              HeaderBehavior: unwrap(this.props.headers) ? "whitelist" : "none",
+              ...this.attr("Headers", this.props.headers)
+            },
+            QueryStringsConfig: {
+              QueryStringBehavior: unwrap(this.props.queries) ? "whitelist" : "none",
+              ...this.attr("QueryStrings", this.props.queries)
+            }
+          }
+        }
+      }
+    };
+  }
+};
+
+// src/provider/aws/cloud-front/distribution.ts
+var import_duration4 = require("@awsless/duration");
 var Distribution = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::CloudFront::Distribution", id, props);
@@ -1821,7 +1914,7 @@ var Distribution = class extends CloudControlApiResource {
             ErrorCode: item.errorCode,
             ...this.attr(
               "ErrorCachingMinTTL",
-              item.cacheMinTTL && (0, import_duration3.toSeconds)(unwrap(item.cacheMinTTL))
+              item.cacheMinTTL && (0, import_duration4.toSeconds)(unwrap(item.cacheMinTTL))
             ),
             ...this.attr("ResponseCode", item.responseCode),
             ...this.attr("ResponsePagePath", item.responsePath)
@@ -1831,6 +1924,7 @@ var Distribution = class extends CloudControlApiResource {
             ViewerProtocolPolicy: unwrap(this.props.viewerProtocol, "redirect-to-https"),
             AllowedMethods: unwrap(this.props.allowMethod, ["GET", "HEAD", "OPTIONS"]),
             Compress: unwrap(this.props.compress, false),
+            ...this.attr("DefaultRootObject", this.props.defaultRootObject),
             FunctionAssociations: unwrap(this.props.associations, []).map((v) => unwrap(v)).map((association) => ({
               EventType: association.type,
               FunctionARN: association.functionArn
@@ -1851,41 +1945,58 @@ var Distribution = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/cloud-front/cache-policy.ts
-var import_duration4 = require("@awsless/duration");
-var CachePolicy = class extends CloudControlApiResource {
+// src/provider/aws/cloud-front/invalidate-cache-provider.ts
+var import_client_cloudfront = require("@aws-sdk/client-cloudfront");
+var InvalidateCacheProvider = class {
+  client;
+  constructor(props) {
+    this.client = new import_client_cloudfront.CloudFrontClient(props);
+  }
+  own(id) {
+    return id === "aws-cloud-front-invalidate-cache";
+  }
+  async invalidate(document) {
+    const id = sha256(JSON.stringify(document.Versions));
+    await this.client.send(
+      new import_client_cloudfront.CreateInvalidationCommand({
+        DistributionId: document.DistributionId,
+        InvalidationBatch: {
+          CallerReference: id,
+          Paths: {
+            Items: document.Paths,
+            Quantity: document.Paths.length
+          }
+        }
+      })
+    );
+    return id;
+  }
+  async get() {
+    return {};
+  }
+  async create({ document }) {
+    return this.invalidate(document);
+  }
+  async update({ newDocument }) {
+    return this.invalidate(newDocument);
+  }
+  async delete() {
+  }
+};
+
+// src/provider/aws/cloud-front/invalidate-cache.ts
+var InvalidateCache = class extends Resource {
   constructor(id, props) {
-    super("AWS::CloudFront::CachePolicy", id, props);
+    super("AWS::CloudFront::InvalidateCache", id, props);
     this.props = props;
   }
-  get id() {
-    return this.output((v) => v.Id);
-  }
+  cloudProviderId = "aws-cloud-front-invalidate-cache";
   toState() {
     return {
       document: {
-        CachePolicyConfig: {
-          Name: this.props.name,
-          MinTTL: (0, import_duration4.toSeconds)(unwrap(this.props.minTtl)),
-          MaxTTL: (0, import_duration4.toSeconds)(unwrap(this.props.maxTtl)),
-          DefaultTTL: (0, import_duration4.toSeconds)(unwrap(this.props.defaultTtl)),
-          ParametersInCacheKeyAndForwardedToOrigin: {
-            EnableAcceptEncodingGzip: unwrap(this.props.acceptGzip, false),
-            EnableAcceptEncodingBrotli: unwrap(this.props.acceptBrotli, false),
-            CookiesConfig: {
-              CookieBehavior: unwrap(this.props.cookies) ? "whitelist" : "none",
-              ...this.attr("Cookies", this.props.cookies)
-            },
-            HeadersConfig: {
-              HeaderBehavior: unwrap(this.props.headers) ? "whitelist" : "none",
-              ...this.attr("Headers", this.props.headers)
-            },
-            QueryStringsConfig: {
-              QueryStringBehavior: unwrap(this.props.queries) ? "whitelist" : "none",
-              ...this.attr("QueryStrings", this.props.queries)
-            }
-          }
-        }
+        DistributionId: this.props.distributionId,
+        Versions: this.props.versions,
+        Paths: this.props.paths
       }
     };
   }
@@ -2084,8 +2195,7 @@ var cognito_exports = {};
 __export(cognito_exports, {
   UserPool: () => UserPool,
   UserPoolClient: () => UserPoolClient,
-  UserPoolDomain: () => UserPoolDomain,
-  UserPoolEmail: () => UserPoolEmail
+  UserPoolDomain: () => UserPoolDomain
 });
 
 // src/provider/aws/cognito/user-pool-client.ts
@@ -2244,6 +2354,7 @@ var UserPool = class extends CloudControlApiResource {
     return client;
   }
   toState() {
+    const email = unwrap(this.props.email);
     const username = unwrap(this.props.username);
     const password = unwrap(this.props.password);
     const triggers = unwrap(this.props.triggers);
@@ -2275,7 +2386,15 @@ var UserPool = class extends CloudControlApiResource {
         UsernameConfiguration: {
           CaseSensitive: unwrap(username?.caseSensitive, false)
         },
-        ...this.attr("EmailConfiguration", unwrap(this.props.email)?.toJSON()),
+        ...this.attr(
+          "EmailConfiguration",
+          email && {
+            ...this.attr("EmailSendingAccount", email.type, import_change_case2.constantCase),
+            ...this.attr("From", email.from),
+            ...this.attr("ReplyToEmailAddress", email.replyTo),
+            ...this.attr("SourceArn", email.sourceArn)
+          }
+        ),
         DeviceConfiguration: {
           DeviceOnlyRememberedOnUserPrompt: false
         },
@@ -2313,27 +2432,6 @@ var UserPool = class extends CloudControlApiResource {
           } : {}
         }
       }
-    };
-  }
-};
-var UserPoolEmail = class _UserPoolEmail {
-  constructor(props) {
-    this.props = props;
-  }
-  static withSES(props) {
-    return new _UserPoolEmail({
-      type: "developer",
-      replyTo: props.replyTo,
-      from: props.fromName ? `${props.fromName} <${props.fromEmail}>` : props.fromEmail,
-      sourceArn: props.sourceArn
-    });
-  }
-  toJSON() {
-    return {
-      ...this.props.type ? { EmailSendingAccount: (0, import_change_case2.constantCase)(this.props.type) } : {},
-      ...this.props.from ? { From: this.props.from } : {},
-      ...this.props.replyTo ? { ReplyToEmailAddress: this.props.replyTo } : {},
-      ...this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}
     };
   }
 };
@@ -3158,6 +3256,248 @@ var InternetGateway = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/elb/index.ts
+var elb_exports = {};
+__export(elb_exports, {
+  AuthCognitoAction: () => AuthCognitoAction,
+  FixedResponseAction: () => FixedResponseAction,
+  ForwardAction: () => ForwardAction,
+  HttpRequestMethods: () => HttpRequestMethods,
+  Listener: () => Listener,
+  ListenerAction: () => ListenerAction,
+  ListenerCondition: () => ListenerCondition,
+  ListenerRule: () => ListenerRule,
+  LoadBalancer: () => LoadBalancer,
+  PathPattern: () => PathPattern,
+  TargetGroup: () => TargetGroup
+});
+
+// src/provider/aws/elb/listener-action.ts
+var import_duration9 = require("@awsless/duration");
+var ListenerAction = class {
+  static authCognito(props) {
+    return new AuthCognitoAction(props);
+  }
+  static fixedResponse(props) {
+    return new FixedResponseAction(props);
+  }
+  static forward(targets) {
+    return new ForwardAction({
+      targetGroups: targets
+    });
+  }
+};
+var ForwardAction = class extends ListenerAction {
+  constructor(props) {
+    super();
+    this.props = props;
+  }
+  toJSON() {
+    return {
+      Type: "forward",
+      ForwardConfig: {
+        TargetGroups: unwrap(this.props.targetGroups).map((target) => ({
+          TargetGroupArn: target
+        }))
+      }
+    };
+  }
+};
+var FixedResponseAction = class extends ListenerAction {
+  constructor(props) {
+    super();
+    this.props = props;
+  }
+  toJSON() {
+    return {
+      Type: "fixed-response",
+      FixedResponseConfig: {
+        StatusCode: unwrap(this.props.statusCode).toString(),
+        ...this.props.contentType ? { ContentType: this.props.contentType } : {},
+        ...this.props.messageBody ? { MessageBody: this.props.messageBody } : {}
+      }
+    };
+  }
+};
+var AuthCognitoAction = class extends ListenerAction {
+  constructor(props) {
+    super();
+    this.props = props;
+  }
+  toJSON() {
+    const session = unwrap(this.props.session, {});
+    const userPool = unwrap(this.props.userPool);
+    return {
+      Type: "authenticate-cognito",
+      AuthenticateCognitoConfig: {
+        OnUnauthenticatedRequest: unwrap(this.props.onUnauthenticated, "deny"),
+        Scope: unwrap(this.props.scope, "openid"),
+        SessionCookieName: unwrap(session.cookieName, "AWSELBAuthSessionCookie"),
+        SessionTimeout: (0, import_duration9.toSeconds)(unwrap(session.timeout, (0, import_duration9.days)(7))),
+        UserPoolArn: userPool.arn,
+        UserPoolClientId: userPool.clientId,
+        UserPoolDomain: userPool.domain
+      }
+    };
+  }
+};
+
+// src/provider/aws/elb/listener-condition.ts
+var ListenerCondition = class {
+  static httpRequestMethods(methods) {
+    return new HttpRequestMethods({ methods });
+  }
+  static pathPatterns(paths) {
+    return new PathPattern({ paths });
+  }
+};
+var HttpRequestMethods = class extends ListenerCondition {
+  constructor(props) {
+    super();
+    this.props = props;
+  }
+  toJSON() {
+    return {
+      Field: "http-request-method",
+      HttpRequestMethodConfig: {
+        Values: this.props.methods
+      }
+    };
+  }
+};
+var PathPattern = class extends ListenerCondition {
+  constructor(props) {
+    super();
+    this.props = props;
+  }
+  toJSON() {
+    return {
+      Field: "path-pattern",
+      PathPatternConfig: {
+        Values: this.props.paths
+      }
+    };
+  }
+};
+
+// src/provider/aws/elb/listener-rule.ts
+var ListenerRule = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::ElasticLoadBalancingV2::ListenerRule", id, props);
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.RuleArn);
+  }
+  toState() {
+    return {
+      document: {
+        ListenerArn: this.props.listenerArn,
+        Priority: this.props.priority,
+        Conditions: unwrap(this.props.conditions).map((v) => unwrap(v)).map((condition) => condition.toJSON()),
+        Actions: unwrap(this.props.actions).map((v) => unwrap(v)).map((action, i) => {
+          return {
+            Order: i + 1,
+            ...action.toJSON()
+          };
+        })
+      }
+    };
+  }
+};
+
+// src/provider/aws/elb/listener.ts
+var import_change_case4 = require("change-case");
+var Listener = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::ElasticLoadBalancingV2::Listener", id, props);
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.ListenerArn);
+  }
+  toState() {
+    return {
+      document: {
+        LoadBalancerArn: this.props.loadBalancerArn,
+        Port: this.props.port,
+        Protocol: (0, import_change_case4.constantCase)(unwrap(this.props.protocol)),
+        Certificates: unwrap(this.props.certificates).map((arn) => ({
+          CertificateArn: arn
+        })),
+        ...this.attr(
+          "DefaultActions",
+          this.props.defaultActions && unwrap(this.props.defaultActions).map((action, i) => {
+            return {
+              Order: i + 1,
+              ...unwrap(action).toJSON()
+            };
+          })
+        )
+      }
+    };
+  }
+};
+
+// src/provider/aws/elb/load-balancer.ts
+var LoadBalancer = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::ElasticLoadBalancingV2::LoadBalancer", id, props);
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.LoadBalancerArn);
+  }
+  get name() {
+    return this.output((v) => v.LoadBalancerName);
+  }
+  get dnsName() {
+    return this.output((v) => v.DNSName);
+  }
+  get fullName() {
+    return this.output((v) => v.LoadBalancerFullName);
+  }
+  get hostedZoneId() {
+    return this.output((v) => v.CanonicalHostedZoneID);
+  }
+  toState() {
+    return {
+      document: {
+        Name: this.props.name,
+        Type: this.props.type,
+        Scheme: unwrap(this.props.schema, "internet-facing"),
+        SecurityGroups: this.props.securityGroups,
+        Subnets: this.props.subnets
+      }
+    };
+  }
+};
+
+// src/provider/aws/elb/target-group.ts
+var TargetGroup = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::ElasticLoadBalancingV2::TargetGroup", id, props);
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.TargetGroupArn);
+  }
+  get fullName() {
+    return this.output((v) => v.TargetGroupFullName);
+  }
+  toState() {
+    return {
+      document: {
+        Name: this.props.name,
+        TargetType: this.props.type,
+        Targets: unwrap(this.props.targets).map((target) => ({
+          Id: target
+        }))
+      }
+    };
+  }
+};
+
 // src/provider/aws/events/index.ts
 var events_exports = {};
 __export(events_exports, {
@@ -3207,7 +3547,7 @@ __export(iam_exports, {
 });
 
 // src/provider/aws/iam/role-policy.ts
-var import_change_case4 = require("change-case");
+var import_change_case5 = require("change-case");
 var formatPolicyDocument = (policy) => ({
   PolicyName: policy.name,
   PolicyDocument: {
@@ -3216,7 +3556,7 @@ var formatPolicyDocument = (policy) => ({
   }
 });
 var formatStatement = (statement) => ({
-  Effect: (0, import_change_case4.capitalCase)(unwrap(statement.effect, "allow")),
+  Effect: (0, import_change_case5.capitalCase)(unwrap(statement.effect, "allow")),
   Action: statement.actions,
   Resource: statement.resources
 });
@@ -3369,8 +3709,8 @@ __export(lambda_exports, {
 });
 
 // src/provider/aws/lambda/url.ts
-var import_change_case5 = require("change-case");
-var import_duration9 = require("@awsless/duration");
+var import_change_case6 = require("change-case");
+var import_duration10 = require("@awsless/duration");
 var Url = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::Url", id, props);
@@ -3395,14 +3735,14 @@ var Url = class extends CloudControlApiResource {
       ...this.attr("AllowMethods", allow.methods),
       ...this.attr("AllowOrigins", allow.origins),
       ...this.attr("ExposeHeaders", expose.headers),
-      ...this.attr("MaxAge", cors.maxAge, import_duration9.toSeconds)
+      ...this.attr("MaxAge", cors.maxAge, import_duration10.toSeconds)
     };
   }
   toState() {
     return {
       document: {
-        AuthType: (0, import_change_case5.constantCase)(unwrap(this.props.authType, "none")),
-        InvokeMode: (0, import_change_case5.constantCase)(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: (0, import_change_case6.constantCase)(unwrap(this.props.authType, "none")),
+        InvokeMode: (0, import_change_case6.constantCase)(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn,
         ...this.attr("Qualifier", this.props.qualifier),
         Cors: this.cors()
@@ -3412,7 +3752,7 @@ var Url = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/permission.ts
-var import_change_case6 = require("change-case");
+var import_change_case7 = require("change-case");
 var Permission = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::Permission", id, props);
@@ -3425,7 +3765,7 @@ var Permission = class extends CloudControlApiResource {
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal,
         ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case6.constantCase)
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case7.constantCase)
         // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
         // ...(this.props.urlAuthType
         // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
@@ -3436,7 +3776,7 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/function.ts
-var import_change_case7 = require("change-case");
+var import_change_case8 = require("change-case");
 
 // src/provider/aws/lambda/code.ts
 var formatCode = (code) => {
@@ -3459,7 +3799,7 @@ var formatCode = (code) => {
 
 // src/provider/aws/lambda/function.ts
 var import_size = require("@awsless/size");
-var import_duration10 = require("@awsless/duration");
+var import_duration11 = require("@awsless/duration");
 var Function = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::Function", id, props);
@@ -3490,23 +3830,23 @@ var Function = class extends CloudControlApiResource {
       resources: [this.arn]
     };
   }
-  enableUrlAccess(props = {}) {
-    const url = new Url("url", {
-      ...props,
-      targetArn: this.arn
-    });
-    const permissions = new Permission("url", {
-      principal: "*",
-      // principal: 'cloudfront.amazonaws.com',
-      // sourceArn: distribution.arn,
-      action: "lambda:InvokeFunctionUrl",
-      functionArn: this.arn,
-      urlAuthType: props.authType ?? "none"
-    });
-    this.add(permissions);
-    this.add(url);
-    return url;
-  }
+  // enableUrlAccess(props: Omit<UrlProps, 'targetArn'> = {}) {
+  // 	const url = new Url('url', {
+  // 		...props,
+  // 		targetArn: this.arn,
+  // 	})
+  // 	const permissions = new Permission('url', {
+  // 		principal: '*',
+  // 		// principal: 'cloudfront.amazonaws.com',
+  // 		// sourceArn: distribution.arn,
+  // 		action: 'lambda:InvokeFunctionUrl',
+  // 		functionArn: this.arn,
+  // 		urlAuthType: props.authType ?? 'none',
+  // 	})
+  // 	this.add(permissions)
+  // 	this.add(url)
+  // 	return url
+  // }
   toState() {
     if (unwrap(this.props.name).length > 64) {
       throw new TypeError(`Lambda function name length can't be greater then 64. ${unwrap(this.props.name)}`);
@@ -3521,7 +3861,7 @@ var Function = class extends CloudControlApiResource {
         MemorySize: (0, import_size.toMebibytes)(unwrap(this.props.memorySize, (0, import_size.mebibytes)(128))),
         Handler: unwrap(this.props.handler, "index.default"),
         Runtime: unwrap(this.props.runtime, "nodejs18.x"),
-        Timeout: (0, import_duration10.toSeconds)(unwrap(this.props.timeout, (0, import_duration10.seconds)(10))),
+        Timeout: (0, import_duration11.toSeconds)(unwrap(this.props.timeout, (0, import_duration11.seconds)(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
@@ -3532,8 +3872,8 @@ var Function = class extends CloudControlApiResource {
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -3554,7 +3894,7 @@ var Function = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-invoke-config.ts
-var import_duration11 = require("@awsless/duration");
+var import_duration12 = require("@awsless/duration");
 var EventInvokeConfig = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::EventInvokeConfig", id, props);
@@ -3573,7 +3913,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
       document: {
         FunctionName: this.props.functionArn,
         Qualifier: unwrap(this.props.qualifier, "$LATEST"),
-        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration11.toSeconds),
+        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration12.toSeconds),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.props.onFailure || this.props.onSuccess ? {
           DestinationConfig: {
@@ -3595,8 +3935,8 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-source-mapping.ts
-var import_duration12 = require("@awsless/duration");
-var import_change_case8 = require("change-case");
+var import_duration13 = require("@awsless/duration");
+var import_change_case9 = require("change-case");
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::Lambda::EventSourceMapping", id, props);
@@ -3613,13 +3953,13 @@ var EventSourceMapping = class extends CloudControlApiResource {
         FunctionName: this.props.functionArn,
         EventSourceArn: this.props.sourceArn,
         ...this.attr("BatchSize", this.props.batchSize),
-        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration12.toSeconds),
-        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration12.toSeconds),
+        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration13.toSeconds),
+        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration13.toSeconds),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
-        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration12.toSeconds),
+        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration13.toSeconds),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case8.constantCase),
+        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case9.constantCase),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
         ...this.props.maxConcurrency ? {
           ScalingConfig: {
@@ -3714,7 +4054,8 @@ var SubnetGroup = class extends CloudControlApiResource {
 // src/provider/aws/open-search-serverless/index.ts
 var open_search_serverless_exports = {};
 __export(open_search_serverless_exports, {
-  Collection: () => Collection
+  Collection: () => Collection,
+  SecurityPolicy: () => SecurityPolicy
 });
 
 // src/provider/aws/open-search-serverless/collection.ts
@@ -3749,6 +4090,24 @@ var Collection = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/open-search-serverless/security-policy.ts
+var SecurityPolicy = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::OpenSearchServerless::SecurityPolicy", id, props);
+    this.props = props;
+  }
+  toState() {
+    return {
+      document: {
+        Name: this.props.name,
+        Type: this.props.type,
+        Policy: this.props.policy,
+        ...this.attr("Description", this.props.description)
+      }
+    };
+  }
+};
+
 // src/provider/aws/route53/index.ts
 var route53_exports = {};
 __export(route53_exports, {
@@ -3759,7 +4118,7 @@ __export(route53_exports, {
 });
 
 // src/provider/aws/route53/record-set.ts
-var import_duration13 = require("@awsless/duration");
+var import_duration14 = require("@awsless/duration");
 var formatRecordSet = (record) => {
   const name = unwrap(record.name);
   return {
@@ -3768,7 +4127,7 @@ var formatRecordSet = (record) => {
     Weight: unwrap(record.weight, 0),
     // ...(record.ttl ? {} : {}),
     ..."records" in record ? {
-      TTL: (0, import_duration13.toSeconds)(unwrap(record.ttl, (0, import_duration13.minutes)(5))),
+      TTL: (0, import_duration14.toSeconds)(unwrap(record.ttl, (0, import_duration14.minutes)(5))),
       ResourceRecords: record.records
     } : {},
     ..."alias" in record && unwrap(record.alias) ? {
@@ -3972,8 +4331,11 @@ var BucketObject = class extends Resource {
         body: this.props.body
       },
       document: {
-        bucket: this.props.bucket,
-        key: this.props.key
+        Bucket: this.props.bucket,
+        Key: this.props.key,
+        CacheControl: this.props.cacheControl,
+        ContentType: this.props.contentType,
+        Metadata: this.props.metadata
       }
     };
   }
@@ -4149,10 +4511,10 @@ var BucketProvider = class {
 };
 
 // src/provider/aws/s3/bucket-policy.ts
-var import_change_case9 = require("change-case");
+var import_change_case10 = require("change-case");
 var BucketPolicy = class extends CloudControlApiResource {
   constructor(id, props) {
-    super("AWS::S3::BucketPolicy", id);
+    super("AWS::S3::BucketPolicy", id, props);
     this.props = props;
   }
   toState() {
@@ -4160,9 +4522,9 @@ var BucketPolicy = class extends CloudControlApiResource {
       document: {
         Bucket: this.props.bucketName,
         PolicyDocument: {
-          Version: this.props.version ?? "2012-10-17",
+          Version: unwrap(this.props.version, "2012-10-17"),
           Statement: unwrap(this.props.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case9.capitalCase)(statement.effect ?? "allow"),
+            Effect: (0, import_change_case10.capitalCase)(unwrap(statement.effect, "allow")),
             ...statement.principal ? {
               Principal: {
                 Service: statement.principal
@@ -4197,8 +4559,8 @@ var BucketObjectProvider = class {
   async get({ document }) {
     const result = await this.client.send(
       new import_client_s32.GetObjectAttributesCommand({
-        Bucket: document.bucket,
-        Key: document.key,
+        Bucket: document.Bucket,
+        Key: document.Key,
         ObjectAttributes: ["ETag", "Checksum"]
       })
     );
@@ -4211,39 +4573,37 @@ var BucketObjectProvider = class {
   async create({ document, assets }) {
     await this.client.send(
       new import_client_s32.PutObjectCommand({
-        Bucket: document.bucket,
-        Key: document.key,
+        ...document,
         Body: assets.body?.data
       })
     );
-    return JSON.stringify([document.bucket, document.key]);
+    return JSON.stringify([document.Bucket, document.Key]);
   }
   async update({ oldDocument, newDocument, assets }) {
-    if (oldDocument.bucket !== newDocument.bucket) {
+    if (oldDocument.Bucket !== newDocument.Bucket) {
       throw new Error(`BucketObject can't change the bucket name`);
     }
-    if (oldDocument.key !== newDocument.key) {
+    if (oldDocument.Key !== newDocument.Key) {
       await this.client.send(
         new import_client_s32.DeleteObjectCommand({
-          Bucket: oldDocument.bucket,
-          Key: oldDocument.key
+          Bucket: oldDocument.Bucket,
+          Key: oldDocument.Key
         })
       );
     }
     await this.client.send(
       new import_client_s32.PutObjectCommand({
-        Bucket: newDocument.bucket,
-        Key: newDocument.key,
+        ...newDocument,
         Body: assets.body?.data
       })
     );
-    return JSON.stringify([newDocument.bucket, newDocument.key]);
+    return JSON.stringify([newDocument.Bucket, newDocument.Key]);
   }
   async delete({ document }) {
     await this.client.send(
       new import_client_s32.DeleteObjectCommand({
-        Bucket: document.bucket,
-        Key: document.key
+        Bucket: document.Bucket,
+        Key: document.Key
       })
     );
   }
@@ -4277,13 +4637,16 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-var import_change_case10 = require("change-case");
-var import_duration14 = require("@awsless/duration");
+var import_change_case11 = require("change-case");
+var import_duration15 = require("@awsless/duration");
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::SES::EmailIdentity", id, props);
     this.props = props;
   }
+  // get arn() {
+  // 	return this.output(() => `arn:aws:ses:eu-west-1:468004125411:identity/${this.props.emailIdentity}`)
+  // }
   getDnsToken(index) {
     return this.output((v) => ({
       name: v[`DkimDNSTokenName${index}`],
@@ -4304,28 +4667,14 @@ var EmailIdentity = class extends CloudControlApiResource {
       this.getDnsToken(3)
     ];
   }
-  dnsRecords(region) {
-    const ttl = (0, import_duration14.minutes)(5);
-    return [
-      ...this.dkimDnsTokens.map((token) => ({
-        name: token.apply((token2) => token2.name),
-        type: "CNAME",
-        ttl,
-        records: [token.apply((token2) => token2.value)]
-      })),
-      {
-        name: this.props.emailIdentity,
-        type: "TXT",
-        ttl,
-        records: ['"v=spf1 include:amazonses.com -all"']
-      },
-      {
-        name: this.props.emailIdentity,
-        type: "MX",
-        ttl,
-        records: [`10 feedback-smtp.${region}.amazonses.com.`]
-      }
-    ];
+  get dkimRecords() {
+    const ttl = (0, import_duration15.minutes)(5);
+    return this.dkimDnsTokens.map((token) => ({
+      name: token.apply((token2) => token2.name),
+      type: "CNAME",
+      ttl,
+      records: [token.apply((token2) => token2.value)]
+    }));
   }
   toState() {
     return {
@@ -4341,7 +4690,7 @@ var EmailIdentity = class extends CloudControlApiResource {
             SigningEnabled: true
           },
           DkimSigningAttributes: {
-            NextSigningKeyLength: (0, import_change_case10.constantCase)(unwrap(this.props.dkim))
+            NextSigningKeyLength: (0, import_change_case11.constantCase)(unwrap(this.props.dkim))
           }
         } : {},
         FeedbackAttributes: {
@@ -4487,7 +4836,7 @@ __export(sqs_exports, {
 });
 
 // src/provider/aws/sqs/queue.ts
-var import_duration15 = require("@awsless/duration");
+var import_duration16 = require("@awsless/duration");
 var import_size2 = require("@awsless/size");
 var Queue = class extends CloudControlApiResource {
   constructor(id, props) {
@@ -4524,11 +4873,11 @@ var Queue = class extends CloudControlApiResource {
       document: {
         QueueName: this.props.name,
         Tags: [{ Key: "name", Value: this.props.name }],
-        DelaySeconds: (0, import_duration15.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration15.seconds)(0))),
+        DelaySeconds: (0, import_duration16.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration16.seconds)(0))),
         MaximumMessageSize: (0, import_size2.toBytes)(unwrap(this.props.maxMessageSize, (0, import_size2.kibibytes)(256))),
-        MessageRetentionPeriod: (0, import_duration15.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration15.days)(4))),
-        ReceiveMessageWaitTimeSeconds: (0, import_duration15.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration15.seconds)(0))),
-        VisibilityTimeout: (0, import_duration15.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration15.seconds)(30))),
+        MessageRetentionPeriod: (0, import_duration16.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration16.days)(4))),
+        ReceiveMessageWaitTimeSeconds: (0, import_duration16.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration16.seconds)(0))),
+        VisibilityTimeout: (0, import_duration16.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration16.seconds)(30))),
         ...this.props.deadLetterArn ? {
           RedrivePolicy: {
             deadLetterTargetArn: this.props.deadLetterArn,
@@ -4555,7 +4904,8 @@ var createCloudProviders = (config) => {
     new GraphQLApiProvider(config),
     new GraphQLSchemaProvider(config),
     new DataSourceProvider(config),
-    new SubscriptionProvider(config)
+    new SubscriptionProvider(config),
+    new InvalidateCacheProvider(config)
   ];
 };
 
@@ -4618,6 +4968,7 @@ var LocalStateProvider = class {
   Output,
   RemoteAsset,
   Resource,
+  ResourceAlreadyExists,
   ResourceError,
   ResourceNotFound,
   Stack,

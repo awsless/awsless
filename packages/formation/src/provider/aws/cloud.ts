@@ -11,6 +11,7 @@ import { GraphQLSchemaProvider } from './appsync/graphql-schema-provider'
 import { DataSourceProvider } from './appsync/data-source-provider'
 import { Duration } from '@awsless/duration'
 import { SubscriptionProvider } from './sns/subscription-provider'
+import { InvalidateCacheProvider } from './cloud-front'
 
 type ConfigProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -33,5 +34,6 @@ export const createCloudProviders = (config: ConfigProps) => {
 		new GraphQLSchemaProvider(config),
 		new DataSourceProvider(config),
 		new SubscriptionProvider(config),
+		new InvalidateCacheProvider(config),
 	]
 }

@@ -120,7 +120,7 @@ export const graphqlFeature = defineFeature({
 									'appsync:StartSchemaMerge',
 									'appsync:SourceGraphQL',
 								],
-								resources: ['arn:aws:appsync:*:*:apis/*'],
+								resources: [`arn:aws:appsync:${ctx.appConfig.region}:${ctx.accountId}:apis/*`],
 							},
 						],
 					},
@@ -138,7 +138,7 @@ export const graphqlFeature = defineFeature({
 						? {
 								type: 'cognito',
 								region: ctx.appConfig.region,
-								userPoolId: ctx.app.import('base', `auth-${props.auth}-user-pool-id`),
+								userPoolId: ctx.base.import(`auth-${props.auth}-user-pool-id`),
 						  }
 						: {
 								type: 'iam',
@@ -146,40 +146,52 @@ export const graphqlFeature = defineFeature({
 				},
 			})
 
+			// if (props.auth) {
+			// 	api.setDefaultAuthorization(
+			// 		GraphQLAuthorization.withCognito({
+			// 			userPoolId: bootstrap.import(`auth-${props.auth}-user-pool-id`),
+			// 			region: bootstrap.region,
+			// 			defaultAction: 'ALLOW',
+			// 		})
+			// 	)
+			// }
+
 			ctx.base.export(`graphql-${id}-id`, api.id)
 
 			group.add(api)
 
-			// if (props.domain) {
-			// 	const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+			if (props.domain) {
+				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				const domainGroup = new Node('domain', domainName)
+				group.add(domainGroup)
 
-			// 	const domain = new aws.appsync.DomainName('domain', {
-			// 		domainName,
-			// 		certificateArn: ctx.base.import(`us-east-certificate-${props.domain}-arn`),
-			// 	})
+				const domain = new aws.appsync.DomainName('domain', {
+					domainName,
+					certificateArn: ctx.base.import(`global-certificate-${props.domain}-arn`),
+				})
 
-			// 	group.add(domain)
+				domainGroup.add(domain)
 
-			// 	const association = new aws.appsync.DomainNameApiAssociation('association', {
-			// 		apiId: api.id,
-			// 		domainName: domain.domainName,
-			// 	})
+				const association = new aws.appsync.DomainNameApiAssociation('association', {
+					apiId: api.id,
+					domainName: domain.domainName,
+				})
 
-			// 	group.add(association)
+				domainGroup.add(association)
 
-			// 	const record = new aws.route53.RecordSet('record', {
-			// 		hostedZoneId: ctx.base.import(`hosted-zone-${props.domain}-id`),
-			// 		type: 'A',
-			// 		name: domainName,
-			// 		alias: {
-			// 			dnsName: domain.appSyncDomainName,
-			// 			hostedZoneId: domain.hostedZoneId,
-			// 			evaluateTargetHealth: false,
-			// 		},
-			// 	})
+				const record = new aws.route53.RecordSet('record', {
+					hostedZoneId: ctx.base.import(`hosted-zone-${props.domain}-id`),
+					type: 'A',
+					name: domainName,
+					alias: {
+						dnsName: domain.appSyncDomainName,
+						hostedZoneId: domain.hostedZoneId,
+						evaluateTargetHealth: false,
+					},
+				})
 
-			// 	group.add(record)
-			// }
+				domainGroup.add(record)
+			}
 		}
 	},
 	onStack(ctx) {
@@ -196,7 +208,7 @@ export const graphqlFeature = defineFeature({
 
 			const api = new aws.appsync.GraphQLApi('api', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'graphql', id),
-				visibility: false,
+				// visibility: false,
 				auth: {
 					default: {
 						type: 'iam',
@@ -206,19 +218,23 @@ export const graphqlFeature = defineFeature({
 
 			group.add(api)
 
-			const association = new aws.appsync.SourceApiAssociation('association', {
-				mergedApiId: ctx.app.import('base', `graphql-${id}-id`),
-				sourceApiId: api.id,
-			})
-
-			group.add(association)
-
 			const schema = new aws.appsync.GraphQLSchema('schema', {
 				apiId: api.id,
 				definition: Asset.fromFile(props.schema),
 			})
 
 			group.add(schema)
+
+			const association = new aws.appsync.SourceApiAssociation('association', {
+				mergedApiId: ctx.app.import('base', `graphql-${id}-id`),
+				sourceApiId: api.id,
+			})
+
+			// Association will fail without a valid schema.
+			// So we need to wait on the schema.
+			association.dependsOn(schema)
+
+			group.add(association)
 
 			for (const [typeName, fields] of Object.entries(props.resolvers ?? {})) {
 				for (const [fieldName, props] of Object.entries(fields ?? {})) {

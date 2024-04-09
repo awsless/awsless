@@ -1,25 +1,26 @@
 import { capitalCase } from 'change-case'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api'
+import { ARN } from '../types'
 
 export class BucketPolicy extends CloudControlApiResource {
 	constructor(
 		id: string,
 		private props: {
 			bucketName: Input<string>
-			version?: '2012-10-17'
+			version?: Input<'2012-10-17'>
 			statements: Input<
 				Input<{
-					effect?: 'allow' | 'deny'
-					principal?: string
-					actions: string[]
-					resources: string[]
-					sourceArn?: string
+					effect?: Input<'allow' | 'deny'>
+					principal?: Input<string>
+					actions: Input<Input<string>[]>
+					resources: Input<Input<ARN>[]>
+					sourceArn?: Input<ARN>
 				}>[]
 			>
 		}
 	) {
-		super('AWS::S3::BucketPolicy', id)
+		super('AWS::S3::BucketPolicy', id, props)
 	}
 
 	toState() {
@@ -27,11 +28,11 @@ export class BucketPolicy extends CloudControlApiResource {
 			document: {
 				Bucket: this.props.bucketName,
 				PolicyDocument: {
-					Version: this.props.version ?? '2012-10-17',
+					Version: unwrap(this.props.version, '2012-10-17'),
 					Statement: unwrap(this.props.statements, [])
 						.map(s => unwrap(s))
 						.map(statement => ({
-							Effect: capitalCase(statement.effect ?? 'allow'),
+							Effect: capitalCase(unwrap(statement.effect, 'allow')),
 							...(statement.principal
 								? {
 										Principal: {

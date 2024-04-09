@@ -2,8 +2,8 @@ import { Duration, toSeconds } from '@awsless/duration'
 import { ARN } from '../types'
 import { Input, unwrap } from '../../../core/output'
 import { Resource } from '../../../core/resource'
-import { DomainName } from './domain-name'
-import { DomainNameApiAssociation } from './domain-name-api-association'
+// import { DomainName } from './domain-name'
+// import { DomainNameApiAssociation } from './domain-name-api-association'
 
 type CognitoAuth = {
 	type: Input<'cognito'>
@@ -83,25 +83,25 @@ export class GraphQLApi extends Resource {
 
 	// }
 
-	assignDomainName(
-		id: string,
-		props: {
-			domainName: Input<string>
-			certificateArn: Input<ARN>
-		}
-	) {
-		const domain = new DomainName(id, props)
-		this.add(domain)
+	// assignDomainName(
+	// 	id: string,
+	// 	props: {
+	// 		domainName: Input<string>
+	// 		certificateArn: Input<ARN>
+	// 	}
+	// ) {
+	// 	const domain = new DomainName(id, props)
+	// 	this.add(domain)
 
-		// const association = new DomainNameApiAssociation(id, {
-		// 	apiId: this.id,
-		// 	domainName: domain.domainName,
-		// })
+	// 	// const association = new DomainNameApiAssociation(id, {
+	// 	// 	apiId: this.id,
+	// 	// 	domainName: domain.domainName,
+	// 	// })
 
-		// domain.add(association)
+	// 	// domain.add(association)
 
-		return domain
-	}
+	// 	return domain
+	// }
 
 	// setDefaultAuthorization(auth: GraphQLAuthorization) {
 	// 	this.defaultAuthorization = auth
@@ -144,8 +144,8 @@ export class GraphQLApi extends Resource {
 				authenticationType: 'AMAZON_COGNITO_USER_POOLS',
 				userPoolConfig: {
 					userPoolId: prop.userPoolId,
+					defaultAction: prop.defaultAction ?? 'ALLOW',
 					...this.attr('awsRegion', prop.region),
-					...this.attr('defaultAction', prop.defaultAction),
 					...this.attr('appIdClientRegex', prop.appIdClientRegex),
 				},
 			}

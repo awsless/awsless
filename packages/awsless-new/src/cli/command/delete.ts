@@ -5,7 +5,7 @@ import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 import { Cancelled } from '../../error.js'
 import { confirm, spinner } from '@clack/prompts'
-import { getCredentials } from '../../util/aws.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
 import { WorkSpace, aws } from '@awsless/formation'
 
 export const del = (program: Command) => {
@@ -15,12 +15,13 @@ export const del = (program: Command) => {
 		.description('Delete your app from AWS')
 		.action(async (filters: string[]) => {
 			await layout('delete', async ({ appConfig, stackConfigs }) => {
-				const credentials = getCredentials(appConfig.profile)
 				const region = appConfig.region
+				const credentials = getCredentials(appConfig.profile)
+				const accountId = await getAccountId(credentials, region)
 
 				// ---------------------------------------------------
 
-				const { app } = createApp({ appConfig, stackConfigs }, filters)
+				const { app } = createApp({ appConfig, stackConfigs, accountId }, filters)
 
 				// const deletingLine = deploymentLine.reverse()
 				const stackNames = [...app.stacks].map(stack => stack.name)

@@ -3,9 +3,9 @@ import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 
-type Type = 'viewer-request' | 'viewer-response' | 'origin-request' | 'origin-response'
+export type AssociationType = 'viewer-request' | 'viewer-response' | 'origin-request' | 'origin-response'
 
-type Origin = {
+export type Origin = {
 	id: Input<string>
 	domainName: Input<string>
 	path?: Input<string>
@@ -15,7 +15,7 @@ type Origin = {
 	originAccessIdentityId?: Input<string>
 }
 
-type OriginGroup = {
+export type OriginGroup = {
 	id: Input<string>
 	members: Input<Input<string>[]>
 	statusCodes: Input<Input<number>[]>
@@ -45,15 +45,17 @@ export class Distribution extends CloudControlApiResource {
 			origins?: Input<Input<Origin>[]>
 			originGroups?: OriginGroup[]
 			compress?: Input<boolean>
+			defaultRootObject?: Input<string>
+
 			associations?: Input<
 				Input<{
-					type: Input<Type>
+					type: Input<AssociationType>
 					functionArn: Input<string>
 				}>[]
 			>
 			lambdaAssociations?: Input<
 				Input<{
-					type: Input<Type>
+					type: Input<AssociationType>
 					functionArn: Input<string>
 					includeBody?: Input<boolean>
 				}>[]
@@ -198,6 +200,7 @@ export class Distribution extends CloudControlApiResource {
 						ViewerProtocolPolicy: unwrap(this.props.viewerProtocol, 'redirect-to-https'),
 						AllowedMethods: unwrap(this.props.allowMethod, ['GET', 'HEAD', 'OPTIONS']),
 						Compress: unwrap(this.props.compress, false),
+						...this.attr('DefaultRootObject', this.props.defaultRootObject),
 						FunctionAssociations: unwrap(this.props.associations, [])
 							.map(v => unwrap(v))
 							.map(association => ({

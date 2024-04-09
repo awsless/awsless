@@ -12,7 +12,7 @@ export const cronFeature = defineFeature({
 
 			const { lambda } = createLambdaFunction(group, ctx, this.name, id, props.consumer)
 
-			const rule = new aws.events.Rule(id, {
+			const rule = new aws.events.Rule('rule', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
 				schedule: props.schedule,
 				enabled: props.enabled,
@@ -25,7 +25,7 @@ export const cronFeature = defineFeature({
 				],
 			})
 
-			const permission = new aws.lambda.Permission(id, {
+			const permission = new aws.lambda.Permission('permission', {
 				action: 'lambda:InvokeFunction',
 				principal: 'events.amazonaws.com',
 				functionArn: lambda.arn,

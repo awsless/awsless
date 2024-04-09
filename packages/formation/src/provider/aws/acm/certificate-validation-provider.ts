@@ -7,11 +7,8 @@ type ProviderProps = {
 	region: string
 }
 
-type Extra = {
-	region?: string
-}
-
 type Document = {
+	Region: string
 	CertificateArn: string
 }
 
@@ -39,8 +36,8 @@ export class CertificateValidationProvider implements CloudProvider {
 		return new Promise(r => setTimeout(r, delay))
 	}
 
-	async get({ id, extra }: GetProps<Document, Extra>) {
-		const client = this.client(extra.region)
+	async get({ id, document }: GetProps<Document>) {
+		const client = this.client(document.Region)
 
 		while (true) {
 			const result = await client.send(

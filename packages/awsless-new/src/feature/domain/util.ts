@@ -16,7 +16,7 @@ export const formatFullDomainName = (config: AppConfig, id: string, subDomain?: 
 	const domain = getDomainNameById(config, id)
 
 	if (subDomain) {
-		return `${subDomain}.${domain}`
+		return `${subDomain.replace(/\.$/, '')}.${domain}`
 	}
 
 	return domain

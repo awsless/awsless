@@ -50,6 +50,12 @@ export class CloudControlApiProvider implements CloudProvider {
 			}
 
 			if (event.OperationStatus === 'FAILED') {
+				if (event.ErrorCode === 'AlreadyExists') {
+					// Sadly we can't heal from resources that already exist
+					// without CloudControlApi returning the resource
+					// identifier.
+				}
+
 				if (event.ErrorCode === 'NotFound') {
 					throw new ResourceNotFound(event.StatusMessage)
 				}
