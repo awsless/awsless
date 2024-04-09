@@ -10,18 +10,17 @@ import { fingerprintFromFile } from './build/typescript/fingerprint.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { getBuildPath } from '../../build/index.js'
 
+type Function = aws.lambda.Function
+type Policy = aws.iam.RolePolicy
+type Code = aws.s3.BucketObject
+
 export const createLambdaFunction = (
 	group: Node,
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
 	local: z.infer<typeof FunctionSchema>
-): {
-	group: Node
-	lambda: aws.lambda.Function
-	policy: aws.iam.RolePolicy
-	code: aws.s3.BucketObject
-} => {
+): { lambda: Function; policy: Policy; code: Code } => {
 	let name: string
 	if ('stackConfig' in ctx) {
 		name = formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, ns, id)
@@ -225,5 +224,9 @@ export const createLambdaFunction = (
 		})
 	}
 
-	return { group, lambda, policy, code }
+	return {
+		lambda,
+		policy,
+		code,
+	}
 }
