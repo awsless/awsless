@@ -86,7 +86,7 @@ export const functionFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {
 			const group = new Node('function', id)
 
-			createLambdaFunction(group, ctx, 'fn', id, props)
+			createLambdaFunction(group, ctx, 'function', id, props)
 
 			ctx.stack.add(group)
 		}

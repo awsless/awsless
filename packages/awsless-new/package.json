@@ -15,12 +15,12 @@
 		"dist"
 	],
 	"bin": "./dist/bin.js",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"module": "./dist/server.js",
+	"types": "./dist/server.d.ts",
 	"exports": {
 		".": {
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
+			"import": "./dist/server.js",
+			"types": "./dist/server.d.ts"
 		},
 		"./client": {
 			"import": "./dist/client.js",
@@ -31,11 +31,11 @@
 		"test": "pnpm code test",
 		"term": "zsh -c 'node dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
 		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; node dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
-		"build": "pnpm tsup src/index.ts src/bin.ts src/client.ts --format esm --dts --clean",
-		"build-json-schema": "pnpm tsup src/config/json.ts --format esm; node ./dist/json.js",
+		"build": "pnpm tsup src/server.ts src/client.ts src/bin.ts --format esm --dts --clean",
+		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; node ./dist/build-json-schema.js",
 		"jack": "pnpm tsup ./example/jack/jack.ts --format esm; node ./dist/jack.js",
 		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm; node ./dist/kennedy.js",
-		"prepublish": "if pnpm test schema; then pnpm build; pnpm build-json-schema; else exit; fi"
+		"prepublish": "if pnpm test schema; then pnpm build-json-schema; pnpm build; else exit; fi"
 	},
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",
