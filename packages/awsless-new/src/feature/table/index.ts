@@ -27,7 +27,7 @@ export const tableFeature = defineFeature({
 		await ctx.write('table.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		for (const [id, props] of Object.entries(ctx.stackConfig.tables || {})) {
+		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
 			const group = new Node('table', id)
 
 			ctx.stack.add(group)

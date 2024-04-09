@@ -63,7 +63,16 @@ export const authFeature = defineFeature({
 			// 	}
 			// >()
 
-			const list = Object.entries(props.triggers ?? {}).map(([trigger, triggerProps]) => {
+			const list: Record<
+				string,
+				{
+					trigger: string
+					group: Node
+					lambda: aws.lambda.Function
+				}
+			> = {}
+
+			for (const [trigger, triggerProps] of Object.entries(props.triggers ?? {})) {
 				const triggerGroup = new Node('trigger', trigger)
 				group.add(triggerGroup)
 
@@ -77,12 +86,12 @@ export const authFeature = defineFeature({
 
 				triggers[trigger] = lambda.arn
 
-				return {
+				list[trigger] = {
 					trigger,
 					group: triggerGroup,
 					lambda,
 				}
-			})
+			}
 
 			// for (const [trigger, fnProps] of Object.entries(props.triggers ?? {})) {
 			// 	const triggerGroup = new Node('trigger', trigger)
@@ -94,8 +103,8 @@ export const authFeature = defineFeature({
 			// }
 
 			for (const stack of ctx.stackConfigs) {
-				for (const [trigger, fnProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
-					if (functions.has(trigger)) {
+				for (const [trigger, triggerProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
+					if (trigger in list) {
 						throw new TypeError(
 							`Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
 						)
@@ -103,9 +112,21 @@ export const authFeature = defineFeature({
 					const triggerGroup = new Node('trigger', trigger)
 					group.add(triggerGroup)
 
-					const { lambda } = createLambdaFunction(triggerGroup, ctx, `${id}-${trigger}`, id, fnProps)
-					functions.set(trigger, lambda)
+					const { lambda } = createLambdaFunction(
+						triggerGroup,
+						ctx,
+						this.name,
+						`${id}-${trigger}`,
+						triggerProps
+					)
+
 					triggers[trigger] = lambda.arn
+
+					list[trigger] = {
+						trigger,
+						group: triggerGroup,
+						lambda,
+					}
 				}
 			}
 
@@ -161,7 +182,7 @@ export const authFeature = defineFeature({
 			ctx.base.export(`auth-${id}-user-pool-id`, userPool.id)
 			ctx.base.export(`auth-${id}-client-id`, client.id)
 
-			for (const item of list) {
+			for (const item of Object.values(list)) {
 				const permission = new aws.lambda.Permission(`permission`, {
 					action: 'lambda:InvokeFunction',
 					principal: 'cognito-idp.amazonaws.com',
