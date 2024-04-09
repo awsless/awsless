@@ -1,60 +1,15 @@
-import { fromIni } from '@aws-sdk/credential-providers'
-import { aws, WorkSpace, App, Stack, local, Asset } from '../../src'
-import { minutes } from '@awsless/duration'
-// import { SharedData } from '../src/core/__shared'
+import { aws, App, Stack } from '../../src'
+import { createWorkspace } from './_util'
 
-const region = 'eu-west-1'
-const credentials = fromIni({
-	profile: 'jacksclub',
-})
-
-const workspace = new WorkSpace({
-	cloudProviders: aws.createCloudProviders({
-		region,
-		credentials,
-		timeout: minutes(15),
-	}),
-	stateProvider: new local.StateProvider({
-		dir: './state',
-	}),
-	// stateProvider: new aws.dynamodb.DynamoDBStateProvider({
-	// 	region,
-	// 	credentials,
-	// 	tableName: 'awsless-state',
-	// }),
-})
-
-workspace.on('stack', e =>
-	console.log(
-		//
-		new Date(),
-		'[Stack]'.padEnd(30),
-		// e.stack.name,
-		e.operation.toUpperCase(),
-		e.status.toUpperCase()
-	)
-)
-
-workspace.on('resource', e =>
-	console.log(
-		//
-		new Date(),
-		`[${e.type}]`.padEnd(30),
-		e.operation.toUpperCase(),
-		e.status.toUpperCase(),
-		e.reason?.message ?? ''
-	)
-)
-
-const app = new App('test-formation-cron')
+const app = new App('cron')
 const stack = new Stack('cron')
 app.add(stack)
 
-const role = new aws.iam.Role('cron-test', {
+const role = new aws.iam.Role('role', {
 	assumedBy: 'lambda.amazonaws.com',
 })
 
-const lambda = new aws.lambda.Function('cron-lambda', {
+const lambda = new aws.lambda.Function('lambda', {
 	name: 'awsless-formation-cron',
 	code: {
 		zipFile: 'module.exports.default = async () => ({ statusCode: 200, body: "Hello World" })',
@@ -64,7 +19,7 @@ const lambda = new aws.lambda.Function('cron-lambda', {
 
 stack.add(lambda, role)
 
-const rule = new aws.events.Rule('cron-test-2', {
+const rule = new aws.events.Rule('rule', {
 	name: 'app--stack--cron--test',
 	schedule: 'rate(60 minutes)',
 	enabled: true,
@@ -76,7 +31,7 @@ const rule = new aws.events.Rule('cron-test-2', {
 	],
 })
 
-const permission = new aws.lambda.Permission('cron-test-2', {
+const permission = new aws.lambda.Permission('permission', {
 	action: 'lambda:InvokeFunction',
 	principal: 'events.amazonaws.com',
 	functionArn: lambda.arn,
@@ -86,6 +41,7 @@ const permission = new aws.lambda.Permission('cron-test-2', {
 stack.add(rule, permission)
 
 const main = async () => {
+	const workspace = createWorkspace('jacksclub')
 	await workspace.deployStack(stack)
 }
 

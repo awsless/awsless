@@ -65,17 +65,23 @@ export class CloudControlApiProvider implements CloudProvider {
 			}
 
 			const after = event.RetryAfter?.getTime() ?? 0
-			const delay = Math.min(Math.max(after - now, 1000), 5000)
+			const delay = Math.max(after - now, 1000)
 
 			await sleep(delay)
 
-			const status = await this.client.send(
-				new GetResourceRequestStatusCommand({
-					RequestToken: token,
-				})
-			)
+			try {
+				const status = await this.client.send(
+					new GetResourceRequestStatusCommand({
+						RequestToken: token,
+					})
+				)
 
-			event = status.ProgressEvent!
+				event = status.ProgressEvent!
+			} catch (error) {
+				console.log(error)
+				console.log(error.StatusMessage)
+				console.log(['EHOSTUNREACH'].includes(error.StatusMessage))
+			}
 		}
 	}
 
