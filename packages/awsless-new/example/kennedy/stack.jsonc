@@ -7,18 +7,18 @@
 	// 		"consumer": "./function.ts"
 	// 	}
 	// },
-	// "auth": {
-	// 	"admin": {
-	// 		"access": true,
-	// 		// "triggers": {
-	// 			// "beforeLogin": "./function.ts",
-	// 		// 	"afterLogin": "./function.ts",
-	// 		// 	"beforeRegister": "./function.ts",
-	// 		// 	"afterRegister": "./function.ts",
-	// 		// 	"beforeToken": "./function.ts"
-	// 		// }
-	// 	}
-	// },
+	"auth": {
+		"admin": {
+			"access": true,
+			"triggers": {
+				"beforeLogin": "./function.ts",
+				"afterLogin": "./function.ts",
+				"beforeRegister": "./function.ts",
+				"afterRegister": "./function.ts",
+				"beforeToken": "./function.ts"
+			}
+		}
+	},
 	"caches": {
 		"test": {
 			"type": "t4g.small"
