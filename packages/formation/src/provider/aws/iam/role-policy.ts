@@ -74,7 +74,7 @@ export class RolePolicy extends CloudControlApiResource {
 				RoleName: this.props.role,
 				...formatPolicyDocument({
 					...this.props,
-					statements: [...unwrap(this.props.statements, []), ...this.statements],
+					statements: [...unwrap(this.props.statements, []), ...unwrap(this.statements, [])],
 				}),
 			},
 		}

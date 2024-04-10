@@ -1,3 +1,5 @@
 export * from './user-pool-client'
 export * from './user-pool-domain'
 export * from './user-pool'
+export * from './lambda-triggers'
+export * from './lambda-triggers-provider'

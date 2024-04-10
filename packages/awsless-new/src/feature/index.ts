@@ -20,11 +20,13 @@ import { siteFeature } from './site/index.js'
 export const features = [
 	// 1
 	vpcFeature,
-	authFeature,
 	domainFeature,
 	onFailureFeature,
 
 	// 2
+	authFeature,
+
+	// 3
 	functionFeature,
 	graphqlFeature,
 	configFeature,

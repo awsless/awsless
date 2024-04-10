@@ -26,49 +26,21 @@ export const authFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.auth ?? {})) {
-			if (props.access) {
-				const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
-				const clientId = ctx.app.import<string>('base', `auth-${id}-client-id`)
-				const name = constantCase(id)
-
-				ctx.onFunction(({ lambda, policy }) => {
-					lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
-					lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
-
-					policy.addStatement({
-						actions: ['cognito:*'],
-						resources: [
-							// Not yet known if this is correct way to grant access to all resources
-							`arn:aws:cognito-idp:*:*:userpool/${userPoolId}`,
-							`arn:aws:cognito-idp:*:*:userpool/${userPoolId}*`,
-						],
-					})
-				})
-			}
-		}
-	},
-	onApp(ctx) {
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
-			const group = new Node(this.name, id)
+			const group = new Node(this.name, `id`)
 			ctx.base.add(group)
 
+			const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
+			const userPoolArn = ctx.app.import<aws.ARN>('base', `auth-${id}-user-pool-arn`)
+			const clientId = ctx.app.import<string>('base', `auth-${id}-client-id`)
+
 			const triggers: Record<string, Output<aws.ARN>> = {}
-
-			// const list = new Map<
-			// 	string,
-			// 	{
-			// 		trigger: string
-			// 		group: Node
-			// 		lambda: aws.lambda.Function
-			// 	}
-			// >()
-
 			const list: Record<
 				string,
 				{
 					trigger: string
 					group: Node
 					lambda: aws.lambda.Function
+					policy: aws.iam.RolePolicy
 				}
 			> = {}
 
@@ -76,7 +48,7 @@ export const authFeature = defineFeature({
 				const triggerGroup = new Node('trigger', trigger)
 				group.add(triggerGroup)
 
-				const { lambda } = createLambdaFunction(
+				const { lambda, policy } = createLambdaFunction(
 					triggerGroup,
 					ctx,
 					this.name,
@@ -90,47 +62,73 @@ export const authFeature = defineFeature({
 					trigger,
 					group: triggerGroup,
 					lambda,
+					policy,
 				}
 			}
 
-			// for (const [trigger, fnProps] of Object.entries(props.triggers ?? {})) {
-			// 	const triggerGroup = new Node('trigger', trigger)
-			// 	group.add(triggerGroup)
+			const lambdaTriggers = new aws.cognito.LambdaTriggers('lambda-triggers', {
+				userPoolId,
+				triggers,
+			})
 
-			// 	const { lambda } = createLambdaFunction(triggerGroup, ctx, this.name, `${id}-${trigger}`, fnProps)
-			// 	functions.set(trigger, lambda)
-			// 	triggers[trigger] = lambda.arn
-			// }
+			group.add(lambdaTriggers)
 
-			for (const stack of ctx.stackConfigs) {
-				for (const [trigger, triggerProps] of Object.entries(stack.auth?.[id]?.triggers ?? {})) {
-					if (trigger in list) {
-						throw new TypeError(
-							`Only one "${trigger}" trigger can be defined for each auth instance: ${id}`
-						)
-					}
-					const triggerGroup = new Node('trigger', trigger)
-					group.add(triggerGroup)
+			for (const item of Object.values(list)) {
+				const permission = new aws.lambda.Permission(`permission`, {
+					action: 'lambda:InvokeFunction',
+					principal: 'cognito-idp.amazonaws.com',
+					functionArn: item.lambda.arn,
+					sourceArn: userPoolArn,
+				})
+				item.group.add(permission)
 
-					const { lambda } = createLambdaFunction(
-						triggerGroup,
-						ctx,
-						this.name,
-						`${id}-${trigger}`,
-						triggerProps
-					)
-
-					triggers[trigger] = lambda.arn
-
-					list[trigger] = {
-						trigger,
-						group: triggerGroup,
-						lambda,
-					}
-				}
+				item.lambda.addEnvironment(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPoolId)
+				item.lambda.addEnvironment(`AUTH_${constantCase(id)}_CLIENT_ID`, clientId)
+				item.policy.addStatement({
+					actions: ['cognito:*'],
+					resources: [
+						// Not yet known if this is correct way to grant access to all resources
+						userPoolId.apply<aws.ARN>(
+							id => `arn:aws:cognito-idp:${ctx.appConfig.region}:${ctx.accountId}:userpool/${id}`
+						),
+						// userPoolId.apply<aws.ARN>(
+						// 	id => `arn:aws:cognito-idp:${ctx.appConfig.region}:${ctx.accountId}:userpool/${id}*`
+						// ),
+					],
+				})
 			}
+		}
 
-			// let emailConfig: aws.cognito.UserPoolEmail | undefined
+		// for (const [id, props] of Object.entries(ctx.stackConfig.auth ?? {})) {
+		// 	if (props.access) {
+		// 		const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
+		// 		const clientId = ctx.app.import<string>('base', `auth-${id}-client-id`)
+		// 		const name = constantCase(id)
+
+		// 		ctx.onFunction(({ lambda, policy }) => {
+		// 			lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
+		// 			lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
+
+		// 			policy.addStatement({
+		// 				actions: ['cognito:*'],
+		// 				resources: [
+		// 					// Not yet known if this is correct way to grant access to all resources
+		// 					`arn:aws:cognito-idp:*:*:userpool/${userPoolId}`,
+		// 					`arn:aws:cognito-idp:*:*:userpool/${userPoolId}*`,
+		// 				],
+		// 			})
+		// 		})
+		// 	}
+		// }
+	},
+	onApp(ctx) {
+		const main = new Node(this.name, 'main')
+		ctx.base.add(main)
+
+		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
+			const group = new Node(this.name, id)
+			main.add(group)
+
 			let emailConfig: aws.cognito.UserPoolProps['email'] | undefined
 
 			if (props.messaging) {
@@ -140,6 +138,7 @@ export const authFeature = defineFeature({
 					type: 'developer',
 					replyTo: props.messaging.replyTo,
 					sourceArn: ctx.base.import<aws.ARN>(`mail-${domainName}-arn`),
+					configurationSet: ctx.base.import<string>('mail-configuration-set'),
 					from: props.messaging.fromName
 						? `${props.messaging.fromName} <${props.messaging.fromEmail}>`
 						: props.messaging.fromEmail,
@@ -154,7 +153,6 @@ export const authFeature = defineFeature({
 				allowUserRegistration: props.allowUserRegistration,
 				username: props.username,
 				password: props.password,
-				triggers,
 				email: emailConfig,
 			})
 
@@ -177,32 +175,9 @@ export const authFeature = defineFeature({
 			// 	domain: '',
 			// })
 
-			// ctx.base.add(userPool)
 			ctx.base.export(`auth-${id}-user-pool-arn`, userPool.arn)
 			ctx.base.export(`auth-${id}-user-pool-id`, userPool.id)
 			ctx.base.export(`auth-${id}-client-id`, client.id)
-
-			for (const item of Object.values(list)) {
-				const permission = new aws.lambda.Permission(`permission`, {
-					action: 'lambda:InvokeFunction',
-					principal: 'cognito-idp.amazonaws.com',
-					functionArn: item.lambda.arn,
-					sourceArn: userPool.arn,
-				})
-
-				item.group.add(permission)
-			}
-
-			// for (const [event, lambda] of functions) {
-			// 	const permission = new aws.lambda.Permission(`auth-${id}-${event}`, {
-			// 		action: 'lambda:InvokeFunction',
-			// 		principal: 'cognito-idp.amazonaws.com',
-			// 		functionArn: lambda.arn,
-			// 		sourceArn: userPool.arn,
-			// 	})
-
-			// 	ctx.base.add(permission)
-			// }
 		}
 	},
 })

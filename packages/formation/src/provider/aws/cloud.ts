@@ -12,6 +12,7 @@ import { DataSourceProvider } from './appsync/data-source-provider'
 import { Duration } from '@awsless/duration'
 import { SubscriptionProvider } from './sns/subscription-provider'
 import { InvalidateCacheProvider } from './cloud-front'
+import { LambdaTriggersProvider } from './cognito/lambda-triggers-provider'
 
 type ConfigProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -35,5 +36,6 @@ export const createCloudProviders = (config: ConfigProps) => {
 		new DataSourceProvider(config),
 		new SubscriptionProvider(config),
 		new InvalidateCacheProvider(config),
+		new LambdaTriggersProvider(config),
 	]
 }

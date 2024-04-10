@@ -34,11 +34,13 @@ export class SecurityGroup extends CloudControlApiResource {
 
 	addIngressRule(rule: Input<Rule>) {
 		this.ingress.push(rule)
+		this.registerDependency(rule)
 		return this
 	}
 
 	addEgressRule(rule: Input<Rule>) {
 		this.egress.push(rule)
+		this.registerDependency(rule)
 		return this
 	}
 

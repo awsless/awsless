@@ -1257,6 +1257,7 @@ var DataSource = class extends Resource {
 // src/provider/aws/cloud-control-api/resource.ts
 var CloudControlApiResource = class extends Resource {
   cloudProviderId = "aws-cloud-control-api";
+  // readonly
   // protected _region: string | undefined
   // get region() {
   // 	return this._region
@@ -1729,11 +1730,12 @@ var CloudControlApiProvider = class {
     );
     return JSON.parse(result.ResourceDescription.Properties);
   }
-  async create({ type, document }) {
+  async create({ urn, type, document }) {
     const result = await this.client.send(
       new CreateResourceCommand({
         TypeName: type,
         DesiredState: JSON.stringify(document)
+        // ClientToken: urn,
       })
     );
     return this.progressStatus(result.ProgressEvent);
@@ -1748,11 +1750,12 @@ var CloudControlApiProvider = class {
     );
     return this.progressStatus(result.ProgressEvent);
   }
-  async delete({ type, id }) {
+  async delete({ urn, type, id }) {
     const result = await this.client.send(
       new DeleteResourceCommand({
         TypeName: type,
         Identifier: id
+        // ClientToken: urn,
       })
     );
     await this.progressStatus(result.ProgressEvent);
@@ -2183,6 +2186,8 @@ var LogGroup = class extends CloudControlApiResource {
 // src/provider/aws/cognito/index.ts
 var cognito_exports = {};
 __export(cognito_exports, {
+  LambdaTriggers: () => LambdaTriggers,
+  LambdaTriggersProvider: () => LambdaTriggersProvider,
   UserPool: () => UserPool,
   UserPoolClient: () => UserPoolClient,
   UserPoolDomain: () => UserPoolDomain
@@ -2347,7 +2352,6 @@ var UserPool = class extends CloudControlApiResource {
     const email = unwrap(this.props.email);
     const username = unwrap(this.props.username);
     const password = unwrap(this.props.password);
-    const triggers = unwrap(this.props.triggers);
     return {
       document: {
         UserPoolName: this.props.name,
@@ -2364,7 +2368,7 @@ var UserPool = class extends CloudControlApiResource {
             {
               AttributeDataType: "String",
               Name: "email",
-              Required: true,
+              Required: false,
               Mutable: false,
               StringAttributeConstraints: {
                 MinLength: "5",
@@ -2382,7 +2386,8 @@ var UserPool = class extends CloudControlApiResource {
             ...this.attr("EmailSendingAccount", email.type, constantCase),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
-            ...this.attr("SourceArn", email.sourceArn)
+            ...this.attr("SourceArn", email.sourceArn),
+            ...this.attr("ConfigurationSet", email.configurationSet)
           }
         ),
         DeviceConfiguration: {
@@ -2402,7 +2407,24 @@ var UserPool = class extends CloudControlApiResource {
               unwrap(password?.temporaryPasswordValidity, days2(7))
             )
           }
-        },
+        }
+      }
+    };
+  }
+};
+
+// src/provider/aws/cognito/lambda-triggers.ts
+var LambdaTriggers = class extends Resource {
+  constructor(id, props) {
+    super("AWS::Cognito::UserPoolLambdaConfig", id, props);
+    this.props = props;
+  }
+  cloudProviderId = "aws-cognito-lambda-triggers";
+  toState() {
+    const triggers = unwrap(this.props.triggers);
+    return {
+      document: {
+        UserPoolId: this.props.userPoolId,
         LambdaConfig: {
           ...this.attr("PreAuthentication", triggers?.beforeLogin),
           ...this.attr("PostAuthentication", triggers?.afterLogin),
@@ -2413,16 +2435,83 @@ var UserPool = class extends CloudControlApiResource {
           ...this.attr("UserMigration", triggers?.userMigration),
           ...this.attr("DefineAuthChallenge", triggers?.defineChallange),
           ...this.attr("CreateAuthChallenge", triggers?.createChallange),
-          ...this.attr("VerifyAuthChallengeResponse", triggers?.verifyChallange),
-          ...triggers?.emailSender ? {
-            CustomEmailSender: {
-              LambdaArn: triggers.emailSender,
-              LambdaVersion: "V1_0"
-            }
-          } : {}
+          ...this.attr("VerifyAuthChallengeResponse", triggers?.verifyChallange)
+          // ...(triggers?.emailSender
+          // 	? {
+          // 			CustomEmailSender: {
+          // 				LambdaArn: triggers.emailSender,
+          // 				LambdaVersion: 'V1_0',
+          // 			},
+          // 	  }
+          // 	: {}),
+          // ...(triggers?.smsSender
+          // 	? {
+          // 			CustomSMSSender: {
+          // 				LambdaArn: triggers.smsSender,
+          // 				LambdaVersion: 'V1_0',
+          // 			},
+          // 	  }
+          // 	: {}),
         }
       }
     };
+  }
+};
+
+// src/provider/aws/cognito/lambda-triggers-provider.ts
+import {
+  DescribeUserPoolCommand,
+  UpdateUserPoolCommand,
+  CognitoIdentityProviderClient
+} from "@aws-sdk/client-cognito-identity-provider";
+var LambdaTriggersProvider = class {
+  client;
+  constructor(props) {
+    this.client = new CognitoIdentityProviderClient(props);
+  }
+  own(id) {
+    return id === "aws-cognito-lambda-triggers";
+  }
+  async updateUserPool(document) {
+    const result = await this.client.send(
+      new DescribeUserPoolCommand({
+        UserPoolId: document.UserPoolId
+      })
+    );
+    delete result.UserPool?.AdminCreateUserConfig?.UnusedAccountValidityDays;
+    await this.client.send(
+      new UpdateUserPoolCommand({
+        ...result.UserPool,
+        ...document
+      })
+    );
+  }
+  async get({ document }) {
+    const result = await this.client.send(
+      new DescribeUserPoolCommand({
+        UserPoolId: document.UserPoolId
+      })
+    );
+    return result.UserPool?.LambdaConfig ?? {};
+  }
+  async create({ document }) {
+    await this.updateUserPool(document);
+    return document.UserPoolId;
+  }
+  async update({ oldDocument, newDocument }) {
+    if (oldDocument.UserPoolId !== newDocument.UserPoolId) {
+      throw new Error(`LambdaTriggers can't change the user pool id`);
+    }
+    await this.updateUserPool(newDocument);
+    return newDocument.UserPoolId;
+  }
+  async delete({ document }) {
+    await this.client.send(
+      new UpdateUserPoolCommand({
+        UserPoolId: document.UserPoolId,
+        LambdaConfig: {}
+      })
+    );
   }
 };
 
@@ -2897,10 +2986,12 @@ var SecurityGroup = class extends CloudControlApiResource {
   }
   addIngressRule(rule) {
     this.ingress.push(rule);
+    this.registerDependency(rule);
     return this;
   }
   addEgressRule(rule) {
     this.egress.push(rule);
+    this.registerDependency(rule);
     return this;
   }
   toState() {
@@ -3576,7 +3667,7 @@ var RolePolicy = class extends CloudControlApiResource {
         RoleName: this.props.role,
         ...formatPolicyDocument({
           ...this.props,
-          statements: [...unwrap(this.props.statements, []), ...this.statements]
+          statements: [...unwrap(this.props.statements, []), ...unwrap(this.statements, [])]
         })
       }
     };
@@ -3804,10 +3895,12 @@ var Function = class extends CloudControlApiResource {
   }
   addEnvironment(name, value) {
     this.environmentVariables[name] = value;
+    this.registerDependency(value);
     return this;
   }
   setVpc(vpc) {
     this.props.vpc = vpc;
+    this.registerDependency(vpc);
     return this;
   }
   get permissions() {
@@ -4909,7 +5002,8 @@ var createCloudProviders = (config) => {
     new GraphQLSchemaProvider(config),
     new DataSourceProvider(config),
     new SubscriptionProvider(config),
-    new InvalidateCacheProvider(config)
+    new InvalidateCacheProvider(config),
+    new LambdaTriggersProvider(config)
   ];
 };
 

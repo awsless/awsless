@@ -51,6 +51,7 @@ export class Function extends CloudControlApiResource {
 
 	addEnvironment(name: string, value: Input<string>) {
 		this.environmentVariables[name] = value
+		this.registerDependency(value)
 
 		return this
 	}
@@ -62,6 +63,7 @@ export class Function extends CloudControlApiResource {
 		}>
 	) {
 		this.props.vpc = vpc
+		this.registerDependency(vpc)
 
 		return this
 	}

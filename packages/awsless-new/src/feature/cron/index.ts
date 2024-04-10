@@ -6,8 +6,8 @@ import { formatLocalResourceName } from '../../util/name.js'
 export const cronFeature = defineFeature({
 	name: 'cron',
 	onStack(ctx) {
-		for (const [id, props] of Object.entries(ctx.stackConfig.crons || {})) {
-			const group = new Node(this.name, id)
+		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
+			const group = new Node('cron', id)
 			ctx.stack.add(group)
 
 			const { lambda } = createLambdaFunction(group, ctx, this.name, id, props.consumer)

@@ -115,11 +115,7 @@ export const queueFeature = defineFeature({
 
 			ctx.onFunction(({ lambda, policy }) => {
 				policy.addStatement(queue.permissions)
-				lambda.addEnvironment(
-					//
-					`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`,
-					queue.url
-				)
+				lambda.addEnvironment(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 			})
 		}
 	},

@@ -19,6 +19,7 @@ export const domainFeature = defineFeature({
 			engagementMetrics: true,
 			reputationMetrics: true,
 		})
+		ctx.base.export(`mail-configuration-set`, configurationSet.name)
 
 		group.add(configurationSet)
 
@@ -122,12 +123,12 @@ export const domainFeature = defineFeature({
 
 			group.add(record1, record2, record3)
 
-			ctx.base.export(
-				`mail-${id}-arn`,
-				emailIdentity.output(() => {
-					return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
-				})
-			)
+			const mailIdentityArn = emailIdentity.output(() => {
+				return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
+			})
+
+			ctx.base.export(`mail-${id}-arn`, mailIdentityArn)
+			ctx.base.export(`mail-${props.domain}-arn`, mailIdentityArn)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
@@ -143,7 +144,7 @@ export const domainFeature = defineFeature({
 		ctx.onFunction(({ policy }) =>
 			policy.addStatement({
 				actions: ['ses:*'],
-				resources: [`arn:aws:ses:${ctx.appConfig.region}:*:identity/*`],
+				resources: [`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`],
 			})
 		)
 	},

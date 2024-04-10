@@ -4,37 +4,30 @@
 	"region": "eu-west-1",
 	"profile": "jacksclub",
 	"defaults": {
-		// "domains": {
-		// 	"main": {
-		// 		"domain": "getblockalert.com",
-		// 		"dns": []
-		// 	}
-		// },
-		"auth": {
-			"admin": {
-				"username": {
-					"emailAlias": true
-				},
-				"allowUserRegistration": false,
-				"messaging": {
-					"fromEmail": "noreply@getblockalert.com",
-					"fromName": "Block Alert",
-				},
-				"validity": {
-					"accessToken": "1 hour",
-					"refreshToken": "24 hours"
-				},
-				"password": {
-					"minLength": 24
-				},
-				"triggers": {
-					"beforeLogin": "./function.ts",
-					"afterLogin": "./function.ts",
-					"beforeRegister": "./function.ts",
-					"afterRegister": "./function.ts",
-					"beforeToken": "./function.ts"
-				}
+		"domains": {
+			"main": {
+				"domain": "awsless.com",
+				"dns": []
 			}
-		}
+		},
+		// "auth": {
+		// 	"admin": {
+		// 		"username": {
+		// 			"emailAlias": true
+		// 		},
+		// 		"allowUserRegistration": true,
+		// 		"messaging": {
+		// 			"fromEmail": "noreply@awsless.com",
+		// 			"fromName": "Awsless"
+		// 		},
+		// 		// "validity": {
+		// 		// 	"accessToken": "1 hour",
+		// 		// 	"refreshToken": "24 hours"
+		// 		// },
+		// 		// "password": {
+		// 		// 	"minLength": 24
+		// 		// }
+		// 	}
+		// }
 	}
 }

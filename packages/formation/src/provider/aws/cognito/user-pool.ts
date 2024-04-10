@@ -27,21 +27,7 @@ export type UserPoolProps = {
 		from?: Input<string>
 		replyTo?: Input<string>
 		sourceArn?: Input<ARN>
-	}>
-	triggers?: Input<{
-		beforeToken?: Input<ARN>
-		beforeLogin?: Input<ARN>
-		afterLogin?: Input<ARN>
-		beforeRegister?: Input<ARN>
-		afterRegister?: Input<ARN>
-		customMessage?: Input<ARN>
-		userMigration?: Input<ARN>
-
-		emailSender?: Input<ARN>
-
-		defineChallange?: Input<ARN>
-		createChallange?: Input<ARN>
-		verifyChallange?: Input<ARN>
+		configurationSet?: Input<string>
 	}>
 }
 
@@ -92,7 +78,6 @@ export class UserPool extends CloudControlApiResource {
 		const email = unwrap(this.props.email)
 		const username = unwrap(this.props.username)
 		const password = unwrap(this.props.password)
-		const triggers = unwrap(this.props.triggers)
 
 		return {
 			document: {
@@ -114,7 +99,7 @@ export class UserPool extends CloudControlApiResource {
 								{
 									AttributeDataType: 'String',
 									Name: 'email',
-									Required: true,
+									Required: false,
 									Mutable: false,
 									StringAttributeConstraints: {
 										MinLength: '5',
@@ -136,6 +121,7 @@ export class UserPool extends CloudControlApiResource {
 						...this.attr('From', email.from),
 						...this.attr('ReplyToEmailAddress', email.replyTo),
 						...this.attr('SourceArn', email.sourceArn),
+						...this.attr('ConfigurationSet', email.configurationSet),
 					}
 				),
 
@@ -157,28 +143,6 @@ export class UserPool extends CloudControlApiResource {
 							unwrap(password?.temporaryPasswordValidity, days(7))
 						),
 					},
-				},
-				LambdaConfig: {
-					...this.attr('PreAuthentication', triggers?.beforeLogin),
-					...this.attr('PostAuthentication', triggers?.afterLogin),
-					...this.attr('PostConfirmation', triggers?.afterRegister),
-					...this.attr('PreSignUp', triggers?.beforeRegister),
-					...this.attr('PreTokenGeneration', triggers?.beforeToken),
-					...this.attr('CustomMessage', triggers?.customMessage),
-					...this.attr('UserMigration', triggers?.userMigration),
-
-					...this.attr('DefineAuthChallenge', triggers?.defineChallange),
-					...this.attr('CreateAuthChallenge', triggers?.createChallange),
-					...this.attr('VerifyAuthChallengeResponse', triggers?.verifyChallange),
-
-					...(triggers?.emailSender
-						? {
-								CustomEmailSender: {
-									LambdaArn: triggers.emailSender,
-									LambdaVersion: 'V1_0',
-								},
-						  }
-						: {}),
 				},
 			},
 		}

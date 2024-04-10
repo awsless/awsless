@@ -36,7 +36,7 @@ export const configFeature = defineFeature({
 					],
 					resources: configs.map(
 						name =>
-							`arn:aws:ssm:${ctx.appConfig.region}:*:parameter${configParameterPrefix(
+							`arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
 								ctx.app.name
 							)}/${paramCase(name)}` as const
 					),
