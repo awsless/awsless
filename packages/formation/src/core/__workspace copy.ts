@@ -1,3 +1,4 @@
+import EventEmitter from 'events'
 import { Asset, ResolvedAsset } from './asset'
 import { CloudProvider, ResourceDocument } from './cloud'
 import { Input, Output, unwrap } from './output'
@@ -5,21 +6,44 @@ import { Resource, URN } from './resource'
 import { Stack } from './stack'
 import { AppState, ResourceState, StackState, StateProvider } from './state'
 import { Step, run } from 'promise-dag'
+import TypedEmitter from 'typed-emitter'
 import { ResourceError, ResourceNotFound, StackError } from './error'
 import { App } from './app'
 import { ExportedData } from './export'
-import { randomUUID } from 'crypto'
 
 export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get'
 export type StackOperation = 'deploy' | 'delete'
 
-export class WorkSpace {
+type ResourceEvent = {
+	urn: URN
+	type: string
+	operation: ResourceOperation
+	status: 'success' | 'in-progress' | 'error'
+	reason?: ResourceError
+}
+
+type StackEvent = {
+	urn: URN
+	operation: StackOperation
+	status: 'success' | 'in-progress' | 'error'
+	stack: Stack
+	reason?: StackError | Error | unknown
+}
+
+type Events = {
+	stack: (event: StackEvent) => void
+	resource: (event: ResourceEvent) => void
+}
+
+export class WorkSpace extends (EventEmitter as new () => TypedEmitter<Events>) {
 	constructor(
 		protected props: {
 			cloudProviders: CloudProvider[]
 			stateProvider: StateProvider
 		}
-	) {}
+	) {
+		super()
+	}
 
 	protected getCloudProvider(providerId: string, urn: URN) {
 		for (const provider of this.props.cloudProviders) {
@@ -190,7 +214,7 @@ export class WorkSpace {
 			throw new StackError([], 'Stack must belong to an App')
 		}
 
-		const appState = (await this.props.stateProvider.get(app.urn)) ?? {}
+		const appState = await this.props.stateProvider.get(app.urn)
 
 		const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
 			name: stack.name,
@@ -260,7 +284,7 @@ export class WorkSpace {
 		}
 
 		return this.lockApp(app.urn, async () => {
-			const appState = (await this.props.stateProvider.get(app.urn)) ?? {}
+			const appState = await this.props.stateProvider.get(app.urn)
 			const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
 				name: stack.name,
 				exports: {},
@@ -273,6 +297,15 @@ export class WorkSpace {
 			// Set the exported data on the app.
 
 			app.setExportedData(this.getExportedData(appState))
+
+			// -------------------------------------------------------------------
+
+			this.emit('stack', {
+				urn: stack.urn,
+				operation: 'deploy',
+				status: 'in-progress',
+				stack,
+			})
 
 			// -------------------------------------------------------------------
 			// Find Deletable resources...
@@ -322,6 +355,14 @@ export class WorkSpace {
 			} catch (error) {
 				// const resourceError = new ResourceError()
 
+				this.emit('stack', {
+					urn: stack.urn,
+					operation: 'deploy',
+					status: 'error',
+					stack,
+					reason: error,
+				})
+
 				throw error
 			}
 
@@ -337,6 +378,13 @@ export class WorkSpace {
 
 			// -------------------------------------------------------------------
 
+			this.emit('stack', {
+				urn: stack.urn,
+				operation: 'deploy',
+				status: 'success',
+				stack,
+			})
+
 			return stackState
 		})
 	}
@@ -349,22 +397,44 @@ export class WorkSpace {
 		}
 
 		return this.lockApp(app.urn, async () => {
-			const appState = (await this.props.stateProvider.get(app.urn)) ?? {}
+			const appState = await this.props.stateProvider.get(app.urn)
 			const stackState = appState[stack.urn]
 
 			if (!stackState) {
 				throw new StackError([], `Stack already deleted: ${stack.name}`)
 			}
 
+			this.emit('stack', {
+				urn: stack.urn,
+				operation: 'delete',
+				status: 'in-progress',
+				stack,
+			})
+
 			try {
 				await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
 			} catch (error) {
+				this.emit('stack', {
+					urn: stack.urn,
+					operation: 'delete',
+					status: 'error',
+					stack,
+					reason: error,
+				})
+
 				throw error
 			}
 
 			delete appState[stack.urn]
 
 			await this.props.stateProvider.update(app.urn, appState)
+
+			this.emit('stack', {
+				urn: stack.urn,
+				operation: 'delete',
+				status: 'success',
+				stack,
+			})
 		})
 	}
 
@@ -376,12 +446,36 @@ export class WorkSpace {
 		extra: ResourceDocument
 		provider: CloudProvider
 	}) {
+		this.emit('resource', {
+			urn: props.urn,
+			type: props.type,
+			operation: 'get',
+			status: 'in-progress',
+		})
+
 		let remote: any
 		try {
 			remote = await props.provider.get(props)
 		} catch (error) {
-			throw ResourceError.wrap(props.urn, props.type, 'get', error)
+			const resourceError = ResourceError.wrap(props.urn, props.type, 'get', error)
+
+			this.emit('resource', {
+				urn: props.urn,
+				type: props.type,
+				operation: 'get',
+				status: 'error',
+				reason: resourceError,
+			})
+
+			throw resourceError
 		}
+
+		this.emit('resource', {
+			urn: props.urn,
+			type: props.type,
+			operation: 'get',
+			status: 'success',
+		})
 
 		return remote
 	}
@@ -415,6 +509,13 @@ export class WorkSpace {
 					let resourceState = stackState.resources[resource.urn]
 
 					if (!resourceState) {
+						this.emit('resource', {
+							urn: resource.urn,
+							type: resource.type,
+							operation: 'create',
+							status: 'in-progress',
+						})
+
 						let id: string
 						try {
 							id = await provider.create({
@@ -423,10 +524,19 @@ export class WorkSpace {
 								document: this.resolveDocumentAssets(this.copy(document), assets),
 								assets,
 								extra,
-								token: randomUUID(),
 							})
 						} catch (error) {
-							throw ResourceError.wrap(resource.urn, resource.type, 'create', error)
+							const resourceError = ResourceError.wrap(resource.urn, resource.type, 'create', error)
+
+							this.emit('resource', {
+								urn: resource.urn,
+								type: resource.type,
+								operation: 'create',
+								status: 'error',
+								reason: resourceError,
+							})
+
+							throw resourceError
 						}
 
 						resourceState = stackState.resources[resource.urn] = {
@@ -453,6 +563,13 @@ export class WorkSpace {
 						})
 
 						resourceState.remote = remote
+
+						this.emit('resource', {
+							urn: resource.urn,
+							type: resource.type,
+							operation: 'create',
+							status: 'success',
+						})
 					} else if (
 						// Check if any state has changed
 						!this.compare(
@@ -461,6 +578,13 @@ export class WorkSpace {
 							[document, assetHashes]
 						)
 					) {
+						this.emit('resource', {
+							urn: resource.urn,
+							type: resource.type,
+							operation: 'update',
+							status: 'in-progress',
+						})
+
 						// this.resolveDocumentAssets(this.copy(document), assets),
 
 						let id: string
@@ -477,10 +601,19 @@ export class WorkSpace {
 								newDocument: document,
 								assets,
 								extra,
-								token: randomUUID(),
 							})
 						} catch (error) {
-							throw ResourceError.wrap(resource.urn, resource.type, 'update', error)
+							const resourceError = ResourceError.wrap(resource.urn, resource.type, 'update', error)
+
+							this.emit('resource', {
+								urn: resource.urn,
+								type: resource.type,
+								operation: 'update',
+								status: 'error',
+								reason: resourceError,
+							})
+
+							throw resourceError
 						}
 
 						resourceState.id = id
@@ -500,6 +633,13 @@ export class WorkSpace {
 						})
 
 						resourceState.remote = remote
+
+						this.emit('resource', {
+							urn: resource.urn,
+							type: resource.type,
+							operation: 'update',
+							status: 'success',
+						})
 					}
 
 					resourceState.extra = extra
@@ -560,6 +700,13 @@ export class WorkSpace {
 			deleteGraph[urn] = [
 				...this.dependentsOn(resources, urn),
 				async () => {
+					this.emit('resource', {
+						urn,
+						type: state.type,
+						operation: 'delete',
+						status: 'in-progress',
+					})
+
 					try {
 						await provider.delete({
 							urn,
@@ -568,14 +715,23 @@ export class WorkSpace {
 							document: state.local,
 							assets: state.assets,
 							extra: state.extra,
-							token: randomUUID(),
 						})
 					} catch (error) {
 						if (error instanceof ResourceNotFound) {
 							// The resource has already been deleted.
 							// Let's skip this issue.
 						} else {
-							throw ResourceError.wrap(urn, state.type, 'delete', error)
+							const resourceError = ResourceError.wrap(urn, state.type, 'delete', error)
+
+							this.emit('resource', {
+								urn,
+								type: state.type,
+								operation: 'delete',
+								status: 'error',
+								reason: resourceError,
+							})
+
+							throw resourceError
 						}
 					}
 
@@ -583,6 +739,13 @@ export class WorkSpace {
 					// Delete the resource from the stack state
 
 					delete stackState.resources[urn]
+
+					this.emit('resource', {
+						urn,
+						type: state.type,
+						operation: 'delete',
+						status: 'success',
+					})
 				},
 			]
 		}
@@ -603,55 +766,6 @@ export class WorkSpace {
 		}
 	}
 
-	// private async createResource(props: {
-	// 	stackState: StackState
-	// 	provider: CloudProvider
-	// 	resource: Resource
-	// 	assets: Record<string, ResolvedAsset>
-	// 	extra: ResourceDocument
-	// }) {
-	// 	// stackState[resource.urn]
-
-	// 	const state = resource.toState()
-	// 	const [assets, assetHashes] = await this.resolveAssets(state.assets ?? {})
-	// 	const document = this.unwrapDocument(resource.urn, state.document ?? {})
-	// 	const extra = this.unwrapDocument(resource.urn, state.extra ?? {})
-
-	// 	try {
-	// 		const id = await props.provider.create({
-	// 			urn: props.resource.urn,
-	// 			type: props.resource.type,
-	// 			document: this.resolveDocumentAssets(this.copy(props.document), props.assets),
-	// 			assets: props.assets,
-	// 			extra: props.extra,
-	// 		})
-
-	// 		return id
-	// 	} catch (error) {
-	// 		throw ResourceError.wrap(
-	// 			//
-	// 			props.resource.urn,
-	// 			props.resource.type,
-	// 			'create',
-	// 			error
-	// 		)
-	// 	}
-
-	// 	// resourceState = stackState.resources[resource.urn] = {
-	// 	// 	id,
-	// 	// 	type: resource.type,
-	// 	// 	provider: resource.cloudProviderId,
-	// 	// 	local: document,
-	// 	// 	assets: assetHashes,
-	// 	// 	dependencies: [...resource.dependencies].map(d => d.urn),
-	// 	// 	extra,
-	// 	// 	policies: {
-	// 	// 		deletion: resource.deletionPolicy,
-	// 	// 	},
-	// 	// 	// deletionPolicy: unwrap(state.deletionPolicy),
-	// 	// }
-	// }
-
 	private async healFromUnknownRemoteState(stackState: StackState) {
 		const results = await Promise.allSettled(
 			Object.entries(stackState.resources).map(async ([urnStr, resourceState]) => {
@@ -669,12 +783,22 @@ export class WorkSpace {
 					})
 
 					if (typeof remote === 'undefined') {
-						throw new ResourceError(
+						const resourceError = new ResourceError(
 							urn,
 							resourceState.type,
 							'heal',
 							`Fetching remote state returned undefined`
 						)
+
+						this.emit('resource', {
+							urn,
+							type: resourceState.type,
+							operation: 'heal',
+							status: 'error',
+							reason: resourceError,
+						})
+
+						throw resourceError
 					}
 
 					resourceState.remote = remote

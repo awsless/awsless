@@ -1,13 +1,16 @@
-import { Asset, ResolvedAsset } from './asset'
-import { CloudProvider, ResourceDocument } from './cloud'
-import { Input, Output, unwrap } from './output'
-import { Resource, URN } from './resource'
-import { Stack } from './stack'
-import { AppState, ResourceState, StackState, StateProvider } from './state'
+import { CloudProvider, ResourceDocument } from '../cloud'
+import { Resource, URN } from '../resource'
+import { Stack } from '../stack'
+import { AppState, ResourceState, StackState, StateProvider } from '../state'
 import { Step, run } from 'promise-dag'
-import { ResourceError, ResourceNotFound, StackError } from './error'
-import { App } from './app'
-import { ExportedData } from './export'
+import { ResourceError, ResourceNotFound, StackError } from '../error'
+import { App } from '../app'
+import { ExportedData } from '../export'
+import { lockApp } from './lock'
+import { cloneObject, compareDocuments, unwrapOutputsFromDocument } from './document'
+import { loadAssets, resolveDocumentAssets } from './asset'
+import { createIdempotantToken } from './token'
+import { getCloudProvider } from './provider'
 import { randomUUID } from 'crypto'
 
 export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get'
@@ -21,146 +24,10 @@ export class WorkSpace {
 		}
 	) {}
 
-	protected getCloudProvider(providerId: string, urn: URN) {
-		for (const provider of this.props.cloudProviders) {
-			if (provider.own(providerId)) {
-				return provider
-			}
-		}
-
-		throw new TypeError(`Can't find the "${providerId}" cloud provider for: ${urn}`)
-	}
-
-	protected unwrapDocument(urn: URN, document: ResourceDocument, safe = true): ResourceDocument {
-		const replacer = (_: string, value: unknown) => {
-			if (value instanceof Output) {
-				if (safe) {
-					return value.valueOf()
-				} else {
-					try {
-						return value.valueOf()
-					} catch (e) {
-						return '[UnresolvedOutput]'
-					}
-				}
-			}
-
-			if (typeof value === 'bigint') {
-				return Number(value)
-			}
-
-			return value
-		}
-
-		try {
-			// 1. Smart hack to transform all outputs to values
-			// 2. It also converts bigints to numbers
-
-			return this.copy(document, replacer)
-		} catch (error) {
-			if (error instanceof TypeError) {
-				// throw error
-
-				throw new TypeError(`Resource has unresolved inputs: ${urn}`)
-			}
-
-			throw error
-		}
-	}
-
-	protected async lockApp<T>(urn: URN, fn: () => T): Promise<Awaited<T>> {
-		let release
-		try {
-			release = await this.props.stateProvider.lock(urn)
-		} catch (error) {
-			throw new Error(`Already in progress: ${urn}`)
-		}
-
-		let result: Awaited<T>
-
-		try {
-			result = await fn()
-		} catch (error) {
-			throw error
-		} finally {
-			await release()
-		}
-
-		return result!
-	}
-
-	protected async resolveAssets(assets: Record<string, Input<Asset>>) {
-		const resolved: Record<string, ResolvedAsset> = {}
-		const hashes: Record<string, string> = {}
-
-		await Promise.all(
-			Object.entries(assets).map(async ([name, asset]) => {
-				const data = await unwrap(asset).load()
-				const buff = await crypto.subtle.digest('SHA-256', data)
-				const hash = Buffer.from(buff).toString('hex')
-
-				hashes[name] = hash
-				resolved[name] = {
-					data,
-					hash,
-				}
-			})
-		)
-
-		return [resolved, hashes] as const
-	}
-
-	protected copy<T>(document: T, replacer?: any): T {
-		return JSON.parse(JSON.stringify(document, replacer))
-	}
-
-	protected compare<T>(left: T, right: T) {
-		// order the object keys so that the comparison works.
-		const replacer = (_: unknown, value: unknown) => {
-			if (value !== null && value instanceof Object && !Array.isArray(value)) {
-				return Object.keys(value)
-					.sort()
-					.reduce((sorted: Record<string, unknown>, key) => {
-						sorted[key] = value[key as keyof typeof value]
-						return sorted
-					}, {})
-			}
-			return value
-		}
-
-		const l = JSON.stringify(left, replacer)
-		const r = JSON.stringify(right, replacer)
-
-		return l === r
-	}
-
-	protected resolveDocumentAssets(document: any, assets: Record<string, ResolvedAsset>): ResourceDocument {
-		if (document !== null && typeof document === 'object') {
-			for (const [key, value] of Object.entries(document)) {
-				if (
-					value !== null &&
-					typeof value === 'object' &&
-					'__ASSET__' in value &&
-					typeof value.__ASSET__ === 'string'
-				) {
-					document[key] = assets[value.__ASSET__]?.data.toString('utf8')
-				} else {
-					this.resolveDocumentAssets(value, assets)
-				}
-			}
-		} else if (Array.isArray(document)) {
-			for (const value of document) {
-				this.resolveDocumentAssets(value, assets)
-			}
-		}
-
-		return document
-	}
-
 	private getExportedData(appState: AppState) {
 		const data: ExportedData = {}
 
-		for (const stackData of Object.values(appState)) {
+		for (const stackData of Object.values(appState.stacks)) {
 			data[stackData.name] = stackData.exports
 		}
 
@@ -183,74 +50,74 @@ export class WorkSpace {
 	// 	})
 	// }
 
-	async diffStack(stack: Stack) {
-		const app = stack.parent
+	// async diffStack(stack: Stack) {
+	// 	const app = stack.parent
 
-		if (!app || !(app instanceof App)) {
-			throw new StackError([], 'Stack must belong to an App')
-		}
+	// 	if (!app || !(app instanceof App)) {
+	// 		throw new StackError([], 'Stack must belong to an App')
+	// 	}
 
-		const appState = (await this.props.stateProvider.get(app.urn)) ?? {}
+	// 	const appState = await this.props.stateProvider.get(app.urn)
 
-		const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
-			name: stack.name,
-			exports: {},
-			resources: {},
-		})
+	// 	const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
+	// 		name: stack.name,
+	// 		exports: {},
+	// 		resources: {},
+	// 	})
 
-		const resources = stack.resources
+	// 	const resources = stack.resources
 
-		const creates: URN[] = []
-		const updates: URN[] = []
-		const deletes: URN[] = []
+	// 	const creates: URN[] = []
+	// 	const updates: URN[] = []
+	// 	const deletes: URN[] = []
 
-		for (const resource of resources) {
-			const resourceState = stackState.resources[resource.urn]
+	// 	for (const resource of resources) {
+	// 		const resourceState = stackState.resources[resource.urn]
 
-			if (resourceState) {
-				resource.setRemoteDocument(resourceState.remote)
-			}
-		}
+	// 		if (resourceState) {
+	// 			resource.setRemoteDocument(resourceState.remote)
+	// 		}
+	// 	}
 
-		for (const urn of Object.keys(stackState.resources)) {
-			const resource = resources.find(r => r.urn === urn)
+	// 	for (const urn of Object.keys(stackState.resources)) {
+	// 		const resource = resources.find(r => r.urn === urn)
 
-			if (!resource) {
-				deletes.push(urn as URN)
-			}
-		}
+	// 		if (!resource) {
+	// 			deletes.push(urn as URN)
+	// 		}
+	// 	}
 
-		for (const resource of resources) {
-			const resourceState = stackState.resources[resource.urn]
+	// 	for (const resource of resources) {
+	// 		const resourceState = stackState.resources[resource.urn]
 
-			if (resourceState) {
-				const state = resource.toState()
-				const [_, assetHashes] = await this.resolveAssets(state.assets ?? {})
-				const document = this.unwrapDocument(resource.urn, state.document ?? {}, false)
+	// 		if (resourceState) {
+	// 			const state = resource.toState()
+	// 			const [_, assetHashes] = await this.resolveAssets(state.assets ?? {})
+	// 			const document = this.unwrapDocument(resource.urn, state.document ?? {}, false)
 
-				if (
-					!this.compare(
-						//
-						[resourceState.local, resourceState.assets],
-						[document, assetHashes]
-					)
-				) {
-					// console.log('S', JSON.stringify(resourceState.local))
-					// console.log('D', JSON.stringify(document))
+	// 			if (
+	// 				!this.compare(
+	// 					//
+	// 					[resourceState.local, resourceState.assets],
+	// 					[document, assetHashes]
+	// 				)
+	// 			) {
+	// 				// console.log('S', JSON.stringify(resourceState.local))
+	// 				// console.log('D', JSON.stringify(document))
 
-					updates.push(resource.urn)
-				}
-			} else {
-				creates.push(resource.urn)
-			}
-		}
+	// 				updates.push(resource.urn)
+	// 			}
+	// 		} else {
+	// 			creates.push(resource.urn)
+	// 		}
+	// 	}
 
-		return {
-			creates,
-			updates,
-			deletes,
-		}
-	}
+	// 	return {
+	// 		creates,
+	// 		updates,
+	// 		deletes,
+	// 	}
+	// }
 
 	async deployStack(stack: Stack) {
 		const app = stack.parent
@@ -259,9 +126,24 @@ export class WorkSpace {
 			throw new StackError([], 'Stack must belong to an App')
 		}
 
-		return this.lockApp(app.urn, async () => {
-			const appState = (await this.props.stateProvider.get(app.urn)) ?? {}
-			const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
+		return lockApp(this.props.stateProvider, app.urn, async () => {
+			const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+				name: app.name,
+				stacks: {},
+			}
+
+			// -------------------------------------------------------
+			// Set the idempotent token when no token exists.
+
+			if (!appState.token) {
+				appState.token = randomUUID()
+
+				await this.props.stateProvider.update(app.urn, appState)
+			}
+
+			// -------------------------------------------------------
+
+			const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
 				name: stack.name,
 				exports: {},
 				resources: {},
@@ -326,12 +208,14 @@ export class WorkSpace {
 			}
 
 			// -------------------------------------------------------------------
+			// Delete the idempotant token when the deployment reaches the end.
+
+			delete appState.token
+
+			// -------------------------------------------------------------------
 			// Save stack exports
 
-			// const exports = this.unwrapDocument(stack.urn, stack.exports)
-			// console.log('unwrapped-exports', exports, stack.exports)
-
-			stackState.exports = this.unwrapDocument(stack.urn, stack.exported)
+			stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
 
 			await this.props.stateProvider.update(app.urn, appState)
 
@@ -348,9 +232,24 @@ export class WorkSpace {
 			throw new StackError([], 'Stack must belong to an App')
 		}
 
-		return this.lockApp(app.urn, async () => {
-			const appState = (await this.props.stateProvider.get(app.urn)) ?? {}
-			const stackState = appState[stack.urn]
+		return lockApp(this.props.stateProvider, app.urn, async () => {
+			const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+				name: app.name,
+				stacks: {},
+			}
+
+			// -------------------------------------------------------
+			// Set the idempotent token when no token exists.
+
+			if (!appState.token) {
+				appState.token = randomUUID()
+
+				await this.props.stateProvider.update(app.urn, appState)
+			}
+
+			// -------------------------------------------------------
+
+			const stackState = appState.stacks[stack.urn]
 
 			if (!stackState) {
 				throw new StackError([], `Stack already deleted: ${stack.name}`)
@@ -362,7 +261,8 @@ export class WorkSpace {
 				throw error
 			}
 
-			delete appState[stack.urn]
+			delete appState.token
+			delete appState.stacks[stack.urn]
 
 			await this.props.stateProvider.update(app.urn, appState)
 		})
@@ -403,27 +303,31 @@ export class WorkSpace {
 		const deployGraph: Record<URN, Step[]> = {}
 
 		for (const resource of resources) {
-			const provider = this.getCloudProvider(resource.cloudProviderId, resource.urn)
+			const provider = getCloudProvider(this.props.cloudProviders, resource.cloudProviderId)
 
 			deployGraph[resource.urn] = [
 				...[...resource.dependencies].map(dep => dep.urn),
 				async () => {
 					const state = resource.toState()
-					const [assets, assetHashes] = await this.resolveAssets(state.assets ?? {})
-					const document = this.unwrapDocument(resource.urn, state.document ?? {})
-					const extra = this.unwrapDocument(resource.urn, state.extra ?? {})
+					const [assets, assetHashes] = await loadAssets(state.assets ?? {})
+					const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
+					const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {})
+					const token = createIdempotantToken(appState.token!, resource.urn, 'create')
+
 					let resourceState = stackState.resources[resource.urn]
 
 					if (!resourceState) {
+						const token = createIdempotantToken(appState.token!, resource.urn, 'create')
+
 						let id: string
 						try {
 							id = await provider.create({
 								urn: resource.urn,
 								type: resource.type,
-								document: this.resolveDocumentAssets(this.copy(document), assets),
+								document: resolveDocumentAssets(cloneObject(document), assets),
 								assets,
 								extra,
-								token: randomUUID(),
+								token,
 							})
 						} catch (error) {
 							throw ResourceError.wrap(resource.urn, resource.type, 'create', error)
@@ -440,7 +344,6 @@ export class WorkSpace {
 							policies: {
 								deletion: resource.deletionPolicy,
 							},
-							// deletionPolicy: unwrap(state.deletionPolicy),
 						}
 
 						const remote = await this.getRemoteResource({
@@ -455,13 +358,14 @@ export class WorkSpace {
 						resourceState.remote = remote
 					} else if (
 						// Check if any state has changed
-						!this.compare(
+						!compareDocuments(
 							//
 							[resourceState.local, resourceState.assets],
 							[document, assetHashes]
 						)
 					) {
 						// this.resolveDocumentAssets(this.copy(document), assets),
+						const token = createIdempotantToken(appState.token!, resource.urn, 'update')
 
 						let id: string
 						try {
@@ -469,15 +373,12 @@ export class WorkSpace {
 								urn: resource.urn,
 								id: resourceState.id,
 								type: resource.type,
-								remoteDocument: this.resolveDocumentAssets(
-									this.copy(resourceState.remote),
-									assets
-								),
-								oldDocument: this.resolveDocumentAssets(this.copy(resourceState.local), assets),
+								remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
+								oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
 								newDocument: document,
 								assets,
 								extra,
-								token: randomUUID(),
+								token,
 							})
 						} catch (error) {
 							throw ResourceError.wrap(resource.urn, resource.type, 'update', error)
@@ -555,7 +456,8 @@ export class WorkSpace {
 
 		for (const [urnStr, state] of Object.entries(resources)) {
 			const urn = urnStr as URN
-			const provider = this.getCloudProvider(state.provider, urn)
+			const provider = getCloudProvider(this.props.cloudProviders, state.provider)
+			const token = createIdempotantToken(appState.token!, urn, 'delete')
 
 			deleteGraph[urn] = [
 				...this.dependentsOn(resources, urn),
@@ -568,7 +470,7 @@ export class WorkSpace {
 							document: state.local,
 							assets: state.assets,
 							extra: state.extra,
-							token: randomUUID(),
+							token,
 						})
 					} catch (error) {
 						if (error instanceof ResourceNotFound) {
@@ -603,62 +505,13 @@ export class WorkSpace {
 		}
 	}
 
-	// private async createResource(props: {
-	// 	stackState: StackState
-	// 	provider: CloudProvider
-	// 	resource: Resource
-	// 	assets: Record<string, ResolvedAsset>
-	// 	extra: ResourceDocument
-	// }) {
-	// 	// stackState[resource.urn]
-
-	// 	const state = resource.toState()
-	// 	const [assets, assetHashes] = await this.resolveAssets(state.assets ?? {})
-	// 	const document = this.unwrapDocument(resource.urn, state.document ?? {})
-	// 	const extra = this.unwrapDocument(resource.urn, state.extra ?? {})
-
-	// 	try {
-	// 		const id = await props.provider.create({
-	// 			urn: props.resource.urn,
-	// 			type: props.resource.type,
-	// 			document: this.resolveDocumentAssets(this.copy(props.document), props.assets),
-	// 			assets: props.assets,
-	// 			extra: props.extra,
-	// 		})
-
-	// 		return id
-	// 	} catch (error) {
-	// 		throw ResourceError.wrap(
-	// 			//
-	// 			props.resource.urn,
-	// 			props.resource.type,
-	// 			'create',
-	// 			error
-	// 		)
-	// 	}
-
-	// 	// resourceState = stackState.resources[resource.urn] = {
-	// 	// 	id,
-	// 	// 	type: resource.type,
-	// 	// 	provider: resource.cloudProviderId,
-	// 	// 	local: document,
-	// 	// 	assets: assetHashes,
-	// 	// 	dependencies: [...resource.dependencies].map(d => d.urn),
-	// 	// 	extra,
-	// 	// 	policies: {
-	// 	// 		deletion: resource.deletionPolicy,
-	// 	// 	},
-	// 	// 	// deletionPolicy: unwrap(state.deletionPolicy),
-	// 	// }
-	// }
-
 	private async healFromUnknownRemoteState(stackState: StackState) {
 		const results = await Promise.allSettled(
 			Object.entries(stackState.resources).map(async ([urnStr, resourceState]) => {
 				const urn = urnStr as URN
 
 				if (typeof resourceState.remote === 'undefined') {
-					const provider = this.getCloudProvider(resourceState.provider, urn)
+					const provider = getCloudProvider(this.props.cloudProviders, resourceState.provider)
 					const remote = await this.getRemoteResource({
 						urn,
 						id: resourceState.id,

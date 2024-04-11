@@ -34,11 +34,13 @@ export class LocalStateProvider implements StateProvider {
 
 	async get(urn: URN) {
 		let json
+
 		try {
 			json = await readFile(join(this.stateFile(urn)), 'utf8')
 		} catch (error) {
-			return {}
+			return
 		}
+
 		return JSON.parse(json) as AppState
 	}
 

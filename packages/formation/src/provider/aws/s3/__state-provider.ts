@@ -12,7 +12,7 @@ export class StateProvider implements Provider {
 	async get(urn: URN) {
 		console.log('LOAD APP STATE', urn)
 
-		return {}
+		return
 	}
 
 	async update(urn: URN, state: AppState) {

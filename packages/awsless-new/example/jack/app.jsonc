@@ -21,12 +21,8 @@
 		"graphql": {
 			"api": {
 				"domain": "main",
-				"subDomain": "api"
-			},
-			"api": {
-				"domain": "main",
 				"subDomain": "api",
-				"auth": "users"
+				// "auth": "users"
 			}
 		}
 	}

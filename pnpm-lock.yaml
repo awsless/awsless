@@ -326,6 +326,9 @@ importers:
       '@types/promise-dag':
         specifier: ^1.0.4
         version: 1.0.4
+      '@types/uuid':
+        specifier: ^9.0.0
+        version: 9.0.0
       '@vitest/runner':
         specifier: ^0.34.6
         version: 0.34.6
@@ -407,6 +410,9 @@ importers:
       type-fest:
         specifier: ^3.6.0
         version: 3.6.0
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.1
       vite:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@20.2.1)
@@ -684,6 +690,9 @@ importers:
       '@types/proper-lockfile':
         specifier: ^4.1.4
         version: 4.1.4
+      '@types/uuid':
+        specifier: ^9.0.0
+        version: 9.0.0
       change-case:
         specifier: ^4.1.2
         version: 4.1.2
@@ -705,6 +714,9 @@ importers:
       typescript:
         specifier: ^5.4.2
         version: 5.4.2
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.1
 
   packages/graphql:
     dependencies:
@@ -11784,7 +11796,6 @@ packages:
 
   /@types/uuid@9.0.0:
     resolution: {integrity: sha512-kr90f+ERiQtKWMz5rP32ltJ/BtULDI5RVO0uavn1HQUOwjx0R1h0rnDYNL0CepF1zL5bSY6FISAfd9tOdDhU5Q==}
-    dev: true
 
   /@types/yargs-parser@21.0.0:
     resolution: {integrity: sha512-iO9ZQHkZxHn4mSakYV0vFHAVDyEOIJQrV2uZ06HxEPcx+mt8swXoZHIbaaJ2crJYFfErySgktuTZ3BeLz+XmFA==}

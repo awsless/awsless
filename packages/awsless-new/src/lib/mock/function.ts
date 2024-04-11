@@ -1,6 +1,6 @@
 import { mockLambda } from '@awsless/lambda'
-import { createProxy } from '../feature/util.js'
-import { getFunctionName } from '../feature/function.js'
+import { createProxy } from '../resource/util.js'
+import { getFunctionName } from '../resource/function.js'
 // import type { Mock } from 'vitest'
 
 export interface FunctionMock {}

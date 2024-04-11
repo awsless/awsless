@@ -325,119 +325,126 @@ var RemoteAsset = class extends Asset {
   }
 };
 
-// src/core/workspace.ts
-import EventEmitter from "events";
+// src/core/workspace/workspace.ts
 import { run } from "promise-dag";
-var WorkSpace = class extends EventEmitter {
+
+// src/core/workspace/lock.ts
+var lockApp = async (stateProvider, urn, fn) => {
+  let release;
+  try {
+    release = await stateProvider.lock(urn);
+  } catch (error) {
+    throw new Error(`Already in progress: ${urn}`);
+  }
+  let result;
+  try {
+    result = await fn();
+  } catch (error) {
+    throw error;
+  } finally {
+    await release();
+  }
+  return result;
+};
+
+// src/core/workspace/document.ts
+var cloneObject = (document, replacer) => {
+  return JSON.parse(JSON.stringify(document, replacer));
+};
+var unwrapOutputsFromDocument = (urn, document) => {
+  const replacer = (_, value) => {
+    if (value instanceof Output) {
+      return value.valueOf();
+    }
+    if (typeof value === "bigint") {
+      return Number(value);
+    }
+    return value;
+  };
+  try {
+    return cloneObject(document, replacer);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new TypeError(`Resource has unresolved inputs: ${urn}`);
+    }
+    throw error;
+  }
+};
+var compareDocuments = (left, right) => {
+  const replacer = (_, value) => {
+    if (value !== null && value instanceof Object && !Array.isArray(value)) {
+      return Object.keys(value).sort().reduce((sorted, key) => {
+        sorted[key] = value[key];
+        return sorted;
+      }, {});
+    }
+    return value;
+  };
+  const l = JSON.stringify(left, replacer);
+  const r = JSON.stringify(right, replacer);
+  return l === r;
+};
+
+// src/core/workspace/asset.ts
+var loadAssets = async (assets) => {
+  const resolved = {};
+  const hashes = {};
+  await Promise.all(
+    Object.entries(assets).map(async ([name, asset]) => {
+      const data = await unwrap(asset).load();
+      const buff = await crypto.subtle.digest("SHA-256", data);
+      const hash = Buffer.from(buff).toString("hex");
+      hashes[name] = hash;
+      resolved[name] = {
+        data,
+        hash
+      };
+    })
+  );
+  return [resolved, hashes];
+};
+var resolveDocumentAssets = (document, assets) => {
+  if (document !== null && typeof document === "object") {
+    for (const [key, value] of Object.entries(document)) {
+      if (value !== null && typeof value === "object" && "__ASSET__" in value && typeof value.__ASSET__ === "string") {
+        document[key] = assets[value.__ASSET__]?.data.toString("utf8");
+      } else {
+        resolveDocumentAssets(value, assets);
+      }
+    }
+  } else if (Array.isArray(document)) {
+    for (const value of document) {
+      resolveDocumentAssets(value, assets);
+    }
+  }
+  return document;
+};
+
+// src/core/workspace/token.ts
+import { v5 } from "uuid";
+var createIdempotantToken = (appToken, urn, operation) => {
+  return v5(`${urn}-${operation}`, appToken);
+};
+
+// src/core/workspace/provider.ts
+var getCloudProvider = (cloudProviders, providerId) => {
+  for (const provider of cloudProviders) {
+    if (provider.own(providerId)) {
+      return provider;
+    }
+  }
+  throw new TypeError(`Can't find the "${providerId}" cloud provider.`);
+};
+
+// src/core/workspace/workspace.ts
+import { randomUUID } from "crypto";
+var WorkSpace = class {
   constructor(props) {
-    super();
     this.props = props;
-  }
-  getCloudProvider(providerId, urn) {
-    for (const provider of this.props.cloudProviders) {
-      if (provider.own(providerId)) {
-        return provider;
-      }
-    }
-    throw new TypeError(`Can't find the "${providerId}" cloud provider for: ${urn}`);
-  }
-  unwrapDocument(urn, document, safe = true) {
-    const replacer = (_, value) => {
-      if (value instanceof Output) {
-        if (safe) {
-          return value.valueOf();
-        } else {
-          try {
-            return value.valueOf();
-          } catch (e) {
-            return "[UnresolvedOutput]";
-          }
-        }
-      }
-      if (typeof value === "bigint") {
-        return Number(value);
-      }
-      return value;
-    };
-    try {
-      return this.copy(document, replacer);
-    } catch (error) {
-      if (error instanceof TypeError) {
-        throw new TypeError(`Resource has unresolved inputs: ${urn}`);
-      }
-      throw error;
-    }
-  }
-  async lockedOperation(urn, fn) {
-    let release;
-    try {
-      release = await this.props.stateProvider.lock(urn);
-    } catch (error) {
-      throw new Error(`Already in progress: ${urn}`);
-    }
-    let result;
-    try {
-      result = await fn();
-    } catch (error) {
-      throw error;
-    } finally {
-      await release();
-    }
-    return result;
-  }
-  async resolveAssets(assets) {
-    const resolved = {};
-    const hashes = {};
-    await Promise.all(
-      Object.entries(assets).map(async ([name, asset]) => {
-        const data = await unwrap(asset).load();
-        const buff = await crypto.subtle.digest("SHA-256", data);
-        const hash = Buffer.from(buff).toString("hex");
-        hashes[name] = hash;
-        resolved[name] = {
-          data,
-          hash
-        };
-      })
-    );
-    return [resolved, hashes];
-  }
-  copy(document, replacer) {
-    return JSON.parse(JSON.stringify(document, replacer));
-  }
-  compare(left, right) {
-    const replacer = (_, value) => {
-      if (value !== null && value instanceof Object && !Array.isArray(value)) {
-        return Object.keys(value).sort().reduce((sorted, key) => {
-          sorted[key] = value[key];
-          return sorted;
-        }, {});
-      }
-      return value;
-    };
-    const l = JSON.stringify(left, replacer);
-    const r = JSON.stringify(right, replacer);
-    return l === r;
-  }
-  resolveDocumentAssets(document, assets) {
-    if (document !== null && typeof document === "object") {
-      for (const [key, value] of Object.entries(document)) {
-        if (value !== null && typeof value === "object" && "__ASSET__" in value && typeof value.__ASSET__ === "string") {
-          document[key] = assets[value.__ASSET__]?.data.toString("utf8");
-        } else {
-          this.resolveDocumentAssets(value, assets);
-        }
-      }
-    } else if (Array.isArray(document)) {
-      for (const value of document) {
-        this.resolveDocumentAssets(value, assets);
-      }
-    }
-    return document;
   }
   getExportedData(appState) {
     const data = {};
-    for (const stackData of Object.values(appState)) {
+    for (const stackData of Object.values(appState.stacks)) {
       data[stackData.name] = stackData.exports;
     }
     return data;
@@ -454,76 +461,81 @@ var WorkSpace = class extends EventEmitter {
   // 		// }
   // 	})
   // }
-  async diffStack(stack) {
-    const app = stack.parent;
-    if (!app || !(app instanceof App)) {
-      throw new StackError([], "Stack must belong to an App");
-    }
-    const appState = await this.props.stateProvider.get(app.urn);
-    const stackState = appState[stack.urn] = appState[stack.urn] ?? {
-      name: stack.name,
-      exports: {},
-      resources: {}
-    };
-    const resources = stack.resources;
-    const creates = [];
-    const updates = [];
-    const deletes = [];
-    for (const resource of resources) {
-      const resourceState = stackState.resources[resource.urn];
-      if (resourceState) {
-        resource.setRemoteDocument(resourceState.remote);
-      }
-    }
-    for (const urn of Object.keys(stackState.resources)) {
-      const resource = resources.find((r) => r.urn === urn);
-      if (!resource) {
-        deletes.push(urn);
-      }
-    }
-    for (const resource of resources) {
-      const resourceState = stackState.resources[resource.urn];
-      if (resourceState) {
-        const state = resource.toState();
-        const [_, assetHashes] = await this.resolveAssets(state.assets ?? {});
-        const document = this.unwrapDocument(resource.urn, state.document ?? {}, false);
-        if (!this.compare(
-          //
-          [resourceState.local, resourceState.assets],
-          [document, assetHashes]
-        )) {
-          updates.push(resource.urn);
-        }
-      } else {
-        creates.push(resource.urn);
-      }
-    }
-    return {
-      creates,
-      updates,
-      deletes
-    };
-  }
+  // async diffStack(stack: Stack) {
+  // 	const app = stack.parent
+  // 	if (!app || !(app instanceof App)) {
+  // 		throw new StackError([], 'Stack must belong to an App')
+  // 	}
+  // 	const appState = await this.props.stateProvider.get(app.urn)
+  // 	const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
+  // 		name: stack.name,
+  // 		exports: {},
+  // 		resources: {},
+  // 	})
+  // 	const resources = stack.resources
+  // 	const creates: URN[] = []
+  // 	const updates: URN[] = []
+  // 	const deletes: URN[] = []
+  // 	for (const resource of resources) {
+  // 		const resourceState = stackState.resources[resource.urn]
+  // 		if (resourceState) {
+  // 			resource.setRemoteDocument(resourceState.remote)
+  // 		}
+  // 	}
+  // 	for (const urn of Object.keys(stackState.resources)) {
+  // 		const resource = resources.find(r => r.urn === urn)
+  // 		if (!resource) {
+  // 			deletes.push(urn as URN)
+  // 		}
+  // 	}
+  // 	for (const resource of resources) {
+  // 		const resourceState = stackState.resources[resource.urn]
+  // 		if (resourceState) {
+  // 			const state = resource.toState()
+  // 			const [_, assetHashes] = await this.resolveAssets(state.assets ?? {})
+  // 			const document = this.unwrapDocument(resource.urn, state.document ?? {}, false)
+  // 			if (
+  // 				!this.compare(
+  // 					//
+  // 					[resourceState.local, resourceState.assets],
+  // 					[document, assetHashes]
+  // 				)
+  // 			) {
+  // 				// console.log('S', JSON.stringify(resourceState.local))
+  // 				// console.log('D', JSON.stringify(document))
+  // 				updates.push(resource.urn)
+  // 			}
+  // 		} else {
+  // 			creates.push(resource.urn)
+  // 		}
+  // 	}
+  // 	return {
+  // 		creates,
+  // 		updates,
+  // 		deletes,
+  // 	}
+  // }
   async deployStack(stack) {
     const app = stack.parent;
     if (!app || !(app instanceof App)) {
       throw new StackError([], "Stack must belong to an App");
     }
-    return this.lockedOperation(app.urn, async () => {
-      const appState = await this.props.stateProvider.get(app.urn);
-      const stackState = appState[stack.urn] = appState[stack.urn] ?? {
+    return lockApp(this.props.stateProvider, app.urn, async () => {
+      const appState = await this.props.stateProvider.get(app.urn) ?? {
+        name: app.name,
+        stacks: {}
+      };
+      if (!appState.token) {
+        appState.token = randomUUID();
+        await this.props.stateProvider.update(app.urn, appState);
+      }
+      const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
         name: stack.name,
         exports: {},
         resources: {}
       };
       const resources = stack.resources;
       app.setExportedData(this.getExportedData(appState));
-      this.emit("stack", {
-        urn: stack.urn,
-        operation: "deploy",
-        status: "in-progress",
-        stack
-      });
       const deleteResourcesBefore = {};
       const deleteResourcesAfter = {};
       for (const [urnStr, state] of Object.entries(stackState.resources)) {
@@ -547,23 +559,11 @@ var WorkSpace = class extends EventEmitter {
           await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter);
         }
       } catch (error) {
-        this.emit("stack", {
-          urn: stack.urn,
-          operation: "deploy",
-          status: "error",
-          stack,
-          reason: error
-        });
         throw error;
       }
-      stackState.exports = this.unwrapDocument(stack.urn, stack.exported);
+      delete appState.token;
+      stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported);
       await this.props.stateProvider.update(app.urn, appState);
-      this.emit("stack", {
-        urn: stack.urn,
-        operation: "deploy",
-        status: "success",
-        stack
-      });
       return stackState;
     });
   }
@@ -572,108 +572,66 @@ var WorkSpace = class extends EventEmitter {
     if (!app || !(app instanceof App)) {
       throw new StackError([], "Stack must belong to an App");
     }
-    return this.lockedOperation(app.urn, async () => {
-      const appState = await this.props.stateProvider.get(app.urn);
-      const stackState = appState[stack.urn];
+    return lockApp(this.props.stateProvider, app.urn, async () => {
+      const appState = await this.props.stateProvider.get(app.urn) ?? {
+        name: app.name,
+        stacks: {}
+      };
+      if (!appState.token) {
+        appState.token = randomUUID();
+        await this.props.stateProvider.update(app.urn, appState);
+      }
+      const stackState = appState.stacks[stack.urn];
       if (!stackState) {
         throw new StackError([], `Stack already deleted: ${stack.name}`);
       }
-      this.emit("stack", {
-        urn: stack.urn,
-        operation: "delete",
-        status: "in-progress",
-        stack
-      });
       try {
         await this.deleteStackResources(app.urn, appState, stackState, stackState.resources);
       } catch (error) {
-        this.emit("stack", {
-          urn: stack.urn,
-          operation: "delete",
-          status: "error",
-          stack,
-          reason: error
-        });
         throw error;
       }
-      delete appState[stack.urn];
+      delete appState.token;
+      delete appState.stacks[stack.urn];
       await this.props.stateProvider.update(app.urn, appState);
-      this.emit("stack", {
-        urn: stack.urn,
-        operation: "delete",
-        status: "success",
-        stack
-      });
     });
   }
   async getRemoteResource(props) {
-    this.emit("resource", {
-      urn: props.urn,
-      type: props.type,
-      operation: "get",
-      status: "in-progress"
-    });
     let remote;
     try {
       remote = await props.provider.get(props);
     } catch (error) {
-      const resourceError = ResourceError.wrap(props.urn, props.type, "get", error);
-      this.emit("resource", {
-        urn: props.urn,
-        type: props.type,
-        operation: "get",
-        status: "error",
-        reason: resourceError
-      });
-      throw resourceError;
+      throw ResourceError.wrap(props.urn, props.type, "get", error);
     }
-    this.emit("resource", {
-      urn: props.urn,
-      type: props.type,
-      operation: "get",
-      status: "success"
-    });
     return remote;
   }
   async deployStackResources(appUrn, appState, stackState, resources) {
     await this.healFromUnknownRemoteState(stackState);
     const deployGraph = {};
     for (const resource of resources) {
-      const provider = this.getCloudProvider(resource.cloudProviderId, resource.urn);
+      const provider = getCloudProvider(this.props.cloudProviders, resource.cloudProviderId);
       deployGraph[resource.urn] = [
         ...[...resource.dependencies].map((dep) => dep.urn),
         async () => {
           const state = resource.toState();
-          const [assets, assetHashes] = await this.resolveAssets(state.assets ?? {});
-          const document = this.unwrapDocument(resource.urn, state.document ?? {});
-          const extra = this.unwrapDocument(resource.urn, state.extra ?? {});
+          const [assets, assetHashes] = await loadAssets(state.assets ?? {});
+          const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {});
+          const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {});
+          const token = createIdempotantToken(appState.token, resource.urn, "create");
           let resourceState = stackState.resources[resource.urn];
           if (!resourceState) {
-            this.emit("resource", {
-              urn: resource.urn,
-              type: resource.type,
-              operation: "create",
-              status: "in-progress"
-            });
+            const token2 = createIdempotantToken(appState.token, resource.urn, "create");
             let id;
             try {
               id = await provider.create({
                 urn: resource.urn,
                 type: resource.type,
-                document: this.resolveDocumentAssets(this.copy(document), assets),
+                document: resolveDocumentAssets(cloneObject(document), assets),
                 assets,
-                extra
+                extra,
+                token: token2
               });
             } catch (error) {
-              const resourceError = ResourceError.wrap(resource.urn, resource.type, "create", error);
-              this.emit("resource", {
-                urn: resource.urn,
-                type: resource.type,
-                operation: "create",
-                status: "error",
-                reason: resourceError
-              });
-              throw resourceError;
+              throw ResourceError.wrap(resource.urn, resource.type, "create", error);
             }
             resourceState = stackState.resources[resource.urn] = {
               id,
@@ -686,7 +644,6 @@ var WorkSpace = class extends EventEmitter {
               policies: {
                 deletion: resource.deletionPolicy
               }
-              // deletionPolicy: unwrap(state.deletionPolicy),
             };
             const remote = await this.getRemoteResource({
               id,
@@ -697,51 +654,30 @@ var WorkSpace = class extends EventEmitter {
               provider
             });
             resourceState.remote = remote;
-            this.emit("resource", {
-              urn: resource.urn,
-              type: resource.type,
-              operation: "create",
-              status: "success"
-            });
           } else if (
             // Check if any state has changed
-            !this.compare(
+            !compareDocuments(
               //
               [resourceState.local, resourceState.assets],
               [document, assetHashes]
             )
           ) {
-            this.emit("resource", {
-              urn: resource.urn,
-              type: resource.type,
-              operation: "update",
-              status: "in-progress"
-            });
+            const token2 = createIdempotantToken(appState.token, resource.urn, "update");
             let id;
             try {
               id = await provider.update({
                 urn: resource.urn,
                 id: resourceState.id,
                 type: resource.type,
-                remoteDocument: this.resolveDocumentAssets(
-                  this.copy(resourceState.remote),
-                  assets
-                ),
-                oldDocument: this.resolveDocumentAssets(this.copy(resourceState.local), assets),
+                remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
+                oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
                 newDocument: document,
                 assets,
-                extra
+                extra,
+                token: token2
               });
             } catch (error) {
-              const resourceError = ResourceError.wrap(resource.urn, resource.type, "update", error);
-              this.emit("resource", {
-                urn: resource.urn,
-                type: resource.type,
-                operation: "update",
-                status: "error",
-                reason: resourceError
-              });
-              throw resourceError;
+              throw ResourceError.wrap(resource.urn, resource.type, "update", error);
             }
             resourceState.id = id;
             resourceState.local = document;
@@ -755,12 +691,6 @@ var WorkSpace = class extends EventEmitter {
               provider
             });
             resourceState.remote = remote;
-            this.emit("resource", {
-              urn: resource.urn,
-              type: resource.type,
-              operation: "update",
-              status: "success"
-            });
           }
           resourceState.extra = extra;
           resourceState.dependencies = [...resource.dependencies].map((d) => d.urn);
@@ -789,16 +719,11 @@ var WorkSpace = class extends EventEmitter {
     const deleteGraph = {};
     for (const [urnStr, state] of Object.entries(resources)) {
       const urn = urnStr;
-      const provider = this.getCloudProvider(state.provider, urn);
+      const provider = getCloudProvider(this.props.cloudProviders, state.provider);
+      const token = createIdempotantToken(appState.token, urn, "delete");
       deleteGraph[urn] = [
         ...this.dependentsOn(resources, urn),
         async () => {
-          this.emit("resource", {
-            urn,
-            type: state.type,
-            operation: "delete",
-            status: "in-progress"
-          });
           try {
             await provider.delete({
               urn,
@@ -806,29 +731,16 @@ var WorkSpace = class extends EventEmitter {
               type: state.type,
               document: state.local,
               assets: state.assets,
-              extra: state.extra
+              extra: state.extra,
+              token
             });
           } catch (error) {
             if (error instanceof ResourceNotFound) {
             } else {
-              const resourceError = ResourceError.wrap(urn, state.type, "delete", error);
-              this.emit("resource", {
-                urn,
-                type: state.type,
-                operation: "delete",
-                status: "error",
-                reason: resourceError
-              });
-              throw resourceError;
+              throw ResourceError.wrap(urn, state.type, "delete", error);
             }
           }
           delete stackState.resources[urn];
-          this.emit("resource", {
-            urn,
-            type: state.type,
-            operation: "delete",
-            status: "success"
-          });
         }
       ];
     }
@@ -844,7 +756,7 @@ var WorkSpace = class extends EventEmitter {
       Object.entries(stackState.resources).map(async ([urnStr, resourceState]) => {
         const urn = urnStr;
         if (typeof resourceState.remote === "undefined") {
-          const provider = this.getCloudProvider(resourceState.provider, urn);
+          const provider = getCloudProvider(this.props.cloudProviders, resourceState.provider);
           const remote = await this.getRemoteResource({
             urn,
             id: resourceState.id,
@@ -854,20 +766,12 @@ var WorkSpace = class extends EventEmitter {
             provider
           });
           if (typeof remote === "undefined") {
-            const resourceError = new ResourceError(
+            throw new ResourceError(
               urn,
               resourceState.type,
               "heal",
               `Fetching remote state returned undefined`
             );
-            this.emit("resource", {
-              urn,
-              type: resourceState.type,
-              operation: "heal",
-              status: "error",
-              reason: resourceError
-            });
-            throw resourceError;
           }
           resourceState.remote = remote;
         }
@@ -1191,7 +1095,11 @@ var DataSourceProvider = class {
     return result.dataSource;
   }
   async create({ document }) {
-    await this.client.send(new CreateDataSourceCommand(document));
+    await this.client.send(
+      new CreateDataSourceCommand({
+        ...document
+      })
+    );
     return JSON.stringify([document.apiId, document.name]);
   }
   async update({ id, oldDocument, newDocument }) {
@@ -1366,7 +1274,11 @@ var GraphQLApiProvider = class {
     return result.graphqlApi;
   }
   async create({ document }) {
-    const result = await this.client.send(new CreateGraphqlApiCommand(document));
+    const result = await this.client.send(
+      new CreateGraphqlApiCommand({
+        ...document
+      })
+    );
     return result.graphqlApi?.apiId;
   }
   async update({ id, newDocument }) {
@@ -1730,32 +1642,33 @@ var CloudControlApiProvider = class {
     );
     return JSON.parse(result.ResourceDescription.Properties);
   }
-  async create({ urn, type, document }) {
+  async create({ token, type, document }) {
     const result = await this.client.send(
       new CreateResourceCommand({
         TypeName: type,
-        DesiredState: JSON.stringify(document)
-        // ClientToken: urn,
+        DesiredState: JSON.stringify(document),
+        ClientToken: token
       })
     );
     return this.progressStatus(result.ProgressEvent);
   }
-  async update({ type, id, oldDocument, newDocument, remoteDocument }) {
+  async update({ token, type, id, oldDocument, newDocument, remoteDocument }) {
     const result = await this.client.send(
       new UpdateResourceCommand({
         TypeName: type,
         Identifier: id,
-        PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument))
+        PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+        ClientToken: token
       })
     );
     return this.progressStatus(result.ProgressEvent);
   }
-  async delete({ urn, type, id }) {
+  async delete({ token, type, id }) {
     const result = await this.client.send(
       new DeleteResourceCommand({
         TypeName: type,
-        Identifier: id
-        // ClientToken: urn,
+        Identifier: id,
+        ClientToken: token
       })
     );
     await this.progressStatus(result.ProgressEvent);
@@ -2567,10 +2480,10 @@ var DynamoDBStateProvider = class {
       })
     );
     if (!result.Item) {
-      return {};
+      return;
     }
     const item = unmarshall(result.Item);
-    return item.state ?? {};
+    return item.state;
   }
   async update(urn, state) {
     await this.client.send(
@@ -4245,7 +4158,7 @@ import {
   ListResourceRecordSetsCommand,
   Route53Client
 } from "@aws-sdk/client-route-53";
-import { randomUUID } from "crypto";
+import { randomUUID as randomUUID2 } from "crypto";
 var RecordSetProvider = class {
   client;
   constructor(props) {
@@ -4278,7 +4191,7 @@ var RecordSetProvider = class {
     };
   }
   async create({ document }) {
-    const id = randomUUID();
+    const id = randomUUID2();
     await this.client.send(
       new ChangeResourceRecordSetsCommand({
         HostedZoneId: document.HostedZoneId,
@@ -4379,8 +4292,7 @@ __export(s3_exports, {
   BucketObject: () => BucketObject,
   BucketObjectProvider: () => BucketObjectProvider,
   BucketPolicy: () => BucketPolicy,
-  BucketProvider: () => BucketProvider,
-  StateProvider: () => StateProvider
+  BucketProvider: () => BucketProvider
 });
 
 // src/provider/aws/s3/bucket-object.ts
@@ -4639,7 +4551,12 @@ var BucketPolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/s3/bucket-object-provider.ts
-import { DeleteObjectCommand, GetObjectAttributesCommand, PutObjectCommand, S3Client as S3Client2 } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectAttributesCommand,
+  PutObjectCommand,
+  S3Client as S3Client2
+} from "@aws-sdk/client-s3";
 var BucketObjectProvider = class {
   client;
   constructor(props) {
@@ -4698,26 +4615,6 @@ var BucketObjectProvider = class {
         Key: document.Key
       })
     );
-  }
-};
-
-// src/provider/aws/s3/state-provider.ts
-var StateProvider = class {
-  async lock(urn) {
-    console.log("LOCK", urn);
-    return async () => {
-      console.log("UNLOCK", urn);
-    };
-  }
-  async get(urn) {
-    console.log("LOAD APP STATE", urn);
-    return {};
-  }
-  async update(urn, state) {
-    console.log("UPDATE APP STATE", urn, state);
-  }
-  async delete(urn) {
-    console.log("DELETE APP STATE", urn);
   }
 };
 
@@ -5043,7 +4940,7 @@ var LocalStateProvider = class {
     try {
       json = await readFile2(join(this.stateFile(urn)), "utf8");
     } catch (error) {
-      return {};
+      return;
     }
     return JSON.parse(json);
   }
