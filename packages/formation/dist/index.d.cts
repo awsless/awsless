@@ -427,26 +427,26 @@ declare class CertificateValidation extends Resource {
     };
 }
 
-type index$l_Certificate = Certificate;
-declare const index$l_Certificate: typeof Certificate;
-type index$l_CertificateProps = CertificateProps;
-type index$l_CertificateProvider = CertificateProvider;
-declare const index$l_CertificateProvider: typeof CertificateProvider;
-type index$l_CertificateValidation = CertificateValidation;
-declare const index$l_CertificateValidation: typeof CertificateValidation;
-type index$l_CertificateValidationProps = CertificateValidationProps;
-type index$l_CertificateValidationProvider = CertificateValidationProvider;
-declare const index$l_CertificateValidationProvider: typeof CertificateValidationProvider;
-type index$l_KeyAlgorithm = KeyAlgorithm;
-declare namespace index$l {
+type index$m_Certificate = Certificate;
+declare const index$m_Certificate: typeof Certificate;
+type index$m_CertificateProps = CertificateProps;
+type index$m_CertificateProvider = CertificateProvider;
+declare const index$m_CertificateProvider: typeof CertificateProvider;
+type index$m_CertificateValidation = CertificateValidation;
+declare const index$m_CertificateValidation: typeof CertificateValidation;
+type index$m_CertificateValidationProps = CertificateValidationProps;
+type index$m_CertificateValidationProvider = CertificateValidationProvider;
+declare const index$m_CertificateValidationProvider: typeof CertificateValidationProvider;
+type index$m_KeyAlgorithm = KeyAlgorithm;
+declare namespace index$m {
   export {
-    index$l_Certificate as Certificate,
-    index$l_CertificateProps as CertificateProps,
-    index$l_CertificateProvider as CertificateProvider,
-    index$l_CertificateValidation as CertificateValidation,
-    index$l_CertificateValidationProps as CertificateValidationProps,
-    index$l_CertificateValidationProvider as CertificateValidationProvider,
-    index$l_KeyAlgorithm as KeyAlgorithm,
+    index$m_Certificate as Certificate,
+    index$m_CertificateProps as CertificateProps,
+    index$m_CertificateProvider as CertificateProvider,
+    index$m_CertificateValidation as CertificateValidation,
+    index$m_CertificateValidationProps as CertificateValidationProps,
+    index$m_CertificateValidationProvider as CertificateValidationProvider,
+    index$m_KeyAlgorithm as KeyAlgorithm,
   };
 }
 
@@ -800,49 +800,49 @@ declare class SourceApiAssociation extends CloudControlApiResource {
     };
 }
 
-type index$k_DataSource = DataSource;
-declare const index$k_DataSource: typeof DataSource;
-type index$k_DataSourceProps = DataSourceProps;
-type index$k_DataSourceProvider = DataSourceProvider;
-declare const index$k_DataSourceProvider: typeof DataSourceProvider;
-type index$k_DomainName = DomainName;
-declare const index$k_DomainName: typeof DomainName;
-type index$k_DomainNameApiAssociation = DomainNameApiAssociation;
-declare const index$k_DomainNameApiAssociation: typeof DomainNameApiAssociation;
-type index$k_FunctionConfiguration = FunctionConfiguration;
-declare const index$k_FunctionConfiguration: typeof FunctionConfiguration;
-type index$k_FunctionConfigurationProps = FunctionConfigurationProps;
-type index$k_GraphQLApi = GraphQLApi;
-declare const index$k_GraphQLApi: typeof GraphQLApi;
-type index$k_GraphQLApiProvider = GraphQLApiProvider;
-declare const index$k_GraphQLApiProvider: typeof GraphQLApiProvider;
-type index$k_GraphQLSchema = GraphQLSchema;
-declare const index$k_GraphQLSchema: typeof GraphQLSchema;
-type index$k_GraphQLSchemaProps = GraphQLSchemaProps;
-type index$k_GraphQLSchemaProvider = GraphQLSchemaProvider;
-declare const index$k_GraphQLSchemaProvider: typeof GraphQLSchemaProvider;
-type index$k_Resolver = Resolver;
-declare const index$k_Resolver: typeof Resolver;
-type index$k_ResolverProps = ResolverProps;
-type index$k_SourceApiAssociation = SourceApiAssociation;
-declare const index$k_SourceApiAssociation: typeof SourceApiAssociation;
-declare namespace index$k {
+type index$l_DataSource = DataSource;
+declare const index$l_DataSource: typeof DataSource;
+type index$l_DataSourceProps = DataSourceProps;
+type index$l_DataSourceProvider = DataSourceProvider;
+declare const index$l_DataSourceProvider: typeof DataSourceProvider;
+type index$l_DomainName = DomainName;
+declare const index$l_DomainName: typeof DomainName;
+type index$l_DomainNameApiAssociation = DomainNameApiAssociation;
+declare const index$l_DomainNameApiAssociation: typeof DomainNameApiAssociation;
+type index$l_FunctionConfiguration = FunctionConfiguration;
+declare const index$l_FunctionConfiguration: typeof FunctionConfiguration;
+type index$l_FunctionConfigurationProps = FunctionConfigurationProps;
+type index$l_GraphQLApi = GraphQLApi;
+declare const index$l_GraphQLApi: typeof GraphQLApi;
+type index$l_GraphQLApiProvider = GraphQLApiProvider;
+declare const index$l_GraphQLApiProvider: typeof GraphQLApiProvider;
+type index$l_GraphQLSchema = GraphQLSchema;
+declare const index$l_GraphQLSchema: typeof GraphQLSchema;
+type index$l_GraphQLSchemaProps = GraphQLSchemaProps;
+type index$l_GraphQLSchemaProvider = GraphQLSchemaProvider;
+declare const index$l_GraphQLSchemaProvider: typeof GraphQLSchemaProvider;
+type index$l_Resolver = Resolver;
+declare const index$l_Resolver: typeof Resolver;
+type index$l_ResolverProps = ResolverProps;
+type index$l_SourceApiAssociation = SourceApiAssociation;
+declare const index$l_SourceApiAssociation: typeof SourceApiAssociation;
+declare namespace index$l {
   export {
-    index$k_DataSource as DataSource,
-    index$k_DataSourceProps as DataSourceProps,
-    index$k_DataSourceProvider as DataSourceProvider,
-    index$k_DomainName as DomainName,
-    index$k_DomainNameApiAssociation as DomainNameApiAssociation,
-    index$k_FunctionConfiguration as FunctionConfiguration,
-    index$k_FunctionConfigurationProps as FunctionConfigurationProps,
-    index$k_GraphQLApi as GraphQLApi,
-    index$k_GraphQLApiProvider as GraphQLApiProvider,
-    index$k_GraphQLSchema as GraphQLSchema,
-    index$k_GraphQLSchemaProps as GraphQLSchemaProps,
-    index$k_GraphQLSchemaProvider as GraphQLSchemaProvider,
-    index$k_Resolver as Resolver,
-    index$k_ResolverProps as ResolverProps,
-    index$k_SourceApiAssociation as SourceApiAssociation,
+    index$l_DataSource as DataSource,
+    index$l_DataSourceProps as DataSourceProps,
+    index$l_DataSourceProvider as DataSourceProvider,
+    index$l_DomainName as DomainName,
+    index$l_DomainNameApiAssociation as DomainNameApiAssociation,
+    index$l_FunctionConfiguration as FunctionConfiguration,
+    index$l_FunctionConfigurationProps as FunctionConfigurationProps,
+    index$l_GraphQLApi as GraphQLApi,
+    index$l_GraphQLApiProvider as GraphQLApiProvider,
+    index$l_GraphQLSchema as GraphQLSchema,
+    index$l_GraphQLSchemaProps as GraphQLSchemaProps,
+    index$l_GraphQLSchemaProvider as GraphQLSchemaProvider,
+    index$l_Resolver as Resolver,
+    index$l_ResolverProps as ResolverProps,
+    index$l_SourceApiAssociation as SourceApiAssociation,
   };
 }
 
@@ -864,14 +864,14 @@ declare class CloudControlApiProvider implements CloudProvider {
     delete({ urn, type, id }: DeleteProps): Promise<void>;
 }
 
-type index$j_CloudControlApiProvider = CloudControlApiProvider;
-declare const index$j_CloudControlApiProvider: typeof CloudControlApiProvider;
-type index$j_CloudControlApiResource = CloudControlApiResource;
-declare const index$j_CloudControlApiResource: typeof CloudControlApiResource;
-declare namespace index$j {
+type index$k_CloudControlApiProvider = CloudControlApiProvider;
+declare const index$k_CloudControlApiProvider: typeof CloudControlApiProvider;
+type index$k_CloudControlApiResource = CloudControlApiResource;
+declare const index$k_CloudControlApiResource: typeof CloudControlApiResource;
+declare namespace index$k {
   export {
-    index$j_CloudControlApiProvider as CloudControlApiProvider,
-    index$j_CloudControlApiResource as CloudControlApiResource,
+    index$k_CloudControlApiProvider as CloudControlApiProvider,
+    index$k_CloudControlApiResource as CloudControlApiResource,
   };
 }
 
@@ -1242,35 +1242,35 @@ declare class ResponseHeadersPolicy extends CloudControlApiResource {
     };
 }
 
-type index$i_AssociationType = AssociationType;
-type index$i_CachePolicy = CachePolicy;
-declare const index$i_CachePolicy: typeof CachePolicy;
-type index$i_Distribution = Distribution;
-declare const index$i_Distribution: typeof Distribution;
-type index$i_InvalidateCache = InvalidateCache;
-declare const index$i_InvalidateCache: typeof InvalidateCache;
-type index$i_InvalidateCacheProvider = InvalidateCacheProvider;
-declare const index$i_InvalidateCacheProvider: typeof InvalidateCacheProvider;
-type index$i_Origin = Origin;
-type index$i_OriginAccessControl = OriginAccessControl;
-declare const index$i_OriginAccessControl: typeof OriginAccessControl;
-type index$i_OriginGroup = OriginGroup;
-type index$i_OriginRequestPolicy = OriginRequestPolicy;
-declare const index$i_OriginRequestPolicy: typeof OriginRequestPolicy;
-type index$i_ResponseHeadersPolicy = ResponseHeadersPolicy;
-declare const index$i_ResponseHeadersPolicy: typeof ResponseHeadersPolicy;
-declare namespace index$i {
+type index$j_AssociationType = AssociationType;
+type index$j_CachePolicy = CachePolicy;
+declare const index$j_CachePolicy: typeof CachePolicy;
+type index$j_Distribution = Distribution;
+declare const index$j_Distribution: typeof Distribution;
+type index$j_InvalidateCache = InvalidateCache;
+declare const index$j_InvalidateCache: typeof InvalidateCache;
+type index$j_InvalidateCacheProvider = InvalidateCacheProvider;
+declare const index$j_InvalidateCacheProvider: typeof InvalidateCacheProvider;
+type index$j_Origin = Origin;
+type index$j_OriginAccessControl = OriginAccessControl;
+declare const index$j_OriginAccessControl: typeof OriginAccessControl;
+type index$j_OriginGroup = OriginGroup;
+type index$j_OriginRequestPolicy = OriginRequestPolicy;
+declare const index$j_OriginRequestPolicy: typeof OriginRequestPolicy;
+type index$j_ResponseHeadersPolicy = ResponseHeadersPolicy;
+declare const index$j_ResponseHeadersPolicy: typeof ResponseHeadersPolicy;
+declare namespace index$j {
   export {
-    index$i_AssociationType as AssociationType,
-    index$i_CachePolicy as CachePolicy,
-    index$i_Distribution as Distribution,
-    index$i_InvalidateCache as InvalidateCache,
-    index$i_InvalidateCacheProvider as InvalidateCacheProvider,
-    index$i_Origin as Origin,
-    index$i_OriginAccessControl as OriginAccessControl,
-    index$i_OriginGroup as OriginGroup,
-    index$i_OriginRequestPolicy as OriginRequestPolicy,
-    index$i_ResponseHeadersPolicy as ResponseHeadersPolicy,
+    index$j_AssociationType as AssociationType,
+    index$j_CachePolicy as CachePolicy,
+    index$j_Distribution as Distribution,
+    index$j_InvalidateCache as InvalidateCache,
+    index$j_InvalidateCacheProvider as InvalidateCacheProvider,
+    index$j_Origin as Origin,
+    index$j_OriginAccessControl as OriginAccessControl,
+    index$j_OriginGroup as OriginGroup,
+    index$j_OriginRequestPolicy as OriginRequestPolicy,
+    index$j_ResponseHeadersPolicy as ResponseHeadersPolicy,
   };
 }
 
@@ -1293,11 +1293,11 @@ declare class LogGroup extends CloudControlApiResource {
     };
 }
 
-type index$h_LogGroup = LogGroup;
-declare const index$h_LogGroup: typeof LogGroup;
-declare namespace index$h {
+type index$i_LogGroup = LogGroup;
+declare const index$i_LogGroup: typeof LogGroup;
+declare namespace index$i {
   export {
-    index$h_LogGroup as LogGroup,
+    index$i_LogGroup as LogGroup,
   };
 }
 
@@ -1490,38 +1490,38 @@ declare class LambdaTriggersProvider implements CloudProvider {
     protected client: CognitoIdentityProviderClient;
     constructor(props: ProviderProps$6);
     own(id: string): boolean;
-    updateUserPool(document: Document$4): Promise<void>;
+    private updateUserPool;
     get({ document }: GetProps<Document$4>): Promise<_aws_sdk_client_cognito_identity_provider.LambdaConfigType>;
     create({ document }: CreateProps<Document$4>): Promise<string>;
     update({ oldDocument, newDocument }: UpdateProps<Document$4>): Promise<string>;
     delete({ document }: DeleteProps<Document$4>): Promise<void>;
 }
 
-type index$g_LambaTriggersProps = LambaTriggersProps;
-type index$g_LambdaTriggers = LambdaTriggers;
-declare const index$g_LambdaTriggers: typeof LambdaTriggers;
-type index$g_LambdaTriggersProvider = LambdaTriggersProvider;
-declare const index$g_LambdaTriggersProvider: typeof LambdaTriggersProvider;
-type index$g_UserPool = UserPool;
-declare const index$g_UserPool: typeof UserPool;
-type index$g_UserPoolClient = UserPoolClient;
-declare const index$g_UserPoolClient: typeof UserPoolClient;
-type index$g_UserPoolClientProps = UserPoolClientProps;
-type index$g_UserPoolDomain = UserPoolDomain;
-declare const index$g_UserPoolDomain: typeof UserPoolDomain;
-type index$g_UserPoolDomainProps = UserPoolDomainProps;
-type index$g_UserPoolProps = UserPoolProps;
-declare namespace index$g {
+type index$h_LambaTriggersProps = LambaTriggersProps;
+type index$h_LambdaTriggers = LambdaTriggers;
+declare const index$h_LambdaTriggers: typeof LambdaTriggers;
+type index$h_LambdaTriggersProvider = LambdaTriggersProvider;
+declare const index$h_LambdaTriggersProvider: typeof LambdaTriggersProvider;
+type index$h_UserPool = UserPool;
+declare const index$h_UserPool: typeof UserPool;
+type index$h_UserPoolClient = UserPoolClient;
+declare const index$h_UserPoolClient: typeof UserPoolClient;
+type index$h_UserPoolClientProps = UserPoolClientProps;
+type index$h_UserPoolDomain = UserPoolDomain;
+declare const index$h_UserPoolDomain: typeof UserPoolDomain;
+type index$h_UserPoolDomainProps = UserPoolDomainProps;
+type index$h_UserPoolProps = UserPoolProps;
+declare namespace index$h {
   export {
-    index$g_LambaTriggersProps as LambaTriggersProps,
-    index$g_LambdaTriggers as LambdaTriggers,
-    index$g_LambdaTriggersProvider as LambdaTriggersProvider,
-    index$g_UserPool as UserPool,
-    index$g_UserPoolClient as UserPoolClient,
-    index$g_UserPoolClientProps as UserPoolClientProps,
-    index$g_UserPoolDomain as UserPoolDomain,
-    index$g_UserPoolDomainProps as UserPoolDomainProps,
-    index$g_UserPoolProps as UserPoolProps,
+    index$h_LambaTriggersProps as LambaTriggersProps,
+    index$h_LambdaTriggers as LambdaTriggers,
+    index$h_LambdaTriggersProvider as LambdaTriggersProvider,
+    index$h_UserPool as UserPool,
+    index$h_UserPoolClient as UserPoolClient,
+    index$h_UserPoolClientProps as UserPoolClientProps,
+    index$h_UserPoolDomain as UserPoolDomain,
+    index$h_UserPoolDomainProps as UserPoolDomainProps,
+    index$h_UserPoolProps as UserPoolProps,
   };
 }
 
@@ -1668,26 +1668,26 @@ declare class Role extends CloudControlApiResource {
 
 declare const fromAwsManagedPolicyName: (name: string) => `arn:aws:iam::aws:policy/service-role/${string}`;
 
-type index$f_PolicyDocument = PolicyDocument;
-type index$f_PolicyDocumentVersion = PolicyDocumentVersion;
-type index$f_Role = Role;
-declare const index$f_Role: typeof Role;
-type index$f_RolePolicy = RolePolicy;
-declare const index$f_RolePolicy: typeof RolePolicy;
-type index$f_Statement = Statement;
-declare const index$f_formatPolicyDocument: typeof formatPolicyDocument;
-declare const index$f_formatStatement: typeof formatStatement;
-declare const index$f_fromAwsManagedPolicyName: typeof fromAwsManagedPolicyName;
-declare namespace index$f {
+type index$g_PolicyDocument = PolicyDocument;
+type index$g_PolicyDocumentVersion = PolicyDocumentVersion;
+type index$g_Role = Role;
+declare const index$g_Role: typeof Role;
+type index$g_RolePolicy = RolePolicy;
+declare const index$g_RolePolicy: typeof RolePolicy;
+type index$g_Statement = Statement;
+declare const index$g_formatPolicyDocument: typeof formatPolicyDocument;
+declare const index$g_formatStatement: typeof formatStatement;
+declare const index$g_fromAwsManagedPolicyName: typeof fromAwsManagedPolicyName;
+declare namespace index$g {
   export {
-    index$f_PolicyDocument as PolicyDocument,
-    index$f_PolicyDocumentVersion as PolicyDocumentVersion,
-    index$f_Role as Role,
-    index$f_RolePolicy as RolePolicy,
-    index$f_Statement as Statement,
-    index$f_formatPolicyDocument as formatPolicyDocument,
-    index$f_formatStatement as formatStatement,
-    index$f_fromAwsManagedPolicyName as fromAwsManagedPolicyName,
+    index$g_PolicyDocument as PolicyDocument,
+    index$g_PolicyDocumentVersion as PolicyDocumentVersion,
+    index$g_Role as Role,
+    index$g_RolePolicy as RolePolicy,
+    index$g_Statement as Statement,
+    index$g_formatPolicyDocument as formatPolicyDocument,
+    index$g_formatStatement as formatStatement,
+    index$g_fromAwsManagedPolicyName as fromAwsManagedPolicyName,
   };
 }
 
@@ -1784,26 +1784,26 @@ declare class TableItem extends Resource {
     };
 }
 
-type index$e_DynamoDBStateProvider = DynamoDBStateProvider;
-declare const index$e_DynamoDBStateProvider: typeof DynamoDBStateProvider;
-type index$e_IndexProps = IndexProps;
-type index$e_StreamViewType = StreamViewType;
-type index$e_Table = Table;
-declare const index$e_Table: typeof Table;
-type index$e_TableItem = TableItem;
-declare const index$e_TableItem: typeof TableItem;
-type index$e_TableItemProvider = TableItemProvider;
-declare const index$e_TableItemProvider: typeof TableItemProvider;
-type index$e_TableProps = TableProps;
-declare namespace index$e {
+type index$f_DynamoDBStateProvider = DynamoDBStateProvider;
+declare const index$f_DynamoDBStateProvider: typeof DynamoDBStateProvider;
+type index$f_IndexProps = IndexProps;
+type index$f_StreamViewType = StreamViewType;
+type index$f_Table = Table;
+declare const index$f_Table: typeof Table;
+type index$f_TableItem = TableItem;
+declare const index$f_TableItem: typeof TableItem;
+type index$f_TableItemProvider = TableItemProvider;
+declare const index$f_TableItemProvider: typeof TableItemProvider;
+type index$f_TableProps = TableProps;
+declare namespace index$f {
   export {
-    index$e_DynamoDBStateProvider as DynamoDBStateProvider,
-    index$e_IndexProps as IndexProps,
-    index$e_StreamViewType as StreamViewType,
-    index$e_Table as Table,
-    index$e_TableItem as TableItem,
-    index$e_TableItemProvider as TableItemProvider,
-    index$e_TableProps as TableProps,
+    index$f_DynamoDBStateProvider as DynamoDBStateProvider,
+    index$f_IndexProps as IndexProps,
+    index$f_StreamViewType as StreamViewType,
+    index$f_Table as Table,
+    index$f_TableItem as TableItem,
+    index$f_TableItemProvider as TableItemProvider,
+    index$f_TableProps as TableProps,
   };
 }
 
@@ -2179,43 +2179,43 @@ declare class InternetGateway extends CloudControlApiResource {
     };
 }
 
-type index$d_InternetGateway = InternetGateway;
-declare const index$d_InternetGateway: typeof InternetGateway;
-type index$d_Peer = Peer;
-declare const index$d_Peer: typeof Peer;
-type index$d_Port = Port;
-declare const index$d_Port: typeof Port;
-type index$d_PortProps = PortProps;
-type index$d_Protocol = Protocol;
-declare const index$d_Protocol: typeof Protocol;
-type index$d_Route = Route;
-declare const index$d_Route: typeof Route;
-type index$d_RouteTable = RouteTable;
-declare const index$d_RouteTable: typeof RouteTable;
-type index$d_SecurityGroup = SecurityGroup;
-declare const index$d_SecurityGroup: typeof SecurityGroup;
-type index$d_Subnet = Subnet;
-declare const index$d_Subnet: typeof Subnet;
-type index$d_SubnetRouteTableAssociation = SubnetRouteTableAssociation;
-declare const index$d_SubnetRouteTableAssociation: typeof SubnetRouteTableAssociation;
-type index$d_VPCGatewayAttachment = VPCGatewayAttachment;
-declare const index$d_VPCGatewayAttachment: typeof VPCGatewayAttachment;
-type index$d_Vpc = Vpc;
-declare const index$d_Vpc: typeof Vpc;
-declare namespace index$d {
+type index$e_InternetGateway = InternetGateway;
+declare const index$e_InternetGateway: typeof InternetGateway;
+type index$e_Peer = Peer;
+declare const index$e_Peer: typeof Peer;
+type index$e_Port = Port;
+declare const index$e_Port: typeof Port;
+type index$e_PortProps = PortProps;
+type index$e_Protocol = Protocol;
+declare const index$e_Protocol: typeof Protocol;
+type index$e_Route = Route;
+declare const index$e_Route: typeof Route;
+type index$e_RouteTable = RouteTable;
+declare const index$e_RouteTable: typeof RouteTable;
+type index$e_SecurityGroup = SecurityGroup;
+declare const index$e_SecurityGroup: typeof SecurityGroup;
+type index$e_Subnet = Subnet;
+declare const index$e_Subnet: typeof Subnet;
+type index$e_SubnetRouteTableAssociation = SubnetRouteTableAssociation;
+declare const index$e_SubnetRouteTableAssociation: typeof SubnetRouteTableAssociation;
+type index$e_VPCGatewayAttachment = VPCGatewayAttachment;
+declare const index$e_VPCGatewayAttachment: typeof VPCGatewayAttachment;
+type index$e_Vpc = Vpc;
+declare const index$e_Vpc: typeof Vpc;
+declare namespace index$e {
   export {
-    index$d_InternetGateway as InternetGateway,
-    index$d_Peer as Peer,
-    index$d_Port as Port,
-    index$d_PortProps as PortProps,
-    index$d_Protocol as Protocol,
-    index$d_Route as Route,
-    index$d_RouteTable as RouteTable,
-    index$d_SecurityGroup as SecurityGroup,
-    index$d_Subnet as Subnet,
-    index$d_SubnetRouteTableAssociation as SubnetRouteTableAssociation,
-    index$d_VPCGatewayAttachment as VPCGatewayAttachment,
-    index$d_Vpc as Vpc,
+    index$e_InternetGateway as InternetGateway,
+    index$e_Peer as Peer,
+    index$e_Port as Port,
+    index$e_PortProps as PortProps,
+    index$e_Protocol as Protocol,
+    index$e_Route as Route,
+    index$e_RouteTable as RouteTable,
+    index$e_SecurityGroup as SecurityGroup,
+    index$e_Subnet as Subnet,
+    index$e_SubnetRouteTableAssociation as SubnetRouteTableAssociation,
+    index$e_VPCGatewayAttachment as VPCGatewayAttachment,
+    index$e_Vpc as Vpc,
   };
 }
 
@@ -2409,55 +2409,55 @@ declare class TargetGroup extends CloudControlApiResource {
     };
 }
 
-type index$c_AuthCognitoAction = AuthCognitoAction;
-declare const index$c_AuthCognitoAction: typeof AuthCognitoAction;
-type index$c_AuthenticateCognitoProps = AuthenticateCognitoProps;
-type index$c_ContentType = ContentType;
-type index$c_FixedResponseAction = FixedResponseAction;
-declare const index$c_FixedResponseAction: typeof FixedResponseAction;
-type index$c_FixedResponseProps = FixedResponseProps;
-type index$c_ForwardAction = ForwardAction;
-declare const index$c_ForwardAction: typeof ForwardAction;
-type index$c_ForwardProps = ForwardProps;
-type index$c_HttpRequestMethod = HttpRequestMethod;
-type index$c_HttpRequestMethods = HttpRequestMethods;
-declare const index$c_HttpRequestMethods: typeof HttpRequestMethods;
-type index$c_HttpRequestMethodsProps = HttpRequestMethodsProps;
-type index$c_Listener = Listener;
-declare const index$c_Listener: typeof Listener;
-type index$c_ListenerAction = ListenerAction;
-declare const index$c_ListenerAction: typeof ListenerAction;
-type index$c_ListenerCondition = ListenerCondition;
-declare const index$c_ListenerCondition: typeof ListenerCondition;
-type index$c_ListenerRule = ListenerRule;
-declare const index$c_ListenerRule: typeof ListenerRule;
-type index$c_LoadBalancer = LoadBalancer;
-declare const index$c_LoadBalancer: typeof LoadBalancer;
-type index$c_PathPattern = PathPattern;
-declare const index$c_PathPattern: typeof PathPattern;
-type index$c_PathPatternProps = PathPatternProps;
-type index$c_TargetGroup = TargetGroup;
-declare const index$c_TargetGroup: typeof TargetGroup;
-declare namespace index$c {
+type index$d_AuthCognitoAction = AuthCognitoAction;
+declare const index$d_AuthCognitoAction: typeof AuthCognitoAction;
+type index$d_AuthenticateCognitoProps = AuthenticateCognitoProps;
+type index$d_ContentType = ContentType;
+type index$d_FixedResponseAction = FixedResponseAction;
+declare const index$d_FixedResponseAction: typeof FixedResponseAction;
+type index$d_FixedResponseProps = FixedResponseProps;
+type index$d_ForwardAction = ForwardAction;
+declare const index$d_ForwardAction: typeof ForwardAction;
+type index$d_ForwardProps = ForwardProps;
+type index$d_HttpRequestMethod = HttpRequestMethod;
+type index$d_HttpRequestMethods = HttpRequestMethods;
+declare const index$d_HttpRequestMethods: typeof HttpRequestMethods;
+type index$d_HttpRequestMethodsProps = HttpRequestMethodsProps;
+type index$d_Listener = Listener;
+declare const index$d_Listener: typeof Listener;
+type index$d_ListenerAction = ListenerAction;
+declare const index$d_ListenerAction: typeof ListenerAction;
+type index$d_ListenerCondition = ListenerCondition;
+declare const index$d_ListenerCondition: typeof ListenerCondition;
+type index$d_ListenerRule = ListenerRule;
+declare const index$d_ListenerRule: typeof ListenerRule;
+type index$d_LoadBalancer = LoadBalancer;
+declare const index$d_LoadBalancer: typeof LoadBalancer;
+type index$d_PathPattern = PathPattern;
+declare const index$d_PathPattern: typeof PathPattern;
+type index$d_PathPatternProps = PathPatternProps;
+type index$d_TargetGroup = TargetGroup;
+declare const index$d_TargetGroup: typeof TargetGroup;
+declare namespace index$d {
   export {
-    index$c_AuthCognitoAction as AuthCognitoAction,
-    index$c_AuthenticateCognitoProps as AuthenticateCognitoProps,
-    index$c_ContentType as ContentType,
-    index$c_FixedResponseAction as FixedResponseAction,
-    index$c_FixedResponseProps as FixedResponseProps,
-    index$c_ForwardAction as ForwardAction,
-    index$c_ForwardProps as ForwardProps,
-    index$c_HttpRequestMethod as HttpRequestMethod,
-    index$c_HttpRequestMethods as HttpRequestMethods,
-    index$c_HttpRequestMethodsProps as HttpRequestMethodsProps,
-    index$c_Listener as Listener,
-    index$c_ListenerAction as ListenerAction,
-    index$c_ListenerCondition as ListenerCondition,
-    index$c_ListenerRule as ListenerRule,
-    index$c_LoadBalancer as LoadBalancer,
-    index$c_PathPattern as PathPattern,
-    index$c_PathPatternProps as PathPatternProps,
-    index$c_TargetGroup as TargetGroup,
+    index$d_AuthCognitoAction as AuthCognitoAction,
+    index$d_AuthenticateCognitoProps as AuthenticateCognitoProps,
+    index$d_ContentType as ContentType,
+    index$d_FixedResponseAction as FixedResponseAction,
+    index$d_FixedResponseProps as FixedResponseProps,
+    index$d_ForwardAction as ForwardAction,
+    index$d_ForwardProps as ForwardProps,
+    index$d_HttpRequestMethod as HttpRequestMethod,
+    index$d_HttpRequestMethods as HttpRequestMethods,
+    index$d_HttpRequestMethodsProps as HttpRequestMethodsProps,
+    index$d_Listener as Listener,
+    index$d_ListenerAction as ListenerAction,
+    index$d_ListenerCondition as ListenerCondition,
+    index$d_ListenerRule as ListenerRule,
+    index$d_LoadBalancer as LoadBalancer,
+    index$d_PathPattern as PathPattern,
+    index$d_PathPatternProps as PathPatternProps,
+    index$d_TargetGroup as TargetGroup,
   };
 }
 
@@ -2492,15 +2492,15 @@ declare class Rule extends CloudControlApiResource {
     };
 }
 
-type index$b_Rule = Rule;
-declare const index$b_Rule: typeof Rule;
-type index$b_RuleProps = RuleProps;
-type index$b_RuleTarget = RuleTarget;
-declare namespace index$b {
+type index$c_Rule = Rule;
+declare const index$c_Rule: typeof Rule;
+type index$c_RuleProps = RuleProps;
+type index$c_RuleTarget = RuleTarget;
+declare namespace index$c {
   export {
-    index$b_Rule as Rule,
-    index$b_RuleProps as RuleProps,
-    index$b_RuleTarget as RuleTarget,
+    index$c_Rule as Rule,
+    index$c_RuleProps as RuleProps,
+    index$c_RuleTarget as RuleTarget,
   };
 }
 
@@ -2537,15 +2537,15 @@ declare class TopicRule extends CloudControlApiResource {
     };
 }
 
-type index$a_TopicRule = TopicRule;
-declare const index$a_TopicRule: typeof TopicRule;
-type index$a_TopicRuleProps = TopicRuleProps;
-type index$a_TopicRuleSqlVersion = TopicRuleSqlVersion;
-declare namespace index$a {
+type index$b_TopicRule = TopicRule;
+declare const index$b_TopicRule: typeof TopicRule;
+type index$b_TopicRuleProps = TopicRuleProps;
+type index$b_TopicRuleSqlVersion = TopicRuleSqlVersion;
+declare namespace index$b {
   export {
-    index$a_TopicRule as TopicRule,
-    index$a_TopicRuleProps as TopicRuleProps,
-    index$a_TopicRuleSqlVersion as TopicRuleSqlVersion,
+    index$b_TopicRule as TopicRule,
+    index$b_TopicRuleProps as TopicRuleProps,
+    index$b_TopicRuleSqlVersion as TopicRuleSqlVersion,
   };
 }
 
@@ -2792,43 +2792,43 @@ declare class EventSourceMapping extends CloudControlApiResource {
     };
 }
 
-type index$9_Code = Code;
-type index$9_EventInvokeConfig = EventInvokeConfig;
-declare const index$9_EventInvokeConfig: typeof EventInvokeConfig;
-type index$9_EventInvokeConfigProps = EventInvokeConfigProps;
-type index$9_EventSourceMapping = EventSourceMapping;
-declare const index$9_EventSourceMapping: typeof EventSourceMapping;
-type index$9_EventSourceMappingProps = EventSourceMappingProps;
-type index$9_Function = Function;
-declare const index$9_Function: typeof Function;
-type index$9_FunctionProps = FunctionProps;
-type index$9_Permission = Permission;
-declare const index$9_Permission: typeof Permission;
-type index$9_PermissionProps = PermissionProps;
-type index$9_StartingPosition = StartingPosition;
-type index$9_Url = Url;
-declare const index$9_Url: typeof Url;
-type index$9_UrlProps = UrlProps;
-declare const index$9_formatCode: typeof formatCode;
-declare namespace index$9 {
+type index$a_Code = Code;
+type index$a_EventInvokeConfig = EventInvokeConfig;
+declare const index$a_EventInvokeConfig: typeof EventInvokeConfig;
+type index$a_EventInvokeConfigProps = EventInvokeConfigProps;
+type index$a_EventSourceMapping = EventSourceMapping;
+declare const index$a_EventSourceMapping: typeof EventSourceMapping;
+type index$a_EventSourceMappingProps = EventSourceMappingProps;
+type index$a_Function = Function;
+declare const index$a_Function: typeof Function;
+type index$a_FunctionProps = FunctionProps;
+type index$a_Permission = Permission;
+declare const index$a_Permission: typeof Permission;
+type index$a_PermissionProps = PermissionProps;
+type index$a_StartingPosition = StartingPosition;
+type index$a_Url = Url;
+declare const index$a_Url: typeof Url;
+type index$a_UrlProps = UrlProps;
+declare const index$a_formatCode: typeof formatCode;
+declare namespace index$a {
   export {
-    index$9_Code as Code,
-    index$9_EventInvokeConfig as EventInvokeConfig,
-    index$9_EventInvokeConfigProps as EventInvokeConfigProps,
-    index$9_EventSourceMapping as EventSourceMapping,
-    index$9_EventSourceMappingProps as EventSourceMappingProps,
-    index$9_Function as Function,
-    index$9_FunctionProps as FunctionProps,
-    index$9_Permission as Permission,
-    index$9_PermissionProps as PermissionProps,
-    index$9_StartingPosition as StartingPosition,
-    index$9_Url as Url,
-    index$9_UrlProps as UrlProps,
-    index$9_formatCode as formatCode,
+    index$a_Code as Code,
+    index$a_EventInvokeConfig as EventInvokeConfig,
+    index$a_EventInvokeConfigProps as EventInvokeConfigProps,
+    index$a_EventSourceMapping as EventSourceMapping,
+    index$a_EventSourceMappingProps as EventSourceMappingProps,
+    index$a_Function as Function,
+    index$a_FunctionProps as FunctionProps,
+    index$a_Permission as Permission,
+    index$a_PermissionProps as PermissionProps,
+    index$a_StartingPosition as StartingPosition,
+    index$a_Url as Url,
+    index$a_UrlProps as UrlProps,
+    index$a_formatCode as formatCode,
   };
 }
 
-type NodeType = 't4g.small' | 't4g.medium' | 'r6g.large' | 'r6g.xlarge' | 'r6g.2xlarge' | 'r6g.4xlarge' | 'r6g.8xlarge' | 'r6g.12xlarge' | 'r6g.16xlarge' | 'r6gd.xlarge' | 'r6gd.2xlarge' | 'r6gd.4xlarge' | 'r6gd.8xlarge';
+type NodeType$1 = 't4g.small' | 't4g.medium' | 'r6g.large' | 'r6g.xlarge' | 'r6g.2xlarge' | 'r6g.4xlarge' | 'r6g.8xlarge' | 'r6g.12xlarge' | 'r6g.16xlarge' | 'r6gd.xlarge' | 'r6gd.2xlarge' | 'r6gd.4xlarge' | 'r6gd.8xlarge';
 declare class Cluster extends CloudControlApiResource {
     private props;
     constructor(id: string, props: {
@@ -2839,7 +2839,7 @@ declare class Cluster extends CloudControlApiResource {
         description?: Input<string>;
         port?: Input<number>;
         engine?: Input<'6.2' | '7.0'>;
-        type: Input<NodeType>;
+        type: Input<NodeType$1>;
         dataTiering?: Input<boolean>;
         shards?: Input<number>;
         replicasPerShard?: Input<number>;
@@ -2887,16 +2887,99 @@ declare class SubnetGroup extends CloudControlApiResource {
     };
 }
 
-type index$8_Cluster = Cluster;
-declare const index$8_Cluster: typeof Cluster;
+type index$9_Cluster = Cluster;
+declare const index$9_Cluster: typeof Cluster;
+type index$9_SubnetGroup = SubnetGroup;
+declare const index$9_SubnetGroup: typeof SubnetGroup;
+declare namespace index$9 {
+  export {
+    index$9_Cluster as Cluster,
+    NodeType$1 as NodeType,
+    index$9_SubnetGroup as SubnetGroup,
+  };
+}
+
+type version = 'OpenSearch_2.11' | 'OpenSearch_2.9' | 'OpenSearch_2.7' | 'OpenSearch_2.5' | 'OpenSearch_2.3' | 'OpenSearch_1.3';
+type NodeType = 't3.small.search' | 't3.medium.search' | 't3.large.search' | 't3.xlarge.search' | 't3.2xlarge.search' | 't4g.small.search' | 't4g.medium.search' | 'm3.medium.search' | 'm3.large.search' | 'm3.xlarge.search' | 'm3.2xlarge.search' | 'm4.large.search' | 'm4.xlarge.search' | 'm4.2xlarge.search' | 'm4.4xlarge.search' | 'm4.10xlarge.search' | 'm5.large.search' | 'm5.xlarge.search' | 'm5.2xlarge.search' | 'm5.4xlarge.search' | 'm5.12xlarge.search' | 'm5.24xlarge.search' | 'r5.large.search' | 'r5.xlarge.search' | 'r5.2xlarge.search' | 'r5.4xlarge.search' | 'r5.12xlarge.search' | 'r5.24xlarge.search' | 'c5.large.search' | 'c5.xlarge.search' | 'c5.2xlarge.search' | 'c5.4xlarge.search' | 'c5.9xlarge.search' | 'c5.18xlarge.search' | 'or1.medium.search' | 'or1.large.search' | 'or1.xlarge.search' | 'or1.2xlarge.search' | 'or1.4xlarge.search' | 'or1.8xlarge.search' | 'or1.12xlarge.search' | 'or1.16xlarge.search' | 'ultrawarm1.medium.search' | 'ultrawarm1.large.search' | 'ultrawarm1.xlarge.search' | 'r3.large.search' | 'r3.xlarge.search' | 'r3.2xlarge.search' | 'r3.4xlarge.search' | 'r3.8xlarge.search' | 'i2.xlarge.search' | 'i2.2xlarge.search' | 'd2.xlarge.search' | 'd2.2xlarge.search' | 'd2.4xlarge.search' | 'd2.8xlarge.search' | 'c4.large.search' | 'c4.xlarge.search' | 'c4.2xlarge.search' | 'c4.4xlarge.search' | 'c4.8xlarge.search' | 'r4.large.search' | 'r4.xlarge.search' | 'r4.2xlarge.search' | 'r4.4xlarge.search' | 'r4.8xlarge.search' | 'r4.16xlarge.search' | 'i3.large.search' | 'i3.xlarge.search' | 'i3.2xlarge.search' | 'i3.4xlarge.search' | 'i3.8xlarge.search' | 'i3.16xlarge.search' | 'r6g.large.search' | 'r6g.xlarge.search' | 'r6g.2xlarge.search' | 'r6g.4xlarge.search' | 'r6g.8xlarge.search' | 'r6g.12xlarge.search' | 'm6g.large.search' | 'm6g.xlarge.search' | 'm6g.2xlarge.search' | 'm6g.4xlarge.search' | 'm6g.8xlarge.search' | 'm6g.12xlarge.search' | 'c6g.large.search' | 'c6g.xlarge.search' | 'c6g.2xlarge.search' | 'c6g.4xlarge.search' | 'c6g.8xlarge.search' | 'c6g.12xlarge.search' | 'r6gd.large.search' | 'r6gd.xlarge.search' | 'r6gd.2xlarge.search' | 'r6gd.4xlarge.search' | 'r6gd.8xlarge.search' | 'r6gd.12xlarge.search' | 'r6gd.16xlarge.search';
+declare class Domain extends CloudControlApiResource {
+    private props;
+    constructor(id: string, props: {
+        name: Input<string>;
+        version?: Input<version>;
+        storageSize?: Input<Size>;
+        ipType?: Input<'ipv4' | 'dualstack'>;
+        encryption?: Input<boolean>;
+        instance: Input<{
+            type: Input<NodeType>;
+            count: Input<number>;
+        }>;
+        vpc?: Input<{
+            securityGroupIds: Input<Input<string>[]>;
+            subnetIds: Input<Input<string>[]>;
+        }>;
+    });
+    get id(): Output<string>;
+    get arn(): Output<`arn:${string}`>;
+    get domainArn(): Output<`arn:${string}`>;
+    get domainEndpoint(): Output<string>;
+    setVpc(vpc: Input<{
+        securityGroupIds: Input<Input<string>[]>;
+        subnetIds: Input<Input<string>[]>;
+    }>): this;
+    toState(): {
+        document: {
+            VpcConfig?: {
+                SecurityGroupIds: Input<Input<string>[]>;
+                SubnetIds: Input<Input<string>[]>;
+            } | undefined;
+            DomainName: Input<string>;
+            EngineVersion: version;
+            IPAddressType: "ipv4" | "dualstack";
+            ClusterConfig: {
+                InstanceType: Input<NodeType>;
+                InstanceCount: Input<number>;
+            };
+            EBSOptions: {
+                EBSEnabled: boolean;
+                VolumeSize: bigint;
+                VolumeType: string;
+            };
+            DomainEndpointOptions: {
+                EnforceHTTPS: boolean;
+            };
+            AccessPolicies: {
+                Version: string;
+                Statement: {
+                    Effect: string;
+                    Principal: {
+                        Service: string;
+                    };
+                    Action: string;
+                    Resource: string;
+                }[];
+            };
+            SoftwareUpdateOptions: {
+                AutoSoftwareUpdateEnabled: boolean;
+            };
+            NodeToNodeEncryptionOptions: {
+                Enabled: boolean;
+            };
+            EncryptionAtRestOptions: {
+                Enabled: boolean;
+            };
+        };
+    };
+}
+
+type index$8_Domain = Domain;
+declare const index$8_Domain: typeof Domain;
 type index$8_NodeType = NodeType;
-type index$8_SubnetGroup = SubnetGroup;
-declare const index$8_SubnetGroup: typeof SubnetGroup;
+type index$8_version = version;
 declare namespace index$8 {
   export {
-    index$8_Cluster as Cluster,
+    index$8_Domain as Domain,
     index$8_NodeType as NodeType,
-    index$8_SubnetGroup as SubnetGroup,
+    index$8_version as version,
   };
 }
 
@@ -3443,21 +3526,22 @@ declare const index$1_createCloudProviders: typeof createCloudProviders;
 declare namespace index$1 {
   export {
     index$1_ARN as ARN,
-    index$l as acm,
-    index$k as appsync,
-    index$j as cloudControlApi,
-    index$i as cloudFront,
-    index$h as cloudWatch,
-    index$g as cognito,
+    index$m as acm,
+    index$l as appsync,
+    index$k as cloudControlApi,
+    index$j as cloudFront,
+    index$i as cloudWatch,
+    index$h as cognito,
     index$1_createCloudProviders as createCloudProviders,
-    index$e as dynamodb,
-    index$d as ec2,
-    index$c as elb,
-    index$b as events,
-    index$f as iam,
-    index$a as iot,
-    index$9 as lambda,
-    index$8 as memorydb,
+    index$f as dynamodb,
+    index$e as ec2,
+    index$d as elb,
+    index$c as events,
+    index$g as iam,
+    index$b as iot,
+    index$a as lambda,
+    index$9 as memorydb,
+    index$8 as openSearch,
     index$7 as openSearchServerless,
     index$6 as route53,
     index$5 as s3,

@@ -4,9 +4,7 @@ import {
 	DescribeUserPoolCommand,
 	UpdateUserPoolCommand,
 	CognitoIdentityProviderClient,
-	UpdateUserPoolCommandInput,
 } from '@aws-sdk/client-cognito-identity-provider'
-import { sha256 } from '../../../core/hash'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -41,7 +39,7 @@ export class LambdaTriggersProvider implements CloudProvider {
 		return id === 'aws-cognito-lambda-triggers'
 	}
 
-	async updateUserPool(document: Document) {
+	private async updateUserPool(document: Document) {
 		const result = await this.client.send(
 			new DescribeUserPoolCommand({
 				UserPoolId: document.UserPoolId,

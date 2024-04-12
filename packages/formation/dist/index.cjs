@@ -947,7 +947,8 @@ __export(aws_exports, {
   iot: () => iot_exports,
   lambda: () => lambda_exports,
   memorydb: () => memorydb_exports,
-  openSearchServerless: () => open_search_serverless_exports,
+  openSearch: () => open_search_exports,
+  openSearchServerless: () => serverless_exports,
   route53: () => route53_exports,
   s3: () => s3_exports,
   ses: () => ses_exports,
@@ -4146,14 +4147,97 @@ var SubnetGroup = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/open-search-serverless/index.ts
-var open_search_serverless_exports = {};
-__export(open_search_serverless_exports, {
+// src/provider/aws/open-search/index.ts
+var open_search_exports = {};
+__export(open_search_exports, {
+  Domain: () => Domain
+});
+
+// src/provider/aws/open-search/domain.ts
+var import_size2 = require("@awsless/size");
+var Domain = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::OpenSearchService::Domain", id, props);
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.Id);
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get domainArn() {
+    return this.output((v) => v.DomainArn);
+  }
+  get domainEndpoint() {
+    return this.output((v) => v.DomainEndpoint);
+  }
+  setVpc(vpc) {
+    this.props.vpc = vpc;
+    this.registerDependency(vpc);
+    return this;
+  }
+  toState() {
+    const instance = unwrap(this.props.instance);
+    const vpc = unwrap(this.props.vpc);
+    return {
+      document: {
+        DomainName: this.props.name,
+        EngineVersion: unwrap(this.props.version, "OpenSearch_2.11"),
+        IPAddressType: unwrap(this.props.ipType, "ipv4"),
+        ClusterConfig: {
+          InstanceType: instance.type,
+          InstanceCount: instance.count
+        },
+        EBSOptions: {
+          EBSEnabled: true,
+          VolumeSize: (0, import_size2.toGibibytes)(unwrap(this.props.storageSize, (0, import_size2.gibibytes)(10))),
+          VolumeType: "gp2"
+        },
+        DomainEndpointOptions: {
+          EnforceHTTPS: true
+        },
+        AccessPolicies: {
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Effect: "Allow",
+              Principal: {
+                Service: "es.amazonaws.com"
+              },
+              Action: "es:*",
+              Resource: "*"
+            }
+          ]
+        },
+        SoftwareUpdateOptions: {
+          AutoSoftwareUpdateEnabled: true
+        },
+        NodeToNodeEncryptionOptions: {
+          Enabled: unwrap(this.props.encryption, false)
+        },
+        EncryptionAtRestOptions: {
+          Enabled: unwrap(this.props.encryption, false)
+        },
+        ...vpc ? {
+          VpcConfig: {
+            SecurityGroupIds: vpc.securityGroupIds,
+            SubnetIds: vpc.subnetIds
+          }
+        } : {}
+      }
+    };
+  }
+};
+
+// src/provider/aws/open-search/serverless/index.ts
+var serverless_exports = {};
+__export(serverless_exports, {
   Collection: () => Collection,
   SecurityPolicy: () => SecurityPolicy
 });
 
-// src/provider/aws/open-search-serverless/collection.ts
+// src/provider/aws/open-search/serverless/collection.ts
 var Collection = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::OpenSearchServerless::Collection", id, props);
@@ -4185,7 +4269,7 @@ var Collection = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/open-search-serverless/security-policy.ts
+// src/provider/aws/open-search/serverless/security-policy.ts
 var SecurityPolicy = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::OpenSearchServerless::SecurityPolicy", id, props);
@@ -4932,7 +5016,7 @@ __export(sqs_exports, {
 
 // src/provider/aws/sqs/queue.ts
 var import_duration16 = require("@awsless/duration");
-var import_size2 = require("@awsless/size");
+var import_size3 = require("@awsless/size");
 var Queue = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::SQS::Queue", id, props);
@@ -4969,7 +5053,7 @@ var Queue = class extends CloudControlApiResource {
         QueueName: this.props.name,
         Tags: [{ Key: "name", Value: this.props.name }],
         DelaySeconds: (0, import_duration16.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration16.seconds)(0))),
-        MaximumMessageSize: (0, import_size2.toBytes)(unwrap(this.props.maxMessageSize, (0, import_size2.kibibytes)(256))),
+        MaximumMessageSize: (0, import_size3.toBytes)(unwrap(this.props.maxMessageSize, (0, import_size3.kibibytes)(256))),
         MessageRetentionPeriod: (0, import_duration16.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration16.days)(4))),
         ReceiveMessageWaitTimeSeconds: (0, import_duration16.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration16.seconds)(0))),
         VisibilityTimeout: (0, import_duration16.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration16.seconds)(30))),

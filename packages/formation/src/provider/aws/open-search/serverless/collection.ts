@@ -1,6 +1,6 @@
-import { Input, unwrap } from '../../../core/output.js'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { ARN } from '../types.js'
+import { Input, unwrap } from '../../../../core/output.js'
+import { CloudControlApiResource } from '../../cloud-control-api/resource.js'
+import { ARN } from '../../types.js'
 
 export class Collection extends CloudControlApiResource {
 	constructor(

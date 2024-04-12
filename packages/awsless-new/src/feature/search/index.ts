@@ -13,7 +13,7 @@ export const searchFeature = defineFeature({
 		for (const stack of ctx.stackConfigs) {
 			const list = new TypeObject(2)
 
-			for (const id of stack.searchs || []) {
+			for (const id of Object.keys(stack.searchs ?? {})) {
 				const name = formatLocalResourceName(ctx.appConfig.name, stack.name, 'search', id)
 				list.addType(name, `{ readonly name: '${name}' }`)
 			}
@@ -26,38 +26,38 @@ export const searchFeature = defineFeature({
 		await ctx.write('search.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		for (const id of ctx.stackConfig.searchs ?? []) {
+		for (const [id, props] of Object.entries(ctx.stackConfig.searchs ?? {})) {
 			const group = new Node('search', id)
 			ctx.stack.add(group)
 
-			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id)
-
-			const policy = new aws.openSearchServerless.SecurityPolicy('security', {
-				name,
-				type: 'encryption',
-				policy: JSON.stringify({
-					AWSOwnedKey: true,
-					Rules: [
-						{
-							ResourceType: 'collection',
-							Resource: [`collection/${name}`],
-						},
-					],
-				}),
-			})
-
-			group.add(policy)
-
-			const collection = new aws.openSearchServerless.Collection('collection', {
+			const domain = new aws.openSearch.Domain('domain', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id),
-				type: 'search',
-			}).dependsOn(policy)
-
-			group.add(collection)
-
-			ctx.onFunction(({ policy }) => {
-				policy.addStatement(collection.permissions)
+				version: props.version,
+				storageSize: props.storage,
+				instance: {
+					type: props.type,
+					count: props.count,
+				},
 			})
+
+			if (props.vpc) {
+				domain.setVpc({
+					securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
+					subnetIds: [
+						ctx.app.import<string>('base', `vpc-private-subnet-1`),
+						ctx.app.import<string>('base', `vpc-private-subnet-2`),
+					],
+				})
+			}
+
+			group.add(domain)
+
+			// ctx.onFunction(({ policy }) => {
+			// 	policy.addStatement({
+			// 		actions: ['es:*'],
+			// 		resources: [domain.arn.apply(arn => arn)],
+			// 	})
+			// })
 		}
 	},
 })

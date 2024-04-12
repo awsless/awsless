@@ -7,7 +7,7 @@ import { days, minutes, seconds } from '@awsless/duration'
 import { gibibytes, mebibytes } from '@awsless/size'
 
 const MemorySizeSchema = SizeSchema.refine(sizeMin(mebibytes(128)), 'Minimum memory size is 128 MB')
-	.refine(sizeMax(gibibytes(10)), 'Minimum memory size is 10 GB')
+	.refine(sizeMax(gibibytes(10)), 'Maximum memory size is 10 GB')
 	.describe(
 		'The amount of memory available to the function at runtime. Increasing the function memory also increases its CPU allocation. The value can be any multiple of 1 MB. You can specify a size value from 128 MB to 10 GB.'
 	)

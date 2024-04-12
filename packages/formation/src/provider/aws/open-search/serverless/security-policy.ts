@@ -1,5 +1,5 @@
-import { Input } from '../../../core/output.js'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Input } from '../../../../core/output.js'
+import { CloudControlApiResource } from '../../cloud-control-api/resource.js'
 
 export class SecurityPolicy extends CloudControlApiResource {
 	constructor(

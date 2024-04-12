@@ -898,7 +898,8 @@ __export(aws_exports, {
   iot: () => iot_exports,
   lambda: () => lambda_exports,
   memorydb: () => memorydb_exports,
-  openSearchServerless: () => open_search_serverless_exports,
+  openSearch: () => open_search_exports,
+  openSearchServerless: () => serverless_exports,
   route53: () => route53_exports,
   s3: () => s3_exports,
   ses: () => ses_exports,
@@ -4134,14 +4135,97 @@ var SubnetGroup = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/open-search-serverless/index.ts
-var open_search_serverless_exports = {};
-__export(open_search_serverless_exports, {
+// src/provider/aws/open-search/index.ts
+var open_search_exports = {};
+__export(open_search_exports, {
+  Domain: () => Domain
+});
+
+// src/provider/aws/open-search/domain.ts
+import { gibibytes, toGibibytes } from "@awsless/size";
+var Domain = class extends CloudControlApiResource {
+  constructor(id, props) {
+    super("AWS::OpenSearchService::Domain", id, props);
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.Id);
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get domainArn() {
+    return this.output((v) => v.DomainArn);
+  }
+  get domainEndpoint() {
+    return this.output((v) => v.DomainEndpoint);
+  }
+  setVpc(vpc) {
+    this.props.vpc = vpc;
+    this.registerDependency(vpc);
+    return this;
+  }
+  toState() {
+    const instance = unwrap(this.props.instance);
+    const vpc = unwrap(this.props.vpc);
+    return {
+      document: {
+        DomainName: this.props.name,
+        EngineVersion: unwrap(this.props.version, "OpenSearch_2.11"),
+        IPAddressType: unwrap(this.props.ipType, "ipv4"),
+        ClusterConfig: {
+          InstanceType: instance.type,
+          InstanceCount: instance.count
+        },
+        EBSOptions: {
+          EBSEnabled: true,
+          VolumeSize: toGibibytes(unwrap(this.props.storageSize, gibibytes(10))),
+          VolumeType: "gp2"
+        },
+        DomainEndpointOptions: {
+          EnforceHTTPS: true
+        },
+        AccessPolicies: {
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Effect: "Allow",
+              Principal: {
+                Service: "es.amazonaws.com"
+              },
+              Action: "es:*",
+              Resource: "*"
+            }
+          ]
+        },
+        SoftwareUpdateOptions: {
+          AutoSoftwareUpdateEnabled: true
+        },
+        NodeToNodeEncryptionOptions: {
+          Enabled: unwrap(this.props.encryption, false)
+        },
+        EncryptionAtRestOptions: {
+          Enabled: unwrap(this.props.encryption, false)
+        },
+        ...vpc ? {
+          VpcConfig: {
+            SecurityGroupIds: vpc.securityGroupIds,
+            SubnetIds: vpc.subnetIds
+          }
+        } : {}
+      }
+    };
+  }
+};
+
+// src/provider/aws/open-search/serverless/index.ts
+var serverless_exports = {};
+__export(serverless_exports, {
   Collection: () => Collection,
   SecurityPolicy: () => SecurityPolicy
 });
 
-// src/provider/aws/open-search-serverless/collection.ts
+// src/provider/aws/open-search/serverless/collection.ts
 var Collection = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::OpenSearchServerless::Collection", id, props);
@@ -4173,7 +4257,7 @@ var Collection = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/open-search-serverless/security-policy.ts
+// src/provider/aws/open-search/serverless/security-policy.ts
 var SecurityPolicy = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::OpenSearchServerless::SecurityPolicy", id, props);
