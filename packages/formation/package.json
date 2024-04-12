@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/formation",
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -46,9 +46,6 @@
 		"@aws-sdk/util-dynamodb": "3.363.0",
 		"@awsless/duration": "workspace:^",
 		"@awsless/size": "workspace:^",
-		"@pulumi/aws": "^6.25.1",
-		"@pulumi/awsx": "^2.5.0",
-		"@pulumi/pulumi": "^3.110.0",
 		"@types/promise-dag": "^1.0.4",
 		"@types/proper-lockfile": "^4.1.4",
 		"@types/uuid": "^9.0.0",
