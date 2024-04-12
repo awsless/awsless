@@ -12,12 +12,12 @@
 		"auth": {
 			"users": {}
 		},
-		"http": {
-			"api": {
-				"domain": "main",
-				"subDomain": "elb"
-			}
-		},
+		// "http": {
+		// 	"api": {
+		// 		"domain": "main",
+		// 		"subDomain": "elb"
+		// 	}
+		// },
 		"graphql": {
 			"api": {
 				"domain": "main",
