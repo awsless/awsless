@@ -116,36 +116,37 @@ export class CloudControlApiProvider implements CloudProvider {
 		return JSON.parse(result.ResourceDescription!.Properties!)
 	}
 
-	async create({ urn, type, document }: CreateProps) {
+	async create({ token, type, document }: CreateProps) {
 		const result = await this.client.send(
 			new CreateResourceCommand({
 				TypeName: type,
 				DesiredState: JSON.stringify(document),
-				// ClientToken: urn,
+				ClientToken: token,
 			})
 		)
 
 		return this.progressStatus(result.ProgressEvent!)
 	}
 
-	async update({ type, id, oldDocument, newDocument, remoteDocument }: UpdateProps) {
+	async update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps) {
 		const result = await this.client.send(
 			new UpdateResourceCommand({
 				TypeName: type,
 				Identifier: id,
 				PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+				ClientToken: token,
 			})
 		)
 
 		return this.progressStatus(result.ProgressEvent!)
 	}
 
-	async delete({ urn, type, id }: DeleteProps) {
+	async delete({ token, type, id }: DeleteProps) {
 		const result = await this.client.send(
 			new DeleteResourceCommand({
 				TypeName: type,
 				Identifier: id,
-				// ClientToken: urn,
+				ClientToken: token,
 			})
 		)
 

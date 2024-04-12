@@ -10,6 +10,7 @@ export type CreateProps<D = ResourceDocument, E = ResourceExtra> = {
 	document: D
 	extra: E
 	assets: Record<string, ResolvedAsset>
+	token: string
 }
 
 export type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
@@ -21,6 +22,7 @@ export type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
 	remoteDocument: any
 	extra: E
 	assets: Record<string, ResolvedAsset>
+	token: string
 }
 
 export type DeleteProps<D = ResourceDocument, E = ResourceExtra> = {
@@ -30,6 +32,7 @@ export type DeleteProps<D = ResourceDocument, E = ResourceExtra> = {
 	document: D
 	extra: E
 	assets: Record<string, string>
+	token: string
 }
 
 export type GetProps<D = ResourceDocument, E = ResourceExtra> = {

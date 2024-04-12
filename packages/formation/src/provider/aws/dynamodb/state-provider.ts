@@ -54,12 +54,12 @@ export class DynamoDBStateProvider implements StateProvider {
 		)
 
 		if (!result.Item) {
-			return {}
+			return
 		}
 
 		const item = unmarshall(result.Item)
 
-		return item.state ?? {}
+		return item.state
 	}
 
 	async update(urn: URN, state: AppState) {

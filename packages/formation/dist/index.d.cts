@@ -1,4 +1,3 @@
-import TypedEmitter from 'typed-emitter';
 import * as _aws_sdk_client_acm from '@aws-sdk/client-acm';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types';
@@ -55,6 +54,7 @@ type CreateProps<D = ResourceDocument, E = ResourceExtra> = {
     document: D;
     extra: E;
     assets: Record<string, ResolvedAsset>;
+    token: string;
 };
 type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
     urn: URN;
@@ -65,6 +65,7 @@ type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
     remoteDocument: any;
     extra: E;
     assets: Record<string, ResolvedAsset>;
+    token: string;
 };
 type DeleteProps<D = ResourceDocument, E = ResourceExtra> = {
     urn: URN;
@@ -73,6 +74,7 @@ type DeleteProps<D = ResourceDocument, E = ResourceExtra> = {
     document: D;
     extra: E;
     assets: Record<string, string>;
+    token: string;
 };
 type GetProps<D = ResourceDocument, E = ResourceExtra> = {
     urn: URN;
@@ -170,13 +172,17 @@ declare class App extends Node {
     setExportedData(data: ExportedData): void;
 }
 
-interface StateProvider$1 {
+interface StateProvider {
     lock(urn: URN): Promise<() => Promise<void>>;
-    get(urn: URN): Promise<AppState>;
+    get(urn: URN): Promise<AppState | undefined>;
     update(urn: URN, state: AppState): Promise<void>;
     delete(urn: URN): Promise<void>;
 }
-type AppState = Record<URN, StackState>;
+type AppState = {
+    name: string;
+    token?: string;
+    stacks: Record<URN, StackState>;
+};
 type StackState = {
     name: string;
     exports: Record<URN, unknown>;
@@ -198,47 +204,16 @@ type ResourceState = {
 
 type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get';
 type StackOperation = 'deploy' | 'delete';
-type ResourceEvent = {
-    urn: URN;
-    type: string;
-    operation: ResourceOperation;
-    status: 'success' | 'in-progress' | 'error';
-    reason?: ResourceError;
-};
-type StackEvent = {
-    urn: URN;
-    operation: StackOperation;
-    status: 'success' | 'in-progress' | 'error';
-    stack: Stack;
-    reason?: StackError | Error | unknown;
-};
-type Events = {
-    stack: (event: StackEvent) => void;
-    resource: (event: ResourceEvent) => void;
-};
-declare const WorkSpace_base: new () => TypedEmitter<Events>;
-declare class WorkSpace extends WorkSpace_base {
+declare class WorkSpace {
     protected props: {
         cloudProviders: CloudProvider[];
-        stateProvider: StateProvider$1;
+        stateProvider: StateProvider;
     };
     constructor(props: {
         cloudProviders: CloudProvider[];
-        stateProvider: StateProvider$1;
+        stateProvider: StateProvider;
     });
-    protected getCloudProvider(providerId: string, urn: URN): CloudProvider;
-    protected unwrapDocument(urn: URN, document: ResourceDocument, safe?: boolean): ResourceDocument;
-    protected lockedOperation<T>(urn: URN, fn: () => T): Promise<Awaited<T>>;
-    protected resolveAssets(assets: Record<string, Input<Asset>>): Promise<readonly [Record<string, ResolvedAsset>, Record<string, string>]>;
-    protected copy<T>(document: T, replacer?: any): T;
-    protected compare<T>(left: T, right: T): boolean;
-    protected resolveDocumentAssets(document: any, assets: Record<string, ResolvedAsset>): ResourceDocument;
     private getExportedData;
-    diffStack(stack: Stack): Promise<{
-        creates: `urn:${string}`[];
-        updates: `urn:${string}`[];
-        deletes: `urn:${string}`[];
-    }>;
     deployStack(stack: Stack): Promise<StackState>;
     deleteStack(stack: Stack): Promise<void>;
     private getRemoteResource;
@@ -859,9 +834,9 @@ declare class CloudControlApiProvider implements CloudProvider {
     private progressStatus;
     private updateOperations;
     get({ id, type }: GetProps): Promise<any>;
-    create({ urn, type, document }: CreateProps): Promise<string>;
-    update({ type, id, oldDocument, newDocument, remoteDocument }: UpdateProps): Promise<string>;
-    delete({ urn, type, id }: DeleteProps): Promise<void>;
+    create({ token, type, document }: CreateProps): Promise<string>;
+    update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps): Promise<string>;
+    delete({ token, type, id }: DeleteProps): Promise<void>;
 }
 
 type index$k_CloudControlApiProvider = CloudControlApiProvider;
@@ -1530,7 +1505,7 @@ type ProviderProps$5 = {
     region: string;
     tableName: string;
 };
-declare class DynamoDBStateProvider implements StateProvider$1 {
+declare class DynamoDBStateProvider implements StateProvider {
     private props;
     protected client: DynamoDB;
     protected id: number;
@@ -3273,13 +3248,6 @@ declare class BucketObjectProvider implements CloudProvider {
     delete({ document }: DeleteProps<Document$1>): Promise<void>;
 }
 
-declare class StateProvider implements StateProvider$1 {
-    lock(urn: URN): Promise<() => Promise<void>>;
-    get(urn: URN): Promise<{}>;
-    update(urn: URN, state: AppState): Promise<void>;
-    delete(urn: URN): Promise<void>;
-}
-
 type index$5_Bucket = Bucket;
 declare const index$5_Bucket: typeof Bucket;
 type index$5_BucketObject = BucketObject;
@@ -3292,8 +3260,6 @@ declare const index$5_BucketPolicy: typeof BucketPolicy;
 type index$5_BucketProps = BucketProps;
 type index$5_BucketProvider = BucketProvider;
 declare const index$5_BucketProvider: typeof BucketProvider;
-type index$5_StateProvider = StateProvider;
-declare const index$5_StateProvider: typeof StateProvider;
 declare namespace index$5 {
   export {
     index$5_Bucket as Bucket,
@@ -3303,7 +3269,6 @@ declare namespace index$5 {
     index$5_BucketPolicy as BucketPolicy,
     index$5_BucketProps as BucketProps,
     index$5_BucketProvider as BucketProvider,
-    index$5_StateProvider as StateProvider,
   };
 }
 
@@ -3551,7 +3516,7 @@ declare namespace index$1 {
   };
 }
 
-declare class LocalStateProvider implements StateProvider$1 {
+declare class LocalStateProvider implements StateProvider {
     private props;
     constructor(props: {
         dir: string;
@@ -3560,7 +3525,7 @@ declare class LocalStateProvider implements StateProvider$1 {
     private lockFile;
     private mkdir;
     lock(urn: URN): Promise<() => Promise<void>>;
-    get(urn: URN): Promise<AppState>;
+    get(urn: URN): Promise<AppState | undefined>;
     update(urn: URN, state: AppState): Promise<void>;
     delete(urn: URN): Promise<void>;
 }
@@ -3571,4 +3536,4 @@ declare namespace index {
   };
 }
 
-export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, ImportValueNotFound, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceAlreadyExists, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$1 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };
+export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, ImportValueNotFound, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceAlreadyExists, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };

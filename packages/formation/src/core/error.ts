@@ -1,5 +1,5 @@
 import { URN } from './resource'
-import { ResourceOperation } from './workspace'
+import { ResourceOperation } from './workspace/workspace'
 
 export class ResourceError extends Error {
 	static wrap(urn: URN, type: string, operation: ResourceOperation, error: unknown) {

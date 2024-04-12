@@ -40,7 +40,11 @@ export class GraphQLApiProvider implements CloudProvider {
 	}
 
 	async create({ document }: CreateProps<Document>) {
-		const result = await this.client.send(new CreateGraphqlApiCommand(document))
+		const result = await this.client.send(
+			new CreateGraphqlApiCommand({
+				...document,
+			})
+		)
 		return result.graphqlApi?.apiId!
 	}
 

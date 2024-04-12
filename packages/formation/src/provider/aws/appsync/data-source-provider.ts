@@ -40,7 +40,11 @@ export class DataSourceProvider implements CloudProvider {
 	}
 
 	async create({ document }: CreateProps<Document>) {
-		await this.client.send(new CreateDataSourceCommand(document))
+		await this.client.send(
+			new CreateDataSourceCommand({
+				...document,
+			})
+		)
 
 		return JSON.stringify([document.apiId, document.name])
 	}

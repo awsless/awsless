@@ -7,6 +7,7 @@ import { Cancelled } from '../../error.js'
 import { confirm, spinner } from '@clack/prompts'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { WorkSpace, aws } from '@awsless/formation'
+import { minutes } from '@awsless/duration'
 
 export const del = (program: Command) => {
 	program
@@ -58,6 +59,7 @@ export const del = (program: Command) => {
 					cloudProviders: aws.createCloudProviders({
 						credentials,
 						region: appConfig.region,
+						timeout: minutes(30),
 					}),
 				})
 

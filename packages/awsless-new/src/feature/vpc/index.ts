@@ -1,4 +1,4 @@
-import { Node, aws } from '@awsless/formation'
+import { Node, all, aws } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 
 export const vpcFeature = defineFeature({
@@ -31,7 +31,12 @@ export const vpcFeature = defineFeature({
 			destination: aws.ec2.Peer.anyIpv4(),
 		})
 
-		ctx.base.export('vpc-id', vpc.id)
+		ctx.base.export(
+			'vpc-id',
+			// Some resources require the internet gateway to be attached.
+			all([vpc.id, attachment.internetGatewayId]).apply(([id]) => id)
+		)
+
 		ctx.base.export('vpc-security-group-id', vpc.defaultSecurityGroup)
 
 		const group = new Node('vpc', 'main')

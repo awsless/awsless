@@ -5,7 +5,7 @@ export interface StateProvider {
 	lock(urn: URN): Promise<() => Promise<void>>
 	// unlock(urn: URN): Promise<void>
 
-	get(urn: URN): Promise<AppState>
+	get(urn: URN): Promise<AppState | undefined>
 	update(urn: URN, state: AppState): Promise<void>
 	delete(urn: URN): Promise<void>
 }
@@ -15,7 +15,13 @@ export interface StateProvider {
 // 	stacks?: Record<URN, StackState>
 // }
 
-export type AppState = Record<URN, StackState>
+export type AppState = {
+	name: string
+	token?: string
+	stacks: Record<URN, StackState>
+}
+
+// export type AppState = Record<URN, StackState>
 
 export type StackState = {
 	name: string

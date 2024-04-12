@@ -1,6 +1,12 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
-import { DeleteObjectCommand, GetObjectAttributesCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+	CopyObjectCommand,
+	DeleteObjectCommand,
+	GetObjectAttributesCommand,
+	PutObjectCommand,
+	S3Client,
+} from '@aws-sdk/client-s3'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
