@@ -115,15 +115,15 @@ export class Domain extends CloudControlApiResource {
 	constructor(
 		id: string,
 		private props: {
-			name: Input<string>
-			version?: Input<version>
-			storageSize?: Input<Size>
-			ipType?: Input<'ipv4' | 'dualstack'>
-			encryption?: Input<boolean>
+			name?: Input<string>
 			instance: Input<{
 				type: Input<NodeType>
 				count: Input<number>
 			}>
+			version?: Input<version>
+			storageSize?: Input<Size>
+			ipType?: Input<'ipv4' | 'dualstack'>
+			encryption?: Input<boolean>
 			vpc?: Input<{
 				securityGroupIds: Input<Input<string>[]>
 				subnetIds: Input<Input<string>[]>

@@ -1,19 +1,19 @@
 {
 	"$schema": "https://tinyurl.com/awsless-stack",
 	"name": "stack-kennedy",
-	// "crons": {
-	// 	"cron": {
-	// 		"schedule": "60 minutes",
-	// 		"consumer": "./function.ts"
-	// 	}
-	// },
-	// "searchs": {
-	// 	"test": {
-	// 		"type": "t3.small.search",
-	// 		"count": 1,
-	// 		"vpc": true
-	// 	}
-	// },
+	"crons": {
+		"cron": {
+			"schedule": "60 minutes",
+			"consumer": "./function.ts"
+		}
+	},
+	"searchs": {
+		"test": {
+			"type": "t3.small.search",
+			"count": 1,
+			"vpc": true
+		}
+	},
 	// "auth": {
 	// 	"admin": {
 	// 		"triggers": {

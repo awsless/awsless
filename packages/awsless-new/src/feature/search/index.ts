@@ -31,7 +31,7 @@ export const searchFeature = defineFeature({
 			ctx.stack.add(group)
 
 			const domain = new aws.openSearch.Domain('domain', {
-				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id),
+				// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id),
 				version: props.version,
 				storageSize: props.storage,
 				instance: {
@@ -40,15 +40,15 @@ export const searchFeature = defineFeature({
 				},
 			})
 
-			if (props.vpc) {
-				domain.setVpc({
-					securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
-					subnetIds: [
-						ctx.app.import<string>('base', `vpc-private-subnet-1`),
-						ctx.app.import<string>('base', `vpc-private-subnet-2`),
-					],
-				})
-			}
+			// if (props.vpc) {
+			// 	domain.setVpc({
+			// 		securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
+			// 		subnetIds: [
+			// 			ctx.app.import<string>('base', `vpc-private-subnet-1`),
+			// 			ctx.app.import<string>('base', `vpc-private-subnet-2`),
+			// 		],
+			// 	})
+			// }
 
 			group.add(domain)
 

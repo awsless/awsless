@@ -2879,15 +2879,15 @@ type NodeType = 't3.small.search' | 't3.medium.search' | 't3.large.search' | 't3
 declare class Domain extends CloudControlApiResource {
     private props;
     constructor(id: string, props: {
-        name: Input<string>;
-        version?: Input<version>;
-        storageSize?: Input<Size>;
-        ipType?: Input<'ipv4' | 'dualstack'>;
-        encryption?: Input<boolean>;
+        name?: Input<string>;
         instance: Input<{
             type: Input<NodeType>;
             count: Input<number>;
         }>;
+        version?: Input<version>;
+        storageSize?: Input<Size>;
+        ipType?: Input<'ipv4' | 'dualstack'>;
+        encryption?: Input<boolean>;
         vpc?: Input<{
             securityGroupIds: Input<Input<string>[]>;
             subnetIds: Input<Input<string>[]>;
@@ -2907,7 +2907,7 @@ declare class Domain extends CloudControlApiResource {
                 SecurityGroupIds: Input<Input<string>[]>;
                 SubnetIds: Input<Input<string>[]>;
             } | undefined;
-            DomainName: Input<string>;
+            DomainName: Input<string> | undefined;
             EngineVersion: version;
             IPAddressType: "ipv4" | "dualstack";
             ClusterConfig: {

@@ -149,7 +149,7 @@ export const authFeature = defineFeature({
 
 			const userPool = new aws.cognito.UserPool('user-pool', {
 				name,
-				deletionProtection: true,
+				deletionProtection: false,
 				allowUserRegistration: props.allowUserRegistration,
 				username: props.username,
 				password: props.password,
