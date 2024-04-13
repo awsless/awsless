@@ -26,7 +26,7 @@ export const authFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.auth ?? {})) {
-			const group = new Node(this.name, `id`)
+			const group = new Node(this.name, id)
 			ctx.base.add(group)
 
 			const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
@@ -122,12 +122,9 @@ export const authFeature = defineFeature({
 		// }
 	},
 	onApp(ctx) {
-		const main = new Node(this.name, 'main')
-		ctx.base.add(main)
-
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
 			const group = new Node(this.name, id)
-			main.add(group)
+			ctx.base.add(group)
 
 			let emailConfig: aws.cognito.UserPoolProps['email'] | undefined
 

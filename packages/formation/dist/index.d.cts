@@ -2892,6 +2892,16 @@ declare class Domain extends CloudControlApiResource {
             securityGroupIds: Input<Input<string>[]>;
             subnetIds: Input<Input<string>[]>;
         }>;
+        accessPolicy?: {
+            version?: Input<'2012-10-17'>;
+            statements: Input<Input<{
+                effect?: Input<'allow' | 'deny'>;
+                principal?: Input<string>;
+                actions?: Input<Input<string>[]>;
+                resources?: Input<Input<string>[]>;
+                sourceArn?: Input<ARN>;
+            }>[]>;
+        };
     });
     get id(): Output<string>;
     get arn(): Output<`arn:${string}`>;
@@ -2903,7 +2913,23 @@ declare class Domain extends CloudControlApiResource {
     }>): this;
     toState(): {
         document: {
-            VpcConfig?: {
+            AccessPolicies: {
+                Version: "2012-10-17";
+                Statement: {
+                    Condition?: {
+                        StringEquals: {
+                            'AWS:SourceArn': Input<`arn:${string}`>;
+                        };
+                    } | undefined;
+                    Principal?: {
+                        Service: Input<string>;
+                    } | undefined;
+                    Effect: string;
+                    Action: Input<string>[];
+                    Resource: Input<string>[];
+                }[];
+            };
+            VPCOptions?: {
                 SecurityGroupIds: Input<Input<string>[]>;
                 SubnetIds: Input<Input<string>[]>;
             } | undefined;
@@ -2921,17 +2947,6 @@ declare class Domain extends CloudControlApiResource {
             };
             DomainEndpointOptions: {
                 EnforceHTTPS: boolean;
-            };
-            AccessPolicies: {
-                Version: string;
-                Statement: {
-                    Effect: string;
-                    Principal: {
-                        Service: string;
-                    };
-                    Action: string;
-                    Resource: string;
-                }[];
             };
             SoftwareUpdateOptions: {
                 AutoSoftwareUpdateEnabled: boolean;

@@ -7,13 +7,13 @@
 			"consumer": "./function.ts"
 		}
 	},
-	"searchs": {
-		"test": {
-			"type": "t3.small.search",
-			"count": 1,
-			"vpc": true
-		}
-	},
+	// "searchs": {
+	// 	"test": {
+	// 		"type": "t3.small.search",
+	// 		"count": 1,
+	// 		// "vpc": true
+	// 	},
+	// },
 	// "auth": {
 	// 	"admin": {
 	// 		"triggers": {

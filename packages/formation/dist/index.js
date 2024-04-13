@@ -4056,6 +4056,7 @@ __export(open_search_exports, {
 
 // src/provider/aws/open-search/domain.ts
 import { gibibytes, toGibibytes } from "@awsless/size";
+import { capitalCase as capitalCase2 } from "change-case";
 var Domain = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::OpenSearchService::Domain", id, props);
@@ -4081,6 +4082,7 @@ var Domain = class extends CloudControlApiResource {
   toState() {
     const instance = unwrap(this.props.instance);
     const vpc = unwrap(this.props.vpc);
+    const accessPolicy = unwrap(this.props.accessPolicy);
     return {
       document: {
         DomainName: this.props.name,
@@ -4098,19 +4100,6 @@ var Domain = class extends CloudControlApiResource {
         DomainEndpointOptions: {
           EnforceHTTPS: true
         },
-        AccessPolicies: {
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Effect: "Allow",
-              Principal: {
-                Service: "es.amazonaws.com"
-              },
-              Action: "es:*",
-              Resource: "*"
-            }
-          ]
-        },
         SoftwareUpdateOptions: {
           AutoSoftwareUpdateEnabled: true
         },
@@ -4121,11 +4110,31 @@ var Domain = class extends CloudControlApiResource {
           Enabled: unwrap(this.props.encryption, false)
         },
         ...vpc ? {
-          VpcConfig: {
+          VPCOptions: {
             SecurityGroupIds: vpc.securityGroupIds,
             SubnetIds: vpc.subnetIds
           }
-        } : {}
+        } : {},
+        AccessPolicies: {
+          Version: unwrap(accessPolicy?.version, "2012-10-17"),
+          Statement: unwrap(accessPolicy?.statements, []).map((s) => unwrap(s)).map((statement) => ({
+            Effect: capitalCase2(unwrap(statement.effect, "allow")),
+            Action: unwrap(statement.actions, ["es:*"]),
+            Resource: unwrap(statement.resources, ["*"]),
+            ...statement.principal ? {
+              Principal: {
+                Service: statement.principal
+              }
+            } : {},
+            ...statement.sourceArn ? {
+              Condition: {
+                StringEquals: {
+                  "AWS:SourceArn": statement.sourceArn
+                }
+              }
+            } : {}
+          }))
+        }
       }
     };
   }
@@ -4599,7 +4608,7 @@ var BucketProvider = class {
 };
 
 // src/provider/aws/s3/bucket-policy.ts
-import { capitalCase as capitalCase2 } from "change-case";
+import { capitalCase as capitalCase3 } from "change-case";
 var BucketPolicy = class extends CloudControlApiResource {
   constructor(id, props) {
     super("AWS::S3::BucketPolicy", id, props);
@@ -4612,7 +4621,7 @@ var BucketPolicy = class extends CloudControlApiResource {
         PolicyDocument: {
           Version: unwrap(this.props.version, "2012-10-17"),
           Statement: unwrap(this.props.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: capitalCase2(unwrap(statement.effect, "allow")),
+            Effect: capitalCase3(unwrap(statement.effect, "allow")),
             ...statement.principal ? {
               Principal: {
                 Service: statement.principal

@@ -14,6 +14,15 @@ const openSearchDomain = new aws.openSearch.Domain('open-search', {
 		type: 't3.small.search',
 		count: 1,
 	},
+	accessPolicy: {
+		version: '2012-10-17',
+		statements: [
+			{
+				principal: 'lambda.amazonaws.com',
+				sourceArn: 'arn:*',
+			},
+		],
+	},
 })
 
 // stack.add(openSearchDomain)

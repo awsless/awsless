@@ -14,7 +14,7 @@ export const searchFeature = defineFeature({
 			const list = new TypeObject(2)
 
 			for (const id of Object.keys(stack.searchs ?? {})) {
-				const name = formatLocalResourceName(ctx.appConfig.name, stack.name, 'search', id)
+				const name = formatLocalResourceName(ctx.appConfig.name, stack.name, this.name, id)
 				list.addType(name, `{ readonly name: '${name}' }`)
 			}
 
@@ -31,33 +31,38 @@ export const searchFeature = defineFeature({
 			ctx.stack.add(group)
 
 			const domain = new aws.openSearch.Domain('domain', {
-				// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id),
+				// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
 				version: props.version,
 				storageSize: props.storage,
 				instance: {
 					type: props.type,
 					count: props.count,
 				},
+				accessPolicy: {
+					statements: [
+						{
+							principal: 'lambda.amazonaws.com',
+							sourceArn: `arn:aws:lambfa:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.app.name}--${ctx.stack.name}--*`,
+						},
+					],
+				},
 			})
 
-			// if (props.vpc) {
-			// 	domain.setVpc({
-			// 		securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
-			// 		subnetIds: [
-			// 			ctx.app.import<string>('base', `vpc-private-subnet-1`),
-			// 			ctx.app.import<string>('base', `vpc-private-subnet-2`),
-			// 		],
-			// 	})
-			// }
+			if (props.vpc) {
+				domain.setVpc({
+					securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
+					subnetIds: [ctx.app.import<string>('base', 'vpc-private-subnet-id-1')],
+				})
+			}
 
 			group.add(domain)
 
-			// ctx.onFunction(({ policy }) => {
-			// 	policy.addStatement({
-			// 		actions: ['es:*'],
-			// 		resources: [domain.arn.apply(arn => arn)],
-			// 	})
-			// })
+			ctx.onFunction(({ policy }) => {
+				policy.addStatement({
+					actions: ['es:*'],
+					resources: [domain.arn],
+				})
+			})
 		}
 	},
 })

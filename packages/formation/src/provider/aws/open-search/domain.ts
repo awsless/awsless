@@ -2,6 +2,7 @@ import { Size, gibibytes, toGibibytes } from '@awsless/size'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
+import { capitalCase } from 'change-case'
 
 export type version =
 	| 'OpenSearch_2.11'
@@ -128,6 +129,18 @@ export class Domain extends CloudControlApiResource {
 				securityGroupIds: Input<Input<string>[]>
 				subnetIds: Input<Input<string>[]>
 			}>
+			accessPolicy?: {
+				version?: Input<'2012-10-17'>
+				statements: Input<
+					Input<{
+						effect?: Input<'allow' | 'deny'>
+						principal?: Input<string>
+						actions?: Input<Input<string>[]>
+						resources?: Input<Input<string>[]>
+						sourceArn?: Input<ARN>
+					}>[]
+				>
+			}
 		}
 	) {
 		super('AWS::OpenSearchService::Domain', id, props)
@@ -164,6 +177,7 @@ export class Domain extends CloudControlApiResource {
 	toState() {
 		const instance = unwrap(this.props.instance)
 		const vpc = unwrap(this.props.vpc)
+		const accessPolicy = unwrap(this.props.accessPolicy)
 
 		return {
 			document: {
@@ -182,19 +196,6 @@ export class Domain extends CloudControlApiResource {
 				DomainEndpointOptions: {
 					EnforceHTTPS: true,
 				},
-				AccessPolicies: {
-					Version: '2012-10-17',
-					Statement: [
-						{
-							Effect: 'Allow',
-							Principal: {
-								Service: 'es.amazonaws.com',
-							},
-							Action: 'es:*',
-							Resource: '*',
-						},
-					],
-				},
 				SoftwareUpdateOptions: {
 					AutoSoftwareUpdateEnabled: true,
 				},
@@ -206,12 +207,39 @@ export class Domain extends CloudControlApiResource {
 				},
 				...(vpc
 					? {
-							VpcConfig: {
+							VPCOptions: {
 								SecurityGroupIds: vpc.securityGroupIds,
 								SubnetIds: vpc.subnetIds,
 							},
 					  }
 					: {}),
+
+				AccessPolicies: {
+					Version: unwrap(accessPolicy?.version, '2012-10-17'),
+					Statement: unwrap(accessPolicy?.statements, [])
+						.map(s => unwrap(s))
+						.map(statement => ({
+							Effect: capitalCase(unwrap(statement.effect, 'allow')),
+							Action: unwrap(statement.actions, ['es:*']),
+							Resource: unwrap(statement.resources, ['*']),
+							...(statement.principal
+								? {
+										Principal: {
+											Service: statement.principal,
+										},
+								  }
+								: {}),
+							...(statement.sourceArn
+								? {
+										Condition: {
+											StringEquals: {
+												'AWS:SourceArn': statement.sourceArn,
+											},
+										},
+								  }
+								: {}),
+						})),
+				},
 			},
 		}
 	}
