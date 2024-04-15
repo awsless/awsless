@@ -22,9 +22,13 @@ const DependsSchema = ResourceIdSchema.array()
 	.optional()
 	.describe('Define the stacks that this stack is depended on.')
 
+const NameSchema = ResourceIdSchema.refine(name => !['base'].includes(name), {
+	message: `Stack name can't be a reserved name.`,
+}).describe('Stack name.')
+
 export const StackSchema = z.object({
 	$schema: z.string().optional(),
-	name: ResourceIdSchema,
+	name: NameSchema,
 	depends: DependsSchema,
 	onFailure: OnFailureSchema,
 	auth: AuthSchema,

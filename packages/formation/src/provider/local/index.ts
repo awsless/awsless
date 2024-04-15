@@ -1,1 +1,2 @@
-export { LocalStateProvider as StateProvider } from './state-provider'
+export * from './file-provider'
+export * from './memory-provider'

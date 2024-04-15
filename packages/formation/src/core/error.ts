@@ -22,7 +22,7 @@ export class ResourceError extends Error {
 }
 
 export class StackError extends Error {
-	constructor(readonly issues: ResourceError[], message: string) {
+	constructor(readonly issues: (ResourceError | Error)[], message: string) {
 		super(message)
 	}
 }

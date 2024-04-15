@@ -32,7 +32,13 @@
 			"schema": "./graphql/schema.gql",
 			"resolvers": {
 				"Query": {
-					"test": "./graphql.ts"
+					"test": {
+						"file": "./graphql.ts",
+						"permissions": {
+							"actions": "route53domains:*",
+							"resources": "arn:aws:route53::*:hostedzone/*"
+						}
+					}
 				}
 			}
 		}

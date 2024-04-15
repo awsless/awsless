@@ -16,6 +16,8 @@ import { Asset, Node, aws } from '@awsless/formation'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
 import { formatFullDomainName } from '../domain/util.js'
+import { FileError } from '../../error.js'
+// import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
 
@@ -199,7 +201,11 @@ export const graphqlFeature = defineFeature({
 			const defaultProps = ctx.appConfig.defaults.graphql?.[id]
 
 			if (!defaultProps) {
-				throw new Error(`GraphQL definition is not defined on app level for "${id}"`)
+				// throw new ConfigError(ctx.stackConfig.file, )
+				throw new FileError(
+					ctx.stackConfig.file,
+					`GraphQL definition is not defined on app level for "${id}"`
+				)
 			}
 
 			const group = new Node('graphql', id)

@@ -4,7 +4,7 @@ import { AppState, StateProvider } from '../../core/state'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { lock } from 'proper-lockfile'
 
-export class LocalStateProvider implements StateProvider {
+export class FileProvider implements StateProvider {
 	constructor(
 		private props: {
 			dir: string

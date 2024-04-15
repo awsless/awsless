@@ -19,10 +19,6 @@
 		"allowSyntheticDefaultImports": true,
 		"jsx": "react-jsx"
 	},
-	"exclude": [
-		"./old",
-		"__test"
-	]
 	// "ts-node": {
 	//     "esm": true,
 	// 	"experimentalSpecifierResolution": "node",

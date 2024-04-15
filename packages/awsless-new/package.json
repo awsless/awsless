@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.167",
+	"version": "0.0.172",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -35,7 +35,7 @@
 		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; node ./dist/build-json-schema.js",
 		"jack": "pnpm tsup ./example/jack/jack.ts --format esm; node ./dist/jack.js",
 		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm; node ./dist/kennedy.js",
-		"prepublish": "if pnpm test; then pnpm build-json-schema; pnpm build; else exit; fi"
+		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; else exit; fi"
 	},
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",

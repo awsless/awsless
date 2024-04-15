@@ -122,4 +122,4 @@ export const SearchsSchema = z
 		})
 	)
 	.optional()
-	.describe('Define the searches in your stack.')
+	.describe('Define the search instances in your stack. Backed by OpenSearch.')

@@ -88,9 +88,11 @@ export const authFeature = defineFeature({
 					actions: ['cognito:*'],
 					resources: [
 						// Not yet known if this is correct way to grant access to all resources
-						userPoolId.apply<aws.ARN>(
-							id => `arn:aws:cognito-idp:${ctx.appConfig.region}:${ctx.accountId}:userpool/${id}`
-						),
+						userPoolArn,
+
+						// userPoolId.apply<aws.ARN>(
+						// 	id => `arn:aws:cognito-idp:${ctx.appConfig.region}:${ctx.accountId}:userpool/${id}`
+						// ),
 						// userPoolId.apply<aws.ARN>(
 						// 	id => `arn:aws:cognito-idp:${ctx.appConfig.region}:${ctx.accountId}:userpool/${id}*`
 						// ),

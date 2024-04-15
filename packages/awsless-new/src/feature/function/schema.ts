@@ -53,17 +53,24 @@ const RetryAttemptsSchema = z
 
 const RuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x']).describe("The identifier of the function's runtime.")
 
+const ActionSchema = z.string()
+const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])
+
+const ArnSchema = z.string().startsWith('arn:')
+const WildcardSchema = z.literal('*')
+
+const ResourceSchema = z.union([ArnSchema, WildcardSchema]).transform(v => v as `arn:${string}`)
+const ResourcesSchema = z.union([ResourceSchema.transform(v => [v]), ResourceSchema.array()])
+
 const PermissionSchema = z.object({
 	effect: z.enum(['allow', 'deny']).default('allow'),
-	actions: z.string().array(),
-	resources: z
-		.string()
-		.startsWith('arn:')
-		.transform(v => v as `arn:${string}`)
-		.array(),
+	actions: ActionsSchema,
+	resources: ResourcesSchema,
 })
 
-const PermissionsSchema = PermissionSchema.array().describe('Add IAM permissions to your function.')
+const PermissionsSchema = z
+	.union([PermissionSchema.transform(v => [v]), PermissionSchema.array()])
+	.describe('Add IAM permissions to your function.')
 
 const WarmSchema = z
 	.number()

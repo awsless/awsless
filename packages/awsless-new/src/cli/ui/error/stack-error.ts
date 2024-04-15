@@ -41,7 +41,7 @@ export const logStackError = (error: StackError) => {
 				].join(''),
 				{ symbol: color.error(icon.error) }
 			)
-		} else if (error instanceof Error) {
+		} else if (issue instanceof Error) {
 			log.message(wrap(color.error(issue.message), { hard: true }), {
 				symbol: color.error(icon.error),
 			})
