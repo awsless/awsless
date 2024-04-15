@@ -8,7 +8,7 @@ export class SubnetGroup extends CloudControlApiResource {
 		private props: {
 			subnetIds: Input<Input<string>[]>
 			name: Input<string>
-			description?: Input<string>
+			description?: Input<string | undefined>
 		}
 	) {
 		super('AWS::MemoryDB::SubnetGroup', id, props)
