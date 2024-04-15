@@ -4,7 +4,7 @@ import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
 import { capitalCase } from 'change-case'
 
-export type version = '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
+export type Version = '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
 
 export type NodeType =
 	| 't3.small'
@@ -115,7 +115,7 @@ export class Domain extends CloudControlApiResource {
 				type: Input<NodeType>
 				count: Input<number>
 			}>
-			version?: Input<version>
+			version?: Input<Version>
 			storageSize?: Input<Size>
 			ipType?: Input<'ipv4' | 'dualstack'>
 			encryption?: Input<boolean>
