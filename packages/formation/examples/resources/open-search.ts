@@ -10,8 +10,9 @@ app.add(stack)
 
 const openSearchDomain = new aws.openSearch.Domain('open-search', {
 	name: 'test-open-search',
+	version: '2.11',
 	instance: {
-		type: 't3.small.search',
+		type: 't3.small',
 		count: 1,
 	},
 	accessPolicy: {
