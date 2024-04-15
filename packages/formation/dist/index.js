@@ -4086,10 +4086,10 @@ var Domain = class extends CloudControlApiResource {
     return {
       document: {
         DomainName: this.props.name,
-        EngineVersion: unwrap(this.props.version, "OpenSearch_2.11"),
+        EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.11"),
         IPAddressType: unwrap(this.props.ipType, "ipv4"),
         ClusterConfig: {
-          InstanceType: instance.type,
+          InstanceType: `${instance.type}.search`,
           InstanceCount: instance.count
         },
         EBSOptions: {
