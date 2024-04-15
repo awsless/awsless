@@ -27,7 +27,7 @@ export const authFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.auth ?? {})) {
 			const group = new Node(this.name, id)
-			ctx.base.add(group)
+			ctx.stack.add(group)
 
 			const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
 			const userPoolArn = ctx.app.import<aws.ARN>('base', `auth-${id}-user-pool-arn`)
