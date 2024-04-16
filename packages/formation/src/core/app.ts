@@ -27,22 +27,16 @@ export class App extends Node {
 	import<T>(stack: string, key: string) {
 		return new Output<T>([], resolve => {
 			const get = (data: ExportedData) => {
-				if (typeof data[stack]?.[key] !== 'undefined') {
-					resolve(data[stack]![key] as T)
+				if (stack in data && key in data[stack]) {
+					resolve(data[stack][key] as T)
 					this.listeners.delete(get)
 				}
-
-				// if (typeof data[stack]?.[key] === 'undefined') {
-				// 	throw new ImportValueNotFound(stack, key)
-				// }
-
-				// resolve(data[stack]![key] as T)
 			}
+
+			this.listeners.add(get)
 
 			if (this.exported) {
 				get(this.exported)
-			} else {
-				this.listeners.add(get)
 			}
 		})
 	}

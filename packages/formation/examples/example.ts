@@ -14,7 +14,7 @@ const workspace = new WorkSpace({
 		credentials,
 		timeout: minutes(15),
 	}),
-	stateProvider: new local.StateProvider({
+	stateProvider: new local.FileProvider({
 		dir: './examples/state',
 	}),
 	// stateProvider: new aws.dynamodb.DynamoDBStateProvider({
@@ -24,27 +24,27 @@ const workspace = new WorkSpace({
 	// }),
 })
 
-workspace.on('stack', e =>
-	console.log(
-		//
-		new Date(),
-		'[Stack]'.padEnd(30),
-		// e.stack.name,
-		e.operation.toUpperCase(),
-		e.status.toUpperCase()
-	)
-)
+// workspace.on('stack', e =>
+// 	console.log(
+// 		//
+// 		new Date(),
+// 		'[Stack]'.padEnd(30),
+// 		// e.stack.name,
+// 		e.operation.toUpperCase(),
+// 		e.status.toUpperCase()
+// 	)
+// )
 
-workspace.on('resource', e =>
-	console.log(
-		//
-		new Date(),
-		`[${e.type}]`.padEnd(30),
-		e.operation.toUpperCase(),
-		e.status.toUpperCase(),
-		e.reason?.message ?? ''
-	)
-)
+// workspace.on('resource', e =>
+// 	console.log(
+// 		//
+// 		new Date(),
+// 		`[${e.type}]`.padEnd(30),
+// 		e.operation.toUpperCase(),
+// 		e.status.toUpperCase(),
+// 		e.reason?.message ?? ''
+// 	)
+// )
 
 const app = new App('test')
 

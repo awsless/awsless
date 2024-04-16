@@ -1,6 +1,6 @@
 import { App, Stack, WorkSpace, aws, local } from '../src'
 
-describe('TODO', () => {
+describe('Workspace', () => {
 	const cloudProvider = {
 		own: () => true,
 		get: async () => ({}),

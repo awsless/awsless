@@ -104,15 +104,21 @@ export abstract class Resource extends Node {
 		})
 	}
 
-	protected attr<T>(name: string, input: Input<T>, transform?: (value: T | Unwrap<T>) => unknown) {
+	protected attr<T extends Input<unknown>>(
+		name: string,
+		input: T,
+		transform?: (value: Exclude<Unwrap<T>, undefined>) => unknown
+	) {
 		const value = unwrap(input)
 
 		if (typeof value === 'undefined') {
 			return {}
 		}
 
+		const definedValue = value as Exclude<Unwrap<T>, undefined>
+
 		return {
-			[name]: transform ? transform(value) : value,
+			[name]: transform ? transform(definedValue) : definedValue,
 		}
 	}
 }

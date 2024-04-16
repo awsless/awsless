@@ -1,4 +1,3 @@
-import { pascalCase } from 'change-case'
 import { ARN } from '../types'
 import { Input, unwrap } from '../../../core/output'
 import { Duration } from '@awsless/duration'

@@ -312,7 +312,6 @@ export class WorkSpace {
 					const [assets, assetHashes] = await loadAssets(state.assets ?? {})
 					const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
 					const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {})
-					const token = createIdempotantToken(appState.token!, resource.urn, 'create')
 
 					let resourceState = stackState.resources[resource.urn]
 
