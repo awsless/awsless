@@ -36,6 +36,12 @@ export class CloudControlApiProvider implements CloudProvider {
 	constructor(private props: ProviderProps) {
 		this.client = new CloudControlClient({
 			maxAttempts: 10,
+			requestHandler: {
+				httpsAgent: {
+					maxSockets: 10,
+					maxTotalSockets: 10,
+				},
+			},
 			...props,
 		})
 	}

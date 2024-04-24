@@ -17,6 +17,7 @@ export const GraphQLDefaultSchema = z
 			resolver: LocalFileSchema.optional(),
 		})
 	)
+	.describe(`Define the global GraphQL API's.`)
 	.optional()
 
 export const GraphQLSchema = z
@@ -43,7 +44,9 @@ export const GraphQLSchema = z
 						])
 					)
 				)
+				.describe('The resolvers for your global GraphQL API.')
 				.optional(),
 		})
 	)
+	.describe('Define the schema & resolvers in your stack for your global GraphQL API.')
 	.optional()

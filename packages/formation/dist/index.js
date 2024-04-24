@@ -1589,7 +1589,7 @@ var GraphQLSchemaProvider = class {
   own(id) {
     return id === "aws-appsync-graphql-schema";
   }
-  async get({ id }) {
+  async waitStatusComplete(id) {
     while (true) {
       const result = await this.client.send(
         new GetSchemaCreationStatusCommand({
@@ -1597,13 +1597,16 @@ var GraphQLSchemaProvider = class {
         })
       );
       if (result.status === "FAILED") {
-        throw new Error("Failed updating graphql schema");
+        throw new Error(`Failed updating graphql schema: ${result.details}`);
       }
       if (result.status === "SUCCESS" || result.status === "ACTIVE") {
-        return {};
+        return;
       }
       await sleep(5e3);
     }
+  }
+  async get() {
+    return {};
   }
   async create({ document, assets }) {
     await this.client.send(
@@ -1612,6 +1615,7 @@ var GraphQLSchemaProvider = class {
         definition: assets.definition?.data
       })
     );
+    await this.waitStatusComplete(document.apiId);
     return document.apiId;
   }
   async update({ oldDocument, newDocument, assets }) {
@@ -1624,6 +1628,7 @@ var GraphQLSchemaProvider = class {
         definition: assets.definition?.data
       })
     );
+    await this.waitStatusComplete(newDocument.apiId);
     return newDocument.apiId;
   }
   async delete({ id }) {
@@ -1738,6 +1743,12 @@ var CloudControlApiProvider = class {
     this.props = props;
     this.client = new CloudControlClient({
       maxAttempts: 10,
+      requestHandler: {
+        httpsAgent: {
+          maxSockets: 10,
+          maxTotalSockets: 10
+        }
+      },
       ...props
     });
   }
@@ -4830,7 +4841,13 @@ var BucketPolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/s3/bucket-object-provider.ts
-import { DeleteObjectCommand, GetObjectAttributesCommand, PutObjectCommand, S3Client as S3Client2 } from "@aws-sdk/client-s3";
+import {
+  DeleteObjectCommand,
+  GetObjectAttributesCommand,
+  PutObjectCommand,
+  S3Client as S3Client2,
+  S3ServiceException
+} from "@aws-sdk/client-s3";
 var BucketObjectProvider = class {
   client;
   constructor(props) {
@@ -4883,12 +4900,21 @@ var BucketObjectProvider = class {
     return JSON.stringify([newDocument.Bucket, newDocument.Key]);
   }
   async delete({ document }) {
-    await this.client.send(
-      new DeleteObjectCommand({
-        Bucket: document.Bucket,
-        Key: document.Key
-      })
-    );
+    try {
+      await this.client.send(
+        new DeleteObjectCommand({
+          Bucket: document.Bucket,
+          Key: document.Key
+        })
+      );
+    } catch (error) {
+      if (error instanceof S3ServiceException) {
+        if (error.name === "NoSuchBucket") {
+          return;
+        }
+      }
+      throw error;
+    }
   }
 };
 

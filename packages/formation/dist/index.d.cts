@@ -702,7 +702,8 @@ declare class GraphQLSchemaProvider implements CloudProvider {
     protected client: AppSyncClient;
     constructor(props: ProviderProps$9);
     own(id: string): boolean;
-    get({ id }: GetProps<Document$6>): Promise<{}>;
+    private waitStatusComplete;
+    get(): Promise<{}>;
     create({ document, assets }: CreateProps<Document$6>): Promise<string>;
     update({ oldDocument, newDocument, assets }: UpdateProps<Document$6>): Promise<string>;
     delete({ id }: DeleteProps<Document$6>): Promise<void>;

@@ -1,5 +1,5 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
+import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
 import {
 	AppSyncClient,
 	DeleteGraphqlApiCommand,
@@ -30,7 +30,7 @@ export class GraphQLSchemaProvider implements CloudProvider {
 		return id === 'aws-appsync-graphql-schema'
 	}
 
-	async get({ id }: GetProps<Document>) {
+	private async waitStatusComplete(id: string) {
 		while (true) {
 			const result = await this.client.send(
 				new GetSchemaCreationStatusCommand({
@@ -39,15 +39,19 @@ export class GraphQLSchemaProvider implements CloudProvider {
 			)
 
 			if (result.status === 'FAILED') {
-				throw new Error('Failed updating graphql schema')
+				throw new Error(result.details)
 			}
 
 			if (result.status === 'SUCCESS' || result.status === 'ACTIVE') {
-				return {}
+				return
 			}
 
 			await sleep(5000)
 		}
+	}
+
+	async get() {
+		return {}
 	}
 
 	async create({ document, assets }: CreateProps<Document>) {
@@ -57,6 +61,8 @@ export class GraphQLSchemaProvider implements CloudProvider {
 				definition: assets.definition?.data,
 			})
 		)
+
+		await this.waitStatusComplete(document.apiId)
 
 		return document.apiId
 	}
@@ -72,6 +78,8 @@ export class GraphQLSchemaProvider implements CloudProvider {
 				definition: assets.definition?.data,
 			})
 		)
+
+		await this.waitStatusComplete(newDocument.apiId)
 
 		return newDocument.apiId
 	}

@@ -296,13 +296,16 @@ export const graphqlFeature = defineFeature({
 						dataSourceName: source.name,
 					})
 
-					new aws.appsync.Resolver(resolverGroup, 'resolver', {
+					const resolver = new aws.appsync.Resolver(resolverGroup, 'resolver', {
 						apiId: api.id,
 						typeName,
 						fieldName,
 						functions: [config.id],
 						code,
 					})
+
+					// If deploying the schema fails we might as well not deploy the resolvers
+					resolver.dependsOn(schema)
 				}
 			}
 		}

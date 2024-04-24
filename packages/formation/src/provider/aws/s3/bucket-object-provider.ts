@@ -1,6 +1,12 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
-import { DeleteObjectCommand, GetObjectAttributesCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import {
+	DeleteObjectCommand,
+	GetObjectAttributesCommand,
+	PutObjectCommand,
+	S3Client,
+	S3ServiceException,
+} from '@aws-sdk/client-s3'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -80,11 +86,21 @@ export class BucketObjectProvider implements CloudProvider {
 	}
 
 	async delete({ document }: DeleteProps<Document>) {
-		await this.client.send(
-			new DeleteObjectCommand({
-				Bucket: document.Bucket,
-				Key: document.Key,
-			})
-		)
+		try {
+			await this.client.send(
+				new DeleteObjectCommand({
+					Bucket: document.Bucket,
+					Key: document.Key,
+				})
+			)
+		} catch (error) {
+			if (error instanceof S3ServiceException) {
+				if (error.name === 'NoSuchBucket') {
+					return
+				}
+			}
+
+			throw error
+		}
 	}
 }

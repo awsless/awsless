@@ -1,6 +1,7 @@
 import { fromIni } from '@aws-sdk/credential-providers'
 import { aws, WorkSpace, App, Stack, local, Asset, AppError } from '../src'
 import { minutes } from '@awsless/duration'
+import { Bucket } from '../src/provider/aws/s3'
 
 const workspace = new WorkSpace({
 	cloudProviders: aws.createCloudProviders({
@@ -22,34 +23,45 @@ const stack = new Stack(app, 'test')
 
 // ------------------------------------------
 
-const table = new aws.dynamodb.Table(stack, 'test', {
-	name: 'TEST',
-	hash: 'key',
-	stream: 'keys-only',
+const bucket = new Bucket(stack, 'bucket', {
+	name: 'test-bucket-awsless',
 })
 
-table.addItem(
-	'test',
-	Asset.fromJSON({
+bucket.addObject('id', {
+	key: 'id',
+	body: Asset.fromJSON({
 		key: '1',
-	})
-)
-
-const stack2 = new Stack(app, 'test-2')
-
-new aws.dynamodb.TableItem(stack2, 'test-2', {
-	table,
-	item: Asset.fromJSON({
-		key: '2',
 	}),
 })
 
-new aws.dynamodb.TableItem(stack2, 'test-3', {
-	table,
-	item: Asset.fromJSON({
-		key: '3',
-	}),
-})
+// const table = new aws.dynamodb.Table(stack, 'test', {
+// 	name: 'TEST',
+// 	hash: 'key',
+// 	stream: 'keys-only',
+// })
+
+// table.addItem(
+// 	'test',
+// 	Asset.fromJSON({
+// 		key: '1',
+// 	})
+// )
+
+// const stack2 = new Stack(app, 'test-2')
+
+// new aws.dynamodb.TableItem(stack2, 'test-2', {
+// 	table,
+// 	item: Asset.fromJSON({
+// 		key: '2',
+// 	}),
+// })
+
+// new aws.dynamodb.TableItem(stack2, 'test-3', {
+// 	table,
+// 	item: Asset.fromJSON({
+// 		key: '3',
+// 	}),
+// })
 
 // ------------------------------------------
 
