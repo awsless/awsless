@@ -1,5 +1,7 @@
+import { Node } from '../../../core/node'
 import { Input } from '../../../core/output'
 import { Resource } from '../../../core/resource'
+// import { Stack } from '../../../core/stack'
 import { ARN } from '../types'
 
 export type CertificateValidationProps = {
@@ -10,8 +12,8 @@ export type CertificateValidationProps = {
 export class CertificateValidation extends Resource {
 	cloudProviderId = 'aws-acm-certificate-validation'
 
-	constructor(id: string, private props: CertificateValidationProps) {
-		super('AWS::CertificateManager::CertificateValidation', id, props)
+	constructor(readonly parent: Node, id: string, private props: CertificateValidationProps) {
+		super(parent, 'AWS::CertificateManager::CertificateValidation', id, props)
 
 		// This resource isn't a real resource.
 		// So we can just skip the deletion part.

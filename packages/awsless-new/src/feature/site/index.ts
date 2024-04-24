@@ -12,8 +12,7 @@ export const siteFeature = defineFeature({
 	name: 'site',
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
-			const group = new Node('site', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'site', id)
 
 			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'site', id)
 			const origins: aws.cloudFront.Origin[] = []
@@ -32,7 +31,7 @@ export const siteFeature = defineFeature({
 				// lambda = result.lambda
 				// code = result.code
 
-				const permissions = new aws.lambda.Permission('permission', {
+				new aws.lambda.Permission(group, 'permission', {
 					principal: '*',
 					// principal: 'cloudfront.amazonaws.com',
 					action: 'lambda:InvokeFunctionUrl',
@@ -42,15 +41,11 @@ export const siteFeature = defineFeature({
 					// sourceArn: distribution.arn,
 				})
 
-				group.add(permissions)
-
-				const url = new aws.lambda.Url('url', {
+				const url = new aws.lambda.Url(group, 'url', {
 					targetArn: lambda.arn,
 					authType: 'none',
 					// authType: 'aws-iam',
 				})
-
-				group.add(url)
 
 				origins.push({
 					id: 'ssr',
@@ -60,7 +55,7 @@ export const siteFeature = defineFeature({
 			}
 
 			if (props.static) {
-				bucket = new aws.s3.Bucket('bucket', {
+				bucket = new aws.s3.Bucket(group, 'bucket', {
 					name,
 					forceDelete: true,
 					website: {
@@ -79,9 +74,7 @@ export const siteFeature = defineFeature({
 
 				bucket.deletionPolicy = 'after-deployment'
 
-				group.add(bucket)
-
-				const accessControl = new aws.cloudFront.OriginAccessControl(`access`, {
+				const accessControl = new aws.cloudFront.OriginAccessControl(group, `access`, {
 					name,
 					type: 's3',
 					behavior: 'always',
@@ -90,23 +83,19 @@ export const siteFeature = defineFeature({
 
 				accessControl.deletionPolicy = 'after-deployment'
 
-				group.add(accessControl)
-
 				const files = glob.sync('**', {
 					cwd: props.static,
 					nodir: true,
 				})
 
 				for (const file of files) {
-					const object = new aws.s3.BucketObject(file, {
+					const object = new aws.s3.BucketObject(group, file, {
 						bucket: bucket.name,
 						key: file,
 						body: Asset.fromFile(join(props.static, file)),
 						cacheControl: getCacheControl(file),
 						contentType: getContentType(file),
 					})
-
-					group.add(object)
 
 					versions.push(object.key)
 					versions.push(object.etag)
@@ -127,7 +116,7 @@ export const siteFeature = defineFeature({
 				})
 			}
 
-			const cache = new aws.cloudFront.CachePolicy('cache', {
+			const cache = new aws.cloudFront.CachePolicy(group, 'cache', {
 				name,
 				minTtl: seconds(1),
 				maxTtl: days(365),
@@ -135,9 +124,7 @@ export const siteFeature = defineFeature({
 				...props.cache,
 			})
 
-			group.add(cache)
-
-			const originRequest = new aws.cloudFront.OriginRequestPolicy('request', {
+			const originRequest = new aws.cloudFront.OriginRequestPolicy(group, 'request', {
 				name,
 				header: {
 					behavior: 'all-except',
@@ -145,10 +132,8 @@ export const siteFeature = defineFeature({
 				},
 			})
 
-			group.add(originRequest)
-
 			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-			const responseHeaders = new aws.cloudFront.ResponseHeadersPolicy('response', {
+			const responseHeaders = new aws.cloudFront.ResponseHeadersPolicy(group, 'response', {
 				name,
 				cors: props.cors,
 				remove: ['server'],
@@ -157,8 +142,6 @@ export const siteFeature = defineFeature({
 				// },
 			})
 
-			group.add(responseHeaders)
-
 			// const aliases: string[] = [ domainName ]
 			// if(!props.subDomain) {
 			// 	aliases.push(`www.${props.domain}`)
@@ -166,9 +149,9 @@ export const siteFeature = defineFeature({
 
 			// console.log(domainName)
 
-			const distribution = new aws.cloudFront.Distribution('distribution', {
+			const distribution = new aws.cloudFront.Distribution(group, 'distribution', {
 				name,
-				certificateArn: ctx.app.import('base', `global-certificate-${props.domain}-arn`),
+				certificateArn: ctx.shared.get(`global-certificate-${props.domain}-arn`),
 				compress: true,
 				aliases: [domainName],
 				origins,
@@ -196,15 +179,11 @@ export const siteFeature = defineFeature({
 				}),
 			})
 
-			group.add(distribution)
-
-			const invalidate = new aws.cloudFront.InvalidateCache('invalidate', {
+			new aws.cloudFront.InvalidateCache(group, 'invalidate', {
 				distributionId: distribution.id,
 				paths: ['/*'],
 				versions,
 			})
-
-			group.add(invalidate)
 
 			// if (props.ssr) {
 			// 	const permissions = new aws.lambda.Permission('permission', {
@@ -223,7 +202,7 @@ export const siteFeature = defineFeature({
 				// 	return `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`
 				// })
 
-				const bucketPolicy = new aws.s3.BucketPolicy(`policy`, {
+				new aws.s3.BucketPolicy(group, `policy`, {
 					bucketName: bucket!.name,
 					statements: [
 						{
@@ -249,12 +228,10 @@ export const siteFeature = defineFeature({
 						// }
 					],
 				})
-
-				group.add(bucketPolicy)
 			}
 
-			const record = new aws.route53.RecordSet(`record`, {
-				hostedZoneId: ctx.app.import('base', `hosted-zone-${props.domain}-id`),
+			new aws.route53.RecordSet(group, `record`, {
+				hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
 				type: 'A',
 				name: domainName,
 				alias: {
@@ -263,8 +240,6 @@ export const siteFeature = defineFeature({
 					evaluateTargetHealth: false,
 				},
 			})
-
-			group.add(record)
 		}
 	},
 })

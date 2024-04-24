@@ -1,6 +1,7 @@
 import { ARN } from '../types.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Node } from '../../../core/node.js'
 
 export type RuleProps = {
 	name: Input<string>
@@ -20,8 +21,8 @@ export type RuleTarget = {
 }
 
 export class Rule extends CloudControlApiResource {
-	constructor(id: string, private props: RuleProps) {
-		super('AWS::Events::Rule', id, props)
+	constructor(readonly parent: Node, id: string, private props: RuleProps) {
+		super(parent, 'AWS::Events::Rule', id, props)
 	}
 
 	get id() {

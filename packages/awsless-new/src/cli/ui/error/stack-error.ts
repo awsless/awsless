@@ -23,7 +23,7 @@ const formatOperation = (operation: ResourceOperation) => {
 
 export const logStackError = (error: StackError) => {
 	log.message(
-		wrap([color.error(error.message)], {
+		wrap([color.error(error.message), color.dim(`Stack: ${error.stack}`)].join('\n'), {
 			hard: true,
 		}),
 		{ symbol: color.error(icon.error) }

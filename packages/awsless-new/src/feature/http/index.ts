@@ -109,12 +109,10 @@ export const httpFeature = defineFeature({
 			return
 		}
 
-		const group = new Node('http', 'main')
+		const group = new Node(ctx.base, 'http', 'main')
 
-		ctx.base.add(group)
-
-		const securityGroup = new aws.ec2.SecurityGroup('http', {
-			vpcId: ctx.base.import(`vpc-id`),
+		const securityGroup = new aws.ec2.SecurityGroup(group, 'http', {
+			vpcId: ctx.shared.get(`vpc-id`),
 			name: formatGlobalResourceName(ctx.app.name, 'http', 'http'),
 			description: `Global security group for HTTP api.`,
 		})
@@ -124,27 +122,25 @@ export const httpFeature = defineFeature({
 		securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv4() })
 		securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv6() })
 
-		group.add(securityGroup)
-
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults?.http ?? {})) {
-			const group = new Node('http', id)
+			const group = new Node(ctx.base, 'http', id)
 
-			ctx.base.add(group)
-
-			const loadBalancer = new aws.elb.LoadBalancer('balancer', {
+			const loadBalancer = new aws.elb.LoadBalancer(group, 'balancer', {
 				name: formatGlobalResourceName(ctx.app.name, 'http', id),
 				type: 'application',
 				securityGroups: [securityGroup.id],
-				subnets: [ctx.base.import(`vpc-public-subnet-id-1`), ctx.base.import(`vpc-public-subnet-id-2`)],
+				subnets: [
+					//
+					ctx.shared.get(`vpc-public-subnet-id-1`),
+					ctx.shared.get(`vpc-public-subnet-id-2`),
+				],
 			})
 
-			group.add(loadBalancer)
-
-			const listener = new aws.elb.Listener('listener', {
+			const listener = new aws.elb.Listener(group, 'listener', {
 				loadBalancerArn: loadBalancer.arn,
 				port: 443,
 				protocol: 'https',
-				certificates: [ctx.base.import(`local-certificate-${props.domain}-arn`)],
+				certificates: [ctx.shared.get(`local-certificate-${props.domain}-arn`)],
 				defaultActions: [
 					aws.elb.ListenerAction.fixedResponse({
 						statusCode: 404,
@@ -156,12 +152,10 @@ export const httpFeature = defineFeature({
 				],
 			})
 
-			group.add(listener)
-
 			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-			const record = new aws.route53.RecordSet(domainName, {
-				hostedZoneId: ctx.base.import(`hosted-zone-${props.domain}-id`),
+			new aws.route53.RecordSet(group, domainName, {
+				hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
 				name: domainName,
 				type: 'A',
 				alias: {
@@ -171,9 +165,7 @@ export const httpFeature = defineFeature({
 				},
 			})
 
-			group.add(record)
-
-			ctx.base.export(`http-${id}-listener-arn`, listener.arn)
+			ctx.shared.set(`http-${id}-listener-arn`, listener.arn)
 		}
 	},
 	onStack(ctx) {
@@ -184,12 +176,10 @@ export const httpFeature = defineFeature({
 				throw new Error(`Http definition is not defined on app level for "${id}"`)
 			}
 
-			const group = new Node('http', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'http', id)
 
 			for (const [routeKey, routeProps] of Object.entries(routes)) {
-				const routeGroup = new Node('route', routeKey)
-				group.add(routeGroup)
+				const routeGroup = new Node(group, 'route', routeKey)
 
 				const { method, path } = parseRoute(routeKey as Route)
 
@@ -202,25 +192,21 @@ export const httpFeature = defineFeature({
 
 				const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'http', routeId)
 
-				const permission = new aws.lambda.Permission(id, {
+				const permission = new aws.lambda.Permission(routeGroup, id, {
 					action: 'lambda:InvokeFunction',
 					principal: 'elasticloadbalancing.amazonaws.com',
 					functionArn: lambda.arn,
 					// sourceArn: `arn:aws:elasticloadbalancing:${ctx.appConfig.region}:*:targetgroup/${name}/*`,
 				})
 
-				routeGroup.add(permission)
-
-				const target = new aws.elb.TargetGroup(id, {
+				const target = new aws.elb.TargetGroup(routeGroup, id, {
 					name,
 					type: 'lambda',
 					targets: [lambda.arn],
 				}).dependsOn(permission)
 
-				routeGroup.add(target)
-
-				const rule = new aws.elb.ListenerRule(id, {
-					listenerArn: ctx.app.import('base', `http-${id}-listener-arn`),
+				new aws.elb.ListenerRule(routeGroup, id, {
+					listenerArn: ctx.shared.get(`http-${id}-listener-arn`),
 					priority: generatePriority(ctx.stackConfig.name, routeKey),
 					conditions: [
 						aws.elb.ListenerCondition.httpRequestMethods([method]),
@@ -228,8 +214,6 @@ export const httpFeature = defineFeature({
 					],
 					actions: [aws.elb.ListenerAction.forward([target.arn])],
 				}).dependsOn(target)
-
-				routeGroup.add(rule)
 			}
 		}
 	},

@@ -1,29 +1,29 @@
 {
 	"$schema": "https://tinyurl.com/awsless-app",
-	"name": "app-2",
+	"name": "app-jack",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
 	"defaults": {
-		"domains": {
-			"main": {
-				"domain": "getblockalert.com"
-			}
-		},
-		"auth": {
-			"users": {}
-		},
+		// "domains": {
+		// 	"main": {
+		// 		"domain": "getblockalert.com"
+		// 	}
+		// },
+		// "auth": {
+		// 	"users": {}
+		// },
 		// "http": {
 		// 	"api": {
 		// 		"domain": "main",
 		// 		"subDomain": "elb"
 		// 	}
 		// },
-		"graphql": {
-			"api": {
-				"domain": "main",
-				"subDomain": "api",
-				// "auth": "users"
-			}
-		}
+		// "graphql": {
+		// 	"api": {
+		// 		// "domain": "main",
+		// 		"subDomain": "api",
+		// 		// "auth": "users"
+		// 	}
+		// }
 	}
 }

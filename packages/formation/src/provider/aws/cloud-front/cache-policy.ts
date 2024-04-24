@@ -1,9 +1,11 @@
 import { Duration, toSeconds } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
+import { Node } from '../../../core/node.js'
 
 export class CachePolicy extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -17,7 +19,7 @@ export class CachePolicy extends CloudControlApiResource {
 			queries?: Input<Input<string>[]>
 		}
 	) {
-		super('AWS::CloudFront::CachePolicy', id, props)
+		super(parent, 'AWS::CloudFront::CachePolicy', id, props)
 	}
 
 	get id() {

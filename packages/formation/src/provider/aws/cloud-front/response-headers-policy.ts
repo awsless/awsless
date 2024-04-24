@@ -1,9 +1,11 @@
 import { Duration, days, toSeconds } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { Input, unwrap } from '../../../core/output'
+import { Node } from '../../../core/node'
 
 export class ResponseHeadersPolicy extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -58,7 +60,7 @@ export class ResponseHeadersPolicy extends CloudControlApiResource {
 			}>
 		}
 	) {
-		super('AWS::CloudFront::ResponseHeadersPolicy', id, props)
+		super(parent, 'AWS::CloudFront::ResponseHeadersPolicy', id, props)
 	}
 
 	get id() {

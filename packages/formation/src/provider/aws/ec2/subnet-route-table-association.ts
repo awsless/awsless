@@ -1,15 +1,17 @@
+import { Node } from '../../../core/node'
 import { Input } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class SubnetRouteTableAssociation extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			subnetId: Input<string>
 			routeTableId: Input<string>
 		}
 	) {
-		super('AWS::EC2::SubnetRouteTableAssociation', id, props)
+		super(parent, 'AWS::EC2::SubnetRouteTableAssociation', id, props)
 	}
 
 	get id() {

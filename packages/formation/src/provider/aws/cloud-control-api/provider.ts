@@ -21,18 +21,23 @@ import { createPatch } from 'rfc6902'
 import { sleep } from '../../../core/hash'
 import { Duration, minutes, toMilliSeconds } from '@awsless/duration'
 import { ResourceNotFound } from '../../../core/error'
+// import { retry } from '../../../core/retry'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
 	region: string
 	timeout?: Duration
+	maxAttempts?: number
 }
 
 export class CloudControlApiProvider implements CloudProvider {
 	protected client: CloudControlClient
 
 	constructor(private props: ProviderProps) {
-		this.client = new CloudControlClient(props)
+		this.client = new CloudControlClient({
+			maxAttempts: 10,
+			...props,
+		})
 	}
 
 	own(id: string) {
@@ -46,11 +51,19 @@ export class CloudControlApiProvider implements CloudProvider {
 
 		while (true) {
 			if (event.OperationStatus === 'SUCCESS') {
-				return event.Identifier!
+				if (event.Identifier) {
+					return event.Identifier
+				} else {
+					throw new Error(`AWS Cloud Control API Identifier not set for SUCCESS status.`)
+				}
 			}
 
 			if (event.OperationStatus === 'FAILED') {
 				if (event.ErrorCode === 'AlreadyExists') {
+					if (event.Identifier) {
+						return event.Identifier
+					}
+
 					// Sadly we can't heal from resources that already exist
 					// without CloudControlApi returning the resource
 					// identifier.
@@ -75,19 +88,19 @@ export class CloudControlApiProvider implements CloudProvider {
 
 			await sleep(delay)
 
-			try {
-				const status = await this.client.send(
-					new GetResourceRequestStatusCommand({
-						RequestToken: token,
-					})
-				)
+			// try {
+			const status = await this.client.send(
+				new GetResourceRequestStatusCommand({
+					RequestToken: token,
+				})
+			)
 
-				event = status.ProgressEvent!
-			} catch (error) {
-				console.log(error)
-				console.log(error.StatusMessage)
-				console.log(['EHOSTUNREACH'].includes(error.StatusMessage))
-			}
+			event = status.ProgressEvent!
+			// } catch (error) {
+			// 	// console.log(error)
+			// 	// console.log(error.StatusMessage)
+			// 	// console.log(['EHOSTUNREACH'].includes(error.StatusMessage))
+			// }
 		}
 	}
 

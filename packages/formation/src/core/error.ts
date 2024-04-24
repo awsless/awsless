@@ -21,8 +21,14 @@ export class ResourceError extends Error {
 	}
 }
 
+export class AppError extends Error {
+	constructor(readonly app: string, readonly issues: (StackError | Error)[], message: string) {
+		super(message)
+	}
+}
+
 export class StackError extends Error {
-	constructor(readonly issues: (ResourceError | Error)[], message: string) {
+	constructor(readonly stack: string, readonly issues: (ResourceError | Error)[], message: string) {
 		super(message)
 	}
 }
@@ -30,8 +36,8 @@ export class StackError extends Error {
 export class ResourceNotFound extends Error {}
 export class ResourceAlreadyExists extends Error {}
 
-export class ImportValueNotFound extends Error {
-	constructor(stack: string, key: string) {
-		super(`Import value "${key}" doesn't exist for the "${stack}" stack`)
-	}
-}
+// export class ImportValueNotFound extends Error {
+// 	constructor(stack: string, key: string) {
+// 		super(`Import value "${key}" doesn't exist for the "${stack}" stack`)
+// 	}
+// }

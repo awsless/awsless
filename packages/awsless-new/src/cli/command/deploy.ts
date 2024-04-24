@@ -68,7 +68,7 @@ export const deploy = (program: Command) => {
 				// ---------------------------------------------------
 
 				const workspace = new WorkSpace({
-					stateProvider: new aws.dynamodb.DynamoDBStateProvider({
+					stateProvider: new aws.dynamodb.StateProvider({
 						credentials,
 						region,
 						tableName: 'awsless-state',
@@ -80,38 +80,42 @@ export const deploy = (program: Command) => {
 					}),
 				})
 
+				// await workspace.deployApp(app)
+
 				// workspace.on('resource', event => {
 				// 	console.log(event)
 				// })
 
-				const graph: Record<string, Step[]> = {}
-				for (const stack of app.stacks) {
-					const deps: Step[] = []
+				// const graph: Record<string, Step[]> = {}
+				// for (const stack of app.stacks) {
+				// 	const deps: Step[] = []
 
-					if (stack.name !== 'base') {
-						deps.push('base')
-					}
+				// 	if (stack.name !== 'base') {
+				// 		deps.push('base')
+				// 	}
 
-					graph[stack.name] = [
-						...deps,
-						async () => {
-							// console.log(stack.name)
+				// 	graph[stack.name] = [
+				// 		...deps,
+				// 		async () => {
+				// 			// console.log(stack.name)
 
-							await workspace.deployStack(stack)
+				// 			await workspace.deployStack(stack)
 
-							// console.log(stack.name, 'DONE')
-						},
-					]
-				}
+				// 			// console.log(stack.name, 'DONE')
+				// 		},
+				// 	]
+				// }
 
 				await task('Deploying the stacks to AWS', async update => {
-					const results = await Promise.allSettled(Object.values(run(graph)))
+					// const results = await Promise.allSettled(Object.values(run(graph)))
 
-					for (const result of results) {
-						if (result.status === 'rejected') {
-							throw result.reason
-						}
-					}
+					await workspace.deployApp(app)
+
+					// for (const result of results) {
+					// 	if (result.status === 'rejected') {
+					// 		throw result.reason
+					// 	}
+					// }
 
 					update('Done deploying the stacks to AWS.')
 				})

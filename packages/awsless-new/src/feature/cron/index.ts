@@ -7,12 +7,11 @@ export const cronFeature = defineFeature({
 	name: 'cron',
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
-			const group = new Node('cron', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'cron', id)
 
 			const { lambda } = createLambdaFunction(group, ctx, this.name, id, props.consumer)
 
-			const rule = new aws.events.Rule('rule', {
+			const rule = new aws.events.Rule(group, 'rule', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
 				schedule: props.schedule,
 				enabled: props.enabled,
@@ -25,14 +24,12 @@ export const cronFeature = defineFeature({
 				],
 			})
 
-			const permission = new aws.lambda.Permission('permission', {
+			new aws.lambda.Permission(group, 'permission', {
 				action: 'lambda:InvokeFunction',
 				principal: 'events.amazonaws.com',
 				functionArn: lambda.arn,
 				sourceArn: rule.arn,
 			})
-
-			group.add(rule, permission)
 		}
 	},
 })

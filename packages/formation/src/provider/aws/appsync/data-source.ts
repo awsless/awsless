@@ -1,6 +1,7 @@
 import { ARN } from '../types.js'
 import { Input } from '../../../core/output.js'
 import { Resource } from '../../../core/resource.js'
+import { Node } from '../../../core/node.js'
 
 export type DataSourceProps = {
 	apiId: Input<string>
@@ -20,8 +21,8 @@ export type DataSourceProps = {
 export class DataSource extends Resource {
 	cloudProviderId = 'aws-appsync-data-source'
 
-	constructor(id: string, private props: DataSourceProps) {
-		super('AWS::AppSync::DataSource', id, props)
+	constructor(readonly parent: Node, id: string, private props: DataSourceProps) {
+		super(parent, 'AWS::AppSync::DataSource', id, props)
 	}
 
 	get arn() {

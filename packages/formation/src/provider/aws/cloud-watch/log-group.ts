@@ -2,16 +2,18 @@ import { Duration, toDays } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
+import { Node } from '../../../core/node.js'
 
 export class LogGroup extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
 			retention?: Input<Duration>
 		}
 	) {
-		super('AWS::Logs::LogGroup', id, props)
+		super(parent, 'AWS::Logs::LogGroup', id, props)
 	}
 
 	get arn() {

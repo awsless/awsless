@@ -47,16 +47,12 @@ export const topicFeature = defineFeature({
 	onApp(ctx) {
 		for (const stack of ctx.stackConfigs) {
 			for (const id of stack.topics ?? []) {
-				const group = new Node('topic', id)
-				ctx.base.add(group)
-
-				const topic = new aws.sns.Topic('topic', {
+				const group = new Node(ctx.base, 'topic', id)
+				const topic = new aws.sns.Topic(group, 'topic', {
 					name: formatGlobalResourceName(ctx.appConfig.name, 'topic', id),
 				})
 
-				group.add(topic)
-
-				ctx.base.export(`topic-${id}-arn`, topic.arn)
+				ctx.shared.set(`topic-${id}-arn`, topic.arn)
 			}
 		}
 	},
@@ -65,44 +61,39 @@ export const topicFeature = defineFeature({
 			ctx.onFunction(({ policy }) => {
 				policy.addStatement({
 					actions: ['sns:Publish'],
-					resources: [ctx.app.import('base', `topic-${id}-arn`)],
+					resources: [ctx.shared.get<aws.ARN>(`topic-${id}-arn`)],
 				})
 			})
 		}
 
 		for (const [id, props] of Object.entries(ctx.stackConfig.subscribers ?? {})) {
-			const group = new Node('topic', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'topic', id)
 
-			const topicArn = ctx.app.import<aws.ARN>('base', `topic-${id}-arn`)
+			const topicArn = ctx.shared.get<aws.ARN>(`topic-${id}-arn`)
 
 			if (typeof props === 'string' && isEmail(props)) {
 				// Check we need to subscribe to an email.
-				const subscription = new aws.sns.Subscription(id, {
+				new aws.sns.Subscription(group, id, {
 					topicArn,
 					protocol: 'email',
 					endpoint: props,
 				})
-
-				group.add(subscription)
 			} else if (typeof props === 'object') {
 				// Else it's a lambda...
 				const { lambda } = createLambdaFunction(group, ctx, `topic`, id, props)
 
-				const topic = new aws.sns.Subscription(id, {
+				new aws.sns.Subscription(group, id, {
 					topicArn,
 					protocol: 'lambda',
 					endpoint: lambda.arn,
 				})
 
-				const permission = new aws.lambda.Permission(id, {
+				new aws.lambda.Permission(group, id, {
 					action: 'lambda:InvokeFunction',
 					principal: 'sns.amazonaws.com',
 					functionArn: lambda.arn,
 					sourceArn: topicArn,
 				})
-
-				group.add(topic, permission)
 			}
 		}
 	},

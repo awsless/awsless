@@ -1,4 +1,5 @@
 import { Asset } from '../../../core/asset.js'
+import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
@@ -12,8 +13,8 @@ export type ResolverProps = {
 }
 
 export class Resolver extends CloudControlApiResource {
-	constructor(id: string, private props: ResolverProps) {
-		super('AWS::AppSync::Resolver', id, props)
+	constructor(readonly parent: Node, id: string, private props: ResolverProps) {
+		super(parent, 'AWS::AppSync::Resolver', id, props)
 	}
 
 	get arn() {

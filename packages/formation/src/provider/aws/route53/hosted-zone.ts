@@ -1,4 +1,5 @@
-import { Input, all, unwrap } from '../../../core/output.js'
+import { Node } from '../../../core/node.js'
+import { Input, Output, all, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Record, RecordSet } from './record-set.js'
 
@@ -7,8 +8,8 @@ export type HostedZoneProps = {
 }
 
 export class HostedZone extends CloudControlApiResource {
-	constructor(id: string, private props: HostedZoneProps) {
-		super('AWS::Route53::HostedZone', id, props)
+	constructor(readonly parent: Node, id: string, private props: HostedZoneProps) {
+		super(parent, 'AWS::Route53::HostedZone', id, props)
 	}
 
 	get id() {
@@ -24,17 +25,12 @@ export class HostedZone extends CloudControlApiResource {
 	}
 
 	addRecord(id: string, record: Input<Record>) {
-		const recordSet = new RecordSet(
-			id,
-			all([this.id, record]).apply(([hostedZoneId, record]) => ({
-				hostedZoneId,
-				...record,
-			}))
-		)
+		const recordProps = all([this.id, record]).apply(([_, record]) => ({
+			hostedZoneId: this.id,
+			...record,
+		})) as Output<Record & { hostedZoneId: Input<string> }>
 
-		this.add(recordSet)
-
-		return recordSet
+		return new RecordSet(this, id, recordProps)
 	}
 
 	toState() {

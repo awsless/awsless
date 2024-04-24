@@ -5,6 +5,7 @@ import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Duration, days, toDays } from '@awsless/duration'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
+import { Node } from '../../../core/node.js'
 
 export type UserPoolProps = {
 	name: Input<string>
@@ -32,8 +33,8 @@ export type UserPoolProps = {
 }
 
 export class UserPool extends CloudControlApiResource {
-	constructor(id: string, private props: UserPoolProps) {
-		super('AWS::Cognito::UserPool', id, props)
+	constructor(readonly parent: Node, id: string, private props: UserPoolProps) {
+		super(parent, 'AWS::Cognito::UserPool', id, props)
 	}
 
 	get id() {
@@ -64,12 +65,10 @@ export class UserPool extends CloudControlApiResource {
 	// }
 
 	addClient(id: string, props: Omit<UserPoolClientProps, 'userPoolId'>) {
-		const client = new UserPoolClient(id, {
+		const client = new UserPoolClient(this, id, {
 			...props,
 			userPoolId: this.id,
 		})
-
-		this.add(client)
 
 		return client
 	}

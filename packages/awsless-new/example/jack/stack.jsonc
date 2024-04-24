@@ -27,24 +27,35 @@
 	// 		"consumer": "./function.ts"
 	// 	}
 	// },
-	"graphql": {
-		"api": {
-			"schema": "./graphql/schema.gql",
-			"resolvers": {
-				"Query": {
-					"test": {
-						"file": "./graphql.ts",
-						"permissions": {
-							"actions": "route53domains:*",
-							"resources": "arn:aws:route53::*:hostedzone/*"
-						}
-					}
-				}
-			}
-		}
-	},
+	// "graphql": {
+	// 	"api": {
+	// 		"schema": "./graphql/schema.gql",
+	// 		"resolvers": {
+	// 			"Query": {
+	// 				"test": {
+	// 					"file": "./graphql.ts",
+	// 					"permissions": {
+	// 						"actions": "route53domains:*",
+	// 						"resources": "arn:aws:route53::*:hostedzone/*"
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// },
 	"functions": {
-		"echo-1": "./function.ts"
+		"echo-1": "./function.ts",
+		"echo-2": "./function.ts",
+		"echo-3": "./function.ts",
+		"echo-4": "./function.ts",
+		"echo-5": "./function.ts",
+		"echo-6": "./function.ts",
+		"echo-7": "./function.ts",
+		"echo-8": "./function.ts",
+		"echo-9": "./function.ts",
+		"echo-10": "./function.ts",
+		"echo-11": "./function.ts",
+		"echo-12": "./function.ts"
 	},
 	// "queues": {
 	// 	"queue": "./function.ts"

@@ -3,6 +3,7 @@ import { Input, unwrap } from '../../../core/output'
 import { Duration } from '@awsless/duration'
 import { Resource } from '../../../core/resource'
 import { BucketObject, BucketObjectProps } from './bucket-object'
+import { Node } from '../../../core/node'
 
 export type BucketProps = {
 	name?: Input<string>
@@ -35,8 +36,8 @@ export type BucketProps = {
 export class Bucket extends Resource {
 	cloudProviderId = 'aws-s3-bucket'
 
-	constructor(id: string, private props: BucketProps = {}) {
-		super('AWS::S3::Bucket', id, props)
+	constructor(readonly parent: Node, id: string, private props: BucketProps = {}) {
+		super(parent, 'AWS::S3::Bucket', id, props)
 	}
 
 	get name() {
@@ -82,14 +83,10 @@ export class Bucket extends Resource {
 	}
 
 	addObject(id: string, props: Omit<BucketObjectProps, 'bucket'>) {
-		const object = new BucketObject(id, {
+		return new BucketObject(this, id, {
 			...props,
 			bucket: this.name,
 		})
-
-		this.add(object)
-
-		return object
 	}
 
 	toState() {

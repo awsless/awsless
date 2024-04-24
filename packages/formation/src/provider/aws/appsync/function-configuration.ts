@@ -1,4 +1,5 @@
 import { Asset } from '../../../core/asset.js'
+import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
@@ -11,8 +12,8 @@ export type FunctionConfigurationProps = {
 }
 
 export class FunctionConfiguration extends CloudControlApiResource {
-	constructor(id: string, private props: FunctionConfigurationProps) {
-		super('AWS::AppSync::FunctionConfiguration', id, props)
+	constructor(readonly parent: Node, id: string, private props: FunctionConfigurationProps) {
+		super(parent, 'AWS::AppSync::FunctionConfiguration', id, props)
 	}
 
 	get id() {

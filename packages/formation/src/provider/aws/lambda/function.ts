@@ -4,9 +4,10 @@ import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 import { Size, mebibytes, toMebibytes } from '@awsless/size'
 import { Duration, seconds, toSeconds } from '@awsless/duration'
-import { Url, UrlProps } from './url.js'
-import { Permission } from './permission.js'
+// import { Url, UrlProps } from './url.js'
+// import { Permission } from './permission.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Node } from '../../../core/node.js'
 
 export type FunctionProps = {
 	name: Input<string>
@@ -37,8 +38,8 @@ export type FunctionProps = {
 export class Function extends CloudControlApiResource {
 	private environmentVariables: Record<string, Input<string>> = {}
 
-	constructor(id: string, private props: FunctionProps) {
-		super('AWS::Lambda::Function', id, props)
+	constructor(readonly parent: Node, id: string, private props: FunctionProps) {
+		super(parent, 'AWS::Lambda::Function', id, props)
 	}
 
 	get arn() {

@@ -77,17 +77,13 @@ export const queueFeature = defineFeature({
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, local)
 
-			const group = new Node('queue', id)
+			const group = new Node(ctx.stack, 'queue', id)
 
-			ctx.stack.add(group)
-
-			const queue = new aws.sqs.Queue('queue', {
+			const queue = new aws.sqs.Queue(group, 'queue', {
 				name: formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'queue', id),
 				deadLetterArn: getGlobalOnFailure(ctx),
 				...props,
 			})
-
-			group.add(queue)
 
 			const { lambda, policy } = createLambdaFunction(group, ctx, `queue`, id, props.consumer)
 
@@ -98,15 +94,13 @@ export const queueFeature = defineFeature({
 			// 	maxBatchingWindow: props.maxBatchingWindow,
 			// })
 
-			const source = new aws.lambda.EventSourceMapping('event', {
+			new aws.lambda.EventSourceMapping(group, 'event', {
 				functionArn: lambda.arn,
 				sourceArn: queue.arn,
 				batchSize: props.batchSize,
 				maxBatchingWindow: props.maxBatchingWindow,
 				maxConcurrency: props.maxConcurrency,
 			}).dependsOn(policy)
-
-			group.add(source)
 
 			policy.addStatement({
 				actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],

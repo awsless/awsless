@@ -28,17 +28,13 @@ export const tableFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
-			const group = new Node('table', id)
+			const group = new Node(ctx.stack, 'table', id)
 
-			ctx.stack.add(group)
-
-			const table = new aws.dynamodb.Table('table', {
+			const table = new aws.dynamodb.Table(group, 'table', {
 				...props,
 				name: formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, 'table', id),
 				stream: props.stream?.type,
 			})
-
-			group.add(table)
 
 			// --------------------------------------------------------
 			// Stream support
@@ -46,7 +42,7 @@ export const tableFeature = defineFeature({
 			if (props.stream) {
 				const { lambda, policy } = createLambdaFunction(group, ctx, 'table', id, props.stream.consumer)
 
-				const source = new aws.lambda.EventSourceMapping(id, {
+				new aws.lambda.EventSourceMapping(group, id, {
 					functionArn: lambda.arn,
 					sourceArn: table.streamArn,
 					batchSize: 100,
@@ -56,8 +52,6 @@ export const tableFeature = defineFeature({
 					startingPosition: 'latest',
 					onFailure: getGlobalOnFailure(ctx),
 				})
-
-				group.add(source)
 
 				policy.addStatement(table.streamPermissions)
 

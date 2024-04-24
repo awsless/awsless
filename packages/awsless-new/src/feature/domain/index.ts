@@ -11,73 +11,63 @@ export const domainFeature = defineFeature({
 			return
 		}
 
-		const group = new Node('domain', 'mail')
-		ctx.base.add(group)
+		const group = new Node(ctx.base, 'domain', 'mail')
 
-		const configurationSet = new aws.ses.ConfigurationSet('config', {
+		const configurationSet = new aws.ses.ConfigurationSet(group, 'config', {
 			name: ctx.app.name,
 			engagementMetrics: true,
 			reputationMetrics: true,
 		})
-		ctx.base.export(`mail-configuration-set`, configurationSet.name)
 
-		group.add(configurationSet)
+		ctx.shared.set(`mail-configuration-set`, configurationSet.name)
 
 		for (const [id, props] of domains) {
-			const group = new Node('domain', id)
-			ctx.base.add(group)
+			const group = new Node(ctx.base, 'domain', id)
 
-			const hostedZone = new aws.route53.HostedZone('zone', {
+			const hostedZone = new aws.route53.HostedZone(group, 'zone', {
 				name: props.domain,
 			})
 
-			group.add(hostedZone)
-			ctx.base.export(`hosted-zone-${id}-id`, hostedZone.id)
+			ctx.shared.set(`hosted-zone-${id}-id`, hostedZone.id)
 
-			const certificate = new aws.acm.Certificate('local', {
+			const certificate = new aws.acm.Certificate(group, 'local', {
 				domainName: props.domain,
 				alternativeNames: [`*.${props.domain}`],
 			})
 
-			group.add(certificate)
-
 			hostedZone.addRecord('local-cert-1', certificate.validationRecord(0))
 			hostedZone.addRecord('local-cert-2', certificate.validationRecord(1))
 
-			const validation = new aws.acm.CertificateValidation('local', {
+			const validation = new aws.acm.CertificateValidation(group, 'local', {
 				certificateArn: certificate.arn,
 			})
 
-			group.add(validation)
-			ctx.base.export(`local-certificate-${id}-arn`, validation.arn)
+			ctx.shared.set(`local-certificate-${id}-arn`, validation.arn)
 
 			if (ctx.appConfig.region !== 'us-east-1') {
-				const globalCertificate = new aws.acm.Certificate('global', {
+				const globalCertificate = new aws.acm.Certificate(group, 'global', {
 					domainName: props.domain,
 					alternativeNames: [`*.${props.domain}`],
 					region: 'us-east-1',
 				})
 
-				group.add(globalCertificate)
-
 				hostedZone.addRecord('global-cert-1', globalCertificate.validationRecord(0))
 				hostedZone.addRecord('global-cert-2', globalCertificate.validationRecord(1))
 
-				const globalValidation = new aws.acm.CertificateValidation('global', {
+				const globalValidation = new aws.acm.CertificateValidation(group, 'global', {
 					certificateArn: globalCertificate.arn,
 					region: 'us-east-1',
 				})
 
-				group.add(globalValidation)
-				ctx.base.export(`global-certificate-${id}-arn`, globalValidation.arn)
+				ctx.shared.set(`global-certificate-${id}-arn`, globalValidation.arn)
 			} else {
 				// If we deploy this app in the us-east-1 region,
 				// then we just use alias the local cert.
 
-				ctx.base.export(`global-certificate-${id}-arn`, validation.arn)
+				ctx.shared.set(`global-certificate-${id}-arn`, validation.arn)
 			}
 
-			const emailIdentity = new aws.ses.EmailIdentity('mail', {
+			const emailIdentity = new aws.ses.EmailIdentity(group, 'mail', {
 				emailIdentity: props.domain,
 				mailFromDomain: `mail.${props.domain}`,
 				configurationSetName: configurationSet.name,
@@ -85,19 +75,15 @@ export const domainFeature = defineFeature({
 				rejectOnMxFailure: true,
 			})
 
-			group.add(emailIdentity)
-
 			let i = 0
 			for (const record of emailIdentity.dkimRecords) {
-				const recordSet = new aws.route53.RecordSet(`dkim-${++i}`, {
+				new aws.route53.RecordSet(group, `dkim-${++i}`, {
 					hostedZoneId: hostedZone.id,
 					...record,
 				})
-
-				group.add(recordSet)
 			}
 
-			const record1 = new aws.route53.RecordSet(`MX`, {
+			new aws.route53.RecordSet(group, `MX`, {
 				hostedZoneId: hostedZone.id,
 				name: `mail.${props.domain}`,
 				type: 'MX',
@@ -105,7 +91,7 @@ export const domainFeature = defineFeature({
 				records: [`10 feedback-smtp.${ctx.appConfig.region}.amazonses.com`],
 			})
 
-			const record2 = new aws.route53.RecordSet(`SPF`, {
+			new aws.route53.RecordSet(group, `SPF`, {
 				hostedZoneId: hostedZone.id,
 				name: `mail.${props.domain}`,
 				type: 'TXT',
@@ -113,7 +99,7 @@ export const domainFeature = defineFeature({
 				records: ['"v=spf1 include:amazonses.com -all"'],
 			})
 
-			const record3 = new aws.route53.RecordSet(`DMARC`, {
+			new aws.route53.RecordSet(group, `DMARC`, {
 				hostedZoneId: hostedZone.id,
 				name: `_dmarc.${props.domain}`,
 				type: 'TXT',
@@ -121,23 +107,20 @@ export const domainFeature = defineFeature({
 				records: ['"v=DMARC1; p=none;"'],
 			})
 
-			group.add(record1, record2, record3)
-
 			const mailIdentityArn = emailIdentity.output(() => {
 				return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
 			})
 
-			ctx.base.export(`mail-${id}-arn`, mailIdentityArn)
-			ctx.base.export(`mail-${props.domain}-arn`, mailIdentityArn)
+			ctx.shared.set(`mail-${id}-arn`, mailIdentityArn)
+			ctx.shared.set(`mail-${props.domain}-arn`, mailIdentityArn)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
-				const recordSet = new aws.route53.RecordSet(`${name}-${record.type}`, {
+				new aws.route53.RecordSet(group, `${name}-${record.type}`, {
 					hostedZoneId: hostedZone.id,
 					name,
 					...record,
 				})
-				group.add(recordSet)
 			}
 		}
 

@@ -1,9 +1,11 @@
+import { Node } from '../../../../core/node.js'
 import { Input, unwrap } from '../../../../core/output.js'
 import { CloudControlApiResource } from '../../cloud-control-api/resource.js'
 import { ARN } from '../../types.js'
 
 export class Collection extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -11,7 +13,7 @@ export class Collection extends CloudControlApiResource {
 			description?: Input<string>
 		}
 	) {
-		super('AWS::OpenSearchServerless::Collection', id, props)
+		super(parent, 'AWS::OpenSearchServerless::Collection', id, props)
 	}
 
 	get id() {

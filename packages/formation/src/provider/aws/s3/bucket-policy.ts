@@ -2,9 +2,11 @@ import { capitalCase } from 'change-case'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api'
 import { ARN } from '../types'
+import { Node } from '../../../core/node'
 
 export class BucketPolicy extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			bucketName: Input<string>
@@ -20,7 +22,7 @@ export class BucketPolicy extends CloudControlApiResource {
 			>
 		}
 	) {
-		super('AWS::S3::BucketPolicy', id, props)
+		super(parent, 'AWS::S3::BucketPolicy', id, props)
 	}
 
 	toState() {

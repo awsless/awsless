@@ -1,9 +1,11 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { Peer } from './peer'
 
 export class Route extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			gatewayId: Input<string>
@@ -11,7 +13,7 @@ export class Route extends CloudControlApiResource {
 			destination: Input<Peer>
 		}
 	) {
-		super('AWS::EC2::Route', id, props)
+		super(parent, 'AWS::EC2::Route', id, props)
 	}
 
 	get gatewayId() {

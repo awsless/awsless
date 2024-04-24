@@ -16,8 +16,6 @@ import * as _aws_sdk_client_s3 from '@aws-sdk/client-s3';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SNSClient } from '@aws-sdk/client-sns';
 
-type ExportedData = Record<string, Record<string, unknown>>;
-
 type ResolvedAsset = {
     hash: string;
     data: Buffer;
@@ -110,18 +108,29 @@ type Unwrap<T> = T extends Output<infer V> ? V : T;
 declare function unwrap<T extends Input<unknown>>(input: T): Unwrap<T>;
 declare function unwrap<T extends Input<unknown>>(input: T, defaultValue: Unwrap<T>): Exclude<Unwrap<T>, undefined>;
 
+declare class Stack extends Node {
+    readonly app: App;
+    readonly name: string;
+    readonly exported: Record<string, Input<unknown>>;
+    readonly dependencies: Set<Stack>;
+    constructor(app: App, name: string);
+    dependsOn(...stacks: Stack[]): this;
+    get resources(): Resource[];
+}
+
 type URN = `urn:${string}`;
 type ResourceDeletionPolicy = 'retain' | 'before-deployment' | 'after-deployment';
 type ResourcePolicies = {
     deletionPolicy?: ResourceDeletionPolicy;
 };
 declare abstract class Resource extends Node {
+    readonly parent: Node;
     readonly type: string;
     readonly identifier: string;
     private remoteDocument;
     private listeners;
     readonly dependencies: Set<Resource>;
-    constructor(type: string, identifier: string, inputs?: unknown);
+    constructor(parent: Node, type: string, identifier: string, inputs?: unknown);
     abstract cloudProviderId: string;
     deletionPolicy: ResourceDeletionPolicy;
     abstract toState(): {
@@ -129,50 +138,33 @@ declare abstract class Resource extends Node {
         assets?: Record<string, Input<Asset>>;
         document?: ResourceDocument;
     };
+    get stack(): Stack;
     dependsOn(...resources: Resource[]): this;
     protected registerDependency(props: unknown): void;
     setRemoteDocument(remoteDocument: any): void;
     output<T = string>(getter: (remoteDocument: any) => T): Output<T>;
-    protected attr<T>(name: string, input: Input<T>, transform?: (value: T | Unwrap<T>) => unknown): {
+    protected attr<T extends Input<unknown>>(name: string, input: T, transform?: (value: Exclude<Unwrap<T>, undefined>) => unknown): {
         [x: string]: unknown;
     };
 }
 
 declare class Node {
+    readonly parent: Node | undefined;
     readonly type: string;
     readonly identifier: string;
-    private childs;
-    private parental;
-    constructor(type: string, identifier: string);
+    readonly children: Node[];
+    constructor(parent: Node | undefined, type: string, identifier: string);
     get urn(): URN;
-    get parent(): Node | undefined;
-    get children(): Set<Node>;
-    add(...nodes: Node[]): void;
 }
 declare const flatten: (node: Node) => Node[];
 
-declare class Stack extends Node {
-    readonly name: string;
-    readonly exported: Record<string, Input<unknown>>;
-    readonly dependencies: Set<Stack>;
-    constructor(name: string);
-    get resources(): Resource[];
-    export(key: string, value: Input<unknown>): this;
-    import<T>(key: string): Input<T>;
-}
-
 declare class App extends Node {
     readonly name: string;
-    private exported?;
-    private listeners;
     constructor(name: string);
-    get stacks(): Set<Stack>;
-    add(stack: Stack): void;
-    import<T>(stack: string, key: string): Output<T>;
-    setExportedData(data: ExportedData): void;
+    get stacks(): Stack[];
 }
 
-interface StateProvider {
+interface StateProvider$1 {
     lock(urn: URN): Promise<() => Promise<void>>;
     get(urn: URN): Promise<AppState | undefined>;
     update(urn: URN, state: AppState): Promise<void>;
@@ -185,7 +177,7 @@ type AppState = {
 };
 type StackState = {
     name: string;
-    exports: Record<URN, unknown>;
+    dependencies: URN[];
     resources: Record<URN, ResourceState>;
 };
 type ResourceState = {
@@ -207,15 +199,15 @@ type StackOperation = 'deploy' | 'delete';
 declare class WorkSpace {
     protected props: {
         cloudProviders: CloudProvider[];
-        stateProvider: StateProvider;
+        stateProvider: StateProvider$1;
     };
     constructor(props: {
         cloudProviders: CloudProvider[];
-        stateProvider: StateProvider;
+        stateProvider: StateProvider$1;
     });
-    private getExportedData;
-    deployStack(stack: Stack): Promise<StackState>;
-    deleteStack(stack: Stack): Promise<void>;
+    private runGraph;
+    deployApp(app: App, filters?: string[]): Promise<AppState>;
+    deleteApp(app: App): Promise<void>;
     private getRemoteResource;
     private deployStackResources;
     private dependentsOn;
@@ -230,16 +222,19 @@ declare class ResourceError extends Error {
     static wrap(urn: URN, type: string, operation: ResourceOperation, error: unknown): ResourceError;
     constructor(urn: URN, type: string, operation: ResourceOperation, message: string);
 }
+declare class AppError extends Error {
+    readonly app: string;
+    readonly issues: (StackError | Error)[];
+    constructor(app: string, issues: (StackError | Error)[], message: string);
+}
 declare class StackError extends Error {
-    readonly issues: ResourceError[];
-    constructor(issues: ResourceError[], message: string);
+    readonly stack: string;
+    readonly issues: (ResourceError | Error)[];
+    constructor(stack: string, issues: (ResourceError | Error)[], message: string);
 }
 declare class ResourceNotFound extends Error {
 }
 declare class ResourceAlreadyExists extends Error {
-}
-declare class ImportValueNotFound extends Error {
-    constructor(stack: string, key: string);
 }
 
 type RecordType = 'A' | 'AAAA' | 'CAA' | 'CNAME' | 'DS' | 'MX' | 'NAPTR' | 'NS' | 'PTR' | 'SOA' | 'SPF' | 'SRV' | 'TXT';
@@ -273,9 +268,10 @@ declare const formatRecordSet: (record: Record$1) => {
     Weight: number;
 };
 declare class RecordSet extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: Input<RecordSetProps>);
+    constructor(parent: Node, id: string, props: Input<RecordSetProps>);
     toState(): {
         document: {
             AliasTarget?: {
@@ -306,10 +302,11 @@ type CertificateProps = {
     }>[]>;
 };
 declare class Certificate extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
     private validation;
-    constructor(id: string, props: CertificateProps);
+    constructor(parent: Node, id: string, props: CertificateProps);
     get arn(): Output<`arn:${string}`>;
     get issuer(): Output<string>;
     validationRecord(index: number): Output<Record$1>;
@@ -390,9 +387,10 @@ type CertificateValidationProps = {
     region?: Input<string>;
 };
 declare class CertificateValidation extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: CertificateValidationProps);
+    constructor(parent: Node, id: string, props: CertificateValidationProps);
     get arn(): Output<`arn:${string}`>;
     toState(): {
         document: {
@@ -452,9 +450,10 @@ type DataSourceProps = {
     functionArn: Input<ARN>;
 });
 declare class DataSource extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: DataSourceProps);
+    constructor(parent: Node, id: string, props: DataSourceProps);
     get arn(): Output<`arn:${string}`>;
     get name(): Output<string>;
     toState(): {
@@ -475,8 +474,9 @@ declare abstract class CloudControlApiResource extends Resource {
 }
 
 declare class DomainNameApiAssociation extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         apiId: Input<string>;
         domainName: Input<string>;
     });
@@ -489,8 +489,9 @@ declare class DomainNameApiAssociation extends CloudControlApiResource {
 }
 
 declare class DomainName extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         domainName: Input<string>;
         certificateArn: Input<ARN>;
     });
@@ -512,8 +513,9 @@ type FunctionConfigurationProps = {
     dataSourceName: Input<string>;
 };
 declare class FunctionConfiguration extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: FunctionConfigurationProps);
+    constructor(parent: Node, id: string, props: FunctionConfigurationProps);
     get id(): Output<string>;
     get arn(): Output<`arn:${string}`>;
     toState(): {
@@ -571,9 +573,10 @@ type LambdaAuth = {
 };
 type Auth = CognitoAuth | ApiKeyAuth | IamAuth | LambdaAuth;
 declare class GraphQLApi extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         type?: Input<'graphql' | 'merged'>;
         role?: Input<ARN>;
@@ -710,9 +713,10 @@ type GraphQLSchemaProps = {
     definition: Input<Asset>;
 };
 declare class GraphQLSchema extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: GraphQLSchemaProps);
+    constructor(parent: Node, id: string, props: GraphQLSchemaProps);
     toState(): {
         assets: {
             definition: Input<Asset>;
@@ -731,8 +735,9 @@ type ResolverProps = {
     code: Input<Asset>;
 };
 declare class Resolver extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: ResolverProps);
+    constructor(parent: Node, id: string, props: ResolverProps);
     get arn(): Output<`arn:${string}`>;
     toState(): {
         assets: {
@@ -758,8 +763,9 @@ declare class Resolver extends CloudControlApiResource {
 }
 
 declare class SourceApiAssociation extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         mergedApiId: Input<string>;
         sourceApiId: Input<string>;
         mergeType?: 'manual' | 'auto';
@@ -825,6 +831,7 @@ type ProviderProps$8 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
     timeout?: Duration;
+    maxAttempts?: number;
 };
 declare class CloudControlApiProvider implements CloudProvider {
     private props;
@@ -851,8 +858,9 @@ declare namespace index$k {
 }
 
 declare class CachePolicy extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         minTtl: Input<Duration>;
         maxTtl: Input<Duration>;
@@ -905,8 +913,9 @@ type OriginGroup = {
     statusCodes: Input<Input<number>[]>;
 };
 declare class Distribution extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         certificateArn?: Input<ARN>;
         priceClass?: Input<'100' | '200' | 'All'>;
@@ -1042,9 +1051,10 @@ declare class InvalidateCacheProvider implements CloudProvider {
 }
 
 declare class InvalidateCache extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         distributionId: Input<string>;
         versions: Input<Array<Input<string> | Input<string | undefined>>>;
         paths: Input<Input<string>[]>;
@@ -1059,8 +1069,9 @@ declare class InvalidateCache extends Resource {
 }
 
 declare class OriginAccessControl extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         type: Input<'mediastore' | 's3'>;
         behavior?: Input<'always' | 'never' | 'no-override'>;
@@ -1080,8 +1091,9 @@ declare class OriginAccessControl extends CloudControlApiResource {
 }
 
 declare class OriginRequestPolicy extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         cookie?: Input<{
             behavior: Input<'all' | 'all-except' | 'none' | 'whitelist'>;
@@ -1116,8 +1128,9 @@ declare class OriginRequestPolicy extends CloudControlApiResource {
 }
 
 declare class ResponseHeadersPolicy extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         remove?: Input<Input<string>[]>;
         cors?: Input<{
@@ -1250,8 +1263,9 @@ declare namespace index$j {
 }
 
 declare class LogGroup extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         retention?: Input<Duration>;
     });
@@ -1299,8 +1313,9 @@ type UserPoolClientProps = {
     writeAttributes?: Input<Input<string>[]>;
 };
 declare class UserPoolClient extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: UserPoolClientProps);
+    constructor(parent: Node, id: string, props: UserPoolClientProps);
     get id(): Output<string>;
     get name(): Output<string>;
     get userPoolId(): Output<string>;
@@ -1326,8 +1341,9 @@ type UserPoolDomainProps = {
     domain: Input<string>;
 };
 declare class UserPoolDomain extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: UserPoolDomainProps);
+    constructor(parent: Node, id: string, props: UserPoolDomainProps);
     toState(): {
         document: {
             UserPoolId: Input<string>;
@@ -1361,8 +1377,9 @@ type UserPoolProps = {
     }>;
 };
 declare class UserPool extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: UserPoolProps);
+    constructor(parent: Node, id: string, props: UserPoolProps);
     get id(): Output<string>;
     get arn(): Output<`arn:${string}`>;
     get providerName(): Output<string>;
@@ -1429,9 +1446,10 @@ type LambaTriggersProps = {
     }>;
 };
 declare class LambdaTriggers extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: LambaTriggersProps);
+    constructor(parent: Node, id: string, props: LambaTriggersProps);
     toState(): {
         document: {
             UserPoolId: Input<string>;
@@ -1505,10 +1523,9 @@ type ProviderProps$5 = {
     region: string;
     tableName: string;
 };
-declare class DynamoDBStateProvider implements StateProvider {
+declare class StateProvider implements StateProvider$1 {
     private props;
     protected client: DynamoDB;
-    protected id: number;
     constructor(props: ProviderProps$5);
     lock(urn: URN): Promise<() => Promise<void>>;
     get(urn: URN): Promise<any>;
@@ -1565,9 +1582,10 @@ declare const formatStatement: (statement: Statement) => {
     Resource: Input<Input<`arn:${string}`>[]>;
 };
 declare class RolePolicy extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
     private statements;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         role: Input<string>;
         name: Input<string>;
         version?: Input<PolicyDocumentVersion>;
@@ -1594,10 +1612,11 @@ declare class RolePolicy extends CloudControlApiResource {
 }
 
 declare class Role extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
     private inlinePolicies;
     private managedPolicies;
-    constructor(id: string, props?: {
+    constructor(parent: Node, id: string, props?: {
         name?: Input<string>;
         path?: Input<string>;
         assumedBy?: string;
@@ -1685,9 +1704,10 @@ type TableProps = {
     indexes?: Record<string, IndexProps>;
 };
 declare class Table extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
     private indexes;
-    constructor(id: string, props: TableProps);
+    constructor(parent: Node, id: string, props: TableProps);
     get arn(): Output<`arn:${string}`>;
     get streamArn(): Output<`arn:${string}`>;
     get name(): Output<string>;
@@ -1741,9 +1761,10 @@ declare class Table extends CloudControlApiResource {
 }
 
 declare class TableItem extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         table: Table;
         item: Input<Asset>;
     });
@@ -1759,9 +1780,9 @@ declare class TableItem extends Resource {
     };
 }
 
-type index$f_DynamoDBStateProvider = DynamoDBStateProvider;
-declare const index$f_DynamoDBStateProvider: typeof DynamoDBStateProvider;
 type index$f_IndexProps = IndexProps;
+type index$f_StateProvider = StateProvider;
+declare const index$f_StateProvider: typeof StateProvider;
 type index$f_StreamViewType = StreamViewType;
 type index$f_Table = Table;
 declare const index$f_Table: typeof Table;
@@ -1772,8 +1793,8 @@ declare const index$f_TableItemProvider: typeof TableItemProvider;
 type index$f_TableProps = TableProps;
 declare namespace index$f {
   export {
-    index$f_DynamoDBStateProvider as DynamoDBStateProvider,
     index$f_IndexProps as IndexProps,
+    index$f_StateProvider as StateProvider,
     index$f_StreamViewType as StreamViewType,
     index$f_Table as Table,
     index$f_TableItem as TableItem,
@@ -1801,8 +1822,9 @@ declare class Peer {
 }
 
 declare class Vpc extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         cidrBlock: Input<Peer>;
     });
@@ -1821,8 +1843,9 @@ declare class Vpc extends CloudControlApiResource {
 }
 
 declare class VPCGatewayAttachment extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         vpcId: Input<string>;
         internetGatewayId: Input<string>;
     });
@@ -1836,30 +1859,10 @@ declare class VPCGatewayAttachment extends CloudControlApiResource {
     };
 }
 
-declare class Subnet extends CloudControlApiResource {
-    private props;
-    constructor(id: string, props: {
-        vpcId: Input<string>;
-        cidrBlock: Input<Peer>;
-        availabilityZone: Input<string>;
-    });
-    get id(): Output<string>;
-    get vpcId(): Output<string>;
-    get availabilityZone(): Output<string>;
-    get availabilityZoneId(): Output<string>;
-    associateRouteTable(routeTableId: Input<string>): this;
-    toState(): {
-        document: {
-            VpcId: Input<string>;
-            CidrBlock: string;
-            AvailabilityZone: Input<string>;
-        };
-    };
-}
-
 declare class SubnetRouteTableAssociation extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         subnetId: Input<string>;
         routeTableId: Input<string>;
     });
@@ -1868,6 +1871,28 @@ declare class SubnetRouteTableAssociation extends CloudControlApiResource {
         document: {
             SubnetId: Input<string>;
             RouteTableId: Input<string>;
+        };
+    };
+}
+
+declare class Subnet extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        vpcId: Input<string>;
+        cidrBlock: Input<Peer>;
+        availabilityZone: Input<string>;
+    });
+    get id(): Output<string>;
+    get vpcId(): Output<string>;
+    get availabilityZone(): Output<string>;
+    get availabilityZoneId(): Output<string>;
+    associateRouteTable(routeTableId: Input<string>): SubnetRouteTableAssociation;
+    toState(): {
+        document: {
+            VpcId: Input<string>;
+            CidrBlock: string;
+            AvailabilityZone: Input<string>;
         };
     };
 }
@@ -2048,10 +2073,11 @@ type Rule$1 = {
     description?: Input<string>;
 };
 declare class SecurityGroup extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
     private ingress;
     private egress;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         vpcId: Input<string>;
         name: Input<string>;
         description: Input<string>;
@@ -2100,8 +2126,9 @@ declare class SecurityGroup extends CloudControlApiResource {
 }
 
 declare class Route extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         gatewayId: Input<string>;
         routeTableId: Input<string>;
         destination: Input<Peer>;
@@ -2121,8 +2148,9 @@ declare class Route extends CloudControlApiResource {
 }
 
 declare class RouteTable extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         vpcId: Input<string>;
         name: Input<string>;
     });
@@ -2139,8 +2167,9 @@ declare class RouteTable extends CloudControlApiResource {
 }
 
 declare class InternetGateway extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props?: {
+    constructor(parent: Node, id: string, props?: {
         name?: Input<string>;
     });
     get id(): Output<string>;
@@ -2297,8 +2326,9 @@ declare class PathPattern extends ListenerCondition {
 }
 
 declare class ListenerRule extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         listenerArn: Input<ARN>;
         priority: Input<number>;
         conditions: Input<Input<ListenerCondition>[]>;
@@ -2318,8 +2348,9 @@ declare class ListenerRule extends CloudControlApiResource {
 }
 
 declare class Listener extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         loadBalancerArn: Input<ARN>;
         port: Input<number>;
         protocol: Input<'http' | 'https' | 'geneve' | 'tcp' | 'tcp-udp' | 'tls' | 'udp'>;
@@ -2340,8 +2371,9 @@ declare class Listener extends CloudControlApiResource {
 }
 
 declare class LoadBalancer extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         securityGroups: Input<Input<string>[]>;
         subnets: Input<Input<string>[]>;
@@ -2365,8 +2397,9 @@ declare class LoadBalancer extends CloudControlApiResource {
 }
 
 declare class TargetGroup extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         type: Input<'lambda'>;
         targets: Input<Input<ARN>[]>;
@@ -2452,8 +2485,9 @@ type RuleTarget = {
     input?: Input<unknown>;
 };
 declare class Rule extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: RuleProps);
+    constructor(parent: Node, id: string, props: RuleProps);
     get id(): Output<string>;
     get arn(): Output<`arn:${string}`>;
     toState(): {
@@ -2492,8 +2526,9 @@ type TopicRuleProps = {
     }>[]>;
 };
 declare class TopicRule extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: TopicRuleProps);
+    constructor(parent: Node, id: string, props: TopicRuleProps);
     get arn(): Output<`arn:${string}`>;
     toState(): {
         document: {
@@ -2543,8 +2578,9 @@ type UrlProps = {
     }>;
 };
 declare class Url extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: UrlProps);
+    constructor(parent: Node, id: string, props: UrlProps);
     get url(): Output<string>;
     get domain(): Output<string | undefined>;
     protected cors(): {
@@ -2570,8 +2606,9 @@ type PermissionProps = {
     urlAuthType?: Input<'none' | 'aws-iam'>;
 };
 declare class Permission extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: PermissionProps);
+    constructor(parent: Node, id: string, props: PermissionProps);
     toState(): {
         document: {
             FunctionName: Input<`arn:${string}`>;
@@ -2634,9 +2671,10 @@ type FunctionProps = {
     }>;
 };
 declare class Function extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
     private environmentVariables;
-    constructor(id: string, props: FunctionProps);
+    constructor(parent: Node, id: string, props: FunctionProps);
     get arn(): Output<`arn:${string}`>;
     get name(): Output<string>;
     addEnvironment(name: string, value: Input<string>): this;
@@ -2710,8 +2748,9 @@ type EventInvokeConfigProps = {
     retryAttempts?: Input<number>;
 };
 declare class EventInvokeConfig extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: EventInvokeConfigProps);
+    constructor(parent: Node, id: string, props: EventInvokeConfigProps);
     setOnFailure(arn: Input<ARN>): this;
     setOnSuccess(arn: Input<ARN>): this;
     toState(): {
@@ -2747,8 +2786,9 @@ type EventSourceMappingProps = {
     startingPositionTimestamp?: Input<number>;
 };
 declare class EventSourceMapping extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: EventSourceMappingProps);
+    constructor(parent: Node, id: string, props: EventSourceMappingProps);
     setOnFailure(arn: Input<ARN>): this;
     toState(): {
         document: {
@@ -2805,8 +2845,9 @@ declare namespace index$a {
 
 type NodeType$1 = 't4g.small' | 't4g.medium' | 'r6g.large' | 'r6g.xlarge' | 'r6g.2xlarge' | 'r6g.4xlarge' | 'r6g.8xlarge' | 'r6g.12xlarge' | 'r6g.16xlarge' | 'r6gd.xlarge' | 'r6gd.2xlarge' | 'r6gd.4xlarge' | 'r6gd.8xlarge';
 declare class Cluster extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         aclName: Input<string>;
         subnetGroupName?: Input<string>;
         securityGroupIds?: Input<Input<string>[]>;
@@ -2846,11 +2887,12 @@ declare class Cluster extends CloudControlApiResource {
 }
 
 declare class SubnetGroup extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         subnetIds: Input<Input<string>[]>;
         name: Input<string>;
-        description?: Input<string>;
+        description?: Input<string | undefined>;
     });
     get arn(): Output<`arn:${string}`>;
     get name(): Output<string>;
@@ -2874,17 +2916,18 @@ declare namespace index$9 {
   };
 }
 
-type version = '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3';
+type Version = '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3';
 type NodeType = 't3.small' | 't3.medium' | 't3.large' | 't3.xlarge' | 't3.2xlarge' | 't4g.small' | 't4g.medium' | 'm3.medium' | 'm3.large' | 'm3.xlarge' | 'm3.2xlarge' | 'm4.large' | 'm4.xlarge' | 'm4.2xlarge' | 'm4.4xlarge' | 'm4.10xlarge' | 'm5.large' | 'm5.xlarge' | 'm5.2xlarge' | 'm5.4xlarge' | 'm5.12xlarge' | 'm5.24xlarge' | 'r5.large' | 'r5.xlarge' | 'r5.2xlarge' | 'r5.4xlarge' | 'r5.12xlarge' | 'r5.24xlarge' | 'c5.large' | 'c5.xlarge' | 'c5.2xlarge' | 'c5.4xlarge' | 'c5.9xlarge' | 'c5.18xlarge' | 'or1.medium' | 'or1.large' | 'or1.xlarge' | 'or1.2xlarge' | 'or1.4xlarge' | 'or1.8xlarge' | 'or1.12xlarge' | 'or1.16xlarge' | 'ultrawarm1.medium' | 'ultrawarm1.large' | 'ultrawarm1.xlarge' | 'r3.large' | 'r3.xlarge' | 'r3.2xlarge' | 'r3.4xlarge' | 'r3.8xlarge' | 'i2.xlarge' | 'i2.2xlarge' | 'd2.xlarge' | 'd2.2xlarge' | 'd2.4xlarge' | 'd2.8xlarge' | 'c4.large' | 'c4.xlarge' | 'c4.2xlarge' | 'c4.4xlarge' | 'c4.8xlarge' | 'r4.large' | 'r4.xlarge' | 'r4.2xlarge' | 'r4.4xlarge' | 'r4.8xlarge' | 'r4.16xlarge' | 'i3.large' | 'i3.xlarge' | 'i3.2xlarge' | 'i3.4xlarge' | 'i3.8xlarge' | 'i3.16xlarge' | 'r6g.large' | 'r6g.xlarge' | 'r6g.2xlarge' | 'r6g.4xlarge' | 'r6g.8xlarge' | 'r6g.12xlarge' | 'm6g.large' | 'm6g.xlarge' | 'm6g.2xlarge' | 'm6g.4xlarge' | 'm6g.8xlarge' | 'm6g.12xlarge' | 'c6g.large' | 'c6g.xlarge' | 'c6g.2xlarge' | 'c6g.4xlarge' | 'c6g.8xlarge' | 'c6g.12xlarge' | 'r6gd.large' | 'r6gd.xlarge' | 'r6gd.2xlarge' | 'r6gd.4xlarge' | 'r6gd.8xlarge' | 'r6gd.12xlarge' | 'r6gd.16xlarge';
 declare class Domain extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name?: Input<string>;
         instance: Input<{
             type: Input<NodeType>;
             count: Input<number>;
         }>;
-        version?: Input<version>;
+        version?: Input<Version>;
         storageSize?: Input<Size>;
         ipType?: Input<'ipv4' | 'dualstack'>;
         encryption?: Input<boolean>;
@@ -2964,18 +3007,19 @@ declare class Domain extends CloudControlApiResource {
 type index$8_Domain = Domain;
 declare const index$8_Domain: typeof Domain;
 type index$8_NodeType = NodeType;
-type index$8_version = version;
+type index$8_Version = Version;
 declare namespace index$8 {
   export {
     index$8_Domain as Domain,
     index$8_NodeType as NodeType,
-    index$8_version as version,
+    index$8_Version as Version,
   };
 }
 
 declare class Collection extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         type: Input<'search' | 'timeseries' | 'vectorsearch'>;
         description?: Input<string>;
@@ -2996,8 +3040,9 @@ declare class Collection extends CloudControlApiResource {
 }
 
 declare class SecurityPolicy extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         type: Input<'encryption' | 'network'>;
         policy: Input<string>;
@@ -3055,8 +3100,9 @@ type HostedZoneProps = {
     name: Input<string>;
 };
 declare class HostedZone extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: HostedZoneProps);
+    constructor(parent: Node, id: string, props: HostedZoneProps);
     get id(): Output<string>;
     get name(): Output<string>;
     get nameServers(): Output<string[]>;
@@ -3100,9 +3146,10 @@ type BucketObjectProps = {
     metadata?: Input<Record<string, Input<string>>>;
 };
 declare class BucketObject extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: BucketObjectProps);
+    constructor(parent: Node, id: string, props: BucketObjectProps);
     get bucket(): Input<string>;
     get key(): Input<string>;
     get version(): Output<string | undefined>;
@@ -3139,9 +3186,10 @@ type BucketProps = {
     }>[]>;
 };
 declare class Bucket extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props?: BucketProps);
+    constructor(parent: Node, id: string, props?: BucketProps);
     get name(): Output<string>;
     get arn(): Output<`arn:${string}`>;
     get domainName(): Output<string>;
@@ -3203,8 +3251,9 @@ declare class BucketProvider implements CloudProvider {
 }
 
 declare class BucketPolicy extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         bucketName: Input<string>;
         version?: Input<'2012-10-17'>;
         statements: Input<Input<{
@@ -3288,8 +3337,9 @@ declare namespace index$5 {
 }
 
 declare class EmailIdentity extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         emailIdentity: Input<string>;
         feedback?: Input<boolean>;
         configurationSetName?: Input<string>;
@@ -3327,8 +3377,9 @@ declare class EmailIdentity extends CloudControlApiResource {
 }
 
 declare class ConfigurationSet extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: {
+    constructor(parent: Node, id: string, props: {
         name: Input<string>;
         engagementMetrics?: Input<boolean>;
         reputationMetrics?: Input<boolean>;
@@ -3389,9 +3440,10 @@ type SubscriptionProps = {
     endpoint: Input<string> | Input<ARN>;
 };
 declare class Subscription extends Resource {
+    readonly parent: Node;
     private props;
     cloudProviderId: string;
-    constructor(id: string, props: SubscriptionProps);
+    constructor(parent: Node, id: string, props: SubscriptionProps);
     toState(): {
         document: {
             TopicArn: Input<`arn:${string}`>;
@@ -3405,8 +3457,9 @@ type TopicProps = {
     name: Input<string>;
 };
 declare class Topic extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: TopicProps);
+    constructor(parent: Node, id: string, props: TopicProps);
     get arn(): Output<`arn:${string}`>;
     get name(): Output<string>;
     get permissions(): {
@@ -3454,8 +3507,9 @@ type QueueProps = {
     maxReceiveCount?: Input<number>;
 };
 declare class Queue extends CloudControlApiResource {
+    readonly parent: Node;
     private props;
-    constructor(id: string, props: QueueProps);
+    constructor(parent: Node, id: string, props: QueueProps);
     setDeadLetter(arn: Input<ARN>): this;
     get arn(): Output<`arn:${string}`>;
     get url(): Output<string>;
@@ -3531,7 +3585,7 @@ declare namespace index$1 {
   };
 }
 
-declare class LocalStateProvider implements StateProvider {
+declare class FileProvider implements StateProvider$1 {
     private props;
     constructor(props: {
         dir: string;
@@ -3545,10 +3599,24 @@ declare class LocalStateProvider implements StateProvider {
     delete(urn: URN): Promise<void>;
 }
 
+declare class MemoryProvider implements StateProvider$1 {
+    protected locked: Map<`urn:${string}`, number>;
+    protected states: Map<`urn:${string}`, AppState>;
+    lock(urn: URN): Promise<() => Promise<void>>;
+    get(urn: URN): Promise<AppState | undefined>;
+    update(urn: URN, state: AppState): Promise<void>;
+    delete(urn: URN): Promise<void>;
+}
+
+type index_FileProvider = FileProvider;
+declare const index_FileProvider: typeof FileProvider;
+type index_MemoryProvider = MemoryProvider;
+declare const index_MemoryProvider: typeof MemoryProvider;
 declare namespace index {
   export {
-    LocalStateProvider as StateProvider,
+    index_FileProvider as FileProvider,
+    index_MemoryProvider as MemoryProvider,
   };
 }
 
-export { App, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, ImportValueNotFound, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceAlreadyExists, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };
+export { App, AppError, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, Input, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceAlreadyExists, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$1 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$1 as aws, findResources, flatten, index as local, unwrap };

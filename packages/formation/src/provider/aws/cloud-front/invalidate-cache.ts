@@ -1,10 +1,12 @@
-import { Input, unwrap } from '../../../core/output.js'
+import { Node } from '../../../core/node.js'
+import { Input } from '../../../core/output.js'
 import { Resource } from '../../../core/resource.js'
 
 export class InvalidateCache extends Resource {
 	cloudProviderId = 'aws-cloud-front-invalidate-cache'
 
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			distributionId: Input<string>
@@ -12,7 +14,7 @@ export class InvalidateCache extends Resource {
 			paths: Input<Input<string>[]>
 		}
 	) {
-		super('AWS::CloudFront::InvalidateCache', id, props)
+		super(parent, 'AWS::CloudFront::InvalidateCache', id, props)
 	}
 
 	toState() {

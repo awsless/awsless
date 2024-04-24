@@ -49,22 +49,18 @@ export const createLambdaFunction = (
 		})
 	})
 
-	const code = new aws.s3.BucketObject('code', {
-		bucket: formatGlobalResourceName(ctx.appConfig.name, 'function', 'assets'),
+	const code = new aws.s3.BucketObject(group, 'code', {
+		bucket: ctx.shared.get('function-bucket-name'),
 		key: `/lambda/${name}.zip`,
 		body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
 	})
 
-	group.add(code)
-
-	const role = new aws.iam.Role('role', {
+	const role = new aws.iam.Role(group, 'role', {
 		name,
 		assumedBy: 'lambda.amazonaws.com',
 	})
 
-	group.add(role)
-
-	const policy = new aws.iam.RolePolicy('policy', {
+	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',
 		version: '2012-10-17',
@@ -77,8 +73,6 @@ export const createLambdaFunction = (
 		],
 	})
 
-	group.add(policy)
-
 	// const policy = role.addPolicy('policy', {
 	// 	name: 'lambda-policy',
 	// 	statements: [
@@ -90,7 +84,7 @@ export const createLambdaFunction = (
 	// 	],
 	// })
 
-	const lambda = new aws.lambda.Function(`function`, {
+	const lambda = new aws.lambda.Function(group, `function`, {
 		...props,
 		name,
 		code,
@@ -100,8 +94,6 @@ export const createLambdaFunction = (
 		vpc: undefined,
 		log: props.log as any,
 	})
-
-	group.add(lambda)
 
 	// Register the lambda in Awsless...
 	ctx.registerFunction(lambda, policy)
@@ -119,13 +111,11 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 	// Async Invoke Config
 
-	const invoke = new aws.lambda.EventInvokeConfig('async', {
+	new aws.lambda.EventInvokeConfig(group, 'async', {
 		functionArn: lambda.arn,
 		retryAttempts: props.retryAttempts,
 		// onFailure: getGlobalOnFailure(ctx),
 	})
-
-	group.add(invoke)
 
 	// if (hasOnFailure(ctx.appConfig)) {
 	// 	policy.addStatement({
@@ -138,12 +128,10 @@ export const createLambdaFunction = (
 	// Logging
 
 	if (props.log.retention.value > 0n) {
-		const logGroup = new aws.cloudWatch.LogGroup('log', {
+		const logGroup = new aws.cloudWatch.LogGroup(group, 'log', {
 			name: lambda.name.apply(name => `/aws/lambda/${name}`),
 			retention: props.log.retention,
 		})
-
-		group.add(logGroup)
 
 		policy.addStatement(
 			{
@@ -172,7 +160,7 @@ export const createLambdaFunction = (
 	// Warm up cron
 
 	if (props.warm) {
-		const rule = new aws.events.Rule('warm', {
+		const rule = new aws.events.Rule(group, 'warm', {
 			name: `${name}--warm`,
 			schedule: 'rate(5 minutes)',
 			enabled: true,
@@ -188,16 +176,12 @@ export const createLambdaFunction = (
 			],
 		})
 
-		group.add(rule)
-
-		const permission = new aws.lambda.Permission(`warm`, {
+		new aws.lambda.Permission(group, `warm`, {
 			action: 'lambda:InvokeFunction',
 			principal: 'events.amazonaws.com',
 			functionArn: lambda.arn,
 			sourceArn: rule.arn,
 		})
-
-		group.add(permission)
 	}
 
 	// ------------------------------------------------------------
@@ -205,10 +189,10 @@ export const createLambdaFunction = (
 
 	if (props.vpc) {
 		lambda.setVpc({
-			securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
+			securityGroupIds: [ctx.shared.get<string>(`vpc-security-group-id`)],
 			subnetIds: [
-				ctx.app.import<string>('base', `vpc-public-subnet-1`),
-				ctx.app.import<string>('base', `vpc-public-subnet-2`),
+				ctx.shared.get<string>(`vpc-public-subnet-1`),
+				ctx.shared.get<string>(`vpc-public-subnet-2`),
 			],
 		})
 

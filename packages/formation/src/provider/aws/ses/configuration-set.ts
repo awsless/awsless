@@ -1,8 +1,10 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class ConfigurationSet extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -11,7 +13,7 @@ export class ConfigurationSet extends CloudControlApiResource {
 			sending?: Input<boolean>
 		}
 	) {
-		super('AWS::SES::ConfigurationSet', id, props)
+		super(parent, 'AWS::SES::ConfigurationSet', id, props)
 	}
 
 	get name() {

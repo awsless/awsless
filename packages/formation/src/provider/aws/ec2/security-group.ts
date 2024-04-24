@@ -2,6 +2,7 @@ import { Port } from './port.js'
 import { Peer } from './peer.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Node } from '../../../core/node.js'
 
 type Rule = {
 	peer: Input<Peer>
@@ -14,6 +15,7 @@ export class SecurityGroup extends CloudControlApiResource {
 	private egress: Input<Rule>[] = []
 
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			vpcId: Input<string>
@@ -21,7 +23,7 @@ export class SecurityGroup extends CloudControlApiResource {
 			description: Input<string>
 		}
 	) {
-		super('AWS::EC2::SecurityGroup', id, props)
+		super(parent, 'AWS::EC2::SecurityGroup', id, props)
 	}
 
 	get id() {

@@ -4,6 +4,7 @@ import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 // import { Resource } from '../../../resource/resource.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Node } from '../../../core/node.js'
 
 export type Statement = {
 	effect?: Input<'allow' | 'deny'>
@@ -39,6 +40,7 @@ export class RolePolicy extends CloudControlApiResource {
 	private statements: Input<Statement>[] = []
 
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			role: Input<string>
@@ -47,7 +49,7 @@ export class RolePolicy extends CloudControlApiResource {
 			statements?: Input<Input<Statement>[]>
 		}
 	) {
-		super('AWS::IAM::RolePolicy', id, props)
+		super(parent, 'AWS::IAM::RolePolicy', id, props)
 	}
 
 	get id() {

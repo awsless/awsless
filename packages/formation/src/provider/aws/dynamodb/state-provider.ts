@@ -1,5 +1,5 @@
 import { URN } from '../../../core/resource'
-import { AppState, StateProvider } from '../../../core/state'
+import { AppState, StateProvider as Provider } from '../../../core/state'
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'
 import { DynamoDB, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
@@ -10,36 +10,37 @@ type ProviderProps = {
 	tableName: string
 }
 
-export class DynamoDBStateProvider implements StateProvider {
+export class StateProvider implements Provider {
 	protected client: DynamoDB
-	protected id: number
 
 	constructor(private props: ProviderProps) {
 		this.client = new DynamoDB(props)
-		this.id = Math.floor(Math.random() * 100_000)
 	}
 
 	async lock(urn: URN) {
+		const id = Math.floor(Math.random() * 100_000)
+
+		const props = {
+			TableName: this.props.tableName,
+			Key: marshall({ urn }),
+			ExpressionAttributeNames: { '#lock': 'lock' },
+			ExpressionAttributeValues: { ':id': marshall(id) },
+		}
+
 		await this.client.send(
 			new UpdateItemCommand({
-				TableName: this.props.tableName,
-				Key: marshall({ urn }),
+				...props,
 				UpdateExpression: 'SET #lock = :id',
 				ConditionExpression: 'attribute_not_exists(#lock)',
-				ExpressionAttributeNames: { '#lock': 'lock' },
-				ExpressionAttributeValues: { ':id': marshall(this.id) },
 			})
 		)
 
 		return async () => {
 			await this.client.send(
 				new UpdateItemCommand({
-					TableName: this.props.tableName,
-					Key: marshall({ urn }),
+					...props,
 					UpdateExpression: 'REMOVE #lock',
 					ConditionExpression: '#lock = :id',
-					ExpressionAttributeNames: { '#lock': 'lock' },
-					ExpressionAttributeValues: { ':id': marshall(this.id) },
 				})
 			)
 		}

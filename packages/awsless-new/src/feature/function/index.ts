@@ -70,25 +70,20 @@ export const functionFeature = defineFeature({
 		await ctx.write('function.d.ts', types, true)
 	},
 	onApp(ctx) {
-		const group = new Node('function', 'asset')
+		const group = new Node(ctx.base, 'function', 'asset')
 
-		ctx.base.add(group)
-
-		const bucket = new aws.s3.Bucket('bucket', {
+		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'assets'),
 			versioning: true,
 			forceDelete: true,
 		})
 
-		group.add(bucket)
+		ctx.shared.set('function-bucket-name', bucket.name)
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {
-			const group = new Node('function', id)
-
+			const group = new Node(ctx.stack, 'function', id)
 			createLambdaFunction(group, ctx, 'function', id, props)
-
-			ctx.stack.add(group)
 		}
 	},
 })

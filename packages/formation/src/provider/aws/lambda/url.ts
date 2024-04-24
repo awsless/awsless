@@ -3,6 +3,7 @@ import { Duration, toSeconds } from '@awsless/duration'
 import { ARN } from '../types.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Node } from '../../../core/node.js'
 
 export type UrlProps = {
 	targetArn: Input<ARN>
@@ -24,8 +25,8 @@ export type UrlProps = {
 }
 
 export class Url extends CloudControlApiResource {
-	constructor(id: string, private props: UrlProps) {
-		super('AWS::Lambda::Url', id, props)
+	constructor(readonly parent: Node, id: string, private props: UrlProps) {
+		super(parent, 'AWS::Lambda::Url', id, props)
 	}
 
 	get url() {

@@ -1,40 +1,42 @@
 import { URN } from './resource'
 
 export class Node {
-	private childs = new Set<Node>()
-	private parental: Node | undefined
+	readonly children: Node[] = []
+	// private parent: Node
 
-	constructor(readonly type: string, readonly identifier: string) {}
+	constructor(readonly parent: Node | undefined, readonly type: string, readonly identifier: string) {
+		parent?.children.push(this)
+	}
 
 	get urn(): URN {
-		return `${this.parental ? this.parental.urn : 'urn'}:${this.type}:{${this.identifier}}`
+		return `${this.parent ? this.parent.urn : 'urn'}:${this.type}:{${this.identifier}}`
 	}
 
-	get parent() {
-		return this.parental
-	}
+	// get parent() {
+	// 	return this.parental
+	// }
 
-	get children() {
-		return this.childs
-	}
+	// get children() {
+	// 	return this.childs
+	// }
 
-	add(...nodes: Node[]) {
-		for (const node of nodes) {
-			if (node.parental) {
-				throw new Error(`Node already has a parent: ${node.urn}`)
-			}
+	// add(...nodes: Node[]) {
+	// 	for (const node of nodes) {
+	// 		if (node.parental) {
+	// 			throw new Error(`Node already has a parent: ${node.urn}`)
+	// 		}
 
-			node.parental = this
+	// 		node.parental = this
 
-			for (const child of this.childs) {
-				if (child.urn === node.urn) {
-					throw new Error(`Duplicate nodes detected: ${node.urn}`)
-				}
-			}
+	// 		for (const child of this.childs) {
+	// 			if (child.urn === node.urn) {
+	// 				throw new Error(`Duplicate nodes detected: ${node.urn}`)
+	// 			}
+	// 		}
 
-			this.childs.add(node)
-		}
-	}
+	// 		this.childs.add(node)
+	// 	}
+	// }
 }
 
 export const flatten = (node: Node) => {

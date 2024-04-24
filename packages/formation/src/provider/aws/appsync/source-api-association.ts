@@ -1,8 +1,10 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class SourceApiAssociation extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			mergedApiId: Input<string>
@@ -10,7 +12,7 @@ export class SourceApiAssociation extends CloudControlApiResource {
 			mergeType?: 'manual' | 'auto'
 		}
 	) {
-		super('AWS::AppSync::SourceApiAssociation', id, props)
+		super(parent, 'AWS::AppSync::SourceApiAssociation', id, props)
 	}
 
 	toState() {

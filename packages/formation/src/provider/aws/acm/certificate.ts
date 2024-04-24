@@ -1,6 +1,7 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { Resource } from '../../../core/resource'
-import { Record, RecordType } from '../route53/record-set'
+import { Record } from '../route53/record-set'
 import { ARN } from '../types'
 import { CertificateValidation } from './certificate-validation'
 
@@ -33,8 +34,8 @@ export class Certificate extends Resource {
 
 	private validation: CertificateValidation | undefined
 
-	constructor(id: string, private props: CertificateProps) {
-		super('AWS::CertificateManager::Certificate', id, props)
+	constructor(readonly parent: Node, id: string, private props: CertificateProps) {
+		super(parent, 'AWS::CertificateManager::Certificate', id, props)
 
 		// It should be safe for certificates to be deleted after a deployment
 		// because multiple certificates can exist for a single domain.
@@ -70,7 +71,7 @@ export class Certificate extends Resource {
 
 	get validationRecords() {
 		return this.output<Record[]>(v =>
-			v.DomainValidationOptions.map(opt => {
+			v.DomainValidationOptions.map((opt: any) => {
 				const record = opt.ResourceRecord
 				return {
 					name: record.Name,
@@ -83,12 +84,10 @@ export class Certificate extends Resource {
 
 	get issuedArn() {
 		if (!this.validation) {
-			this.validation = new CertificateValidation('validation', {
+			this.validation = new CertificateValidation(this, 'validation', {
 				certificateArn: this.arn,
 				region: this.props.region,
 			})
-
-			this.add(this.validation)
 		}
 
 		return this.validation.arn

@@ -1,12 +1,13 @@
 import { constantCase } from 'change-case'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
-import { Record, RecordType } from '../route53/record-set.js'
+import { Record } from '../route53/record-set.js'
 import { minutes } from '@awsless/duration'
-import { ARN } from '../types.js'
+import { Node } from '../../../core/node.js'
 
 export class EmailIdentity extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			emailIdentity: Input<string>
@@ -17,7 +18,7 @@ export class EmailIdentity extends CloudControlApiResource {
 			mailFromDomain?: Input<string>
 		}
 	) {
-		super('AWS::SES::EmailIdentity', id, props)
+		super(parent, 'AWS::SES::EmailIdentity', id, props)
 	}
 
 	// get arn() {

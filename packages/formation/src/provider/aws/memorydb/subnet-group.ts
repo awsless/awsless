@@ -1,9 +1,11 @@
+import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
 
 export class SubnetGroup extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			subnetIds: Input<Input<string>[]>
@@ -11,7 +13,7 @@ export class SubnetGroup extends CloudControlApiResource {
 			description?: Input<string | undefined>
 		}
 	) {
-		super('AWS::MemoryDB::SubnetGroup', id, props)
+		super(parent, 'AWS::MemoryDB::SubnetGroup', id, props)
 	}
 
 	get arn() {

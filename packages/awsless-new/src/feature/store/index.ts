@@ -39,10 +39,9 @@ export const storeFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const id of ctx.stackConfig.stores || []) {
-			const group = new Node('store', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'store', id)
 
-			const bucket = new aws.s3.Bucket('store', {
+			const bucket = new aws.s3.Bucket(group, 'store', {
 				name: formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'store', id),
 				cors: [
 					// ---------------------------------------------
@@ -55,8 +54,6 @@ export const storeFeature = defineFeature({
 					// ---------------------------------------------
 				],
 			})
-
-			group.add(bucket)
 
 			ctx.onFunction(({ policy }) => {
 				policy.addStatement(bucket.permissions)

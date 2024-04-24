@@ -3,6 +3,7 @@ import { ARN } from '../types.js'
 import { Size, kibibytes, toBytes } from '@awsless/size'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Node } from '../../../core/node.js'
 
 export type QueueProps = {
 	name: Input<string>
@@ -16,8 +17,8 @@ export type QueueProps = {
 }
 
 export class Queue extends CloudControlApiResource {
-	constructor(id: string, private props: QueueProps) {
-		super('AWS::SQS::Queue', id, props)
+	constructor(readonly parent: Node, id: string, private props: QueueProps) {
+		super(parent, 'AWS::SQS::Queue', id, props)
 	}
 
 	setDeadLetter(arn: Input<ARN>) {

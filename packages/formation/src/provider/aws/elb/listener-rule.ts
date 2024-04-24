@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api'
 import { ARN } from '../types'
@@ -6,6 +7,7 @@ import { ListenerCondition } from './listener-condition'
 
 export class ListenerRule extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			listenerArn: Input<ARN>
@@ -14,7 +16,7 @@ export class ListenerRule extends CloudControlApiResource {
 			actions: Input<Input<ListenerAction>[]>
 		}
 	) {
-		super('AWS::ElasticLoadBalancingV2::ListenerRule', id, props)
+		super(parent, 'AWS::ElasticLoadBalancingV2::ListenerRule', id, props)
 	}
 
 	get arn() {

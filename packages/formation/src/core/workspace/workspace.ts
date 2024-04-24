@@ -1,11 +1,10 @@
 import { CloudProvider, ResourceDocument } from '../cloud'
 import { Resource, URN } from '../resource'
-import { Stack } from '../stack'
+// import { Stack } from '../stack'
 import { AppState, ResourceState, StackState, StateProvider } from '../state'
 import { Step, run } from 'promise-dag'
-import { ResourceError, ResourceNotFound, StackError } from '../error'
+import { AppError, ResourceError, ResourceNotFound, StackError } from '../error'
 import { App } from '../app'
-import { ExportedData } from '../export'
 import { lockApp } from './lock'
 import { cloneObject, compareDocuments, unwrapOutputsFromDocument } from './document'
 import { loadAssets, resolveDocumentAssets } from './asset'
@@ -24,46 +23,241 @@ export class WorkSpace {
 		}
 	) {}
 
-	private getExportedData(appState: AppState) {
-		const data: ExportedData = {}
+	// private getExportedData(appState: AppState) {
+	// 	const data: ExportedData = {}
 
-		for (const stackData of Object.values(appState.stacks)) {
-			data[stackData.name] = stackData.exports
-		}
+	// 	for (const stackData of Object.values(appState.stacks)) {
+	// 		data[stackData.name] = stackData.exports
+	// 	}
 
-		return data
-	}
-
-	// async deployApp(app: App) {
-	// 	return this.lockedOperation(app.urn, async () => {
-	// 		const appState = await this.props.stateProvider.get(app.urn)
-
-	// 		for (const stack of app.stacks) {
-	// 			await this.deployStack(stack)
-	// 		}
-
-	// 		console.log(appState)
-
-	// 		// for (const [urn, stackState] of appState) {
-	// 		// 	stackState
-	// 		// }
-	// 	})
+	// 	return data
 	// }
 
-	// async diffStack(stack: Stack) {
+	private runGraph(stack: string, graph: Record<string, Step[]>) {
+		try {
+			const promises = run(graph)
+
+			return Promise.allSettled(Object.values(promises))
+		} catch (error) {
+			if (error instanceof Error) {
+				throw new StackError(stack, [], error.message)
+			}
+
+			throw error
+		}
+	}
+
+	// getStackApp(stack: Stack) {
 	// 	const app = stack.parent
 
 	// 	if (!app || !(app instanceof App)) {
-	// 		throw new StackError([], 'Stack must belong to an App')
+	// 		throw new StackError(stack.name, [], 'Stack must belong to an App')
 	// 	}
 
-	// 	const appState = await this.props.stateProvider.get(app.urn)
+	// 	return app
+	// }
 
-	// 	const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
+	async deployApp(app: App, filters?: string[]) {
+		return lockApp(this.props.stateProvider, app, async () => {
+			// -------------------------------------------------------
+
+			const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+				name: app.name,
+				stacks: {},
+			}
+
+			// -------------------------------------------------------
+			// Set the idempotent token when no token exists.
+
+			if (!appState.token) {
+				appState.token = randomUUID()
+
+				await this.props.stateProvider.update(app.urn, appState)
+			}
+
+			// -------------------------------------------------------
+			// Filter only the selected stacks
+
+			let stacks = app.stacks
+
+			if (filters && filters.length > 0) {
+				stacks = app.stacks.filter(stack => filters.includes(stack.name))
+			}
+
+			// -------------------------------------------------------
+			// Build deployment graph
+
+			const graph: Record<URN, Step[]> = {}
+
+			for (const stack of stacks) {
+				graph[stack.urn] = [
+					...[...stack.dependencies].map(dep => dep.urn),
+					async () => {
+						// console.log('Deploy', stack.name, new Date())
+
+						const resources = stack.resources
+
+						// -------------------------------------------------------------------
+
+						const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[
+							stack.urn
+						] ?? {
+							name: stack.name,
+							// exports: {},
+							dependencies: [],
+							resources: {},
+						})
+
+						// -------------------------------------------------------------------
+						// Find Deletable resources...
+
+						const deleteResourcesBefore: Record<URN, ResourceState> = {}
+						const deleteResourcesAfter: Record<URN, ResourceState> = {}
+
+						for (const [urnStr, state] of Object.entries(stackState.resources)) {
+							const urn = urnStr as URN
+							const resource = resources.find(r => r.urn === urn)
+
+							if (!resource) {
+								if (state.policies.deletion === 'before-deployment') {
+									deleteResourcesBefore[urn] = state
+								}
+
+								if (state.policies.deletion === 'after-deployment') {
+									deleteResourcesAfter[urn] = state
+								}
+							}
+						}
+
+						// -------------------------------------------------------------------
+						// Delete resources before deployment...
+
+						if (Object.keys(deleteResourcesBefore).length > 0) {
+							await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
+						}
+
+						// -------------------------------------------------------------------
+						// Deploy resources...
+
+						await this.deployStackResources(app.urn, appState, stackState, resources)
+
+						// -------------------------------------------------------------------
+						// Delete resources after deployment...
+
+						if (Object.keys(deleteResourcesAfter).length > 0) {
+							await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
+						}
+
+						// -------------------------------------------------------------------
+						// Set stack exports
+
+						// stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
+
+						// app.setExportedData(stack.name, stackState.exports)
+
+						// -------------------------------------------------------------------
+						// Set the new stack dependencies
+
+						stackState.dependencies = [...stack.dependencies].map(d => d.urn)
+					},
+				]
+			}
+
+			// -------------------------------------------------------------------
+
+			const results = await Promise.allSettled(Object.values(run(graph)))
+
+			// -------------------------------------------------------------------
+			// Delete the idempotant token when the deployment reaches the end.
+
+			delete appState.token
+
+			// -------------------------------------------------------------------
+			// Save stack
+
+			await this.props.stateProvider.update(app.urn, appState)
+
+			// -------------------------------------------------------------------
+
+			const errors = results
+				.filter(r => r.status === 'rejected')
+				.map(r => (r as PromiseRejectedResult).reason)
+
+			if (errors.length > 0) {
+				throw new AppError(app.name, [...new Set(errors)], 'Deploying app failed.')
+			}
+
+			return appState
+		})
+	}
+
+	async deleteApp(app: App) {
+		return lockApp(this.props.stateProvider, app, async () => {
+			const appState = await this.props.stateProvider.get(app.urn)
+
+			if (!appState) {
+				throw new AppError(app.name, [], `App already deleted: ${app.name}`)
+			}
+
+			// -------------------------------------------------------
+			// Set the idempotent token when no token exists.
+
+			if (!appState.token) {
+				appState.token = randomUUID()
+
+				await this.props.stateProvider.update(app.urn, appState)
+			}
+
+			// -------------------------------------------------------
+
+			const graph: Record<URN, Step[]> = {}
+
+			for (const [_urn, stackState] of Object.entries(appState.stacks)) {
+				const urn = _urn as URN
+				graph[urn] = [
+					...this.dependentsOn(appState.stacks, urn),
+					async () => {
+						await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
+						delete appState.stacks[urn]
+					},
+				]
+			}
+
+			const results = await Promise.allSettled(Object.values(run(graph)))
+
+			// -------------------------------------------------------
+
+			delete appState.token
+
+			// -------------------------------------------------------
+
+			const errors = results
+				.filter(r => r.status === 'rejected')
+				.map(r => (r as PromiseRejectedResult).reason)
+
+			if (errors.length > 0) {
+				throw new AppError(app.name, [...new Set(errors)], 'Deleting app failed.')
+			}
+
+			await this.props.stateProvider.delete(app.urn)
+		})
+	}
+
+	// async diffStack(stack: Stack) {
+	// 	const app = this.getStackApp(stack)
+
+	// 	const appState = (await this.props.stateProvider.get(app.urn)) ?? {
+	// 		name: app.name,
+	// 		stacks: {},
+	// 	}
+
+	// 	app.setExportedData(this.getExportedData(appState))
+
+	// 	const stackState: StackState = appState.stacks[stack.urn] ?? {
 	// 		name: stack.name,
 	// 		exports: {},
 	// 		resources: {},
-	// 	})
+	// 	}
 
 	// 	const resources = stack.resources
 
@@ -92,19 +286,16 @@ export class WorkSpace {
 
 	// 		if (resourceState) {
 	// 			const state = resource.toState()
-	// 			const [_, assetHashes] = await this.resolveAssets(state.assets ?? {})
-	// 			const document = this.unwrapDocument(resource.urn, state.document ?? {}, false)
+	// 			const [_, assetHashes] = await loadAssets(state.assets ?? {})
+	// 			const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
 
 	// 			if (
-	// 				!this.compare(
+	// 				!compareDocuments(
 	// 					//
 	// 					[resourceState.local, resourceState.assets],
 	// 					[document, assetHashes]
 	// 				)
 	// 			) {
-	// 				// console.log('S', JSON.stringify(resourceState.local))
-	// 				// console.log('D', JSON.stringify(document))
-
 	// 				updates.push(resource.urn)
 	// 			}
 	// 		} else {
@@ -113,160 +304,155 @@ export class WorkSpace {
 	// 	}
 
 	// 	return {
+	// 		changes: creates.length + updates.length + deletes.length,
 	// 		creates,
 	// 		updates,
 	// 		deletes,
 	// 	}
 	// }
 
-	async deployStack(stack: Stack) {
-		const app = stack.parent
+	// async deployStack(stack: Stack) {
+	// 	const app = this.getStackApp(stack)
 
-		if (!app || !(app instanceof App)) {
-			throw new StackError([], 'Stack must belong to an App')
-		}
+	// 	return lockApp(this.props.stateProvider, app, async () => {
+	// 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+	// 			name: app.name,
+	// 			stacks: {},
+	// 		}
 
-		return lockApp(this.props.stateProvider, app.urn, async () => {
-			const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
-				name: app.name,
-				stacks: {},
-			}
+	// 		// -------------------------------------------------------
+	// 		// Set the idempotent token when no token exists.
 
-			// -------------------------------------------------------
-			// Set the idempotent token when no token exists.
+	// 		if (!appState.token) {
+	// 			appState.token = randomUUID()
 
-			if (!appState.token) {
-				appState.token = randomUUID()
+	// 			await this.props.stateProvider.update(app.urn, appState)
+	// 		}
 
-				await this.props.stateProvider.update(app.urn, appState)
-			}
+	// 		// -------------------------------------------------------
 
-			// -------------------------------------------------------
+	// 		const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
+	// 			name: stack.name,
+	// 			exports: {},
+	// 			resources: {},
+	// 		})
 
-			const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-				name: stack.name,
-				exports: {},
-				resources: {},
-			})
+	// 		const resources = stack.resources
 
-			const resources = stack.resources
+	// 		// -------------------------------------------------------------------
+	// 		// Set the exported data on the app.
 
-			// -------------------------------------------------------------------
-			// Set the exported data on the app.
+	// 		for (const stackData of Object.values(appState.stacks)) {
+	// 			app.setExportedData(stackData.name, stackData.exports)
+	// 		}
 
-			app.setExportedData(this.getExportedData(appState))
+	// 		// -------------------------------------------------------------------
+	// 		// Find Deletable resources...
 
-			// -------------------------------------------------------------------
-			// Find Deletable resources...
+	// 		const deleteResourcesBefore: Record<URN, ResourceState> = {}
+	// 		const deleteResourcesAfter: Record<URN, ResourceState> = {}
 
-			const deleteResourcesBefore: Record<URN, ResourceState> = {}
-			const deleteResourcesAfter: Record<URN, ResourceState> = {}
+	// 		for (const [urnStr, state] of Object.entries(stackState.resources)) {
+	// 			const urn = urnStr as URN
+	// 			const resource = resources.find(r => r.urn === urn)
 
-			for (const [urnStr, state] of Object.entries(stackState.resources)) {
-				const urn = urnStr as URN
-				const resource = resources.find(r => r.urn === urn)
+	// 			if (!resource) {
+	// 				if (state.policies.deletion === 'before-deployment') {
+	// 					deleteResourcesBefore[urn] = state
+	// 				}
 
-				if (!resource) {
-					if (state.policies.deletion === 'before-deployment') {
-						deleteResourcesBefore[urn] = state
-					}
+	// 				if (state.policies.deletion === 'after-deployment') {
+	// 					deleteResourcesAfter[urn] = state
+	// 				}
+	// 			}
+	// 		}
 
-					if (state.policies.deletion === 'after-deployment') {
-						deleteResourcesAfter[urn] = state
-					}
-				}
-			}
+	// 		// -------------------------------------------------------------------
+	// 		// Process resources...
 
-			// -------------------------------------------------------------------
-			// Process resources...
+	// 		try {
+	// 			// -------------------------------------------------------------------
+	// 			// Delete resources before deployment...
 
-			try {
-				// -------------------------------------------------------------------
-				// Delete resources before deployment...
+	// 			if (Object.keys(deleteResourcesBefore).length > 0) {
+	// 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
+	// 			}
 
-				if (Object.keys(deleteResourcesBefore).length > 0) {
-					await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
-				}
+	// 			// -------------------------------------------------------------------
+	// 			// Deploy resources...
 
-				// -------------------------------------------------------------------
-				// Deploy resources...
+	// 			await this.deployStackResources(app.urn, appState, stackState, resources)
 
-				await this.deployStackResources(app.urn, appState, stackState, resources)
+	// 			// -------------------------------------------------------------------
+	// 			// Delete resources after deployment...
 
-				// -------------------------------------------------------------------
-				// Delete resources after deployment...
+	// 			if (Object.keys(deleteResourcesAfter).length > 0) {
+	// 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
+	// 			}
 
-				if (Object.keys(deleteResourcesAfter).length > 0) {
-					await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
-				}
+	// 			// -------------------------------------------------------------------
+	// 		} catch (error) {
+	// 			// const resourceError = new ResourceError()
 
-				// -------------------------------------------------------------------
-			} catch (error) {
-				// const resourceError = new ResourceError()
+	// 			throw error
+	// 		}
 
-				throw error
-			}
+	// 		// -------------------------------------------------------------------
+	// 		// Delete the idempotant token when the deployment reaches the end.
 
-			// -------------------------------------------------------------------
-			// Delete the idempotant token when the deployment reaches the end.
+	// 		delete appState.token
 
-			delete appState.token
+	// 		// -------------------------------------------------------------------
+	// 		// Save stack exports
 
-			// -------------------------------------------------------------------
-			// Save stack exports
+	// 		stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
 
-			stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
+	// 		await this.props.stateProvider.update(app.urn, appState)
 
-			await this.props.stateProvider.update(app.urn, appState)
+	// 		// -------------------------------------------------------------------
 
-			// -------------------------------------------------------------------
+	// 		return stackState
+	// 	})
+	// }
 
-			return stackState
-		})
-	}
+	// async deleteStack(stack: Stack) {
+	// 	const app = this.getStackApp(stack)
 
-	async deleteStack(stack: Stack) {
-		const app = stack.parent
+	// 	return lockApp(this.props.stateProvider, app, async () => {
+	// 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+	// 			name: app.name,
+	// 			stacks: {},
+	// 		}
 
-		if (!app || !(app instanceof App)) {
-			throw new StackError([], 'Stack must belong to an App')
-		}
+	// 		// -------------------------------------------------------
+	// 		// Set the idempotent token when no token exists.
 
-		return lockApp(this.props.stateProvider, app.urn, async () => {
-			const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
-				name: app.name,
-				stacks: {},
-			}
+	// 		if (!appState.token) {
+	// 			appState.token = randomUUID()
 
-			// -------------------------------------------------------
-			// Set the idempotent token when no token exists.
+	// 			await this.props.stateProvider.update(app.urn, appState)
+	// 		}
 
-			if (!appState.token) {
-				appState.token = randomUUID()
+	// 		// -------------------------------------------------------
 
-				await this.props.stateProvider.update(app.urn, appState)
-			}
+	// 		const stackState = appState.stacks[stack.urn]
 
-			// -------------------------------------------------------
+	// 		if (!stackState) {
+	// 			throw new StackError(stack.name, [], `Stack already deleted: ${stack.name}`)
+	// 		}
 
-			const stackState = appState.stacks[stack.urn]
+	// 		try {
+	// 			await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
+	// 		} catch (error) {
+	// 			throw error
+	// 		}
 
-			if (!stackState) {
-				throw new StackError([], `Stack already deleted: ${stack.name}`)
-			}
+	// 		delete appState.token
+	// 		delete appState.stacks[stack.urn]
 
-			try {
-				await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
-			} catch (error) {
-				throw error
-			}
-
-			delete appState.token
-			delete appState.stacks[stack.urn]
-
-			await this.props.stateProvider.update(app.urn, appState)
-		})
-	}
+	// 		await this.props.stateProvider.update(app.urn, appState)
+	// 	})
+	// }
 
 	private async getRemoteResource(props: {
 		urn: URN
@@ -374,7 +560,7 @@ export class WorkSpace {
 								type: resource.type,
 								remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
 								oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
-								newDocument: document,
+								newDocument: resolveDocumentAssets(cloneObject(document), assets),
 								assets,
 								extra,
 								token,
@@ -411,7 +597,16 @@ export class WorkSpace {
 			]
 		}
 
-		const results = await Promise.allSettled(Object.values(run(deployGraph)))
+		// let resultGraph
+		// try {
+		// 	resultGraph = run(deployGraph)
+		// } catch (error) {
+		// 	throw new StackError(stackState.name, [], 'Deploying resources failed.')
+		// }
+
+		// const results = await Promise.allSettled(Object.values(resultGraph))
+
+		const results = await this.runGraph(stackState.name, deployGraph)
 
 		await this.props.stateProvider.update(appUrn, appState)
 
@@ -426,11 +621,11 @@ export class WorkSpace {
 			.map(r => (r as PromiseRejectedResult).reason)
 
 		if (errors.length > 0) {
-			throw new StackError(errors, 'Deploying resources failed.')
+			throw new StackError(stackState.name, [...new Set(errors)], 'Deploying resources failed.')
 		}
 	}
 
-	private dependentsOn(resources: Record<URN, ResourceState>, dependency: URN) {
+	private dependentsOn(resources: Record<URN, { dependencies: URN[] }>, dependency: URN) {
 		const dependents: URN[] = []
 
 		for (const [urn, resource] of Object.entries(resources)) {
@@ -488,7 +683,9 @@ export class WorkSpace {
 			]
 		}
 
-		const results = await Promise.allSettled(Object.values(run(deleteGraph)))
+		// const results = await Promise.allSettled(Object.values(run(deleteGraph)))
+
+		const results = await this.runGraph(stackState.name, deleteGraph)
 
 		// -------------------------------------------------------------------
 		// Save changed AppState
@@ -500,7 +697,7 @@ export class WorkSpace {
 			.map(r => (r as PromiseRejectedResult).reason)
 
 		if (errors.length > 0) {
-			throw new StackError(errors, 'Deleting resources failed.')
+			throw new StackError(appState.name, [...new Set(errors)], 'Deleting resources failed.')
 		}
 	}
 
@@ -539,7 +736,7 @@ export class WorkSpace {
 			.map(r => (r as PromiseRejectedResult).reason)
 
 		if (errors.length > 0) {
-			throw new StackError(errors, 'Healing remote state failed.')
+			throw new StackError(stackState.name, [...new Set(errors)], 'Healing remote state failed.')
 		}
 	}
 }

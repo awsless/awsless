@@ -2,6 +2,7 @@ import { Duration, toSeconds } from '@awsless/duration'
 import { ARN } from '../types'
 import { Input, unwrap } from '../../../core/output'
 import { Resource } from '../../../core/resource'
+import { Node } from '../../../core/node'
 // import { DomainName } from './domain-name'
 // import { DomainNameApiAssociation } from './domain-name-api-association'
 
@@ -36,6 +37,7 @@ export class GraphQLApi extends Resource {
 	// private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
 
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -50,7 +52,7 @@ export class GraphQLApi extends Resource {
 			visibility?: Input<boolean>
 		}
 	) {
-		super('AWS::AppSync::GraphQLApi', id, props)
+		super(parent, 'AWS::AppSync::GraphQLApi', id, props)
 	}
 
 	get id() {
@@ -171,7 +173,9 @@ export class GraphQLApi extends Resource {
 				apiType: unwrap(this.props.type, 'graphql').toUpperCase(),
 				...this.attr('mergedApiExecutionRoleArn', this.props.role),
 				...this.formatAuth(unwrap(auth.default)),
-				additionalAuthenticationProviders: unwrap(auth.additional, []).map(unwrap).map(this.formatAuth),
+				additionalAuthenticationProviders: unwrap(auth.additional, [])
+					.map(v => unwrap(v))
+					.map(this.formatAuth),
 				visibility: unwrap(this.props.visibility, true) ? 'GLOBAL' : 'PRIVATE',
 				introspectionConfig: unwrap(this.props.introspection, true) ? 'ENABLED' : 'DISABLED',
 				environmentVariables: JSON.stringify(unwrap(this.props.environment, {})),

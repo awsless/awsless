@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
@@ -7,8 +8,8 @@ export type UserPoolDomainProps = {
 }
 
 export class UserPoolDomain extends CloudControlApiResource {
-	constructor(id: string, private props: UserPoolDomainProps) {
-		super('AWS::Cognito::UserPoolDomain', id, props)
+	constructor(readonly parent: Node, id: string, private props: UserPoolDomainProps) {
+		super(parent, 'AWS::Cognito::UserPoolDomain', id, props)
 	}
 
 	// get domain() {

@@ -17,12 +17,11 @@ describe('Export', () => {
 
 	it('should deploy stack with an static exports', async () => {
 		const app = new App('app')
-		const stack = new Stack('stack')
-		app.add(stack)
+		const stack = new Stack(app, 'stack')
 
 		stack.export('name', 'value')
 
-		await workspace.deployStack(stack)
+		await workspace.deployApp(app)
 
 		const state = await stateProvider.get(app.urn)
 		expect(state).toStrictEqual({
@@ -41,12 +40,11 @@ describe('Export', () => {
 
 	it('should deploy stack with an output exports', async () => {
 		const app = new App('app')
-		const stack = new Stack('stack')
-		app.add(stack)
+		const stack = new Stack(app, 'stack')
 
 		stack.export('name', new Output([], resolve => resolve('value')))
 
-		await workspace.deployStack(stack)
+		await workspace.deployApp(app)
 
 		const state = await stateProvider.get(app.urn)
 		expect(state).toStrictEqual({
@@ -65,10 +63,9 @@ describe('Export', () => {
 
 	it('should deploy without exports', async () => {
 		const app = new App('app')
-		const stack = new Stack('stack')
-		app.add(stack)
+		const stack = new Stack(app, 'stack')
 
-		await workspace.deployStack(stack)
+		await workspace.deployApp(app)
 
 		const state = await stateProvider.get(app.urn)
 		expect(state).toStrictEqual({
@@ -85,19 +82,15 @@ describe('Export', () => {
 
 	it('should link export values between stacks', async () => {
 		const app = new App('app')
-		const stack = new Stack('stack')
-		app.add(stack)
-
+		const stack = new Stack(app, 'stack')
 		stack.export('name', 'value')
 
-		await workspace.deployStack(stack)
+		await workspace.deployApp(app)
 
-		const stack2 = new Stack('stack-2')
-		app.add(stack2)
-
+		const stack2 = new Stack(app, 'stack-2')
 		stack2.export('imported', app.import('stack', 'name'))
 
-		await workspace.deployStack(stack2)
+		await workspace.deployApp(app)
 
 		const state = await stateProvider.get(app.urn)
 		expect(state).toStrictEqual({

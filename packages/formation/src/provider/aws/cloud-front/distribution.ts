@@ -2,6 +2,7 @@ import { Duration, toSeconds } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
+import { Node } from '../../../core/node.js'
 
 export type AssociationType = 'viewer-request' | 'viewer-response' | 'origin-request' | 'origin-response'
 
@@ -23,6 +24,7 @@ export type OriginGroup = {
 
 export class Distribution extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -76,7 +78,7 @@ export class Distribution extends CloudControlApiResource {
 			// }
 		}
 	) {
-		super('AWS::CloudFront::Distribution', id, props)
+		super(parent, 'AWS::CloudFront::Distribution', id, props)
 	}
 
 	// get arn() {

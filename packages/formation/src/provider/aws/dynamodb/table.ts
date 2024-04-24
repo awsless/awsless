@@ -5,6 +5,7 @@ import { Asset } from '../../../core/asset'
 import { TableItem } from './table-item'
 import { Statement } from '../iam'
 import { CloudControlApiResource } from '../cloud-control-api'
+import { Node } from '../../../core/node'
 
 export type IndexProps = {
 	hash: string
@@ -31,8 +32,8 @@ export type TableProps = {
 export class Table extends CloudControlApiResource {
 	private indexes: Record<string, IndexProps>
 
-	constructor(id: string, private props: TableProps) {
-		super('AWS::DynamoDB::Table', id, props)
+	constructor(readonly parent: Node, id: string, private props: TableProps) {
+		super(parent, 'AWS::DynamoDB::Table', id, props)
 
 		this.indexes = { ...(this.props.indexes || {}) }
 	}
@@ -66,14 +67,10 @@ export class Table extends CloudControlApiResource {
 	}
 
 	addItem(id: string, item: Input<Asset>) {
-		const tableItem = new TableItem(id, {
+		return new TableItem(this, id, {
 			table: this,
 			item,
 		})
-
-		this.add(tableItem)
-
-		return tableItem
 	}
 
 	get streamPermissions() {

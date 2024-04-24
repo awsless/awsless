@@ -25,7 +25,8 @@ export type AppState = {
 
 export type StackState = {
 	name: string
-	exports: Record<URN, unknown>
+	// exports: Record<string, unknown>
+	dependencies: URN[]
 	resources: Record<URN, ResourceState>
 }
 

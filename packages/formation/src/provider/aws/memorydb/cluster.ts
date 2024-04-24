@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
@@ -19,6 +20,7 @@ export type NodeType =
 
 export class Cluster extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			aclName: Input<string>
@@ -37,7 +39,7 @@ export class Cluster extends CloudControlApiResource {
 			maintenanceWindow?: Input<`${string}:${number}:${number}-${string}:${number}:${number}`>
 		}
 	) {
-		super('AWS::MemoryDB::Cluster', id, props)
+		super(parent, 'AWS::MemoryDB::Cluster', id, props)
 	}
 
 	// get status() {

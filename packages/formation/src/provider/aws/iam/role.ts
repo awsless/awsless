@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
@@ -15,6 +16,7 @@ export class Role extends CloudControlApiResource {
 	private managedPolicies = new Set<Input<ARN>>()
 
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name?: Input<string>
@@ -23,7 +25,7 @@ export class Role extends CloudControlApiResource {
 			policies?: PolicyDocument[]
 		} = {}
 	) {
-		super('AWS::IAM::Role', id, props)
+		super(parent, 'AWS::IAM::Role', id, props)
 	}
 
 	get id() {
@@ -66,14 +68,10 @@ export class Role extends CloudControlApiResource {
 			statements?: Input<Input<Statement>[]>
 		}
 	) {
-		const policy = new RolePolicy(id, {
+		return new RolePolicy(this, id, {
 			role: this.name,
 			...props,
 		})
-
-		this.add(policy)
-
-		return policy
 	}
 
 	toState() {

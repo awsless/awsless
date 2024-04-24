@@ -1,4 +1,5 @@
 import { Asset } from '../../../core/asset'
+import { Node } from '../../../core/node'
 import { Input } from '../../../core/output'
 import { Resource } from '../../../core/resource'
 
@@ -10,8 +11,8 @@ export type GraphQLSchemaProps = {
 export class GraphQLSchema extends Resource {
 	cloudProviderId = 'aws-appsync-graphql-schema'
 
-	constructor(id: string, private props: GraphQLSchemaProps) {
-		super('AWS::AppSync::GraphQLSchema', id, props)
+	constructor(readonly parent: Node, id: string, private props: GraphQLSchemaProps) {
+		super(parent, 'AWS::AppSync::GraphQLSchema', id, props)
 	}
 
 	toState() {

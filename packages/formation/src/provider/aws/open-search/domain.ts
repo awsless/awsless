@@ -3,6 +3,7 @@ import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
 import { capitalCase } from 'change-case'
+import { Node } from '../../../core/node'
 
 export type Version = '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
 
@@ -108,6 +109,7 @@ export type NodeType =
 
 export class Domain extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name?: Input<string>
@@ -137,7 +139,7 @@ export class Domain extends CloudControlApiResource {
 			}
 		}
 	) {
-		super('AWS::OpenSearchService::Domain', id, props)
+		super(parent, 'AWS::OpenSearchService::Domain', id, props)
 	}
 
 	get id() {

@@ -7,6 +7,7 @@ import { Asset } from './asset'
 import { ResourceDocument } from './cloud'
 import { Node } from './node'
 import { Input, Output, Unwrap, findResources, unwrap } from './output'
+import { Stack } from './stack'
 
 export type URN = `urn:${string}`
 
@@ -29,12 +30,13 @@ export abstract class Resource extends Node {
 	readonly dependencies = new Set<Resource>()
 
 	constructor(
+		readonly parent: Node,
 		readonly type: string,
 		readonly identifier: string,
 		inputs?: unknown
 		// private resourcePolicies: ResourcePolicies = {}
 	) {
-		super(type, identifier)
+		super(parent, type, identifier)
 
 		if (inputs) {
 			this.registerDependency(inputs)
@@ -51,6 +53,30 @@ export abstract class Resource extends Node {
 		document?: ResourceDocument
 	}
 
+	get stack(): Stack {
+		let current: Node | undefined = this
+
+		while (current) {
+			const parent: Node | undefined = current.parent
+
+			if (parent instanceof Stack) {
+				return parent
+			}
+
+			current = parent
+		}
+
+		// if (this.parent instanceof Stack) {
+		// 	return this.parent
+		// }
+
+		// if (this.parent instanceof Resource) {
+		// 	return this.parent.stack
+		// }
+
+		throw new Error(`Resource stack can't be found`)
+	}
+
 	// set deletionPolicy(policy: ResourceDeletionPolicy) {
 	// 	this.resourcePolicies?.deletionPolicy policy
 	// }
@@ -61,7 +87,11 @@ export abstract class Resource extends Node {
 
 	dependsOn(...resources: Resource[]) {
 		for (const resource of resources) {
-			this.dependencies.add(resource)
+			if (resource.stack === this.stack) {
+				this.dependencies.add(resource)
+			} else {
+				this.stack.dependsOn(resource.stack)
+			}
 		}
 
 		return this
@@ -70,16 +100,14 @@ export abstract class Resource extends Node {
 	protected registerDependency(props: unknown) {
 		this.dependsOn(...findResources(props))
 
-		// if (props instanceof Output) {
-		// 	if (props.resources) {
-		// 		this.dependsOn(...props.resources)
+		// const resources = findResources(props)
+
+		// for (const resource of resources) {
+		// 	if (resource.stack !== this.stack) {
+		// 		this.stack.dependsOn(resource.stack)
+		// 	} else {
+		// 		this.dependsOn(resource)
 		// 	}
-		// } else if (props instanceof Resource) {
-		// 	this.dependsOn(props)
-		// } else if (Array.isArray(props)) {
-		// 	props.map(p => this.registerDependency(p))
-		// } else if (props?.constructor === Object) {
-		// 	Object.values(props).map(p => this.registerDependency(p))
 		// }
 	}
 

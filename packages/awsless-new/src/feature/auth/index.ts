@@ -13,7 +13,7 @@ export const authFeature = defineFeature({
 		const resources = new TypeObject(1)
 
 		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
-			const authName = formatGlobalResourceName(ctx.appConfig.name, this.name, name)
+			const authName = formatGlobalResourceName(ctx.appConfig.name, 'auth', name)
 			resources.addType(
 				name,
 				`{ readonly name: '${authName}', readonly userPoolId: string, readonly clientId: string }`
@@ -26,12 +26,11 @@ export const authFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.auth ?? {})) {
-			const group = new Node(this.name, id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'auth', id)
 
-			const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
-			const userPoolArn = ctx.app.import<aws.ARN>('base', `auth-${id}-user-pool-arn`)
-			const clientId = ctx.app.import<string>('base', `auth-${id}-client-id`)
+			const userPoolId = ctx.shared.get<string>(`auth-${id}-user-pool-id`)
+			const userPoolArn = ctx.shared.get<aws.ARN>(`auth-${id}-user-pool-arn`)
+			const clientId = ctx.shared.get<string>(`auth-${id}-client-id`)
 
 			const triggers: Record<string, Output<aws.ARN>> = {}
 			const list: Record<
@@ -45,8 +44,7 @@ export const authFeature = defineFeature({
 			> = {}
 
 			for (const [trigger, triggerProps] of Object.entries(props.triggers ?? {})) {
-				const triggerGroup = new Node('trigger', trigger)
-				group.add(triggerGroup)
+				const triggerGroup = new Node(group, 'trigger', trigger)
 
 				const { lambda, policy } = createLambdaFunction(
 					triggerGroup,
@@ -66,21 +64,18 @@ export const authFeature = defineFeature({
 				}
 			}
 
-			const lambdaTriggers = new aws.cognito.LambdaTriggers('lambda-triggers', {
+			new aws.cognito.LambdaTriggers(group, 'lambda-triggers', {
 				userPoolId,
 				triggers,
 			})
 
-			group.add(lambdaTriggers)
-
 			for (const item of Object.values(list)) {
-				const permission = new aws.lambda.Permission(`permission`, {
+				new aws.lambda.Permission(item.group, `permission`, {
 					action: 'lambda:InvokeFunction',
 					principal: 'cognito-idp.amazonaws.com',
 					functionArn: item.lambda.arn,
 					sourceArn: userPoolArn,
 				})
-				item.group.add(permission)
 
 				item.lambda.addEnvironment(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPoolId)
 				item.lambda.addEnvironment(`AUTH_${constantCase(id)}_CLIENT_ID`, clientId)
@@ -125,8 +120,7 @@ export const authFeature = defineFeature({
 	},
 	onApp(ctx) {
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.auth ?? {})) {
-			const group = new Node(this.name, id)
-			ctx.base.add(group)
+			const group = new Node(ctx.base, 'auth', id)
 
 			let emailConfig: aws.cognito.UserPoolProps['email'] | undefined
 
@@ -136,17 +130,17 @@ export const authFeature = defineFeature({
 				emailConfig = {
 					type: 'developer',
 					replyTo: props.messaging.replyTo,
-					sourceArn: ctx.base.import<aws.ARN>(`mail-${domainName}-arn`),
-					configurationSet: ctx.base.import<string>('mail-configuration-set'),
+					sourceArn: ctx.shared.get<aws.ARN>(`mail-${domainName}-arn`),
+					configurationSet: ctx.shared.get<string>('mail-configuration-set'),
 					from: props.messaging.fromName
 						? `${props.messaging.fromName} <${props.messaging.fromEmail}>`
 						: props.messaging.fromEmail,
 				}
 			}
 
-			const name = formatGlobalResourceName(ctx.appConfig.name, this.name, id)
+			const name = formatGlobalResourceName(ctx.appConfig.name, 'auth', id)
 
-			const userPool = new aws.cognito.UserPool('user-pool', {
+			const userPool = new aws.cognito.UserPool(group, 'user-pool', {
 				name,
 				// deletionProtection: true,
 				allowUserRegistration: props.allowUserRegistration,
@@ -155,9 +149,7 @@ export const authFeature = defineFeature({
 				email: emailConfig,
 			})
 
-			group.add(userPool)
-
-			const client = new aws.cognito.UserPoolClient('client', {
+			const client = new aws.cognito.UserPoolClient(group, 'client', {
 				userPoolId: userPool.id,
 				name,
 				validity: props.validity,
@@ -167,16 +159,14 @@ export const authFeature = defineFeature({
 				},
 			})
 
-			group.add(client)
-
 			// const domain = new aws.cognito.UserPoolDomain('domain', {
 			// 	userPoolId: userPool.id,
 			// 	domain: '',
 			// })
 
-			ctx.base.export(`auth-${id}-user-pool-arn`, userPool.arn)
-			ctx.base.export(`auth-${id}-user-pool-id`, userPool.id)
-			ctx.base.export(`auth-${id}-client-id`, client.id)
+			ctx.shared.set(`auth-${id}-user-pool-arn`, userPool.arn)
+			ctx.shared.set(`auth-${id}-user-pool-id`, userPool.id)
+			ctx.shared.set(`auth-${id}-client-id`, client.id)
 		}
 	},
 })

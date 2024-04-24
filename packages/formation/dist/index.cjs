@@ -1,3 +1,4 @@
+"use strict";
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -20,9 +21,9 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var src_exports = {};
 __export(src_exports, {
   App: () => App,
+  AppError: () => AppError,
   Asset: () => Asset,
   FileAsset: () => FileAsset,
-  ImportValueNotFound: () => ImportValueNotFound,
   Node: () => Node,
   Output: () => Output,
   RemoteAsset: () => RemoteAsset,
@@ -45,35 +46,37 @@ module.exports = __toCommonJS(src_exports);
 
 // src/core/node.ts
 var Node = class {
-  constructor(type, identifier) {
+  // private parent: Node
+  constructor(parent, type, identifier) {
+    this.parent = parent;
     this.type = type;
     this.identifier = identifier;
+    parent?.children.push(this);
   }
-  childs = /* @__PURE__ */ new Set();
-  parental;
+  children = [];
   get urn() {
-    return `${this.parental ? this.parental.urn : "urn"}:${this.type}:{${this.identifier}}`;
+    return `${this.parent ? this.parent.urn : "urn"}:${this.type}:{${this.identifier}}`;
   }
-  get parent() {
-    return this.parental;
-  }
-  get children() {
-    return this.childs;
-  }
-  add(...nodes) {
-    for (const node of nodes) {
-      if (node.parental) {
-        throw new Error(`Node already has a parent: ${node.urn}`);
-      }
-      node.parental = this;
-      for (const child of this.childs) {
-        if (child.urn === node.urn) {
-          throw new Error(`Duplicate nodes detected: ${node.urn}`);
-        }
-      }
-      this.childs.add(node);
-    }
-  }
+  // get parent() {
+  // 	return this.parental
+  // }
+  // get children() {
+  // 	return this.childs
+  // }
+  // add(...nodes: Node[]) {
+  // 	for (const node of nodes) {
+  // 		if (node.parental) {
+  // 			throw new Error(`Node already has a parent: ${node.urn}`)
+  // 		}
+  // 		node.parental = this
+  // 		for (const child of this.childs) {
+  // 			if (child.urn === node.urn) {
+  // 				throw new Error(`Duplicate nodes detected: ${node.urn}`)
+  // 			}
+  // 		}
+  // 		this.childs.add(node)
+  // 	}
+  // }
 };
 var flatten = (node) => {
   const list = [node];
@@ -83,10 +86,162 @@ var flatten = (node) => {
   return list;
 };
 
+// src/core/app.ts
+var App = class extends Node {
+  // private exported: ExportedData = {}
+  // private listeners = new Set<(data: ExportedData) => void>()
+  constructor(name) {
+    super(void 0, "App", name);
+    this.name = name;
+  }
+  get stacks() {
+    return this.children;
+  }
+  // add(stack: Stack) {
+  // 	if (stack instanceof Stack) {
+  // 		return super.add(stack)
+  // 	}
+  // 	throw new TypeError('You can only add stacks to an app')
+  // }
+  // import<T>(stack: string, key: string) {
+  // 	return new Output<T>([], resolve => {
+  // 		const get = (data: ExportedData) => {
+  // 			if (typeof data[stack]?.[key] !== 'undefined') {
+  // 				resolve(data[stack]?.[key] as T)
+  // 				this.listeners.delete(get)
+  // 			}
+  // 		}
+  // 		this.listeners.add(get)
+  // 		get(this.exported)
+  // 	})
+  // }
+  // setExportedData(stackName: string, data: ExportedData[string]) {
+  // 	this.exported[stackName] = data
+  // 	for (const listener of this.listeners) {
+  // 		listener(this.exported)
+  // 	}
+  // }
+};
+
+// src/core/asset.ts
+var import_promises = require("fs/promises");
+var Asset = class {
+  static fromJSON(json) {
+    return new StringAsset(JSON.stringify(json));
+  }
+  static fromString(string, encoding = "utf8") {
+    return new StringAsset(string, encoding);
+  }
+  static fromFile(path) {
+    return new FileAsset(path);
+  }
+  static fromRemote(url) {
+    return new RemoteAsset(url);
+  }
+};
+var StringAsset = class extends Asset {
+  constructor(value, encoding = "utf8") {
+    super();
+    this.value = value;
+    this.encoding = encoding;
+  }
+  async load() {
+    return Buffer.from(this.value, this.encoding);
+  }
+};
+var FileAsset = class extends Asset {
+  constructor(path) {
+    super();
+    this.path = path;
+  }
+  async load() {
+    return (0, import_promises.readFile)(this.path);
+  }
+};
+var RemoteAsset = class extends Asset {
+  constructor(url) {
+    super();
+    this.url = url;
+  }
+  async load() {
+    const response = await fetch(this.url);
+    const data = await response.arrayBuffer();
+    return Buffer.from(data);
+  }
+};
+
+// src/core/error.ts
+var ResourceError = class _ResourceError extends Error {
+  constructor(urn, type, operation, message) {
+    super(message);
+    this.urn = urn;
+    this.type = type;
+    this.operation = operation;
+  }
+  static wrap(urn, type, operation, error) {
+    if (error instanceof Error) {
+      return new _ResourceError(urn, type, operation, error.message);
+    }
+    return new _ResourceError(urn, type, operation, "Unknown Error");
+  }
+};
+var AppError = class extends Error {
+  constructor(app, issues, message) {
+    super(message);
+    this.app = app;
+    this.issues = issues;
+  }
+};
+var StackError = class extends Error {
+  constructor(stack, issues, message) {
+    super(message);
+    this.stack = stack;
+    this.issues = issues;
+  }
+};
+var ResourceNotFound = class extends Error {
+};
+var ResourceAlreadyExists = class extends Error {
+};
+
+// src/core/stack.ts
+var Stack = class extends Node {
+  constructor(app, name) {
+    super(app, "Stack", name);
+    this.app = app;
+    this.name = name;
+  }
+  exported = {};
+  dependencies = /* @__PURE__ */ new Set();
+  dependsOn(...stacks) {
+    for (const stack of stacks) {
+      if (stack.app !== this.app) {
+        throw new Error(`Stacks that belong to different apps can't be dependent on each other`);
+      }
+      this.dependencies.add(stack);
+    }
+    return this;
+  }
+  get resources() {
+    return flatten(this).filter((node) => node instanceof Resource);
+  }
+  // export(key: string, value: Input<unknown>) {
+  // 	this.exported[key] = value
+  // 	return this
+  // }
+  // import<T>(key: string): Input<T> {
+  // 	if (key in this.exported) {
+  // 		return this.exported[key] as Input<T>
+  // 	}
+  // 	throw new ImportValueNotFound(this.name, key)
+  // }
+};
+
 // src/core/resource.ts
 var Resource = class extends Node {
-  constructor(type, identifier, inputs) {
-    super(type, identifier);
+  constructor(parent, type, identifier, inputs) {
+    super(parent, type, identifier);
+    this.parent = parent;
     this.type = type;
     this.identifier = identifier;
     if (inputs) {
@@ -97,6 +252,17 @@ var Resource = class extends Node {
   listeners = /* @__PURE__ */ new Set();
   dependencies = /* @__PURE__ */ new Set();
   deletionPolicy = "before-deployment";
+  get stack() {
+    let current = this;
+    while (current) {
+      const parent = current.parent;
+      if (parent instanceof Stack) {
+        return parent;
+      }
+      current = parent;
+    }
+    throw new Error(`Resource stack can't be found`);
+  }
   // set deletionPolicy(policy: ResourceDeletionPolicy) {
   // 	this.resourcePolicies?.deletionPolicy policy
   // }
@@ -105,7 +271,11 @@ var Resource = class extends Node {
   // }
   dependsOn(...resources) {
     for (const resource of resources) {
-      this.dependencies.add(resource);
+      if (resource.stack === this.stack) {
+        this.dependencies.add(resource);
+      } else {
+        this.stack.dependsOn(resource.stack);
+      }
     }
     return this;
   }
@@ -135,8 +305,9 @@ var Resource = class extends Node {
     if (typeof value === "undefined") {
       return {};
     }
+    const definedValue = value;
     return {
-      [name]: transform ? transform(value) : value
+      [name]: transform ? transform(definedValue) : definedValue
     };
   }
 };
@@ -223,157 +394,16 @@ function unwrap(input, defaultValue) {
   return input;
 }
 
-// src/core/error.ts
-var ResourceError = class _ResourceError extends Error {
-  constructor(urn, type, operation, message) {
-    super(message);
-    this.urn = urn;
-    this.type = type;
-    this.operation = operation;
-  }
-  static wrap(urn, type, operation, error) {
-    if (error instanceof Error) {
-      return new _ResourceError(urn, type, operation, error.message);
-    }
-    return new _ResourceError(urn, type, operation, "Unknown Error");
-  }
-};
-var StackError = class extends Error {
-  constructor(issues, message) {
-    super(message);
-    this.issues = issues;
-  }
-};
-var ResourceNotFound = class extends Error {
-};
-var ResourceAlreadyExists = class extends Error {
-};
-var ImportValueNotFound = class extends Error {
-  constructor(stack, key) {
-    super(`Import value "${key}" doesn't exist for the "${stack}" stack`);
-  }
-};
-
-// src/core/stack.ts
-var Stack = class extends Node {
-  constructor(name) {
-    super("Stack", name);
-    this.name = name;
-  }
-  exported = {};
-  dependencies = /* @__PURE__ */ new Set();
-  get resources() {
-    return flatten(this).filter((node) => node instanceof Resource);
-  }
-  export(key, value) {
-    this.exported[key] = value;
-    return this;
-  }
-  import(key) {
-    if (key in this.exported) {
-      return this.exported[key];
-    }
-    throw new ImportValueNotFound(this.name, key);
-  }
-};
-
-// src/core/app.ts
-var App = class extends Node {
-  constructor(name) {
-    super("App", name);
-    this.name = name;
-  }
-  exported;
-  listeners = /* @__PURE__ */ new Set();
-  get stacks() {
-    return this.children;
-  }
-  add(stack) {
-    if (stack instanceof Stack) {
-      return super.add(stack);
-    }
-    throw new TypeError("You can only add stacks to an app");
-  }
-  import(stack, key) {
-    return new Output([], (resolve) => {
-      const get = (data) => {
-        if (typeof data[stack]?.[key] !== "undefined") {
-          resolve(data[stack][key]);
-          this.listeners.delete(get);
-        }
-      };
-      if (this.exported) {
-        get(this.exported);
-      } else {
-        this.listeners.add(get);
-      }
-    });
-  }
-  setExportedData(data) {
-    for (const listener of this.listeners) {
-      listener(data);
-    }
-    this.exported = data;
-  }
-};
-
-// src/core/asset.ts
-var import_promises = require("fs/promises");
-var Asset = class {
-  static fromJSON(json) {
-    return new StringAsset(JSON.stringify(json));
-  }
-  static fromString(string, encoding = "utf8") {
-    return new StringAsset(string, encoding);
-  }
-  static fromFile(path) {
-    return new FileAsset(path);
-  }
-  static fromRemote(url) {
-    return new RemoteAsset(url);
-  }
-};
-var StringAsset = class extends Asset {
-  constructor(value, encoding = "utf8") {
-    super();
-    this.value = value;
-    this.encoding = encoding;
-  }
-  async load() {
-    return Buffer.from(this.value, this.encoding);
-  }
-};
-var FileAsset = class extends Asset {
-  constructor(path) {
-    super();
-    this.path = path;
-  }
-  async load() {
-    return (0, import_promises.readFile)(this.path);
-  }
-};
-var RemoteAsset = class extends Asset {
-  constructor(url) {
-    super();
-    this.url = url;
-  }
-  async load() {
-    const response = await fetch(this.url);
-    const data = await response.arrayBuffer();
-    return Buffer.from(data);
-  }
-};
-
 // src/core/workspace/workspace.ts
 var import_promise_dag = require("promise-dag");
 
 // src/core/workspace/lock.ts
-var lockApp = async (stateProvider, urn, fn) => {
+var lockApp = async (stateProvider, app, fn) => {
   let release;
   try {
-    release = await stateProvider.lock(urn);
+    release = await stateProvider.lock(app.urn);
   } catch (error) {
-    throw new Error(`Already in progress: ${urn}`);
+    throw new Error(`Already in progress: ${app.urn}`);
   }
   let result;
   try {
@@ -481,36 +511,134 @@ var WorkSpace = class {
   constructor(props) {
     this.props = props;
   }
-  getExportedData(appState) {
-    const data = {};
-    for (const stackData of Object.values(appState.stacks)) {
-      data[stackData.name] = stackData.exports;
-    }
-    return data;
-  }
-  // async deployApp(app: App) {
-  // 	return this.lockedOperation(app.urn, async () => {
-  // 		const appState = await this.props.stateProvider.get(app.urn)
-  // 		for (const stack of app.stacks) {
-  // 			await this.deployStack(stack)
-  // 		}
-  // 		console.log(appState)
-  // 		// for (const [urn, stackState] of appState) {
-  // 		// 	stackState
-  // 		// }
-  // 	})
+  // private getExportedData(appState: AppState) {
+  // 	const data: ExportedData = {}
+  // 	for (const stackData of Object.values(appState.stacks)) {
+  // 		data[stackData.name] = stackData.exports
+  // 	}
+  // 	return data
   // }
-  // async diffStack(stack: Stack) {
+  runGraph(stack, graph) {
+    try {
+      const promises = (0, import_promise_dag.run)(graph);
+      return Promise.allSettled(Object.values(promises));
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new StackError(stack, [], error.message);
+      }
+      throw error;
+    }
+  }
+  // getStackApp(stack: Stack) {
   // 	const app = stack.parent
   // 	if (!app || !(app instanceof App)) {
-  // 		throw new StackError([], 'Stack must belong to an App')
+  // 		throw new StackError(stack.name, [], 'Stack must belong to an App')
   // 	}
-  // 	const appState = await this.props.stateProvider.get(app.urn)
-  // 	const stackState = (appState[stack.urn] = appState[stack.urn] ?? {
+  // 	return app
+  // }
+  async deployApp(app, filters) {
+    return lockApp(this.props.stateProvider, app, async () => {
+      const appState = await this.props.stateProvider.get(app.urn) ?? {
+        name: app.name,
+        stacks: {}
+      };
+      if (!appState.token) {
+        appState.token = (0, import_crypto.randomUUID)();
+        await this.props.stateProvider.update(app.urn, appState);
+      }
+      let stacks = app.stacks;
+      if (filters && filters.length > 0) {
+        stacks = app.stacks.filter((stack) => filters.includes(stack.name));
+      }
+      const graph = {};
+      for (const stack of stacks) {
+        graph[stack.urn] = [
+          ...[...stack.dependencies].map((dep) => dep.urn),
+          async () => {
+            const resources = stack.resources;
+            const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
+              name: stack.name,
+              // exports: {},
+              dependencies: [],
+              resources: {}
+            };
+            const deleteResourcesBefore = {};
+            const deleteResourcesAfter = {};
+            for (const [urnStr, state] of Object.entries(stackState.resources)) {
+              const urn = urnStr;
+              const resource = resources.find((r) => r.urn === urn);
+              if (!resource) {
+                if (state.policies.deletion === "before-deployment") {
+                  deleteResourcesBefore[urn] = state;
+                }
+                if (state.policies.deletion === "after-deployment") {
+                  deleteResourcesAfter[urn] = state;
+                }
+              }
+            }
+            if (Object.keys(deleteResourcesBefore).length > 0) {
+              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore);
+            }
+            await this.deployStackResources(app.urn, appState, stackState, resources);
+            if (Object.keys(deleteResourcesAfter).length > 0) {
+              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter);
+            }
+            stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
+          }
+        ];
+      }
+      const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(graph)));
+      delete appState.token;
+      await this.props.stateProvider.update(app.urn, appState);
+      const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length > 0) {
+        throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
+      }
+      return appState;
+    });
+  }
+  async deleteApp(app) {
+    return lockApp(this.props.stateProvider, app, async () => {
+      const appState = await this.props.stateProvider.get(app.urn);
+      if (!appState) {
+        throw new AppError(app.name, [], `App already deleted: ${app.name}`);
+      }
+      if (!appState.token) {
+        appState.token = (0, import_crypto.randomUUID)();
+        await this.props.stateProvider.update(app.urn, appState);
+      }
+      const graph = {};
+      for (const [_urn, stackState] of Object.entries(appState.stacks)) {
+        const urn = _urn;
+        graph[urn] = [
+          ...this.dependentsOn(appState.stacks, urn),
+          async () => {
+            await this.deleteStackResources(app.urn, appState, stackState, stackState.resources);
+            delete appState.stacks[urn];
+          }
+        ];
+      }
+      const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(graph)));
+      delete appState.token;
+      const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length > 0) {
+        throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
+      }
+      await this.props.stateProvider.delete(app.urn);
+    });
+  }
+  // async diffStack(stack: Stack) {
+  // 	const app = this.getStackApp(stack)
+  // 	const appState = (await this.props.stateProvider.get(app.urn)) ?? {
+  // 		name: app.name,
+  // 		stacks: {},
+  // 	}
+  // 	app.setExportedData(this.getExportedData(appState))
+  // 	const stackState: StackState = appState.stacks[stack.urn] ?? {
   // 		name: stack.name,
   // 		exports: {},
   // 		resources: {},
-  // 	})
+  // 	}
   // 	const resources = stack.resources
   // 	const creates: URN[] = []
   // 	const updates: URN[] = []
@@ -531,17 +659,15 @@ var WorkSpace = class {
   // 		const resourceState = stackState.resources[resource.urn]
   // 		if (resourceState) {
   // 			const state = resource.toState()
-  // 			const [_, assetHashes] = await this.resolveAssets(state.assets ?? {})
-  // 			const document = this.unwrapDocument(resource.urn, state.document ?? {}, false)
+  // 			const [_, assetHashes] = await loadAssets(state.assets ?? {})
+  // 			const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
   // 			if (
-  // 				!this.compare(
+  // 				!compareDocuments(
   // 					//
   // 					[resourceState.local, resourceState.assets],
   // 					[document, assetHashes]
   // 				)
   // 			) {
-  // 				// console.log('S', JSON.stringify(resourceState.local))
-  // 				// console.log('D', JSON.stringify(document))
   // 				updates.push(resource.urn)
   // 			}
   // 		} else {
@@ -549,91 +675,113 @@ var WorkSpace = class {
   // 		}
   // 	}
   // 	return {
+  // 		changes: creates.length + updates.length + deletes.length,
   // 		creates,
   // 		updates,
   // 		deletes,
   // 	}
   // }
-  async deployStack(stack) {
-    const app = stack.parent;
-    if (!app || !(app instanceof App)) {
-      throw new StackError([], "Stack must belong to an App");
-    }
-    return lockApp(this.props.stateProvider, app.urn, async () => {
-      const appState = await this.props.stateProvider.get(app.urn) ?? {
-        name: app.name,
-        stacks: {}
-      };
-      if (!appState.token) {
-        appState.token = (0, import_crypto.randomUUID)();
-        await this.props.stateProvider.update(app.urn, appState);
-      }
-      const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-        name: stack.name,
-        exports: {},
-        resources: {}
-      };
-      const resources = stack.resources;
-      app.setExportedData(this.getExportedData(appState));
-      const deleteResourcesBefore = {};
-      const deleteResourcesAfter = {};
-      for (const [urnStr, state] of Object.entries(stackState.resources)) {
-        const urn = urnStr;
-        const resource = resources.find((r) => r.urn === urn);
-        if (!resource) {
-          if (state.policies.deletion === "before-deployment") {
-            deleteResourcesBefore[urn] = state;
-          }
-          if (state.policies.deletion === "after-deployment") {
-            deleteResourcesAfter[urn] = state;
-          }
-        }
-      }
-      try {
-        if (Object.keys(deleteResourcesBefore).length > 0) {
-          await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore);
-        }
-        await this.deployStackResources(app.urn, appState, stackState, resources);
-        if (Object.keys(deleteResourcesAfter).length > 0) {
-          await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter);
-        }
-      } catch (error) {
-        throw error;
-      }
-      delete appState.token;
-      stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported);
-      await this.props.stateProvider.update(app.urn, appState);
-      return stackState;
-    });
-  }
-  async deleteStack(stack) {
-    const app = stack.parent;
-    if (!app || !(app instanceof App)) {
-      throw new StackError([], "Stack must belong to an App");
-    }
-    return lockApp(this.props.stateProvider, app.urn, async () => {
-      const appState = await this.props.stateProvider.get(app.urn) ?? {
-        name: app.name,
-        stacks: {}
-      };
-      if (!appState.token) {
-        appState.token = (0, import_crypto.randomUUID)();
-        await this.props.stateProvider.update(app.urn, appState);
-      }
-      const stackState = appState.stacks[stack.urn];
-      if (!stackState) {
-        throw new StackError([], `Stack already deleted: ${stack.name}`);
-      }
-      try {
-        await this.deleteStackResources(app.urn, appState, stackState, stackState.resources);
-      } catch (error) {
-        throw error;
-      }
-      delete appState.token;
-      delete appState.stacks[stack.urn];
-      await this.props.stateProvider.update(app.urn, appState);
-    });
-  }
+  // async deployStack(stack: Stack) {
+  // 	const app = this.getStackApp(stack)
+  // 	return lockApp(this.props.stateProvider, app, async () => {
+  // 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+  // 			name: app.name,
+  // 			stacks: {},
+  // 		}
+  // 		// -------------------------------------------------------
+  // 		// Set the idempotent token when no token exists.
+  // 		if (!appState.token) {
+  // 			appState.token = randomUUID()
+  // 			await this.props.stateProvider.update(app.urn, appState)
+  // 		}
+  // 		// -------------------------------------------------------
+  // 		const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
+  // 			name: stack.name,
+  // 			exports: {},
+  // 			resources: {},
+  // 		})
+  // 		const resources = stack.resources
+  // 		// -------------------------------------------------------------------
+  // 		// Set the exported data on the app.
+  // 		for (const stackData of Object.values(appState.stacks)) {
+  // 			app.setExportedData(stackData.name, stackData.exports)
+  // 		}
+  // 		// -------------------------------------------------------------------
+  // 		// Find Deletable resources...
+  // 		const deleteResourcesBefore: Record<URN, ResourceState> = {}
+  // 		const deleteResourcesAfter: Record<URN, ResourceState> = {}
+  // 		for (const [urnStr, state] of Object.entries(stackState.resources)) {
+  // 			const urn = urnStr as URN
+  // 			const resource = resources.find(r => r.urn === urn)
+  // 			if (!resource) {
+  // 				if (state.policies.deletion === 'before-deployment') {
+  // 					deleteResourcesBefore[urn] = state
+  // 				}
+  // 				if (state.policies.deletion === 'after-deployment') {
+  // 					deleteResourcesAfter[urn] = state
+  // 				}
+  // 			}
+  // 		}
+  // 		// -------------------------------------------------------------------
+  // 		// Process resources...
+  // 		try {
+  // 			// -------------------------------------------------------------------
+  // 			// Delete resources before deployment...
+  // 			if (Object.keys(deleteResourcesBefore).length > 0) {
+  // 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
+  // 			}
+  // 			// -------------------------------------------------------------------
+  // 			// Deploy resources...
+  // 			await this.deployStackResources(app.urn, appState, stackState, resources)
+  // 			// -------------------------------------------------------------------
+  // 			// Delete resources after deployment...
+  // 			if (Object.keys(deleteResourcesAfter).length > 0) {
+  // 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
+  // 			}
+  // 			// -------------------------------------------------------------------
+  // 		} catch (error) {
+  // 			// const resourceError = new ResourceError()
+  // 			throw error
+  // 		}
+  // 		// -------------------------------------------------------------------
+  // 		// Delete the idempotant token when the deployment reaches the end.
+  // 		delete appState.token
+  // 		// -------------------------------------------------------------------
+  // 		// Save stack exports
+  // 		stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
+  // 		await this.props.stateProvider.update(app.urn, appState)
+  // 		// -------------------------------------------------------------------
+  // 		return stackState
+  // 	})
+  // }
+  // async deleteStack(stack: Stack) {
+  // 	const app = this.getStackApp(stack)
+  // 	return lockApp(this.props.stateProvider, app, async () => {
+  // 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
+  // 			name: app.name,
+  // 			stacks: {},
+  // 		}
+  // 		// -------------------------------------------------------
+  // 		// Set the idempotent token when no token exists.
+  // 		if (!appState.token) {
+  // 			appState.token = randomUUID()
+  // 			await this.props.stateProvider.update(app.urn, appState)
+  // 		}
+  // 		// -------------------------------------------------------
+  // 		const stackState = appState.stacks[stack.urn]
+  // 		if (!stackState) {
+  // 			throw new StackError(stack.name, [], `Stack already deleted: ${stack.name}`)
+  // 		}
+  // 		try {
+  // 			await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
+  // 		} catch (error) {
+  // 			throw error
+  // 		}
+  // 		delete appState.token
+  // 		delete appState.stacks[stack.urn]
+  // 		await this.props.stateProvider.update(app.urn, appState)
+  // 	})
+  // }
   async getRemoteResource(props) {
     let remote;
     try {
@@ -655,10 +803,9 @@ var WorkSpace = class {
           const [assets, assetHashes] = await loadAssets(state.assets ?? {});
           const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {});
           const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {});
-          const token = createIdempotantToken(appState.token, resource.urn, "create");
           let resourceState = stackState.resources[resource.urn];
           if (!resourceState) {
-            const token2 = createIdempotantToken(appState.token, resource.urn, "create");
+            const token = createIdempotantToken(appState.token, resource.urn, "create");
             let id;
             try {
               id = await provider.create({
@@ -667,7 +814,7 @@ var WorkSpace = class {
                 document: resolveDocumentAssets(cloneObject(document), assets),
                 assets,
                 extra,
-                token: token2
+                token
               });
             } catch (error) {
               throw ResourceError.wrap(resource.urn, resource.type, "create", error);
@@ -701,7 +848,7 @@ var WorkSpace = class {
               [document, assetHashes]
             )
           ) {
-            const token2 = createIdempotantToken(appState.token, resource.urn, "update");
+            const token = createIdempotantToken(appState.token, resource.urn, "update");
             let id;
             try {
               id = await provider.update({
@@ -710,10 +857,10 @@ var WorkSpace = class {
                 type: resource.type,
                 remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
                 oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
-                newDocument: document,
+                newDocument: resolveDocumentAssets(cloneObject(document), assets),
                 assets,
                 extra,
-                token: token2
+                token
               });
             } catch (error) {
               throw ResourceError.wrap(resource.urn, resource.type, "update", error);
@@ -738,11 +885,11 @@ var WorkSpace = class {
         }
       ];
     }
-    const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(deployGraph)));
+    const results = await this.runGraph(stackState.name, deployGraph);
     await this.props.stateProvider.update(appUrn, appState);
     const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
     if (errors.length > 0) {
-      throw new StackError(errors, "Deploying resources failed.");
+      throw new StackError(stackState.name, [...new Set(errors)], "Deploying resources failed.");
     }
   }
   dependentsOn(resources, dependency) {
@@ -783,11 +930,11 @@ var WorkSpace = class {
         }
       ];
     }
-    const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(deleteGraph)));
+    const results = await this.runGraph(stackState.name, deleteGraph);
     await this.props.stateProvider.update(appUrn, appState);
     const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
     if (errors.length > 0) {
-      throw new StackError(errors, "Deleting resources failed.");
+      throw new StackError(appState.name, [...new Set(errors)], "Deleting resources failed.");
     }
   }
   async healFromUnknownRemoteState(stackState) {
@@ -818,7 +965,7 @@ var WorkSpace = class {
     );
     const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
     if (errors.length > 0) {
-      throw new StackError(errors, "Healing remote state failed.");
+      throw new StackError(stackState.name, [...new Set(errors)], "Healing remote state failed.");
     }
   }
 };
@@ -995,8 +1142,9 @@ var CertificateValidationProvider = class {
 
 // src/provider/aws/acm/certificate-validation.ts
 var CertificateValidation = class extends Resource {
-  constructor(id, props) {
-    super("AWS::CertificateManager::CertificateValidation", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CertificateManager::CertificateValidation", id, props);
+    this.parent = parent;
     this.props = props;
     this.deletionPolicy = "retain";
   }
@@ -1016,8 +1164,9 @@ var CertificateValidation = class extends Resource {
 
 // src/provider/aws/acm/certificate.ts
 var Certificate = class extends Resource {
-  constructor(id, props) {
-    super("AWS::CertificateManager::Certificate", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CertificateManager::Certificate", id, props);
+    this.parent = parent;
     this.props = props;
     this.deletionPolicy = "after-deployment";
   }
@@ -1053,11 +1202,10 @@ var Certificate = class extends Resource {
   }
   get issuedArn() {
     if (!this.validation) {
-      this.validation = new CertificateValidation("validation", {
+      this.validation = new CertificateValidation(this, "validation", {
         certificateArn: this.arn,
         region: this.props.region
       });
-      this.add(this.validation);
     }
     return this.validation.arn;
   }
@@ -1158,8 +1306,9 @@ var DataSourceProvider = class {
 
 // src/provider/aws/appsync/data-source.ts
 var DataSource = class extends Resource {
-  constructor(id, props) {
-    super("AWS::AppSync::DataSource", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::DataSource", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-appsync-data-source";
@@ -1205,8 +1354,9 @@ var CloudControlApiResource = class extends Resource {
 
 // src/provider/aws/appsync/domain-name-api-association.ts
 var DomainNameApiAssociation = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::AppSync::DomainNameApiAssociation", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::DomainNameApiAssociation", id, props);
+    this.parent = parent;
     this.props = props;
   }
   toState() {
@@ -1221,8 +1371,9 @@ var DomainNameApiAssociation = class extends CloudControlApiResource {
 
 // src/provider/aws/appsync/domain-name.ts
 var DomainName = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::AppSync::DomainName", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::DomainName", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get appSyncDomainName() {
@@ -1246,8 +1397,9 @@ var DomainName = class extends CloudControlApiResource {
 
 // src/provider/aws/appsync/function-configuration.ts
 var FunctionConfiguration = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::AppSync::FunctionConfiguration", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::FunctionConfiguration", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -1331,8 +1483,9 @@ var import_duration = require("@awsless/duration");
 var GraphQLApi = class extends Resource {
   // private defaultAuthorization?: GraphQLAuthorization
   // private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
-  constructor(id, props) {
-    super("AWS::AppSync::GraphQLApi", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::GraphQLApi", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-appsync-graphql-api";
@@ -1431,7 +1584,7 @@ var GraphQLApi = class extends Resource {
         apiType: unwrap(this.props.type, "graphql").toUpperCase(),
         ...this.attr("mergedApiExecutionRoleArn", this.props.role),
         ...this.formatAuth(unwrap(auth.default)),
-        additionalAuthenticationProviders: unwrap(auth.additional, []).map(unwrap).map(this.formatAuth),
+        additionalAuthenticationProviders: unwrap(auth.additional, []).map((v) => unwrap(v)).map(this.formatAuth),
         visibility: unwrap(this.props.visibility, true) ? "GLOBAL" : "PRIVATE",
         introspectionConfig: unwrap(this.props.introspection, true) ? "ENABLED" : "DISABLED",
         environmentVariables: JSON.stringify(unwrap(this.props.environment, {}))
@@ -1505,8 +1658,9 @@ var GraphQLSchemaProvider = class {
 
 // src/provider/aws/appsync/graphql-schema.ts
 var GraphQLSchema = class extends Resource {
-  constructor(id, props) {
-    super("AWS::AppSync::GraphQLSchema", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::GraphQLSchema", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-appsync-graphql-schema";
@@ -1524,8 +1678,9 @@ var GraphQLSchema = class extends Resource {
 
 // src/provider/aws/appsync/resolver.ts
 var Resolver = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::AppSync::Resolver", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::Resolver", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -1556,8 +1711,9 @@ var Resolver = class extends CloudControlApiResource {
 
 // src/provider/aws/appsync/source-api-association.ts
 var SourceApiAssociation = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::AppSync::SourceApiAssociation", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::AppSync::SourceApiAssociation", id, props);
+    this.parent = parent;
     this.props = props;
   }
   toState() {
@@ -1587,7 +1743,10 @@ var import_duration2 = require("@awsless/duration");
 var CloudControlApiProvider = class {
   constructor(props) {
     this.props = props;
-    this.client = new import_client_cloudcontrol.CloudControlClient(props);
+    this.client = new import_client_cloudcontrol.CloudControlClient({
+      maxAttempts: 10,
+      ...props
+    });
   }
   client;
   own(id) {
@@ -1599,10 +1758,17 @@ var CloudControlApiProvider = class {
     const timeout = Number((0, import_duration2.toMilliSeconds)(this.props.timeout ?? (0, import_duration2.minutes)(1)));
     while (true) {
       if (event.OperationStatus === "SUCCESS") {
-        return event.Identifier;
+        if (event.Identifier) {
+          return event.Identifier;
+        } else {
+          throw new Error(`AWS Cloud Control API Identifier not set for SUCCESS status.`);
+        }
       }
       if (event.OperationStatus === "FAILED") {
         if (event.ErrorCode === "AlreadyExists") {
+          if (event.Identifier) {
+            return event.Identifier;
+          }
         }
         if (event.ErrorCode === "NotFound") {
           throw new ResourceNotFound(event.StatusMessage);
@@ -1617,18 +1783,12 @@ var CloudControlApiProvider = class {
       const after = event.RetryAfter?.getTime() ?? 0;
       const delay = Math.max(after - now, 1e3);
       await sleep(delay);
-      try {
-        const status = await this.client.send(
-          new import_client_cloudcontrol.GetResourceRequestStatusCommand({
-            RequestToken: token
-          })
-        );
-        event = status.ProgressEvent;
-      } catch (error) {
-        console.log(error);
-        console.log(error.StatusMessage);
-        console.log(["EHOSTUNREACH"].includes(error.StatusMessage));
-      }
+      const status = await this.client.send(
+        new import_client_cloudcontrol.GetResourceRequestStatusCommand({
+          RequestToken: token
+        })
+      );
+      event = status.ProgressEvent;
     }
   }
   updateOperations(remoteDocument, oldDocument, newDocument) {
@@ -1697,8 +1857,9 @@ __export(cloud_front_exports, {
 // src/provider/aws/cloud-front/cache-policy.ts
 var import_duration3 = require("@awsless/duration");
 var CachePolicy = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::CloudFront::CachePolicy", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::CachePolicy", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -1737,8 +1898,9 @@ var CachePolicy = class extends CloudControlApiResource {
 // src/provider/aws/cloud-front/distribution.ts
 var import_duration4 = require("@awsless/duration");
 var Distribution = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::CloudFront::Distribution", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::Distribution", id, props);
+    this.parent = parent;
     this.props = props;
   }
   // get arn() {
@@ -1899,8 +2061,9 @@ var InvalidateCacheProvider = class {
 
 // src/provider/aws/cloud-front/invalidate-cache.ts
 var InvalidateCache = class extends Resource {
-  constructor(id, props) {
-    super("AWS::CloudFront::InvalidateCache", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::InvalidateCache", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-cloud-front-invalidate-cache";
@@ -1917,8 +2080,9 @@ var InvalidateCache = class extends Resource {
 
 // src/provider/aws/cloud-front/origin-access-control.ts
 var OriginAccessControl = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::CloudFront::OriginAccessControl", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::OriginAccessControl", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -1941,8 +2105,9 @@ var OriginAccessControl = class extends CloudControlApiResource {
 // src/provider/aws/cloud-front/origin-request-policy.ts
 var import_change_case = require("change-case");
 var OriginRequestPolicy = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::CloudFront::OriginRequestPolicy", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::OriginRequestPolicy", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -1977,8 +2142,9 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
 // src/provider/aws/cloud-front/response-headers-policy.ts
 var import_duration5 = require("@awsless/duration");
 var ResponseHeadersPolicy = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::CloudFront::ResponseHeadersPolicy", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::ResponseHeadersPolicy", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -2069,8 +2235,9 @@ __export(cloud_watch_exports, {
 // src/provider/aws/cloud-watch/log-group.ts
 var import_duration6 = require("@awsless/duration");
 var LogGroup = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Logs::LogGroup", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Logs::LogGroup", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -2116,8 +2283,9 @@ __export(cognito_exports, {
 // src/provider/aws/cognito/user-pool-client.ts
 var import_duration7 = require("@awsless/duration");
 var UserPoolClient = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Cognito::UserPoolClient", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Cognito::UserPoolClient", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -2212,8 +2380,9 @@ var UserPoolClient = class extends CloudControlApiResource {
 
 // src/provider/aws/cognito/user-pool-domain.ts
 var UserPoolDomain = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Cognito::UserPoolDomain", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Cognito::UserPoolDomain", id, props);
+    this.parent = parent;
     this.props = props;
   }
   // get domain() {
@@ -2236,8 +2405,9 @@ var UserPoolDomain = class extends CloudControlApiResource {
 var import_change_case2 = require("change-case");
 var import_duration8 = require("@awsless/duration");
 var UserPool = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Cognito::UserPool", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Cognito::UserPool", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -2261,11 +2431,10 @@ var UserPool = class extends CloudControlApiResource {
   // 	return domain
   // }
   addClient(id, props) {
-    const client = new UserPoolClient(id, {
+    const client = new UserPoolClient(this, id, {
       ...props,
       userPoolId: this.id
     });
-    this.add(client);
     return client;
   }
   toState() {
@@ -2335,8 +2504,9 @@ var UserPool = class extends CloudControlApiResource {
 
 // src/provider/aws/cognito/lambda-triggers.ts
 var LambdaTriggers = class extends Resource {
-  constructor(id, props) {
-    super("AWS::Cognito::UserPoolLambdaConfig", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Cognito::UserPoolLambdaConfig", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-cognito-lambda-triggers";
@@ -2434,7 +2604,7 @@ var LambdaTriggersProvider = class {
 // src/provider/aws/dynamodb/index.ts
 var dynamodb_exports = {};
 __export(dynamodb_exports, {
-  DynamoDBStateProvider: () => DynamoDBStateProvider,
+  StateProvider: () => StateProvider,
   Table: () => Table,
   TableItem: () => TableItem,
   TableItemProvider: () => TableItemProvider
@@ -2443,34 +2613,33 @@ __export(dynamodb_exports, {
 // src/provider/aws/dynamodb/state-provider.ts
 var import_util_dynamodb = require("@aws-sdk/util-dynamodb");
 var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
-var DynamoDBStateProvider = class {
+var StateProvider = class {
   constructor(props) {
     this.props = props;
     this.client = new import_client_dynamodb.DynamoDB(props);
-    this.id = Math.floor(Math.random() * 1e5);
   }
   client;
-  id;
   async lock(urn) {
+    const id = Math.floor(Math.random() * 1e5);
+    const props = {
+      TableName: this.props.tableName,
+      Key: (0, import_util_dynamodb.marshall)({ urn }),
+      ExpressionAttributeNames: { "#lock": "lock" },
+      ExpressionAttributeValues: { ":id": (0, import_util_dynamodb.marshall)(id) }
+    };
     await this.client.send(
       new import_client_dynamodb.UpdateItemCommand({
-        TableName: this.props.tableName,
-        Key: (0, import_util_dynamodb.marshall)({ urn }),
+        ...props,
         UpdateExpression: "SET #lock = :id",
-        ConditionExpression: "attribute_not_exists(#lock)",
-        ExpressionAttributeNames: { "#lock": "lock" },
-        ExpressionAttributeValues: { ":id": (0, import_util_dynamodb.marshall)(this.id) }
+        ConditionExpression: "attribute_not_exists(#lock)"
       })
     );
     return async () => {
       await this.client.send(
         new import_client_dynamodb.UpdateItemCommand({
-          TableName: this.props.tableName,
-          Key: (0, import_util_dynamodb.marshall)({ urn }),
+          ...props,
           UpdateExpression: "REMOVE #lock",
-          ConditionExpression: "#lock = :id",
-          ExpressionAttributeNames: { "#lock": "lock" },
-          ExpressionAttributeValues: { ":id": (0, import_util_dynamodb.marshall)(this.id) }
+          ConditionExpression: "#lock = :id"
         })
       );
     };
@@ -2600,14 +2769,12 @@ var TableItemProvider = class {
 
 // src/provider/aws/dynamodb/table-item.ts
 var TableItem = class extends Resource {
-  constructor(id, props) {
-    super("AWS::DynamoDB::Table::Item", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::DynamoDB::Table::Item", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-dynamodb-table-item";
-  // get staticProps() {
-  // 	return ['table', 'key']
-  // }
   toState() {
     const table = this.props.table;
     return {
@@ -2626,8 +2793,9 @@ var TableItem = class extends Resource {
 // src/provider/aws/dynamodb/table.ts
 var import_change_case3 = require("change-case");
 var Table = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::DynamoDB::Table", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::DynamoDB::Table", id, props);
+    this.parent = parent;
     this.props = props;
     this.indexes = { ...this.props.indexes || {} };
   }
@@ -2654,12 +2822,10 @@ var Table = class extends CloudControlApiResource {
     this.indexes[name] = props;
   }
   addItem(id, item) {
-    const tableItem = new TableItem(id, {
+    return new TableItem(this, id, {
       table: this,
       item
     });
-    this.add(tableItem);
-    return tableItem;
   }
   get streamPermissions() {
     return {
@@ -2780,8 +2946,9 @@ __export(ec2_exports, {
 
 // src/provider/aws/ec2/vpc.ts
 var Vpc = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::VPC", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::VPC", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -2810,8 +2977,9 @@ var Vpc = class extends CloudControlApiResource {
 
 // src/provider/aws/ec2/vpc-gateway-attachment.ts
 var VPCGatewayAttachment = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::VPCGatewayAttachment", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::VPCGatewayAttachment", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get vpcId() {
@@ -2832,8 +3000,9 @@ var VPCGatewayAttachment = class extends CloudControlApiResource {
 
 // src/provider/aws/ec2/subnet-route-table-association.ts
 var SubnetRouteTableAssociation = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::SubnetRouteTableAssociation", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::SubnetRouteTableAssociation", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -2851,8 +3020,9 @@ var SubnetRouteTableAssociation = class extends CloudControlApiResource {
 
 // src/provider/aws/ec2/subnet.ts
 var Subnet = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::Subnet", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::Subnet", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -2868,12 +3038,10 @@ var Subnet = class extends CloudControlApiResource {
     return this.output((v) => v.AvailabilityZoneId);
   }
   associateRouteTable(routeTableId) {
-    const association = new SubnetRouteTableAssociation(this.identifier, {
+    return new SubnetRouteTableAssociation(this, this.identifier, {
       routeTableId,
       subnetId: this.id
     });
-    this.add(association);
-    return this;
   }
   toState() {
     return {
@@ -2888,8 +3056,9 @@ var Subnet = class extends CloudControlApiResource {
 
 // src/provider/aws/ec2/security-group.ts
 var SecurityGroup = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::SecurityGroup", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::SecurityGroup", id, props);
+    this.parent = parent;
     this.props = props;
   }
   ingress = [];
@@ -2978,8 +3147,9 @@ var Peer = class _Peer {
 
 // src/provider/aws/ec2/route.ts
 var Route = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::Route", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::Route", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get gatewayId() {
@@ -3010,8 +3180,9 @@ var Route = class extends CloudControlApiResource {
 
 // src/provider/aws/ec2/route-table.ts
 var RouteTable = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::EC2::RouteTable", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::RouteTable", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -3232,8 +3403,9 @@ var Port = class _Port {
 
 // src/provider/aws/ec2/internet-gateway.ts
 var InternetGateway = class extends CloudControlApiResource {
-  constructor(id, props = {}) {
-    super("AWS::EC2::InternetGateway", id, props);
+  constructor(parent, id, props = {}) {
+    super(parent, "AWS::EC2::InternetGateway", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -3379,8 +3551,9 @@ var PathPattern = class extends ListenerCondition {
 
 // src/provider/aws/elb/listener-rule.ts
 var ListenerRule = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::ElasticLoadBalancingV2::ListenerRule", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::ElasticLoadBalancingV2::ListenerRule", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -3406,8 +3579,9 @@ var ListenerRule = class extends CloudControlApiResource {
 // src/provider/aws/elb/listener.ts
 var import_change_case4 = require("change-case");
 var Listener = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::ElasticLoadBalancingV2::Listener", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -3438,8 +3612,9 @@ var Listener = class extends CloudControlApiResource {
 
 // src/provider/aws/elb/load-balancer.ts
 var LoadBalancer = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::ElasticLoadBalancingV2::LoadBalancer", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::ElasticLoadBalancingV2::LoadBalancer", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -3472,8 +3647,9 @@ var LoadBalancer = class extends CloudControlApiResource {
 
 // src/provider/aws/elb/target-group.ts
 var TargetGroup = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::ElasticLoadBalancingV2::TargetGroup", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::ElasticLoadBalancingV2::TargetGroup", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -3503,8 +3679,9 @@ __export(events_exports, {
 
 // src/provider/aws/events/rule.ts
 var Rule = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Events::Rule", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Events::Rule", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -3558,8 +3735,9 @@ var formatStatement = (statement) => ({
   Resource: statement.resources
 });
 var RolePolicy = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::IAM::RolePolicy", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::IAM::RolePolicy", id, props);
+    this.parent = parent;
     this.props = props;
   }
   statements = [];
@@ -3592,8 +3770,9 @@ var RolePolicy = class extends CloudControlApiResource {
 
 // src/provider/aws/iam/role.ts
 var Role = class extends CloudControlApiResource {
-  constructor(id, props = {}) {
-    super("AWS::IAM::Role", id, props);
+  constructor(parent, id, props = {}) {
+    super(parent, "AWS::IAM::Role", id, props);
+    this.parent = parent;
     this.props = props;
   }
   inlinePolicies = [];
@@ -3622,12 +3801,10 @@ var Role = class extends CloudControlApiResource {
     return this;
   }
   addPolicy(id, props) {
-    const policy = new RolePolicy(id, {
+    return new RolePolicy(this, id, {
       role: this.name,
       ...props
     });
-    this.add(policy);
-    return policy;
   }
   toState() {
     return {
@@ -3670,8 +3847,9 @@ __export(iot_exports, {
 
 // src/provider/aws/iot/topic-rule.ts
 var TopicRule = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::IoT::TopicRule", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::IoT::TopicRule", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -3709,8 +3887,9 @@ __export(lambda_exports, {
 var import_change_case6 = require("change-case");
 var import_duration10 = require("@awsless/duration");
 var Url = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Lambda::Url", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::Url", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get url() {
@@ -3751,8 +3930,9 @@ var Url = class extends CloudControlApiResource {
 // src/provider/aws/lambda/permission.ts
 var import_change_case7 = require("change-case");
 var Permission = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Lambda::Permission", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::Permission", id, props);
+    this.parent = parent;
     this.props = props;
   }
   toState() {
@@ -3798,8 +3978,9 @@ var formatCode = (code) => {
 var import_size = require("@awsless/size");
 var import_duration11 = require("@awsless/duration");
 var Function = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Lambda::Function", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::Function", id, props);
+    this.parent = parent;
     this.props = props;
   }
   environmentVariables = {};
@@ -3895,8 +4076,9 @@ var Function = class extends CloudControlApiResource {
 // src/provider/aws/lambda/event-invoke-config.ts
 var import_duration12 = require("@awsless/duration");
 var EventInvokeConfig = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Lambda::EventInvokeConfig", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
+    this.parent = parent;
     this.props = props;
   }
   setOnFailure(arn) {
@@ -3937,8 +4119,9 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 var import_duration13 = require("@awsless/duration");
 var import_change_case9 = require("change-case");
 var EventSourceMapping = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Lambda::EventSourceMapping", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::EventSourceMapping", id, props);
+    this.parent = parent;
     this.props = props;
   }
   setOnFailure(arn) {
@@ -3986,8 +4169,9 @@ __export(memorydb_exports, {
 
 // src/provider/aws/memorydb/cluster.ts
 var Cluster = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::MemoryDB::Cluster", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::MemoryDB::Cluster", id, props);
+    this.parent = parent;
     this.props = props;
   }
   // get status() {
@@ -4029,8 +4213,9 @@ var Cluster = class extends CloudControlApiResource {
 
 // src/provider/aws/memorydb/subnet-group.ts
 var SubnetGroup = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::MemoryDB::SubnetGroup", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::MemoryDB::SubnetGroup", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -4060,8 +4245,9 @@ __export(open_search_exports, {
 var import_size2 = require("@awsless/size");
 var import_change_case10 = require("change-case");
 var Domain = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::OpenSearchService::Domain", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::OpenSearchService::Domain", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -4151,8 +4337,9 @@ __export(serverless_exports, {
 
 // src/provider/aws/open-search/serverless/collection.ts
 var Collection = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::OpenSearchServerless::Collection", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::OpenSearchServerless::Collection", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -4183,8 +4370,9 @@ var Collection = class extends CloudControlApiResource {
 
 // src/provider/aws/open-search/serverless/security-policy.ts
 var SecurityPolicy = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::OpenSearchServerless::SecurityPolicy", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::OpenSearchServerless::SecurityPolicy", id, props);
+    this.parent = parent;
     this.props = props;
   }
   toState() {
@@ -4232,8 +4420,9 @@ var formatRecordSet = (record) => {
   };
 };
 var RecordSet = class extends Resource {
-  constructor(id, props) {
-    super("AWS::Route53::RecordSet", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Route53::RecordSet", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-route53-record-set";
@@ -4342,8 +4531,9 @@ var RecordSetProvider = class {
 
 // src/provider/aws/route53/hosted-zone.ts
 var HostedZone = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::Route53::HostedZone", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::Route53::HostedZone", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get id() {
@@ -4356,15 +4546,11 @@ var HostedZone = class extends CloudControlApiResource {
     return this.output((v) => v.NameServers);
   }
   addRecord(id, record) {
-    const recordSet = new RecordSet(
-      id,
-      all([this.id, record]).apply(([hostedZoneId, record2]) => ({
-        hostedZoneId,
-        ...record2
-      }))
-    );
-    this.add(recordSet);
-    return recordSet;
+    const recordProps = all([this.id, record]).apply(([_, record2]) => ({
+      hostedZoneId: this.id,
+      ...record2
+    }));
+    return new RecordSet(this, id, recordProps);
   }
   toState() {
     const name = unwrap(this.props.name);
@@ -4388,8 +4574,9 @@ __export(s3_exports, {
 
 // src/provider/aws/s3/bucket-object.ts
 var BucketObject = class extends Resource {
-  constructor(id, props) {
-    super("AWS::S3::Bucket::Object", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::S3::Bucket::Object", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-s3-bucket-object";
@@ -4433,8 +4620,9 @@ var BucketObject = class extends Resource {
 
 // src/provider/aws/s3/bucket.ts
 var Bucket = class extends Resource {
-  constructor(id, props = {}) {
-    super("AWS::S3::Bucket", id, props);
+  constructor(parent, id, props = {}) {
+    super(parent, "AWS::S3::Bucket", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-s3-bucket";
@@ -4474,12 +4662,10 @@ var Bucket = class extends Resource {
     };
   }
   addObject(id, props) {
-    const object = new BucketObject(id, {
+    return new BucketObject(this, id, {
       ...props,
       bucket: this.name
     });
-    this.add(object);
-    return object;
   }
   toState() {
     return {
@@ -4603,8 +4789,9 @@ var BucketProvider = class {
 // src/provider/aws/s3/bucket-policy.ts
 var import_change_case11 = require("change-case");
 var BucketPolicy = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::S3::BucketPolicy", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::S3::BucketPolicy", id, props);
+    this.parent = parent;
     this.props = props;
   }
   toState() {
@@ -4710,8 +4897,9 @@ __export(ses_exports, {
 var import_change_case12 = require("change-case");
 var import_duration15 = require("@awsless/duration");
 var EmailIdentity = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::SES::EmailIdentity", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::SES::EmailIdentity", id, props);
+    this.parent = parent;
     this.props = props;
   }
   // get arn() {
@@ -4777,8 +4965,9 @@ var EmailIdentity = class extends CloudControlApiResource {
 
 // src/provider/aws/ses/configuration-set.ts
 var ConfigurationSet = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::SES::ConfigurationSet", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::SES::ConfigurationSet", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get name() {
@@ -4854,8 +5043,9 @@ var SubscriptionProvider = class {
 
 // src/provider/aws/sns/subscription.ts
 var Subscription = class extends Resource {
-  constructor(id, props) {
-    super("AWS::SNS::Subscription", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::SNS::Subscription", id, props);
+    this.parent = parent;
     this.props = props;
   }
   cloudProviderId = "aws-sns-subscription";
@@ -4872,8 +5062,9 @@ var Subscription = class extends Resource {
 
 // src/provider/aws/sns/topic.ts
 var Topic = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::SNS::Topic", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::SNS::Topic", id, props);
+    this.parent = parent;
     this.props = props;
   }
   get arn() {
@@ -4909,8 +5100,9 @@ __export(sqs_exports, {
 var import_duration16 = require("@awsless/duration");
 var import_size3 = require("@awsless/size");
 var Queue = class extends CloudControlApiResource {
-  constructor(id, props) {
-    super("AWS::SQS::Queue", id, props);
+  constructor(parent, id, props) {
+    super(parent, "AWS::SQS::Queue", id, props);
+    this.parent = parent;
     this.props = props;
   }
   setDeadLetter(arn) {
@@ -4983,14 +5175,15 @@ var createCloudProviders = (config) => {
 // src/provider/local/index.ts
 var local_exports = {};
 __export(local_exports, {
-  StateProvider: () => LocalStateProvider
+  FileProvider: () => FileProvider,
+  MemoryProvider: () => MemoryProvider
 });
 
-// src/provider/local/state-provider.ts
+// src/provider/local/file-provider.ts
 var import_path = require("path");
 var import_promises2 = require("fs/promises");
 var import_proper_lockfile = require("proper-lockfile");
-var LocalStateProvider = class {
+var FileProvider = class {
   constructor(props) {
     this.props = props;
   }
@@ -5029,12 +5222,39 @@ var LocalStateProvider = class {
     await (0, import_promises2.rm)(this.stateFile(urn));
   }
 };
+
+// src/provider/local/memory-provider.ts
+var MemoryProvider = class {
+  locked = /* @__PURE__ */ new Map();
+  states = /* @__PURE__ */ new Map();
+  async lock(urn) {
+    if (this.locked.has(urn)) {
+      throw new Error("Already locked");
+    }
+    const id = Math.random();
+    this.locked.set(urn, id);
+    return async () => {
+      if (this.locked.get(urn) === id) {
+        this.locked.delete(urn);
+      }
+    };
+  }
+  async get(urn) {
+    return this.states.get(urn);
+  }
+  async update(urn, state) {
+    this.states.set(urn, state);
+  }
+  async delete(urn) {
+    this.states.delete(urn);
+  }
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   App,
+  AppError,
   Asset,
   FileAsset,
-  ImportValueNotFound,
   Node,
   Output,
   RemoteAsset,

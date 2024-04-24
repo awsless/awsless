@@ -1,44 +1,26 @@
-import { App, Asset, Stack, WorkSpace, aws, local } from '../src'
+import { App, Asset, Stack, aws } from '../src'
+import { createTestSpace } from './_util'
 
 describe('Asset', () => {
-	const cloudProvider = {
-		own: () => true,
-		get: async () => ({}),
-		update: vi.fn(async () => 'id'),
-		create: vi.fn(async () => 'id'),
-		delete: vi.fn(async () => {}),
-	}
-
-	const stateProvider = new local.MemoryProvider()
-	const workspace = new WorkSpace({
-		cloudProviders: [cloudProvider],
-		stateProvider,
-	})
+	const space = createTestSpace()
 
 	it('should deploy with assets', async () => {
 		const app = new App('app')
-		const stack = new Stack('stack')
-		app.add(stack)
-
-		const bucket = new aws.s3.Bucket('bucket')
-		stack.add(bucket)
-
-		const object = new aws.s3.BucketObject('object', {
+		const stack = new Stack(app, 'stack')
+		const bucket = new aws.s3.Bucket(stack, 'bucket')
+		const object = new aws.s3.BucketObject(stack, 'object', {
 			bucket: bucket.name,
 			key: 'name',
 			body: Asset.fromString('BODY'),
 		})
-		stack.add(object)
 
-		await workspace.deployStack(stack)
+		await space.workspace.deployApp(app)
 
-		const state = await stateProvider.get(app.urn)
+		const state = await space.stateProvider.get(app.urn)
 		expect(state).toStrictEqual({
 			name: 'app',
 			stacks: {
-				[stack.urn]: {
-					name: 'stack',
-					exports: {},
+				[stack.urn]: expect.objectContaining({
 					resources: expect.objectContaining({
 						[object.urn]: expect.objectContaining({
 							assets: {
@@ -46,7 +28,7 @@ describe('Asset', () => {
 							},
 						}),
 					}),
-				},
+				}),
 			},
 		})
 	})

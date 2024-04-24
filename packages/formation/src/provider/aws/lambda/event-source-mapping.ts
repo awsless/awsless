@@ -3,6 +3,7 @@ import { constantCase } from 'change-case'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
 import { Input } from '../../../core/output'
+import { Node } from '../../../core/node'
 
 export type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp'
 
@@ -23,8 +24,8 @@ export type EventSourceMappingProps = {
 }
 
 export class EventSourceMapping extends CloudControlApiResource {
-	constructor(id: string, private props: EventSourceMappingProps) {
-		super('AWS::Lambda::EventSourceMapping', id, props)
+	constructor(readonly parent: Node, id: string, private props: EventSourceMappingProps) {
+		super(parent, 'AWS::Lambda::EventSourceMapping', id, props)
 	}
 
 	setOnFailure(arn: Input<ARN>) {

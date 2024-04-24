@@ -3,9 +3,10 @@ import { logConfigError } from './config-error.js'
 import { Cancelled, ConfigError, FileError } from '../../../error.js'
 import { color, icon } from '../style.js'
 import { wrap } from '../util.js'
-import { StackError } from '@awsless/formation'
+import { AppError, StackError } from '@awsless/formation'
 import { logStackError } from './stack-error.js'
 import { logFileError } from './file-error.js'
+import { logAppError } from './app-error.js'
 
 export const logError = (error: unknown) => {
 	// console.log(error)
@@ -16,6 +17,8 @@ export const logError = (error: unknown) => {
 		log.message(color.error('Cancelled.'), {
 			symbol: color.error(icon.error),
 		})
+	} else if (error instanceof AppError) {
+		logAppError(error)
 	} else if (error instanceof StackError) {
 		logStackError(error)
 	} else if (error instanceof FileError) {

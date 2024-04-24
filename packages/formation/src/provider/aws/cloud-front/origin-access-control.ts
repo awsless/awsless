@@ -1,8 +1,10 @@
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
 export class OriginAccessControl extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -11,7 +13,7 @@ export class OriginAccessControl extends CloudControlApiResource {
 			protocol?: Input<'sigv4'>
 		}
 	) {
-		super('AWS::CloudFront::OriginAccessControl', id, props)
+		super(parent, 'AWS::CloudFront::OriginAccessControl', id, props)
 	}
 
 	get id() {

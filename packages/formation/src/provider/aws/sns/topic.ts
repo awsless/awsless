@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
@@ -7,8 +8,8 @@ export type TopicProps = {
 }
 
 export class Topic extends CloudControlApiResource {
-	constructor(id: string, private props: TopicProps) {
-		super('AWS::SNS::Topic', id, props)
+	constructor(readonly parent: Node, id: string, private props: TopicProps) {
+		super(parent, 'AWS::SNS::Topic', id, props)
 	}
 
 	get arn() {

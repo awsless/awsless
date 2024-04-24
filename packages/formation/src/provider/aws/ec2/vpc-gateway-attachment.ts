@@ -1,15 +1,17 @@
+import { Node } from '../../../core/node'
 import { Input } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class VPCGatewayAttachment extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			vpcId: Input<string>
 			internetGatewayId: Input<string>
 		}
 	) {
-		super('AWS::EC2::VPCGatewayAttachment', id, props)
+		super(parent, 'AWS::EC2::VPCGatewayAttachment', id, props)
 	}
 
 	get vpcId() {

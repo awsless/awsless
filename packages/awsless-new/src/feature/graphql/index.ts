@@ -17,6 +17,10 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { createLambdaFunction } from '../function/util.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { FileError } from '../../error.js'
+import { fingerprintFromFile } from '../../build/fingerprint.js'
+import { formatByteSize } from '../../util/byte-size.js'
+import { getBuildPath } from '../../build/index.js'
+import { buildTypeScriptResolver } from './build/typescript/resolver.js'
 // import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
@@ -106,11 +110,9 @@ export const graphqlFeature = defineFeature({
 	},
 	onApp(ctx) {
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.graphql ?? {})) {
-			const group = new Node('graphql', id)
+			const group = new Node(ctx.base, 'graphql', id)
 
-			ctx.base.add(group)
-
-			const role = new aws.iam.Role('role', {
+			const role = new aws.iam.Role(group, 'role', {
 				assumedBy: 'appsync.amazonaws.com',
 				policies: [
 					{
@@ -129,9 +131,7 @@ export const graphqlFeature = defineFeature({
 				],
 			})
 
-			group.add(role)
-
-			const api = new aws.appsync.GraphQLApi('api', {
+			const api = new aws.appsync.GraphQLApi(group, 'api', {
 				name: formatGlobalResourceName(ctx.app.name, 'graphql', id),
 				type: 'merged',
 				role: role.arn,
@@ -140,13 +140,15 @@ export const graphqlFeature = defineFeature({
 						? {
 								type: 'cognito',
 								region: ctx.appConfig.region,
-								userPoolId: ctx.base.import(`auth-${props.auth}-user-pool-id`),
+								userPoolId: ctx.shared.get(`auth-${props.auth}-user-pool-id`),
 						  }
 						: {
 								type: 'iam',
 						  },
 				},
 			})
+
+			ctx.shared.set(`graphql-${id}-id`, api.id)
 
 			// if (props.auth) {
 			// 	api.setDefaultAuthorization(
@@ -158,31 +160,43 @@ export const graphqlFeature = defineFeature({
 			// 	)
 			// }
 
-			ctx.base.export(`graphql-${id}-id`, api.id)
+			if (props.resolver) {
+				ctx.registerBuild('graphql-resolver', id, async build => {
+					const resolver = props.resolver!
+					const version = await fingerprintFromFile(resolver)
 
-			group.add(api)
+					return build(version, async write => {
+						const file = await buildTypeScriptResolver(resolver)
+
+						if (!file) {
+							throw new FileError(resolver, `Failed to build a graphql resolver.`)
+						}
+
+						await write('resolver.js', file)
+
+						return {
+							size: formatByteSize(file.byteLength),
+						}
+					})
+				})
+			}
 
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-				const domainGroup = new Node('domain', domainName)
-				group.add(domainGroup)
+				const domainGroup = new Node(group, 'domain', domainName)
 
-				const domain = new aws.appsync.DomainName('domain', {
+				const domain = new aws.appsync.DomainName(domainGroup, 'domain', {
 					domainName,
-					certificateArn: ctx.base.import(`global-certificate-${props.domain}-arn`),
+					certificateArn: ctx.shared.get(`global-certificate-${props.domain}-arn`),
 				})
 
-				domainGroup.add(domain)
-
-				const association = new aws.appsync.DomainNameApiAssociation('association', {
+				new aws.appsync.DomainNameApiAssociation(domainGroup, 'association', {
 					apiId: api.id,
 					domainName: domain.domainName,
 				})
 
-				domainGroup.add(association)
-
-				const record = new aws.route53.RecordSet('record', {
-					hostedZoneId: ctx.base.import(`hosted-zone-${props.domain}-id`),
+				new aws.route53.RecordSet(domainGroup, 'record', {
+					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
 					type: 'A',
 					name: domainName,
 					alias: {
@@ -191,8 +205,6 @@ export const graphqlFeature = defineFeature({
 						evaluateTargetHealth: false,
 					},
 				})
-
-				domainGroup.add(record)
 			}
 		}
 	},
@@ -208,11 +220,9 @@ export const graphqlFeature = defineFeature({
 				)
 			}
 
-			const group = new Node('graphql', id)
+			const group = new Node(ctx.stack, 'graphql', id)
 
-			ctx.stack.add(group)
-
-			const api = new aws.appsync.GraphQLApi('api', {
+			const api = new aws.appsync.GraphQLApi(group, 'api', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'graphql', id),
 				// visibility: false,
 				auth: {
@@ -222,17 +232,13 @@ export const graphqlFeature = defineFeature({
 				},
 			})
 
-			group.add(api)
-
-			const schema = new aws.appsync.GraphQLSchema('schema', {
+			const schema = new aws.appsync.GraphQLSchema(group, 'schema', {
 				apiId: api.id,
 				definition: Asset.fromFile(props.schema),
 			})
 
-			group.add(schema)
-
-			const association = new aws.appsync.SourceApiAssociation('association', {
-				mergedApiId: ctx.app.import('base', `graphql-${id}-id`),
+			const association = new aws.appsync.SourceApiAssociation(group, 'association', {
+				mergedApiId: ctx.shared.get(`graphql-${id}-id`),
 				sourceApiId: api.id,
 			})
 
@@ -240,14 +246,10 @@ export const graphqlFeature = defineFeature({
 			// So we need to wait on the schema.
 			association.dependsOn(schema)
 
-			group.add(association)
-
 			for (const [typeName, fields] of Object.entries(props.resolvers ?? {})) {
 				for (const [fieldName, props] of Object.entries(fields ?? {})) {
 					const name = `${typeName}__${fieldName}`
-					const resolverGroup = new Node('resolver', name)
-
-					group.add(resolverGroup)
+					const resolverGroup = new Node(group, 'resolver', name)
 
 					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
 					// const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
@@ -256,7 +258,7 @@ export const graphqlFeature = defineFeature({
 						description: `${id} ${typeName}.${fieldName}`,
 					})
 
-					const role = new aws.iam.Role('source-role', {
+					const role = new aws.iam.Role(resolverGroup, 'source-role', {
 						assumedBy: 'appsync.amazonaws.com',
 						policies: [
 							{
@@ -271,9 +273,7 @@ export const graphqlFeature = defineFeature({
 						],
 					})
 
-					resolverGroup.add(role)
-
-					const source = new aws.appsync.DataSource('source', {
+					const source = new aws.appsync.DataSource(resolverGroup, 'source', {
 						apiId: api.id,
 						type: 'lambda',
 						name,
@@ -281,36 +281,28 @@ export const graphqlFeature = defineFeature({
 						functionArn: lambda.arn,
 					})
 
-					resolverGroup.add(source)
-
 					let code: Asset = Asset.fromString(defaultResolver)
 
 					if ('resolver' in props && props.resolver) {
 						code = Asset.fromFile(props.resolver)
+					} else if (defaultProps.resolver) {
+						code = Asset.fromFile(getBuildPath('graphql-resolver', id, 'resolver.js'))
 					}
 
-					if (defaultProps.resolver) {
-						code = Asset.fromString(defaultProps.resolver)
-					}
-
-					const config = new aws.appsync.FunctionConfiguration('config', {
+					const config = new aws.appsync.FunctionConfiguration(resolverGroup, 'config', {
 						apiId: api.id,
 						name,
 						code,
 						dataSourceName: source.name,
 					})
 
-					resolverGroup.add(config)
-
-					const resolver = new aws.appsync.Resolver('resolver', {
+					new aws.appsync.Resolver(resolverGroup, 'resolver', {
 						apiId: api.id,
 						typeName,
 						fieldName,
 						functions: [config.id],
 						code,
 					})
-
-					resolverGroup.add(resolver)
 				}
 			}
 		}

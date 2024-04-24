@@ -27,12 +27,11 @@ export const searchFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const id of ctx.stackConfig.searchs ?? {}) {
-			const group = new Node('search', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'search', id)
 
 			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id)
 
-			const policy = new aws.openSearchServerless.SecurityPolicy('security', {
+			const policy = new aws.openSearchServerless.SecurityPolicy(group, 'security', {
 				name,
 				type: 'encryption',
 				policy: JSON.stringify({
@@ -46,14 +45,10 @@ export const searchFeature = defineFeature({
 				}),
 			})
 
-			group.add(policy)
-
-			const collection = new aws.openSearchServerless.Collection('collection', {
+			const collection = new aws.openSearchServerless.Collection(group, 'collection', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id),
 				type: 'search',
 			}).dependsOn(policy)
-
-			group.add(collection)
 
 			ctx.onFunction(({ policy }) => {
 				policy.addStatement(collection.permissions)

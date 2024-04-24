@@ -1,16 +1,18 @@
+import { Node } from '../../../core/node'
 import { Input } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
 
 export class DomainName extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			domainName: Input<string>
 			certificateArn: Input<ARN>
 		}
 	) {
-		super('AWS::AppSync::DomainName', id, props)
+		super(parent, 'AWS::AppSync::DomainName', id, props)
 	}
 
 	get appSyncDomainName() {

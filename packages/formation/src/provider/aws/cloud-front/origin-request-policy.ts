@@ -1,9 +1,11 @@
 import { camelCase } from 'change-case'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { Input, unwrap } from '../../../core/output'
+import { Node } from '../../../core/node'
 
 export class OriginRequestPolicy extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -23,7 +25,7 @@ export class OriginRequestPolicy extends CloudControlApiResource {
 			}>
 		}
 	) {
-		super('AWS::CloudFront::OriginRequestPolicy', id, props)
+		super(parent, 'AWS::CloudFront::OriginRequestPolicy', id, props)
 	}
 
 	get id() {

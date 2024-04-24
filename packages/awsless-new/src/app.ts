@@ -7,6 +7,7 @@ import { App, Stack } from '@awsless/formation'
 import { features } from './feature/index.js'
 import { OnFunctionEntry, OnFunctionListener } from './feature.js'
 import { Builder } from './build/index.js'
+import { SharedData } from './shared.js'
 
 const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
 	const list: string[] = []
@@ -47,17 +48,13 @@ export type BuildTask = {
 
 export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const app = new App(props.appConfig.name)
-	const base = new Stack('base')
+	const base = new Stack(app, 'base')
+	const shared = new SharedData()
 
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
-	const global: {
-		listeners: OnFunctionListener[]
-		functions: OnFunctionEntry[]
-	} = {
-		listeners: [],
-		functions: [],
-	}
+	const allFunctions: OnFunctionEntry[] = []
+	const globalListeners: OnFunctionListener[] = []
 
 	// ---------------------------------------------------------------
 
@@ -68,11 +65,12 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 			...props,
 			app,
 			base,
+			shared,
 			onFunction(callback) {
-				global.listeners.push(callback)
+				globalListeners.push(callback)
 			},
 			registerFunction(lambda, policy) {
-				global.functions.push({ lambda, policy })
+				allFunctions.push({ lambda, policy })
 			},
 			registerTest(name, paths) {
 				tests.push({ name, paths })
@@ -99,9 +97,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		const localListeners: OnFunctionListener[] = []
 		const localFunctions: OnFunctionEntry[] = []
 
-		const stack = new Stack(stackConfig.name)
-
-		app.add(stack)
+		const stack = new Stack(app, stackConfig.name)
 
 		for (const feature of features) {
 			feature.onStack?.({
@@ -110,12 +106,12 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				app,
 				base,
 				stack,
+				shared,
 				onFunction(callback) {
-					global.listeners.push(callback)
 					localListeners.push(callback)
 				},
 				registerFunction(lambda, policy) {
-					global.functions.push({ lambda, policy })
+					allFunctions.push({ lambda, policy })
 					localFunctions.push({ lambda, policy })
 				},
 				registerTest(name, paths) {
@@ -138,17 +134,10 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	}
 
 	// ---------------------------------------------------------------
-	// Add base stack
-
-	if (base.resources.length > 0) {
-		app.add(base)
-	}
-
-	// ---------------------------------------------------------------
 	// Global app binds
 
-	for (const listener of global.listeners) {
-		for (const fn of global.functions) {
+	for (const listener of globalListeners) {
+		for (const fn of allFunctions) {
 			listener(fn)
 		}
 	}

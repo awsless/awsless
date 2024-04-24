@@ -1,8 +1,10 @@
+import { Node } from '../../../../core/node.js'
 import { Input } from '../../../../core/output.js'
 import { CloudControlApiResource } from '../../cloud-control-api/resource.js'
 
 export class SecurityPolicy extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -11,7 +13,7 @@ export class SecurityPolicy extends CloudControlApiResource {
 			description?: Input<string>
 		}
 	) {
-		super('AWS::OpenSearchServerless::SecurityPolicy', id, props)
+		super(parent, 'AWS::OpenSearchServerless::SecurityPolicy', id, props)
 	}
 
 	toState() {

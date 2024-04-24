@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Peer } from './peer.js'
@@ -12,13 +13,14 @@ import { Peer } from './peer.js'
 
 export class Vpc extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
 			cidrBlock: Input<Peer>
 		}
 	) {
-		super('AWS::EC2::VPC', id, props)
+		super(parent, 'AWS::EC2::VPC', id, props)
 	}
 
 	get id() {

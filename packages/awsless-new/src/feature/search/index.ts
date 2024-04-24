@@ -27,10 +27,9 @@ export const searchFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.searchs ?? {})) {
-			const group = new Node('search', id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, 'search', id)
 
-			const domain = new aws.openSearch.Domain('domain', {
+			const domain = new aws.openSearch.Domain(group, 'domain', {
 				// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
 				version: props.version,
 				storageSize: props.storage,
@@ -50,12 +49,13 @@ export const searchFeature = defineFeature({
 
 			if (props.vpc) {
 				domain.setVpc({
-					securityGroupIds: [ctx.app.import<string>('base', `vpc-security-group-id`)],
-					subnetIds: [ctx.app.import<string>('base', 'vpc-private-subnet-id-1')],
+					securityGroupIds: [ctx.shared.get<string>(`vpc-security-group-id`)],
+					subnetIds: [
+						ctx.shared.get<string>('vpc-private-subnet-id-1'),
+						ctx.shared.get<string>('vpc-private-subnet-id-2'),
+					],
 				})
 			}
-
-			group.add(domain)
 
 			ctx.onFunction(({ policy }) => {
 				policy.addStatement({

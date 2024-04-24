@@ -8,7 +8,6 @@ import {
 	NotFoundException,
 	UpdateGraphqlApiCommand,
 } from '@aws-sdk/client-appsync'
-import { GraphQLApi } from './graphql-api'
 import { ResourceNotFound } from '../../../core/error'
 
 type ProviderProps = {

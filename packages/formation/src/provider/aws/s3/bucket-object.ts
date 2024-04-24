@@ -1,4 +1,5 @@
 import { Asset } from '../../../core/asset'
+import { Node } from '../../../core/node'
 import { Input } from '../../../core/output'
 import { Resource } from '../../../core/resource'
 
@@ -15,8 +16,8 @@ export type BucketObjectProps = {
 export class BucketObject extends Resource {
 	cloudProviderId = 'aws-s3-bucket-object'
 
-	constructor(id: string, private props: BucketObjectProps) {
-		super('AWS::S3::Bucket::Object', id, props)
+	constructor(readonly parent: Node, id: string, private props: BucketObjectProps) {
+		super(parent, 'AWS::S3::Bucket::Object', id, props)
 	}
 
 	get bucket() {

@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { Peer } from './peer'
@@ -5,6 +6,7 @@ import { SubnetRouteTableAssociation } from './subnet-route-table-association'
 
 export class Subnet extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			vpcId: Input<string>
@@ -12,7 +14,7 @@ export class Subnet extends CloudControlApiResource {
 			availabilityZone: Input<string>
 		}
 	) {
-		super('AWS::EC2::Subnet', id, props)
+		super(parent, 'AWS::EC2::Subnet', id, props)
 	}
 
 	get id() {
@@ -32,14 +34,10 @@ export class Subnet extends CloudControlApiResource {
 	}
 
 	associateRouteTable(routeTableId: Input<string>) {
-		const association = new SubnetRouteTableAssociation(this.identifier, {
+		return new SubnetRouteTableAssociation(this, this.identifier, {
 			routeTableId,
 			subnetId: this.id,
 		})
-
-		this.add(association)
-
-		return this
 	}
 
 	toState() {

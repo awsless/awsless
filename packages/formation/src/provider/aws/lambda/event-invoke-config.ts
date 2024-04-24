@@ -2,6 +2,7 @@ import { Duration, toSeconds } from '@awsless/duration'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
+import { Node } from '../../../core/node.js'
 
 export type EventInvokeConfigProps = {
 	functionArn: Input<ARN>
@@ -13,8 +14,8 @@ export type EventInvokeConfigProps = {
 }
 
 export class EventInvokeConfig extends CloudControlApiResource {
-	constructor(id: string, private props: EventInvokeConfigProps) {
-		super('AWS::Lambda::EventInvokeConfig', id, props)
+	constructor(readonly parent: Node, id: string, private props: EventInvokeConfigProps) {
+		super(parent, 'AWS::Lambda::EventInvokeConfig', id, props)
 	}
 
 	setOnFailure(arn: Input<ARN>) {

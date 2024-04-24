@@ -39,22 +39,22 @@ export const cacheFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.caches ?? {})) {
-			const group = new Node(this.name, id)
-			ctx.stack.add(group)
+			const group = new Node(ctx.stack, this.name, id)
 
 			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, this.name, id, '-')
 
-			const subnetGroup = new aws.memorydb.SubnetGroup('subnets', {
+			const subnetGroup = new aws.memorydb.SubnetGroup(group, 'subnets', {
 				name,
 				subnetIds: [
-					ctx.app.import('base', 'vpc-private-subnet-id-1'),
-					ctx.app.import('base', 'vpc-private-subnet-id-2'),
+					//
+					ctx.shared.get('vpc-private-subnet-id-1'),
+					ctx.shared.get('vpc-private-subnet-id-2'),
 				],
 			})
 
-			const securityGroup = new aws.ec2.SecurityGroup('security', {
+			const securityGroup = new aws.ec2.SecurityGroup(group, 'security', {
 				name,
-				vpcId: ctx.app.import('base', `vpc-id`),
+				vpcId: ctx.shared.get(`vpc-id`),
 				description: name,
 			})
 
@@ -63,15 +63,13 @@ export const cacheFeature = defineFeature({
 			securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv4() })
 			securityGroup.addIngressRule({ port, peer: aws.ec2.Peer.anyIpv6() })
 
-			const cluster = new aws.memorydb.Cluster('cluster', {
+			const cluster = new aws.memorydb.Cluster(group, 'cluster', {
 				name,
 				aclName: 'open-access',
 				securityGroupIds: [securityGroup.id],
 				subnetGroupName: subnetGroup.name,
 				...props,
 			})
-
-			group.add(subnetGroup, securityGroup, cluster)
 
 			ctx.onFunction(({ lambda }) => {
 				lambda.addEnvironment(

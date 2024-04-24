@@ -1,9 +1,11 @@
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
 
 export class LoadBalancer extends CloudControlApiResource {
 	constructor(
+		readonly parent: Node,
 		id: string,
 		private props: {
 			name: Input<string>
@@ -13,7 +15,7 @@ export class LoadBalancer extends CloudControlApiResource {
 			schema?: Input<'internal' | 'internet-facing'>
 		}
 	) {
-		super('AWS::ElasticLoadBalancingV2::LoadBalancer', id, props)
+		super(parent, 'AWS::ElasticLoadBalancingV2::LoadBalancer', id, props)
 	}
 
 	get arn() {

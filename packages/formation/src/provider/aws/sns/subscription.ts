@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { Resource } from '../../../core/resource.js'
 import { ARN } from '../types.js'
@@ -11,8 +12,8 @@ export type SubscriptionProps = {
 export class Subscription extends Resource {
 	cloudProviderId = 'aws-sns-subscription'
 
-	constructor(id: string, private props: SubscriptionProps) {
-		super('AWS::SNS::Subscription', id, props)
+	constructor(readonly parent: Node, id: string, private props: SubscriptionProps) {
+		super(parent, 'AWS::SNS::Subscription', id, props)
 	}
 
 	toState() {

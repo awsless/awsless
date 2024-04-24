@@ -1,3 +1,4 @@
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { Resource } from '../../../core/resource'
 import { ARN } from '../types'
@@ -25,8 +26,8 @@ export type LambaTriggersProps = {
 export class LambdaTriggers extends Resource {
 	cloudProviderId = 'aws-cognito-lambda-triggers'
 
-	constructor(id: string, private props: LambaTriggersProps) {
-		super('AWS::Cognito::UserPoolLambdaConfig', id, props)
+	constructor(readonly parent: Node, id: string, private props: LambaTriggersProps) {
+		super(parent, 'AWS::Cognito::UserPoolLambdaConfig', id, props)
 	}
 
 	toState() {

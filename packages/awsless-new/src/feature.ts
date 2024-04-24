@@ -3,6 +3,7 @@ import { StackConfig } from './config/stack.js'
 import { AppConfig } from './config/app.js'
 import { Builder } from './build/index.js'
 import { TypeFile } from './type-gen/file.js'
+import { SharedData } from './shared.js'
 
 type RegisterFunction = (
 	//
@@ -38,6 +39,7 @@ export type AppContext = {
 
 	app: App
 	base: Stack
+	shared: SharedData
 
 	registerTest: RegisterTest
 	registerBuild: RegisterBuild
