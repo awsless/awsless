@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all2) => {
   for (var name in all2)
@@ -15,6 +17,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -398,11 +408,12 @@ function unwrap(input, defaultValue) {
 var import_promise_dag = require("promise-dag");
 
 // src/core/workspace/lock.ts
-var lockApp = async (stateProvider, app, fn) => {
+var lockApp = async (lockProvider, app, fn) => {
   let release;
   try {
-    release = await stateProvider.lock(app.urn);
+    release = await lockProvider.lock(app.urn);
   } catch (error) {
+    console.log(error);
     throw new Error(`Already in progress: ${app.urn}`);
   }
   let result;
@@ -507,6 +518,7 @@ var getCloudProvider = (cloudProviders, providerId) => {
 
 // src/core/workspace/workspace.ts
 var import_crypto = require("crypto");
+var import_p_limit = __toESM(require("p-limit"), 1);
 var WorkSpace = class {
   constructor(props) {
     this.props = props;
@@ -536,20 +548,21 @@ var WorkSpace = class {
   // 	}
   // 	return app
   // }
-  async deployApp(app, filters) {
-    return lockApp(this.props.stateProvider, app, async () => {
+  async deployApp(app, opt = {}) {
+    return lockApp(this.props.lockProvider, app, async () => {
       const appState = await this.props.stateProvider.get(app.urn) ?? {
         name: app.name,
         stacks: {}
       };
-      if (!appState.token) {
-        appState.token = (0, import_crypto.randomUUID)();
+      if (opt.token || !appState.token) {
+        appState.token = opt.token ?? (0, import_crypto.randomUUID)();
         await this.props.stateProvider.update(app.urn, appState);
       }
       let stacks = app.stacks;
-      if (filters && filters.length > 0) {
-        stacks = app.stacks.filter((stack) => filters.includes(stack.name));
+      if (opt.filters && opt.filters.length > 0) {
+        stacks = app.stacks.filter((stack) => opt.filters.includes(stack.name));
       }
+      const limit = (0, import_p_limit.default)(10);
       const graph = {};
       for (const stack of stacks) {
         graph[stack.urn] = [
@@ -577,11 +590,23 @@ var WorkSpace = class {
               }
             }
             if (Object.keys(deleteResourcesBefore).length > 0) {
-              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore);
+              await this.deleteStackResources(
+                app.urn,
+                appState,
+                stackState,
+                deleteResourcesBefore,
+                limit
+              );
             }
-            await this.deployStackResources(app.urn, appState, stackState, resources);
+            await this.deployStackResources(app.urn, appState, stackState, resources, limit);
             if (Object.keys(deleteResourcesAfter).length > 0) {
-              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter);
+              await this.deleteStackResources(
+                app.urn,
+                appState,
+                stackState,
+                deleteResourcesAfter,
+                limit
+              );
             }
             stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
           }
@@ -597,23 +622,24 @@ var WorkSpace = class {
       return appState;
     });
   }
-  async deleteApp(app) {
-    return lockApp(this.props.stateProvider, app, async () => {
+  async deleteApp(app, opt = {}) {
+    return lockApp(this.props.lockProvider, app, async () => {
       const appState = await this.props.stateProvider.get(app.urn);
       if (!appState) {
         throw new AppError(app.name, [], `App already deleted: ${app.name}`);
       }
-      if (!appState.token) {
-        appState.token = (0, import_crypto.randomUUID)();
+      if (opt.token || !appState.token) {
+        appState.token = opt.token ?? (0, import_crypto.randomUUID)();
         await this.props.stateProvider.update(app.urn, appState);
       }
+      const limit = (0, import_p_limit.default)(10);
       const graph = {};
       for (const [_urn, stackState] of Object.entries(appState.stacks)) {
         const urn = _urn;
         graph[urn] = [
           ...this.dependentsOn(appState.stacks, urn),
           async () => {
-            await this.deleteStackResources(app.urn, appState, stackState, stackState.resources);
+            await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit);
             delete appState.stacks[urn];
           }
         ];
@@ -791,14 +817,14 @@ var WorkSpace = class {
     }
     return remote;
   }
-  async deployStackResources(appUrn, appState, stackState, resources) {
+  async deployStackResources(appUrn, appState, stackState, resources, limit) {
     await this.healFromUnknownRemoteState(stackState);
     const deployGraph = {};
     for (const resource of resources) {
       const provider = getCloudProvider(this.props.cloudProviders, resource.cloudProviderId);
       deployGraph[resource.urn] = [
         ...[...resource.dependencies].map((dep) => dep.urn),
-        async () => {
+        () => limit(async () => {
           const state = resource.toState();
           const [assets, assetHashes] = await loadAssets(state.assets ?? {});
           const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {});
@@ -855,7 +881,10 @@ var WorkSpace = class {
                 urn: resource.urn,
                 id: resourceState.id,
                 type: resource.type,
-                remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
+                remoteDocument: resolveDocumentAssets(
+                  cloneObject(resourceState.remote),
+                  assets
+                ),
                 oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
                 newDocument: resolveDocumentAssets(cloneObject(document), assets),
                 assets,
@@ -882,7 +911,7 @@ var WorkSpace = class {
           resourceState.dependencies = [...resource.dependencies].map((d) => d.urn);
           resourceState.policies.deletion = resource.deletionPolicy;
           resource.setRemoteDocument(resourceState.remote);
-        }
+        })
       ];
     }
     const results = await this.runGraph(stackState.name, deployGraph);
@@ -901,7 +930,7 @@ var WorkSpace = class {
     }
     return dependents;
   }
-  async deleteStackResources(appUrn, appState, stackState, resources) {
+  async deleteStackResources(appUrn, appState, stackState, resources, limit) {
     const deleteGraph = {};
     for (const [urnStr, state] of Object.entries(resources)) {
       const urn = urnStr;
@@ -909,7 +938,7 @@ var WorkSpace = class {
       const token = createIdempotantToken(appState.token, urn, "delete");
       deleteGraph[urn] = [
         ...this.dependentsOn(resources, urn),
-        async () => {
+        () => limit(async () => {
           try {
             await provider.delete({
               urn,
@@ -927,7 +956,7 @@ var WorkSpace = class {
             }
           }
           delete stackState.resources[urn];
-        }
+        })
       ];
     }
     const results = await this.runGraph(stackState.name, deleteGraph);
@@ -1611,7 +1640,7 @@ var GraphQLSchemaProvider = class {
         })
       );
       if (result.status === "FAILED") {
-        throw new Error(`Failed updating graphql schema: ${result.details}`);
+        throw new Error(result.details);
       }
       if (result.status === "SUCCESS" || result.status === "ACTIVE") {
         return;
@@ -2615,21 +2644,34 @@ var LambdaTriggersProvider = class {
 // src/provider/aws/dynamodb/index.ts
 var dynamodb_exports = {};
 __export(dynamodb_exports, {
-  StateProvider: () => StateProvider,
+  LockProvider: () => LockProvider,
   Table: () => Table,
   TableItem: () => TableItem,
   TableItemProvider: () => TableItemProvider
 });
 
-// src/provider/aws/dynamodb/state-provider.ts
+// src/provider/aws/dynamodb/lock-provider.ts
 var import_util_dynamodb = require("@aws-sdk/util-dynamodb");
 var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
-var StateProvider = class {
+var LockProvider = class {
   constructor(props) {
     this.props = props;
     this.client = new import_client_dynamodb.DynamoDB(props);
   }
   client;
+  async locked(urn) {
+    const result = await this.client.send(
+      new import_client_dynamodb.GetItemCommand({
+        TableName: this.props.tableName,
+        Key: (0, import_util_dynamodb.marshall)({ urn })
+      })
+    );
+    if (!result.Item) {
+      return false;
+    }
+    const item = (0, import_util_dynamodb.unmarshall)(result.Item);
+    return typeof item.lock === "number";
+  }
   async lock(urn) {
     const id = Math.floor(Math.random() * 1e5);
     const props = {
@@ -2654,48 +2696,6 @@ var StateProvider = class {
         })
       );
     };
-  }
-  async get(urn) {
-    const result = await this.client.send(
-      new import_client_dynamodb.GetItemCommand({
-        TableName: this.props.tableName,
-        Key: (0, import_util_dynamodb.marshall)({ urn })
-      })
-    );
-    if (!result.Item) {
-      return;
-    }
-    const item = (0, import_util_dynamodb.unmarshall)(result.Item);
-    return item.state;
-  }
-  async update(urn, state) {
-    await this.client.send(
-      new import_client_dynamodb.UpdateItemCommand({
-        TableName: this.props.tableName,
-        Key: (0, import_util_dynamodb.marshall)({ urn }),
-        UpdateExpression: "SET #state = :state",
-        ExpressionAttributeNames: { "#state": "state" },
-        ExpressionAttributeValues: (0, import_util_dynamodb.marshall)(
-          {
-            ":state": JSON.parse(JSON.stringify(state))
-          },
-          {
-            removeUndefinedValues: true,
-            convertEmptyValues: true
-          }
-        )
-      })
-    );
-  }
-  async delete(urn) {
-    await this.client.send(
-      new import_client_dynamodb.UpdateItemCommand({
-        TableName: this.props.tableName,
-        Key: (0, import_util_dynamodb.marshall)({ urn }),
-        UpdateExpression: "REMOVE #state",
-        ExpressionAttributeNames: { "#state": "state" }
-      })
-    );
   }
 };
 
@@ -4580,7 +4580,8 @@ __export(s3_exports, {
   BucketObject: () => BucketObject,
   BucketObjectProvider: () => BucketObjectProvider,
   BucketPolicy: () => BucketPolicy,
-  BucketProvider: () => BucketProvider
+  BucketProvider: () => BucketProvider,
+  StateProvider: () => StateProvider
 });
 
 // src/provider/aws/s3/bucket-object.ts
@@ -4906,6 +4907,55 @@ var BucketObjectProvider = class {
   }
 };
 
+// src/provider/aws/s3/state-provider.ts
+var import_client_s33 = require("@aws-sdk/client-s3");
+var StateProvider = class {
+  constructor(props) {
+    this.props = props;
+    this.client = new import_client_s33.S3Client(props);
+  }
+  client;
+  async get(urn) {
+    let result;
+    try {
+      result = await this.client.send(
+        new import_client_s33.GetObjectCommand({
+          Bucket: this.props.bucket,
+          Key: `${urn}.state`
+        })
+      );
+    } catch (error) {
+      if (error instanceof import_client_s33.S3ServiceException && error.name === "NoSuchKey") {
+        return;
+      }
+      throw error;
+    }
+    if (!result.Body) {
+      return;
+    }
+    const body = await result.Body.transformToString("utf8");
+    const state = JSON.parse(body);
+    return state;
+  }
+  async update(urn, state) {
+    await this.client.send(
+      new import_client_s33.PutObjectCommand({
+        Bucket: this.props.bucket,
+        Key: `${urn}.state`,
+        Body: JSON.stringify(state)
+      })
+    );
+  }
+  async delete(urn) {
+    await this.client.send(
+      new import_client_s33.DeleteObjectCommand({
+        Bucket: this.props.bucket,
+        Key: `${urn}.state`
+      })
+    );
+  }
+};
+
 // src/provider/aws/ses/index.ts
 var ses_exports = {};
 __export(ses_exports, {
@@ -5195,28 +5245,36 @@ var createCloudProviders = (config) => {
 // src/provider/local/index.ts
 var local_exports = {};
 __export(local_exports, {
-  FileProvider: () => FileProvider,
-  MemoryProvider: () => MemoryProvider
+  file: () => file_exports,
+  memory: () => memory_exports
 });
 
-// src/provider/local/file-provider.ts
+// src/provider/local/file/index.ts
+var file_exports = {};
+__export(file_exports, {
+  LockProvider: () => LockProvider2,
+  StateProvider: () => StateProvider2
+});
+
+// src/provider/local/file/lock-provider.ts
 var import_path = require("path");
 var import_promises2 = require("fs/promises");
 var import_proper_lockfile = require("proper-lockfile");
-var FileProvider = class {
+var LockProvider2 = class {
   constructor(props) {
     this.props = props;
   }
-  stateFile(urn) {
-    return (0, import_path.join)(this.props.dir, `${urn}.json`);
-  }
   lockFile(urn) {
-    return (0, import_path.join)(this.props.dir, urn);
+    return (0, import_path.join)(this.props.dir, `${urn}.lock`);
   }
   async mkdir() {
     await (0, import_promises2.mkdir)(this.props.dir, {
       recursive: true
     });
+  }
+  async locked(urn) {
+    const result = await (0, import_promises2.stat)(this.lockFile(urn));
+    return result.isFile();
   }
   async lock(urn) {
     await this.mkdir();
@@ -5224,10 +5282,27 @@ var FileProvider = class {
       realpath: false
     });
   }
+};
+
+// src/provider/local/file/state-provider.ts
+var import_path2 = require("path");
+var import_promises3 = require("fs/promises");
+var StateProvider2 = class {
+  constructor(props) {
+    this.props = props;
+  }
+  stateFile(urn) {
+    return (0, import_path2.join)(this.props.dir, `${urn}.json`);
+  }
+  async mkdir() {
+    await (0, import_promises3.mkdir)(this.props.dir, {
+      recursive: true
+    });
+  }
   async get(urn) {
     let json;
     try {
-      json = await (0, import_promises2.readFile)((0, import_path.join)(this.stateFile(urn)), "utf8");
+      json = await (0, import_promises3.readFile)((0, import_path2.join)(this.stateFile(urn)), "utf8");
     } catch (error) {
       return;
     }
@@ -5235,30 +5310,44 @@ var FileProvider = class {
   }
   async update(urn, state) {
     await this.mkdir();
-    await (0, import_promises2.writeFile)(this.stateFile(urn), JSON.stringify(state, void 0, 2));
+    await (0, import_promises3.writeFile)(this.stateFile(urn), JSON.stringify(state, void 0, 2));
   }
   async delete(urn) {
     await this.mkdir();
-    await (0, import_promises2.rm)(this.stateFile(urn));
+    await (0, import_promises3.rm)(this.stateFile(urn));
   }
 };
 
-// src/provider/local/memory-provider.ts
-var MemoryProvider = class {
-  locked = /* @__PURE__ */ new Map();
-  states = /* @__PURE__ */ new Map();
+// src/provider/local/memory/index.ts
+var memory_exports = {};
+__export(memory_exports, {
+  LockProvider: () => LockProvider3,
+  StateProvider: () => StateProvider3
+});
+
+// src/provider/local/memory/lock-provider.ts
+var LockProvider3 = class {
+  locks = /* @__PURE__ */ new Map();
+  async locked(urn) {
+    return this.locks.has(urn);
+  }
   async lock(urn) {
-    if (this.locked.has(urn)) {
+    if (this.locks.has(urn)) {
       throw new Error("Already locked");
     }
     const id = Math.random();
-    this.locked.set(urn, id);
+    this.locks.set(urn, id);
     return async () => {
-      if (this.locked.get(urn) === id) {
-        this.locked.delete(urn);
+      if (this.locks.get(urn) === id) {
+        this.locks.delete(urn);
       }
     };
   }
+};
+
+// src/provider/local/memory/state-provider.ts
+var StateProvider3 = class {
+  states = /* @__PURE__ */ new Map();
   async get(urn) {
     return this.states.get(urn);
   }

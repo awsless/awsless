@@ -1,19 +1,32 @@
 import { fromIni } from '@aws-sdk/credential-providers'
-import { aws, WorkSpace, App, Stack, local, Asset, AppError } from '../src'
+import { aws, WorkSpace, App, Stack, Asset, AppError } from '../src'
 import { minutes } from '@awsless/duration'
 import { Bucket } from '../src/provider/aws/s3'
 
+const region = 'eu-west-1'
+const credentials = fromIni({
+	profile: 'jacksclub',
+})
+
 const workspace = new WorkSpace({
 	cloudProviders: aws.createCloudProviders({
-		region: 'eu-west-1',
+		region,
+		credentials,
 		timeout: minutes(15),
-		credentials: fromIni({
-			profile: 'jacksclub',
-		}),
 	}),
-	stateProvider: new local.FileProvider({
-		dir: './examples/state',
+	lockProvider: new aws.dynamodb.LockProvider({
+		region,
+		credentials,
+		tableName: 'awsless-state',
 	}),
+	stateProvider: new aws.s3.StateProvider({
+		region,
+		credentials,
+		bucket: 'awsless-state',
+	}),
+	// stateProvider: new local.file.StateProvider({
+	// 	dir: './examples/state',
+	// }),
 })
 
 // ------------------------------------------
@@ -70,8 +83,8 @@ const main = async () => {
 	// console.log(diff1)
 
 	try {
-		// await workspace.deployApp(app)
 		await workspace.deleteApp(app)
+		// await workspace.deleteApp(app)
 	} catch (error) {
 		if (error instanceof AppError) {
 			for (const issue of error.issues) {

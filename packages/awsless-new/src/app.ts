@@ -51,6 +51,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const base = new Stack(app, 'base')
 	const shared = new SharedData()
 
+	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
 	const allFunctions: OnFunctionEntry[] = []
@@ -120,6 +121,9 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				registerBuild(type, name, builder) {
 					builders.push({ type, name, builder })
 				},
+				registerConfig(name) {
+					configs.add(name)
+				},
 			})
 		}
 
@@ -177,6 +181,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		app,
 		base,
 		tests,
+		configs,
 		builders,
 		// deploymentLine,
 	}

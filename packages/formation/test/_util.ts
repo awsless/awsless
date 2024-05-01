@@ -10,11 +10,13 @@ export const createTestSpace = () => {
 		delete: vi.fn(async () => {}),
 	}
 
-	const stateProvider = new local.MemoryProvider()
+	const lockProvider = new local.memory.LockProvider()
+	const stateProvider = new local.memory.StateProvider()
 	const workspace = new WorkSpace({
 		cloudProviders: [cloudProvider],
 		stateProvider,
+		lockProvider,
 	})
 
-	return { cloudProvider, stateProvider, workspace }
+	return { cloudProvider, stateProvider, lockProvider, workspace }
 }

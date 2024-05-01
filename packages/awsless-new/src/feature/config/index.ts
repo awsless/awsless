@@ -22,10 +22,14 @@ export const configFeature = defineFeature({
 		await ctx.write('config.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		const configs = ctx.stackConfig.configs
+		const configs = ctx.stackConfig.configs ?? []
+
+		for (const name of configs) {
+			ctx.registerConfig(name)
+		}
 
 		ctx.onFunction(({ lambda, policy }) => {
-			if (configs && configs.length) {
+			if (configs.length) {
 				lambda.addEnvironment('CONFIG', configs.join(','))
 				policy.addStatement({
 					actions: [

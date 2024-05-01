@@ -1,14 +1,13 @@
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
-import { debug, debugError } from '../debug.js'
+import { debug } from '../debug.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 import { Cancelled } from '../../error.js'
-import { confirm, spinner } from '@clack/prompts'
+import { confirm } from '@clack/prompts'
 import { getAccountId, getCredentials } from '../../util/aws.js'
-import { WorkSpace, aws } from '@awsless/formation'
-import { minutes } from '@awsless/duration'
 import { task } from '../ui/util.js'
+import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
 
 export const del = (program: Command) => {
 	program
@@ -51,83 +50,19 @@ export const del = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const workspace = new WorkSpace({
-					stateProvider: new aws.dynamodb.StateProvider({
-						credentials,
-						region,
-						tableName: 'awsless-state',
-					}),
-					cloudProviders: aws.createCloudProviders({
-						credentials,
-						region: appConfig.region,
-						timeout: minutes(30),
-					}),
+				const { workspace, stateProvider } = createWorkSpace({
+					credentials,
+					region,
 				})
 
 				await task('Deleting the stacks to AWS', async update => {
 					await workspace.deleteApp(app)
+					await pullRemoteState(app, stateProvider)
 
 					update('Done deleting the stacks to AWS.')
 				})
 
 				return 'Your app has been deleted!'
-
-				// const spin = spinner()
-				// spin.start('Deleting stacks from AWS')
-
-				// for (const stack of app.stacks) {
-				// 	const spin = spinner()
-				// 	spin.start(`Deleting the ${color.info(stack.name)} stack from AWS`)
-
-				// 	try {
-				// 		await workspace.deleteStack(stack)
-				// 	} catch (error) {
-				// 		debugError(error)
-				// 		spin.stop('Failed.', 2)
-				// 		throw error
-				// 	}
-
-				// 	spin.stop(`Done deleting the ${color.info(stack.name)} stack from AWS`)
-				// }
-
-				// spin.stop('Done deleting stacks from AWS.')
-
-				// const doneDeploying = write(loadingDialog('Deleting stacks from AWS...'))
-
-				// const client = new StackClient(app, config.account, config.app.region, config.credentials)
-
-				// term.out.gap()
-
-				// for (const stacks of deletingLine) {
-				// 	await write(
-				// 		runTaskGroup(
-				// 			5,
-				// 			stacks.map(stack => ({
-				// 				label: stack.name,
-				// 				task: async update => {
-				// 					update('deleting...')
-
-				// 					await client.delete(stack.name, stack.region)
-
-				// 					// try {
-				// 					// 	await client.delete(stack.name, stack.region)
-				// 					// } catch (error) {
-				// 					// 	debugError(error)
-				// 					// 	update('failed')
-				// 					// 	throw error
-				// 					// }
-
-				// 					update('deleted')
-				// 					return 'done'
-				// 				},
-				// 			}))
-				// 		)
-				// 	)
-				// }
-
-				// term.out.gap()
-
-				// doneDeploying('Done deleting stacks from AWS')
 			})
 		})
 }

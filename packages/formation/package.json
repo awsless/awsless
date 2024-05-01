@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/formation",
-	"version": "0.0.12",
+	"version": "0.0.14",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -50,6 +50,7 @@
 		"@types/proper-lockfile": "^4.1.4",
 		"@types/uuid": "^9.0.0",
 		"change-case": "^4.1.2",
+		"p-limit": "^5.0.0",
 		"promise-dag": "^1.0.0",
 		"proper-lockfile": "^4.1.2",
 		"rfc6902": "^5.1.1",

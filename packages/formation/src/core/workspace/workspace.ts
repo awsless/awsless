@@ -1,6 +1,5 @@
 import { CloudProvider, ResourceDocument } from '../cloud'
 import { Resource, URN } from '../resource'
-// import { Stack } from '../stack'
 import { AppState, ResourceState, StackState, StateProvider } from '../state'
 import { Step, run } from 'promise-dag'
 import { AppError, ResourceError, ResourceNotFound, StackError } from '../error'
@@ -11,15 +10,23 @@ import { loadAssets, resolveDocumentAssets } from './asset'
 import { createIdempotantToken } from './token'
 import { getCloudProvider } from './provider'
 import { randomUUID } from 'crypto'
+import { LockProvider } from '../lock'
+import promiseLimit, { LimitFunction } from 'p-limit'
 
 export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get'
 export type StackOperation = 'deploy' | 'delete'
+
+type Options = {
+	filters?: string[]
+	token?: string
+}
 
 export class WorkSpace {
 	constructor(
 		protected props: {
 			cloudProviders: CloudProvider[]
 			stateProvider: StateProvider
+			lockProvider: LockProvider
 		}
 	) {}
 
@@ -57,8 +64,8 @@ export class WorkSpace {
 	// 	return app
 	// }
 
-	async deployApp(app: App, filters?: string[]) {
-		return lockApp(this.props.stateProvider, app, async () => {
+	async deployApp(app: App, opt: Options = {}) {
+		return lockApp(this.props.lockProvider, app, async () => {
 			// -------------------------------------------------------
 
 			const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
@@ -69,8 +76,8 @@ export class WorkSpace {
 			// -------------------------------------------------------
 			// Set the idempotent token when no token exists.
 
-			if (!appState.token) {
-				appState.token = randomUUID()
+			if (opt.token || !appState.token) {
+				appState.token = opt.token ?? randomUUID()
 
 				await this.props.stateProvider.update(app.urn, appState)
 			}
@@ -80,13 +87,14 @@ export class WorkSpace {
 
 			let stacks = app.stacks
 
-			if (filters && filters.length > 0) {
-				stacks = app.stacks.filter(stack => filters.includes(stack.name))
+			if (opt.filters && opt.filters.length > 0) {
+				stacks = app.stacks.filter(stack => opt.filters!.includes(stack.name))
 			}
 
 			// -------------------------------------------------------
 			// Build deployment graph
 
+			const limit = promiseLimit(10)
 			const graph: Record<URN, Step[]> = {}
 
 			for (const stack of stacks) {
@@ -133,19 +141,31 @@ export class WorkSpace {
 						// Delete resources before deployment...
 
 						if (Object.keys(deleteResourcesBefore).length > 0) {
-							await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
+							await this.deleteStackResources(
+								app.urn,
+								appState,
+								stackState,
+								deleteResourcesBefore,
+								limit
+							)
 						}
 
 						// -------------------------------------------------------------------
 						// Deploy resources...
 
-						await this.deployStackResources(app.urn, appState, stackState, resources)
+						await this.deployStackResources(app.urn, appState, stackState, resources, limit)
 
 						// -------------------------------------------------------------------
 						// Delete resources after deployment...
 
 						if (Object.keys(deleteResourcesAfter).length > 0) {
-							await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
+							await this.deleteStackResources(
+								app.urn,
+								appState,
+								stackState,
+								deleteResourcesAfter,
+								limit
+							)
 						}
 
 						// -------------------------------------------------------------------
@@ -191,8 +211,8 @@ export class WorkSpace {
 		})
 	}
 
-	async deleteApp(app: App) {
-		return lockApp(this.props.stateProvider, app, async () => {
+	async deleteApp(app: App, opt: Options = {}) {
+		return lockApp(this.props.lockProvider, app, async () => {
 			const appState = await this.props.stateProvider.get(app.urn)
 
 			if (!appState) {
@@ -202,14 +222,15 @@ export class WorkSpace {
 			// -------------------------------------------------------
 			// Set the idempotent token when no token exists.
 
-			if (!appState.token) {
-				appState.token = randomUUID()
+			if (opt.token || !appState.token) {
+				appState.token = opt.token ?? randomUUID()
 
 				await this.props.stateProvider.update(app.urn, appState)
 			}
 
 			// -------------------------------------------------------
 
+			const limit = promiseLimit(10)
 			const graph: Record<URN, Step[]> = {}
 
 			for (const [_urn, stackState] of Object.entries(appState.stacks)) {
@@ -217,7 +238,7 @@ export class WorkSpace {
 				graph[urn] = [
 					...this.dependentsOn(appState.stacks, urn),
 					async () => {
-						await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
+						await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit)
 						delete appState.stacks[urn]
 					},
 				]
@@ -476,7 +497,8 @@ export class WorkSpace {
 		appUrn: URN,
 		appState: AppState,
 		stackState: StackState,
-		resources: Resource[]
+		resources: Resource[],
+		limit: LimitFunction
 	) {
 		// -------------------------------------------------------------------
 		// Heal from unknown remote state
@@ -493,107 +515,111 @@ export class WorkSpace {
 
 			deployGraph[resource.urn] = [
 				...[...resource.dependencies].map(dep => dep.urn),
-				async () => {
-					const state = resource.toState()
-					const [assets, assetHashes] = await loadAssets(state.assets ?? {})
-					const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
-					const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {})
+				() =>
+					limit(async () => {
+						const state = resource.toState()
+						const [assets, assetHashes] = await loadAssets(state.assets ?? {})
+						const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
+						const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {})
 
-					let resourceState = stackState.resources[resource.urn]
+						let resourceState = stackState.resources[resource.urn]
 
-					if (!resourceState) {
-						const token = createIdempotantToken(appState.token!, resource.urn, 'create')
+						if (!resourceState) {
+							const token = createIdempotantToken(appState.token!, resource.urn, 'create')
 
-						let id: string
-						try {
-							id = await provider.create({
+							let id: string
+							try {
+								id = await provider.create({
+									urn: resource.urn,
+									type: resource.type,
+									document: resolveDocumentAssets(cloneObject(document), assets),
+									assets,
+									extra,
+									token,
+								})
+							} catch (error) {
+								throw ResourceError.wrap(resource.urn, resource.type, 'create', error)
+							}
+
+							resourceState = stackState.resources[resource.urn] = {
+								id,
+								type: resource.type,
+								provider: resource.cloudProviderId,
+								local: document,
+								assets: assetHashes,
+								dependencies: [...resource.dependencies].map(d => d.urn),
+								extra,
+								policies: {
+									deletion: resource.deletionPolicy,
+								},
+							}
+
+							const remote = await this.getRemoteResource({
+								id,
 								urn: resource.urn,
 								type: resource.type,
-								document: resolveDocumentAssets(cloneObject(document), assets),
-								assets,
+								document,
 								extra,
-								token,
+								provider,
 							})
-						} catch (error) {
-							throw ResourceError.wrap(resource.urn, resource.type, 'create', error)
-						}
 
-						resourceState = stackState.resources[resource.urn] = {
-							id,
-							type: resource.type,
-							provider: resource.cloudProviderId,
-							local: document,
-							assets: assetHashes,
-							dependencies: [...resource.dependencies].map(d => d.urn),
-							extra,
-							policies: {
-								deletion: resource.deletionPolicy,
-							},
-						}
+							resourceState.remote = remote
+						} else if (
+							// Check if any state has changed
+							!compareDocuments(
+								//
+								[resourceState.local, resourceState.assets],
+								[document, assetHashes]
+							)
+						) {
+							// this.resolveDocumentAssets(this.copy(document), assets),
+							const token = createIdempotantToken(appState.token!, resource.urn, 'update')
 
-						const remote = await this.getRemoteResource({
-							id,
-							urn: resource.urn,
-							type: resource.type,
-							document,
-							extra,
-							provider,
-						})
+							let id: string
+							try {
+								id = await provider.update({
+									urn: resource.urn,
+									id: resourceState.id,
+									type: resource.type,
+									remoteDocument: resolveDocumentAssets(
+										cloneObject(resourceState.remote),
+										assets
+									),
+									oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
+									newDocument: resolveDocumentAssets(cloneObject(document), assets),
+									assets,
+									extra,
+									token,
+								})
+							} catch (error) {
+								throw ResourceError.wrap(resource.urn, resource.type, 'update', error)
+							}
 
-						resourceState.remote = remote
-					} else if (
-						// Check if any state has changed
-						!compareDocuments(
-							//
-							[resourceState.local, resourceState.assets],
-							[document, assetHashes]
-						)
-					) {
-						// this.resolveDocumentAssets(this.copy(document), assets),
-						const token = createIdempotantToken(appState.token!, resource.urn, 'update')
+							resourceState.id = id
+							resourceState.local = document
+							resourceState.assets = assetHashes
 
-						let id: string
-						try {
-							id = await provider.update({
+							// This command might fail.
+							// We will need to heal the state if this fails.
+
+							const remote = await this.getRemoteResource({
+								id,
 								urn: resource.urn,
-								id: resourceState.id,
 								type: resource.type,
-								remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
-								oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
-								newDocument: resolveDocumentAssets(cloneObject(document), assets),
-								assets,
+								document,
 								extra,
-								token,
+								provider,
 							})
-						} catch (error) {
-							throw ResourceError.wrap(resource.urn, resource.type, 'update', error)
+
+							resourceState.remote = remote
 						}
 
-						resourceState.id = id
-						resourceState.local = document
-						resourceState.assets = assetHashes
+						resourceState.extra = extra
+						resourceState.dependencies = [...resource.dependencies].map(d => d.urn)
+						resourceState.policies.deletion = resource.deletionPolicy
 
-						// This command might fail.
-						// We will need to heal the state if this fails.
-
-						const remote = await this.getRemoteResource({
-							id,
-							urn: resource.urn,
-							type: resource.type,
-							document,
-							extra,
-							provider,
-						})
-
-						resourceState.remote = remote
-					}
-
-					resourceState.extra = extra
-					resourceState.dependencies = [...resource.dependencies].map(d => d.urn)
-					resourceState.policies.deletion = resource.deletionPolicy
-
-					resource.setRemoteDocument(resourceState.remote)
-				},
+						resource.setRemoteDocument(resourceState.remote)
+					}),
 			]
 		}
 
@@ -641,7 +667,8 @@ export class WorkSpace {
 		appUrn: URN,
 		appState: AppState,
 		stackState: StackState,
-		resources: Record<URN, ResourceState>
+		resources: Record<URN, ResourceState>,
+		limit: LimitFunction
 	) {
 		// -------------------------------------------------------------------
 		// Delete resources...
@@ -655,31 +682,32 @@ export class WorkSpace {
 
 			deleteGraph[urn] = [
 				...this.dependentsOn(resources, urn),
-				async () => {
-					try {
-						await provider.delete({
-							urn,
-							id: state.id,
-							type: state.type,
-							document: state.local,
-							assets: state.assets,
-							extra: state.extra,
-							token,
-						})
-					} catch (error) {
-						if (error instanceof ResourceNotFound) {
-							// The resource has already been deleted.
-							// Let's skip this issue.
-						} else {
-							throw ResourceError.wrap(urn, state.type, 'delete', error)
+				() =>
+					limit(async () => {
+						try {
+							await provider.delete({
+								urn,
+								id: state.id,
+								type: state.type,
+								document: state.local,
+								assets: state.assets,
+								extra: state.extra,
+								token,
+							})
+						} catch (error) {
+							if (error instanceof ResourceNotFound) {
+								// The resource has already been deleted.
+								// Let's skip this issue.
+							} else {
+								throw ResourceError.wrap(urn, state.type, 'delete', error)
+							}
 						}
-					}
 
-					// -------------------------------------------------------------------
-					// Delete the resource from the stack state
+						// -------------------------------------------------------------------
+						// Delete the resource from the stack state
 
-					delete stackState.resources[urn]
-				},
+						delete stackState.resources[urn]
+					}),
 			]
 		}
 

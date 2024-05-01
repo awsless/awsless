@@ -4,15 +4,13 @@ import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { createApp } from '../../app.js'
-import { WorkSpace, aws } from '@awsless/formation'
 import { confirm } from '@clack/prompts'
 import { color } from '../ui/style.js'
 import { debug } from '../debug.js'
 import { Cancelled } from '../../error.js'
-import { Step, run } from 'promise-dag'
 import { task } from '../ui/util.js'
 import { runTests } from '../ui/complex/run-tests.js'
-import { minutes } from '@awsless/duration'
+import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -67,55 +65,14 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const workspace = new WorkSpace({
-					stateProvider: new aws.dynamodb.StateProvider({
-						credentials,
-						region,
-						tableName: 'awsless-state',
-					}),
-					cloudProviders: aws.createCloudProviders({
-						credentials,
-						region: appConfig.region,
-						timeout: minutes(60),
-					}),
+				const { workspace, stateProvider } = createWorkSpace({
+					credentials,
+					region,
 				})
 
-				// await workspace.deployApp(app)
-
-				// workspace.on('resource', event => {
-				// 	console.log(event)
-				// })
-
-				// const graph: Record<string, Step[]> = {}
-				// for (const stack of app.stacks) {
-				// 	const deps: Step[] = []
-
-				// 	if (stack.name !== 'base') {
-				// 		deps.push('base')
-				// 	}
-
-				// 	graph[stack.name] = [
-				// 		...deps,
-				// 		async () => {
-				// 			// console.log(stack.name)
-
-				// 			await workspace.deployStack(stack)
-
-				// 			// console.log(stack.name, 'DONE')
-				// 		},
-				// 	]
-				// }
-
 				await task('Deploying the stacks to AWS', async update => {
-					// const results = await Promise.allSettled(Object.values(run(graph)))
-
 					await workspace.deployApp(app)
-
-					// for (const result of results) {
-					// 	if (result.status === 'rejected') {
-					// 		throw result.reason
-					// 	}
-					// }
+					await pullRemoteState(app, stateProvider)
 
 					update('Done deploying the stacks to AWS.')
 				})

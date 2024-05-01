@@ -8,6 +8,7 @@ import { types } from './types.js'
 import { test } from './test.js'
 import { resource } from './resource/index.js'
 import { dev } from './dev.js'
+import { state } from './state/index.js'
 
 export const commands = [
 	bootstrap,
@@ -20,6 +21,7 @@ export const commands = [
 
 	// bind,
 
+	state,
 	resource,
 	config,
 	test,

@@ -1,2 +1,2 @@
-export * from './file-provider'
-export * from './memory-provider'
+export * as file from './file'
+export * as memory from './memory'

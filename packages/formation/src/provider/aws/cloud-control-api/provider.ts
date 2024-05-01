@@ -73,6 +73,10 @@ export class CloudControlApiProvider implements CloudProvider {
 					// Sadly we can't heal from resources that already exist
 					// without CloudControlApi returning the resource
 					// identifier.
+
+					// For some reason they do include the identifier inside the error message tho.
+					// We could parse the identifier from the error message.
+					// Example: Resource of type 'AWS::AppSync::DomainNameApiAssociation' with identifier 'admin-api.getblockalert.com/ApiAssociation' already exists.
 				}
 
 				if (event.ErrorCode === 'NotFound') {
@@ -111,8 +115,8 @@ export class CloudControlApiProvider implements CloudProvider {
 	}
 
 	private updateOperations(remoteDocument: any, oldDocument: ResourceDocument, newDocument: ResourceDocument) {
+		// Remove write-only props from the old document so we add write-only props again.
 		// https://github.com/pulumi/pulumi-aws-native/pull/678
-		// Remove write-only fields from the old document so we add write-only again.
 		for (const key in oldDocument) {
 			if (typeof remoteDocument[key]) {
 				delete oldDocument[key]
@@ -170,13 +174,5 @@ export class CloudControlApiProvider implements CloudProvider {
 		)
 
 		await this.progressStatus(result.ProgressEvent!)
-
-		// try {
-		// 	await this.progressStatus(result.ProgressEvent!)
-		// } catch (error) {
-		// 	console.log('DELETE _WRONG_')
-		// 	console.log(error)
-		// 	throw error
-		// }
 	}
 }

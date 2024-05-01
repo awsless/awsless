@@ -18,6 +18,8 @@ type RegisterBuild = (
 	builder: Builder
 ) => void
 
+type RegisterConfig = (name: string) => void
+
 type RegisterTest = (name: string, paths: string[]) => void
 
 export type OnFunction = (callback: OnFunctionListener) => void
@@ -30,6 +32,8 @@ export type OnFunctionEntry = {
 export type StackContext = AppContext & {
 	stackConfig: StackConfig
 	stack: Stack
+
+	registerConfig: RegisterConfig
 }
 
 export type AppContext = {

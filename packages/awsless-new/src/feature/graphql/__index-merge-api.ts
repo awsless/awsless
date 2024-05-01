@@ -6,14 +6,14 @@ import { paramCase } from 'change-case'
 // import { basename } from 'path'
 import { mergeTypeDefs } from '@graphql-tools/merge'
 import { generate } from '@awsless/graphql'
-import { buildSchema, print } from 'graphql'
+import { buildSchema, isObjectType, print } from 'graphql'
 import { readFile } from 'fs/promises'
 // import { FunctionSchema } from '../function/schema.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { Asset, Node, aws } from '@awsless/formation'
-import { formatGlobalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { FileError } from '../../error.js'
@@ -123,10 +123,29 @@ export const graphqlFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.graphql ?? {})) {
 			const group = new Node(ctx.base, 'graphql', id)
 
-			const name = formatGlobalResourceName(ctx.app.name, 'graphql', id)
+			const role = new aws.iam.Role(group, 'role', {
+				assumedBy: 'appsync.amazonaws.com',
+				policies: [
+					{
+						name: 'merge-policy',
+						statements: [
+							{
+								actions: [
+									//
+									'appsync:StartSchemaMerge',
+									'appsync:SourceGraphQL',
+								],
+								resources: [`arn:aws:appsync:${ctx.appConfig.region}:${ctx.accountId}:apis/*`],
+							},
+						],
+					},
+				],
+			})
+
 			const api = new aws.appsync.GraphQLApi(group, 'api', {
-				name,
-				type: 'graphql',
+				name: formatGlobalResourceName(ctx.app.name, 'graphql', id),
+				type: 'merged',
+				role: role.arn,
 				auth: {
 					default: props.auth
 						? {
@@ -142,40 +161,15 @@ export const graphqlFeature = defineFeature({
 
 			ctx.shared.set(`graphql-${id}-id`, api.id)
 
-			ctx.registerBuild('graphql-schema', name, async build => {
-				const sources: string[] = []
-				const fingers: string[] = []
-
-				// Load every schema file.
-				for (const stack of ctx.stackConfigs) {
-					const file = stack.graphql?.[id]?.schema
-					if (file) {
-						const source = await readFile(file, 'utf8')
-						const finger = createHash('sha1').update(source).digest('hex')
-
-						sources.push(source)
-						fingers.push(finger)
-					}
-				}
-
-				const finger = createHash('sha1').update(sources.sort().join(' ')).digest('hex')
-
-				return build(finger, async write => {
-					const defs = mergeTypeDefs([scalarSchema, baseSchema, ...sources])
-					const output = print(defs)
-
-					await write('schema.gql', output)
-
-					return {
-						size: formatByteSize(Buffer.from(output).byteLength),
-					}
-				})
-			})
-
-			new aws.appsync.GraphQLSchema(group, 'schema', {
-				apiId: api.id,
-				definition: Asset.fromFile(getBuildPath('graphql-schema', name, 'schema.gql')),
-			})
+			// if (props.auth) {
+			// 	api.setDefaultAuthorization(
+			// 		GraphQLAuthorization.withCognito({
+			// 			userPoolId: bootstrap.import(`auth-${props.auth}-user-pool-id`),
+			// 			region: bootstrap.region,
+			// 			defaultAction: 'ALLOW',
+			// 		})
+			// 	)
+			// }
 
 			if (props.resolver) {
 				ctx.registerBuild('graphql-resolver', id, async build => {
@@ -230,6 +224,7 @@ export const graphqlFeature = defineFeature({
 			const defaultProps = ctx.appConfig.defaults.graphql?.[id]
 
 			if (!defaultProps) {
+				// throw new ConfigError(ctx.stackConfig.file, )
 				throw new FileError(
 					ctx.stackConfig.file,
 					`GraphQL definition is not defined on app level for "${id}"`
@@ -237,7 +232,78 @@ export const graphqlFeature = defineFeature({
 			}
 
 			const group = new Node(ctx.stack, 'graphql', id)
-			const apiId = ctx.shared.get<string>(`graphql-${id}-id`)
+
+			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'graphql', id)
+
+			const api = new aws.appsync.GraphQLApi(group, 'api', {
+				name,
+				// visibility: false,
+				auth: {
+					default: {
+						type: 'iam',
+					},
+				},
+			})
+
+			ctx.registerBuild('graphql-schema', name, async build => {
+				const source = await readFile(props.schema, 'utf8')
+				const finger = createHash('sha1').update(source).digest('hex')
+
+				return build(finger, async write => {
+					const defs = mergeTypeDefs([scalarSchema, baseSchema, source])
+					const output = print(defs)
+					let schema
+
+					try {
+						schema = buildSchema(output)
+					} catch (error) {
+						if (error instanceof Error) {
+							throw new FileError(props.schema, error.message)
+						}
+
+						throw error
+					}
+
+					for (const [typeName, fields] of Object.entries(props.resolvers ?? {})) {
+						const type = schema.getType(typeName)
+
+						if (!type || !isObjectType(type)) {
+							throw new FileError(props.schema, `GraphQL schema type doesn't exist: ${typeName}`)
+						}
+
+						const typeFields = type.getFields()
+
+						for (const fieldName of Object.keys(fields ?? {})) {
+							if (!(fieldName in typeFields)) {
+								throw new FileError(
+									props.schema,
+									`GraphQL schema field doesn't exist: ${typeName}.${fieldName}`
+								)
+							}
+						}
+					}
+
+					await write('schema.gql', output)
+
+					return {
+						size: formatByteSize(Buffer.from(source).byteLength),
+					}
+				})
+			})
+
+			const schema = new aws.appsync.GraphQLSchema(group, 'schema', {
+				apiId: api.id,
+				definition: Asset.fromFile(getBuildPath('graphql-schema', name, 'schema.gql')),
+			})
+
+			const association = new aws.appsync.SourceApiAssociation(group, 'association', {
+				mergedApiId: ctx.shared.get(`graphql-${id}-id`),
+				sourceApiId: api.id,
+			})
+
+			// Association will fail without a valid schema.
+			// So we need to wait on the schema.
+			association.dependsOn(schema)
 
 			for (const [typeName, fields] of Object.entries(props.resolvers ?? {})) {
 				for (const [fieldName, props] of Object.entries(fields ?? {})) {
@@ -245,7 +311,7 @@ export const graphqlFeature = defineFeature({
 					const resolverGroup = new Node(group, 'resolver', name)
 
 					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
-
+					// const funcId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
 					const { lambda } = createLambdaFunction(resolverGroup, ctx, `graphql`, entryId, {
 						...props.consumer,
 						description: `${id} ${typeName}.${fieldName}`,
@@ -267,10 +333,10 @@ export const graphqlFeature = defineFeature({
 					})
 
 					const source = new aws.appsync.DataSource(resolverGroup, 'source', {
-						apiId,
+						apiId: api.id,
+						type: 'lambda',
 						name,
 						role: role.arn,
-						type: 'lambda',
 						functionArn: lambda.arn,
 					})
 
@@ -283,19 +349,23 @@ export const graphqlFeature = defineFeature({
 					}
 
 					const config = new aws.appsync.FunctionConfiguration(resolverGroup, 'config', {
-						apiId,
+						apiId: api.id,
 						name,
 						code,
 						dataSourceName: source.name,
 					})
 
-					new aws.appsync.Resolver(resolverGroup, 'resolver', {
-						apiId,
+					const resolver = new aws.appsync.Resolver(resolverGroup, 'resolver', {
+						apiId: api.id,
 						typeName,
 						fieldName,
 						functions: [config.id],
 						code,
 					})
+
+					// If deploying the schema fails we might as well not deploy the resolvers.
+					// Because the resolvers will always fail without the corresponding schema.
+					resolver.dependsOn(schema)
 				}
 			}
 		}

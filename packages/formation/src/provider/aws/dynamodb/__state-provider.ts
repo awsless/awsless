@@ -17,35 +17,6 @@ export class StateProvider implements Provider {
 		this.client = new DynamoDB(props)
 	}
 
-	async lock(urn: URN) {
-		const id = Math.floor(Math.random() * 100_000)
-
-		const props = {
-			TableName: this.props.tableName,
-			Key: marshall({ urn }),
-			ExpressionAttributeNames: { '#lock': 'lock' },
-			ExpressionAttributeValues: { ':id': marshall(id) },
-		}
-
-		await this.client.send(
-			new UpdateItemCommand({
-				...props,
-				UpdateExpression: 'SET #lock = :id',
-				ConditionExpression: 'attribute_not_exists(#lock)',
-			})
-		)
-
-		return async () => {
-			await this.client.send(
-				new UpdateItemCommand({
-					...props,
-					UpdateExpression: 'REMOVE #lock',
-					ConditionExpression: '#lock = :id',
-				})
-			)
-		}
-	}
-
 	async get(urn: URN) {
 		const result = await this.client.send(
 			new GetItemCommand({
@@ -64,8 +35,6 @@ export class StateProvider implements Provider {
 	}
 
 	async update(urn: URN, state: AppState) {
-		// console.log('update', urn, JSON.stringify(state))
-
 		await this.client.send(
 			new UpdateItemCommand({
 				TableName: this.props.tableName,

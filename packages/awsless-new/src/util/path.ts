@@ -11,6 +11,9 @@ export const directories = {
 	get cache() {
 		return join(this.output, 'cache')
 	},
+	get state() {
+		return join(this.output, 'state')
+	},
 	get build() {
 		return join(this.output, 'build')
 	},

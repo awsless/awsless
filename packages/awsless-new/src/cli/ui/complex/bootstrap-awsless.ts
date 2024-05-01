@@ -3,7 +3,6 @@ import {
 	CreateTableCommand,
 	DescribeTableCommand,
 	DynamoDB,
-	DynamoDBClientConfig,
 	KeyType,
 	ResourceNotFoundException,
 	ScalarAttributeType,
@@ -11,12 +10,15 @@ import {
 import { confirm, log } from '@clack/prompts'
 import { Cancelled } from '../../../error.js'
 import { task } from '../util.js'
+import { CreateBucketCommand, HeadBucketCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3'
+import { Region } from '../../../config/schema/region.js'
+import { Credentials } from '../../../util/aws.js'
 
-const hasStateTable = async (client: DynamoDB) => {
+const hasLockTable = async (client: DynamoDB) => {
 	try {
 		const result = await client.send(
 			new DescribeTableCommand({
-				TableName: 'awsless-state',
+				TableName: 'awsless-locks',
 			})
 		)
 
@@ -30,10 +32,30 @@ const hasStateTable = async (client: DynamoDB) => {
 	}
 }
 
-const createStateTable = (client: DynamoDB) => {
+const hasStateBucket = async (client: S3Client) => {
+	try {
+		const result = await client.send(
+			new HeadBucketCommand({
+				Bucket: 'awsless-state',
+			})
+		)
+
+		return !!result.BucketRegion
+	} catch (error) {
+		console.log(error)
+
+		if (error instanceof S3ServiceException) {
+			return false
+		}
+
+		throw error
+	}
+}
+
+const createLockTable = (client: DynamoDB) => {
 	return client.send(
 		new CreateTableCommand({
-			TableName: 'awsless-state',
+			TableName: 'awsless-locks',
 			BillingMode: BillingMode.PAY_PER_REQUEST,
 			KeySchema: [
 				{
@@ -51,12 +73,25 @@ const createStateTable = (client: DynamoDB) => {
 	)
 }
 
-export const bootstrapAwsless = async (opts: DynamoDBClientConfig) => {
-	const client = new DynamoDB(opts)
+const createStateBucket = (client: S3Client) => {
+	return client.send(
+		new CreateBucketCommand({
+			Bucket: 'awsless-state',
+		})
+	)
+}
 
-	const table = await hasStateTable(client)
+export const bootstrapAwsless = async (props: { region: Region; credentials: Credentials }) => {
+	const dynamo = new DynamoDB(props)
+	const s3 = new S3Client(props)
 
-	if (!table) {
+	const [table, bucket] = await Promise.all([
+		//
+		hasLockTable(dynamo),
+		hasStateBucket(s3),
+	])
+
+	if (!table || !bucket) {
 		log.warn(`Your Awsless hasn't been bootstrapped yet.`)
 
 		if (!process.env.SKIP_PROMPT) {
@@ -70,7 +105,13 @@ export const bootstrapAwsless = async (opts: DynamoDBClientConfig) => {
 		}
 
 		await task('Bootstrapping', async update => {
-			await createStateTable(client)
+			if (!table) {
+				await createLockTable(dynamo)
+			}
+
+			if (!bucket) {
+				await createStateBucket(s3)
+			}
 
 			update('Done deploying the bootstrap stack')
 		})

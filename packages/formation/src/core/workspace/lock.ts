@@ -1,11 +1,13 @@
+import { LockProvider } from '../lock'
 import { App } from '../app'
-import { StateProvider } from '../state'
 
-export const lockApp = async <T>(stateProvider: StateProvider, app: App, fn: () => T): Promise<Awaited<T>> => {
+export const lockApp = async <T>(lockProvider: LockProvider, app: App, fn: () => T): Promise<Awaited<T>> => {
 	let release
 	try {
-		release = await stateProvider.lock(app.urn)
+		release = await lockProvider.lock(app.urn)
 	} catch (error) {
+		console.log(error)
+
 		throw new Error(`Already in progress: ${app.urn}`)
 	}
 

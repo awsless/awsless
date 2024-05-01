@@ -29,7 +29,7 @@ export const get = (program: Command) => {
 				note(
 					list({
 						Name: chalk.magenta(name),
-						Value: value ?? color.error('(empty)'),
+						Value: value ?? color.warning('(empty)'),
 					})
 				)
 			})

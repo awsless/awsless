@@ -18,12 +18,12 @@
 		// 		"subDomain": "elb"
 		// 	}
 		// },
-		// "graphql": {
-		// 	"api": {
-		// 		// "domain": "main",
-		// 		"subDomain": "api",
-		// 		// "auth": "users"
-		// 	}
-		// }
+		"graphql": {
+			"api": {
+				// "domain": "main",
+				// "subDomain": "api",
+				// "auth": "users"
+			}
+		}
 	}
 }
