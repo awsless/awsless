@@ -6,21 +6,15 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { constantCase } from 'change-case'
 
 const typeGenCode = `
-import {
-	migrate as _migrate,
-	search as _search,
-	indexItem as _indexItem,
-	updateItem as _updateItem,
-	deleteItem as _deleteItem,
-} from '@awsless/open-search'
+import { searchClient, migrate, search, indexItem, updateItem, deleteItem } from '@awsless/open-search'
 
 type Store<Name extends string> = {
 	readonly name: Name
-	readonly migrate: (...args: Parameters<typeof _migrate>) => ReturnType<typeof _migrate>
-	readonly search: (...args: Parameters<typeof _search>) => ReturnType<typeof _search>
-	readonly indexItem: (...args: Parameters<typeof _indexItem>) => ReturnType<typeof _indexItem>
-	readonly updateItem: (...args: Parameters<typeof _updateItem>) => ReturnType<typeof _updateItem>
-	readonly deleteItem: (...args: Parameters<typeof _deleteItem>) => ReturnType<typeof _deleteItem>
+	readonly migrate: (...args: Parameters<typeof migrate>) => ReturnType<typeof migrate>
+	readonly search: (...args: Parameters<typeof search>) => ReturnType<typeof search>
+	readonly indexItem: (...args: Parameters<typeof indexItem>) => ReturnType<typeof indexItem>
+	readonly updateItem: (...args: Parameters<typeof updateItem>) => ReturnType<typeof updateItem>
+	readonly deleteItem: (...args: Parameters<typeof deleteItem>) => ReturnType<typeof deleteItem>
 }
 `
 
