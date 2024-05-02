@@ -512,7 +512,7 @@ var WorkSpace = class {
       if (opt.filters && opt.filters.length > 0) {
         stacks = app.stacks.filter((stack) => opt.filters.includes(stack.name));
       }
-      const limit = promiseLimit(10);
+      const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
       for (const stack of stacks) {
         graph[stack.urn] = [
@@ -582,7 +582,7 @@ var WorkSpace = class {
         appState.token = opt.token ?? randomUUID();
         await this.props.stateProvider.update(app.urn, appState);
       }
-      const limit = promiseLimit(10);
+      const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
       for (const [_urn, stackState] of Object.entries(appState.stacks)) {
         const urn = _urn;

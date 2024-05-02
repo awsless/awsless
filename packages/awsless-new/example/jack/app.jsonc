@@ -20,9 +20,18 @@
 		// },
 		"graphql": {
 			"api": {
+				"auth": {
+					"authorizer": "./auth.ts",
+				}
 				// "domain": "main",
 				// "subDomain": "api",
 				// "auth": "users"
+			}
+		},
+		"function": {
+			"log": {
+				"retention": "1 days",
+				"level": "info"
 			}
 		}
 	}

@@ -25,7 +25,7 @@ export const test = (program: Command) => {
 
 				await runTests(tests, options?.filters)
 
-				return
+				return 'All tests finished.'
 			})
 		})
 }

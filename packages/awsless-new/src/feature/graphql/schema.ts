@@ -2,6 +2,11 @@ import { z } from 'zod'
 import { FunctionSchema } from '../function/schema.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { DurationSchema } from '../../config/schema/duration.js'
+
+const AuthorizerTtl = DurationSchema.describe(
+	`The number of seconds a response should be cached for. The maximum value is one hour (3600 seconds). The Lambda function can override this by returning a ttlOverride key in its response.`
+)
 
 export const GraphQLDefaultSchema = z
 	.record(
@@ -9,7 +14,15 @@ export const GraphQLDefaultSchema = z
 		z.object({
 			domain: ResourceIdSchema.describe('The domain id to link your API with.').optional(),
 			subDomain: z.string().optional(),
-			auth: ResourceIdSchema.optional(),
+			auth: z
+				.union([
+					ResourceIdSchema,
+					z.object({
+						authorizer: FunctionSchema,
+						ttl: AuthorizerTtl.default('1 hour'),
+					}),
+				])
+				.optional(),
 			// authorization: z.object({
 			// 	authorizer: FunctionSchema,
 			// 	ttl: DurationSchema.default('1 hour'),

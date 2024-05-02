@@ -1,3 +1,4 @@
-export default (event: unknown) => {
-	return Promise.resolve(event)
+export default async (event: unknown) => {
+	console.log(event)
+	return event
 }
