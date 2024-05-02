@@ -10,6 +10,7 @@ import { searchClient, migrate, search, indexItem, updateItem, deleteItem } from
 
 type Store<Name extends string> = {
 	readonly name: Name
+	readonly domain: string
 	readonly migrate: (...args: Parameters<typeof migrate>) => ReturnType<typeof migrate>
 	readonly search: (...args: Parameters<typeof search>) => ReturnType<typeof search>
 	readonly indexItem: (...args: Parameters<typeof indexItem>) => ReturnType<typeof indexItem>
