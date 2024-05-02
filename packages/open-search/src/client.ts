@@ -5,9 +5,10 @@ import { fromEnv } from '@aws-sdk/credential-providers'
 
 let client: Client
 
-export const searchClient = (options: ClientOptions): Client => {
+export const searchClient = (options: ClientOptions = {}): Client => {
 	if (!client) {
 		client = new Client({
+			node: 'https://' + process.env.SEARCH_DOMAIN,
 			// enableLongNumeralSupport: true,
 			// requestTimeout: 3000,
 			...AwsSigv4Signer({

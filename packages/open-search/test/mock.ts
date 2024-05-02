@@ -17,7 +17,6 @@ import {
 	set,
 	string,
 	uuid,
-	query,
 	updateItem,
 } from '../src'
 import { BigFloat } from '@awsless/big-float'

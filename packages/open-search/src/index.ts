@@ -15,7 +15,6 @@ export { deleteItem } from './ops/delete-item'
 export { updateItem } from './ops/update-item'
 export { migrate } from './ops/migrate'
 export { search } from './ops/search'
-export { query } from './ops/query'
 
 // types
 export { array } from './structs/array'

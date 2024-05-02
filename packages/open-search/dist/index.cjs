@@ -43,7 +43,6 @@ __export(src_exports, {
   mockOpenSearch: () => mockOpenSearch,
   number: () => number,
   object: () => object,
-  query: () => query,
   search: () => search,
   searchClient: () => searchClient,
   set: () => set,
@@ -58,10 +57,12 @@ var import_opensearch = require("@opensearch-project/opensearch");
 var import_aws = require("@opensearch-project/opensearch/aws");
 var import_credential_providers = require("@aws-sdk/credential-providers");
 var client;
-var searchClient = () => {
+var searchClient = (options = {}) => {
   if (!client) {
     client = new import_opensearch.Client({
       node: "https://" + process.env.SEARCH_DOMAIN,
+      // enableLongNumeralSupport: true,
+      // requestTimeout: 3000,
       ...(0, import_aws.AwsSigv4Signer)({
         region: process.env.AWS_REGION,
         service: "es",
@@ -70,7 +71,8 @@ var searchClient = () => {
         // 	const credentialsProvider = defaultProvider();
         // 	return credentialsProvider();
         // },
-      })
+      }),
+      ...options
     });
   }
   return client;
@@ -302,8 +304,7 @@ var updateItem = async (table, id, item, { client: client2 = searchClient(), ref
 };
 
 // src/ops/migrate.ts
-var migrate = async (table) => {
-  const client2 = await searchClient();
+var migrate = async (table, { client: client2 = searchClient() } = {}) => {
   const result = await client2.cat.indices({ format: "json" });
   const found = result.body.find((item) => {
     return item.index === table.index;
@@ -336,14 +337,13 @@ var decodeCursor = (cursor) => {
     return;
   }
 };
-var search = async (table, { query: query2, aggs, limit = 10, cursor, sort }) => {
-  const client2 = searchClient();
+var search = async (table, { query, aggs, limit = 10, cursor, sort, client: client2 = searchClient() }) => {
   const result = await client2.search({
     index: table.index,
     body: {
       size: limit + 1,
       search_after: decodeCursor(cursor),
-      query: query2,
+      query,
       aggs,
       sort
     }
@@ -360,18 +360,6 @@ var search = async (table, { query: query2, aggs, limit = 10, cursor, sort }) =>
     count: items.length,
     items: items.map((item) => table.schema.decode(item._source))
   };
-};
-
-// src/ops/query.ts
-var query = async (table, { query: query2 }) => {
-  const client2 = await searchClient();
-  const result = await client2.transport.request({
-    method: "POST",
-    path: "_plugins/_sql?format=json",
-    body: { query: query2 }
-  });
-  const { hits } = result.body.hits;
-  return hits.map((item) => table.schema.decode(item._source));
 };
 
 // src/structs/struct.ts
@@ -503,7 +491,6 @@ var uuid = () => new Struct(
   mockOpenSearch,
   number,
   object,
-  query,
   search,
   searchClient,
   set,

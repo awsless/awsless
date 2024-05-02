@@ -1,9 +1,10 @@
 import * as types from '@opensearch-project/opensearch/api/types';
 export { types as Types };
-import { Client } from '@opensearch-project/opensearch';
+import { ClientOptions, Client } from '@opensearch-project/opensearch';
+import { Client as Client$1 } from '@opensearch-project/opensearch/.';
 import { Numeric, BigFloat } from '@awsless/big-float';
 
-declare const searchClient: () => Client;
+declare const searchClient: (options?: ClientOptions) => Client;
 
 type Settings = Record<string, string | number | boolean>;
 
@@ -71,14 +72,18 @@ type Options$2 = {
 };
 declare const updateItem: <T extends AnyTable>(table: T, id: string, item: Partial<T["schema"]["INPUT"]>, { client, refresh }?: Options$2) => Promise<void>;
 
-declare const migrate: (table: AnyTable) => Promise<void>;
-
 type Options$1 = {
+    client?: Client$1;
+};
+declare const migrate: (table: AnyTable, { client }?: Options$1) => Promise<void>;
+
+type Options = {
     query?: unknown;
     aggs?: unknown;
     limit?: number;
     cursor?: string;
     sort?: unknown;
+    client?: Client$1;
 };
 type Response<T extends AnyTable> = {
     cursor?: string;
@@ -86,12 +91,7 @@ type Response<T extends AnyTable> = {
     count: number;
     items: T['schema']['OUTPUT'][];
 };
-declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort }: Options$1) => Promise<Response<T>>;
-
-type Options = {
-    query: string;
-};
-declare const query: <T>(table: AnyTable, { query }: Options) => Promise<T>;
+declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort, client }: Options) => Promise<Response<T>>;
 
 declare const array: <S extends AnyStruct>(struct: S) => Struct<S["ENCODED"][], S["INPUT"][], S["OUTPUT"][]>;
 
@@ -125,4 +125,4 @@ declare const string: () => Struct<string, string, string>;
 
 declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { AnyTable, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, query, search, searchClient, set, string, updateItem, uuid };
+export { AnyTable, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
