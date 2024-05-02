@@ -3,6 +3,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
+import { constantCase } from 'change-case'
 
 export const searchFeature = defineFeature({
 	name: 'search',
@@ -29,7 +30,7 @@ export const searchFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.searchs ?? {})) {
 			const group = new Node(ctx.stack, 'search', id)
 
-			const domain = new aws.openSearch.Domain(group, 'domain', {
+			const openSearch = new aws.openSearch.Domain(group, 'domain', {
 				// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
 				version: props.version,
 				storageSize: props.storage,
@@ -48,7 +49,7 @@ export const searchFeature = defineFeature({
 			})
 
 			if (props.vpc) {
-				domain.setVpc({
+				openSearch.setVpc({
 					securityGroupIds: [ctx.shared.get<string>(`vpc-security-group-id`)],
 					subnetIds: [
 						ctx.shared.get<string>('vpc-private-subnet-id-1'),
@@ -57,10 +58,14 @@ export const searchFeature = defineFeature({
 				})
 			}
 
-			ctx.onFunction(({ policy }) => {
+			ctx.onFunction(({ lambda, policy }) => {
+				lambda.addEnvironment(
+					`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`,
+					openSearch.domainEndpoint
+				)
 				policy.addStatement({
 					actions: ['es:*'],
-					resources: [domain.arn],
+					resources: [openSearch.arn],
 				})
 			})
 		}
