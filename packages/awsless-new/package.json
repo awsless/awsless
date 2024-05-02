@@ -39,6 +39,7 @@
 	},
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",
+		"@awsless/open-search": "workspace:^",
 		"@awsless/redis": "workspace:^",
 		"@awsless/s3": "workspace:^",
 		"@awsless/sns": "workspace:^",
