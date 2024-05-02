@@ -2,11 +2,11 @@ import { constantCase } from 'change-case'
 import { STACK, bindLocalResourceName, createProxy } from './util.js'
 import {
 	searchClient,
-	migrate as sMigrate,
-	search as sSearch,
-	indexItem as sIndexItem,
-	updateItem as sUpdateItem,
-	deleteItem as sDeleteItem,
+	migrate as _migrate,
+	search as _search,
+	indexItem as _indexItem,
+	updateItem as _updateItem,
+	deleteItem as _deleteItem,
 } from '@awsless/open-search'
 
 export const getSearchName = bindLocalResourceName('search')
@@ -26,20 +26,21 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 
 		return {
 			name: getSearchName(name, stack),
-			migrate(...args: Parameters<typeof sMigrate>) {
-				return sMigrate(args[0], { client })
+			domain,
+			migrate(...args: Parameters<typeof _migrate>) {
+				return _migrate(args[0], { client })
 			},
-			search(...args: Parameters<typeof sSearch>) {
-				return sSearch(args[0], { client, ...args[1] })
+			search(...args: Parameters<typeof _search>) {
+				return _search(args[0], { client, ...args[1] })
 			},
-			indexItem(...args: Parameters<typeof sIndexItem>) {
-				return sIndexItem(args[0], args[1], args[2], { client, ...args[3] })
+			indexItem(...args: Parameters<typeof _indexItem>) {
+				return _indexItem(args[0], args[1], args[2], { client, ...args[3] })
 			},
-			updateItem(...args: Parameters<typeof sUpdateItem>) {
-				return sUpdateItem(args[0], args[1], args[2], { client, ...args[3] })
+			updateItem(...args: Parameters<typeof _updateItem>) {
+				return _updateItem(args[0], args[1], args[2], { client, ...args[3] })
 			},
-			deleteItem(...args: Parameters<typeof sDeleteItem>) {
-				return sDeleteItem(args[0], args[1], { client, ...args[2] })
+			deleteItem(...args: Parameters<typeof _deleteItem>) {
+				return _deleteItem(args[0], args[1], { client, ...args[2] })
 			},
 		}
 	})

@@ -7,20 +7,20 @@ import { constantCase } from 'change-case'
 
 const typeGenCode = `
 import {
-	migrate as sMigrate,
-	search as sSearch,
-	indexItem as sIndexItem,
-	updateItem as sUpdateItem,
-	deleteItem as sDeleteItem,
+	migrate as _migrate,
+	search as _search,
+	indexItem as _indexItem,
+	updateItem as _updateItem,
+	deleteItem as _deleteItem,
 } from '@awsless/open-search'
 
 type Store<Name extends string> = {
 	readonly name: Name
-	readonly migrate: (...args: Parameters<typeof sMigrate>) => ReturnType<typeof sMigrate>
-	readonly search: (...args: Parameters<typeof sMigrate>) => ReturnType<typeof sSearch>
-	readonly indexItem: (...args: Parameters<typeof sIndexItem>) => ReturnType<typeof sIndexItem>
-	readonly updateItem: (...args: Parameters<typeof sUpdateItem>) => ReturnType<typeof sUpdateItem>
-	readonly deleteItem: (...args: Parameters<typeof sDeleteItem>) => ReturnType<typeof sDeleteItem>
+	readonly migrate: (...args: Parameters<typeof _migrate>) => ReturnType<typeof _migrate>
+	readonly search: (...args: Parameters<typeof _search>) => ReturnType<typeof _search>
+	readonly indexItem: (...args: Parameters<typeof _indexItem>) => ReturnType<typeof _indexItem>
+	readonly updateItem: (...args: Parameters<typeof _updateItem>) => ReturnType<typeof _updateItem>
+	readonly deleteItem: (...args: Parameters<typeof _deleteItem>) => ReturnType<typeof _deleteItem>
 }
 `
 
