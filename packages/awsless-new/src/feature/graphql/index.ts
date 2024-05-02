@@ -22,6 +22,7 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { getBuildPath } from '../../build/index.js'
 import { buildTypeScriptResolver } from './build/typescript/resolver.js'
 import { createHash } from 'crypto'
+import { shortId } from '../../util/id.js'
 // import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
@@ -123,22 +124,43 @@ export const graphqlFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.graphql ?? {})) {
 			const group = new Node(ctx.base, 'graphql', id)
 
+			let authorizer
+			if (typeof props.auth === 'object') {
+				const { lambda } = createLambdaFunction(group, ctx, 'graphql-auth', id, props.auth.authorizer)
+				authorizer = lambda
+			}
+
 			const name = formatGlobalResourceName(ctx.app.name, 'graphql', id)
 			const api = new aws.appsync.GraphQLApi(group, 'api', {
 				name,
 				type: 'graphql',
 				auth: {
-					default: props.auth
-						? {
-								type: 'cognito',
-								region: ctx.appConfig.region,
-								userPoolId: ctx.shared.get(`auth-${props.auth}-user-pool-id`),
-						  }
-						: {
-								type: 'iam',
-						  },
+					default:
+						typeof props.auth === 'string'
+							? {
+									type: 'cognito',
+									region: ctx.appConfig.region,
+									userPoolId: ctx.shared.get(`auth-${props.auth}-user-pool-id`),
+							  }
+							: typeof props.auth === 'object'
+							? {
+									type: 'lambda',
+									functionArn: authorizer!.arn,
+									resultTtl: props.auth.ttl,
+							  }
+							: {
+									type: 'iam',
+							  },
 				},
 			})
+
+			if (typeof props.auth === 'object') {
+				new aws.lambda.Permission(group, 'authorizer', {
+					functionArn: authorizer!.arn,
+					principal: 'appsync.amazonaws.com',
+					action: 'lambda:InvokeFunction',
+				})
+			}
 
 			ctx.shared.set(`graphql-${id}-id`, api.id)
 
@@ -244,7 +266,8 @@ export const graphqlFeature = defineFeature({
 					const name = `${typeName}__${fieldName}`
 					const resolverGroup = new Node(group, 'resolver', name)
 
-					const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
+					// const entryId = paramCase(`${id}-${typeName}-${fieldName}`)
+					const entryId = paramCase(`${id}-${shortId(`${typeName}-${fieldName}`)}`)
 
 					const { lambda } = createLambdaFunction(resolverGroup, ctx, `graphql`, entryId, {
 						...props.consumer,

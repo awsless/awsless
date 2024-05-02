@@ -26,6 +26,7 @@ export const createWorkSpace = (props: { credentials: Credentials; region: Regio
 		lockProvider,
 		stateProvider,
 		cloudProviders,
+		concurrency: 15,
 	})
 
 	return {

@@ -209,11 +209,13 @@ declare class WorkSpace {
         cloudProviders: CloudProvider[];
         stateProvider: StateProvider$3;
         lockProvider: LockProvider$3;
+        concurrency?: number;
     };
     constructor(props: {
         cloudProviders: CloudProvider[];
         stateProvider: StateProvider$3;
         lockProvider: LockProvider$3;
+        concurrency?: number;
     });
     private runGraph;
     deployApp(app: App, opt?: Options): Promise<AppState>;

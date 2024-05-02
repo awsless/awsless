@@ -27,6 +27,7 @@ export class WorkSpace {
 			cloudProviders: CloudProvider[]
 			stateProvider: StateProvider
 			lockProvider: LockProvider
+			concurrency?: number
 		}
 	) {}
 
@@ -94,7 +95,7 @@ export class WorkSpace {
 			// -------------------------------------------------------
 			// Build deployment graph
 
-			const limit = promiseLimit(10)
+			const limit = promiseLimit(this.props.concurrency ?? 10)
 			const graph: Record<URN, Step[]> = {}
 
 			for (const stack of stacks) {
@@ -230,7 +231,7 @@ export class WorkSpace {
 
 			// -------------------------------------------------------
 
-			const limit = promiseLimit(10)
+			const limit = promiseLimit(this.props.concurrency ?? 10)
 			const graph: Record<URN, Step[]> = {}
 
 			for (const [_urn, stackState] of Object.entries(appState.stacks)) {
