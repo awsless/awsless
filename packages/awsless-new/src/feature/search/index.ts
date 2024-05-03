@@ -5,20 +5,6 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { constantCase } from 'change-case'
 
-const typeGenCode = `
-import { searchClient, migrate, search, indexItem, updateItem, deleteItem } from '@awsless/open-search'
-
-type Store<Name extends string> = {
-	readonly name: Name
-	readonly domain: string
-	readonly migrate: (...args: Parameters<typeof migrate>) => ReturnType<typeof migrate>
-	readonly search: (...args: Parameters<typeof search>) => ReturnType<typeof search>
-	readonly indexItem: (...args: Parameters<typeof indexItem>) => ReturnType<typeof indexItem>
-	readonly updateItem: (...args: Parameters<typeof updateItem>) => ReturnType<typeof updateItem>
-	readonly deleteItem: (...args: Parameters<typeof deleteItem>) => ReturnType<typeof deleteItem>
-}
-`
-
 export const searchFeature = defineFeature({
 	name: 'search',
 	async onTypeGen(ctx) {
@@ -36,7 +22,6 @@ export const searchFeature = defineFeature({
 			resources.addType(stack.name, list)
 		}
 
-		gen.addCode(typeGenCode)
 		gen.addInterface('SearchResources', resources)
 
 		await ctx.write('search.d.ts', gen, true)
@@ -57,7 +42,7 @@ export const searchFeature = defineFeature({
 					statements: [
 						{
 							principal: 'lambda.amazonaws.com',
-							sourceArn: `arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.app.name}--${ctx.stack.name}--*`,
+							sourceArn: `arn:aws:lambfa:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.app.name}--${ctx.stack.name}--*`,
 						},
 					],
 				},
