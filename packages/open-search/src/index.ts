@@ -1,5 +1,6 @@
 import type * as Types from '@opensearch-project/opensearch/api/types'
 export { Types }
+export type { AnyStruct, Struct, Props } from './structs/struct'
 
 export { searchClient } from './client'
 

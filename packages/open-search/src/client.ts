@@ -3,30 +3,28 @@ import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
 import { fromEnv } from '@aws-sdk/credential-providers'
 // import { defaultProvider } from '@aws-sdk/credential-provider-node'
 
-let client: Client
+let mock: Client
 
-export const searchClient = (options: ClientOptions = {}): Client => {
-	if (!client) {
-		client = new Client({
-			node: 'https://' + process.env.SEARCH_DOMAIN,
-			// enableLongNumeralSupport: true,
-			// requestTimeout: 3000,
-			...AwsSigv4Signer({
-				region: process.env.AWS_REGION!,
-				service: 'es',
-				getCredentials: fromEnv(),
-				// getCredentials: () => {
-				// 	const credentialsProvider = defaultProvider();
-				// 	return credentialsProvider();
-				// },
-			}),
-			...options,
-		})
+export const searchClient = (options: ClientOptions = {}, service: 'es' | 'aoss' = 'es'): Client => {
+	if (mock) {
+		return mock
 	}
 
-	return client
+	return new Client({
+		node: 'https://' + process.env.SEARCH_DOMAIN,
+		...AwsSigv4Signer({
+			region: process.env.AWS_REGION!,
+			service,
+			getCredentials: fromEnv(),
+			// getCredentials: () => {
+			// 	const credentialsProvider = defaultProvider();
+			// 	return credentialsProvider();
+			// },
+		}),
+		...options,
+	})
 }
 
 export const mockClient = (host: string, port: number) => {
-	client = new Client({ node: `http://${host}:${port}` })
+	mock = new Client({ node: `http://${host}:${port}` })
 }

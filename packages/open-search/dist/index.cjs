@@ -56,29 +56,27 @@ module.exports = __toCommonJS(src_exports);
 var import_opensearch = require("@opensearch-project/opensearch");
 var import_aws = require("@opensearch-project/opensearch/aws");
 var import_credential_providers = require("@aws-sdk/credential-providers");
-var client;
-var searchClient = (options = {}) => {
-  if (!client) {
-    client = new import_opensearch.Client({
-      node: "https://" + process.env.SEARCH_DOMAIN,
-      // enableLongNumeralSupport: true,
-      // requestTimeout: 3000,
-      ...(0, import_aws.AwsSigv4Signer)({
-        region: process.env.AWS_REGION,
-        service: "es",
-        getCredentials: (0, import_credential_providers.fromEnv)()
-        // getCredentials: () => {
-        // 	const credentialsProvider = defaultProvider();
-        // 	return credentialsProvider();
-        // },
-      }),
-      ...options
-    });
+var mock;
+var searchClient = (options = {}, service = "es") => {
+  if (mock) {
+    return mock;
   }
-  return client;
+  return new import_opensearch.Client({
+    node: "https://" + process.env.SEARCH_DOMAIN,
+    ...(0, import_aws.AwsSigv4Signer)({
+      region: process.env.AWS_REGION,
+      service,
+      getCredentials: (0, import_credential_providers.fromEnv)()
+      // getCredentials: () => {
+      // 	const credentialsProvider = defaultProvider();
+      // 	return credentialsProvider();
+      // },
+    }),
+    ...options
+  });
 };
 var mockClient = (host, port) => {
-  client = new import_opensearch.Client({ node: `http://${host}:${port}` });
+  mock = new import_opensearch.Client({ node: `http://${host}:${port}` });
 };
 
 // src/mock.ts
@@ -209,9 +207,9 @@ var launch = ({ path, host, port, version, debug }) => {
 // src/server/wait.ts
 var import_sleep_await = require("sleep-await");
 var ping = async () => {
-  const client2 = await searchClient();
+  const client = await searchClient();
   try {
-    const result = await client2.cat.indices({ format: "json" });
+    const result = await client.cat.indices({ format: "json" });
     return result.statusCode === 200 && result.body.length === 0;
   } catch (error) {
     return false;
@@ -264,16 +262,17 @@ var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
 };
 
 // src/table.ts
-var define = (index, schema) => {
+var define = (index, schema, client) => {
   return {
     index,
-    schema
+    schema,
+    client
   };
 };
 
 // src/ops/index-item.ts
-var indexItem = async (table, id, item, { client: client2 = searchClient(), refresh = true } = {}) => {
-  await client2.index({
+var indexItem = async (table, id, item, { refresh = true } = {}) => {
+  await table.client().index({
     index: table.index,
     id,
     refresh,
@@ -282,8 +281,8 @@ var indexItem = async (table, id, item, { client: client2 = searchClient(), refr
 };
 
 // src/ops/delete-item.ts
-var deleteItem = async (table, id, { client: client2 = searchClient(), refresh = true } = {}) => {
-  await client2.delete({
+var deleteItem = async (table, id, { refresh = true } = {}) => {
+  await table.client().delete({
     index: table.index,
     id,
     refresh
@@ -291,8 +290,8 @@ var deleteItem = async (table, id, { client: client2 = searchClient(), refresh =
 };
 
 // src/ops/update-item.ts
-var updateItem = async (table, id, item, { client: client2 = searchClient(), refresh = true } = {}) => {
-  await client2.update({
+var updateItem = async (table, id, item, { refresh = true } = {}) => {
+  await table.client().update({
     index: table.index,
     id,
     body: {
@@ -304,17 +303,17 @@ var updateItem = async (table, id, item, { client: client2 = searchClient(), ref
 };
 
 // src/ops/migrate.ts
-var migrate = async (table, { client: client2 = searchClient() } = {}) => {
-  const result = await client2.cat.indices({ format: "json" });
+var migrate = async (table) => {
+  const result = await table.client().cat.indices({ format: "json" });
   const found = result.body.find((item) => {
     return item.index === table.index;
   });
   if (!found) {
-    await client2.indices.create({
+    await table.client().indices.create({
       index: table.index
     });
   }
-  await client2.indices.putMapping({
+  await table.client().indices.putMapping({
     index: table.index,
     body: {
       ...table.schema.props
@@ -337,8 +336,8 @@ var decodeCursor = (cursor) => {
     return;
   }
 };
-var search = async (table, { query, aggs, limit = 10, cursor, sort, client: client2 = searchClient() }) => {
-  const result = await client2.search({
+var search = async (table, { query, aggs, limit = 10, cursor, sort }) => {
+  const result = await table.client().search({
     index: table.index,
     body: {
       size: limit + 1,

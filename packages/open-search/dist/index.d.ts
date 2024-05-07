@@ -4,27 +4,6 @@ import { ClientOptions, Client } from '@opensearch-project/opensearch';
 import { Client as Client$1 } from '@opensearch-project/opensearch/.';
 import { Numeric, BigFloat } from '@awsless/big-float';
 
-declare const searchClient: (options?: ClientOptions) => Client;
-
-type Settings = Record<string, string | number | boolean>;
-
-type Version = `${string}.${string}.${string}`;
-type VersionArgs = {
-    version: Version;
-    settings: (opts: {
-        port: number;
-        host: string;
-        cache: string;
-    }) => Settings;
-    started: (line: string) => boolean;
-};
-
-type Options$5 = {
-    version?: VersionArgs;
-    debug?: boolean;
-};
-declare const mockOpenSearch: ({ version, debug }?: Options$5) => void;
-
 type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
 type AnyStruct = Struct<any, any, any>;
 type Props = {
@@ -47,35 +26,51 @@ declare class Struct<Encoded, Input, Output> {
     constructor(encode: (value: Input) => Encoded, decode: (value: Encoded) => Output, props: Props);
 }
 
+declare const searchClient: (options?: ClientOptions, service?: 'es' | 'aoss') => Client;
+
+type Settings = Record<string, string | number | boolean>;
+
+type Version = `${string}.${string}.${string}`;
+type VersionArgs = {
+    version: Version;
+    settings: (opts: {
+        port: number;
+        host: string;
+        cache: string;
+    }) => Settings;
+    started: (line: string) => boolean;
+};
+
+type Options$4 = {
+    version?: VersionArgs;
+    debug?: boolean;
+};
+declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
+
 type Table<I extends string, S extends AnyStruct> = {
     index: I;
     schema: S;
+    client: () => Client$1;
 };
 type AnyTable = Table<string, AnyStruct>;
-declare const define: <I extends string, S extends AnyStruct>(index: I, schema: S) => Table<I, S>;
-
-type Options$4 = {
-    refresh?: boolean;
-    client?: Client;
-};
-declare const indexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"], { client, refresh }?: Options$4) => Promise<void>;
+declare const define: <I extends string, S extends AnyStruct>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
 
 type Options$3 = {
     refresh?: boolean;
-    client?: Client;
 };
-declare const deleteItem: <T extends AnyTable>(table: T, id: string, { client, refresh }?: Options$3) => Promise<void>;
+declare const indexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"], { refresh }?: Options$3) => Promise<void>;
 
 type Options$2 = {
     refresh?: boolean;
-    client?: Client;
 };
-declare const updateItem: <T extends AnyTable>(table: T, id: string, item: Partial<T["schema"]["INPUT"]>, { client, refresh }?: Options$2) => Promise<void>;
+declare const deleteItem: <T extends AnyTable>(table: T, id: string, { refresh }?: Options$2) => Promise<void>;
 
 type Options$1 = {
-    client?: Client$1;
+    refresh?: boolean;
 };
-declare const migrate: (table: AnyTable, { client }?: Options$1) => Promise<void>;
+declare const updateItem: <T extends AnyTable>(table: T, id: string, item: Partial<T["schema"]["INPUT"]>, { refresh }?: Options$1) => Promise<void>;
+
+declare const migrate: (table: AnyTable) => Promise<void>;
 
 type Options = {
     query?: unknown;
@@ -83,7 +78,6 @@ type Options = {
     limit?: number;
     cursor?: string;
     sort?: unknown;
-    client?: Client$1;
 };
 type Response<T extends AnyTable> = {
     cursor?: string;
@@ -91,7 +85,7 @@ type Response<T extends AnyTable> = {
     count: number;
     items: T['schema']['OUTPUT'][];
 };
-declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort, client }: Options) => Promise<Response<T>>;
+declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort }: Options) => Promise<Response<T>>;
 
 declare const array: <S extends AnyStruct>(struct: S) => Struct<S["ENCODED"][], S["INPUT"][], S["OUTPUT"][]>;
 
@@ -125,4 +119,4 @@ declare const string: () => Struct<string, string, string>;
 
 declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { AnyTable, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
+export { AnyStruct, AnyTable, Props, Struct, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };

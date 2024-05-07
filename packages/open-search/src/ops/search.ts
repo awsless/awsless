@@ -1,5 +1,3 @@
-import { Client } from '@opensearch-project/opensearch/.'
-import { searchClient } from '../client'
 import { AnyTable } from '../table'
 
 type Options = {
@@ -8,7 +6,6 @@ type Options = {
 	limit?: number
 	cursor?: string
 	sort?: unknown
-	client?: Client
 }
 
 type Response<T extends AnyTable> = {
@@ -38,9 +35,9 @@ const decodeCursor = (cursor?: string) => {
 
 export const search = async <T extends AnyTable>(
 	table: T,
-	{ query, aggs, limit = 10, cursor, sort, client = searchClient() }: Options
+	{ query, aggs, limit = 10, cursor, sort }: Options
 ): Promise<Response<T>> => {
-	const result = await client.search({
+	const result = await table.client().search({
 		index: table.index,
 		body: {
 			size: limit + 1,

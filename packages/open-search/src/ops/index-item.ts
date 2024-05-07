@@ -1,19 +1,16 @@
-import { Client } from '@opensearch-project/opensearch'
-import { searchClient } from '../client'
 import { AnyTable } from '../table'
 
 type Options = {
 	refresh?: boolean
-	client?: Client
 }
 
 export const indexItem = async <T extends AnyTable>(
 	table: T,
 	id: string,
 	item: T['schema']['INPUT'],
-	{ client = searchClient(), refresh = true }: Options = {}
+	{ refresh = true }: Options = {}
 ) => {
-	await client.index({
+	await table.client().index({
 		index: table.index,
 		id,
 		refresh,

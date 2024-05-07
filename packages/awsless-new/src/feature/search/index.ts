@@ -6,16 +6,12 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { constantCase } from 'change-case'
 
 const typeGenCode = `
-import { searchClient, migrate, search, indexItem, updateItem, deleteItem } from '@awsless/open-search'
+import { AnyStruct, Table } from '@awsless/open-search'
 
-type Store<Name extends string> = {
+type Search<Name extends string> = {
 	readonly name: Name
 	readonly domain: string
-	readonly migrate: (...args: Parameters<typeof migrate>) => ReturnType<typeof migrate>
-	readonly search: (...args: Parameters<typeof search>) => ReturnType<typeof search>
-	readonly indexItem: (...args: Parameters<typeof indexItem>) => ReturnType<typeof indexItem>
-	readonly updateItem: (...args: Parameters<typeof updateItem>) => ReturnType<typeof updateItem>
-	readonly deleteItem: (...args: Parameters<typeof deleteItem>) => ReturnType<typeof deleteItem>
+	readonly defineTable: <S extends AnyStruct>(schema: S) => Table<Name, S>
 }
 `
 
@@ -30,7 +26,7 @@ export const searchFeature = defineFeature({
 
 			for (const id of Object.keys(stack.searchs ?? {})) {
 				const name = formatLocalResourceName(ctx.appConfig.name, stack.name, this.name, id)
-				list.addType(name, `{ readonly name: '${name}' }`)
+				list.addType(name, `Search<'${name}'>`)
 			}
 
 			resources.addType(stack.name, list)

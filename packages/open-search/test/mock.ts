@@ -18,6 +18,7 @@ import {
 	string,
 	uuid,
 	updateItem,
+	searchClient,
 } from '../src'
 import { BigFloat } from '@awsless/big-float'
 
@@ -42,7 +43,8 @@ describe('Open Search Mock', () => {
 			data: object({
 				number: number(),
 			}),
-		})
+		}),
+		searchClient
 	)
 
 	it('should migrate', async () => {
