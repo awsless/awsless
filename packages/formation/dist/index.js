@@ -767,7 +767,7 @@ var WorkSpace = class {
     }
     return remote;
   }
-  async deployStackResources(appUrn, appState, stackState, resources, limit) {
+  async deployStackResources(_appUrn, appState, stackState, resources, limit) {
     await this.healFromUnknownRemoteState(stackState);
     const deployGraph = {};
     for (const resource of resources) {
@@ -865,7 +865,6 @@ var WorkSpace = class {
       ];
     }
     const results = await this.runGraph(stackState.name, deployGraph);
-    await this.props.stateProvider.update(appUrn, appState);
     const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
     if (errors.length > 0) {
       throw new StackError(stackState.name, [...new Set(errors)], "Deploying resources failed.");
@@ -880,7 +879,7 @@ var WorkSpace = class {
     }
     return dependents;
   }
-  async deleteStackResources(appUrn, appState, stackState, resources, limit) {
+  async deleteStackResources(_appUrn, appState, stackState, resources, limit) {
     const deleteGraph = {};
     for (const [urnStr, state] of Object.entries(resources)) {
       const urn = urnStr;
@@ -910,7 +909,6 @@ var WorkSpace = class {
       ];
     }
     const results = await this.runGraph(stackState.name, deleteGraph);
-    await this.props.stateProvider.update(appUrn, appState);
     const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
     if (errors.length > 0) {
       throw new StackError(appState.name, [...new Set(errors)], "Deleting resources failed.");

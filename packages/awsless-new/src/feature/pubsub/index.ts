@@ -17,10 +17,11 @@ export const pubsubFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.pubsub ?? {})) {
 			const group = new Node(ctx.stack, 'pubsub', id)
 
-			const { lambda } = createLambdaFunction(group, ctx, `pubsub`, 'function', props.consumer)
+			const { lambda } = createLambdaFunction(group, ctx, `pubsub`, id, props.consumer)
 
+			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id)
 			const topic = new aws.iot.TopicRule(group, 'rule', {
-				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id).replaceAll('-', '_'),
+				name: name.replaceAll('-', '_'),
 				sql: props.sql,
 				sqlVersion: props.sqlVersion,
 				actions: [{ lambda: { functionArn: lambda.arn } }],

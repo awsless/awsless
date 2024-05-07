@@ -53,7 +53,7 @@ export const searchFeature = defineFeature({
 					statements: [
 						{
 							principal: 'lambda.amazonaws.com',
-							sourceArn: `arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.app.name}--${ctx.stack.name}--*`,
+							sourceArn: `arn:aws:lambfa:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.app.name}--${ctx.stack.name}--*`,
 						},
 					],
 				},

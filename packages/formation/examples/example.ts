@@ -1,7 +1,6 @@
 import { fromIni } from '@aws-sdk/credential-providers'
 import { aws, WorkSpace, App, Stack, Asset, AppError } from '../src'
 import { minutes } from '@awsless/duration'
-import { Bucket } from '../src/provider/aws/s3'
 
 const region = 'eu-west-1'
 const credentials = fromIni({
@@ -33,10 +32,11 @@ const workspace = new WorkSpace({
 
 const app = new App('test')
 const stack = new Stack(app, 'test')
+const stack2 = new Stack(app, 'test-2')
 
 // ------------------------------------------
 
-const bucket = new Bucket(stack, 'bucket', {
+const bucket = new aws.s3.Bucket(stack, 'bucket', {
 	name: 'test-bucket-awsless',
 })
 
@@ -44,6 +44,14 @@ bucket.addObject('id', {
 	key: 'id',
 	body: Asset.fromJSON({
 		key: '1',
+	}),
+})
+
+new aws.s3.BucketObject(stack2, 'object', {
+	bucket: bucket.name,
+	key: 'id',
+	body: Asset.fromJSON({
+		key: 1,
 	}),
 })
 
@@ -82,8 +90,10 @@ const main = async () => {
 	// const diff1 = await workspace.diffStack(stack)
 	// console.log(diff1)
 
+	console.log('START')
+
 	try {
-		await workspace.deleteApp(app)
+		await workspace.deployApp(app)
 		// await workspace.deleteApp(app)
 	} catch (error) {
 		if (error instanceof AppError) {
@@ -94,6 +104,8 @@ const main = async () => {
 
 		throw error
 	}
+
+	console.log('END')
 
 	// await workspace.deleteStack(stack)
 	// await workspace.deployStack(stack)

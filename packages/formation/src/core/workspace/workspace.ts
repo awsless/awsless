@@ -102,8 +102,6 @@ export class WorkSpace {
 				graph[stack.urn] = [
 					...[...stack.dependencies].map(dep => dep.urn),
 					async () => {
-						// console.log('Deploy', stack.name, new Date())
-
 						const resources = stack.resources
 
 						// -------------------------------------------------------------------
@@ -495,7 +493,7 @@ export class WorkSpace {
 	}
 
 	private async deployStackResources(
-		appUrn: URN,
+		_appUrn: URN,
 		appState: AppState,
 		stackState: StackState,
 		resources: Resource[],
@@ -635,7 +633,9 @@ export class WorkSpace {
 
 		const results = await this.runGraph(stackState.name, deployGraph)
 
-		await this.props.stateProvider.update(appUrn, appState)
+		// if (results.length > 0) {
+		// 	await this.props.stateProvider.update(appUrn, appState)
+		// }
 
 		// for (const result of results) {
 		// 	if (result.status === 'rejected') {
@@ -665,7 +665,7 @@ export class WorkSpace {
 	}
 
 	private async deleteStackResources(
-		appUrn: URN,
+		_appUrn: URN,
 		appState: AppState,
 		stackState: StackState,
 		resources: Record<URN, ResourceState>,
@@ -712,14 +712,14 @@ export class WorkSpace {
 			]
 		}
 
-		// const results = await Promise.allSettled(Object.values(run(deleteGraph)))
-
 		const results = await this.runGraph(stackState.name, deleteGraph)
 
 		// -------------------------------------------------------------------
 		// Save changed AppState
 
-		await this.props.stateProvider.update(appUrn, appState)
+		// if (results.length > 0) {
+		// 	await this.props.stateProvider.update(appUrn, appState)
+		// }
 
 		const errors: ResourceError[] = results
 			.filter(r => r.status === 'rejected')

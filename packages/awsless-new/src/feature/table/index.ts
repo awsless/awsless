@@ -42,7 +42,7 @@ export const tableFeature = defineFeature({
 			if (props.stream) {
 				const { lambda, policy } = createLambdaFunction(group, ctx, 'table', id, props.stream.consumer)
 
-				new aws.lambda.EventSourceMapping(group, id, {
+				const source = new aws.lambda.EventSourceMapping(group, id, {
 					functionArn: lambda.arn,
 					sourceArn: table.streamArn,
 					batchSize: 100,
@@ -54,6 +54,7 @@ export const tableFeature = defineFeature({
 				})
 
 				policy.addStatement(table.streamPermissions)
+				source.dependsOn(policy)
 
 				// if (onFailure) {
 				// 	policy.addStatement({
