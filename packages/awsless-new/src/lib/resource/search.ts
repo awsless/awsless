@@ -17,10 +17,9 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 		const { domain } = getSearchProps(name, stack)
 		let client: any
 		return {
-			name: getSearchName(name, stack),
 			domain,
-			defineTable(schema: AnyStruct) {
-				return define(name, schema, () => {
+			defineTable(tableName: string, schema: AnyStruct) {
+				return define(tableName, schema, () => {
 					if (!client) client = searchClient({ node: domain }, 'es')
 					return client
 				})

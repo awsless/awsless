@@ -8,10 +8,9 @@ import { constantCase } from 'change-case'
 const typeGenCode = `
 import { AnyStruct, Table } from '@awsless/open-search'
 
-type Search<Name extends string> = {
-	readonly name: Name
+type Search = {
 	readonly domain: string
-	readonly defineTable: <S extends AnyStruct>(schema: S) => Table<Name, S>
+	readonly defineTable: <N extends stringm S extends AnyStruct>(tableName: N, schema: S) => Table<N, S>
 }
 `
 
@@ -25,8 +24,7 @@ export const searchFeature = defineFeature({
 			const list = new TypeObject(2)
 
 			for (const id of Object.keys(stack.searchs ?? {})) {
-				const name = formatLocalResourceName(ctx.appConfig.name, stack.name, this.name, id)
-				list.addType(name, `Search<'${name}'>`)
+				list.addType(id, `Search`)
 			}
 
 			resources.addType(stack.name, list)
