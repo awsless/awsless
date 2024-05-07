@@ -6,7 +6,7 @@
 	// 		"GET /": "./function.ts"
 	// 	}
 	// },
-	// "tests": "./test",
+	"tests": "./test",
 	"configs": ["test", "test-2"],
 	// "caches": {
 	// 	"test": {

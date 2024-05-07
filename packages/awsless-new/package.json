@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.207",
+	"version": "0.0.208",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -80,7 +80,7 @@
 		"@types/pretty-hrtime": "^1.0.1",
 		"@types/promise-dag": "^1.0.4",
 		"@types/uuid": "^9.0.0",
-		"@vitest/runner": "^0.34.6",
+		"@vitest/runner": "^1.6.0",
 		"aws-cron-expression-validator": "^1.0.5",
 		"aws-lambda": "^1.0.7",
 		"chalk": "^5.3.0",
@@ -109,7 +109,7 @@
 		"type-fest": "^3.6.0",
 		"uuid": "^9.0.0",
 		"vite": "^5.0.0",
-		"vitest": "^0.34.6",
+		"vitest": "^1.6.0",
 		"wrap-ansi": "^8.1.0",
 		"zod": "^3.21.4",
 		"zod-to-json-schema": "^3.22.3"
