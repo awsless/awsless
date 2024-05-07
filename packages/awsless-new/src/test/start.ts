@@ -20,6 +20,10 @@ export const startTest = async (props: { reporter?: CustomReporter; dir: string;
 			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 			globals: true,
 			reporters: props.reporter,
+			typecheck: {
+				allowJs: true,
+				checker: 'tsc',
+			},
 			// outputFile: {
 			// 	json: './.awsless/test/output.json',
 			// },
