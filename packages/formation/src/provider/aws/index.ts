@@ -1,4 +1,5 @@
 export * as acm from './acm'
+export * as apiGatewayV2 from './api-gateway-v2'
 export * as appsync from './appsync'
 export * as cloudControlApi from './cloud-control-api'
 export * as cloudFront from './cloud-front'

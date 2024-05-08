@@ -32,28 +32,38 @@ const workspace = new WorkSpace({
 
 const app = new App('test')
 const stack = new Stack(app, 'test')
-const stack2 = new Stack(app, 'test-2')
+// const stack2 = new Stack(app, 'test-2')
 
 // ------------------------------------------
 
-const bucket = new aws.s3.Bucket(stack, 'bucket', {
-	name: 'test-bucket-awsless',
-})
+// const api = new aws.apiGatewayV2.Api(stack, 'api', {
+// 	name: 'test',
+// 	protocolType: 'HTTP',
+// })
 
-bucket.addObject('id', {
-	key: 'id',
-	body: Asset.fromJSON({
-		key: '1',
-	}),
-})
+// const stage = new aws.apiGatewayV2.Stage(stack, 'stage', {
+// 	name: 'v1',
+// 	apiId: api.id,
+// })
 
-new aws.s3.BucketObject(stack2, 'object', {
-	bucket: bucket.name,
-	key: 'id',
-	body: Asset.fromJSON({
-		key: 1,
-	}),
-})
+// const bucket = new aws.s3.Bucket(stack, 'bucket', {
+// 	name: 'test-bucket-awsless',
+// })
+
+// bucket.addObject('id', {
+// 	key: 'id',
+// 	body: Asset.fromJSON({
+// 		key: '1',
+// 	}),
+// })
+
+// new aws.s3.BucketObject(stack2, 'object', {
+// 	bucket: bucket.name,
+// 	key: 'id',
+// 	body: Asset.fromJSON({
+// 		key: 1,
+// 	}),
+// })
 
 // const table = new aws.dynamodb.Table(stack, 'test', {
 // 	name: 'TEST',
@@ -93,8 +103,8 @@ const main = async () => {
 	console.log('START')
 
 	try {
-		await workspace.deployApp(app)
-		// await workspace.deleteApp(app)
+		// await workspace.deployApp(app)
+		await workspace.deleteApp(app)
 	} catch (error) {
 		if (error instanceof AppError) {
 			for (const issue of error.issues) {

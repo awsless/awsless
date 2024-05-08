@@ -24,8 +24,8 @@ export const startTest = async (props: { reporter?: CustomReporter; dir: string;
 			// 	enabled: true,
 			// 	// ignoreSourceErrors: false,
 			// 	// checker: 'tsc',
-			// 	include: ['**/*.{js,jsx,ts,tsx}'],
-			// 	only: true,
+			// 	// include: ['**/*.{js,jsx,ts,tsx}'],
+			// 	// only: true,
 			// 	// allowJs: true,
 			// },
 			// outputFile: {
