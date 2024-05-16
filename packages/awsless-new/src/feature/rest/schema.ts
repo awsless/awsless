@@ -7,7 +7,7 @@ export const RestDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your API with.'),
+			domain: ResourceIdSchema.describe('The domain id to link your API with.').optional(),
 			subDomain: z.string().optional(),
 		})
 	)

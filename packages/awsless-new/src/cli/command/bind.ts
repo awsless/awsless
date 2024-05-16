@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import { spawn } from 'child_process'
 import { paramCase } from 'change-case'
 import { GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import { layout } from '../ui/complex/layout.js'
 
 export const bind = (program: Command) => {
 	program
@@ -11,7 +12,7 @@ export const bind = (program: Command) => {
 		.argument('<command...>', 'The command to execute')
 		.description(`Bind your site environment variables to a command`)
 		.action(async (stack: string, site: string, commands: string[]) => {
-			await layout(async (config, write) => {
+			await layout('bind', async ({ appConfig }) => {
 				const command = commands.join(' ')
 
 				// Get stack config

@@ -244,6 +244,8 @@ export const graphqlFeature = defineFeature({
 						evaluateTargetHealth: false,
 					},
 				})
+
+				// ctx.registerConfig('graphql', 'config', 'endpoint')
 			}
 		}
 	},

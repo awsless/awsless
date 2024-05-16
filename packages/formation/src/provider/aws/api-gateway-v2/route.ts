@@ -16,7 +16,7 @@ export class Route extends CloudControlApiResource {
 	}
 
 	get id() {
-		return this.output(v => v.RouteId)
+		return this.output<string>(v => v.RouteId)
 	}
 
 	toState() {

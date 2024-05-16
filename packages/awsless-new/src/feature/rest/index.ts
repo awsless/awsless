@@ -5,7 +5,7 @@ import { formatFullDomainName } from '../domain/util.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
 
-export const restPlugin = defineFeature({
+export const restFeature = defineFeature({
 	name: 'rest',
 	onApp(ctx) {
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults?.rest ?? {})) {
@@ -24,13 +24,17 @@ export const restPlugin = defineFeature({
 			ctx.shared.set(`rest-${id}-id`, api.id)
 
 			if (props.domain) {
-				const domainName = formatFullDomainName(config, props.domain, props.subDomain)
+				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 				const hostedZoneId = ctx.shared.get<string>(`hosted-zone-${props.domain}-id`)
 				const certificateArn = ctx.shared.get<aws.ARN>(`certificate-${props.domain}-arn`)
 
 				const domain = new aws.apiGatewayV2.DomainName(group, 'domain', {
 					name: domainName,
-					certificateArn,
+					certificates: [
+						{
+							certificateArn,
+						},
+					],
 				})
 
 				const mapping = new aws.apiGatewayV2.ApiMapping(group, 'mapping', {
@@ -46,6 +50,7 @@ export const restPlugin = defineFeature({
 					alias: {
 						dnsName: domain.regionalDomainName,
 						hostedZoneId: domain.regionalHostedZoneId,
+						evaluateTargetHealth: false,
 					},
 				})
 
@@ -55,32 +60,35 @@ export const restPlugin = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, routes] of Object.entries(ctx.stackConfig.rest ?? {})) {
-			const restGroup = new Node(ctx.base, 'rest', id)
+			const restGroup = new Node(ctx.stack, 'rest', id)
 
 			for (const [routeKey, props] of Object.entries(routes)) {
 				const group = new Node(restGroup, 'route', routeKey)
 				const apiId = ctx.shared.get<string>(`rest-${id}-id`)
 				const routeId = shortId(routeKey)
-				const { lambda } = createLambdaFunction(group, ctx, 'rest', `${id}-${routeId}`, props!)
+				const { lambda } = createLambdaFunction(group, ctx, 'rest', `${id}-${routeId}`, {
+					...props,
+					description: `${id} ${routeKey}`,
+				})
 
-				const permission = new aws.lambda.Permission(group, id, {
+				const permission = new aws.lambda.Permission(group, 'permission', {
 					action: 'lambda:InvokeFunction',
 					principal: 'apigateway.amazonaws.com',
 					functionArn: lambda.arn,
 				})
 
-				const integration = new aws.apiGatewayV2.Integration(id, {
+				const integration = new aws.apiGatewayV2.Integration(group, 'integration', {
 					apiId,
 					description: `${id} ${routeKey}`,
 					method: 'POST',
 					payloadFormatVersion: '2.0',
 					type: 'AWS_PROXY',
 					uri: lambda.arn.apply(arn => {
-						return `arn:\${AWS::Partition}:apigateway:\${AWS::Region}:lambda:path/2015-03-31/functions/${arn}/invocations`
+						return `arn:aws:apigateway:${ctx.appConfig.region}:lambda:path/2015-03-31/functions/${arn}/invocations`
 					}),
 				})
 
-				const route = new aws.apiGatewayV2.Route(id, {
+				const route = new aws.apiGatewayV2.Route(group, 'route', {
 					apiId,
 					routeKey,
 					target: integration.id.apply(id => `integrations/${id}`),

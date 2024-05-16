@@ -20,9 +20,8 @@ type Func = (...args: any[]) => any
 
 type Invoke<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly async: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
 	readonly cached: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
-	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload'>): InvokeResponse<F>
+	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>): InvokeResponse<F>
 }
 
 type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurseIntoArrays: true }>
@@ -45,11 +44,10 @@ export const functionFeature = defineFeature({
 			const mock = new TypeObject(2)
 			const mockResponse = new TypeObject(2)
 
-			for (const [name, fileOrProps] of Object.entries(stack.functions || {})) {
+			for (const [name, props] of Object.entries(stack.functions || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
-				const funcName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'fn', name)
-				const file = typeof fileOrProps === 'string' ? fileOrProps : fileOrProps.file
-				const relFile = relative(directories.types, file)
+				const funcName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'function', name)
+				const relFile = relative(directories.types, props.file)
 
 				types.addImport(varName, relFile)
 				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)

@@ -1,15 +1,18 @@
+import { IntegrationType } from '@aws-sdk/client-apigatewayv2'
 import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Resource } from '../../../core/resource.js'
 
-export class Integration extends CloudControlApiResource {
+export class Integration extends Resource {
+	cloudProviderId = 'aws-api-gateway-v2-integration'
+
 	constructor(
 		readonly parent: Node,
 		id: string,
 		private props: {
 			apiId: Input<string>
 			description?: Input<string>
-			type: Input<'AWS' | 'AWS_PROXY' | 'HTTP' | 'HTTP_PROXY' | 'MOCK'>
+			type: Input<IntegrationType>
 			uri: Input<string>
 			method: Input<string>
 			payloadFormatVersion?: Input<'1.0' | '2.0'>
@@ -19,7 +22,7 @@ export class Integration extends CloudControlApiResource {
 	}
 
 	get id() {
-		return this.output(v => v.IntegrationId)
+		return this.output<string>(v => v.IntegrationId)
 	}
 
 	toState() {

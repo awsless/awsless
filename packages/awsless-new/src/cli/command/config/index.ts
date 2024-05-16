@@ -14,7 +14,7 @@ const commands = [
 ]
 
 export const config = (program: Command) => {
-	const command = program.command('config').description(`Manage app config's`)
+	const command = program.command('config').description(`Manage app config parameters`)
 
 	commands.forEach(cb => cb(command))
 }

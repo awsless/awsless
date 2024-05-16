@@ -101,11 +101,11 @@ export const authFeature = defineFeature({
 		// 		const userPoolId = ctx.app.import<string>('base', `auth-${id}-user-pool-id`)
 		// 		const clientId = ctx.app.import<string>('base', `auth-${id}-client-id`)
 		// 		const name = constantCase(id)
-
+		//
 		// 		ctx.onFunction(({ lambda, policy }) => {
 		// 			lambda.addEnvironment(`AUTH_${name}_USER_POOL_ID`, userPoolId)
 		// 			lambda.addEnvironment(`AUTH_${name}_CLIENT_ID`, clientId)
-
+		//
 		// 			policy.addStatement({
 		// 				actions: ['cognito:*'],
 		// 				resources: [
@@ -163,6 +163,11 @@ export const authFeature = defineFeature({
 			// 	userPoolId: userPool.id,
 			// 	domain: '',
 			// })
+
+			// ctx.registerSharedParameter('AUTH', id, 'USER_POOL_ID', userPoolId)
+			// ctx.registerSharedParameter('AUTH', id, 'CLIENT_ID', clientId)
+
+			// ctx.outputs.set('auth', id, 'user-pool-id', userPool.id)
 
 			ctx.shared.set(`auth-${id}-user-pool-arn`, userPool.arn)
 			ctx.shared.set(`auth-${id}-user-pool-id`, userPool.id)

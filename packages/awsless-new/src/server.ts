@@ -1,6 +1,7 @@
 // Features
 export { APP, STACK } from './lib/resource/util.js'
 export { getFunctionName, FunctionResources, Function, Fn } from './lib/resource/function.js'
+export { getTaskName, TaskResources, Task } from './lib/resource/task.js'
 export { getAuthName, getAuthProps, AuthResources, Auth } from './lib/resource/auth.js'
 export { getTableName, TableResources, Table } from './lib/resource/table.js'
 export { getTopicName, TopicResources, Topic } from './lib/resource/topic.js'
@@ -22,3 +23,4 @@ export { cron, CronProps } from './lib/handle/cron.js'
 export { mockFunction, FunctionMock, FunctionMockResponse } from './lib/mock/function.js'
 export { mockTopic, TopicMock, TopicMockResponse } from './lib/mock/topic.js'
 export { mockQueue, QueueMock, QueueMockResponse } from './lib/mock/queue.js'
+export { mockTask, TaskMock, TaskMockResponse } from './lib/mock/task.js'

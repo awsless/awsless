@@ -23,15 +23,15 @@ export class DomainName extends CloudControlApiResource {
 	}
 
 	get name() {
-		return this.output(v => v.DomainName)
+		return this.output<string>(v => v.DomainName)
 	}
 
 	get regionalDomainName() {
-		return this.output(v => v.RegionalDomainName)
+		return this.output<string>(v => v.RegionalDomainName)
 	}
 
 	get regionalHostedZoneId() {
-		return this.output(v => v.RegionalHostedZoneId)
+		return this.output<string>(v => v.RegionalHostedZoneId)
 	}
 
 	toState() {

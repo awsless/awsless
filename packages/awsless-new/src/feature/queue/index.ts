@@ -87,6 +87,8 @@ export const queueFeature = defineFeature({
 
 			const { lambda, policy } = createLambdaFunction(group, ctx, `queue`, id, props.consumer)
 
+			lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+
 			// const source = new SqsEventSource(id, lambda, {
 			// 	queueArn: queue.arn,
 			// 	batchSize: props.batchSize,

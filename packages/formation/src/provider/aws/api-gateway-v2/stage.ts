@@ -1,8 +1,10 @@
 import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
-import { CloudControlApiResource } from '../cloud-control-api'
+import { Resource } from '../../../core/resource'
 
-export class Stage extends CloudControlApiResource {
+export class Stage extends Resource {
+	cloudProviderId = 'aws-api-gateway-v2-stage'
+
 	constructor(
 		readonly parent: Node,
 		id: string,
@@ -15,6 +17,14 @@ export class Stage extends CloudControlApiResource {
 		}
 	) {
 		super(parent, 'AWS::ApiGatewayV2::Stage', id, props)
+	}
+
+	get id() {
+		return this.output<string>(v => v.StageId)
+	}
+
+	get name() {
+		return this.output<string>(v => v.StageName)
 	}
 
 	toState() {

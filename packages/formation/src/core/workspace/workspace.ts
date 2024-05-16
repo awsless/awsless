@@ -263,6 +263,26 @@ export class WorkSpace {
 		})
 	}
 
+	async hydrate(app: App) {
+		const appState = await this.props.stateProvider.get(app.urn)
+
+		if (appState) {
+			for (const stack of app.stacks) {
+				const stackState = appState.stacks[stack.urn]
+
+				if (stackState) {
+					for (const resource of stack.resources) {
+						const resourceState = stackState.resources[resource.urn]
+
+						if (resourceState) {
+							resource.setRemoteDocument(resourceState.remote)
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// async diffStack(stack: Stack) {
 	// 	const app = this.getStackApp(stack)
 

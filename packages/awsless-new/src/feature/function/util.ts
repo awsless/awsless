@@ -9,6 +9,7 @@ import { zipFiles } from './build/zip.js'
 import { fingerprintFromFile } from './build/typescript/fingerprint.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { getBuildPath } from '../../build/index.js'
+// import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
@@ -111,15 +112,17 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 	// Async Invoke Config
 
-	new aws.lambda.EventInvokeConfig(group, 'async', {
-		functionArn: lambda.arn,
-		retryAttempts: props.retryAttempts,
-		// onFailure: getGlobalOnFailure(ctx),
-	})
+	// const invokeConfig = new aws.lambda.EventInvokeConfig(group, 'async', {
+	// 	functionArn: lambda.arn,
+	// 	retryAttempts: props.retryAttempts,
+	// 	onFailure: getGlobalOnFailure(ctx),
+	// })
 
-	// if (hasOnFailure(ctx.appConfig)) {
+	// invokeConfig.dependsOn(policy)
+
+	// if (hasOnFailure(ctx.stackConfigs)) {
 	// 	policy.addStatement({
-	// 		actions: ['sqs:SendMessage'],
+	// 		actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
 	// 		resources: [getGlobalOnFailure(ctx)!],
 	// 	})
 	// }
@@ -191,8 +194,8 @@ export const createLambdaFunction = (
 		lambda.setVpc({
 			securityGroupIds: [ctx.shared.get<string>(`vpc-security-group-id`)],
 			subnetIds: [
-				ctx.shared.get<string>(`vpc-public-subnet-1`),
-				ctx.shared.get<string>(`vpc-public-subnet-2`),
+				ctx.shared.get<string>(`vpc-public-subnet-id-1`),
+				ctx.shared.get<string>(`vpc-public-subnet-id-2`),
 			],
 		})
 

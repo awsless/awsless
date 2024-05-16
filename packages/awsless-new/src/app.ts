@@ -56,6 +56,8 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const builders: BuildTask[] = []
 	const allFunctions: OnFunctionEntry[] = []
 	const globalListeners: OnFunctionListener[] = []
+	const allLocalListeners: Record<string, OnFunctionListener[]> = {}
+	const allLocalFunctions: Record<string, OnFunctionEntry[]> = {}
 
 	// ---------------------------------------------------------------
 
@@ -93,12 +95,13 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	}
 
 	for (const stackConfig of filterdStacks) {
-		// debug('Define stack:', style.info(name))
-
 		const localListeners: OnFunctionListener[] = []
 		const localFunctions: OnFunctionEntry[] = []
 
 		const stack = new Stack(app, stackConfig.name)
+
+		allLocalListeners[stack.name] = localListeners
+		allLocalFunctions[stack.name] = localFunctions
 
 		for (const feature of features) {
 			feature.onStack?.({
@@ -149,6 +152,20 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	// ---------------------------------------------------------------
 	// Stack dependency binds
 
+	for (const stackConfig of filterdStacks) {
+		const functions = allLocalFunctions[stackConfig.name]!
+
+		for (const dependency of stackConfig.depends ?? []) {
+			const listeners = allLocalListeners[dependency]!
+
+			for (const fn of functions) {
+				for (const listener of listeners) {
+					listener(fn)
+				}
+			}
+		}
+	}
+
 	// for (const entry of stacks) {
 	// 	for (const dep of entry.config.depends || []) {
 	// 		const depStack = stacks.find(entry => entry.config.name === dep)
@@ -181,6 +198,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		app,
 		base,
 		tests,
+		shared,
 		configs,
 		builders,
 		// deploymentLine,
