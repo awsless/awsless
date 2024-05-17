@@ -16,6 +16,8 @@ import { authFeature } from './auth/index.js'
 import { httpFeature } from './http/index.js'
 import { searchFeature } from './search/index.js'
 import { siteFeature } from './site/index.js'
+import { restFeature } from './rest/index.js'
+import { taskFeature } from './task/index.js'
 
 export const features = [
 	// 1
@@ -36,9 +38,11 @@ export const features = [
 	topicFeature,
 	queueFeature,
 	storeFeature,
+	cacheFeature,
+	taskFeature,
 	testFeature,
 	cronFeature,
-	cacheFeature,
 	httpFeature,
+	restFeature,
 	siteFeature,
 ]

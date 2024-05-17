@@ -45,11 +45,13 @@ export const onFailureFeature = defineFeature({
 
 		const { lambda, policy } = createLambdaFunction(group, ctx, 'on-failure', 'failure', onFailure)
 
-		new aws.lambda.EventSourceMapping(group, 'on-failure', {
+		const source = new aws.lambda.EventSourceMapping(group, 'on-failure', {
 			functionArn: lambda.arn,
 			sourceArn: queueArn,
 			batchSize: 10,
 		})
+
+		source.dependsOn(policy)
 
 		policy.addStatement({
 			actions: [

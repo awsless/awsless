@@ -2,6 +2,8 @@ import * as _aws_sdk_client_acm from '@aws-sdk/client-acm';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types';
 import { Duration } from '@awsless/duration';
+import * as _aws_sdk_client_apigatewayv2 from '@aws-sdk/client-apigatewayv2';
+import { IntegrationType } from '@aws-sdk/client-apigatewayv2';
 import * as _aws_sdk_client_appsync from '@aws-sdk/client-appsync';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
@@ -220,6 +222,7 @@ declare class WorkSpace {
     private runGraph;
     deployApp(app: App, opt?: Options): Promise<AppState>;
     deleteApp(app: App, opt?: Options): Promise<void>;
+    hydrate(app: App): Promise<void>;
     private getRemoteResource;
     private deployStackResources;
     private dependentsOn;
@@ -341,14 +344,14 @@ declare class Certificate extends Resource {
     };
 }
 
-type ProviderProps$e = {
+type ProviderProps$g = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
 type Extra = {
     region?: string;
 };
-type Document$a = {
+type Document$c = {
     DomainName: string;
     SubjectAlternativeNames: string[];
     DomainValidationOptions: {
@@ -361,34 +364,34 @@ type Document$a = {
 declare class CertificateProvider implements CloudProvider {
     private props;
     protected clients: Record<string, ACMClient>;
-    constructor(props: ProviderProps$e);
+    constructor(props: ProviderProps$g);
     own(id: string): boolean;
     private wait;
     private client;
-    get({ id, extra }: GetProps<Document$a, Extra>): Promise<_aws_sdk_client_acm.CertificateDetail>;
-    create({ urn, document, extra }: CreateProps<Document$a, Extra>): Promise<string>;
+    get({ id, extra }: GetProps<Document$c, Extra>): Promise<_aws_sdk_client_acm.CertificateDetail>;
+    create({ urn, document, extra }: CreateProps<Document$c, Extra>): Promise<string>;
     update(): Promise<string>;
-    delete({ id, extra }: DeleteProps<Document$a, Extra>): Promise<void>;
+    delete({ id, extra }: DeleteProps<Document$c, Extra>): Promise<void>;
 }
 
-type ProviderProps$d = {
+type ProviderProps$f = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$9 = {
+type Document$b = {
     Region: string;
     CertificateArn: string;
 };
 declare class CertificateValidationProvider implements CloudProvider {
     private props;
     protected clients: Record<string, ACMClient>;
-    constructor(props: ProviderProps$d);
+    constructor(props: ProviderProps$f);
     own(id: string): boolean;
     private client;
     private wait;
-    get({ id, document }: GetProps<Document$9>): Promise<_aws_sdk_client_acm.CertificateDetail>;
-    create({ document }: CreateProps<Document$9>): Promise<string>;
-    update({ newDocument }: UpdateProps<Document$9>): Promise<string>;
+    get({ id, document }: GetProps<Document$b>): Promise<_aws_sdk_client_acm.CertificateDetail>;
+    create({ document }: CreateProps<Document$b>): Promise<string>;
+    update({ newDocument }: UpdateProps<Document$b>): Promise<string>;
     delete(): Promise<void>;
 }
 
@@ -412,37 +415,279 @@ declare class CertificateValidation extends Resource {
     };
 }
 
-type index$o_Certificate = Certificate;
-declare const index$o_Certificate: typeof Certificate;
-type index$o_CertificateProps = CertificateProps;
-type index$o_CertificateProvider = CertificateProvider;
-declare const index$o_CertificateProvider: typeof CertificateProvider;
-type index$o_CertificateValidation = CertificateValidation;
-declare const index$o_CertificateValidation: typeof CertificateValidation;
-type index$o_CertificateValidationProps = CertificateValidationProps;
-type index$o_CertificateValidationProvider = CertificateValidationProvider;
-declare const index$o_CertificateValidationProvider: typeof CertificateValidationProvider;
-type index$o_KeyAlgorithm = KeyAlgorithm;
+type index$p_Certificate = Certificate;
+declare const index$p_Certificate: typeof Certificate;
+type index$p_CertificateProps = CertificateProps;
+type index$p_CertificateProvider = CertificateProvider;
+declare const index$p_CertificateProvider: typeof CertificateProvider;
+type index$p_CertificateValidation = CertificateValidation;
+declare const index$p_CertificateValidation: typeof CertificateValidation;
+type index$p_CertificateValidationProps = CertificateValidationProps;
+type index$p_CertificateValidationProvider = CertificateValidationProvider;
+declare const index$p_CertificateValidationProvider: typeof CertificateValidationProvider;
+type index$p_KeyAlgorithm = KeyAlgorithm;
+declare namespace index$p {
+  export {
+    index$p_Certificate as Certificate,
+    index$p_CertificateProps as CertificateProps,
+    index$p_CertificateProvider as CertificateProvider,
+    index$p_CertificateValidation as CertificateValidation,
+    index$p_CertificateValidationProps as CertificateValidationProps,
+    index$p_CertificateValidationProvider as CertificateValidationProvider,
+    index$p_KeyAlgorithm as KeyAlgorithm,
+  };
+}
+
+declare abstract class CloudControlApiResource extends Resource {
+    readonly cloudProviderId = "aws-cloud-control-api";
+}
+
+declare class ApiMapping extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        domainName: Input<string>;
+        apiId: Input<string>;
+        stage: Input<string>;
+    });
+    get id(): Output<string>;
+    toState(): {
+        document: {
+            DomainName: Input<string>;
+            ApiId: Input<string>;
+            Stage: Input<string>;
+        };
+    };
+}
+
+declare class Api extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        name: Input<string>;
+        description?: Input<string>;
+        protocolType: Input<'HTTP'>;
+        cors?: Input<{
+            allow?: Input<{
+                credentials?: Input<boolean>;
+                headers?: Input<Input<string>[]>;
+                methods?: Input<Input<string>[]>;
+                origins?: Input<Input<string>[]>;
+            }>;
+            expose?: Input<{
+                headers?: string[];
+            }>;
+            maxAge?: Input<Duration>;
+        }>;
+    });
+    get endpoint(): Output<string>;
+    get id(): Output<string>;
+    toState(): {
+        document: {
+            CorsConfiguration: {
+                [x: string]: unknown;
+            };
+            Name: Input<string>;
+            ProtocolType: Input<"HTTP">;
+        };
+    };
+}
+
+type ProviderProps$e = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+    timeout?: Duration;
+    maxAttempts?: number;
+};
+declare class CloudControlApiProvider implements CloudProvider {
+    private props;
+    protected client: CloudControlClient;
+    constructor(props: ProviderProps$e);
+    own(id: string): boolean;
+    private progressStatus;
+    private updateOperations;
+    get({ id, type }: GetProps): Promise<any>;
+    create({ token, type, document }: CreateProps): Promise<string>;
+    update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps): Promise<string>;
+    delete({ token, type, id }: DeleteProps): Promise<void>;
+}
+
+type index$o_CloudControlApiProvider = CloudControlApiProvider;
+declare const index$o_CloudControlApiProvider: typeof CloudControlApiProvider;
+type index$o_CloudControlApiResource = CloudControlApiResource;
+declare const index$o_CloudControlApiResource: typeof CloudControlApiResource;
 declare namespace index$o {
   export {
-    index$o_Certificate as Certificate,
-    index$o_CertificateProps as CertificateProps,
-    index$o_CertificateProvider as CertificateProvider,
-    index$o_CertificateValidation as CertificateValidation,
-    index$o_CertificateValidationProps as CertificateValidationProps,
-    index$o_CertificateValidationProvider as CertificateValidationProvider,
-    index$o_KeyAlgorithm as KeyAlgorithm,
+    index$o_CloudControlApiProvider as CloudControlApiProvider,
+    index$o_CloudControlApiResource as CloudControlApiResource,
   };
+}
+
+declare class DomainName$1 extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        name: Input<string>;
+        certificates: Input<Input<{
+            certificateArn?: Input<ARN>;
+            certificateName?: Input<string>;
+            endpointType?: Input<string>;
+            securityPolicy?: Input<'TLS_1_2' | 'TLS_1_0'>;
+        }>[]>;
+    });
+    get name(): Output<string>;
+    get regionalDomainName(): Output<string>;
+    get regionalHostedZoneId(): Output<string>;
+    toState(): {
+        document: {
+            DomainName: Input<string>;
+            DomainNameConfigurations: {
+                [x: string]: unknown;
+            }[];
+        };
+    };
+}
+
+type ProviderProps$d = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
+type Document$a = {
+    ApiId: string;
+    IntegrationType: IntegrationType;
+    IntegrationUri: string;
+    IntegrationMethod: string;
+    PayloadFormatVersion: '1.0' | '2.0';
+    Description?: string;
+};
+declare class IntegrationProvider implements CloudProvider {
+    private client;
+    constructor(props: ProviderProps$d);
+    own(id: string): boolean;
+    get({ id, document }: GetProps<Document$a>): Promise<_aws_sdk_client_apigatewayv2.GetIntegrationCommandOutput>;
+    create({ document }: CreateProps<Document$a>): Promise<string>;
+    update({ id, oldDocument, newDocument }: UpdateProps<Document$a>): Promise<string>;
+    delete({ id, document }: DeleteProps<Document$a>): Promise<void>;
+}
+
+declare class Integration extends Resource {
+    readonly parent: Node;
+    private props;
+    cloudProviderId: string;
+    constructor(parent: Node, id: string, props: {
+        apiId: Input<string>;
+        description?: Input<string>;
+        type: Input<IntegrationType>;
+        uri: Input<string>;
+        method: Input<string>;
+        payloadFormatVersion?: Input<'1.0' | '2.0'>;
+    });
+    get id(): Output<string>;
+    toState(): {
+        document: {
+            ApiId: Input<string>;
+            IntegrationType: Input<IntegrationType>;
+            IntegrationUri: Input<string>;
+            IntegrationMethod: Input<string>;
+            PayloadFormatVersion: "1.0" | "2.0";
+        };
+    };
+}
+
+declare class Route$1 extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        apiId: Input<string>;
+        routeKey: Input<string>;
+        target: Input<string>;
+    });
+    get id(): Output<string>;
+    toState(): {
+        document: {
+            ApiId: Input<string>;
+            RouteKey: Input<string>;
+            Target: Input<string>;
+        };
+    };
 }
 
 type ProviderProps$c = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
+type Document$9 = {
+    ApiId: string;
+    StageName: string;
+    AutoDeploy: boolean;
+    DeploymentId?: string;
+    Description?: string;
+};
+declare class StageProvider implements CloudProvider {
+    private client;
+    constructor(props: ProviderProps$c);
+    own(id: string): boolean;
+    get({ document }: GetProps<Document$9>): Promise<_aws_sdk_client_apigatewayv2.GetStageCommandOutput>;
+    create({ document }: CreateProps<Document$9>): Promise<string>;
+    update({ oldDocument, newDocument }: UpdateProps<Document$9>): Promise<string>;
+    delete({ document }: DeleteProps<Document$9>): Promise<void>;
+}
+
+declare class Stage extends Resource {
+    readonly parent: Node;
+    private props;
+    cloudProviderId: string;
+    constructor(parent: Node, id: string, props: {
+        apiId: Input<string>;
+        deploymentId?: Input<string>;
+        name: Input<string>;
+        description?: Input<string>;
+        autoDeploy?: Input<boolean>;
+    });
+    get id(): Output<string>;
+    get name(): Output<string>;
+    toState(): {
+        document: {
+            ApiId: Input<string>;
+            StageName: Input<string>;
+            AutoDeploy: boolean;
+        };
+    };
+}
+
+type index$n_Api = Api;
+declare const index$n_Api: typeof Api;
+type index$n_ApiMapping = ApiMapping;
+declare const index$n_ApiMapping: typeof ApiMapping;
+type index$n_Integration = Integration;
+declare const index$n_Integration: typeof Integration;
+type index$n_IntegrationProvider = IntegrationProvider;
+declare const index$n_IntegrationProvider: typeof IntegrationProvider;
+type index$n_Stage = Stage;
+declare const index$n_Stage: typeof Stage;
+type index$n_StageProvider = StageProvider;
+declare const index$n_StageProvider: typeof StageProvider;
+declare namespace index$n {
+  export {
+    index$n_Api as Api,
+    index$n_ApiMapping as ApiMapping,
+    DomainName$1 as DomainName,
+    index$n_Integration as Integration,
+    index$n_IntegrationProvider as IntegrationProvider,
+    Route$1 as Route,
+    index$n_Stage as Stage,
+    index$n_StageProvider as StageProvider,
+  };
+}
+
+type ProviderProps$b = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
 type Document$8 = any;
 declare class DataSourceProvider implements CloudProvider {
     protected client: AppSyncClient;
-    constructor(props: ProviderProps$c);
+    constructor(props: ProviderProps$b);
     own(id: string): boolean;
     get({ document }: GetProps<Document$8>): Promise<_aws_sdk_client_appsync.DataSource>;
     create({ document }: CreateProps<Document$8>): Promise<string>;
@@ -479,10 +724,6 @@ declare class DataSource extends Resource {
             name: Input<string>;
         };
     };
-}
-
-declare abstract class CloudControlApiResource extends Resource {
-    readonly cloudProviderId = "aws-cloud-control-api";
 }
 
 declare class DomainNameApiAssociation extends CloudControlApiResource {
@@ -549,14 +790,14 @@ declare class FunctionConfiguration extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$b = {
+type ProviderProps$a = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
 type Document$7 = any;
 declare class GraphQLApiProvider implements CloudProvider {
     protected client: AppSyncClient;
-    constructor(props: ProviderProps$b);
+    constructor(props: ProviderProps$a);
     own(id: string): boolean;
     get({ id }: GetProps<Document$7>): Promise<_aws_sdk_client_appsync.GraphqlApi>;
     create({ document }: CreateProps<Document$7>): Promise<string>;
@@ -703,7 +944,7 @@ declare class GraphQLApi extends Resource {
     };
 }
 
-type ProviderProps$a = {
+type ProviderProps$9 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
@@ -712,7 +953,7 @@ type Document$6 = {
 };
 declare class GraphQLSchemaProvider implements CloudProvider {
     protected client: AppSyncClient;
-    constructor(props: ProviderProps$a);
+    constructor(props: ProviderProps$9);
     own(id: string): boolean;
     private waitStatusComplete;
     get(): Promise<{}>;
@@ -794,79 +1035,49 @@ declare class SourceApiAssociation extends CloudControlApiResource {
     };
 }
 
-type index$n_DataSource = DataSource;
-declare const index$n_DataSource: typeof DataSource;
-type index$n_DataSourceProps = DataSourceProps;
-type index$n_DataSourceProvider = DataSourceProvider;
-declare const index$n_DataSourceProvider: typeof DataSourceProvider;
-type index$n_DomainName = DomainName;
-declare const index$n_DomainName: typeof DomainName;
-type index$n_DomainNameApiAssociation = DomainNameApiAssociation;
-declare const index$n_DomainNameApiAssociation: typeof DomainNameApiAssociation;
-type index$n_FunctionConfiguration = FunctionConfiguration;
-declare const index$n_FunctionConfiguration: typeof FunctionConfiguration;
-type index$n_FunctionConfigurationProps = FunctionConfigurationProps;
-type index$n_GraphQLApi = GraphQLApi;
-declare const index$n_GraphQLApi: typeof GraphQLApi;
-type index$n_GraphQLApiProvider = GraphQLApiProvider;
-declare const index$n_GraphQLApiProvider: typeof GraphQLApiProvider;
-type index$n_GraphQLSchema = GraphQLSchema;
-declare const index$n_GraphQLSchema: typeof GraphQLSchema;
-type index$n_GraphQLSchemaProps = GraphQLSchemaProps;
-type index$n_GraphQLSchemaProvider = GraphQLSchemaProvider;
-declare const index$n_GraphQLSchemaProvider: typeof GraphQLSchemaProvider;
-type index$n_Resolver = Resolver;
-declare const index$n_Resolver: typeof Resolver;
-type index$n_ResolverProps = ResolverProps;
-type index$n_SourceApiAssociation = SourceApiAssociation;
-declare const index$n_SourceApiAssociation: typeof SourceApiAssociation;
-declare namespace index$n {
-  export {
-    index$n_DataSource as DataSource,
-    index$n_DataSourceProps as DataSourceProps,
-    index$n_DataSourceProvider as DataSourceProvider,
-    index$n_DomainName as DomainName,
-    index$n_DomainNameApiAssociation as DomainNameApiAssociation,
-    index$n_FunctionConfiguration as FunctionConfiguration,
-    index$n_FunctionConfigurationProps as FunctionConfigurationProps,
-    index$n_GraphQLApi as GraphQLApi,
-    index$n_GraphQLApiProvider as GraphQLApiProvider,
-    index$n_GraphQLSchema as GraphQLSchema,
-    index$n_GraphQLSchemaProps as GraphQLSchemaProps,
-    index$n_GraphQLSchemaProvider as GraphQLSchemaProvider,
-    index$n_Resolver as Resolver,
-    index$n_ResolverProps as ResolverProps,
-    index$n_SourceApiAssociation as SourceApiAssociation,
-  };
-}
-
-type ProviderProps$9 = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-    timeout?: Duration;
-    maxAttempts?: number;
-};
-declare class CloudControlApiProvider implements CloudProvider {
-    private props;
-    protected client: CloudControlClient;
-    constructor(props: ProviderProps$9);
-    own(id: string): boolean;
-    private progressStatus;
-    private updateOperations;
-    get({ id, type }: GetProps): Promise<any>;
-    create({ token, type, document }: CreateProps): Promise<string>;
-    update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps): Promise<string>;
-    delete({ token, type, id }: DeleteProps): Promise<void>;
-}
-
-type index$m_CloudControlApiProvider = CloudControlApiProvider;
-declare const index$m_CloudControlApiProvider: typeof CloudControlApiProvider;
-type index$m_CloudControlApiResource = CloudControlApiResource;
-declare const index$m_CloudControlApiResource: typeof CloudControlApiResource;
+type index$m_DataSource = DataSource;
+declare const index$m_DataSource: typeof DataSource;
+type index$m_DataSourceProps = DataSourceProps;
+type index$m_DataSourceProvider = DataSourceProvider;
+declare const index$m_DataSourceProvider: typeof DataSourceProvider;
+type index$m_DomainName = DomainName;
+declare const index$m_DomainName: typeof DomainName;
+type index$m_DomainNameApiAssociation = DomainNameApiAssociation;
+declare const index$m_DomainNameApiAssociation: typeof DomainNameApiAssociation;
+type index$m_FunctionConfiguration = FunctionConfiguration;
+declare const index$m_FunctionConfiguration: typeof FunctionConfiguration;
+type index$m_FunctionConfigurationProps = FunctionConfigurationProps;
+type index$m_GraphQLApi = GraphQLApi;
+declare const index$m_GraphQLApi: typeof GraphQLApi;
+type index$m_GraphQLApiProvider = GraphQLApiProvider;
+declare const index$m_GraphQLApiProvider: typeof GraphQLApiProvider;
+type index$m_GraphQLSchema = GraphQLSchema;
+declare const index$m_GraphQLSchema: typeof GraphQLSchema;
+type index$m_GraphQLSchemaProps = GraphQLSchemaProps;
+type index$m_GraphQLSchemaProvider = GraphQLSchemaProvider;
+declare const index$m_GraphQLSchemaProvider: typeof GraphQLSchemaProvider;
+type index$m_Resolver = Resolver;
+declare const index$m_Resolver: typeof Resolver;
+type index$m_ResolverProps = ResolverProps;
+type index$m_SourceApiAssociation = SourceApiAssociation;
+declare const index$m_SourceApiAssociation: typeof SourceApiAssociation;
 declare namespace index$m {
   export {
-    index$m_CloudControlApiProvider as CloudControlApiProvider,
-    index$m_CloudControlApiResource as CloudControlApiResource,
+    index$m_DataSource as DataSource,
+    index$m_DataSourceProps as DataSourceProps,
+    index$m_DataSourceProvider as DataSourceProvider,
+    index$m_DomainName as DomainName,
+    index$m_DomainNameApiAssociation as DomainNameApiAssociation,
+    index$m_FunctionConfiguration as FunctionConfiguration,
+    index$m_FunctionConfigurationProps as FunctionConfigurationProps,
+    index$m_GraphQLApi as GraphQLApi,
+    index$m_GraphQLApiProvider as GraphQLApiProvider,
+    index$m_GraphQLSchema as GraphQLSchema,
+    index$m_GraphQLSchemaProps as GraphQLSchemaProps,
+    index$m_GraphQLSchemaProvider as GraphQLSchemaProvider,
+    index$m_Resolver as Resolver,
+    index$m_ResolverProps as ResolverProps,
+    index$m_SourceApiAssociation as SourceApiAssociation,
   };
 }
 
@@ -3577,16 +3788,17 @@ type ConfigProps = {
     region: string;
     timeout?: Duration;
 };
-declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | CloudControlApiProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | RecordSetProvider | BucketProvider | BucketObjectProvider | SubscriptionProvider)[];
+declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | RecordSetProvider | BucketProvider | BucketObjectProvider | SubscriptionProvider)[];
 
 type index$3_ARN = ARN;
 declare const index$3_createCloudProviders: typeof createCloudProviders;
 declare namespace index$3 {
   export {
     index$3_ARN as ARN,
-    index$o as acm,
-    index$n as appsync,
-    index$m as cloudControlApi,
+    index$p as acm,
+    index$n as apiGatewayV2,
+    index$m as appsync,
+    index$o as cloudControlApi,
     index$l as cloudFront,
     index$k as cloudWatch,
     index$j as cognito,

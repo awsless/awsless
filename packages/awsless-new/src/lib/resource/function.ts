@@ -23,14 +23,14 @@ export const Function: FunctionResources = /*@__PURE__*/ createProxy(stackName =
 
 		const call = ctx[name]
 
-		call.async = (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
-			return invoke({
-				...options,
-				type: 'Event',
-				name,
-				payload,
-			})
-		}
+		// call.async = (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
+		// 	return invoke({
+		// 		...options,
+		// 		type: 'Event',
+		// 		name,
+		// 		payload,
+		// 	})
+		// }
 
 		call.cached = async (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
 			const cacheKey = JSON.stringify({ name, payload, options })

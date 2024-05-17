@@ -40,7 +40,7 @@ export const fingerprintFromDirectory = async (dir: string) => {
 	const files = await readdir(dir, { recursive: true })
 
 	for (const file of files) {
-		if (extensions.includes(extname(file).substring(1))) {
+		if (extensions.includes(extname(file).substring(1)) && file.at(0) !== '_') {
 			await generateFileHashes(join(dir, file), hashes)
 		}
 	}

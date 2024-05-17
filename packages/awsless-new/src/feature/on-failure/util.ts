@@ -1,8 +1,8 @@
 import { aws } from '@awsless/formation'
 import { StackConfig } from '../../config/stack.js'
-import { StackContext } from '../../feature.js'
+import { AppContext, StackContext } from '../../feature.js'
 
-export const getGlobalOnFailure = (ctx: StackContext) => {
+export const getGlobalOnFailure = (ctx: StackContext | AppContext) => {
 	return hasOnFailure(ctx.stackConfigs) ? ctx.shared.get<aws.ARN>('on-failure-queue-arn') : undefined
 }
 

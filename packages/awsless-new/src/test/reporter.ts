@@ -53,6 +53,8 @@ export class CustomReporter implements Reporter {
 
 		// debug('DEBUG', this.ctx)
 
+		// console.log(this.tasks![0].tasks![0].tasks!)
+
 		const suites = getSuites(this.tasks!)
 		const tests = getTests(this.tasks!)
 		// const tasks = [...suites, ...tests]

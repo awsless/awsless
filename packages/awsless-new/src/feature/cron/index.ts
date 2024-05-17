@@ -11,6 +11,8 @@ export const cronFeature = defineFeature({
 
 			const { lambda } = createLambdaFunction(group, ctx, this.name, id, props.consumer)
 
+			lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+
 			const rule = new aws.events.Rule(group, 'rule', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
 				schedule: props.schedule,

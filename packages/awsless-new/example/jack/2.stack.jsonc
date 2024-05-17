@@ -1,0 +1,19 @@
+{
+	"$schema": "../../dist/stack.json",
+	"name": "stack-2",
+	"depends": ["stack"],
+	"tests": "./test",
+
+	"functions": {
+		"echo": "./function.ts"
+	}
+	// "queues": {
+	// 	"queue": "./function.ts"
+	// },
+	// "rest": {
+	// 	"api": {
+	// 		"GET /": "./function.ts",
+	// 		"POST /": "./function.ts"
+	// 	}
+	// }
+}

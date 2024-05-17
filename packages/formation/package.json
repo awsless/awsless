@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/formation",
-	"version": "0.0.17",
+	"version": "0.0.21",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -32,6 +32,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-acm": "^3.540.0",
+		"@aws-sdk/client-apigatewayv2": "^3.569.0",
 		"@aws-sdk/client-appsync": "^3.540.0",
 		"@aws-sdk/client-cloudcontrol": "^3.533.0",
 		"@aws-sdk/client-cloudfront": "^3.425.0",

@@ -6,17 +6,20 @@
 - add check for conflicting types inside graphql (Like duplicate type names)
   - Types should probably only allowed to defined once. And should be extended after that.
 
--
-
 ---
 ---
 ---
 
 # Features
 
+- VPC
+- Tests
+- Auth
+- Config
 - Domains
 - Sites
 - Functions
+- Tasks
 - Database
   - Tables
   - Stores
@@ -24,12 +27,12 @@
   - Searchs
 - Queues
 - Topics
-- Pubsub
+- Realtime
 - Crons
 - API
   - HTTP
   - GraphQL
-
+- Process Failure Capture
 
 ## Domains
 
@@ -58,6 +61,19 @@ We use AWS Lambda to provide serverless functions.
 {
   "functions": {
   	"FUNCTION_NAME": "function.ts"
+  }
+}
+```
+
+## Tasks
+
+We use AWS Async Lambda to provide serverless async tasks.
+Tasks are an lower cost alternative to queues.
+
+```json
+{
+  "tasks": {
+  	"TASK_NAME": "task.ts"
   }
 }
 ```
@@ -91,17 +107,29 @@ We use AWS S3 to provide serverless key-value storage.
 
 ## Caches
 
-We use AWS MemoryDB to provide __redis compatible__ in-memory storage.
-
-_WORK IN PROGRESS..._
-
-## Searchs
-
-We use AWS Open Search Serverless to provide serverless search api.
+We use AWS MemoryDB to provide a __redis compatible__ in-memory storage.
 
 ```json
 {
-  "searchs": [ "SEARCH_NAME" ]
+  "caches": {
+    "CACHE_NAME": {
+      "type": "t4g.small"
+    }
+  }
+}
+```
+
+## Searchs
+
+We use AWS Open Search to provide a serverless search api.
+
+```json
+{
+  "searchs": {
+    "SEARCH_NAME": {
+      "type": "t3.small"
+    }
+  }
 }
 ```
 
@@ -130,7 +158,7 @@ We use AWS SNS to provide serverless pubsub topics.
 }
 ```
 
-## Pubsub
+## Realtime
 
 We use AWS IoT to provide a serverless mqtt pubsub channel.
 
@@ -166,10 +194,10 @@ We use AWS ELB to provide a HTTP API.
 
 ```json
 {
-  http: {
-    HTTP_API_NAME: {
-      'GET /posts': 'list-posts.ts',
-      'POST /posts': 'create-post.ts',
+  "http": {
+    "HTTP_API_NAME": {
+      "GET /posts": "list-posts.ts",
+      "POST /posts": "create-post.ts",
     }
   }
 }
@@ -181,10 +209,10 @@ We use AWS ApiGatewayV2 to provide a serverless REST API.
 
 ```json
 {
-  rest: {
-    REST_API_NAME: {
-      'GET /posts/{id}': 'get-posts.ts',
-      'DELETE /posts/{id}': 'delete-post.ts',
+  "rest": {
+    "REST_API_NAME": {
+      "GET /posts/{id}": "get-posts.ts",
+      "DELETE /posts/{id}": "delete-post.ts",
     }
   }
 }
@@ -196,12 +224,16 @@ We use AWS AppSync to provide a serverless GraphQL API.
 
 ```json
 {
-  graphql: {
-    GRAPHQL_API_NAME: {
-      schema: 'schema.gql',
-      resolvers: {
-        'Query posts': 'list-posts.ts',
-        'Mutation createPost': 'create-post.ts',
+  "graphql": {
+    "GRAPHQL_API_NAME": {
+      "schema": "schema.gql",
+      "resolvers": {
+        "Query": {
+          "posts": "list-posts.ts",
+        },
+        "Mutation": {
+          "createPost": "create-post.ts",
+        }
       }
     }
   }

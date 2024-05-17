@@ -311,13 +311,19 @@ var import_utils2 = require("@awsless/utils");
 var import_client_lambda3 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var globalList = {};
 var mockLambda = (lambdas) => {
+  const alreadyMocked = Object.keys(globalList).length > 0;
   const list = (0, import_utils2.mockObjectValues)(lambdas);
+  Object.assign(globalList, list);
+  if (alreadyMocked) {
+    return list;
+  }
   (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda3.LambdaClient).on(import_client_lambda3.InvokeCommand).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? JSON.parse((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
-    const callback = list[name];
+    const callback = globalList[name];
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
@@ -332,7 +338,7 @@ var mockLambda = (lambdas) => {
     };
   });
   beforeEach && beforeEach(() => {
-    Object.values(list).forEach((fn) => {
+    Object.values(globalList).forEach((fn) => {
       fn.mockClear();
     });
   });

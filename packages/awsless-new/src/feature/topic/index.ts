@@ -82,6 +82,9 @@ export const topicFeature = defineFeature({
 				// Else it's a lambda...
 				const { lambda } = createLambdaFunction(group, ctx, `topic`, id, props)
 
+				lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+				// lambda.addEnvironment('LOG_EXPECTED_ERROR', '1')
+
 				new aws.sns.Subscription(group, id, {
 					topicArn,
 					protocol: 'lambda',

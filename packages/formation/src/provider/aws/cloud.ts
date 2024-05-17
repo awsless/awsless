@@ -13,6 +13,7 @@ import { Duration } from '@awsless/duration'
 import { SubscriptionProvider } from './sns/subscription-provider'
 import { InvalidateCacheProvider } from './cloud-front'
 import { LambdaTriggersProvider } from './cognito/lambda-triggers-provider'
+import { IntegrationProvider, StageProvider } from './api-gateway-v2'
 
 type ConfigProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -31,6 +32,8 @@ export const createCloudProviders = (config: ConfigProps) => {
 		new RecordSetProvider(config),
 		new CertificateProvider(config),
 		new CertificateValidationProvider(config),
+		new IntegrationProvider(config),
+		new StageProvider(config),
 		new GraphQLApiProvider(config),
 		new GraphQLSchemaProvider(config),
 		new DataSourceProvider(config),

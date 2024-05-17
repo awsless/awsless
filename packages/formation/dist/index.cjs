@@ -653,6 +653,22 @@ var WorkSpace = class {
       await this.props.stateProvider.delete(app.urn);
     });
   }
+  async hydrate(app) {
+    const appState = await this.props.stateProvider.get(app.urn);
+    if (appState) {
+      for (const stack of app.stacks) {
+        const stackState = appState.stacks[stack.urn];
+        if (stackState) {
+          for (const resource of stack.resources) {
+            const resourceState = stackState.resources[resource.urn];
+            if (resourceState) {
+              resource.setRemoteDocument(resourceState.remote);
+            }
+          }
+        }
+      }
+    }
+  }
   // async diffStack(stack: Stack) {
   // 	const app = this.getStackApp(stack)
   // 	const appState = (await this.props.stateProvider.get(app.urn)) ?? {
@@ -1001,6 +1017,7 @@ var WorkSpace = class {
 var aws_exports = {};
 __export(aws_exports, {
   acm: () => acm_exports,
+  apiGatewayV2: () => api_gateway_v2_exports,
   appsync: () => appsync_exports,
   cloudControlApi: () => cloud_control_api_exports,
   cloudFront: () => cloud_front_exports,
@@ -1261,12 +1278,421 @@ var Certificate = class extends Resource {
   }
 };
 
+// src/provider/aws/api-gateway-v2/index.ts
+var api_gateway_v2_exports = {};
+__export(api_gateway_v2_exports, {
+  Api: () => Api,
+  ApiMapping: () => ApiMapping,
+  DomainName: () => DomainName,
+  Integration: () => Integration,
+  IntegrationProvider: () => IntegrationProvider,
+  Route: () => Route,
+  Stage: () => Stage,
+  StageProvider: () => StageProvider
+});
+
+// src/provider/aws/cloud-control-api/resource.ts
+var CloudControlApiResource = class extends Resource {
+  cloudProviderId = "aws-cloud-control-api";
+  // readonly
+  // protected _region: string | undefined
+  // get region() {
+  // 	return this._region
+  // }
+  // setRegion(region: string) {
+  // 	this._region = region
+  // 	return this
+  // }
+};
+
+// src/provider/aws/api-gateway-v2/api-mapping.ts
+var ApiMapping = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ApiGatewayV2::ApiMapping", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.ApiMappingId);
+  }
+  toState() {
+    return {
+      document: {
+        DomainName: this.props.domainName,
+        ApiId: this.props.apiId,
+        Stage: this.props.stage
+      }
+    };
+  }
+};
+
+// src/provider/aws/api-gateway-v2/api.ts
+var import_duration = require("@awsless/duration");
+var Api = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ApiGatewayV2::Api", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get endpoint() {
+    return this.output((v) => v.ApiEndpoint);
+  }
+  get id() {
+    return this.output((v) => v.ApiId);
+  }
+  toState() {
+    const cors = unwrap(this.props.cors, {});
+    const allow = unwrap(cors.allow, {});
+    const expose = unwrap(cors.expose, {});
+    return {
+      document: {
+        Name: this.props.name,
+        ProtocolType: this.props.protocolType,
+        ...this.attr("Description", this.props.description),
+        CorsConfiguration: {
+          ...this.attr("AllowCredentials", allow.credentials),
+          ...this.attr("AllowHeaders", allow.headers),
+          ...this.attr("AllowMethods", allow.methods),
+          ...this.attr("AllowOrigins", allow.origins),
+          ...this.attr("ExposeHeaders", expose.headers),
+          ...this.attr("MaxAge", cors.maxAge, import_duration.toSeconds)
+        }
+      }
+    };
+  }
+};
+
+// src/provider/aws/cloud-control-api/index.ts
+var cloud_control_api_exports = {};
+__export(cloud_control_api_exports, {
+  CloudControlApiProvider: () => CloudControlApiProvider,
+  CloudControlApiResource: () => CloudControlApiResource
+});
+
+// src/provider/aws/cloud-control-api/provider.ts
+var import_client_cloudcontrol = require("@aws-sdk/client-cloudcontrol");
+var import_rfc6902 = require("rfc6902");
+var import_duration2 = require("@awsless/duration");
+var CloudControlApiProvider = class {
+  constructor(props) {
+    this.props = props;
+    this.client = new import_client_cloudcontrol.CloudControlClient({
+      maxAttempts: 10,
+      requestHandler: {
+        httpsAgent: {
+          maxSockets: 10,
+          maxTotalSockets: 10
+        }
+      },
+      ...props
+    });
+  }
+  client;
+  own(id) {
+    return id === "aws-cloud-control-api";
+  }
+  async progressStatus(event) {
+    const token = event.RequestToken;
+    const start = /* @__PURE__ */ new Date();
+    const timeout = Number((0, import_duration2.toMilliSeconds)(this.props.timeout ?? (0, import_duration2.minutes)(1)));
+    while (true) {
+      if (event.OperationStatus === "SUCCESS") {
+        if (event.Identifier) {
+          return event.Identifier;
+        } else {
+          throw new Error(`AWS Cloud Control API Identifier not set for SUCCESS status.`);
+        }
+      }
+      if (event.OperationStatus === "FAILED") {
+        if (event.ErrorCode === "AlreadyExists") {
+          if (event.Identifier) {
+            return event.Identifier;
+          }
+        }
+        if (event.ErrorCode === "NotFound") {
+          throw new ResourceNotFound(event.StatusMessage);
+        }
+        throw new Error(`[${event.ErrorCode}] ${event.StatusMessage}`);
+      }
+      const now = Date.now();
+      const elapsed = now - start.getTime();
+      if (elapsed > timeout) {
+        throw new Error("AWS Cloud Control API operation timeout.");
+      }
+      const after = event.RetryAfter?.getTime() ?? 0;
+      const delay = Math.max(after - now, 1e3);
+      await sleep(delay);
+      const status = await this.client.send(
+        new import_client_cloudcontrol.GetResourceRequestStatusCommand({
+          RequestToken: token
+        })
+      );
+      event = status.ProgressEvent;
+    }
+  }
+  updateOperations(remoteDocument, oldDocument, newDocument) {
+    for (const key in oldDocument) {
+      if (typeof remoteDocument[key] === "undefined") {
+        delete oldDocument[key];
+      }
+    }
+    const operations = (0, import_rfc6902.createPatch)(oldDocument, newDocument);
+    return operations;
+  }
+  async get({ id, type }) {
+    const result = await this.client.send(
+      new import_client_cloudcontrol.GetResourceCommand({
+        TypeName: type,
+        Identifier: id
+      })
+    );
+    return JSON.parse(result.ResourceDescription.Properties);
+  }
+  async create({ token, type, document }) {
+    const result = await this.client.send(
+      new import_client_cloudcontrol.CreateResourceCommand({
+        TypeName: type,
+        DesiredState: JSON.stringify(document),
+        ClientToken: token
+      })
+    );
+    return this.progressStatus(result.ProgressEvent);
+  }
+  async update({ token, type, id, oldDocument, newDocument, remoteDocument }) {
+    const result = await this.client.send(
+      new import_client_cloudcontrol.UpdateResourceCommand({
+        TypeName: type,
+        Identifier: id,
+        PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+        ClientToken: token
+      })
+    );
+    return this.progressStatus(result.ProgressEvent);
+  }
+  async delete({ token, type, id }) {
+    const result = await this.client.send(
+      new import_client_cloudcontrol.DeleteResourceCommand({
+        TypeName: type,
+        Identifier: id,
+        ClientToken: token
+      })
+    );
+    await this.progressStatus(result.ProgressEvent);
+  }
+};
+
+// src/provider/aws/api-gateway-v2/domain-name.ts
+var DomainName = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ApiGatewayV2::DomainName", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.DomainName);
+  }
+  get regionalDomainName() {
+    return this.output((v) => v.RegionalDomainName);
+  }
+  get regionalHostedZoneId() {
+    return this.output((v) => v.RegionalHostedZoneId);
+  }
+  toState() {
+    return {
+      document: {
+        DomainName: this.props.name,
+        DomainNameConfigurations: unwrap(this.props.certificates).map((v) => unwrap(v)).map((item) => ({
+          ...this.attr("CertificateArn", item.certificateArn),
+          ...this.attr("CertificateName", item.certificateName),
+          ...this.attr("EndpointType", item.endpointType),
+          ...this.attr("SecurityPolicy", item.securityPolicy)
+        }))
+      }
+    };
+  }
+};
+
+// src/provider/aws/api-gateway-v2/integration-provider.ts
+var import_client_apigatewayv2 = require("@aws-sdk/client-apigatewayv2");
+var IntegrationProvider = class {
+  client;
+  constructor(props) {
+    this.client = new import_client_apigatewayv2.ApiGatewayV2Client(props);
+  }
+  own(id) {
+    return id === "aws-api-gateway-v2-integration";
+  }
+  async get({ id, document }) {
+    const result = await this.client.send(
+      new import_client_apigatewayv2.GetIntegrationCommand({
+        ApiId: document.ApiId,
+        IntegrationId: id
+      })
+    );
+    return result;
+  }
+  async create({ document }) {
+    const result = await this.client.send(new import_client_apigatewayv2.CreateIntegrationCommand(document));
+    return result.IntegrationId;
+  }
+  async update({ id, oldDocument, newDocument }) {
+    if (oldDocument.ApiId !== newDocument.ApiId) {
+      throw new Error(`Integration can't change the api id`);
+    }
+    const result = await this.client.send(
+      new import_client_apigatewayv2.UpdateIntegrationCommand({
+        ...newDocument,
+        IntegrationId: id
+      })
+    );
+    return result.IntegrationId;
+  }
+  async delete({ id, document }) {
+    try {
+      await this.client.send(
+        new import_client_apigatewayv2.DeleteIntegrationCommand({
+          ApiId: document.ApiId,
+          IntegrationId: id
+        })
+      );
+    } catch (error) {
+      if (error instanceof import_client_apigatewayv2.NotFoundException) {
+        throw new ResourceNotFound(error.message);
+      }
+      throw error;
+    }
+  }
+};
+
+// src/provider/aws/api-gateway-v2/integration.ts
+var Integration = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ApiGatewayV2::Integration", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-api-gateway-v2-integration";
+  get id() {
+    return this.output((v) => v.IntegrationId);
+  }
+  toState() {
+    return {
+      document: {
+        ApiId: this.props.apiId,
+        IntegrationType: this.props.type,
+        IntegrationUri: this.props.uri,
+        IntegrationMethod: this.props.method,
+        PayloadFormatVersion: unwrap(this.props.payloadFormatVersion, "2.0"),
+        ...this.attr("Description", this.props.description)
+      }
+    };
+  }
+};
+
+// src/provider/aws/api-gateway-v2/route.ts
+var Route = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ApiGatewayV2::Route", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.RouteId);
+  }
+  toState() {
+    return {
+      document: {
+        ApiId: this.props.apiId,
+        RouteKey: this.props.routeKey,
+        Target: this.props.target
+      }
+    };
+  }
+};
+
+// src/provider/aws/api-gateway-v2/stage-provider.ts
+var import_client_apigatewayv22 = require("@aws-sdk/client-apigatewayv2");
+var StageProvider = class {
+  client;
+  constructor(props) {
+    this.client = new import_client_apigatewayv22.ApiGatewayV2Client(props);
+  }
+  own(id) {
+    return id === "aws-api-gateway-v2-stage";
+  }
+  async get({ document }) {
+    const result = await this.client.send(
+      new import_client_apigatewayv22.GetStageCommand({
+        ApiId: document.ApiId,
+        StageName: document.StageName
+      })
+    );
+    return result;
+  }
+  async create({ document }) {
+    const result = await this.client.send(new import_client_apigatewayv22.CreateStageCommand(document));
+    return result.StageName;
+  }
+  async update({ oldDocument, newDocument }) {
+    if (oldDocument.ApiId !== newDocument.ApiId) {
+      throw new Error(`Stage can't change the api id`);
+    }
+    if (oldDocument.StageName !== newDocument.StageName) {
+      throw new Error(`Stage can't change the stage name`);
+    }
+    const result = await this.client.send(new import_client_apigatewayv22.UpdateStageCommand(newDocument));
+    return result.StageName;
+  }
+  async delete({ document }) {
+    try {
+      await this.client.send(
+        new import_client_apigatewayv22.DeleteStageCommand({
+          ApiId: document.ApiId,
+          StageName: document.StageName
+        })
+      );
+    } catch (error) {
+      if (error instanceof import_client_apigatewayv22.NotFoundException) {
+        throw new ResourceNotFound(error.message);
+      }
+      throw error;
+    }
+  }
+};
+
+// src/provider/aws/api-gateway-v2/stage.ts
+var Stage = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ApiGatewayV2::Stage", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-api-gateway-v2-stage";
+  get id() {
+    return this.output((v) => v.StageId);
+  }
+  get name() {
+    return this.output((v) => v.StageName);
+  }
+  toState() {
+    return {
+      document: {
+        ApiId: this.props.apiId,
+        StageName: this.props.name,
+        AutoDeploy: unwrap(this.props.autoDeploy, true),
+        ...this.attr("DeploymentId", this.props.deploymentId),
+        ...this.attr("Description", this.props.description)
+      }
+    };
+  }
+};
+
 // src/provider/aws/appsync/index.ts
 var appsync_exports = {};
 __export(appsync_exports, {
   DataSource: () => DataSource,
   DataSourceProvider: () => DataSourceProvider,
-  DomainName: () => DomainName,
+  DomainName: () => DomainName2,
   DomainNameApiAssociation: () => DomainNameApiAssociation,
   FunctionConfiguration: () => FunctionConfiguration,
   GraphQLApi: () => GraphQLApi,
@@ -1365,20 +1791,6 @@ var DataSource = class extends Resource {
   }
 };
 
-// src/provider/aws/cloud-control-api/resource.ts
-var CloudControlApiResource = class extends Resource {
-  cloudProviderId = "aws-cloud-control-api";
-  // readonly
-  // protected _region: string | undefined
-  // get region() {
-  // 	return this._region
-  // }
-  // setRegion(region: string) {
-  // 	this._region = region
-  // 	return this
-  // }
-};
-
 // src/provider/aws/appsync/domain-name-api-association.ts
 var DomainNameApiAssociation = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -1397,7 +1809,7 @@ var DomainNameApiAssociation = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/appsync/domain-name.ts
-var DomainName = class extends CloudControlApiResource {
+var DomainName2 = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::AppSync::DomainName", id, props);
     this.parent = parent;
@@ -1506,7 +1918,7 @@ var GraphQLApiProvider = class {
 };
 
 // src/provider/aws/appsync/graphql-api.ts
-var import_duration = require("@awsless/duration");
+var import_duration3 = require("@awsless/duration");
 var GraphQLApi = class extends Resource {
   // private defaultAuthorization?: GraphQLAuthorization
   // private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
@@ -1598,7 +2010,7 @@ var GraphQLApi = class extends Resource {
       authenticationType: "AWS_LAMBDA",
       lambdaAuthorizerConfig: {
         authorizerUri: prop.functionArn,
-        ...this.attr("authorizerResultTtlInSeconds", prop.resultTtl && (0, import_duration.toSeconds)(unwrap(prop.resultTtl))),
+        ...this.attr("authorizerResultTtlInSeconds", prop.resultTtl && (0, import_duration3.toSeconds)(unwrap(prop.resultTtl))),
         ...this.attr("identityValidationExpression", prop.tokenRegex)
       }
     };
@@ -1761,125 +2173,6 @@ var SourceApiAssociation = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/cloud-control-api/index.ts
-var cloud_control_api_exports = {};
-__export(cloud_control_api_exports, {
-  CloudControlApiProvider: () => CloudControlApiProvider,
-  CloudControlApiResource: () => CloudControlApiResource
-});
-
-// src/provider/aws/cloud-control-api/provider.ts
-var import_client_cloudcontrol = require("@aws-sdk/client-cloudcontrol");
-var import_rfc6902 = require("rfc6902");
-var import_duration2 = require("@awsless/duration");
-var CloudControlApiProvider = class {
-  constructor(props) {
-    this.props = props;
-    this.client = new import_client_cloudcontrol.CloudControlClient({
-      maxAttempts: 10,
-      requestHandler: {
-        httpsAgent: {
-          maxSockets: 10,
-          maxTotalSockets: 10
-        }
-      },
-      ...props
-    });
-  }
-  client;
-  own(id) {
-    return id === "aws-cloud-control-api";
-  }
-  async progressStatus(event) {
-    const token = event.RequestToken;
-    const start = /* @__PURE__ */ new Date();
-    const timeout = Number((0, import_duration2.toMilliSeconds)(this.props.timeout ?? (0, import_duration2.minutes)(1)));
-    while (true) {
-      if (event.OperationStatus === "SUCCESS") {
-        if (event.Identifier) {
-          return event.Identifier;
-        } else {
-          throw new Error(`AWS Cloud Control API Identifier not set for SUCCESS status.`);
-        }
-      }
-      if (event.OperationStatus === "FAILED") {
-        if (event.ErrorCode === "AlreadyExists") {
-          if (event.Identifier) {
-            return event.Identifier;
-          }
-        }
-        if (event.ErrorCode === "NotFound") {
-          throw new ResourceNotFound(event.StatusMessage);
-        }
-        throw new Error(`[${event.ErrorCode}] ${event.StatusMessage}`);
-      }
-      const now = Date.now();
-      const elapsed = now - start.getTime();
-      if (elapsed > timeout) {
-        throw new Error("AWS Cloud Control API operation timeout.");
-      }
-      const after = event.RetryAfter?.getTime() ?? 0;
-      const delay = Math.max(after - now, 1e3);
-      await sleep(delay);
-      const status = await this.client.send(
-        new import_client_cloudcontrol.GetResourceRequestStatusCommand({
-          RequestToken: token
-        })
-      );
-      event = status.ProgressEvent;
-    }
-  }
-  updateOperations(remoteDocument, oldDocument, newDocument) {
-    for (const key in oldDocument) {
-      if (typeof remoteDocument[key]) {
-        delete oldDocument[key];
-      }
-    }
-    const operations = (0, import_rfc6902.createPatch)(oldDocument, newDocument);
-    return operations;
-  }
-  async get({ id, type }) {
-    const result = await this.client.send(
-      new import_client_cloudcontrol.GetResourceCommand({
-        TypeName: type,
-        Identifier: id
-      })
-    );
-    return JSON.parse(result.ResourceDescription.Properties);
-  }
-  async create({ token, type, document }) {
-    const result = await this.client.send(
-      new import_client_cloudcontrol.CreateResourceCommand({
-        TypeName: type,
-        DesiredState: JSON.stringify(document),
-        ClientToken: token
-      })
-    );
-    return this.progressStatus(result.ProgressEvent);
-  }
-  async update({ token, type, id, oldDocument, newDocument, remoteDocument }) {
-    const result = await this.client.send(
-      new import_client_cloudcontrol.UpdateResourceCommand({
-        TypeName: type,
-        Identifier: id,
-        PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
-        ClientToken: token
-      })
-    );
-    return this.progressStatus(result.ProgressEvent);
-  }
-  async delete({ token, type, id }) {
-    const result = await this.client.send(
-      new import_client_cloudcontrol.DeleteResourceCommand({
-        TypeName: type,
-        Identifier: id,
-        ClientToken: token
-      })
-    );
-    await this.progressStatus(result.ProgressEvent);
-  }
-};
-
 // src/provider/aws/cloud-front/index.ts
 var cloud_front_exports = {};
 __export(cloud_front_exports, {
@@ -1893,7 +2186,7 @@ __export(cloud_front_exports, {
 });
 
 // src/provider/aws/cloud-front/cache-policy.ts
-var import_duration3 = require("@awsless/duration");
+var import_duration4 = require("@awsless/duration");
 var CachePolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::CachePolicy", id, props);
@@ -1908,9 +2201,9 @@ var CachePolicy = class extends CloudControlApiResource {
       document: {
         CachePolicyConfig: {
           Name: this.props.name,
-          MinTTL: (0, import_duration3.toSeconds)(unwrap(this.props.minTtl)),
-          MaxTTL: (0, import_duration3.toSeconds)(unwrap(this.props.maxTtl)),
-          DefaultTTL: (0, import_duration3.toSeconds)(unwrap(this.props.defaultTtl)),
+          MinTTL: (0, import_duration4.toSeconds)(unwrap(this.props.minTtl)),
+          MaxTTL: (0, import_duration4.toSeconds)(unwrap(this.props.maxTtl)),
+          DefaultTTL: (0, import_duration4.toSeconds)(unwrap(this.props.defaultTtl)),
           ParametersInCacheKeyAndForwardedToOrigin: {
             EnableAcceptEncodingGzip: unwrap(this.props.acceptGzip, false),
             EnableAcceptEncodingBrotli: unwrap(this.props.acceptBrotli, false),
@@ -1934,7 +2227,7 @@ var CachePolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/distribution.ts
-var import_duration4 = require("@awsless/duration");
+var import_duration5 = require("@awsless/duration");
 var Distribution = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::Distribution", id, props);
@@ -2027,7 +2320,7 @@ var Distribution = class extends CloudControlApiResource {
             ErrorCode: item.errorCode,
             ...this.attr(
               "ErrorCachingMinTTL",
-              item.cacheMinTTL && (0, import_duration4.toSeconds)(unwrap(item.cacheMinTTL))
+              item.cacheMinTTL && (0, import_duration5.toSeconds)(unwrap(item.cacheMinTTL))
             ),
             ...this.attr("ResponseCode", item.responseCode),
             ...this.attr("ResponsePagePath", item.responsePath)
@@ -2178,7 +2471,7 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/response-headers-policy.ts
-var import_duration5 = require("@awsless/duration");
+var import_duration6 = require("@awsless/duration");
 var ResponseHeadersPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::ResponseHeadersPolicy", id, props);
@@ -2211,7 +2504,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
           CorsConfig: {
             OriginOverride: unwrap(cors.override, false),
             AccessControlAllowCredentials: unwrap(cors.credentials, false),
-            AccessControlMaxAgeSec: (0, import_duration5.toSeconds)(unwrap(cors.maxAge, (0, import_duration5.days)(365))),
+            AccessControlMaxAgeSec: (0, import_duration6.toSeconds)(unwrap(cors.maxAge, (0, import_duration6.days)(365))),
             AccessControlAllowHeaders: {
               Items: unwrap(cors.headers, ["*"])
             },
@@ -2248,7 +2541,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
             StrictTransportSecurity: {
               Override: unwrap(strictTransportSecurity.override, false),
               Preload: unwrap(strictTransportSecurity.preload, true),
-              AccessControlMaxAgeSec: (0, import_duration5.toSeconds)(unwrap(strictTransportSecurity.maxAge, (0, import_duration5.days)(365))),
+              AccessControlMaxAgeSec: (0, import_duration6.toSeconds)(unwrap(strictTransportSecurity.maxAge, (0, import_duration6.days)(365))),
               IncludeSubdomains: unwrap(strictTransportSecurity.includeSubdomains, true)
             },
             XSSProtection: {
@@ -2271,7 +2564,7 @@ __export(cloud_watch_exports, {
 });
 
 // src/provider/aws/cloud-watch/log-group.ts
-var import_duration6 = require("@awsless/duration");
+var import_duration7 = require("@awsless/duration");
 var LogGroup = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Logs::LogGroup", id, props);
@@ -2300,7 +2593,7 @@ var LogGroup = class extends CloudControlApiResource {
     return {
       document: {
         LogGroupName: this.props.name,
-        ...this.attr("RetentionInDays", this.props.retention && (0, import_duration6.toDays)(unwrap(this.props.retention)))
+        ...this.attr("RetentionInDays", this.props.retention && (0, import_duration7.toDays)(unwrap(this.props.retention)))
         // KmsKeyId: String
         // DataProtectionPolicy : Json,
       }
@@ -2319,7 +2612,7 @@ __export(cognito_exports, {
 });
 
 // src/provider/aws/cognito/user-pool-client.ts
-var import_duration7 = require("@awsless/duration");
+var import_duration8 = require("@awsless/duration");
 var UserPoolClient = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPoolClient", id, props);
@@ -2398,13 +2691,13 @@ var UserPoolClient = class extends CloudControlApiResource {
         ...this.attr("WriteAttributes", this.props.writeAttributes),
         ...this.attr(
           "AuthSessionValidity",
-          validity.authSession && (0, import_duration7.toMinutes)(unwrap(validity.authSession))
+          validity.authSession && (0, import_duration8.toMinutes)(unwrap(validity.authSession))
         ),
-        ...this.attr("AccessTokenValidity", validity.accessToken && (0, import_duration7.toHours)(unwrap(validity.accessToken))),
-        ...this.attr("IdTokenValidity", validity.idToken && (0, import_duration7.toHours)(unwrap(validity.idToken))),
+        ...this.attr("AccessTokenValidity", validity.accessToken && (0, import_duration8.toHours)(unwrap(validity.accessToken))),
+        ...this.attr("IdTokenValidity", validity.idToken && (0, import_duration8.toHours)(unwrap(validity.idToken))),
         ...this.attr(
           "RefreshTokenValidity",
-          validity.refreshToken && (0, import_duration7.toDays)(unwrap(validity.refreshToken))
+          validity.refreshToken && (0, import_duration8.toDays)(unwrap(validity.refreshToken))
         ),
         TokenValidityUnits: {
           ...this.attr("AccessToken", validity.accessToken && "hours"),
@@ -2441,7 +2734,7 @@ var UserPoolDomain = class extends CloudControlApiResource {
 
 // src/provider/aws/cognito/user-pool.ts
 var import_change_case2 = require("change-case");
-var import_duration8 = require("@awsless/duration");
+var import_duration9 = require("@awsless/duration");
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPool", id, props);
@@ -2530,8 +2823,8 @@ var UserPool = class extends CloudControlApiResource {
             RequireLowercase: unwrap(password?.lowercase, false),
             RequireNumbers: unwrap(password?.numbers, false),
             RequireSymbols: unwrap(password?.symbols, false),
-            TemporaryPasswordValidityDays: (0, import_duration8.toDays)(
-              unwrap(password?.temporaryPasswordValidity, (0, import_duration8.days)(7))
+            TemporaryPasswordValidityDays: (0, import_duration9.toDays)(
+              unwrap(password?.temporaryPasswordValidity, (0, import_duration9.days)(7))
             )
           }
         }
@@ -2944,7 +3237,7 @@ __export(ec2_exports, {
   Peer: () => Peer,
   Port: () => Port,
   Protocol: () => Protocol,
-  Route: () => Route,
+  Route: () => Route2,
   RouteTable: () => RouteTable,
   SecurityGroup: () => SecurityGroup,
   Subnet: () => Subnet,
@@ -3155,7 +3448,7 @@ var Peer = class _Peer {
 };
 
 // src/provider/aws/ec2/route.ts
-var Route = class extends CloudControlApiResource {
+var Route2 = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::EC2::Route", id, props);
     this.parent = parent;
@@ -3451,7 +3744,7 @@ __export(elb_exports, {
 });
 
 // src/provider/aws/elb/listener-action.ts
-var import_duration9 = require("@awsless/duration");
+var import_duration10 = require("@awsless/duration");
 var ListenerAction = class {
   static authCognito(props) {
     return new AuthCognitoAction(props);
@@ -3511,7 +3804,7 @@ var AuthCognitoAction = class extends ListenerAction {
         OnUnauthenticatedRequest: unwrap(this.props.onUnauthenticated, "deny"),
         Scope: unwrap(this.props.scope, "openid"),
         SessionCookieName: unwrap(session.cookieName, "AWSELBAuthSessionCookie"),
-        SessionTimeout: (0, import_duration9.toSeconds)(unwrap(session.timeout, (0, import_duration9.days)(7))),
+        SessionTimeout: (0, import_duration10.toSeconds)(unwrap(session.timeout, (0, import_duration10.days)(7))),
         UserPoolArn: userPool.arn,
         UserPoolClientId: userPool.clientId,
         UserPoolDomain: userPool.domain
@@ -3894,7 +4187,7 @@ __export(lambda_exports, {
 
 // src/provider/aws/lambda/url.ts
 var import_change_case6 = require("change-case");
-var import_duration10 = require("@awsless/duration");
+var import_duration11 = require("@awsless/duration");
 var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Url", id, props);
@@ -3920,7 +4213,7 @@ var Url = class extends CloudControlApiResource {
       ...this.attr("AllowMethods", allow.methods),
       ...this.attr("AllowOrigins", allow.origins),
       ...this.attr("ExposeHeaders", expose.headers),
-      ...this.attr("MaxAge", cors.maxAge, import_duration10.toSeconds)
+      ...this.attr("MaxAge", cors.maxAge, import_duration11.toSeconds)
     };
   }
   toState() {
@@ -3985,7 +4278,7 @@ var formatCode = (code) => {
 
 // src/provider/aws/lambda/function.ts
 var import_size = require("@awsless/size");
-var import_duration11 = require("@awsless/duration");
+var import_duration12 = require("@awsless/duration");
 var Function = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -4050,7 +4343,7 @@ var Function = class extends CloudControlApiResource {
         MemorySize: (0, import_size.toMebibytes)(unwrap(this.props.memorySize, (0, import_size.mebibytes)(128))),
         Handler: unwrap(this.props.handler, "index.default"),
         Runtime: unwrap(this.props.runtime, "nodejs18.x"),
-        Timeout: (0, import_duration11.toSeconds)(unwrap(this.props.timeout, (0, import_duration11.seconds)(10))),
+        Timeout: (0, import_duration12.toSeconds)(unwrap(this.props.timeout, (0, import_duration12.seconds)(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
@@ -4083,7 +4376,7 @@ var Function = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-invoke-config.ts
-var import_duration12 = require("@awsless/duration");
+var import_duration13 = require("@awsless/duration");
 var EventInvokeConfig = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
@@ -4103,7 +4396,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
       document: {
         FunctionName: this.props.functionArn,
         Qualifier: unwrap(this.props.qualifier, "$LATEST"),
-        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration12.toSeconds),
+        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration13.toSeconds),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.props.onFailure || this.props.onSuccess ? {
           DestinationConfig: {
@@ -4125,7 +4418,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-source-mapping.ts
-var import_duration13 = require("@awsless/duration");
+var import_duration14 = require("@awsless/duration");
 var import_change_case9 = require("change-case");
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -4144,11 +4437,11 @@ var EventSourceMapping = class extends CloudControlApiResource {
         FunctionName: this.props.functionArn,
         EventSourceArn: this.props.sourceArn,
         ...this.attr("BatchSize", this.props.batchSize),
-        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration13.toSeconds),
-        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration13.toSeconds),
+        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration14.toSeconds),
+        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration14.toSeconds),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
-        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration13.toSeconds),
+        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration14.toSeconds),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
         ...this.attr("StartingPosition", this.props.startingPosition, import_change_case9.constantCase),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
@@ -4406,7 +4699,7 @@ __export(route53_exports, {
 });
 
 // src/provider/aws/route53/record-set.ts
-var import_duration14 = require("@awsless/duration");
+var import_duration15 = require("@awsless/duration");
 var formatRecordSet = (record) => {
   const name = unwrap(record.name);
   return {
@@ -4415,7 +4708,7 @@ var formatRecordSet = (record) => {
     Weight: unwrap(record.weight, 0),
     // ...(record.ttl ? {} : {}),
     ..."records" in record ? {
-      TTL: (0, import_duration14.toSeconds)(unwrap(record.ttl, (0, import_duration14.minutes)(5))),
+      TTL: (0, import_duration15.toSeconds)(unwrap(record.ttl, (0, import_duration15.minutes)(5))),
       ResourceRecords: record.records
     } : {},
     ..."alias" in record && unwrap(record.alias) ? {
@@ -4963,7 +5256,7 @@ __export(ses_exports, {
 
 // src/provider/aws/ses/email-identity.ts
 var import_change_case12 = require("change-case");
-var import_duration15 = require("@awsless/duration");
+var import_duration16 = require("@awsless/duration");
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::SES::EmailIdentity", id, props);
@@ -4994,7 +5287,7 @@ var EmailIdentity = class extends CloudControlApiResource {
     ];
   }
   get dkimRecords() {
-    const ttl = (0, import_duration15.minutes)(5);
+    const ttl = (0, import_duration16.minutes)(5);
     return this.dkimDnsTokens.map((token) => ({
       name: token.apply((token2) => token2.name),
       type: "CNAME",
@@ -5165,7 +5458,7 @@ __export(sqs_exports, {
 });
 
 // src/provider/aws/sqs/queue.ts
-var import_duration16 = require("@awsless/duration");
+var import_duration17 = require("@awsless/duration");
 var import_size3 = require("@awsless/size");
 var Queue = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5203,11 +5496,11 @@ var Queue = class extends CloudControlApiResource {
       document: {
         QueueName: this.props.name,
         Tags: [{ Key: "name", Value: this.props.name }],
-        DelaySeconds: (0, import_duration16.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration16.seconds)(0))),
+        DelaySeconds: (0, import_duration17.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration17.seconds)(0))),
         MaximumMessageSize: (0, import_size3.toBytes)(unwrap(this.props.maxMessageSize, (0, import_size3.kibibytes)(256))),
-        MessageRetentionPeriod: (0, import_duration16.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration16.days)(4))),
-        ReceiveMessageWaitTimeSeconds: (0, import_duration16.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration16.seconds)(0))),
-        VisibilityTimeout: (0, import_duration16.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration16.seconds)(30))),
+        MessageRetentionPeriod: (0, import_duration17.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration17.days)(4))),
+        ReceiveMessageWaitTimeSeconds: (0, import_duration17.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration17.seconds)(0))),
+        VisibilityTimeout: (0, import_duration17.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration17.seconds)(30))),
         ...this.props.deadLetterArn ? {
           RedrivePolicy: {
             deadLetterTargetArn: this.props.deadLetterArn,
@@ -5231,6 +5524,8 @@ var createCloudProviders = (config) => {
     new RecordSetProvider(config),
     new CertificateProvider(config),
     new CertificateValidationProvider(config),
+    new IntegrationProvider(config),
+    new StageProvider(config),
     new GraphQLApiProvider(config),
     new GraphQLSchemaProvider(config),
     new DataSourceProvider(config),

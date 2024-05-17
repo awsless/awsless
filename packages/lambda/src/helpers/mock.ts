@@ -9,8 +9,17 @@ type Lambdas = {
 	[key: string]: (payload: any) => unknown
 }
 
+const globalList: Record<string, Mock> = {}
+
 export const mockLambda = <T extends Lambdas>(lambdas: T) => {
+	const alreadyMocked = Object.keys(globalList).length > 0
 	const list = mockObjectValues(lambdas)
+
+	Object.assign(globalList, list)
+
+	if (alreadyMocked) {
+		return list
+	}
 
 	mockClient(LambdaClient)
 		.on(InvokeCommand)
@@ -18,7 +27,7 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 			const name = input.FunctionName ?? ''
 			const type = input.InvocationType ?? 'RequestResponse'
 			const payload: unknown = input.Payload ? JSON.parse(toUtf8(input.Payload)) : undefined
-			const callback = list[name]
+			const callback = globalList[name]
 
 			if (!callback) {
 				throw new TypeError(`Lambda mock function not defined for: ${name}`)
@@ -39,7 +48,7 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 
 	beforeEach &&
 		beforeEach(() => {
-			Object.values(list).forEach(fn => {
+			Object.values(globalList).forEach(fn => {
 				fn.mockClear()
 			})
 		})

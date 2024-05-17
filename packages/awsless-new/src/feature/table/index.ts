@@ -42,6 +42,10 @@ export const tableFeature = defineFeature({
 			if (props.stream) {
 				const { lambda, policy } = createLambdaFunction(group, ctx, 'table', id, props.stream.consumer)
 
+				lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+
+				const onFailure = getGlobalOnFailure(ctx)
+
 				const source = new aws.lambda.EventSourceMapping(group, id, {
 					functionArn: lambda.arn,
 					sourceArn: table.streamArn,
@@ -50,18 +54,18 @@ export const tableFeature = defineFeature({
 					// retryAttempts: props.stream.consumer.retryAttempts ?? -1,
 					parallelizationFactor: 1,
 					startingPosition: 'latest',
-					onFailure: getGlobalOnFailure(ctx),
+					onFailure,
 				})
 
 				policy.addStatement(table.streamPermissions)
 				source.dependsOn(policy)
 
-				// if (onFailure) {
-				// 	policy.addStatement({
-				// 		actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-				// 		resources: [onFailure],
-				// 	})
-				// }
+				if (onFailure) {
+					policy.addStatement({
+						actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+						resources: [onFailure],
+					})
+				}
 
 				// ctx.stack.add(lambda, source)
 			}

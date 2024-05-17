@@ -1,13 +1,23 @@
 {
-	"$schema": "https://tinyurl.com/awsless-stack",
+	"$schema": "../../dist/stack.json",
 	"name": "stack",
 	// "http": {
 	// 	"api": {
 	// 		"GET /": "./function.ts"
 	// 	}
 	// },
-	// "tests": "./test",
+	"tests": "./test",
 	"configs": ["test", "test-2"],
+	"rest": {
+		"api": {
+			"GET /": "./function.ts"
+		}
+	},
+	// "caches": {
+	// 	// "test": {
+	// 	// 	// "type": "t4g.small"
+	// 	// }
+	// }
 	// "caches": {
 	// 	"test": {
 	// 		"type": "t4g.small"
@@ -27,18 +37,27 @@
 	// 		"consumer": "./function.ts"
 	// 	}
 	// },
-	"graphql": {
-		"api": {
-			"schema": "./graphql/schema.gql",
-			"resolvers": {
-				"Mutation": {
-					"test": "./graphql.ts"
-				}
-			}
+	// "graphql": {
+	// 	"api": {
+	// 		"schema": "./graphql/schema.gql",
+	// 		"resolvers": {
+	// 			"Mutation": {
+	// 				"test": "./graphql.ts"
+	// 			}
+	// 		}
+	// 	}
+	// },
+	"tables": {
+		"users": {
+			"hash": "id",
+			"sort": "key"
 		}
 	},
 	"functions": {
-		// "echo-1": "./function.ts",
+		"test": {
+			"file": "./function.ts"
+		}
+
 		// "echo-2": "./function.ts",
 		// "echo-3": "./function.ts",
 		// "echo-4": "./function.ts",

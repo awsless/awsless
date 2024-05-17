@@ -273,13 +273,19 @@ import { nextTick, mockObjectValues } from "@awsless/utils";
 import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2 } from "@aws-sdk/client-lambda";
 import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
 import { mockClient } from "aws-sdk-client-mock";
+var globalList = {};
 var mockLambda = (lambdas) => {
+  const alreadyMocked = Object.keys(globalList).length > 0;
   const list = mockObjectValues(lambdas);
+  Object.assign(globalList, list);
+  if (alreadyMocked) {
+    return list;
+  }
   mockClient(LambdaClient2).on(InvokeCommand2).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? JSON.parse(toUtf82(input.Payload)) : void 0;
-    const callback = list[name];
+    const callback = globalList[name];
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
@@ -294,7 +300,7 @@ var mockLambda = (lambdas) => {
     };
   });
   beforeEach && beforeEach(() => {
-    Object.values(list).forEach((fn) => {
+    Object.values(globalList).forEach((fn) => {
       fn.mockClear();
     });
   });

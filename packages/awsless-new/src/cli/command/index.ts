@@ -9,6 +9,7 @@ import { test } from './test.js'
 import { resource } from './resource/index.js'
 import { dev } from './dev.js'
 import { state } from './state/index.js'
+import { auth } from './auth/index.js'
 
 export const commands = [
 	bootstrap,
@@ -21,6 +22,7 @@ export const commands = [
 
 	// bind,
 
+	auth,
 	state,
 	resource,
 	config,

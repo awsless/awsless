@@ -118,7 +118,7 @@ export class CloudControlApiProvider implements CloudProvider {
 		// Remove write-only props from the old document so we add write-only props again.
 		// https://github.com/pulumi/pulumi-aws-native/pull/678
 		for (const key in oldDocument) {
-			if (typeof remoteDocument[key]) {
+			if (typeof remoteDocument[key] === 'undefined') {
 				delete oldDocument[key]
 			}
 		}
