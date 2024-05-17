@@ -7,7 +7,7 @@ export interface TaskResources {}
 
 export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 	return createProxy(taskName => {
-		const name = getTaskName(stackName, taskName)
+		const name = getTaskName(taskName, stackName)
 		const ctx: Record<string, any> = {
 			[name]: (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
 				return invoke({

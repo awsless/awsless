@@ -1,13 +1,8 @@
-import { BaseSchema, array, object, optional, enum_, transform, unknown } from 'valibot'
+import { BaseSchema, array, object, optional, transform, unknown, union, literal } from 'valibot'
 import { PrimaryKey, TableDefinition } from '@awsless/dynamodb'
 
-enum EventName {
-	modify = 'MODIFY',
-	insert = 'INSERT',
-	remove = 'REMOVE',
-}
+type EventName = 'MODIFY' | 'INSERT' | 'REMOVE'
 
-// export type EventName = 'MODIFY' | 'INSERT' | 'REMOVE'
 export type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> = BaseSchema<
 	{
 		Records: {
@@ -35,8 +30,9 @@ export const dynamoDbStream = <T extends TableDefinition<any, any, any, any>>(ta
 			{
 				Records: array(
 					object({
-						eventName: enum_(EventName),
+						// For some reason picklist fails to build.
 						// eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
+						eventName: union([literal('MODIFY'), literal('INSERT'), literal('REMOVE')]),
 						dynamodb: object({
 							Keys: marshall(),
 							OldImage: optional(marshall()),

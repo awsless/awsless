@@ -43,11 +43,7 @@ type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> 
 }, Output<S>[]>;
 declare const snsTopic: <S extends BaseSchema<any, any> = UnknownSchema<unknown>>(body?: S | undefined) => SnsTopicSchema<S>;
 
-declare enum EventName {
-    modify = "MODIFY",
-    insert = "INSERT",
-    remove = "REMOVE"
-}
+type EventName = 'MODIFY' | 'INSERT' | 'REMOVE';
 type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> = BaseSchema<{
     Records: {
         eventName: EventName;

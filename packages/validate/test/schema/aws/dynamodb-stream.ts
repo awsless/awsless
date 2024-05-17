@@ -1,6 +1,5 @@
 import { define, number, object, string } from '@awsless/dynamodb'
 import { Input, Output, ValiError, dynamoDbStream, parse } from '../../../src'
-import { EventName } from '../../../src/schema/aws/dynamodb-stream'
 
 describe('DynamoDB Stream', () => {
 	const table = define('name', {
@@ -21,7 +20,6 @@ describe('DynamoDB Stream', () => {
 					dynamodb: {
 						Keys: { id: { N: '1' } },
 						NewImage: { id: { N: '1' }, name: { S: 'name' } },
-						// OldImage: { id: { N: '1' }, name: { S: 'name' } },
 					},
 				},
 			],
@@ -53,7 +51,7 @@ describe('DynamoDB Stream', () => {
 	it('types', () => {
 		expectTypeOf<Input<typeof schema>>().toEqualTypeOf<{
 			Records: {
-				eventName: EventName
+				eventName: 'MODIFY' | 'REMOVE' | 'INSERT'
 				dynamodb: {
 					Keys: unknown
 					OldImage?: unknown
@@ -64,7 +62,7 @@ describe('DynamoDB Stream', () => {
 
 		expectTypeOf<Output<typeof schema>>().toEqualTypeOf<
 			{
-				event: Lowercase<EventName>
+				event: Lowercase<'MODIFY' | 'REMOVE' | 'INSERT'>
 				keys: { id: number }
 				old?: {
 					id: number
