@@ -22,4 +22,4 @@ export const TopicsSchema = z
 export const SubscribersSchema = z
 	.record(TopicNameSchema, z.union([EmailSchema, FunctionSchema]))
 	.optional()
-	.describe('Define the events to subscribe too in your stack.')
+	.describe('Define the event topics to subscribe too in your stack.')

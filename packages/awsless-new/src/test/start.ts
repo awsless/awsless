@@ -51,5 +51,8 @@ export const startTest = async (props: { reporter?: CustomReporter; dir: string;
 		}
 	)
 
+	// console.log('')
+	// console.log(result)
+
 	return result
 }

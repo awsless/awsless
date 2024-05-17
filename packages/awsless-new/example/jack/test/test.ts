@@ -1,5 +1,5 @@
 describe('Test', () => {
-	it('Test', () => {
+	it('Type error', () => {
 		const i: number = 'string'
 
 		expectTypeOf(1).toEqualTypeOf<string>()

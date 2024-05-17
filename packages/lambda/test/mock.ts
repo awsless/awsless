@@ -4,7 +4,13 @@ import { mockLambda } from '../src'
 
 describe('Lambda Mock', () => {
 	const lambda = mockLambda({
-		service__echo: (payload: unknown) => {
+		echo: (payload: unknown) => {
+			return payload
+		},
+	})
+
+	const lambda2 = mockLambda({
+		other: (payload: unknown) => {
 			return payload
 		},
 	})
@@ -14,26 +20,36 @@ describe('Lambda Mock', () => {
 	it('should invoke lambda', async () => {
 		const result = await client.send(
 			new InvokeCommand({
-				FunctionName: 'service__echo',
+				FunctionName: 'echo',
 				Payload: fromUtf8(JSON.stringify('Hello')),
 			})
 		)
 
 		// @ts-ignore
 		expect(JSON.parse(toUtf8(result.Payload))).toBe('Hello')
-		expect(lambda.service__echo).toBeCalledTimes(1)
+		expect(lambda.echo).toBeCalledTimes(1)
 	})
 
 	it('should invoke without payload', async () => {
 		const result = await client.send(
 			new InvokeCommand({
-				FunctionName: 'service__echo',
+				FunctionName: 'echo',
 			})
 		)
 
-		// @ts-ignore
 		expect(result.Payload).toBe(undefined)
-		expect(lambda.service__echo).toBeCalledTimes(1)
+		expect(lambda.echo).toBeCalledTimes(1)
+	})
+
+	it('should invoke second mock', async () => {
+		const result = await client.send(
+			new InvokeCommand({
+				FunctionName: 'other',
+			})
+		)
+
+		expect(result.Payload).toBe(undefined)
+		expect(lambda2.other).toBeCalledTimes(1)
 	})
 
 	it('should throw for unknown lambda', async () => {
@@ -45,6 +61,6 @@ describe('Lambda Mock', () => {
 		)
 
 		await expect(promise).rejects.toThrow(TypeError)
-		expect(lambda.service__echo).toBeCalledTimes(0)
+		expect(lambda.echo).toBeCalledTimes(0)
 	})
 })
