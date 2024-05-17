@@ -5,6 +5,36 @@ import { Resource } from '../../../core/resource'
 import { BucketObject, BucketObjectProps } from './bucket-object'
 import { Node } from '../../../core/node'
 
+export type NotifictionEvent =
+	| 's3:TestEvent'
+	| 's3:ObjectCreated:*'
+	| 's3:ObjectCreated:Put'
+	| 's3:ObjectCreated:Post'
+	| 's3:ObjectCreated:Copy'
+	| 's3:ObjectCreated:CompleteMultipartUpload'
+	| 's3:ObjectRemoved:*'
+	| 's3:ObjectRemoved:Delete'
+	| 's3:ObjectRemoved:DeleteMarkerCreated'
+	| 's3:ObjectRestore:*'
+	| 's3:ObjectRestore:Post'
+	| 's3:ObjectRestore:Completed'
+	| 's3:ObjectRestore:Delete'
+	| 's3:ReducedRedundancyLostObject'
+	| 's3:Replication:*'
+	| 's3:Replication:OperationFailedReplication'
+	| 's3:Replication:OperationMissedThreshold'
+	| 's3:Replication:OperationReplicatedAfterThreshold'
+	| 's3:Replication:OperationNotTracked'
+	| 's3:LifecycleExpiration:*'
+	| 's3:LifecycleExpiration:Delete'
+	| 's3:LifecycleExpiration:DeleteMarkerCreated'
+	| 's3:LifecycleTransition'
+	| 's3:IntelligentTiering'
+	| 's3:ObjectTagging:*'
+	| 's3:ObjectTagging:Put'
+	| 's3:ObjectTagging:Delete'
+	| 's3:ObjectAcl:Put'
+
 export type BucketProps = {
 	name?: Input<string>
 	// accessControl?: Input<
@@ -22,6 +52,12 @@ export type BucketProps = {
 		indexDocument?: Input<string>
 		errorDocument?: Input<string>
 	}>
+	lambdaConfigs?: Input<
+		Input<{
+			event: Input<NotifictionEvent>
+			function: Input<ARN>
+		}>[]
+	>
 	cors?: Input<
 		Input<{
 			maxAge?: Input<Duration>
@@ -52,7 +88,7 @@ export class Bucket extends Resource {
 		return this.output<string>(v => v.DomainName)
 	}
 
-	get dealStackDomainName() {
+	get dualStackDomainName() {
 		return this.output<string>(v => v.DualStackDomainName)
 	}
 
@@ -109,6 +145,18 @@ export class Bucket extends Resource {
 							WebsiteConfiguration: {
 								IndexDocument: unwrap(this.props.website).indexDocument,
 								ErrorDocument: unwrap(this.props.website).errorDocument,
+							},
+					  }
+					: {}),
+				...(this.props.lambdaConfigs
+					? {
+							NotificationConfiguration: {
+								LambdaConfigurations: unwrap(this.props.lambdaConfigs, [])
+									.map(config => unwrap(config))
+									.map(config => ({
+										Event: config.event,
+										Function: config.function,
+									})),
 							},
 					  }
 					: {}),

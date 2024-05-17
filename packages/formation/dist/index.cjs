@@ -4938,7 +4938,7 @@ var Bucket = class extends Resource {
   get domainName() {
     return this.output((v) => v.DomainName);
   }
-  get dealStackDomainName() {
+  get dualStackDomainName() {
     return this.output((v) => v.DualStackDomainName);
   }
   get regionalDomainName() {
@@ -4987,6 +4987,14 @@ var Bucket = class extends Resource {
           WebsiteConfiguration: {
             IndexDocument: unwrap(this.props.website).indexDocument,
             ErrorDocument: unwrap(this.props.website).errorDocument
+          }
+        } : {},
+        ...this.props.lambdaConfigs ? {
+          NotificationConfiguration: {
+            LambdaConfigurations: unwrap(this.props.lambdaConfigs, []).map((config) => unwrap(config)).map((config) => ({
+              Event: config.event,
+              Function: config.function
+            }))
           }
         } : {},
         ...this.props.cors ? {

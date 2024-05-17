@@ -3389,6 +3389,7 @@ declare class BucketObject extends Resource {
     };
 }
 
+type NotifictionEvent = 's3:TestEvent' | 's3:ObjectCreated:*' | 's3:ObjectCreated:Put' | 's3:ObjectCreated:Post' | 's3:ObjectCreated:Copy' | 's3:ObjectCreated:CompleteMultipartUpload' | 's3:ObjectRemoved:*' | 's3:ObjectRemoved:Delete' | 's3:ObjectRemoved:DeleteMarkerCreated' | 's3:ObjectRestore:*' | 's3:ObjectRestore:Post' | 's3:ObjectRestore:Completed' | 's3:ObjectRestore:Delete' | 's3:ReducedRedundancyLostObject' | 's3:Replication:*' | 's3:Replication:OperationFailedReplication' | 's3:Replication:OperationMissedThreshold' | 's3:Replication:OperationReplicatedAfterThreshold' | 's3:Replication:OperationNotTracked' | 's3:LifecycleExpiration:*' | 's3:LifecycleExpiration:Delete' | 's3:LifecycleExpiration:DeleteMarkerCreated' | 's3:LifecycleTransition' | 's3:IntelligentTiering' | 's3:ObjectTagging:*' | 's3:ObjectTagging:Put' | 's3:ObjectTagging:Delete' | 's3:ObjectAcl:Put';
 type BucketProps = {
     name?: Input<string>;
     versioning?: Input<boolean>;
@@ -3397,6 +3398,10 @@ type BucketProps = {
         indexDocument?: Input<string>;
         errorDocument?: Input<string>;
     }>;
+    lambdaConfigs?: Input<Input<{
+        event: Input<NotifictionEvent>;
+        function: Input<ARN>;
+    }>[]>;
     cors?: Input<Input<{
         maxAge?: Input<Duration>;
         origins: Input<Input<string>[]>;
@@ -3413,7 +3418,7 @@ declare class Bucket extends Resource {
     get name(): Output<string>;
     get arn(): Output<`arn:${string}`>;
     get domainName(): Output<string>;
-    get dealStackDomainName(): Output<string>;
+    get dualStackDomainName(): Output<string>;
     get regionalDomainName(): Output<string>;
     get url(): Output<string>;
     get permissions(): {
@@ -3433,6 +3438,12 @@ declare class Bucket extends Resource {
                     AllowedMethods: Input<Input<"GET" | "HEAD" | "PUT" | "POST" | "DELETE">[]>;
                     AllowedOrigins: Input<Input<string>[]>;
                     ExposedHeaders: Input<Input<string>[]> | undefined;
+                }[];
+            } | undefined;
+            NotificationConfiguration?: {
+                LambdaConfigurations: {
+                    Event: Input<NotifictionEvent>;
+                    Function: Input<`arn:${string}`>;
                 }[];
             } | undefined;
             WebsiteConfiguration?: {
@@ -3558,6 +3569,7 @@ declare const index$7_BucketPolicy: typeof BucketPolicy;
 type index$7_BucketProps = BucketProps;
 type index$7_BucketProvider = BucketProvider;
 declare const index$7_BucketProvider: typeof BucketProvider;
+type index$7_NotifictionEvent = NotifictionEvent;
 declare namespace index$7 {
   export {
     index$7_Bucket as Bucket,
@@ -3567,6 +3579,7 @@ declare namespace index$7 {
     index$7_BucketPolicy as BucketPolicy,
     index$7_BucketProps as BucketProps,
     index$7_BucketProvider as BucketProvider,
+    index$7_NotifictionEvent as NotifictionEvent,
     StateProvider$2 as StateProvider,
   };
 }

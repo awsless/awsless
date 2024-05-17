@@ -2,7 +2,6 @@ import { Node, aws } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatLocalResourceName } from '../../util/name.js'
 import { constantCase } from 'change-case'
 
 const typeGenCode = `

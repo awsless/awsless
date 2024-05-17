@@ -1,5 +1,7 @@
+import { Duration } from '@awsless/duration'
 import { bindLocalResourceName, createProxy } from './util.js'
-import { putObject, getObject, deleteObject, StorageClass, Body } from '@awsless/s3'
+import { putObject, getObject, deleteObject, StorageClass, Body, createPresignedPost } from '@awsless/s3'
+import { Size } from '@awsless/size'
 
 export const getStoreName = bindLocalResourceName('store')
 
@@ -33,6 +35,20 @@ export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 			},
 			delete(key: string) {
 				return deleteObject({ bucket, key })
+			},
+			presignedUrl(
+				key: string,
+				contentLengthRange: [Size, Size],
+				expires?: Duration,
+				fields?: Record<string, string>
+			) {
+				return createPresignedPost({
+					bucket,
+					key,
+					contentLengthRange,
+					expires,
+					fields,
+				})
 			},
 		}
 	})
