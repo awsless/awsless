@@ -10,7 +10,7 @@ export interface FunctionResources {}
 
 export const Function: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 	return createProxy(funcName => {
-		const name = getFunctionName(stackName, funcName)
+		const name = getFunctionName(funcName, stackName)
 		const ctx: Record<string, any> = {
 			[name]: (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name'> = {}) => {
 				return invoke({

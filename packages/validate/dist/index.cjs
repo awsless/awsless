@@ -173,12 +173,6 @@ var snsTopic = (body) => {
 
 // src/schema/aws/dynamodb-stream.ts
 var import_valibot8 = require("valibot");
-var EventName = /* @__PURE__ */ ((EventName2) => {
-  EventName2["modify"] = "MODIFY";
-  EventName2["insert"] = "INSERT";
-  EventName2["remove"] = "REMOVE";
-  return EventName2;
-})(EventName || {});
 var dynamoDbStream = (table) => {
   const marshall = () => (0, import_valibot8.transform)((0, import_valibot8.unknown)(), (value) => table.unmarshall(value));
   return (0, import_valibot8.transform)(
@@ -186,8 +180,7 @@ var dynamoDbStream = (table) => {
       {
         Records: (0, import_valibot8.array)(
           (0, import_valibot8.object)({
-            eventName: (0, import_valibot8.enum_)(EventName),
-            // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
+            eventName: (0, import_valibot8.union)([(0, import_valibot8.literal)("MODIFY"), (0, import_valibot8.literal)("INSERT"), (0, import_valibot8.literal)("REMOVE")]),
             dynamodb: (0, import_valibot8.object)({
               Keys: marshall(),
               OldImage: (0, import_valibot8.optional)(marshall()),

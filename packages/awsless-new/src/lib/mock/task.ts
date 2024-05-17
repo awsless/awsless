@@ -11,7 +11,7 @@ export const mockTask = (cb: (mock: TaskMock) => void): TaskMockResponse => {
 	const mock: TaskMock = createProxy(stack => {
 		return createProxy(name => {
 			return (handle: unknown) => {
-				list[getTaskName(stack, name)] = handle
+				list[getTaskName(name, stack)] = handle
 			}
 		})
 	})
@@ -22,7 +22,7 @@ export const mockTask = (cb: (mock: TaskMock) => void): TaskMockResponse => {
 
 	return createProxy(stack => {
 		return createProxy(name => {
-			return result[getTaskName(stack, name)]
+			return result[getTaskName(name, stack)]
 		})
 	})
 }

@@ -12,7 +12,7 @@ export const mockFunction = (cb: (mock: FunctionMock) => void): FunctionMockResp
 		return createProxy(name => {
 			return (handleOrResponse: unknown) => {
 				const handle = typeof handleOrResponse === 'function' ? handleOrResponse : () => handleOrResponse
-				list[getFunctionName(stack, name)] = handle
+				list[getFunctionName(name, stack)] = handle
 			}
 		})
 	})
@@ -23,7 +23,7 @@ export const mockFunction = (cb: (mock: FunctionMock) => void): FunctionMockResp
 
 	return createProxy(stack => {
 		return createProxy(name => {
-			return result[getFunctionName(stack, name)]
+			return result[getFunctionName(name, stack)]
 		})
 	})
 }
