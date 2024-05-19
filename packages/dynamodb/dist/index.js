@@ -27,7 +27,7 @@ import { TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb";
 import { globalClient } from "@awsless/utils";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { NodeHttpHandler } from "@aws-sdk/node-http-handler";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 var dynamoDBClient = /* @__PURE__ */ globalClient(() => {
   return new DynamoDBClient({
     maxAttempts: 2,
@@ -328,12 +328,7 @@ var Update = class extends Chain {
   }
   /** Set a attribute to a different but already existing attribute */
   setAttr(...path) {
-    return this.u(
-      "set",
-      { p: this.path },
-      "=",
-      { p: path }
-    );
+    return this.u("set", { p: this.path }, "=", { p: path });
   }
   /** Delete a property */
   del() {
@@ -368,18 +363,17 @@ var build2 = (items, gen) => {
   }).join(" ");
 };
 var updateExpression = (options, gen) => {
-  const update = options.update(new UpdateExpression({
-    set: [],
-    add: [],
-    rem: [],
-    del: []
-  }));
+  const update = options.update(
+    new UpdateExpression({
+      set: [],
+      add: [],
+      rem: [],
+      del: []
+    })
+  );
   const buildList = (name, list) => {
     if (list.length) {
-      return [
-        name,
-        list.map((items) => build2(items, gen)).join(", ")
-      ];
+      return [name, list.map((items) => build2(items, gen)).join(", ")];
     }
     return [];
   };
@@ -603,11 +597,13 @@ var boolean = () => new Struct(
 );
 
 // src/structs/number.ts
-var number = () => new Struct(
-  "N",
-  (value) => value.toString(),
-  (value) => Number(value)
-);
+function number() {
+  return new Struct(
+    "N",
+    (value) => value.toString(),
+    (value) => Number(value)
+  );
+}
 
 // src/structs/bigint.ts
 var bigint = () => new Struct(
@@ -701,13 +697,6 @@ var date = () => new Struct(
   (value) => new Date(Number(value))
 );
 
-// src/structs/enum.ts
-var enum_ = (_) => new Struct(
-  "S",
-  (value) => value,
-  (value) => value
-);
-
 // src/structs/ttl.ts
 var ttl = () => new Struct(
   "N",
@@ -720,6 +709,20 @@ var unknown = () => new Struct(
   "S",
   (value) => JSON.stringify(value),
   (value) => JSON.parse(value)
+);
+
+// src/structs/enum/string.ts
+var stringEnum = (_) => new Struct(
+  "S",
+  (value) => value,
+  (value) => value
+);
+
+// src/structs/enum/number.ts
+var numberEnum = (_) => new Struct(
+  "N",
+  (value) => value.toString(),
+  (value) => Number(value)
 );
 
 // src/structs/set/struct.ts
@@ -794,23 +797,25 @@ import { requestPort } from "@heat/request-port";
 import { BatchWriteItemCommand } from "@aws-sdk/client-dynamodb";
 import chunk from "chunk";
 var batchPutItem = async (table, items, options = {}) => {
-  await Promise.all(chunk(items, 25).map(async (items2) => {
-    let unprocessedItems = {
-      [table.name]: items2.map((item) => ({
-        PutRequest: {
-          Item: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new BatchWriteItemCommand({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
+  await Promise.all(
+    chunk(items, 25).map(async (items2) => {
+      let unprocessedItems = {
+        [table.name]: items2.map((item) => ({
+          PutRequest: {
+            Item: table.marshall(item)
+          }
+        }))
+      };
+      while (unprocessedItems?.[table.name]?.length) {
+        const command = new BatchWriteItemCommand({
+          RequestItems: unprocessedItems
+        });
+        debug(options, command);
+        const result = await client(options).send(command);
+        unprocessedItems = result.UnprocessedItems;
+      }
+    })
+  );
 };
 
 // src/test/seed.ts
@@ -1283,13 +1288,7 @@ var Where2 = class extends QueryBulder {
     this.path = path;
   }
   compare(comparator, v) {
-    return new Combine3(this, [
-      "(",
-      { p: [this.path] },
-      comparator,
-      { v, p: [this.path] },
-      ")"
-    ]);
+    return new Combine3(this, ["(", { p: [this.path] }, comparator, { v, p: [this.path] }, ")"]);
   }
   eq(value) {
     return this.compare("=", value);
@@ -1402,12 +1401,7 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
     debug(options, command);
     const result = await client(options).send(command);
     unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || [];
-    response = [
-      ...response,
-      ...(result.Responses?.[table.name] || []).map(
-        (item) => table.unmarshall(item)
-      )
-    ];
+    response = [...response, ...(result.Responses?.[table.name] || []).map((item) => table.unmarshall(item))];
   }
   const list = keys.map((key3) => {
     return response.find((item) => {
@@ -1430,23 +1424,25 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
 import { BatchWriteItemCommand as BatchWriteItemCommand4 } from "@aws-sdk/client-dynamodb";
 import chunk2 from "chunk";
 var batchDeleteItem = async (table, keys, options = {}) => {
-  await Promise.all(chunk2(keys, 25).map(async (items) => {
-    let unprocessedItems = {
-      [table.name]: items.map((item) => ({
-        DeleteRequest: {
-          Key: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new BatchWriteItemCommand4({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
+  await Promise.all(
+    chunk2(keys, 25).map(async (items) => {
+      let unprocessedItems = {
+        [table.name]: items.map((item) => ({
+          DeleteRequest: {
+            Key: table.marshall(item)
+          }
+        }))
+      };
+      while (unprocessedItems?.[table.name]?.length) {
+        const command = new BatchWriteItemCommand4({
+          RequestItems: unprocessedItems
+        });
+        debug(options, command);
+        const result = await client(options).send(command);
+        unprocessedItems = result.UnprocessedItems;
+      }
+    })
+  );
 };
 
 // src/operations/scan.ts
@@ -1620,12 +1616,12 @@ export {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
-  enum_,
   getIndexedItem,
   getItem,
   migrate,
   mockDynamoDB,
   number,
+  numberEnum,
   numberSet,
   object,
   optional,
@@ -1641,6 +1637,7 @@ export {
   seedTable,
   streamTable,
   string,
+  stringEnum,
   stringSet,
   transactConditionCheck,
   transactDelete,

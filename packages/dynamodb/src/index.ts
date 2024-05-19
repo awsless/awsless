@@ -26,10 +26,11 @@ export { object } from './structs/object.js'
 export { record } from './structs/record.js'
 export { array } from './structs/array.js'
 export { date } from './structs/date.js'
-export { enum_ } from './structs/enum.js'
-// export { enums } from './structs/__enums.js'
 export { ttl } from './structs/ttl.js'
 export { unknown } from './structs/unknown.js'
+
+export { stringEnum } from './structs/enum/string.js'
+export { numberEnum } from './structs/enum/number.js'
 
 export { stringSet } from './structs/set/string.js'
 export { numberSet } from './structs/set/number.js'

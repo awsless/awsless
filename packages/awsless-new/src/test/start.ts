@@ -5,8 +5,12 @@ import { startVitest } from 'vitest/node'
 import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import json from '@rollup/plugin-json'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 
 export const startTest = async (props: { reporter?: CustomReporter; dir: string; filters: string[] }) => {
+	const __dirname = dirname(fileURLToPath(import.meta.url))
+
 	const result = await startVitest(
 		'test',
 		props.filters,
@@ -20,6 +24,10 @@ export const startTest = async (props: { reporter?: CustomReporter; dir: string;
 			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 			globals: true,
 			reporters: props.reporter,
+			globalSetup: join(__dirname, 'test-global-setup.js'),
+			// env: {
+			// 	TZ: 'UTC',
+			// },
 			// typecheck: {
 			// 	enabled: true,
 			// 	// ignoreSourceErrors: false,

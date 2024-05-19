@@ -96,12 +96,12 @@ export class CustomReporter implements Reporter {
 	}
 
 	onUserConsoleLog(log: UserConsoleLog) {
-		if (log.taskId) {
-			const test = this.ctx?.state.idMap.get(log.taskId)
-			if (test) {
-				test.name
-			}
-		}
+		// if (log.taskId) {
+		// 	const test = this.ctx?.state.idMap.get(log.taskId)
+		// 	if (test) {
+		// 		test.name
+		// 	}
+		// }
 
 		this.logs.push(log.content.trimEnd())
 	}

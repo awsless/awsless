@@ -62,12 +62,12 @@ __export(src_exports, {
   deleteItem: () => deleteItem,
   dynamoDBClient: () => dynamoDBClient,
   dynamoDBDocumentClient: () => dynamoDBDocumentClient,
-  enum_: () => enum_,
   getIndexedItem: () => getIndexedItem,
   getItem: () => getItem,
   migrate: () => migrate,
   mockDynamoDB: () => mockDynamoDB,
   number: () => number,
+  numberEnum: () => numberEnum,
   numberSet: () => numberSet,
   object: () => object,
   optional: () => optional,
@@ -83,6 +83,7 @@ __export(src_exports, {
   seedTable: () => seedTable,
   streamTable: () => streamTable,
   string: () => string,
+  stringEnum: () => stringEnum,
   stringSet: () => stringSet,
   transactConditionCheck: () => transactConditionCheck,
   transactDelete: () => transactDelete,
@@ -125,7 +126,7 @@ var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
 var import_utils = require("@awsless/utils");
 var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
 var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
-var import_node_http_handler = require("@aws-sdk/node-http-handler");
+var import_node_http_handler = require("@smithy/node-http-handler");
 var dynamoDBClient = /* @__PURE__ */ (0, import_utils.globalClient)(() => {
   return new import_client_dynamodb.DynamoDBClient({
     maxAttempts: 2,
@@ -426,12 +427,7 @@ var Update = class extends Chain {
   }
   /** Set a attribute to a different but already existing attribute */
   setAttr(...path) {
-    return this.u(
-      "set",
-      { p: this.path },
-      "=",
-      { p: path }
-    );
+    return this.u("set", { p: this.path }, "=", { p: path });
   }
   /** Delete a property */
   del() {
@@ -466,18 +462,17 @@ var build2 = (items, gen) => {
   }).join(" ");
 };
 var updateExpression = (options, gen) => {
-  const update = options.update(new UpdateExpression({
-    set: [],
-    add: [],
-    rem: [],
-    del: []
-  }));
+  const update = options.update(
+    new UpdateExpression({
+      set: [],
+      add: [],
+      rem: [],
+      del: []
+    })
+  );
   const buildList = (name, list) => {
     if (list.length) {
-      return [
-        name,
-        list.map((items) => build2(items, gen)).join(", ")
-      ];
+      return [name, list.map((items) => build2(items, gen)).join(", ")];
     }
     return [];
   };
@@ -701,11 +696,13 @@ var boolean = () => new Struct(
 );
 
 // src/structs/number.ts
-var number = () => new Struct(
-  "N",
-  (value) => value.toString(),
-  (value) => Number(value)
-);
+function number() {
+  return new Struct(
+    "N",
+    (value) => value.toString(),
+    (value) => Number(value)
+  );
+}
 
 // src/structs/bigint.ts
 var bigint = () => new Struct(
@@ -799,13 +796,6 @@ var date = () => new Struct(
   (value) => new Date(Number(value))
 );
 
-// src/structs/enum.ts
-var enum_ = (_) => new Struct(
-  "S",
-  (value) => value,
-  (value) => value
-);
-
 // src/structs/ttl.ts
 var ttl = () => new Struct(
   "N",
@@ -818,6 +808,20 @@ var unknown = () => new Struct(
   "S",
   (value) => JSON.stringify(value),
   (value) => JSON.parse(value)
+);
+
+// src/structs/enum/string.ts
+var stringEnum = (_) => new Struct(
+  "S",
+  (value) => value,
+  (value) => value
+);
+
+// src/structs/enum/number.ts
+var numberEnum = (_) => new Struct(
+  "N",
+  (value) => value.toString(),
+  (value) => Number(value)
 );
 
 // src/structs/set/struct.ts
@@ -892,23 +896,25 @@ var import_request_port = require("@heat/request-port");
 var import_client_dynamodb3 = require("@aws-sdk/client-dynamodb");
 var import_chunk = __toESM(require("chunk"), 1);
 var batchPutItem = async (table, items, options = {}) => {
-  await Promise.all((0, import_chunk.default)(items, 25).map(async (items2) => {
-    let unprocessedItems = {
-      [table.name]: items2.map((item) => ({
-        PutRequest: {
-          Item: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new import_client_dynamodb3.BatchWriteItemCommand({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
+  await Promise.all(
+    (0, import_chunk.default)(items, 25).map(async (items2) => {
+      let unprocessedItems = {
+        [table.name]: items2.map((item) => ({
+          PutRequest: {
+            Item: table.marshall(item)
+          }
+        }))
+      };
+      while (unprocessedItems?.[table.name]?.length) {
+        const command = new import_client_dynamodb3.BatchWriteItemCommand({
+          RequestItems: unprocessedItems
+        });
+        debug(options, command);
+        const result = await client(options).send(command);
+        unprocessedItems = result.UnprocessedItems;
+      }
+    })
+  );
 };
 
 // src/test/seed.ts
@@ -1375,13 +1381,7 @@ var Where2 = class extends QueryBulder {
     this.path = path;
   }
   compare(comparator, v) {
-    return new Combine3(this, [
-      "(",
-      { p: [this.path] },
-      comparator,
-      { v, p: [this.path] },
-      ")"
-    ]);
+    return new Combine3(this, ["(", { p: [this.path] }, comparator, { v, p: [this.path] }, ")"]);
   }
   eq(value) {
     return this.compare("=", value);
@@ -1494,12 +1494,7 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
     debug(options, command);
     const result = await client(options).send(command);
     unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || [];
-    response = [
-      ...response,
-      ...(result.Responses?.[table.name] || []).map(
-        (item) => table.unmarshall(item)
-      )
-    ];
+    response = [...response, ...(result.Responses?.[table.name] || []).map((item) => table.unmarshall(item))];
   }
   const list = keys.map((key3) => {
     return response.find((item) => {
@@ -1522,23 +1517,25 @@ var batchGetItem = async (table, keys, options = { filterNonExistentItems: false
 var import_client_dynamodb14 = require("@aws-sdk/client-dynamodb");
 var import_chunk2 = __toESM(require("chunk"), 1);
 var batchDeleteItem = async (table, keys, options = {}) => {
-  await Promise.all((0, import_chunk2.default)(keys, 25).map(async (items) => {
-    let unprocessedItems = {
-      [table.name]: items.map((item) => ({
-        DeleteRequest: {
-          Key: table.marshall(item)
-        }
-      }))
-    };
-    while (unprocessedItems?.[table.name]?.length) {
-      const command = new import_client_dynamodb14.BatchWriteItemCommand({
-        RequestItems: unprocessedItems
-      });
-      debug(options, command);
-      const result = await client(options).send(command);
-      unprocessedItems = result.UnprocessedItems;
-    }
-  }));
+  await Promise.all(
+    (0, import_chunk2.default)(keys, 25).map(async (items) => {
+      let unprocessedItems = {
+        [table.name]: items.map((item) => ({
+          DeleteRequest: {
+            Key: table.marshall(item)
+          }
+        }))
+      };
+      while (unprocessedItems?.[table.name]?.length) {
+        const command = new import_client_dynamodb14.BatchWriteItemCommand({
+          RequestItems: unprocessedItems
+        });
+        debug(options, command);
+        const result = await client(options).send(command);
+        unprocessedItems = result.UnprocessedItems;
+      }
+    })
+  );
 };
 
 // src/operations/scan.ts
@@ -1713,12 +1710,12 @@ var paginateScan = async (table, options = {}) => {
   deleteItem,
   dynamoDBClient,
   dynamoDBDocumentClient,
-  enum_,
   getIndexedItem,
   getItem,
   migrate,
   mockDynamoDB,
   number,
+  numberEnum,
   numberSet,
   object,
   optional,
@@ -1734,6 +1731,7 @@ var paginateScan = async (table, options = {}) => {
   seedTable,
   streamTable,
   string,
+  stringEnum,
   stringSet,
   transactConditionCheck,
   transactDelete,
