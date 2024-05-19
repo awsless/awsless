@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.223",
+	"version": "0.0.224",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -33,9 +33,10 @@
 		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; node dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
 		"build": "pnpm tsup src/server.ts src/client.ts src/bin.ts --format esm --dts --clean",
 		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; node ./dist/build-json-schema.js",
+		"build-test-setup": "pnpm tsup src/test/test-global-setup.ts --format esm",
 		"jack": "pnpm tsup ./example/jack/jack.ts --format esm; node ./dist/jack.js",
 		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm; node ./dist/kennedy.js",
-		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; else exit; fi"
+		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; else exit; fi"
 	},
 	"peerDependencies": {
 		"@awsless/lambda": "workspace:^",

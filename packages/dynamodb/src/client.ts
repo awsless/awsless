@@ -1,9 +1,8 @@
-
 import { globalClient } from '@awsless/utils'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { Options } from './types/options.js'
-import { NodeHttpHandler } from '@aws-sdk/node-http-handler'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 export const dynamoDBClient = /* @__PURE__ */ globalClient(() => {
 	return new DynamoDBClient({
@@ -11,7 +10,7 @@ export const dynamoDBClient = /* @__PURE__ */ globalClient(() => {
 		requestHandler: new NodeHttpHandler({
 			connectionTimeout: 3 * 1000,
 			requestTimeout: 3 * 1000,
-		})
+		}),
 	})
 })
 
@@ -31,11 +30,11 @@ export const dynamoDBClient = /* @__PURE__ */ globalClient(() => {
 export const dynamoDBDocumentClient = /* @__PURE__ */ globalClient(() => {
 	return DynamoDBDocumentClient.from(dynamoDBClient(), {
 		marshallOptions: {
-			removeUndefinedValues: true
-		}
+			removeUndefinedValues: true,
+		},
 	})
 })
 
-export const client = (options:Options) => {
+export const client = (options: Options) => {
 	return options.client || dynamoDBClient()
 }

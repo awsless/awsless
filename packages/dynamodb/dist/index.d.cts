@@ -173,7 +173,7 @@ declare class Update<T extends AnyTableDefinition, P extends InferPath<T>> exten
 
 type ReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW';
 type LimitedReturnValues = 'NONE' | 'ALL_OLD';
-type ReturnResponse<T extends AnyTableDefinition, R extends ReturnValues | LimitedReturnValues = 'NONE'> = (R extends 'NONE' ? void : R extends 'ALL_NEW' | 'ALL_OLD' ? T['schema']['OUTPUT'] | undefined : Partial<T['schema']['OUTPUT']> | undefined);
+type ReturnResponse<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> = R extends 'NONE' ? void : R extends 'ALL_NEW' | 'ALL_OLD' ? T['schema']['OUTPUT'] | undefined : Partial<T['schema']['OUTPUT']> | undefined;
 
 interface Options {
     client?: DynamoDBClient;
@@ -263,7 +263,8 @@ declare function string<T extends string>(): Struct<string, T, T>;
 
 declare const boolean: () => Struct<boolean, boolean, boolean, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const number: () => Struct<string, number, number, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare function number(): Struct<string, number, number>;
+declare function number<T extends number>(): Struct<string, T, T>;
 
 declare const bigint: () => Struct<string, bigint, bigint, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
@@ -307,14 +308,19 @@ declare const array: <S extends AnyStruct>(struct: S) => Struct<S["MARSHALLED"][
 
 declare const date: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-type StringEnum = {
-    [key: string | number]: string;
-};
-declare const enum_: <T extends StringEnum>(_: T) => Struct<string, T[keyof T], T[keyof T], [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
-
 declare const ttl: () => Struct<string, Date, Date, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 declare const unknown: () => Struct<string, unknown, unknown, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+type StringEnum = {
+    [key: string | number]: string;
+};
+declare const stringEnum: <T extends StringEnum>(_: T) => Struct<string, T[keyof T], T[keyof T], [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+
+type NumberEnum = {
+    [key: number | string]: number | string;
+};
+declare const numberEnum: <T extends NumberEnum>(_: T) => Struct<string, T[keyof T], T[keyof T], [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 declare class SetStruct<Marshalled, Input extends Set<any>, Output extends Set<any>, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Type extends AttributeTypes = AttributeTypes, Optional extends boolean = false> {
     readonly type: Type;
@@ -395,19 +401,19 @@ declare module '@aws-sdk/client-dynamodb' {
     }
 }
 
-type DeepPick<O, P> = (P extends keyof O ? {
+type DeepPick<O, P> = P extends keyof O ? {
     [_ in P]: O[P];
 } : P extends [infer K] ? K extends keyof O ? {
     [_ in K]: O[K];
 } : never : P extends [infer K, ...infer R] ? K extends keyof O ? {
     [_ in K]: DeepPick<O[K], R>;
-} : never : never);
+} : never : never;
 type DeepPickList<O, P extends unknown[]> = {
     [K in keyof P]: DeepPick<O, P[K]>;
 }[number];
-type Merge<U> = ((U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never);
+type Merge<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
 type ProjectionExpression<T extends AnyTableDefinition> = Array<T['schema']['PATHS'] | Exclude<T['schema']['PATHS'][number], number>>;
-type ProjectionResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = (P extends ProjectionExpression<T> ? Merge<DeepPickList<T['schema']['OUTPUT'], P>> : T['schema']['OUTPUT']);
+type ProjectionResponse<T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined> = P extends ProjectionExpression<T> ? Merge<DeepPickList<T['schema']['OUTPUT'], P>> : T['schema']['OUTPUT'];
 
 declare const getItem: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T, undefined>, options?: Options & {
     consistentRead?: boolean | undefined;
@@ -443,7 +449,7 @@ declare const batchPutItem: <T extends AnyTableDefinition>(table: T, items: T["s
 
 declare const batchDeleteItem: <T extends AnyTableDefinition>(table: T, keys: PrimaryKey<T, undefined>[], options?: Options) => Promise<void>;
 
-type PrimaryKeyNames<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = (I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? T['indexes'][I]['hash'] | T['indexes'][I]['sort'] : T['indexes'][I]['hash'] : T['sort'] extends string ? T['hash'] | T['sort'] : T['hash']);
+type PrimaryKeyNames<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? T['indexes'][I]['hash'] | T['indexes'][I]['sort'] : T['indexes'][I]['hash'] : T['sort'] extends string ? T['hash'] | T['sort'] : T['hash'];
 type InferValue<T extends AnyTableDefinition, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> = T['schema']['INPUT'][P];
 declare class KeyCondition<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
     where<P extends PrimaryKeyNames<T, I>>(path: P): Where<T, P, I>;
@@ -545,4 +551,4 @@ type PaginateScanResponse<T extends AnyTableDefinition, P extends ProjectionExpr
 };
 declare const paginateScan: <T extends AnyTableDefinition, P extends ProjectionExpression<T> | undefined = undefined, I extends Extract<keyof T["indexes"], string> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
-export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate, Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexedItem, getItem, migrate, mockDynamoDB, number, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, streamTable, string, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { CursorKey, HashKey, InferInput$1 as InferInput, InferOutput$1 as InferOutput, PrimaryKey, SortKey, TableDefinition, TransactConditionCheck, TransactDelete, TransactPut, TransactUpdate, Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, migrate, mockDynamoDB, number, numberEnum, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, streamTable, string, stringEnum, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };

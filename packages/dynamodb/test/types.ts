@@ -24,15 +24,21 @@ import {
 	uuid,
 	ttl,
 	any,
-	enum_,
+	stringEnum,
+	numberEnum,
 } from '../src'
 import { UUID, randomUUID } from 'crypto'
 // import { any } from '../src/structs/any'
 // import { AttributeTypes } from '../src/structs/struct'
 // import { CATCH_ALL } from '../src/structs/object'
-enum Enum {
+enum StringEnum {
 	one = '1',
 	two = '2',
+}
+
+enum NumberEnum {
+	one = 1,
+	two = 2,
 }
 
 describe('Types', () => {
@@ -52,7 +58,9 @@ describe('Types', () => {
 			number: number(),
 			string: string(),
 			string2: string<'foo' | 'bar'>(),
-			enum: enum_(Enum),
+			stringEnum: stringEnum(StringEnum),
+			numberEnum: numberEnum(NumberEnum),
+
 			// numberEnum: numberEnum(NumEnum),
 			// enums: enums<'foo' | 'bar'>(),
 			bigint: bigint(),
@@ -97,7 +105,8 @@ describe('Types', () => {
 		string: '1',
 		string2: 'foo' as const,
 		// enum: new Date(),
-		enum: Enum.one,
+		stringEnum: StringEnum.one,
+		numberEnum: NumberEnum.one,
 		bigint: 1n,
 		bigfloat: new BigFloat(1),
 		boolean: true,
@@ -136,7 +145,8 @@ describe('Types', () => {
 		expectTypeOf(result!.number).toEqualTypeOf<number>()
 		expectTypeOf(result!.string).toEqualTypeOf<string>()
 		expectTypeOf(result!.string2).toEqualTypeOf<'foo' | 'bar'>()
-		expectTypeOf(result!.enum).toEqualTypeOf<Enum>()
+		expectTypeOf(result!.stringEnum).toEqualTypeOf<StringEnum>()
+		expectTypeOf(result!.numberEnum).toEqualTypeOf<NumberEnum>()
 		expectTypeOf(result!.bigint).toEqualTypeOf<bigint>()
 		expectTypeOf(result!.bigfloat).toEqualTypeOf<BigFloat>()
 		expectTypeOf(result!.boolean).toEqualTypeOf<boolean>()
@@ -185,8 +195,10 @@ describe('Types', () => {
 						.set('2')
 						.update('string2')
 						.set('bar')
-						.update('enum')
-						.set(Enum.two)
+						.update('stringEnum')
+						.set(StringEnum.two)
+						.update('numberEnum')
+						.set(NumberEnum.two)
 						.update('bigint')
 						.set(2n)
 						.update('bigfloat')
@@ -230,7 +242,8 @@ describe('Types', () => {
 			number: 2,
 			string: '2',
 			string2: 'bar',
-			enum: Enum.two,
+			stringEnum: StringEnum.two,
+			numberEnum: NumberEnum.two,
 			bigint: 2n,
 			bigfloat: new BigFloat(2),
 			boolean: false,
