@@ -36,7 +36,7 @@ export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 			delete(key: string) {
 				return deleteObject({ bucket, key })
 			},
-			presignedUrl(
+			createPresignedPost(
 				key: string,
 				contentLengthRange: [Size, Size],
 				expires?: Duration,
