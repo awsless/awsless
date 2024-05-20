@@ -3,7 +3,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 
 const typeGenCode = `
 import { Body, PutObjectProps, BodyStream, createPresignedPost } from '@awsless/s3'
@@ -47,23 +47,27 @@ export const storeFeature = defineFeature({
 			const group = new Node(ctx.stack, 'store', id)
 
 			const lambdaConfigs: {
-				event: 's3:ObjectCreated:*' | 's3:ObjectRemoved:*'
+				event: aws.s3.NotifictionEvent
 				function: Output<aws.ARN>
 			}[] = []
 
-			for (const [_, lambdaConfig] of Object.entries(props.lambdaConfigs ?? {})) {
-				const { lambda } = createLambdaFunction(group, ctx, `store`, id, lambdaConfig.consumer)
-				lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+			const eventMap: Record<keyof typeof props.events, aws.s3.NotifictionEvent> = {
+				'created:*': 's3:ObjectCreated:*',
+				'created:put': 's3:ObjectCreated:Put',
+				'created:post': 's3:ObjectCreated:Post',
+				'created:copy': 's3:ObjectCreated:Copy',
+				'created:upload': 's3:ObjectCreated:CompleteMultipartUpload',
 
-				let event: (typeof lambdaConfigs)[number]['event']
-				if (lambdaConfig.event === 'created') {
-					event = 's3:ObjectCreated:*'
-				} else if (lambdaConfig.event === 'removed') {
-					event = 's3:ObjectRemoved:*'
-				}
+				'removed:*': 's3:ObjectRemoved:*',
+				'removed:delete': 's3:ObjectRemoved:Delete',
+				'removed:marker': 's3:ObjectRemoved:DeleteMarkerCreated',
+			}
+
+			for (const [event, funcProps] of Object.entries(props.events ?? {})) {
+				const { lambda } = createAsyncLambdaFunction(group, ctx, `store`, id, funcProps)
 
 				lambdaConfigs.push({
-					event: event!,
+					event: eventMap[event as keyof typeof props.events],
 					function: lambda.arn,
 				})
 			}
@@ -71,19 +75,19 @@ export const storeFeature = defineFeature({
 			const bucket = new aws.s3.Bucket(group, 'store', {
 				name: formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'store', id),
 				versioning: props.versioning,
-				cors: props.cors,
 				lambdaConfigs,
+				// cors: props.cors,
 
-				// cors: [
-				// 	// ---------------------------------------------
-				// 	// Support for presigned post requests
-				// 	// ---------------------------------------------
-				// 	{
-				// 		origins: ['*'],
-				// 		methods: ['POST'],
-				// 	},
-				// 	// ---------------------------------------------
-				// ],
+				cors: [
+					// ---------------------------------------------
+					// Support for presigned post requests
+					// ---------------------------------------------
+					{
+						origins: ['*'],
+						methods: ['POST'],
+					},
+					// ---------------------------------------------
+				],
 			})
 
 			ctx.onFunction(({ policy }) => {

@@ -1,6 +1,6 @@
 import { Node, aws } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
-import { createLambdaFunction } from '../function/util.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
 
 export const pubsubFeature = defineFeature({
@@ -17,7 +17,7 @@ export const pubsubFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.pubsub ?? {})) {
 			const group = new Node(ctx.stack, 'pubsub', id)
 
-			const { lambda } = createLambdaFunction(group, ctx, `pubsub`, id, props.consumer)
+			const { lambda } = createAsyncLambdaFunction(group, ctx, `pubsub`, id, props.consumer)
 
 			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id)
 			const topic = new aws.iot.TopicRule(group, 'rule', {

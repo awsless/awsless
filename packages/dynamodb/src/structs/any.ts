@@ -1,4 +1,3 @@
-
 // import { AttributeTypes } from './struct'
 
 class Any {
@@ -8,14 +7,26 @@ class Any {
 	declare readonly PATHS: []
 	declare readonly OPT_PATHS: []
 
-	filterIn(value:any) { return typeof value === 'undefined' }
-	filterOut(value:any) { return typeof value === 'undefined' }
+	filterIn(value: any) {
+		return typeof value === 'undefined'
+	}
+	filterOut(value: any) {
+		return typeof value === 'undefined'
+	}
 
-	marshall(value:any) { return value }
-	unmarshall(value:any) { return value }
+	marshall(value: any) {
+		return value
+	}
+	unmarshall(value: any) {
+		return value
+	}
 
-	_marshall(value:any) { return value }
-	_unmarshall(value:any) { return value }
+	_marshall(value: any) {
+		return value
+	}
+	_unmarshall(value: any) {
+		return value
+	}
 
 	type: any
 	optional = true

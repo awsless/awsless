@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -80,10 +80,7 @@ export const topicFeature = defineFeature({
 				})
 			} else if (typeof props === 'object') {
 				// Else it's a lambda...
-				const { lambda } = createLambdaFunction(group, ctx, `topic`, id, props)
-
-				lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
-				// lambda.addEnvironment('LOG_EXPECTED_ERROR', '1')
+				const { lambda } = createAsyncLambdaFunction(group, ctx, `topic`, id, props)
 
 				new aws.sns.Subscription(group, id, {
 					topicArn,

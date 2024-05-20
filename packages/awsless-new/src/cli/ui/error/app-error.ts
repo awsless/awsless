@@ -6,7 +6,7 @@ import { logStackError } from './stack-error.js'
 
 export const logAppError = (error: AppError) => {
 	log.message(
-		wrap([color.error(error.message), color.dim(`App: ${error.app}`)].join('\n'), {
+		wrap([color.error(error.message), `App: ${error.app}`].join('\n'), {
 			hard: true,
 		}),
 		{ symbol: color.error(icon.error) }

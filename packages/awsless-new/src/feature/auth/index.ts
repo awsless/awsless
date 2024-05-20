@@ -4,7 +4,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { Node, Output, aws } from '@awsless/formation'
-import { createLambdaFunction } from '../function/util.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 
 export const authFeature = defineFeature({
 	name: 'auth',
@@ -46,10 +46,10 @@ export const authFeature = defineFeature({
 			for (const [trigger, triggerProps] of Object.entries(props.triggers ?? {})) {
 				const triggerGroup = new Node(group, 'trigger', trigger)
 
-				const { lambda, policy } = createLambdaFunction(
+				const { lambda, policy } = createAsyncLambdaFunction(
 					triggerGroup,
 					ctx,
-					this.name,
+					'auth',
 					`${id}-${trigger}`,
 					triggerProps
 				)

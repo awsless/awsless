@@ -233,9 +233,10 @@ declare class WorkSpace {
 declare class ResourceError extends Error {
     readonly urn: URN;
     readonly type: string;
+    readonly id: string | undefined;
     readonly operation: ResourceOperation;
-    static wrap(urn: URN, type: string, operation: ResourceOperation, error: unknown): ResourceError;
-    constructor(urn: URN, type: string, operation: ResourceOperation, message: string);
+    static wrap(urn: URN, type: string, id: string | undefined, operation: ResourceOperation, error: unknown): ResourceError;
+    constructor(urn: URN, type: string, id: string | undefined, operation: ResourceOperation, message: string);
 }
 declare class AppError extends Error {
     readonly app: string;
@@ -1779,7 +1780,7 @@ declare class TableItemProvider implements CloudProvider {
 type Statement = {
     effect?: Input<'allow' | 'deny'>;
     actions: Input<Input<string>[]>;
-    resources: Input<Input<ARN>[]>;
+    resources: Input<(Input<ARN> | Input<'*'>)[]>;
 };
 type PolicyDocumentVersion = '2012-10-17';
 type PolicyDocument = {
@@ -1794,14 +1795,14 @@ declare const formatPolicyDocument: (policy: PolicyDocument) => {
         Statement: {
             Effect: string;
             Action: Input<Input<string>[]>;
-            Resource: Input<Input<`arn:${string}`>[]>;
+            Resource: Input<(Input<`arn:${string}`> | Input<"*">)[]>;
         }[];
     };
 };
 declare const formatStatement: (statement: Statement) => {
     Effect: string;
     Action: Input<Input<string>[]>;
-    Resource: Input<Input<`arn:${string}`>[]>;
+    Resource: Input<(Input<`arn:${string}`> | Input<"*">)[]>;
 };
 declare class RolePolicy extends CloudControlApiResource {
     readonly parent: Node;
@@ -1825,7 +1826,7 @@ declare class RolePolicy extends CloudControlApiResource {
                 Statement: {
                     Effect: string;
                     Action: Input<Input<string>[]>;
-                    Resource: Input<Input<`arn:${string}`>[]>;
+                    Resource: Input<(Input<`arn:${string}`> | Input<"*">)[]>;
                 }[];
             };
             RoleName: Input<string>;
@@ -1874,7 +1875,7 @@ declare class Role extends CloudControlApiResource {
                     Statement: {
                         Effect: string;
                         Action: Input<Input<string>[]>;
-                        Resource: Input<Input<`arn:${string}`>[]>;
+                        Resource: Input<(Input<`arn:${string}`> | Input<"*">)[]>;
                     }[];
                 };
             }[];

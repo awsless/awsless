@@ -6,6 +6,7 @@ import {
 	GetResourceRequestStatusCommand,
 	ProgressEvent,
 	UpdateResourceCommand,
+	ResourceNotFoundException,
 } from '@aws-sdk/client-cloudcontrol'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import {
@@ -152,14 +153,23 @@ export class CloudControlApiProvider implements CloudProvider {
 	}
 
 	async update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps) {
-		const result = await this.client.send(
-			new UpdateResourceCommand({
-				TypeName: type,
-				Identifier: id,
-				PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
-				ClientToken: token,
-			})
-		)
+		let result
+		try {
+			result = await this.client.send(
+				new UpdateResourceCommand({
+					TypeName: type,
+					Identifier: id,
+					PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+					ClientToken: token,
+				})
+			)
+		} catch (error) {
+			if (error instanceof ResourceNotFoundException) {
+				throw new ResourceNotFound(error.message)
+			}
+
+			throw error
+		}
 
 		return this.progressStatus(result.ProgressEvent!)
 	}

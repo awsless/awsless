@@ -9,6 +9,7 @@ import { zipFiles } from './build/zip.js'
 import { fingerprintFromFile } from './build/typescript/fingerprint.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { getBuildPath } from '../../build/index.js'
+import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 type Function = aws.lambda.Function
@@ -56,9 +57,12 @@ export const createLambdaFunction = (
 		body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
 	})
 
+	const inlinePolicies: aws.iam.PolicyDocument[] = []
+
 	const role = new aws.iam.Role(group, 'role', {
 		name,
 		assumedBy: 'lambda.amazonaws.com',
+		policies: inlinePolicies,
 	})
 
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
@@ -96,6 +100,9 @@ export const createLambdaFunction = (
 		log: props.log as any,
 	})
 
+	// For some features lambda will complain that the policy need to be in place first.
+	// lambda.dependsOn(policy)
+
 	// Register the lambda in Awsless...
 	ctx.registerFunction(lambda, policy)
 
@@ -108,24 +115,6 @@ export const createLambdaFunction = (
 	if ('stackConfig' in ctx) {
 		lambda.addEnvironment('STACK', ctx.stackConfig.name)
 	}
-
-	// ------------------------------------------------------------
-	// Async Invoke Config
-
-	// const invokeConfig = new aws.lambda.EventInvokeConfig(group, 'async', {
-	// 	functionArn: lambda.arn,
-	// 	retryAttempts: props.retryAttempts,
-	// 	onFailure: getGlobalOnFailure(ctx),
-	// })
-
-	// invokeConfig.dependsOn(policy)
-
-	// if (hasOnFailure(ctx.stackConfigs)) {
-	// 	policy.addStatement({
-	// 		actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-	// 		resources: [getGlobalOnFailure(ctx)!],
-	// 	})
-	// }
 
 	// ------------------------------------------------------------
 	// Logging
@@ -199,16 +188,32 @@ export const createLambdaFunction = (
 			],
 		})
 
-		policy.addStatement({
-			actions: [
-				'ec2:CreateNetworkInterface',
-				'ec2:DescribeNetworkInterfaces',
-				'ec2:DeleteNetworkInterface',
-				'ec2:AssignPrivateIpAddresses',
-				'ec2:UnassignPrivateIpAddresses',
+		inlinePolicies.push({
+			name: 'vpc',
+			statements: [
+				{
+					actions: [
+						'ec2:CreateNetworkInterface',
+						'ec2:DescribeNetworkInterfaces',
+						'ec2:DeleteNetworkInterface',
+						'ec2:AssignPrivateIpAddresses',
+						'ec2:UnassignPrivateIpAddresses',
+					],
+					resources: ['*'],
+				},
 			],
-			resources: ['arn:aws:ec2:*:*:*'],
 		})
+
+		// policy.addStatement({
+		// 	actions: [
+		// 		'ec2:CreateNetworkInterface',
+		// 		'ec2:DescribeNetworkInterfaces',
+		// 		'ec2:DeleteNetworkInterface',
+		// 		'ec2:AssignPrivateIpAddresses',
+		// 		'ec2:UnassignPrivateIpAddresses',
+		// 	],
+		// 	resources: ['*'],
+		// })
 	}
 
 	return {
@@ -216,4 +221,40 @@ export const createLambdaFunction = (
 		policy,
 		code,
 	}
+}
+
+export const createAsyncLambdaFunction = (
+	group: Node,
+	ctx: StackContext | AppContext,
+	ns: string,
+	id: string,
+	local: z.infer<typeof FunctionSchema>
+) => {
+	const result = createLambdaFunction(group, ctx, ns, id, local)
+	const props = deepmerge(ctx.appConfig.defaults.function, local)
+
+	// ------------------------------------------------------------
+	// Make sure we always log errors inside async functions
+
+	result.lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+
+	// ------------------------------------------------------------
+	// Async Invoke Config
+
+	const invokeConfig = new aws.lambda.EventInvokeConfig(group, 'async', {
+		functionArn: result.lambda.arn,
+		retryAttempts: props.retryAttempts,
+		onFailure: getGlobalOnFailure(ctx),
+	})
+
+	invokeConfig.dependsOn(result.policy)
+
+	if (hasOnFailure(ctx.stackConfigs)) {
+		result.policy.addStatement({
+			actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+			resources: [getGlobalOnFailure(ctx)!],
+		})
+	}
+
+	return result
 }

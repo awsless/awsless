@@ -132,17 +132,18 @@ var RemoteAsset = class extends Asset {
 
 // src/core/error.ts
 var ResourceError = class _ResourceError extends Error {
-  constructor(urn, type, operation, message) {
+  constructor(urn, type, id, operation, message) {
     super(message);
     this.urn = urn;
     this.type = type;
+    this.id = id;
     this.operation = operation;
   }
-  static wrap(urn, type, operation, error) {
+  static wrap(urn, type, id, operation, error) {
     if (error instanceof Error) {
-      return new _ResourceError(urn, type, operation, error.message);
+      return new _ResourceError(urn, type, id, operation, error.message);
     }
-    return new _ResourceError(urn, type, operation, "Unknown Error");
+    return new _ResourceError(urn, type, id, operation, "Unknown Error");
   }
 };
 var AppError = class extends Error {
@@ -363,7 +364,6 @@ var lockApp = async (lockProvider, app, fn) => {
   try {
     release = await lockProvider.lock(app.urn);
   } catch (error) {
-    console.log(error);
     throw new Error(`Already in progress: ${app.urn}`);
   }
   let result;
@@ -779,7 +779,7 @@ var WorkSpace = class {
     try {
       remote = await props.provider.get(props);
     } catch (error) {
-      throw ResourceError.wrap(props.urn, props.type, "get", error);
+      throw ResourceError.wrap(props.urn, props.type, props.id, "get", error);
     }
     return remote;
   }
@@ -809,7 +809,7 @@ var WorkSpace = class {
                 token
               });
             } catch (error) {
-              throw ResourceError.wrap(resource.urn, resource.type, "create", error);
+              throw ResourceError.wrap(resource.urn, resource.type, void 0, "create", error);
             }
             resourceState = stackState.resources[resource.urn] = {
               id,
@@ -858,7 +858,34 @@ var WorkSpace = class {
                 token
               });
             } catch (error) {
-              throw ResourceError.wrap(resource.urn, resource.type, "update", error);
+              if (error instanceof ResourceNotFound) {
+                try {
+                  id = await provider.create({
+                    urn: resource.urn,
+                    type: resource.type,
+                    document: resolveDocumentAssets(cloneObject(document), assets),
+                    assets,
+                    extra,
+                    token
+                  });
+                } catch (error2) {
+                  throw ResourceError.wrap(
+                    resource.urn,
+                    resource.type,
+                    resourceState.id,
+                    "update",
+                    error2
+                  );
+                }
+              } else {
+                throw ResourceError.wrap(
+                  resource.urn,
+                  resource.type,
+                  resourceState.id,
+                  "update",
+                  error
+                );
+              }
             }
             resourceState.id = id;
             resourceState.local = document;
@@ -917,7 +944,7 @@ var WorkSpace = class {
           } catch (error) {
             if (error instanceof ResourceNotFound) {
             } else {
-              throw ResourceError.wrap(urn, state.type, "delete", error);
+              throw ResourceError.wrap(urn, state.type, state.id, "delete", error);
             }
           }
           delete stackState.resources[urn];
@@ -948,6 +975,7 @@ var WorkSpace = class {
             throw new ResourceError(
               urn,
               resourceState.type,
+              resourceState.id,
               "heal",
               `Fetching remote state returned undefined`
             );
@@ -1332,7 +1360,8 @@ import {
   DeleteResourceCommand,
   GetResourceCommand,
   GetResourceRequestStatusCommand,
-  UpdateResourceCommand
+  UpdateResourceCommand,
+  ResourceNotFoundException as ResourceNotFoundException2
 } from "@aws-sdk/client-cloudcontrol";
 import { createPatch } from "rfc6902";
 import { minutes, toMilliSeconds } from "@awsless/duration";
@@ -1422,14 +1451,22 @@ var CloudControlApiProvider = class {
     return this.progressStatus(result.ProgressEvent);
   }
   async update({ token, type, id, oldDocument, newDocument, remoteDocument }) {
-    const result = await this.client.send(
-      new UpdateResourceCommand({
-        TypeName: type,
-        Identifier: id,
-        PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
-        ClientToken: token
-      })
-    );
+    let result;
+    try {
+      result = await this.client.send(
+        new UpdateResourceCommand({
+          TypeName: type,
+          Identifier: id,
+          PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+          ClientToken: token
+        })
+      );
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException2) {
+        throw new ResourceNotFound(error.message);
+      }
+      throw error;
+    }
     return this.progressStatus(result.ProgressEvent);
   }
   async delete({ token, type, id }) {

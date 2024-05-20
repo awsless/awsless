@@ -152,6 +152,8 @@ export const FunctionSchema = z.union([
 	}),
 ])
 
+export const AsyncFunctionSchema = z
+
 export const FunctionsSchema = z
 	.record(ResourceIdSchema, FunctionSchema)
 	.optional()

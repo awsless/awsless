@@ -9,7 +9,7 @@ import { Node } from '../../../core/node.js'
 export type Statement = {
 	effect?: Input<'allow' | 'deny'>
 	actions: Input<Input<string>[]>
-	resources: Input<Input<ARN>[]>
+	resources: Input<(Input<ARN> | Input<'*'>)[]>
 }
 
 export type PolicyDocumentVersion = '2012-10-17'

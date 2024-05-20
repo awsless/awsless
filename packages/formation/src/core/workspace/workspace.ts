@@ -506,7 +506,7 @@ export class WorkSpace {
 		try {
 			remote = await props.provider.get(props)
 		} catch (error) {
-			throw ResourceError.wrap(props.urn, props.type, 'get', error)
+			throw ResourceError.wrap(props.urn, props.type, props.id, 'get', error)
 		}
 
 		return remote
@@ -557,7 +557,7 @@ export class WorkSpace {
 									token,
 								})
 							} catch (error) {
-								throw ResourceError.wrap(resource.urn, resource.type, 'create', error)
+								throw ResourceError.wrap(resource.urn, resource.type, undefined, 'create', error)
 							}
 
 							resourceState = stackState.resources[resource.urn] = {
@@ -611,7 +611,35 @@ export class WorkSpace {
 									token,
 								})
 							} catch (error) {
-								throw ResourceError.wrap(resource.urn, resource.type, 'update', error)
+								// If the resource wasn't found for some reason we try to create it.
+								if (error instanceof ResourceNotFound) {
+									try {
+										id = await provider.create({
+											urn: resource.urn,
+											type: resource.type,
+											document: resolveDocumentAssets(cloneObject(document), assets),
+											assets,
+											extra,
+											token,
+										})
+									} catch (error) {
+										throw ResourceError.wrap(
+											resource.urn,
+											resource.type,
+											resourceState.id,
+											'update',
+											error
+										)
+									}
+								} else {
+									throw ResourceError.wrap(
+										resource.urn,
+										resource.type,
+										resourceState.id,
+										'update',
+										error
+									)
+								}
 							}
 
 							resourceState.id = id
@@ -720,7 +748,7 @@ export class WorkSpace {
 								// The resource has already been deleted.
 								// Let's skip this issue.
 							} else {
-								throw ResourceError.wrap(urn, state.type, 'delete', error)
+								throw ResourceError.wrap(urn, state.type, state.id, 'delete', error)
 							}
 						}
 
@@ -770,6 +798,7 @@ export class WorkSpace {
 						throw new ResourceError(
 							urn,
 							resourceState.type,
+							resourceState.id,
 							'heal',
 							`Fetching remote state returned undefined`
 						)

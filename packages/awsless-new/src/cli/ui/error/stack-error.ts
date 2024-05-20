@@ -23,7 +23,7 @@ const formatOperation = (operation: ResourceOperation) => {
 
 export const logStackError = (error: StackError) => {
 	log.message(
-		wrap([color.error(error.message), color.dim(`Stack: ${error.stack}`)].join('\n'), {
+		wrap([color.error(error.message), `Stack: ${error.stack}`].join('\n'), {
 			hard: true,
 		}),
 		{ symbol: color.error(icon.error) }
@@ -33,8 +33,11 @@ export const logStackError = (error: StackError) => {
 		if (issue instanceof ResourceError) {
 			log.message(
 				[
-					formatOperation(issue.operation) + ' ',
-					wrap(issue.urn, { hard: true }),
+					formatOperation(issue.operation),
+					'\n',
+					wrap('URN: ' + issue.urn, { hard: true }),
+					'\n',
+					wrap('ID: ' + issue.id ?? '', { hard: true }),
 					'\n\n',
 					wrap(color.error(issue.message), { hard: true }),
 					// , '\n', color.error(issue.message)

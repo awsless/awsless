@@ -1,4 +1,4 @@
-import { AnyStruct, AttributeTypes } from "../struct"
+import { AnyStruct, AttributeTypes } from '../struct'
 
 export class SetStruct<
 	Marshalled,
@@ -7,7 +7,7 @@ export class SetStruct<
 	Paths extends Array<string | number> = [],
 	OptionalPaths extends Array<string | number> = [],
 	Type extends AttributeTypes = AttributeTypes,
-	Optional extends boolean = false,
+	Optional extends boolean = false
 > {
 	// declare readonly TYPE: Type
 	declare readonly MARSHALLED: Marshalled
@@ -18,13 +18,13 @@ export class SetStruct<
 	// declare readonly OPTIONAL: Optional
 	constructor(
 		readonly type: Type,
-		readonly _marshall: (value:Input) => Marshalled,
-		readonly _unmarshall: (value:Marshalled) => Output,
-		readonly walk: undefined | ((...path:Array<string | number>) => AnyStruct | undefined) = undefined,
+		readonly _marshall: (value: Input) => Marshalled,
+		readonly _unmarshall: (value: Marshalled) => Output,
+		readonly walk: undefined | ((...path: Array<string | number>) => AnyStruct | undefined) = undefined,
 		readonly optional: Optional = false as Optional
 	) {}
 
-	filterIn(value:Input | undefined) {
+	filterIn(value: Input | undefined) {
 		return typeof value === 'undefined' || value.size === 0
 	}
 
@@ -32,17 +32,17 @@ export class SetStruct<
 		return false
 	}
 
-	marshall(value:Input): Record<Type, Marshalled>{
+	marshall(value: Input): Record<Type, Marshalled> {
 		return {
-			[ this.type ]: this._marshall(value)
+			[this.type]: this._marshall(value),
 		} as Record<Type, Marshalled>
 	}
 
-	unmarshall(value:Record<Type, Marshalled> | undefined): Output {
-		if(typeof value === 'undefined') {
+	unmarshall(value: Record<Type, Marshalled> | undefined): Output {
+		if (typeof value === 'undefined') {
 			return new Set() as Output
 		}
 
-		return this._unmarshall(value[ this.type ])
+		return this._unmarshall(value[this.type])
 	}
 }

@@ -6,8 +6,6 @@ export const lockApp = async <T>(lockProvider: LockProvider, app: App, fn: () =>
 	try {
 		release = await lockProvider.lock(app.urn)
 	} catch (error) {
-		console.log(error)
-
 		throw new Error(`Already in progress: ${app.urn}`)
 	}
 

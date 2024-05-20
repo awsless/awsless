@@ -2,18 +2,19 @@ import { URN } from './resource'
 import { ResourceOperation } from './workspace/workspace'
 
 export class ResourceError extends Error {
-	static wrap(urn: URN, type: string, operation: ResourceOperation, error: unknown) {
+	static wrap(urn: URN, type: string, id: string | undefined, operation: ResourceOperation, error: unknown) {
 		if (error instanceof Error) {
-			return new ResourceError(urn, type, operation, error.message)
+			return new ResourceError(urn, type, id, operation, error.message)
 		}
 
-		return new ResourceError(urn, type, operation, 'Unknown Error')
+		return new ResourceError(urn, type, id, operation, 'Unknown Error')
 	}
 
 	constructor(
 		//
 		readonly urn: URN,
 		readonly type: string,
+		readonly id: string | undefined,
 		readonly operation: ResourceOperation,
 		message: string
 	) {

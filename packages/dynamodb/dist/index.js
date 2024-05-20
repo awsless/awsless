@@ -606,11 +606,13 @@ function number() {
 }
 
 // src/structs/bigint.ts
-var bigint = () => new Struct(
-  "N",
-  (value) => value.toString(),
-  (value) => BigInt(value)
-);
+function bigint() {
+  return new Struct(
+    "N",
+    (value) => value.toString(),
+    (value) => BigInt(value)
+  );
+}
 
 // src/structs/bigfloat.ts
 import { BigFloat } from "@awsless/big-float";
@@ -755,28 +757,34 @@ var SetStruct = class {
 };
 
 // src/structs/set/string.ts
-var stringSet = () => new SetStruct(
-  "SS",
-  (value) => Array.from(value),
-  (value) => new Set(value),
-  () => string()
-);
+function stringSet() {
+  return new SetStruct(
+    "SS",
+    (value) => Array.from(value),
+    (value) => new Set(value),
+    () => string()
+  );
+}
 
 // src/structs/set/number.ts
-var numberSet = () => new SetStruct(
-  "NS",
-  (value) => Array.from(value).map((item) => item.toString()),
-  (value) => new Set(value.map((item) => Number(item))),
-  () => number()
-);
+function numberSet() {
+  return new SetStruct(
+    "NS",
+    (value) => Array.from(value).map((item) => item.toString()),
+    (value) => new Set(value.map((item) => Number(item))),
+    () => number()
+  );
+}
 
 // src/structs/set/bigint.ts
-var bigintSet = () => new SetStruct(
-  "NS",
-  (value) => Array.from(value).map((item) => item.toString()),
-  (value) => new Set(value.map((item) => BigInt(item))),
-  () => bigint()
-);
+function bigintSet() {
+  return new SetStruct(
+    "NS",
+    (value) => Array.from(value).map((item) => item.toString()),
+    (value) => new Set(value.map((item) => BigInt(item))),
+    () => bigint()
+  );
+}
 
 // src/structs/set/binary.ts
 var binarySet = () => new SetStruct(

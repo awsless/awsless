@@ -266,7 +266,8 @@ declare const boolean: () => Struct<boolean, boolean, boolean, [], [], "S" | "N"
 declare function number(): Struct<string, number, number>;
 declare function number<T extends number>(): Struct<string, T, T>;
 
-declare const bigint: () => Struct<string, bigint, bigint, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare function bigint(): Struct<string, bigint, bigint>;
+declare function bigint<T extends bigint>(): Struct<string, T, T>;
 
 declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
@@ -340,11 +341,14 @@ declare class SetStruct<Marshalled, Input extends Set<any>, Output extends Set<a
     unmarshall(value: Record<Type, Marshalled> | undefined): Output;
 }
 
-declare const stringSet: () => SetStruct<string[], Set<string>, Set<string>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare function stringSet(): SetStruct<string[], Set<string>, Set<string>>;
+declare function stringSet<T extends string>(): SetStruct<string[], Set<T>, Set<T>>;
 
-declare const numberSet: () => SetStruct<string[], Set<number>, Set<number>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare function numberSet(): SetStruct<string[], Set<number>, Set<number>>;
+declare function numberSet<T extends number>(): SetStruct<string[], Set<T>, Set<T>>;
 
-declare const bigintSet: () => SetStruct<string[], Set<bigint>, Set<bigint>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare function bigintSet(): SetStruct<string[], Set<bigint>, Set<bigint>>;
+declare function bigintSet<T extends bigint>(): SetStruct<string[], Set<T>, Set<T>>;
 
 declare const binarySet: () => SetStruct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 

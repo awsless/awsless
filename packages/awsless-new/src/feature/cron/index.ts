@@ -1,6 +1,6 @@
 import { Node, aws } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
-import { createLambdaFunction } from '../function/util.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
 
 export const cronFeature = defineFeature({
@@ -9,9 +9,7 @@ export const cronFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Node(ctx.stack, 'cron', id)
 
-			const { lambda } = createLambdaFunction(group, ctx, this.name, id, props.consumer)
-
-			lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
+			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, props.consumer)
 
 			const rule = new aws.events.Rule(group, 'rule', {
 				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),

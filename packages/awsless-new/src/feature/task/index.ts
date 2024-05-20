@@ -2,12 +2,11 @@ import { camelCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { createLambdaFunction } from '../function/util.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { relative } from 'path'
-import { Node, aws } from '@awsless/formation'
-import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
+import { Node } from '@awsless/formation'
 
 const typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'
@@ -64,24 +63,7 @@ export const taskFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
 			const group = new Node(ctx.stack, 'task', id)
-			const { lambda, policy } = createLambdaFunction(group, ctx, 'task', id, props.consumer)
-
-			lambda.addEnvironment('LOG_VIEWABLE_ERROR', '1')
-
-			const invokeConfig = new aws.lambda.EventInvokeConfig(group, 'config', {
-				functionArn: lambda.arn,
-				retryAttempts: props.retryAttempts,
-				onFailure: getGlobalOnFailure(ctx),
-			})
-
-			invokeConfig.dependsOn(policy)
-
-			if (hasOnFailure(ctx.stackConfigs)) {
-				policy.addStatement({
-					actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-					resources: [getGlobalOnFailure(ctx)!],
-				})
-			}
+			createAsyncLambdaFunction(group, ctx, 'task', id, props.consumer)
 		}
 	},
 })
