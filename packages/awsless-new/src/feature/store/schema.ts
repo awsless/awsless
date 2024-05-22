@@ -47,7 +47,11 @@ export const StoresSchema = z
 				}
 			> = {}
 
+<<<<<<< HEAD
 			for (const key in list) {
+=======
+			for (const key of list) {
+>>>>>>> 5e9190592352fbd365a34329ff1be43765283914
 				stores[key] = {}
 			}
 

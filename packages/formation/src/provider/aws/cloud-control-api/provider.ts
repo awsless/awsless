@@ -7,6 +7,11 @@ import {
 	ProgressEvent,
 	UpdateResourceCommand,
 	ResourceNotFoundException,
+	DeleteResourceCommandOutput,
+	CreateResourceCommandOutput,
+	UpdateResourceCommandOutput,
+	GetResourceRequestStatusCommandOutput,
+	ThrottlingException,
 } from '@aws-sdk/client-cloudcontrol'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import {
@@ -22,6 +27,8 @@ import { createPatch } from 'rfc6902'
 import { sleep } from '../../../core/hash'
 import { Duration, minutes, toMilliSeconds } from '@awsless/duration'
 import { ResourceNotFound } from '../../../core/error'
+import { backOff } from 'exponential-backoff'
+// import { exponential-backoff }
 // import { retry } from '../../../core/retry'
 
 type ProviderProps = {
@@ -49,6 +56,31 @@ export class CloudControlApiProvider implements CloudProvider {
 
 	own(id: string) {
 		return id === 'aws-cloud-control-api'
+	}
+
+	private async send(command: CreateResourceCommand): Promise<CreateResourceCommandOutput>
+	private async send(command: UpdateResourceCommand): Promise<UpdateResourceCommandOutput>
+	private async send(command: DeleteResourceCommand): Promise<DeleteResourceCommandOutput>
+	private async send(command: GetResourceRequestStatusCommand): Promise<GetResourceRequestStatusCommandOutput>
+	private async send(command: any) {
+		return backOff(
+			() => {
+				return this.client.send(command)
+			},
+			{
+				numOfAttempts: 20,
+				maxDelay: 1000 * 10,
+				retry(error) {
+					if (error instanceof ThrottlingException) {
+						console.log('ThrottlingException')
+
+						return true
+					}
+
+					return false
+				},
+			}
+		)
 	}
 
 	private async progressStatus(event: ProgressEvent) {
@@ -141,7 +173,7 @@ export class CloudControlApiProvider implements CloudProvider {
 	}
 
 	async create({ token, type, document }: CreateProps) {
-		const result = await this.client.send(
+		const result = await this.send(
 			new CreateResourceCommand({
 				TypeName: type,
 				DesiredState: JSON.stringify(document),
@@ -155,7 +187,7 @@ export class CloudControlApiProvider implements CloudProvider {
 	async update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps) {
 		let result
 		try {
-			result = await this.client.send(
+			result = await this.send(
 				new UpdateResourceCommand({
 					TypeName: type,
 					Identifier: id,
@@ -175,7 +207,7 @@ export class CloudControlApiProvider implements CloudProvider {
 	}
 
 	async delete({ token, type, id }: DeleteProps) {
-		const result = await this.client.send(
+		const result = await this.send(
 			new DeleteResourceCommand({
 				TypeName: type,
 				Identifier: id,

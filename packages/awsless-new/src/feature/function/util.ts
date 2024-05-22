@@ -57,12 +57,12 @@ export const createLambdaFunction = (
 		body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
 	})
 
-	const inlinePolicies: aws.iam.PolicyDocument[] = []
+	// const inlinePolicies: aws.iam.PolicyDocument[] = []
 
 	const role = new aws.iam.Role(group, 'role', {
 		name,
 		assumedBy: 'lambda.amazonaws.com',
-		policies: inlinePolicies,
+		// policies: inlinePolicies,
 	})
 
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
@@ -188,8 +188,10 @@ export const createLambdaFunction = (
 			],
 		})
 
-		inlinePolicies.push({
-			name: 'vpc',
+		const vpcPolicy = new aws.iam.RolePolicy(group, 'vpc-policy', {
+			role: role.name,
+			name: 'lambda-vpc-policy',
+			version: '2012-10-17',
 			statements: [
 				{
 					actions: [
@@ -203,6 +205,24 @@ export const createLambdaFunction = (
 				},
 			],
 		})
+
+		lambda.dependsOn(vpcPolicy)
+
+		// inlinePolicies.push({
+		// 	name: 'vpc',
+		// 	statements: [
+		// 		{
+		// 			actions: [
+		// 				'ec2:CreateNetworkInterface',
+		// 				'ec2:DescribeNetworkInterfaces',
+		// 				'ec2:DeleteNetworkInterface',
+		// 				'ec2:AssignPrivateIpAddresses',
+		// 				'ec2:UnassignPrivateIpAddresses',
+		// 			],
+		// 			resources: ['*'],
+		// 		},
+		// 	],
+		// })
 
 		// policy.addStatement({
 		// 	actions: [

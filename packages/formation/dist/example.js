@@ -4,6 +4,9 @@ var __export = (target, all2) => {
     __defProp(target, name, { get: all2[name], enumerable: true });
 };
 
+// examples/example.ts
+import { fromIni } from "@aws-sdk/credential-providers";
+
 // src/core/node.ts
 var Node = class {
   // private parent: Node
@@ -83,53 +86,6 @@ var App = class extends Node {
   // }
 };
 
-// src/core/asset.ts
-import { readFile } from "fs/promises";
-var Asset = class {
-  static fromJSON(json) {
-    return new StringAsset(JSON.stringify(json));
-  }
-  static fromString(string, encoding = "utf8") {
-    return new StringAsset(string, encoding);
-  }
-  static fromFile(path) {
-    return new FileAsset(path);
-  }
-  static fromRemote(url) {
-    return new RemoteAsset(url);
-  }
-};
-var StringAsset = class extends Asset {
-  constructor(value, encoding = "utf8") {
-    super();
-    this.value = value;
-    this.encoding = encoding;
-  }
-  async load() {
-    return Buffer.from(this.value, this.encoding);
-  }
-};
-var FileAsset = class extends Asset {
-  constructor(path) {
-    super();
-    this.path = path;
-  }
-  async load() {
-    return readFile(this.path);
-  }
-};
-var RemoteAsset = class extends Asset {
-  constructor(url) {
-    super();
-    this.url = url;
-  }
-  async load() {
-    const response = await fetch(this.url);
-    const data = await response.arrayBuffer();
-    return Buffer.from(data);
-  }
-};
-
 // src/core/error.ts
 var ResourceError = class _ResourceError extends Error {
   constructor(urn, type, id, operation, message) {
@@ -147,39 +103,37 @@ var ResourceError = class _ResourceError extends Error {
   }
 };
 var AppError = class extends Error {
-  constructor(app, issues, message) {
+  constructor(app2, issues, message) {
     super(message);
-    this.app = app;
+    this.app = app2;
     this.issues = issues;
   }
 };
 var StackError = class extends Error {
-  constructor(stack, issues, message) {
+  constructor(stack2, issues, message) {
     super(message);
-    this.stack = stack;
+    this.stack = stack2;
     this.issues = issues;
   }
 };
 var ResourceNotFound = class extends Error {
 };
-var ResourceAlreadyExists = class extends Error {
-};
 
 // src/core/stack.ts
 var Stack = class extends Node {
-  constructor(app, name) {
-    super(app, "Stack", name);
-    this.app = app;
+  constructor(app2, name) {
+    super(app2, "Stack", name);
+    this.app = app2;
     this.name = name;
   }
   exported = {};
   dependencies = /* @__PURE__ */ new Set();
   dependsOn(...stacks) {
-    for (const stack of stacks) {
-      if (stack.app !== this.app) {
+    for (const stack2 of stacks) {
+      if (stack2.app !== this.app) {
         throw new Error(`Stacks that belong to different apps can't be dependent on each other`);
       }
-      this.dependencies.add(stack);
+      this.dependencies.add(stack2);
     }
     return this;
   }
@@ -359,12 +313,12 @@ function unwrap(input, defaultValue) {
 import { run } from "promise-dag";
 
 // src/core/workspace/lock.ts
-var lockApp = async (lockProvider, app, fn) => {
+var lockApp = async (lockProvider, app2, fn) => {
   let release;
   try {
-    release = await lockProvider.lock(app.urn);
+    release = await lockProvider.lock(app2.urn);
   } catch (error) {
-    throw new Error(`Already in progress: ${app.urn}`);
+    throw new Error(`Already in progress: ${app2.urn}`);
   }
   let result;
   try {
@@ -480,13 +434,13 @@ var WorkSpace = class {
   // 	}
   // 	return data
   // }
-  runGraph(stack, graph) {
+  runGraph(stack2, graph) {
     try {
       const promises = run(graph);
       return Promise.allSettled(Object.values(promises));
     } catch (error) {
       if (error instanceof Error) {
-        throw new StackError(stack, [], error.message);
+        throw new StackError(stack2, [], error.message);
       }
       throw error;
     }
@@ -498,29 +452,29 @@ var WorkSpace = class {
   // 	}
   // 	return app
   // }
-  async deployApp(app, opt = {}) {
-    return lockApp(this.props.lockProvider, app, async () => {
-      const appState = await this.props.stateProvider.get(app.urn) ?? {
-        name: app.name,
+  async deployApp(app2, opt = {}) {
+    return lockApp(this.props.lockProvider, app2, async () => {
+      const appState = await this.props.stateProvider.get(app2.urn) ?? {
+        name: app2.name,
         stacks: {}
       };
       if (opt.token || !appState.token) {
         appState.token = opt.token ?? randomUUID();
-        await this.props.stateProvider.update(app.urn, appState);
+        await this.props.stateProvider.update(app2.urn, appState);
       }
-      let stacks = app.stacks;
+      let stacks = app2.stacks;
       if (opt.filters && opt.filters.length > 0) {
-        stacks = app.stacks.filter((stack) => opt.filters.includes(stack.name));
+        stacks = app2.stacks.filter((stack2) => opt.filters.includes(stack2.name));
       }
       const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
-      for (const stack of stacks) {
-        graph[stack.urn] = [
-          ...[...stack.dependencies].map((dep) => dep.urn),
+      for (const stack2 of stacks) {
+        graph[stack2.urn] = [
+          ...[...stack2.dependencies].map((dep) => dep.urn),
           async () => {
-            const resources = stack.resources;
-            const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-              name: stack.name,
+            const resources = stack2.resources;
+            const stackState = appState.stacks[stack2.urn] = appState.stacks[stack2.urn] ?? {
+              name: stack2.name,
               // exports: {},
               dependencies: [],
               resources: {}
@@ -541,46 +495,46 @@ var WorkSpace = class {
             }
             if (Object.keys(deleteResourcesBefore).length > 0) {
               await this.deleteStackResources(
-                app.urn,
+                app2.urn,
                 appState,
                 stackState,
                 deleteResourcesBefore,
                 limit
               );
             }
-            await this.deployStackResources(app.urn, appState, stackState, resources, limit);
+            await this.deployStackResources(app2.urn, appState, stackState, resources, limit);
             if (Object.keys(deleteResourcesAfter).length > 0) {
               await this.deleteStackResources(
-                app.urn,
+                app2.urn,
                 appState,
                 stackState,
                 deleteResourcesAfter,
                 limit
               );
             }
-            stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
+            stackState.dependencies = [...stack2.dependencies].map((d) => d.urn);
           }
         ];
       }
       const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
-      await this.props.stateProvider.update(app.urn, appState);
+      await this.props.stateProvider.update(app2.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
+        throw new AppError(app2.name, [...new Set(errors)], "Deploying app failed.");
       }
       return appState;
     });
   }
-  async deleteApp(app, opt = {}) {
-    return lockApp(this.props.lockProvider, app, async () => {
-      const appState = await this.props.stateProvider.get(app.urn);
+  async deleteApp(app2, opt = {}) {
+    return lockApp(this.props.lockProvider, app2, async () => {
+      const appState = await this.props.stateProvider.get(app2.urn);
       if (!appState) {
-        throw new AppError(app.name, [], `App already deleted: ${app.name}`);
+        throw new AppError(app2.name, [], `App already deleted: ${app2.name}`);
       }
       if (opt.token || !appState.token) {
         appState.token = opt.token ?? randomUUID();
-        await this.props.stateProvider.update(app.urn, appState);
+        await this.props.stateProvider.update(app2.urn, appState);
       }
       const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
@@ -589,28 +543,28 @@ var WorkSpace = class {
         graph[urn] = [
           ...this.dependentsOn(appState.stacks, urn),
           async () => {
-            await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit);
+            await this.deleteStackResources(app2.urn, appState, stackState, stackState.resources, limit);
             delete appState.stacks[urn];
           }
         ];
       }
       const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
+      await this.props.stateProvider.update(app2.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        await this.props.stateProvider.update(app.urn, appState);
-        throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
+        throw new AppError(app2.name, [...new Set(errors)], "Deleting app failed.");
       }
-      await this.props.stateProvider.delete(app.urn);
+      await this.props.stateProvider.delete(app2.urn);
     });
   }
-  async hydrate(app) {
-    const appState = await this.props.stateProvider.get(app.urn);
+  async hydrate(app2) {
+    const appState = await this.props.stateProvider.get(app2.urn);
     if (appState) {
-      for (const stack of app.stacks) {
-        const stackState = appState.stacks[stack.urn];
+      for (const stack2 of app2.stacks) {
+        const stackState = appState.stacks[stack2.urn];
         if (stackState) {
-          for (const resource of stack.resources) {
+          for (const resource of stack2.resources) {
             const resourceState = stackState.resources[resource.urn];
             if (resourceState) {
               resource.setRemoteDocument(resourceState.remote);
@@ -1005,6 +959,7 @@ __export(aws_exports, {
   createCloudProviders: () => createCloudProviders,
   dynamodb: () => dynamodb_exports,
   ec2: () => ec2_exports,
+  ecr: () => ecr_exports,
   elb: () => elb_exports,
   events: () => events_exports,
   iam: () => iam_exports,
@@ -1059,14 +1014,14 @@ var CertificateProvider = class {
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
   }
-  client(region = this.props.region) {
-    if (!this.clients[region]) {
-      this.clients[region] = new ACMClient({
+  client(region2 = this.props.region) {
+    if (!this.clients[region2]) {
+      this.clients[region2] = new ACMClient({
         ...this.props,
-        region
+        region: region2
       });
     }
-    return this.clients[region];
+    return this.clients[region2];
   }
   async get({ id, extra }) {
     const client = this.client(extra.region);
@@ -1122,14 +1077,14 @@ var CertificateValidationProvider = class {
   own(id) {
     return id === "aws-acm-certificate-validation";
   }
-  client(region = this.props.region) {
-    if (!this.clients[region]) {
-      this.clients[region] = new ACMClient2({
+  client(region2 = this.props.region) {
+    if (!this.clients[region2]) {
+      this.clients[region2] = new ACMClient2({
         ...this.props,
-        region
+        region: region2
       });
     }
-    return this.clients[region];
+    return this.clients[region2];
   }
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
@@ -1392,7 +1347,8 @@ var CloudControlApiProvider = class {
         return this.client.send(command);
       },
       {
-        numOfAttempts: 10,
+        numOfAttempts: 20,
+        maxDelay: 1e3 * 10,
         retry(error) {
           if (error instanceof ThrottlingException) {
             console.log("ThrottlingException");
@@ -3785,6 +3741,39 @@ var InternetGateway = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/ecr/index.ts
+var ecr_exports = {};
+__export(ecr_exports, {
+  Repository: () => Repository
+});
+
+// src/provider/aws/ecr/repository.ts
+var Repository = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECR::Repository", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  toState() {
+    return {
+      document: {
+        EmptyOnDelete: this.props.emptyOnDelete,
+        // EncryptionConfiguration: EncryptionConfiguration,
+        // ImageScanningConfiguration: ImageScanningConfiguration,
+        // ImageTagMutability: String,
+        // LifecyclePolicy: LifecyclePolicy,
+        RepositoryName: this.props.name
+        // RepositoryPolicyText: Json,
+        // FunctionName: this.props.functionArn,
+        // Action: unwrap(this.props.action, 'lambda:InvokeFunction'),
+        // Principal: this.props.principal,
+        // ...this.attr('SourceArn', this.props.sourceArn),
+        // ...this.attr('FunctionUrlAuthType', this.props.urlAuthType, constantCase),
+      }
+    };
+  }
+};
+
 // src/provider/aws/elb/index.ts
 var elb_exports = {};
 __export(elb_exports, {
@@ -4634,7 +4623,7 @@ var Domain = class extends CloudControlApiResource {
     return {
       document: {
         DomainName: this.props.name,
-        EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.13"),
+        EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.11"),
         IPAddressType: unwrap(this.props.ipType, "ipv4"),
         ClusterConfig: {
           InstanceType: `${instance.type}.search`,
@@ -5627,142 +5616,49 @@ var createCloudProviders = (config) => {
   ];
 };
 
-// src/provider/local/index.ts
-var local_exports = {};
-__export(local_exports, {
-  file: () => file_exports,
-  memory: () => memory_exports
-});
-
-// src/provider/local/file/index.ts
-var file_exports = {};
-__export(file_exports, {
-  LockProvider: () => LockProvider2,
-  StateProvider: () => StateProvider2
-});
-
 // src/provider/local/file/lock-provider.ts
-import { join } from "path";
-import { mkdir, stat } from "fs/promises";
 import { lock } from "proper-lockfile";
-var LockProvider2 = class {
-  constructor(props) {
-    this.props = props;
-  }
-  lockFile(urn) {
-    return join(this.props.dir, `${urn}.lock`);
-  }
-  async mkdir() {
-    await mkdir(this.props.dir, {
-      recursive: true
-    });
-  }
-  async locked(urn) {
-    const result = await stat(this.lockFile(urn));
-    return result.isFile();
-  }
-  async lock(urn) {
-    await this.mkdir();
-    return lock(this.lockFile(urn), {
-      realpath: false
-    });
-  }
-};
 
-// src/provider/local/file/state-provider.ts
-import { join as join2 } from "path";
-import { mkdir as mkdir2, readFile as readFile2, rm, writeFile } from "fs/promises";
-var StateProvider2 = class {
-  constructor(props) {
-    this.props = props;
-  }
-  stateFile(urn) {
-    return join2(this.props.dir, `${urn}.json`);
-  }
-  async mkdir() {
-    await mkdir2(this.props.dir, {
-      recursive: true
-    });
-  }
-  async get(urn) {
-    let json;
-    try {
-      json = await readFile2(join2(this.stateFile(urn)), "utf8");
-    } catch (error) {
-      return;
-    }
-    return JSON.parse(json);
-  }
-  async update(urn, state) {
-    await this.mkdir();
-    await writeFile(this.stateFile(urn), JSON.stringify(state, void 0, 2));
-  }
-  async delete(urn) {
-    await this.mkdir();
-    await rm(this.stateFile(urn));
-  }
-};
-
-// src/provider/local/memory/index.ts
-var memory_exports = {};
-__export(memory_exports, {
-  LockProvider: () => LockProvider3,
-  StateProvider: () => StateProvider3
+// examples/example.ts
+import { minutes as minutes4 } from "@awsless/duration";
+var region = "eu-west-1";
+var credentials = fromIni({
+  profile: "jacksclub"
 });
-
-// src/provider/local/memory/lock-provider.ts
-var LockProvider3 = class {
-  locks = /* @__PURE__ */ new Map();
-  async locked(urn) {
-    return this.locks.has(urn);
-  }
-  async lock(urn) {
-    if (this.locks.has(urn)) {
-      throw new Error("Already locked");
-    }
-    const id = Math.random();
-    this.locks.set(urn, id);
-    return async () => {
-      if (this.locks.get(urn) === id) {
-        this.locks.delete(urn);
+var workspace = new WorkSpace({
+  cloudProviders: aws_exports.createCloudProviders({
+    region,
+    credentials,
+    timeout: minutes4(15)
+  }),
+  lockProvider: new aws_exports.dynamodb.LockProvider({
+    region,
+    credentials,
+    tableName: "awsless-state"
+  }),
+  stateProvider: new aws_exports.s3.StateProvider({
+    region,
+    credentials,
+    bucket: "awsless-state"
+  })
+  // stateProvider: new local.file.StateProvider({
+  // 	dir: './examples/state',
+  // }),
+});
+var app = new App("test");
+var stack = new Stack(app, "test");
+var main = async () => {
+  console.log("START");
+  try {
+    await workspace.deleteApp(app);
+  } catch (error) {
+    if (error instanceof AppError) {
+      for (const issue of error.issues) {
+        console.error(issue);
       }
-    };
+    }
+    throw error;
   }
+  console.log("END");
 };
-
-// src/provider/local/memory/state-provider.ts
-var StateProvider3 = class {
-  states = /* @__PURE__ */ new Map();
-  async get(urn) {
-    return this.states.get(urn);
-  }
-  async update(urn, state) {
-    this.states.set(urn, state);
-  }
-  async delete(urn) {
-    this.states.delete(urn);
-  }
-};
-export {
-  App,
-  AppError,
-  Asset,
-  FileAsset,
-  Node,
-  Output,
-  RemoteAsset,
-  Resource,
-  ResourceAlreadyExists,
-  ResourceError,
-  ResourceNotFound,
-  Stack,
-  StackError,
-  StringAsset,
-  WorkSpace,
-  all,
-  aws_exports as aws,
-  findResources,
-  flatten,
-  local_exports as local,
-  unwrap
-};
+main();

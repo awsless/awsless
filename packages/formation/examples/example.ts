@@ -32,69 +32,12 @@ const workspace = new WorkSpace({
 
 const app = new App('test')
 const stack = new Stack(app, 'test')
-// const stack2 = new Stack(app, 'test-2')
 
 // ------------------------------------------
 
-// const api = new aws.apiGatewayV2.Api(stack, 'api', {
-// 	name: 'test',
-// 	protocolType: 'HTTP',
-// })
-
-// const stage = new aws.apiGatewayV2.Stage(stack, 'stage', {
-// 	name: 'v1',
-// 	apiId: api.id,
-// })
-
-// const bucket = new aws.s3.Bucket(stack, 'bucket', {
-// 	name: 'test-bucket-awsless',
-// })
-
-// bucket.addObject('id', {
-// 	key: 'id',
-// 	body: Asset.fromJSON({
-// 		key: '1',
-// 	}),
-// })
-
-// new aws.s3.BucketObject(stack2, 'object', {
-// 	bucket: bucket.name,
-// 	key: 'id',
-// 	body: Asset.fromJSON({
-// 		key: 1,
-// 	}),
-// })
-
-// const table = new aws.dynamodb.Table(stack, 'test', {
+// const repo = new aws.ecr.Repository(stack, 'repo', {
 // 	name: 'TEST',
-// 	hash: 'key',
-// 	stream: 'keys-only',
 // })
-
-// table.addItem(
-// 	'test',
-// 	Asset.fromJSON({
-// 		key: '1',
-// 	})
-// )
-
-// const stack2 = new Stack(app, 'test-2')
-
-// new aws.dynamodb.TableItem(stack2, 'test-2', {
-// 	table,
-// 	item: Asset.fromJSON({
-// 		key: '2',
-// 	}),
-// })
-
-// new aws.dynamodb.TableItem(stack2, 'test-3', {
-// 	table,
-// 	item: Asset.fromJSON({
-// 		key: '3',
-// 	}),
-// })
-
-// ------------------------------------------
 
 const main = async () => {
 	// const diff1 = await workspace.diffStack(stack)

@@ -711,6 +711,9 @@ importers:
       change-case:
         specifier: ^4.1.2
         version: 4.1.2
+      exponential-backoff:
+        specifier: ^3.1.1
+        version: 3.1.1
       p-limit:
         specifier: ^5.0.0
         version: 5.0.0
@@ -5612,6 +5615,9 @@ packages:
   expect@29.4.2:
     resolution: {integrity: sha512-+JHYg9O3hd3RlICG90OPVjRkPBoiUH7PxvDVMnRiaq1g6JUgZStX514erMl0v2Dc5SkfVbm7ztqbd6qHHPn+mQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
+
+  exponential-backoff@3.1.1:
+    resolution: {integrity: sha512-dX7e/LHVJ6W3DE1MHWi9S1EYzDESENfLrYohG2G++ovZrYOkm4Knwa0mc1cn84xJOR4KEU0WSchhLbd0UklbHw==}
 
   expose-gc@1.0.0:
     resolution: {integrity: sha512-ecOHrdm+zyOCGIwX18/1RHkUWgxDqGGRiGhaNC+42jReTtudbm2ID/DMa/wpaHwqy5YQHPZvsDqRM2F2iZ0uVA==}
@@ -16254,6 +16260,8 @@ snapshots:
       jest-matcher-utils: 29.4.2
       jest-message-util: 29.4.2
       jest-util: 29.4.2
+
+  exponential-backoff@3.1.1: {}
 
   expose-gc@1.0.0: {}
 
