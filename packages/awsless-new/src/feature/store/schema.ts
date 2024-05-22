@@ -60,7 +60,8 @@ export const StoresSchema = z
 					events?: Record<string, z.output<typeof FunctionSchema>>
 				}
 			> = {}
-			for (const key in list) {
+
+			for (const key of list) {
 				stores[key] = {}
 			}
 

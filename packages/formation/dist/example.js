@@ -1,58 +1,11 @@
-"use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all2) => {
   for (var name in all2)
     __defProp(target, name, { get: all2[name], enumerable: true });
 };
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/index.ts
-var src_exports = {};
-__export(src_exports, {
-  App: () => App,
-  AppError: () => AppError,
-  Asset: () => Asset,
-  FileAsset: () => FileAsset,
-  Node: () => Node,
-  Output: () => Output,
-  RemoteAsset: () => RemoteAsset,
-  Resource: () => Resource,
-  ResourceAlreadyExists: () => ResourceAlreadyExists,
-  ResourceError: () => ResourceError,
-  ResourceNotFound: () => ResourceNotFound,
-  Stack: () => Stack,
-  StackError: () => StackError,
-  StringAsset: () => StringAsset,
-  WorkSpace: () => WorkSpace,
-  all: () => all,
-  aws: () => aws_exports,
-  findResources: () => findResources,
-  flatten: () => flatten,
-  local: () => local_exports,
-  unwrap: () => unwrap
-});
-module.exports = __toCommonJS(src_exports);
+// examples/example.ts
+import { fromIni } from "@aws-sdk/credential-providers";
 
 // src/core/node.ts
 var Node = class {
@@ -133,53 +86,6 @@ var App = class extends Node {
   // }
 };
 
-// src/core/asset.ts
-var import_promises = require("fs/promises");
-var Asset = class {
-  static fromJSON(json) {
-    return new StringAsset(JSON.stringify(json));
-  }
-  static fromString(string, encoding = "utf8") {
-    return new StringAsset(string, encoding);
-  }
-  static fromFile(path) {
-    return new FileAsset(path);
-  }
-  static fromRemote(url) {
-    return new RemoteAsset(url);
-  }
-};
-var StringAsset = class extends Asset {
-  constructor(value, encoding = "utf8") {
-    super();
-    this.value = value;
-    this.encoding = encoding;
-  }
-  async load() {
-    return Buffer.from(this.value, this.encoding);
-  }
-};
-var FileAsset = class extends Asset {
-  constructor(path) {
-    super();
-    this.path = path;
-  }
-  async load() {
-    return (0, import_promises.readFile)(this.path);
-  }
-};
-var RemoteAsset = class extends Asset {
-  constructor(url) {
-    super();
-    this.url = url;
-  }
-  async load() {
-    const response = await fetch(this.url);
-    const data = await response.arrayBuffer();
-    return Buffer.from(data);
-  }
-};
-
 // src/core/error.ts
 var ResourceError = class _ResourceError extends Error {
   constructor(urn, type, id, operation, message) {
@@ -197,39 +103,37 @@ var ResourceError = class _ResourceError extends Error {
   }
 };
 var AppError = class extends Error {
-  constructor(app, issues, message) {
+  constructor(app2, issues, message) {
     super(message);
-    this.app = app;
+    this.app = app2;
     this.issues = issues;
   }
 };
 var StackError = class extends Error {
-  constructor(stack, issues, message) {
+  constructor(stack2, issues, message) {
     super(message);
-    this.stack = stack;
+    this.stack = stack2;
     this.issues = issues;
   }
 };
 var ResourceNotFound = class extends Error {
 };
-var ResourceAlreadyExists = class extends Error {
-};
 
 // src/core/stack.ts
 var Stack = class extends Node {
-  constructor(app, name) {
-    super(app, "Stack", name);
-    this.app = app;
+  constructor(app2, name) {
+    super(app2, "Stack", name);
+    this.app = app2;
     this.name = name;
   }
   exported = {};
   dependencies = /* @__PURE__ */ new Set();
   dependsOn(...stacks) {
-    for (const stack of stacks) {
-      if (stack.app !== this.app) {
+    for (const stack2 of stacks) {
+      if (stack2.app !== this.app) {
         throw new Error(`Stacks that belong to different apps can't be dependent on each other`);
       }
-      this.dependencies.add(stack);
+      this.dependencies.add(stack2);
     }
     return this;
   }
@@ -406,15 +310,15 @@ function unwrap(input, defaultValue) {
 }
 
 // src/core/workspace/workspace.ts
-var import_promise_dag = require("promise-dag");
+import { run } from "promise-dag";
 
 // src/core/workspace/lock.ts
-var lockApp = async (lockProvider, app, fn) => {
+var lockApp = async (lockProvider, app2, fn) => {
   let release;
   try {
-    release = await lockProvider.lock(app.urn);
+    release = await lockProvider.lock(app2.urn);
   } catch (error) {
-    throw new Error(`Already in progress: ${app.urn}`);
+    throw new Error(`Already in progress: ${app2.urn}`);
   }
   let result;
   try {
@@ -501,9 +405,9 @@ var resolveDocumentAssets = (document, assets) => {
 };
 
 // src/core/workspace/token.ts
-var import_uuid = require("uuid");
+import { v5 } from "uuid";
 var createIdempotantToken = (appToken, urn, operation) => {
-  return (0, import_uuid.v5)(`${urn}-${operation}`, appToken);
+  return v5(`${urn}-${operation}`, appToken);
 };
 
 // src/core/workspace/provider.ts
@@ -517,8 +421,8 @@ var getCloudProvider = (cloudProviders, providerId) => {
 };
 
 // src/core/workspace/workspace.ts
-var import_crypto = require("crypto");
-var import_p_limit = __toESM(require("p-limit"), 1);
+import { randomUUID } from "crypto";
+import promiseLimit from "p-limit";
 var WorkSpace = class {
   constructor(props) {
     this.props = props;
@@ -530,13 +434,13 @@ var WorkSpace = class {
   // 	}
   // 	return data
   // }
-  runGraph(stack, graph) {
+  runGraph(stack2, graph) {
     try {
-      const promises = (0, import_promise_dag.run)(graph);
+      const promises = run(graph);
       return Promise.allSettled(Object.values(promises));
     } catch (error) {
       if (error instanceof Error) {
-        throw new StackError(stack, [], error.message);
+        throw new StackError(stack2, [], error.message);
       }
       throw error;
     }
@@ -548,29 +452,29 @@ var WorkSpace = class {
   // 	}
   // 	return app
   // }
-  async deployApp(app, opt = {}) {
-    return lockApp(this.props.lockProvider, app, async () => {
-      const appState = await this.props.stateProvider.get(app.urn) ?? {
-        name: app.name,
+  async deployApp(app2, opt = {}) {
+    return lockApp(this.props.lockProvider, app2, async () => {
+      const appState = await this.props.stateProvider.get(app2.urn) ?? {
+        name: app2.name,
         stacks: {}
       };
       if (opt.token || !appState.token) {
-        appState.token = opt.token ?? (0, import_crypto.randomUUID)();
-        await this.props.stateProvider.update(app.urn, appState);
+        appState.token = opt.token ?? randomUUID();
+        await this.props.stateProvider.update(app2.urn, appState);
       }
-      let stacks = app.stacks;
+      let stacks = app2.stacks;
       if (opt.filters && opt.filters.length > 0) {
-        stacks = app.stacks.filter((stack) => opt.filters.includes(stack.name));
+        stacks = app2.stacks.filter((stack2) => opt.filters.includes(stack2.name));
       }
-      const limit = (0, import_p_limit.default)(this.props.concurrency ?? 10);
+      const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
-      for (const stack of stacks) {
-        graph[stack.urn] = [
-          ...[...stack.dependencies].map((dep) => dep.urn),
+      for (const stack2 of stacks) {
+        graph[stack2.urn] = [
+          ...[...stack2.dependencies].map((dep) => dep.urn),
           async () => {
-            const resources = stack.resources;
-            const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-              name: stack.name,
+            const resources = stack2.resources;
+            const stackState = appState.stacks[stack2.urn] = appState.stacks[stack2.urn] ?? {
+              name: stack2.name,
               // exports: {},
               dependencies: [],
               resources: {}
@@ -591,76 +495,76 @@ var WorkSpace = class {
             }
             if (Object.keys(deleteResourcesBefore).length > 0) {
               await this.deleteStackResources(
-                app.urn,
+                app2.urn,
                 appState,
                 stackState,
                 deleteResourcesBefore,
                 limit
               );
             }
-            await this.deployStackResources(app.urn, appState, stackState, resources, limit);
+            await this.deployStackResources(app2.urn, appState, stackState, resources, limit);
             if (Object.keys(deleteResourcesAfter).length > 0) {
               await this.deleteStackResources(
-                app.urn,
+                app2.urn,
                 appState,
                 stackState,
                 deleteResourcesAfter,
                 limit
               );
             }
-            stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
+            stackState.dependencies = [...stack2.dependencies].map((d) => d.urn);
           }
         ];
       }
-      const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(graph)));
+      const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
-      await this.props.stateProvider.update(app.urn, appState);
+      await this.props.stateProvider.update(app2.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
+        throw new AppError(app2.name, [...new Set(errors)], "Deploying app failed.");
       }
       return appState;
     });
   }
-  async deleteApp(app, opt = {}) {
-    return lockApp(this.props.lockProvider, app, async () => {
-      const appState = await this.props.stateProvider.get(app.urn);
+  async deleteApp(app2, opt = {}) {
+    return lockApp(this.props.lockProvider, app2, async () => {
+      const appState = await this.props.stateProvider.get(app2.urn);
       if (!appState) {
-        throw new AppError(app.name, [], `App already deleted: ${app.name}`);
+        throw new AppError(app2.name, [], `App already deleted: ${app2.name}`);
       }
       if (opt.token || !appState.token) {
-        appState.token = opt.token ?? (0, import_crypto.randomUUID)();
-        await this.props.stateProvider.update(app.urn, appState);
+        appState.token = opt.token ?? randomUUID();
+        await this.props.stateProvider.update(app2.urn, appState);
       }
-      const limit = (0, import_p_limit.default)(this.props.concurrency ?? 10);
+      const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
       for (const [_urn, stackState] of Object.entries(appState.stacks)) {
         const urn = _urn;
         graph[urn] = [
           ...this.dependentsOn(appState.stacks, urn),
           async () => {
-            await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit);
+            await this.deleteStackResources(app2.urn, appState, stackState, stackState.resources, limit);
             delete appState.stacks[urn];
           }
         ];
       }
-      const results = await Promise.allSettled(Object.values((0, import_promise_dag.run)(graph)));
+      const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
+      await this.props.stateProvider.update(app2.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        await this.props.stateProvider.update(app.urn, appState);
-        throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
+        throw new AppError(app2.name, [...new Set(errors)], "Deleting app failed.");
       }
-      await this.props.stateProvider.delete(app.urn);
+      await this.props.stateProvider.delete(app2.urn);
     });
   }
-  async hydrate(app) {
-    const appState = await this.props.stateProvider.get(app.urn);
+  async hydrate(app2) {
+    const appState = await this.props.stateProvider.get(app2.urn);
     if (appState) {
-      for (const stack of app.stacks) {
-        const stackState = appState.stacks[stack.urn];
+      for (const stack2 of app2.stacks) {
+        const stackState = appState.stacks[stack2.urn];
         if (stackState) {
-          for (const resource of stack.resources) {
+          for (const resource of stack2.resources) {
             const resourceState = stackState.resources[resource.urn];
             if (resourceState) {
               resource.setRemoteDocument(resourceState.remote);
@@ -1055,6 +959,7 @@ __export(aws_exports, {
   createCloudProviders: () => createCloudProviders,
   dynamodb: () => dynamodb_exports,
   ec2: () => ec2_exports,
+  ecr: () => ecr_exports,
   elb: () => elb_exports,
   events: () => events_exports,
   iam: () => iam_exports,
@@ -1080,12 +985,18 @@ __export(acm_exports, {
 });
 
 // src/provider/aws/acm/certificate-provider.ts
-var import_client_acm = require("@aws-sdk/client-acm");
+import {
+  ACMClient,
+  DeleteCertificateCommand,
+  DescribeCertificateCommand,
+  RequestCertificateCommand,
+  ResourceNotFoundException
+} from "@aws-sdk/client-acm";
 
 // src/core/hash.ts
-var import_crypto2 = require("crypto");
+import { createHash } from "crypto";
 var sha256 = (data) => {
-  return (0, import_crypto2.createHash)("sha256").update(JSON.stringify(data)).digest("hex");
+  return createHash("sha256").update(JSON.stringify(data)).digest("hex");
 };
 var sleep = (delay) => {
   return new Promise((r) => setTimeout(r, delay));
@@ -1103,20 +1014,20 @@ var CertificateProvider = class {
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
   }
-  client(region = this.props.region) {
-    if (!this.clients[region]) {
-      this.clients[region] = new import_client_acm.ACMClient({
+  client(region2 = this.props.region) {
+    if (!this.clients[region2]) {
+      this.clients[region2] = new ACMClient({
         ...this.props,
-        region
+        region: region2
       });
     }
-    return this.clients[region];
+    return this.clients[region2];
   }
   async get({ id, extra }) {
     const client = this.client(extra.region);
     while (true) {
       const result = await client.send(
-        new import_client_acm.DescribeCertificateCommand({
+        new DescribeCertificateCommand({
           CertificateArn: id
         })
       );
@@ -1129,7 +1040,7 @@ var CertificateProvider = class {
   async create({ urn, document, extra }) {
     const token = sha256(urn).substring(0, 32);
     const result = await this.client(extra.region).send(
-      new import_client_acm.RequestCertificateCommand({
+      new RequestCertificateCommand({
         IdempotencyToken: token,
         ...document
       })
@@ -1143,12 +1054,12 @@ var CertificateProvider = class {
   async delete({ id, extra }) {
     try {
       await this.client(extra.region).send(
-        new import_client_acm.DeleteCertificateCommand({
+        new DeleteCertificateCommand({
           CertificateArn: id
         })
       );
     } catch (error) {
-      if (error instanceof import_client_acm.ResourceNotFoundException) {
+      if (error instanceof ResourceNotFoundException) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -1157,7 +1068,7 @@ var CertificateProvider = class {
 };
 
 // src/provider/aws/acm/certificate-validation-provider.ts
-var import_client_acm2 = require("@aws-sdk/client-acm");
+import { ACMClient as ACMClient2, DescribeCertificateCommand as DescribeCertificateCommand2 } from "@aws-sdk/client-acm";
 var CertificateValidationProvider = class {
   constructor(props) {
     this.props = props;
@@ -1166,14 +1077,14 @@ var CertificateValidationProvider = class {
   own(id) {
     return id === "aws-acm-certificate-validation";
   }
-  client(region = this.props.region) {
-    if (!this.clients[region]) {
-      this.clients[region] = new import_client_acm2.ACMClient({
+  client(region2 = this.props.region) {
+    if (!this.clients[region2]) {
+      this.clients[region2] = new ACMClient2({
         ...this.props,
-        region
+        region: region2
       });
     }
-    return this.clients[region];
+    return this.clients[region2];
   }
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
@@ -1182,7 +1093,7 @@ var CertificateValidationProvider = class {
     const client = this.client(document.Region);
     while (true) {
       const result = await client.send(
-        new import_client_acm2.DescribeCertificateCommand({
+        new DescribeCertificateCommand2({
           CertificateArn: id
         })
       );
@@ -1356,7 +1267,7 @@ var ApiMapping = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/api-gateway-v2/api.ts
-var import_duration = require("@awsless/duration");
+import { toSeconds } from "@awsless/duration";
 var Api = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ApiGatewayV2::Api", id, props);
@@ -1384,7 +1295,7 @@ var Api = class extends CloudControlApiResource {
           ...this.attr("AllowMethods", allow.methods),
           ...this.attr("AllowOrigins", allow.origins),
           ...this.attr("ExposeHeaders", expose.headers),
-          ...this.attr("MaxAge", cors.maxAge, import_duration.toSeconds)
+          ...this.attr("MaxAge", cors.maxAge, toSeconds)
         }
       }
     };
@@ -1399,14 +1310,23 @@ __export(cloud_control_api_exports, {
 });
 
 // src/provider/aws/cloud-control-api/provider.ts
-var import_client_cloudcontrol = require("@aws-sdk/client-cloudcontrol");
-var import_rfc6902 = require("rfc6902");
-var import_duration2 = require("@awsless/duration");
-var import_exponential_backoff = require("exponential-backoff");
+import {
+  CloudControlClient,
+  CreateResourceCommand,
+  DeleteResourceCommand,
+  GetResourceCommand,
+  GetResourceRequestStatusCommand,
+  UpdateResourceCommand,
+  ResourceNotFoundException as ResourceNotFoundException2,
+  ThrottlingException
+} from "@aws-sdk/client-cloudcontrol";
+import { createPatch } from "rfc6902";
+import { minutes, toMilliSeconds } from "@awsless/duration";
+import { backOff } from "exponential-backoff";
 var CloudControlApiProvider = class {
   constructor(props) {
     this.props = props;
-    this.client = new import_client_cloudcontrol.CloudControlClient({
+    this.client = new CloudControlClient({
       maxAttempts: 10,
       requestHandler: {
         httpsAgent: {
@@ -1422,14 +1342,15 @@ var CloudControlApiProvider = class {
     return id === "aws-cloud-control-api";
   }
   async send(command) {
-    return (0, import_exponential_backoff.backOff)(
+    return backOff(
       () => {
         return this.client.send(command);
       },
       {
-        numOfAttempts: 10,
+        numOfAttempts: 20,
+        maxDelay: 1e3 * 10,
         retry(error) {
-          if (error instanceof import_client_cloudcontrol.ThrottlingException) {
+          if (error instanceof ThrottlingException) {
             console.log("ThrottlingException");
             return true;
           }
@@ -1441,7 +1362,7 @@ var CloudControlApiProvider = class {
   async progressStatus(event) {
     const token = event.RequestToken;
     const start = /* @__PURE__ */ new Date();
-    const timeout = Number((0, import_duration2.toMilliSeconds)(this.props.timeout ?? (0, import_duration2.minutes)(1)));
+    const timeout = Number(toMilliSeconds(this.props.timeout ?? minutes(1)));
     while (true) {
       if (event.OperationStatus === "SUCCESS") {
         if (event.Identifier) {
@@ -1470,7 +1391,7 @@ var CloudControlApiProvider = class {
       const delay = Math.max(after - now, 1e3);
       await sleep(delay);
       const status = await this.client.send(
-        new import_client_cloudcontrol.GetResourceRequestStatusCommand({
+        new GetResourceRequestStatusCommand({
           RequestToken: token
         })
       );
@@ -1483,12 +1404,12 @@ var CloudControlApiProvider = class {
         delete oldDocument[key];
       }
     }
-    const operations = (0, import_rfc6902.createPatch)(oldDocument, newDocument);
+    const operations = createPatch(oldDocument, newDocument);
     return operations;
   }
   async get({ id, type }) {
     const result = await this.client.send(
-      new import_client_cloudcontrol.GetResourceCommand({
+      new GetResourceCommand({
         TypeName: type,
         Identifier: id
       })
@@ -1497,7 +1418,7 @@ var CloudControlApiProvider = class {
   }
   async create({ token, type, document }) {
     const result = await this.send(
-      new import_client_cloudcontrol.CreateResourceCommand({
+      new CreateResourceCommand({
         TypeName: type,
         DesiredState: JSON.stringify(document),
         ClientToken: token
@@ -1509,7 +1430,7 @@ var CloudControlApiProvider = class {
     let result;
     try {
       result = await this.send(
-        new import_client_cloudcontrol.UpdateResourceCommand({
+        new UpdateResourceCommand({
           TypeName: type,
           Identifier: id,
           PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
@@ -1517,7 +1438,7 @@ var CloudControlApiProvider = class {
         })
       );
     } catch (error) {
-      if (error instanceof import_client_cloudcontrol.ResourceNotFoundException) {
+      if (error instanceof ResourceNotFoundException2) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -1526,7 +1447,7 @@ var CloudControlApiProvider = class {
   }
   async delete({ token, type, id }) {
     const result = await this.send(
-      new import_client_cloudcontrol.DeleteResourceCommand({
+      new DeleteResourceCommand({
         TypeName: type,
         Identifier: id,
         ClientToken: token
@@ -1568,18 +1489,25 @@ var DomainName = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/api-gateway-v2/integration-provider.ts
-var import_client_apigatewayv2 = require("@aws-sdk/client-apigatewayv2");
+import {
+  ApiGatewayV2Client,
+  NotFoundException,
+  CreateIntegrationCommand,
+  UpdateIntegrationCommand,
+  DeleteIntegrationCommand,
+  GetIntegrationCommand
+} from "@aws-sdk/client-apigatewayv2";
 var IntegrationProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_apigatewayv2.ApiGatewayV2Client(props);
+    this.client = new ApiGatewayV2Client(props);
   }
   own(id) {
     return id === "aws-api-gateway-v2-integration";
   }
   async get({ id, document }) {
     const result = await this.client.send(
-      new import_client_apigatewayv2.GetIntegrationCommand({
+      new GetIntegrationCommand({
         ApiId: document.ApiId,
         IntegrationId: id
       })
@@ -1587,7 +1515,7 @@ var IntegrationProvider = class {
     return result;
   }
   async create({ document }) {
-    const result = await this.client.send(new import_client_apigatewayv2.CreateIntegrationCommand(document));
+    const result = await this.client.send(new CreateIntegrationCommand(document));
     return result.IntegrationId;
   }
   async update({ id, oldDocument, newDocument }) {
@@ -1595,7 +1523,7 @@ var IntegrationProvider = class {
       throw new Error(`Integration can't change the api id`);
     }
     const result = await this.client.send(
-      new import_client_apigatewayv2.UpdateIntegrationCommand({
+      new UpdateIntegrationCommand({
         ...newDocument,
         IntegrationId: id
       })
@@ -1605,13 +1533,13 @@ var IntegrationProvider = class {
   async delete({ id, document }) {
     try {
       await this.client.send(
-        new import_client_apigatewayv2.DeleteIntegrationCommand({
+        new DeleteIntegrationCommand({
           ApiId: document.ApiId,
           IntegrationId: id
         })
       );
     } catch (error) {
-      if (error instanceof import_client_apigatewayv2.NotFoundException) {
+      if (error instanceof NotFoundException) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -1666,18 +1594,25 @@ var Route = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/api-gateway-v2/stage-provider.ts
-var import_client_apigatewayv22 = require("@aws-sdk/client-apigatewayv2");
+import {
+  ApiGatewayV2Client as ApiGatewayV2Client2,
+  CreateStageCommand,
+  DeleteStageCommand,
+  GetStageCommand,
+  UpdateStageCommand,
+  NotFoundException as NotFoundException2
+} from "@aws-sdk/client-apigatewayv2";
 var StageProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_apigatewayv22.ApiGatewayV2Client(props);
+    this.client = new ApiGatewayV2Client2(props);
   }
   own(id) {
     return id === "aws-api-gateway-v2-stage";
   }
   async get({ document }) {
     const result = await this.client.send(
-      new import_client_apigatewayv22.GetStageCommand({
+      new GetStageCommand({
         ApiId: document.ApiId,
         StageName: document.StageName
       })
@@ -1685,7 +1620,7 @@ var StageProvider = class {
     return result;
   }
   async create({ document }) {
-    const result = await this.client.send(new import_client_apigatewayv22.CreateStageCommand(document));
+    const result = await this.client.send(new CreateStageCommand(document));
     return result.StageName;
   }
   async update({ oldDocument, newDocument }) {
@@ -1695,19 +1630,19 @@ var StageProvider = class {
     if (oldDocument.StageName !== newDocument.StageName) {
       throw new Error(`Stage can't change the stage name`);
     }
-    const result = await this.client.send(new import_client_apigatewayv22.UpdateStageCommand(newDocument));
+    const result = await this.client.send(new UpdateStageCommand(newDocument));
     return result.StageName;
   }
   async delete({ document }) {
     try {
       await this.client.send(
-        new import_client_apigatewayv22.DeleteStageCommand({
+        new DeleteStageCommand({
           ApiId: document.ApiId,
           StageName: document.StageName
         })
       );
     } catch (error) {
-      if (error instanceof import_client_apigatewayv22.NotFoundException) {
+      if (error instanceof NotFoundException2) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -1759,18 +1694,25 @@ __export(appsync_exports, {
 });
 
 // src/provider/aws/appsync/data-source-provider.ts
-var import_client_appsync = require("@aws-sdk/client-appsync");
+import {
+  AppSyncClient,
+  CreateDataSourceCommand,
+  DeleteDataSourceCommand,
+  GetDataSourceCommand,
+  NotFoundException as NotFoundException3,
+  UpdateDataSourceCommand
+} from "@aws-sdk/client-appsync";
 var DataSourceProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_appsync.AppSyncClient(props);
+    this.client = new AppSyncClient(props);
   }
   own(id) {
     return id === "aws-appsync-data-source";
   }
   async get({ document }) {
     const result = await this.client.send(
-      new import_client_appsync.GetDataSourceCommand({
+      new GetDataSourceCommand({
         apiId: document.apiId,
         name: document.name
       })
@@ -1779,7 +1721,7 @@ var DataSourceProvider = class {
   }
   async create({ document }) {
     await this.client.send(
-      new import_client_appsync.CreateDataSourceCommand({
+      new CreateDataSourceCommand({
         ...document
       })
     );
@@ -1792,19 +1734,19 @@ var DataSourceProvider = class {
     if (oldDocument.name !== newDocument.name) {
       throw new Error(`DataSource can't update name`);
     }
-    await this.client.send(new import_client_appsync.UpdateDataSourceCommand(newDocument));
+    await this.client.send(new UpdateDataSourceCommand(newDocument));
     return id;
   }
   async delete({ document }) {
     try {
       await this.client.send(
-        new import_client_appsync.DeleteDataSourceCommand({
+        new DeleteDataSourceCommand({
           apiId: document.apiId,
           name: document.name
         })
       );
     } catch (error) {
-      if (error instanceof import_client_appsync.NotFoundException) {
+      if (error instanceof NotFoundException3) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -1922,18 +1864,25 @@ var FunctionConfiguration = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/appsync/graphql-api-provider.ts
-var import_client_appsync2 = require("@aws-sdk/client-appsync");
+import {
+  AppSyncClient as AppSyncClient2,
+  CreateGraphqlApiCommand,
+  DeleteGraphqlApiCommand,
+  GetGraphqlApiCommand,
+  NotFoundException as NotFoundException4,
+  UpdateGraphqlApiCommand
+} from "@aws-sdk/client-appsync";
 var GraphQLApiProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_appsync2.AppSyncClient(props);
+    this.client = new AppSyncClient2(props);
   }
   own(id) {
     return id === "aws-appsync-graphql-api";
   }
   async get({ id }) {
     const result = await this.client.send(
-      new import_client_appsync2.GetGraphqlApiCommand({
+      new GetGraphqlApiCommand({
         apiId: id
       })
     );
@@ -1941,7 +1890,7 @@ var GraphQLApiProvider = class {
   }
   async create({ document }) {
     const result = await this.client.send(
-      new import_client_appsync2.CreateGraphqlApiCommand({
+      new CreateGraphqlApiCommand({
         ...document
       })
     );
@@ -1949,7 +1898,7 @@ var GraphQLApiProvider = class {
   }
   async update({ id, newDocument }) {
     await this.client.send(
-      new import_client_appsync2.UpdateGraphqlApiCommand({
+      new UpdateGraphqlApiCommand({
         apiId: id,
         ...newDocument
       })
@@ -1959,12 +1908,12 @@ var GraphQLApiProvider = class {
   async delete({ id }) {
     try {
       await this.client.send(
-        new import_client_appsync2.DeleteGraphqlApiCommand({
+        new DeleteGraphqlApiCommand({
           apiId: id
         })
       );
     } catch (error) {
-      if (error instanceof import_client_appsync2.NotFoundException) {
+      if (error instanceof NotFoundException4) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -1973,7 +1922,7 @@ var GraphQLApiProvider = class {
 };
 
 // src/provider/aws/appsync/graphql-api.ts
-var import_duration3 = require("@awsless/duration");
+import { toSeconds as toSeconds2 } from "@awsless/duration";
 var GraphQLApi = class extends Resource {
   // private defaultAuthorization?: GraphQLAuthorization
   // private lambdaAuthProviders: { arn: string, ttl: Duration }[] = []
@@ -2065,7 +2014,7 @@ var GraphQLApi = class extends Resource {
       authenticationType: "AWS_LAMBDA",
       lambdaAuthorizerConfig: {
         authorizerUri: prop.functionArn,
-        ...this.attr("authorizerResultTtlInSeconds", prop.resultTtl && (0, import_duration3.toSeconds)(unwrap(prop.resultTtl))),
+        ...this.attr("authorizerResultTtlInSeconds", prop.resultTtl && toSeconds2(unwrap(prop.resultTtl))),
         ...this.attr("identityValidationExpression", prop.tokenRegex)
       }
     };
@@ -2088,11 +2037,17 @@ var GraphQLApi = class extends Resource {
 };
 
 // src/provider/aws/appsync/graphql-schema-provider.ts
-var import_client_appsync3 = require("@aws-sdk/client-appsync");
+import {
+  AppSyncClient as AppSyncClient3,
+  DeleteGraphqlApiCommand as DeleteGraphqlApiCommand2,
+  GetSchemaCreationStatusCommand,
+  NotFoundException as NotFoundException5,
+  StartSchemaCreationCommand
+} from "@aws-sdk/client-appsync";
 var GraphQLSchemaProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_appsync3.AppSyncClient(props);
+    this.client = new AppSyncClient3(props);
   }
   own(id) {
     return id === "aws-appsync-graphql-schema";
@@ -2100,7 +2055,7 @@ var GraphQLSchemaProvider = class {
   async waitStatusComplete(id) {
     while (true) {
       const result = await this.client.send(
-        new import_client_appsync3.GetSchemaCreationStatusCommand({
+        new GetSchemaCreationStatusCommand({
           apiId: id
         })
       );
@@ -2118,7 +2073,7 @@ var GraphQLSchemaProvider = class {
   }
   async create({ document, assets }) {
     await this.client.send(
-      new import_client_appsync3.StartSchemaCreationCommand({
+      new StartSchemaCreationCommand({
         apiId: document.apiId,
         definition: assets.definition?.data
       })
@@ -2131,7 +2086,7 @@ var GraphQLSchemaProvider = class {
       throw new Error(`GraphGLSchema can't change the api id`);
     }
     await this.client.send(
-      new import_client_appsync3.StartSchemaCreationCommand({
+      new StartSchemaCreationCommand({
         apiId: newDocument.apiId,
         definition: assets.definition?.data
       })
@@ -2142,12 +2097,12 @@ var GraphQLSchemaProvider = class {
   async delete({ id }) {
     try {
       await this.client.send(
-        new import_client_appsync3.DeleteGraphqlApiCommand({
+        new DeleteGraphqlApiCommand2({
           apiId: id
         })
       );
     } catch (error) {
-      if (error instanceof import_client_appsync3.NotFoundException) {
+      if (error instanceof NotFoundException5) {
         throw new ResourceNotFound(error.message);
       }
       throw error;
@@ -2241,7 +2196,7 @@ __export(cloud_front_exports, {
 });
 
 // src/provider/aws/cloud-front/cache-policy.ts
-var import_duration4 = require("@awsless/duration");
+import { toSeconds as toSeconds3 } from "@awsless/duration";
 var CachePolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::CachePolicy", id, props);
@@ -2256,9 +2211,9 @@ var CachePolicy = class extends CloudControlApiResource {
       document: {
         CachePolicyConfig: {
           Name: this.props.name,
-          MinTTL: (0, import_duration4.toSeconds)(unwrap(this.props.minTtl)),
-          MaxTTL: (0, import_duration4.toSeconds)(unwrap(this.props.maxTtl)),
-          DefaultTTL: (0, import_duration4.toSeconds)(unwrap(this.props.defaultTtl)),
+          MinTTL: toSeconds3(unwrap(this.props.minTtl)),
+          MaxTTL: toSeconds3(unwrap(this.props.maxTtl)),
+          DefaultTTL: toSeconds3(unwrap(this.props.defaultTtl)),
           ParametersInCacheKeyAndForwardedToOrigin: {
             EnableAcceptEncodingGzip: unwrap(this.props.acceptGzip, false),
             EnableAcceptEncodingBrotli: unwrap(this.props.acceptBrotli, false),
@@ -2282,7 +2237,7 @@ var CachePolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/distribution.ts
-var import_duration5 = require("@awsless/duration");
+import { toSeconds as toSeconds4 } from "@awsless/duration";
 var Distribution = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::Distribution", id, props);
@@ -2375,7 +2330,7 @@ var Distribution = class extends CloudControlApiResource {
             ErrorCode: item.errorCode,
             ...this.attr(
               "ErrorCachingMinTTL",
-              item.cacheMinTTL && (0, import_duration5.toSeconds)(unwrap(item.cacheMinTTL))
+              item.cacheMinTTL && toSeconds4(unwrap(item.cacheMinTTL))
             ),
             ...this.attr("ResponseCode", item.responseCode),
             ...this.attr("ResponsePagePath", item.responsePath)
@@ -2407,11 +2362,11 @@ var Distribution = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/invalidate-cache-provider.ts
-var import_client_cloudfront = require("@aws-sdk/client-cloudfront");
+import { CloudFrontClient, CreateInvalidationCommand } from "@aws-sdk/client-cloudfront";
 var InvalidateCacheProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_cloudfront.CloudFrontClient(props);
+    this.client = new CloudFrontClient(props);
   }
   own(id) {
     return id === "aws-cloud-front-invalidate-cache";
@@ -2419,7 +2374,7 @@ var InvalidateCacheProvider = class {
   async invalidate(document) {
     const id = sha256(JSON.stringify(document.Versions));
     await this.client.send(
-      new import_client_cloudfront.CreateInvalidationCommand({
+      new CreateInvalidationCommand({
         DistributionId: document.DistributionId,
         InvalidationBatch: {
           CallerReference: id,
@@ -2489,7 +2444,7 @@ var OriginAccessControl = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/origin-request-policy.ts
-var import_change_case = require("change-case");
+import { camelCase } from "change-case";
 var OriginRequestPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::OriginRequestPolicy", id, props);
@@ -2508,15 +2463,15 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
         OriginRequestPolicyConfig: {
           Name: this.props.name,
           CookiesConfig: {
-            CookieBehavior: (0, import_change_case.camelCase)(unwrap(cookie?.behavior, "all")),
+            CookieBehavior: camelCase(unwrap(cookie?.behavior, "all")),
             ...this.attr("Cookies", cookie?.values)
           },
           HeadersConfig: {
-            HeaderBehavior: (0, import_change_case.camelCase)(unwrap(header?.behavior, "all-viewer")),
+            HeaderBehavior: camelCase(unwrap(header?.behavior, "all-viewer")),
             ...this.attr("Headers", header?.values)
           },
           QueryStringsConfig: {
-            QueryStringBehavior: (0, import_change_case.camelCase)(unwrap(query?.behavior, "all")),
+            QueryStringBehavior: camelCase(unwrap(query?.behavior, "all")),
             ...this.attr("QueryStrings", query?.values)
           }
         }
@@ -2526,7 +2481,7 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/response-headers-policy.ts
-var import_duration6 = require("@awsless/duration");
+import { days, toSeconds as toSeconds5 } from "@awsless/duration";
 var ResponseHeadersPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::ResponseHeadersPolicy", id, props);
@@ -2559,7 +2514,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
           CorsConfig: {
             OriginOverride: unwrap(cors.override, false),
             AccessControlAllowCredentials: unwrap(cors.credentials, false),
-            AccessControlMaxAgeSec: (0, import_duration6.toSeconds)(unwrap(cors.maxAge, (0, import_duration6.days)(365))),
+            AccessControlMaxAgeSec: toSeconds5(unwrap(cors.maxAge, days(365))),
             AccessControlAllowHeaders: {
               Items: unwrap(cors.headers, ["*"])
             },
@@ -2596,7 +2551,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
             StrictTransportSecurity: {
               Override: unwrap(strictTransportSecurity.override, false),
               Preload: unwrap(strictTransportSecurity.preload, true),
-              AccessControlMaxAgeSec: (0, import_duration6.toSeconds)(unwrap(strictTransportSecurity.maxAge, (0, import_duration6.days)(365))),
+              AccessControlMaxAgeSec: toSeconds5(unwrap(strictTransportSecurity.maxAge, days(365))),
               IncludeSubdomains: unwrap(strictTransportSecurity.includeSubdomains, true)
             },
             XSSProtection: {
@@ -2619,7 +2574,7 @@ __export(cloud_watch_exports, {
 });
 
 // src/provider/aws/cloud-watch/log-group.ts
-var import_duration7 = require("@awsless/duration");
+import { toDays } from "@awsless/duration";
 var LogGroup = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Logs::LogGroup", id, props);
@@ -2648,7 +2603,7 @@ var LogGroup = class extends CloudControlApiResource {
     return {
       document: {
         LogGroupName: this.props.name,
-        ...this.attr("RetentionInDays", this.props.retention && (0, import_duration7.toDays)(unwrap(this.props.retention)))
+        ...this.attr("RetentionInDays", this.props.retention && toDays(unwrap(this.props.retention)))
         // KmsKeyId: String
         // DataProtectionPolicy : Json,
       }
@@ -2667,7 +2622,7 @@ __export(cognito_exports, {
 });
 
 // src/provider/aws/cognito/user-pool-client.ts
-var import_duration8 = require("@awsless/duration");
+import { toDays as toDays2, toHours, toMinutes } from "@awsless/duration";
 var UserPoolClient = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPoolClient", id, props);
@@ -2746,13 +2701,13 @@ var UserPoolClient = class extends CloudControlApiResource {
         ...this.attr("WriteAttributes", this.props.writeAttributes),
         ...this.attr(
           "AuthSessionValidity",
-          validity.authSession && (0, import_duration8.toMinutes)(unwrap(validity.authSession))
+          validity.authSession && toMinutes(unwrap(validity.authSession))
         ),
-        ...this.attr("AccessTokenValidity", validity.accessToken && (0, import_duration8.toHours)(unwrap(validity.accessToken))),
-        ...this.attr("IdTokenValidity", validity.idToken && (0, import_duration8.toHours)(unwrap(validity.idToken))),
+        ...this.attr("AccessTokenValidity", validity.accessToken && toHours(unwrap(validity.accessToken))),
+        ...this.attr("IdTokenValidity", validity.idToken && toHours(unwrap(validity.idToken))),
         ...this.attr(
           "RefreshTokenValidity",
-          validity.refreshToken && (0, import_duration8.toDays)(unwrap(validity.refreshToken))
+          validity.refreshToken && toDays2(unwrap(validity.refreshToken))
         ),
         TokenValidityUnits: {
           ...this.attr("AccessToken", validity.accessToken && "hours"),
@@ -2788,8 +2743,8 @@ var UserPoolDomain = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cognito/user-pool.ts
-var import_change_case2 = require("change-case");
-var import_duration9 = require("@awsless/duration");
+import { constantCase } from "change-case";
+import { days as days2, toDays as toDays3 } from "@awsless/duration";
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPool", id, props);
@@ -2858,7 +2813,7 @@ var UserPool = class extends CloudControlApiResource {
         ...this.attr(
           "EmailConfiguration",
           email && {
-            ...this.attr("EmailSendingAccount", email.type, import_change_case2.constantCase),
+            ...this.attr("EmailSendingAccount", email.type, constantCase),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
             ...this.attr("SourceArn", email.sourceArn),
@@ -2878,8 +2833,8 @@ var UserPool = class extends CloudControlApiResource {
             RequireLowercase: unwrap(password?.lowercase, false),
             RequireNumbers: unwrap(password?.numbers, false),
             RequireSymbols: unwrap(password?.symbols, false),
-            TemporaryPasswordValidityDays: (0, import_duration9.toDays)(
-              unwrap(password?.temporaryPasswordValidity, (0, import_duration9.days)(7))
+            TemporaryPasswordValidityDays: toDays3(
+              unwrap(password?.temporaryPasswordValidity, days2(7))
             )
           }
         }
@@ -2935,24 +2890,28 @@ var LambdaTriggers = class extends Resource {
 };
 
 // src/provider/aws/cognito/lambda-triggers-provider.ts
-var import_client_cognito_identity_provider = require("@aws-sdk/client-cognito-identity-provider");
+import {
+  DescribeUserPoolCommand,
+  UpdateUserPoolCommand,
+  CognitoIdentityProviderClient
+} from "@aws-sdk/client-cognito-identity-provider";
 var LambdaTriggersProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_cognito_identity_provider.CognitoIdentityProviderClient(props);
+    this.client = new CognitoIdentityProviderClient(props);
   }
   own(id) {
     return id === "aws-cognito-lambda-triggers";
   }
   async updateUserPool(document) {
     const result = await this.client.send(
-      new import_client_cognito_identity_provider.DescribeUserPoolCommand({
+      new DescribeUserPoolCommand({
         UserPoolId: document.UserPoolId
       })
     );
     delete result.UserPool?.AdminCreateUserConfig?.UnusedAccountValidityDays;
     await this.client.send(
-      new import_client_cognito_identity_provider.UpdateUserPoolCommand({
+      new UpdateUserPoolCommand({
         ...result.UserPool,
         ...document
       })
@@ -2960,7 +2919,7 @@ var LambdaTriggersProvider = class {
   }
   async get({ document }) {
     const result = await this.client.send(
-      new import_client_cognito_identity_provider.DescribeUserPoolCommand({
+      new DescribeUserPoolCommand({
         UserPoolId: document.UserPoolId
       })
     );
@@ -2979,7 +2938,7 @@ var LambdaTriggersProvider = class {
   }
   async delete({ document }) {
     await this.client.send(
-      new import_client_cognito_identity_provider.UpdateUserPoolCommand({
+      new UpdateUserPoolCommand({
         UserPoolId: document.UserPoolId,
         LambdaConfig: {}
       })
@@ -2997,37 +2956,37 @@ __export(dynamodb_exports, {
 });
 
 // src/provider/aws/dynamodb/lock-provider.ts
-var import_util_dynamodb = require("@aws-sdk/util-dynamodb");
-var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { DynamoDB, GetItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 var LockProvider = class {
   constructor(props) {
     this.props = props;
-    this.client = new import_client_dynamodb.DynamoDB(props);
+    this.client = new DynamoDB(props);
   }
   client;
   async locked(urn) {
     const result = await this.client.send(
-      new import_client_dynamodb.GetItemCommand({
+      new GetItemCommand({
         TableName: this.props.tableName,
-        Key: (0, import_util_dynamodb.marshall)({ urn })
+        Key: marshall({ urn })
       })
     );
     if (!result.Item) {
       return false;
     }
-    const item = (0, import_util_dynamodb.unmarshall)(result.Item);
+    const item = unmarshall(result.Item);
     return typeof item.lock === "number";
   }
   async lock(urn) {
     const id = Math.floor(Math.random() * 1e5);
     const props = {
       TableName: this.props.tableName,
-      Key: (0, import_util_dynamodb.marshall)({ urn }),
+      Key: marshall({ urn }),
       ExpressionAttributeNames: { "#lock": "lock" },
-      ExpressionAttributeValues: { ":id": (0, import_util_dynamodb.marshall)(id) }
+      ExpressionAttributeValues: { ":id": marshall(id) }
     };
     await this.client.send(
-      new import_client_dynamodb.UpdateItemCommand({
+      new UpdateItemCommand({
         ...props,
         UpdateExpression: "SET #lock = :id",
         ConditionExpression: "attribute_not_exists(#lock)"
@@ -3035,7 +2994,7 @@ var LockProvider = class {
     );
     return async () => {
       await this.client.send(
-        new import_client_dynamodb.UpdateItemCommand({
+        new UpdateItemCommand({
           ...props,
           UpdateExpression: "REMOVE #lock",
           ConditionExpression: "#lock = :id"
@@ -3046,18 +3005,18 @@ var LockProvider = class {
 };
 
 // src/provider/aws/dynamodb/table-item-provider.ts
-var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
-var import_util_dynamodb2 = require("@aws-sdk/util-dynamodb");
+import { DeleteItemCommand, DynamoDB as DynamoDB2, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall as marshall2 } from "@aws-sdk/util-dynamodb";
 var TableItemProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_dynamodb2.DynamoDB(props);
+    this.client = new DynamoDB2(props);
   }
   own(id) {
     return id === "aws-dynamodb-table-item";
   }
   marshall(item) {
-    return (0, import_util_dynamodb2.marshall)(item, {
+    return marshall2(item, {
       removeUndefinedValues: true
     });
   }
@@ -3077,7 +3036,7 @@ var TableItemProvider = class {
     const item = JSON.parse(assets.item.data.toString("utf8"));
     const key = this.primaryKey(document, item);
     await this.client.send(
-      new import_client_dynamodb2.PutItemCommand({
+      new PutItemCommand({
         TableName: document.table,
         Item: this.marshall(item)
       })
@@ -3099,14 +3058,14 @@ var TableItemProvider = class {
     const key = this.primaryKey(newDocument, item);
     if (JSON.stringify(oldKey) !== JSON.stringify(key)) {
       await this.client.send(
-        new import_client_dynamodb2.DeleteItemCommand({
+        new DeleteItemCommand({
           TableName: newDocument.table,
           Key: this.marshall(oldKey)
         })
       );
     }
     await this.client.send(
-      new import_client_dynamodb2.PutItemCommand({
+      new PutItemCommand({
         TableName: newDocument.table,
         Item: this.marshall(item)
       })
@@ -3116,7 +3075,7 @@ var TableItemProvider = class {
   async delete({ id }) {
     const [table, oldKey] = JSON.parse(id);
     await this.client.send(
-      new import_client_dynamodb2.DeleteItemCommand({
+      new DeleteItemCommand({
         TableName: table,
         Key: this.marshall(oldKey)
       })
@@ -3148,7 +3107,7 @@ var TableItem = class extends Resource {
 };
 
 // src/provider/aws/dynamodb/table.ts
-var import_change_case3 = require("change-case");
+import { constantCase as constantCase2 } from "change-case";
 var Table = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::DynamoDB::Table", id, props);
@@ -3252,7 +3211,7 @@ var Table = class extends CloudControlApiResource {
           ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
         ],
         AttributeDefinitions: this.attributeDefinitions(),
-        TableClass: (0, import_change_case3.constantCase)(unwrap(this.props.class, "standard")),
+        TableClass: constantCase2(unwrap(this.props.class, "standard")),
         DeletionProtectionEnabled: unwrap(this.props.deletionProtection, false),
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: unwrap(this.props.pointInTimeRecovery, false)
@@ -3265,7 +3224,7 @@ var Table = class extends CloudControlApiResource {
         } : {},
         ...this.props.stream ? {
           StreamSpecification: {
-            StreamViewType: (0, import_change_case3.constantCase)(unwrap(this.props.stream))
+            StreamViewType: constantCase2(unwrap(this.props.stream))
           }
         } : {},
         ...Object.keys(this.indexes).length ? {
@@ -3276,7 +3235,7 @@ var Table = class extends CloudControlApiResource {
               ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
             ],
             Projection: {
-              ProjectionType: (0, import_change_case3.constantCase)(props.projection || "all")
+              ProjectionType: constantCase2(props.projection || "all")
             }
           }))
         } : {}
@@ -3782,6 +3741,39 @@ var InternetGateway = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/ecr/index.ts
+var ecr_exports = {};
+__export(ecr_exports, {
+  Repository: () => Repository
+});
+
+// src/provider/aws/ecr/repository.ts
+var Repository = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECR::Repository", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  toState() {
+    return {
+      document: {
+        EmptyOnDelete: this.props.emptyOnDelete,
+        // EncryptionConfiguration: EncryptionConfiguration,
+        // ImageScanningConfiguration: ImageScanningConfiguration,
+        // ImageTagMutability: String,
+        // LifecyclePolicy: LifecyclePolicy,
+        RepositoryName: this.props.name
+        // RepositoryPolicyText: Json,
+        // FunctionName: this.props.functionArn,
+        // Action: unwrap(this.props.action, 'lambda:InvokeFunction'),
+        // Principal: this.props.principal,
+        // ...this.attr('SourceArn', this.props.sourceArn),
+        // ...this.attr('FunctionUrlAuthType', this.props.urlAuthType, constantCase),
+      }
+    };
+  }
+};
+
 // src/provider/aws/elb/index.ts
 var elb_exports = {};
 __export(elb_exports, {
@@ -3799,7 +3791,7 @@ __export(elb_exports, {
 });
 
 // src/provider/aws/elb/listener-action.ts
-var import_duration10 = require("@awsless/duration");
+import { days as days3, toSeconds as toSeconds6 } from "@awsless/duration";
 var ListenerAction = class {
   static authCognito(props) {
     return new AuthCognitoAction(props);
@@ -3859,7 +3851,7 @@ var AuthCognitoAction = class extends ListenerAction {
         OnUnauthenticatedRequest: unwrap(this.props.onUnauthenticated, "deny"),
         Scope: unwrap(this.props.scope, "openid"),
         SessionCookieName: unwrap(session.cookieName, "AWSELBAuthSessionCookie"),
-        SessionTimeout: (0, import_duration10.toSeconds)(unwrap(session.timeout, (0, import_duration10.days)(7))),
+        SessionTimeout: toSeconds6(unwrap(session.timeout, days3(7))),
         UserPoolArn: userPool.arn,
         UserPoolClientId: userPool.clientId,
         UserPoolDomain: userPool.domain
@@ -3934,7 +3926,7 @@ var ListenerRule = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/elb/listener.ts
-var import_change_case4 = require("change-case");
+import { constantCase as constantCase3 } from "change-case";
 var Listener = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
@@ -3949,7 +3941,7 @@ var Listener = class extends CloudControlApiResource {
       document: {
         LoadBalancerArn: this.props.loadBalancerArn,
         Port: this.props.port,
-        Protocol: (0, import_change_case4.constantCase)(unwrap(this.props.protocol)),
+        Protocol: constantCase3(unwrap(this.props.protocol)),
         Certificates: unwrap(this.props.certificates).map((arn) => ({
           CertificateArn: arn
         })),
@@ -4078,7 +4070,7 @@ __export(iam_exports, {
 });
 
 // src/provider/aws/iam/role-policy.ts
-var import_change_case5 = require("change-case");
+import { capitalCase } from "change-case";
 var formatPolicyDocument = (policy) => ({
   PolicyName: policy.name,
   PolicyDocument: {
@@ -4087,7 +4079,7 @@ var formatPolicyDocument = (policy) => ({
   }
 });
 var formatStatement = (statement) => ({
-  Effect: (0, import_change_case5.capitalCase)(unwrap(statement.effect, "allow")),
+  Effect: capitalCase(unwrap(statement.effect, "allow")),
   Action: statement.actions,
   Resource: statement.resources
 });
@@ -4241,8 +4233,8 @@ __export(lambda_exports, {
 });
 
 // src/provider/aws/lambda/url.ts
-var import_change_case6 = require("change-case");
-var import_duration11 = require("@awsless/duration");
+import { constantCase as constantCase4 } from "change-case";
+import { toSeconds as toSeconds7 } from "@awsless/duration";
 var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Url", id, props);
@@ -4268,14 +4260,14 @@ var Url = class extends CloudControlApiResource {
       ...this.attr("AllowMethods", allow.methods),
       ...this.attr("AllowOrigins", allow.origins),
       ...this.attr("ExposeHeaders", expose.headers),
-      ...this.attr("MaxAge", cors.maxAge, import_duration11.toSeconds)
+      ...this.attr("MaxAge", cors.maxAge, toSeconds7)
     };
   }
   toState() {
     return {
       document: {
-        AuthType: (0, import_change_case6.constantCase)(unwrap(this.props.authType, "none")),
-        InvokeMode: (0, import_change_case6.constantCase)(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: constantCase4(unwrap(this.props.authType, "none")),
+        InvokeMode: constantCase4(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn,
         ...this.attr("Qualifier", this.props.qualifier),
         Cors: this.cors()
@@ -4285,7 +4277,7 @@ var Url = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/permission.ts
-var import_change_case7 = require("change-case");
+import { constantCase as constantCase5 } from "change-case";
 var Permission = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Permission", id, props);
@@ -4299,7 +4291,7 @@ var Permission = class extends CloudControlApiResource {
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal,
         ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case7.constantCase)
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase5)
         // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
         // ...(this.props.urlAuthType
         // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
@@ -4310,7 +4302,7 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/function.ts
-var import_change_case8 = require("change-case");
+import { constantCase as constantCase6 } from "change-case";
 
 // src/provider/aws/lambda/code.ts
 var formatCode = (code) => {
@@ -4332,8 +4324,8 @@ var formatCode = (code) => {
 };
 
 // src/provider/aws/lambda/function.ts
-var import_size = require("@awsless/size");
-var import_duration12 = require("@awsless/duration");
+import { mebibytes, toMebibytes } from "@awsless/size";
+import { seconds, toSeconds as toSeconds8 } from "@awsless/duration";
 var Function = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -4395,22 +4387,22 @@ var Function = class extends CloudControlApiResource {
       document: {
         FunctionName: this.props.name,
         Description: this.props.description,
-        MemorySize: (0, import_size.toMebibytes)(unwrap(this.props.memorySize, (0, import_size.mebibytes)(128))),
+        MemorySize: toMebibytes(unwrap(this.props.memorySize, mebibytes(128))),
         Handler: unwrap(this.props.handler, "index.default"),
         Runtime: unwrap(this.props.runtime, "nodejs18.x"),
-        Timeout: (0, import_duration12.toSeconds)(unwrap(this.props.timeout, (0, import_duration12.seconds)(10))),
+        Timeout: toSeconds8(unwrap(this.props.timeout, seconds(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
         Code: formatCode(unwrap(this.props.code)),
         EphemeralStorage: {
-          Size: (0, import_size.toMebibytes)(unwrap(this.props.ephemeralStorageSize, (0, import_size.mebibytes)(512)))
+          Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512)))
         },
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: constantCase6(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: constantCase6(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -4431,7 +4423,7 @@ var Function = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-invoke-config.ts
-var import_duration13 = require("@awsless/duration");
+import { toSeconds as toSeconds9 } from "@awsless/duration";
 var EventInvokeConfig = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
@@ -4451,7 +4443,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
       document: {
         FunctionName: this.props.functionArn,
         Qualifier: unwrap(this.props.qualifier, "$LATEST"),
-        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration13.toSeconds),
+        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, toSeconds9),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.props.onFailure || this.props.onSuccess ? {
           DestinationConfig: {
@@ -4473,8 +4465,8 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-source-mapping.ts
-var import_duration14 = require("@awsless/duration");
-var import_change_case9 = require("change-case");
+import { toSeconds as toSeconds10 } from "@awsless/duration";
+import { constantCase as constantCase7 } from "change-case";
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventSourceMapping", id, props);
@@ -4492,13 +4484,13 @@ var EventSourceMapping = class extends CloudControlApiResource {
         FunctionName: this.props.functionArn,
         EventSourceArn: this.props.sourceArn,
         ...this.attr("BatchSize", this.props.batchSize),
-        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration14.toSeconds),
-        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration14.toSeconds),
+        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, toSeconds10),
+        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, toSeconds10),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
-        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration14.toSeconds),
+        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, toSeconds10),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case9.constantCase),
+        ...this.attr("StartingPosition", this.props.startingPosition, constantCase7),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
         ...this.props.maxConcurrency ? {
           ScalingConfig: {
@@ -4599,8 +4591,8 @@ __export(open_search_exports, {
 });
 
 // src/provider/aws/open-search/domain.ts
-var import_size2 = require("@awsless/size");
-var import_change_case10 = require("change-case");
+import { gibibytes, toGibibytes } from "@awsless/size";
+import { capitalCase as capitalCase2 } from "change-case";
 var Domain = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::OpenSearchService::Domain", id, props);
@@ -4639,7 +4631,7 @@ var Domain = class extends CloudControlApiResource {
         },
         EBSOptions: {
           EBSEnabled: true,
-          VolumeSize: (0, import_size2.toGibibytes)(unwrap(this.props.storageSize, (0, import_size2.gibibytes)(10))),
+          VolumeSize: toGibibytes(unwrap(this.props.storageSize, gibibytes(10))),
           VolumeType: "gp2"
         },
         DomainEndpointOptions: {
@@ -4663,7 +4655,7 @@ var Domain = class extends CloudControlApiResource {
         AccessPolicies: {
           Version: unwrap(accessPolicy?.version, "2012-10-17"),
           Statement: unwrap(accessPolicy?.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case10.capitalCase)(unwrap(statement.effect, "allow")),
+            Effect: capitalCase2(unwrap(statement.effect, "allow")),
             Action: unwrap(statement.actions, ["es:*"]),
             Resource: unwrap(statement.resources, ["*"]),
             ...statement.principal ? {
@@ -4754,7 +4746,7 @@ __export(route53_exports, {
 });
 
 // src/provider/aws/route53/record-set.ts
-var import_duration15 = require("@awsless/duration");
+import { minutes as minutes2, toSeconds as toSeconds11 } from "@awsless/duration";
 var formatRecordSet = (record) => {
   const name = unwrap(record.name);
   return {
@@ -4763,7 +4755,7 @@ var formatRecordSet = (record) => {
     Weight: unwrap(record.weight, 0),
     // ...(record.ttl ? {} : {}),
     ..."records" in record ? {
-      TTL: (0, import_duration15.toSeconds)(unwrap(record.ttl, (0, import_duration15.minutes)(5))),
+      TTL: toSeconds11(unwrap(record.ttl, minutes2(5))),
       ResourceRecords: record.records
     } : {},
     ..."alias" in record && unwrap(record.alias) ? {
@@ -4794,19 +4786,23 @@ var RecordSet = class extends Resource {
 };
 
 // src/provider/aws/route53/record-set-provider.ts
-var import_client_route_53 = require("@aws-sdk/client-route-53");
-var import_crypto3 = require("crypto");
+import {
+  ChangeResourceRecordSetsCommand,
+  ListResourceRecordSetsCommand,
+  Route53Client
+} from "@aws-sdk/client-route-53";
+import { randomUUID as randomUUID2 } from "crypto";
 var RecordSetProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_route_53.Route53Client(props);
+    this.client = new Route53Client(props);
   }
   own(id) {
     return id === "aws-route53-record-set";
   }
   async get({ id, document }) {
     const result = await this.client.send(
-      new import_client_route_53.ListResourceRecordSetsCommand({
+      new ListResourceRecordSetsCommand({
         HostedZoneId: document.HostedZoneId,
         MaxItems: 1,
         StartRecordIdentifier: id,
@@ -4828,9 +4824,9 @@ var RecordSetProvider = class {
     };
   }
   async create({ document }) {
-    const id = (0, import_crypto3.randomUUID)();
+    const id = randomUUID2();
     await this.client.send(
-      new import_client_route_53.ChangeResourceRecordSetsCommand({
+      new ChangeResourceRecordSetsCommand({
         HostedZoneId: document.HostedZoneId,
         ChangeBatch: {
           Changes: [
@@ -4855,7 +4851,7 @@ var RecordSetProvider = class {
       throw new Error(`RecordSet type can't be changed after creation.`);
     }
     await this.client.send(
-      new import_client_route_53.ChangeResourceRecordSetsCommand({
+      new ChangeResourceRecordSetsCommand({
         HostedZoneId: newDocument.HostedZoneId,
         ChangeBatch: {
           Changes: [
@@ -4871,7 +4867,7 @@ var RecordSetProvider = class {
   }
   async delete({ id, document }) {
     await this.client.send(
-      new import_client_route_53.ChangeResourceRecordSetsCommand({
+      new ChangeResourceRecordSetsCommand({
         HostedZoneId: document.HostedZoneId,
         ChangeBatch: {
           Changes: [
@@ -5069,12 +5065,17 @@ var Bucket = class extends Resource {
 };
 
 // src/provider/aws/s3/bucket-provider.ts
-var import_client_s3 = require("@aws-sdk/client-s3");
+import {
+  DeleteObjectsCommand,
+  ListObjectVersionsCommand,
+  ListObjectsV2Command,
+  S3Client
+} from "@aws-sdk/client-s3";
 var BucketProvider = class {
   client;
   cloudProvider;
   constructor(props) {
-    this.client = new import_client_s3.S3Client(props);
+    this.client = new S3Client(props);
     this.cloudProvider = props.cloudProvider;
   }
   own(id) {
@@ -5105,7 +5106,7 @@ var BucketProvider = class {
   async deleteBucketObjects(bucket) {
     while (true) {
       const result = await this.client.send(
-        new import_client_s3.ListObjectsV2Command({
+        new ListObjectsV2Command({
           Bucket: bucket,
           MaxKeys: 1e3
         })
@@ -5114,7 +5115,7 @@ var BucketProvider = class {
         break;
       }
       await this.client.send(
-        new import_client_s3.DeleteObjectsCommand({
+        new DeleteObjectsCommand({
           Bucket: bucket,
           Delete: {
             Objects: result.Contents.map((object) => ({
@@ -5128,7 +5129,7 @@ var BucketProvider = class {
   async deleteBucketObjectVersions(bucket) {
     while (true) {
       const result = await this.client.send(
-        new import_client_s3.ListObjectVersionsCommand({
+        new ListObjectVersionsCommand({
           Bucket: bucket,
           MaxKeys: 1e3
         })
@@ -5138,7 +5139,7 @@ var BucketProvider = class {
         break;
       }
       await this.client.send(
-        new import_client_s3.DeleteObjectsCommand({
+        new DeleteObjectsCommand({
           Bucket: bucket,
           Delete: {
             Objects: objects.map((object) => ({
@@ -5153,7 +5154,7 @@ var BucketProvider = class {
 };
 
 // src/provider/aws/s3/bucket-policy.ts
-var import_change_case11 = require("change-case");
+import { capitalCase as capitalCase3 } from "change-case";
 var BucketPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::S3::BucketPolicy", id, props);
@@ -5167,7 +5168,7 @@ var BucketPolicy = class extends CloudControlApiResource {
         PolicyDocument: {
           Version: unwrap(this.props.version, "2012-10-17"),
           Statement: unwrap(this.props.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case11.capitalCase)(unwrap(statement.effect, "allow")),
+            Effect: capitalCase3(unwrap(statement.effect, "allow")),
             ...statement.principal ? {
               Principal: {
                 Service: statement.principal
@@ -5190,18 +5191,24 @@ var BucketPolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/s3/bucket-object-provider.ts
-var import_client_s32 = require("@aws-sdk/client-s3");
+import {
+  DeleteObjectCommand,
+  GetObjectAttributesCommand,
+  PutObjectCommand,
+  S3Client as S3Client2,
+  S3ServiceException
+} from "@aws-sdk/client-s3";
 var BucketObjectProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_s32.S3Client(props);
+    this.client = new S3Client2(props);
   }
   own(id) {
     return id === "aws-s3-bucket-object";
   }
   async get({ document }) {
     const result = await this.client.send(
-      new import_client_s32.GetObjectAttributesCommand({
+      new GetObjectAttributesCommand({
         Bucket: document.Bucket,
         Key: document.Key,
         ObjectAttributes: ["ETag", "Checksum"]
@@ -5215,7 +5222,7 @@ var BucketObjectProvider = class {
   }
   async create({ document, assets }) {
     await this.client.send(
-      new import_client_s32.PutObjectCommand({
+      new PutObjectCommand({
         ...document,
         Body: assets.body?.data
       })
@@ -5228,14 +5235,14 @@ var BucketObjectProvider = class {
     }
     if (oldDocument.Key !== newDocument.Key) {
       await this.client.send(
-        new import_client_s32.DeleteObjectCommand({
+        new DeleteObjectCommand({
           Bucket: oldDocument.Bucket,
           Key: oldDocument.Key
         })
       );
     }
     await this.client.send(
-      new import_client_s32.PutObjectCommand({
+      new PutObjectCommand({
         ...newDocument,
         Body: assets.body?.data
       })
@@ -5245,13 +5252,13 @@ var BucketObjectProvider = class {
   async delete({ document }) {
     try {
       await this.client.send(
-        new import_client_s32.DeleteObjectCommand({
+        new DeleteObjectCommand({
           Bucket: document.Bucket,
           Key: document.Key
         })
       );
     } catch (error) {
-      if (error instanceof import_client_s32.S3ServiceException) {
+      if (error instanceof S3ServiceException) {
         if (error.name === "NoSuchBucket") {
           return;
         }
@@ -5262,24 +5269,30 @@ var BucketObjectProvider = class {
 };
 
 // src/provider/aws/s3/state-provider.ts
-var import_client_s33 = require("@aws-sdk/client-s3");
+import {
+  DeleteObjectCommand as DeleteObjectCommand2,
+  GetObjectCommand,
+  PutObjectCommand as PutObjectCommand2,
+  S3Client as S3Client3,
+  S3ServiceException as S3ServiceException2
+} from "@aws-sdk/client-s3";
 var StateProvider = class {
   constructor(props) {
     this.props = props;
-    this.client = new import_client_s33.S3Client(props);
+    this.client = new S3Client3(props);
   }
   client;
   async get(urn) {
     let result;
     try {
       result = await this.client.send(
-        new import_client_s33.GetObjectCommand({
+        new GetObjectCommand({
           Bucket: this.props.bucket,
           Key: `${urn}.state`
         })
       );
     } catch (error) {
-      if (error instanceof import_client_s33.S3ServiceException && error.name === "NoSuchKey") {
+      if (error instanceof S3ServiceException2 && error.name === "NoSuchKey") {
         return;
       }
       throw error;
@@ -5293,7 +5306,7 @@ var StateProvider = class {
   }
   async update(urn, state) {
     await this.client.send(
-      new import_client_s33.PutObjectCommand({
+      new PutObjectCommand2({
         Bucket: this.props.bucket,
         Key: `${urn}.state`,
         Body: JSON.stringify(state)
@@ -5302,7 +5315,7 @@ var StateProvider = class {
   }
   async delete(urn) {
     await this.client.send(
-      new import_client_s33.DeleteObjectCommand({
+      new DeleteObjectCommand2({
         Bucket: this.props.bucket,
         Key: `${urn}.state`
       })
@@ -5318,8 +5331,8 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-var import_change_case12 = require("change-case");
-var import_duration16 = require("@awsless/duration");
+import { constantCase as constantCase8 } from "change-case";
+import { minutes as minutes3 } from "@awsless/duration";
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::SES::EmailIdentity", id, props);
@@ -5350,7 +5363,7 @@ var EmailIdentity = class extends CloudControlApiResource {
     ];
   }
   get dkimRecords() {
-    const ttl = (0, import_duration16.minutes)(5);
+    const ttl = minutes3(5);
     return this.dkimDnsTokens.map((token) => ({
       name: token.apply((token2) => token2.name),
       type: "CNAME",
@@ -5372,7 +5385,7 @@ var EmailIdentity = class extends CloudControlApiResource {
             SigningEnabled: true
           },
           DkimSigningAttributes: {
-            NextSigningKeyLength: (0, import_change_case12.constantCase)(unwrap(this.props.dkim))
+            NextSigningKeyLength: constantCase8(unwrap(this.props.dkim))
           }
         } : {},
         FeedbackAttributes: {
@@ -5426,18 +5439,23 @@ __export(sns_exports, {
 });
 
 // src/provider/aws/sns/subscription-provider.ts
-var import_client_sns = require("@aws-sdk/client-sns");
+import {
+  GetSubscriptionAttributesCommand,
+  SNSClient,
+  SubscribeCommand,
+  UnsubscribeCommand
+} from "@aws-sdk/client-sns";
 var SubscriptionProvider = class {
   client;
   constructor(props) {
-    this.client = new import_client_sns.SNSClient(props);
+    this.client = new SNSClient(props);
   }
   own(id) {
     return id === "aws-sns-subscription";
   }
   async get({ id }) {
     const result = await this.client.send(
-      new import_client_sns.GetSubscriptionAttributesCommand({
+      new GetSubscriptionAttributesCommand({
         SubscriptionArn: id
       })
     );
@@ -5445,7 +5463,7 @@ var SubscriptionProvider = class {
   }
   async create({ document }) {
     const result = await this.client.send(
-      new import_client_sns.SubscribeCommand({
+      new SubscribeCommand({
         ...document,
         ReturnSubscriptionArn: true
       })
@@ -5458,7 +5476,7 @@ var SubscriptionProvider = class {
   }
   async delete({ id }) {
     await this.client.send(
-      new import_client_sns.UnsubscribeCommand({
+      new UnsubscribeCommand({
         SubscriptionArn: id
       })
     );
@@ -5521,8 +5539,8 @@ __export(sqs_exports, {
 });
 
 // src/provider/aws/sqs/queue.ts
-var import_duration17 = require("@awsless/duration");
-var import_size3 = require("@awsless/size");
+import { days as days4, seconds as seconds2, toSeconds as toSeconds12 } from "@awsless/duration";
+import { kibibytes, toBytes } from "@awsless/size";
 var Queue = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::SQS::Queue", id, props);
@@ -5559,11 +5577,11 @@ var Queue = class extends CloudControlApiResource {
       document: {
         QueueName: this.props.name,
         Tags: [{ Key: "name", Value: this.props.name }],
-        DelaySeconds: (0, import_duration17.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration17.seconds)(0))),
-        MaximumMessageSize: (0, import_size3.toBytes)(unwrap(this.props.maxMessageSize, (0, import_size3.kibibytes)(256))),
-        MessageRetentionPeriod: (0, import_duration17.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration17.days)(4))),
-        ReceiveMessageWaitTimeSeconds: (0, import_duration17.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration17.seconds)(0))),
-        VisibilityTimeout: (0, import_duration17.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration17.seconds)(30))),
+        DelaySeconds: toSeconds12(unwrap(this.props.deliveryDelay, seconds2(0))),
+        MaximumMessageSize: toBytes(unwrap(this.props.maxMessageSize, kibibytes(256))),
+        MessageRetentionPeriod: toSeconds12(unwrap(this.props.retentionPeriod, days4(4))),
+        ReceiveMessageWaitTimeSeconds: toSeconds12(unwrap(this.props.receiveMessageWaitTime, seconds2(0))),
+        VisibilityTimeout: toSeconds12(unwrap(this.props.visibilityTimeout, seconds2(30))),
         ...this.props.deadLetterArn ? {
           RedrivePolicy: {
             deadLetterTargetArn: this.props.deadLetterArn,
@@ -5598,143 +5616,49 @@ var createCloudProviders = (config) => {
   ];
 };
 
-// src/provider/local/index.ts
-var local_exports = {};
-__export(local_exports, {
-  file: () => file_exports,
-  memory: () => memory_exports
-});
-
-// src/provider/local/file/index.ts
-var file_exports = {};
-__export(file_exports, {
-  LockProvider: () => LockProvider2,
-  StateProvider: () => StateProvider2
-});
-
 // src/provider/local/file/lock-provider.ts
-var import_path = require("path");
-var import_promises2 = require("fs/promises");
-var import_proper_lockfile = require("proper-lockfile");
-var LockProvider2 = class {
-  constructor(props) {
-    this.props = props;
-  }
-  lockFile(urn) {
-    return (0, import_path.join)(this.props.dir, `${urn}.lock`);
-  }
-  async mkdir() {
-    await (0, import_promises2.mkdir)(this.props.dir, {
-      recursive: true
-    });
-  }
-  async locked(urn) {
-    const result = await (0, import_promises2.stat)(this.lockFile(urn));
-    return result.isFile();
-  }
-  async lock(urn) {
-    await this.mkdir();
-    return (0, import_proper_lockfile.lock)(this.lockFile(urn), {
-      realpath: false
-    });
-  }
-};
+import { lock } from "proper-lockfile";
 
-// src/provider/local/file/state-provider.ts
-var import_path2 = require("path");
-var import_promises3 = require("fs/promises");
-var StateProvider2 = class {
-  constructor(props) {
-    this.props = props;
-  }
-  stateFile(urn) {
-    return (0, import_path2.join)(this.props.dir, `${urn}.json`);
-  }
-  async mkdir() {
-    await (0, import_promises3.mkdir)(this.props.dir, {
-      recursive: true
-    });
-  }
-  async get(urn) {
-    let json;
-    try {
-      json = await (0, import_promises3.readFile)((0, import_path2.join)(this.stateFile(urn)), "utf8");
-    } catch (error) {
-      return;
-    }
-    return JSON.parse(json);
-  }
-  async update(urn, state) {
-    await this.mkdir();
-    await (0, import_promises3.writeFile)(this.stateFile(urn), JSON.stringify(state, void 0, 2));
-  }
-  async delete(urn) {
-    await this.mkdir();
-    await (0, import_promises3.rm)(this.stateFile(urn));
-  }
-};
-
-// src/provider/local/memory/index.ts
-var memory_exports = {};
-__export(memory_exports, {
-  LockProvider: () => LockProvider3,
-  StateProvider: () => StateProvider3
+// examples/example.ts
+import { minutes as minutes4 } from "@awsless/duration";
+var region = "eu-west-1";
+var credentials = fromIni({
+  profile: "jacksclub"
 });
-
-// src/provider/local/memory/lock-provider.ts
-var LockProvider3 = class {
-  locks = /* @__PURE__ */ new Map();
-  async locked(urn) {
-    return this.locks.has(urn);
-  }
-  async lock(urn) {
-    if (this.locks.has(urn)) {
-      throw new Error("Already locked");
-    }
-    const id = Math.random();
-    this.locks.set(urn, id);
-    return async () => {
-      if (this.locks.get(urn) === id) {
-        this.locks.delete(urn);
+var workspace = new WorkSpace({
+  cloudProviders: aws_exports.createCloudProviders({
+    region,
+    credentials,
+    timeout: minutes4(15)
+  }),
+  lockProvider: new aws_exports.dynamodb.LockProvider({
+    region,
+    credentials,
+    tableName: "awsless-state"
+  }),
+  stateProvider: new aws_exports.s3.StateProvider({
+    region,
+    credentials,
+    bucket: "awsless-state"
+  })
+  // stateProvider: new local.file.StateProvider({
+  // 	dir: './examples/state',
+  // }),
+});
+var app = new App("test");
+var stack = new Stack(app, "test");
+var main = async () => {
+  console.log("START");
+  try {
+    await workspace.deleteApp(app);
+  } catch (error) {
+    if (error instanceof AppError) {
+      for (const issue of error.issues) {
+        console.error(issue);
       }
-    };
+    }
+    throw error;
   }
+  console.log("END");
 };
-
-// src/provider/local/memory/state-provider.ts
-var StateProvider3 = class {
-  states = /* @__PURE__ */ new Map();
-  async get(urn) {
-    return this.states.get(urn);
-  }
-  async update(urn, state) {
-    this.states.set(urn, state);
-  }
-  async delete(urn) {
-    this.states.delete(urn);
-  }
-};
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  App,
-  AppError,
-  Asset,
-  FileAsset,
-  Node,
-  Output,
-  RemoteAsset,
-  Resource,
-  ResourceAlreadyExists,
-  ResourceError,
-  ResourceNotFound,
-  Stack,
-  StackError,
-  StringAsset,
-  WorkSpace,
-  all,
-  aws,
-  findResources,
-  flatten,
-  local,
-  unwrap
-});
+main();

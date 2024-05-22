@@ -192,7 +192,7 @@ export class WorkSpace {
 			delete appState.token
 
 			// -------------------------------------------------------------------
-			// Save stack
+			// Save state
 
 			await this.props.stateProvider.update(app.urn, appState)
 
@@ -250,6 +250,11 @@ export class WorkSpace {
 			delete appState.token
 
 			// -------------------------------------------------------
+			// Save state
+
+			await this.props.stateProvider.update(app.urn, appState)
+
+			// -------------------------------------------------------
 
 			const errors = results
 				.filter(r => r.status === 'rejected')
@@ -258,6 +263,10 @@ export class WorkSpace {
 			if (errors.length > 0) {
 				throw new AppError(app.name, [...new Set(errors)], 'Deleting app failed.')
 			}
+
+			// -------------------------------------------------------
+			// If no errors happened we can savely delete the app
+			// state
 
 			await this.props.stateProvider.delete(app.urn)
 		})

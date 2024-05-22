@@ -505,6 +505,7 @@ declare class CloudControlApiProvider implements CloudProvider {
     protected client: CloudControlClient;
     constructor(props: ProviderProps$e);
     own(id: string): boolean;
+    private send;
     private progressStatus;
     private updateOperations;
     get({ id, type }: GetProps): Promise<any>;

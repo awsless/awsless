@@ -692,6 +692,9 @@ importers:
       change-case:
         specifier: ^4.1.2
         version: 4.1.2
+      exponential-backoff:
+        specifier: ^3.1.1
+        version: 3.1.1
       p-limit:
         specifier: ^5.0.0
         version: 5.0.0
@@ -13657,6 +13660,10 @@ packages:
       jest-message-util: 29.4.2
       jest-util: 29.4.2
     dev: true
+
+  /exponential-backoff@3.1.1:
+    resolution: {integrity: sha512-dX7e/LHVJ6W3DE1MHWi9S1EYzDESENfLrYohG2G++ovZrYOkm4Knwa0mc1cn84xJOR4KEU0WSchhLbd0UklbHw==}
+    dev: false
 
   /expose-gc@1.0.0:
     resolution: {integrity: sha512-ecOHrdm+zyOCGIwX18/1RHkUWgxDqGGRiGhaNC+42jReTtudbm2ID/DMa/wpaHwqy5YQHPZvsDqRM2F2iZ0uVA==}

@@ -598,6 +598,7 @@ var WorkSpace = class {
       delete appState.token;
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
+        await this.props.stateProvider.update(app.urn, appState);
         throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
       }
       await this.props.stateProvider.delete(app.urn);
@@ -1361,10 +1362,12 @@ import {
   GetResourceCommand,
   GetResourceRequestStatusCommand,
   UpdateResourceCommand,
-  ResourceNotFoundException as ResourceNotFoundException2
+  ResourceNotFoundException as ResourceNotFoundException2,
+  ThrottlingException
 } from "@aws-sdk/client-cloudcontrol";
 import { createPatch } from "rfc6902";
 import { minutes, toMilliSeconds } from "@awsless/duration";
+import { backOff } from "exponential-backoff";
 var CloudControlApiProvider = class {
   constructor(props) {
     this.props = props;
@@ -1382,6 +1385,23 @@ var CloudControlApiProvider = class {
   client;
   own(id) {
     return id === "aws-cloud-control-api";
+  }
+  async send(command) {
+    return backOff(
+      () => {
+        return this.client.send(command);
+      },
+      {
+        numOfAttempts: 10,
+        retry(error) {
+          if (error instanceof ThrottlingException) {
+            console.log("ThrottlingException");
+            return true;
+          }
+          return false;
+        }
+      }
+    );
   }
   async progressStatus(event) {
     const token = event.RequestToken;
@@ -1441,7 +1461,7 @@ var CloudControlApiProvider = class {
     return JSON.parse(result.ResourceDescription.Properties);
   }
   async create({ token, type, document }) {
-    const result = await this.client.send(
+    const result = await this.send(
       new CreateResourceCommand({
         TypeName: type,
         DesiredState: JSON.stringify(document),
@@ -1453,7 +1473,7 @@ var CloudControlApiProvider = class {
   async update({ token, type, id, oldDocument, newDocument, remoteDocument }) {
     let result;
     try {
-      result = await this.client.send(
+      result = await this.send(
         new UpdateResourceCommand({
           TypeName: type,
           Identifier: id,
@@ -1470,7 +1490,7 @@ var CloudControlApiProvider = class {
     return this.progressStatus(result.ProgressEvent);
   }
   async delete({ token, type, id }) {
-    const result = await this.client.send(
+    const result = await this.send(
       new DeleteResourceCommand({
         TypeName: type,
         Identifier: id,
