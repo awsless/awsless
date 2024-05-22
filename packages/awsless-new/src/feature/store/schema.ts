@@ -4,8 +4,6 @@ import { FunctionSchema } from '../function/schema.js'
 // import { DurationSchema, durationMin } from '../../config/schema/duration.js'
 // import { seconds } from '@awsless/duration'
 
-// export const StoresSchema = z.array(ResourceIdSchema).optional().describe('Define the stores in your stack.')
-
 // const CorsSchema = z
 // 	.array(
 // 		z.object({
@@ -38,18 +36,6 @@ import { FunctionSchema } from '../function/schema.js'
 // 	.optional()
 // 	.describe('Describes the AWS Lambda functions to invoke and the events for which to invoke them.')
 
-// const LambdaConfigsSchema = z
-// 	.array(
-// 		z.object({
-// 			event: z
-// 				.enum(['created', 'removed'])
-// 				.describe('The Amazon S3 bucket event for which to invoke the AWS Lambda function.'),
-// 			consumer: FunctionSchema.describe('The consuming lambda function properties.'),
-// 		})
-// 	)
-// 	.optional()
-// 	.describe('Describes the AWS Lambda functions to invoke and the events for which to invoke them.')
-
 export const StoresSchema = z
 	.union([
 		z.array(ResourceIdSchema).transform(list => {
@@ -60,6 +46,7 @@ export const StoresSchema = z
 					events?: Record<string, z.output<typeof FunctionSchema>>
 				}
 			> = {}
+
 			for (const key in list) {
 				stores[key] = {}
 			}
@@ -69,36 +56,35 @@ export const StoresSchema = z
 		z.record(
 			ResourceIdSchema,
 			z.object({
-				// lambdaConfigs: LambdaConfigsSchema,
 				// cors: CorsSchema,
 				versioning: z.boolean().default(false).describe('Enable versioning of your store.'),
 				events: z
 					.object({
 						// create
-						'created:*': FunctionSchema.describe(
+						'created:*': FunctionSchema.optional().describe(
 							'Subscribe to notifications regardless of the API that was used to create an object.'
 						),
-						'created:put': FunctionSchema.describe(
+						'created:put': FunctionSchema.optional().describe(
 							'Subscribe to notifications when an object is created using the PUT API operation.'
 						),
-						'created:post': FunctionSchema.describe(
+						'created:post': FunctionSchema.optional().describe(
 							'Subscribe to notifications when an object is created using the POST API operation.'
 						),
-						'created:copy': FunctionSchema.describe(
+						'created:copy': FunctionSchema.optional().describe(
 							'Subscribe to notifications when an object is created using the COPY API operation.'
 						),
-						'created:upload': FunctionSchema.describe(
+						'created:upload': FunctionSchema.optional().describe(
 							'Subscribe to notifications when an object multipart upload has been completed.'
 						),
 
 						// remove
-						'removed:*': FunctionSchema.describe(
+						'removed:*': FunctionSchema.optional().describe(
 							'Subscribe to notifications when an object is deleted or a delete marker for a versioned object is created.'
 						),
-						'removed:delete': FunctionSchema.describe(
+						'removed:delete': FunctionSchema.optional().describe(
 							'Subscribe to notifications when an object is deleted'
 						),
-						'removed:marker': FunctionSchema.describe(
+						'removed:marker': FunctionSchema.optional().describe(
 							'Subscribe to notifications when a delete marker for a versioned object is created.'
 						),
 					})

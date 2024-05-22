@@ -3,7 +3,7 @@ import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
 import { gibibytes } from '@awsless/size'
 
-const VersionSchema = z.enum(['2.11', '2.9', '2.7', '2.5', '2.3', '1.3'])
+const VersionSchema = z.enum(['2.13', '2.11', '2.9', '2.7', '2.5', '2.3', '1.3'])
 
 const TypeSchema = z.enum([
 	't3.small',
@@ -116,7 +116,7 @@ export const SearchsSchema = z
 		z.object({
 			type: TypeSchema.default('t3.small'),
 			count: z.number().int().min(1).default(1),
-			version: VersionSchema.default('2.11'),
+			version: VersionSchema.default('2.13'),
 			storage: StorageSizeSchema.default('10 GB'),
 			vpc: z.boolean().default(false),
 		})

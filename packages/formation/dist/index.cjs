@@ -4612,7 +4612,7 @@ var Domain = class extends CloudControlApiResource {
     return {
       document: {
         DomainName: this.props.name,
-        EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.11"),
+        EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.13"),
         IPAddressType: unwrap(this.props.ipType, "ipv4"),
         ClusterConfig: {
           InstanceType: `${instance.type}.search`,

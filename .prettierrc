@@ -1,6 +1,5 @@
 {
-	"prettier.eslintIntegration": true,
-	"printWidth": 115,
+	"printWidth": 120,
 	"trailingComma": "es5",
 	"arrowParens": "avoid",
 	"bracketSpacing": true,
@@ -10,5 +9,19 @@
 	"singleQuote": true,
 	"singleAttributePerLine": false,
 	"bracketSameLine": true,
-	"jsxSingleQuote": true
+	"jsxSingleQuote": true,
+	"svelteStrictMode": true,
+	"svelteIndentScriptAndStyle": true,
+	"svelteBracketNewLine": true,
+	"svelteAllowShorthand": false,
+	"plugins": ["prettier-plugin-organize-imports"],
+	"organizeImportsSkipDestructiveCodeActions": false,
+	"overrides": [
+		{
+			"files": ["*stack.jsonc", "*app.jsonc"],
+			"options": {
+				"trailingComma": "none"
+			}
+		}
+	]
 }

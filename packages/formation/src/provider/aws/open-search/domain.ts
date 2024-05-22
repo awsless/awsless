@@ -5,7 +5,7 @@ import { ARN } from '../types'
 import { capitalCase } from 'change-case'
 import { Node } from '../../../core/node'
 
-export type Version = '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
+export type Version = '2.13' | '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
 
 export type NodeType =
 	| 't3.small'
@@ -178,7 +178,7 @@ export class Domain extends CloudControlApiResource {
 		return {
 			document: {
 				DomainName: this.props.name,
-				EngineVersion: unwrap(`OpenSearch_${this.props.version}`, 'OpenSearch_2.11'),
+				EngineVersion: unwrap(`OpenSearch_${this.props.version}`, 'OpenSearch_2.13'),
 				IPAddressType: unwrap(this.props.ipType, 'ipv4'),
 				ClusterConfig: {
 					InstanceType: `${instance.type}.search`,

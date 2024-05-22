@@ -1,0 +1,47 @@
+{
+	"files.trimTrailingWhitespace": true,
+	"files.insertFinalNewline": true,
+	"files.trimFinalNewlines": true,
+
+	"editor.detectIndentation": false,
+	"editor.tabSize": 4,
+
+	"[javascript][typescript][javascriptreact][typescriptreact]": {
+		"editor.tabSize": 4,
+		"editor.insertSpaces": false,
+		"editor.detectIndentation": false,
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+
+	"[svelte]": {
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+
+	"[json][jsonc]": {
+		"editor.tabSize": 4,
+		"editor.insertSpaces": false,
+		"editor.detectIndentation": false,
+		"editor.formatOnSave": true,
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	},
+
+	"json.schemas": [
+		// {
+		// 	"fileMatch": ["stack.json", "stack.jsonc"],
+		// 	"url": "https://unpkg.com/@awsless/awsless/dist/stack.json"
+		// },
+		// {
+		// 	"fileMatch": ["app.json", "app.jsonc"],
+		// 	"url": "https://unpkg.com/@awsless/awsless/dist/app.json"
+		// },
+		{
+			"fileMatch": [".eslintrc"],
+			"schema": {
+				"allowTrailingCommas": true,
+				"$schema": "https://json.schemastore.org/eslintrc"
+			}
+		}
+	],
+}

@@ -1,5 +1,5 @@
 {
-	"$schema": "https://tinyurl.com/awsless-app",
+	"$schema": "../../dist/app.json",
 	"name": "app-kennedy",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
@@ -9,7 +9,7 @@
 				"domain": "awsless.com",
 				"dns": []
 			}
-		},
+		}
 		// "auth": {
 		// 	"admin": {
 		// 		"username": {
