@@ -15,7 +15,7 @@
 	"svelteBracketNewLine": true,
 	"svelteAllowShorthand": false,
 	"plugins": ["prettier-plugin-organize-imports"],
-	"organizeImportsSkipDestructiveCodeActions": false,
+	"organizeImportsSkipDestructiveCodeActions": true,
 	"overrides": [
 		{
 			"files": ["*stack.jsonc", "*app.jsonc"],

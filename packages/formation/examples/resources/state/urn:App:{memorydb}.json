@@ -1,7 +1,0 @@
-{
-  "urn:App:{memorydb}:Stack:{memorydb}": {
-    "name": "memorydb",
-    "exports": {},
-    "resources": {}
-  }
-}

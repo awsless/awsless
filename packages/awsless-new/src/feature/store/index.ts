@@ -1,4 +1,4 @@
-import { Node, Output, aws } from '@awsless/formation'
+import { aws, Node, Output } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -46,6 +46,8 @@ export const storeFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.stores ?? {})) {
 			const group = new Node(ctx.stack, 'store', id)
 
+			const bucketName = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'store', id)
+
 			const lambdaConfigs: {
 				event: aws.s3.NotifictionEvent
 				function: Output<aws.ARN>
@@ -64,7 +66,16 @@ export const storeFeature = defineFeature({
 			}
 
 			for (const [event, funcProps] of Object.entries(props.events ?? {})) {
-				const { lambda } = createAsyncLambdaFunction(group, ctx, `store`, id, funcProps)
+				const eventGroup = new Node(group, 'event', event)
+
+				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, id, funcProps)
+
+				new aws.lambda.Permission(eventGroup, 'permission', {
+					action: 'lambda:InvokeFunction',
+					principal: 's3.amazonaws.com',
+					functionArn: lambda.arn,
+					sourceArn: `arn:aws:s3:::${bucketName}`,
+				})
 
 				lambdaConfigs.push({
 					event: eventMap[event as keyof typeof props.events],
@@ -73,11 +84,9 @@ export const storeFeature = defineFeature({
 			}
 
 			const bucket = new aws.s3.Bucket(group, 'store', {
-				name: formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'store', id),
+				name: bucketName,
 				versioning: props.versioning,
 				lambdaConfigs,
-				// cors: props.cors,
-
 				cors: [
 					// ---------------------------------------------
 					// Support for presigned post requests

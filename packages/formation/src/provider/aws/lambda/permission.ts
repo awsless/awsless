@@ -1,8 +1,8 @@
 import { constantCase } from 'change-case'
-import { ARN } from '../types.js'
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Node } from '../../../core/node.js'
+import { ARN } from '../types.js'
 
 export type PermissionProps = {
 	functionArn: Input<ARN>
@@ -13,7 +13,11 @@ export type PermissionProps = {
 }
 
 export class Permission extends CloudControlApiResource {
-	constructor(readonly parent: Node, id: string, private props: PermissionProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: PermissionProps
+	) {
 		super(parent, 'AWS::Lambda::Permission', id, props)
 	}
 

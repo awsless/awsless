@@ -7,16 +7,16 @@ import { IntegrationType } from '@aws-sdk/client-apigatewayv2';
 import * as _aws_sdk_client_appsync from '@aws-sdk/client-appsync';
 import { AppSyncClient } from '@aws-sdk/client-appsync';
 import { CloudControlClient } from '@aws-sdk/client-cloudcontrol';
+import * as _aws_sdk_client_s3 from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import * as _aws_sdk_client_route_53 from '@aws-sdk/client-route-53';
+import { Route53Client } from '@aws-sdk/client-route-53';
+import { SNSClient } from '@aws-sdk/client-sns';
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import * as _aws_sdk_client_cognito_identity_provider from '@aws-sdk/client-cognito-identity-provider';
 import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { Size } from '@awsless/size';
-import * as _aws_sdk_client_route_53 from '@aws-sdk/client-route-53';
-import { Route53Client } from '@aws-sdk/client-route-53';
-import * as _aws_sdk_client_s3 from '@aws-sdk/client-s3';
-import { S3Client } from '@aws-sdk/client-s3';
-import { SNSClient } from '@aws-sdk/client-sns';
 
 type ResolvedAsset = {
     hash: string;
@@ -1083,6 +1083,122 @@ declare namespace index$m {
   };
 }
 
+type ProviderProps$8 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
+type Document$5 = {
+    Bucket: string;
+    Key: string;
+    CacheControl?: string;
+    ContentType?: string;
+    Metadata?: Record<string, string>;
+};
+declare class BucketObjectProvider implements CloudProvider {
+    protected client: S3Client;
+    constructor(props: ProviderProps$8);
+    own(id: string): boolean;
+    get({ document }: GetProps<Document$5>): Promise<{
+        VersionId: string | undefined;
+        ETag: string | undefined;
+        Checksum: _aws_sdk_client_s3.Checksum | undefined;
+    }>;
+    create({ document, assets }: CreateProps<Document$5>): Promise<string>;
+    update({ oldDocument, newDocument, assets }: UpdateProps<Document$5>): Promise<string>;
+    delete({ document }: DeleteProps<Document$5>): Promise<void>;
+}
+
+type ProviderProps$7 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
+type Document$4 = {
+    table: string;
+    hash: string;
+    sort?: string;
+};
+declare class TableItemProvider implements CloudProvider {
+    protected client: DynamoDB;
+    constructor(props: ProviderProps$7);
+    own(id: string): boolean;
+    private marshall;
+    private primaryKey;
+    get(): Promise<{}>;
+    create({ document, assets }: CreateProps<Document$4>): Promise<string>;
+    update({ id, oldDocument, newDocument, assets }: UpdateProps<Document$4>): Promise<string>;
+    delete({ id }: DeleteProps<Document$4>): Promise<void>;
+}
+
+type ProviderProps$6 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
+type Document$3 = {
+    HostedZoneId: string;
+    Name: string;
+    Type: string;
+    ResourceRecords?: string[];
+    TTL?: number;
+    Weight?: number;
+    AliasTarget?: {
+        DNSName: string;
+        HostedZoneId: string;
+        EvaluateTargetHealth: boolean | undefined;
+    };
+};
+declare class RecordSetProvider implements CloudProvider {
+    protected client: Route53Client;
+    constructor(props: ProviderProps$6);
+    own(id: string): boolean;
+    get({ id, document }: GetProps<Document$3>): Promise<_aws_sdk_client_route_53.ResourceRecordSet | undefined>;
+    private formatRecordSet;
+    create({ document }: CreateProps<Document$3>): Promise<`${string}-${string}-${string}-${string}-${string}`>;
+    update({ id, oldDocument, newDocument }: UpdateProps<Document$3>): Promise<string>;
+    delete({ id, document }: DeleteProps<Document$3>): Promise<void>;
+}
+
+type ProviderProps$5 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+    cloudProvider: CloudProvider;
+};
+declare class BucketProvider implements CloudProvider {
+    protected client: S3Client;
+    protected cloudProvider: CloudProvider;
+    constructor(props: ProviderProps$5);
+    own(id: string): boolean;
+    get(props: GetProps): Promise<any>;
+    create(props: CreateProps): Promise<string>;
+    update(props: UpdateProps): Promise<string>;
+    delete(props: DeleteProps<{
+        BucketName: string;
+    }, {
+        forceDelete: boolean;
+    }>): Promise<void>;
+    private emptyBucket;
+    private deleteBucketObjects;
+    private deleteBucketObjectVersions;
+}
+
+type ProviderProps$4 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
+type Document$2 = {
+    TopicArn: ARN;
+    Protocol: string;
+    Endpoint: string | ARN;
+};
+declare class SubscriptionProvider implements CloudProvider {
+    protected client: SNSClient;
+    constructor(props: ProviderProps$4);
+    own(id: string): boolean;
+    get({ id }: GetProps<Document$2>): Promise<Record<string, string> | undefined>;
+    create({ document }: CreateProps<Document$2>): Promise<string>;
+    update({}: UpdateProps<Document$2>): Promise<string>;
+    delete({ id }: DeleteProps<Document$2>): Promise<void>;
+}
+
 declare class CachePolicy extends CloudControlApiResource {
     readonly parent: Node;
     private props;
@@ -1256,23 +1372,23 @@ declare class Distribution extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$8 = {
+type ProviderProps$3 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$5 = {
+type Document$1 = {
     DistributionId: string;
     Versions: Array<undefined | string>;
     Paths: string[];
 };
 declare class InvalidateCacheProvider implements CloudProvider {
     protected client: CloudFrontClient;
-    constructor(props: ProviderProps$8);
+    constructor(props: ProviderProps$3);
     own(id: string): boolean;
     private invalidate;
     get(): Promise<{}>;
-    create({ document }: CreateProps<Document$5>): Promise<string>;
-    update({ newDocument }: UpdateProps<Document$5>): Promise<string>;
+    create({ document }: CreateProps<Document$1>): Promise<string>;
+    update({ newDocument }: UpdateProps<Document$1>): Promise<string>;
     delete(): Promise<void>;
 }
 
@@ -1408,7 +1524,7 @@ declare class ResponseHeadersPolicy extends CloudControlApiResource {
                         Items: Input<string>[];
                     };
                     AccessControlAllowMethods: {
-                        Items: Input<"GET" | "HEAD" | "OPTIONS" | "PUT" | "PATCH" | "POST" | "DELETE" | "ALL">[];
+                        Items: Input<"DELETE" | "GET" | "HEAD" | "OPTIONS" | "PUT" | "PATCH" | "POST" | "ALL">[];
                     };
                     AccessControlAllowOrigins: {
                         Items: Input<string>[];
@@ -1487,6 +1603,43 @@ declare namespace index$l {
     index$l_ResponseHeadersPolicy as ResponseHeadersPolicy,
   };
 }
+
+type ProviderProps$2 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+};
+type Document = {
+    UserPoolId: string;
+    LambdaConfig: {
+        PreAuthentication?: string;
+        PostAuthentication?: string;
+        PostConfirmation?: string;
+        PreSignUp?: string;
+        PreTokenGeneration?: string;
+        CustomMessage?: string;
+        UserMigration?: string;
+        DefineAuthChallenge?: string;
+        CreateAuthChallenge?: string;
+        VerifyAuthChallengeResponse?: string;
+    };
+};
+declare class LambdaTriggersProvider implements CloudProvider {
+    protected client: CognitoIdentityProviderClient;
+    constructor(props: ProviderProps$2);
+    own(id: string): boolean;
+    private updateUserPool;
+    get({ document }: GetProps<Document>): Promise<_aws_sdk_client_cognito_identity_provider.LambdaConfigType>;
+    create({ document }: CreateProps<Document>): Promise<string>;
+    update({ oldDocument, newDocument }: UpdateProps<Document>): Promise<string>;
+    delete({ document }: DeleteProps<Document>): Promise<void>;
+}
+
+type ConfigProps = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+    timeout?: Duration;
+};
+declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | BucketObjectProvider | TableItemProvider | RecordSetProvider | BucketProvider | SubscriptionProvider | InvalidateCacheProvider | LambdaTriggersProvider)[];
 
 declare class LogGroup extends CloudControlApiResource {
     readonly parent: Node;
@@ -1686,36 +1839,6 @@ declare class LambdaTriggers extends Resource {
     };
 }
 
-type ProviderProps$7 = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-};
-type Document$4 = {
-    UserPoolId: string;
-    LambdaConfig: {
-        PreAuthentication?: string;
-        PostAuthentication?: string;
-        PostConfirmation?: string;
-        PreSignUp?: string;
-        PreTokenGeneration?: string;
-        CustomMessage?: string;
-        UserMigration?: string;
-        DefineAuthChallenge?: string;
-        CreateAuthChallenge?: string;
-        VerifyAuthChallengeResponse?: string;
-    };
-};
-declare class LambdaTriggersProvider implements CloudProvider {
-    protected client: CognitoIdentityProviderClient;
-    constructor(props: ProviderProps$7);
-    own(id: string): boolean;
-    private updateUserPool;
-    get({ document }: GetProps<Document$4>): Promise<_aws_sdk_client_cognito_identity_provider.LambdaConfigType>;
-    create({ document }: CreateProps<Document$4>): Promise<string>;
-    update({ oldDocument, newDocument }: UpdateProps<Document$4>): Promise<string>;
-    delete({ document }: DeleteProps<Document$4>): Promise<void>;
-}
-
 type index$j_LambaTriggersProps = LambaTriggersProps;
 type index$j_LambdaTriggers = LambdaTriggers;
 declare const index$j_LambdaTriggers: typeof LambdaTriggers;
@@ -1744,7 +1867,7 @@ declare namespace index$j {
   };
 }
 
-type ProviderProps$6 = {
+type ProviderProps$1 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
     tableName: string;
@@ -1752,30 +1875,9 @@ type ProviderProps$6 = {
 declare class LockProvider$2 implements LockProvider$3 {
     private props;
     protected client: DynamoDB;
-    constructor(props: ProviderProps$6);
+    constructor(props: ProviderProps$1);
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
-}
-
-type ProviderProps$5 = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-};
-type Document$3 = {
-    table: string;
-    hash: string;
-    sort?: string;
-};
-declare class TableItemProvider implements CloudProvider {
-    protected client: DynamoDB;
-    constructor(props: ProviderProps$5);
-    own(id: string): boolean;
-    private marshall;
-    private primaryKey;
-    get(): Promise<{}>;
-    create({ document, assets }: CreateProps<Document$3>): Promise<string>;
-    update({ id, oldDocument, newDocument, assets }: UpdateProps<Document$3>): Promise<string>;
-    delete({ id }: DeleteProps<Document$3>): Promise<void>;
 }
 
 type Statement = {
@@ -3290,34 +3392,6 @@ declare namespace index$9 {
   };
 }
 
-type ProviderProps$4 = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-};
-type Document$2 = {
-    HostedZoneId: string;
-    Name: string;
-    Type: string;
-    ResourceRecords?: string[];
-    TTL?: number;
-    Weight?: number;
-    AliasTarget?: {
-        DNSName: string;
-        HostedZoneId: string;
-        EvaluateTargetHealth: boolean | undefined;
-    };
-};
-declare class RecordSetProvider implements CloudProvider {
-    protected client: Route53Client;
-    constructor(props: ProviderProps$4);
-    own(id: string): boolean;
-    get({ id, document }: GetProps<Document$2>): Promise<_aws_sdk_client_route_53.ResourceRecordSet | undefined>;
-    private formatRecordSet;
-    create({ document }: CreateProps<Document$2>): Promise<`${string}-${string}-${string}-${string}-${string}`>;
-    update({ id, oldDocument, newDocument }: UpdateProps<Document$2>): Promise<string>;
-    delete({ id, document }: DeleteProps<Document$2>): Promise<void>;
-}
-
 type HostedZoneProps = {
     name: Input<string>;
 };
@@ -3437,7 +3511,7 @@ declare class Bucket extends Resource {
                 CorsRules: {
                     MaxAge: Input<Duration> | undefined;
                     AllowedHeaders: Input<Input<string>[]> | undefined;
-                    AllowedMethods: Input<Input<"GET" | "HEAD" | "PUT" | "POST" | "DELETE">[]>;
+                    AllowedMethods: Input<Input<"DELETE" | "GET" | "HEAD" | "PUT" | "POST">[]>;
                     AllowedOrigins: Input<Input<string>[]>;
                     ExposedHeaders: Input<Input<string>[]> | undefined;
                 }[];
@@ -3445,7 +3519,7 @@ declare class Bucket extends Resource {
             NotificationConfiguration?: {
                 LambdaConfigurations: {
                     Event: Input<NotifictionEvent>;
-                    Function: Input<`arn:${string}`>;
+                    Function: `arn:${string}`;
                 }[];
             } | undefined;
             WebsiteConfiguration?: {
@@ -3458,29 +3532,6 @@ declare class Bucket extends Resource {
             BucketName: string;
         };
     };
-}
-
-type ProviderProps$3 = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-    cloudProvider: CloudProvider;
-};
-declare class BucketProvider implements CloudProvider {
-    protected client: S3Client;
-    protected cloudProvider: CloudProvider;
-    constructor(props: ProviderProps$3);
-    own(id: string): boolean;
-    get(props: GetProps): Promise<any>;
-    create(props: CreateProps): Promise<string>;
-    update(props: UpdateProps): Promise<string>;
-    delete(props: DeleteProps<{
-        BucketName: string;
-    }, {
-        forceDelete: boolean;
-    }>): Promise<void>;
-    private emptyBucket;
-    private deleteBucketObjects;
-    private deleteBucketObjectVersions;
 }
 
 declare class BucketPolicy extends CloudControlApiResource {
@@ -3520,32 +3571,7 @@ declare class BucketPolicy extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$2 = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-};
-type Document$1 = {
-    Bucket: string;
-    Key: string;
-    CacheControl?: string;
-    ContentType?: string;
-    Metadata?: Record<string, string>;
-};
-declare class BucketObjectProvider implements CloudProvider {
-    protected client: S3Client;
-    constructor(props: ProviderProps$2);
-    own(id: string): boolean;
-    get({ document }: GetProps<Document$1>): Promise<{
-        VersionId: string | undefined;
-        ETag: string | undefined;
-        Checksum: _aws_sdk_client_s3.Checksum | undefined;
-    }>;
-    create({ document, assets }: CreateProps<Document$1>): Promise<string>;
-    update({ oldDocument, newDocument, assets }: UpdateProps<Document$1>): Promise<string>;
-    delete({ document }: DeleteProps<Document$1>): Promise<void>;
-}
-
-type ProviderProps$1 = {
+type ProviderProps = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
     bucket: string;
@@ -3553,7 +3579,7 @@ type ProviderProps$1 = {
 declare class StateProvider$2 implements StateProvider$3 {
     private props;
     protected client: S3Client;
-    constructor(props: ProviderProps$1);
+    constructor(props: ProviderProps);
     get(urn: URN): Promise<any>;
     update(urn: URN, state: AppState): Promise<void>;
     delete(urn: URN): Promise<void>;
@@ -3663,25 +3689,6 @@ declare namespace index$6 {
     index$6_ConfigurationSet as ConfigurationSet,
     index$6_EmailIdentity as EmailIdentity,
   };
-}
-
-type ProviderProps = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-};
-type Document = {
-    TopicArn: ARN;
-    Protocol: string;
-    Endpoint: string | ARN;
-};
-declare class SubscriptionProvider implements CloudProvider {
-    protected client: SNSClient;
-    constructor(props: ProviderProps);
-    own(id: string): boolean;
-    get({ id }: GetProps<Document>): Promise<Record<string, string> | undefined>;
-    create({ document }: CreateProps<Document>): Promise<string>;
-    update({}: UpdateProps<Document>): Promise<string>;
-    delete({ id }: DeleteProps<Document>): Promise<void>;
 }
 
 type SubscriptionProps = {
@@ -3797,13 +3804,6 @@ declare namespace index$4 {
     index$4_QueueProps as QueueProps,
   };
 }
-
-type ConfigProps = {
-    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
-    region: string;
-    timeout?: Duration;
-};
-declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | RecordSetProvider | BucketProvider | BucketObjectProvider | SubscriptionProvider)[];
 
 type index$3_ARN = ARN;
 declare const index$3_createCloudProviders: typeof createCloudProviders;

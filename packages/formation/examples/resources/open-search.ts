@@ -1,14 +1,14 @@
-import { aws, App, Stack } from '../../src'
-import { createVPC, createWorkspace } from './_util'
+import { App, AppError, aws, Stack } from '../../src'
+import { createWorkspace } from './_util'
 
 const region = 'eu-west-1'
+const workspace = createWorkspace('jacksclub', region, 60)
 const app = new App('open-search')
-const stack = new Stack('open-search')
-app.add(stack)
+const stack = new Stack(app, 'open-search')
 
 // const { vpc, subnets } = createVPC(stack, region)
 
-const openSearchDomain = new aws.openSearch.Domain('open-search', {
+new aws.openSearch.Domain(stack, 'open-search', {
 	name: 'test-open-search',
 	version: '2.11',
 	instance: {
@@ -26,11 +26,19 @@ const openSearchDomain = new aws.openSearch.Domain('open-search', {
 	},
 })
 
-// stack.add(openSearchDomain)
+console.log('START')
 
-const main = async () => {
-	const workspace = createWorkspace('jacksclub', region, 60)
-	await workspace.deployStack(stack)
+try {
+	await workspace.deployApp(app)
+	// await workspace.deleteApp(app)
+} catch (error) {
+	if (error instanceof AppError) {
+		for (const issue of error.issues) {
+			console.error(issue)
+		}
+	}
+
+	throw error
 }
 
-main()
+console.log('END')

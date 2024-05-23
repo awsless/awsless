@@ -1,7 +1,0 @@
-{
-  "urn:App:{cognito}:Stack:{cognito}": {
-    "name": "cognito",
-    "exports": {},
-    "resources": {}
-  }
-}

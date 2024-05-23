@@ -1,7 +1,0 @@
-{
-  "urn:App:{cron}:Stack:{cron}": {
-    "name": "cron",
-    "exports": {},
-    "resources": {}
-  }
-}

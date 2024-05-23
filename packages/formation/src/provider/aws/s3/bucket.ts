@@ -1,9 +1,9 @@
-import { ARN } from '../types'
-import { Input, unwrap } from '../../../core/output'
 import { Duration } from '@awsless/duration'
-import { Resource } from '../../../core/resource'
-import { BucketObject, BucketObjectProps } from './bucket-object'
 import { Node } from '../../../core/node'
+import { Input, unwrap } from '../../../core/output'
+import { Resource } from '../../../core/resource'
+import { ARN } from '../types'
+import { BucketObject, BucketObjectProps } from './bucket-object'
 
 export type NotifictionEvent =
 	| 's3:TestEvent'
@@ -72,7 +72,11 @@ export type BucketProps = {
 export class Bucket extends Resource {
 	cloudProviderId = 'aws-s3-bucket'
 
-	constructor(readonly parent: Node, id: string, private props: BucketProps = {}) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: BucketProps = {}
+	) {
 		super(parent, 'AWS::S3::Bucket', id, props)
 	}
 
@@ -102,13 +106,7 @@ export class Bucket extends Resource {
 
 	get permissions() {
 		return {
-			actions: [
-				's3:ListBucket',
-				's3:GetObject',
-				's3:PutObject',
-				's3:DeleteObject',
-				's3:GetObjectAttributes',
-			],
+			actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
 			resources: [
 				this.arn,
 				this.arn.apply<ARN>(arn => `${arn}/*`),
@@ -138,7 +136,7 @@ export class Bucket extends Resource {
 							VersioningConfiguration: {
 								Status: 'Enabled',
 							},
-					  }
+						}
 					: {}),
 				...(this.props.website
 					? {
@@ -146,7 +144,7 @@ export class Bucket extends Resource {
 								IndexDocument: unwrap(this.props.website).indexDocument,
 								ErrorDocument: unwrap(this.props.website).errorDocument,
 							},
-					  }
+						}
 					: {}),
 				...(this.props.lambdaConfigs
 					? {
@@ -155,10 +153,10 @@ export class Bucket extends Resource {
 									.map(config => unwrap(config))
 									.map(config => ({
 										Event: config.event,
-										Function: config.function,
+										Function: unwrap(config.function),
 									})),
 							},
-					  }
+						}
 					: {}),
 				...(this.props.cors
 					? {
@@ -173,7 +171,7 @@ export class Bucket extends Resource {
 										ExposedHeaders: rule.exposeHeaders,
 									})),
 							},
-					  }
+						}
 					: {}),
 			},
 		}

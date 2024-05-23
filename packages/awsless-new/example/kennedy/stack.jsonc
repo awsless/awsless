@@ -1,21 +1,21 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack-kennedy",
+	"name": "stack-kennedy"
 	// "stores": ["test"],
-	"stores": {
-		"test": {
-			"versioning": false,
-			"events": {
-				"created:*": "./function.ts"
-			}
-		}
-	},
-	"crons": {
-		"cron": {
-			"schedule": "60 minutes",
-			"consumer": "./function.ts"
-		}
-	}
+	// "stores": {
+	// 	"test": {
+	// 		"versioning": false,
+	// 		"events": {
+	// 			"created:*": "./function.ts"
+	// 		}
+	// 	}
+	// }
+	// "crons": {
+	// 	"cron": {
+	// 		"schedule": "60 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// }
 	// "searchs": {
 	// 	"test": {
 	// 		"type": "t3.small",
