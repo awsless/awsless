@@ -1,10 +1,9 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack-kennedy"
-	// "stores": ["test"],
+	// "stores": ["test"]
 	// "stores": {
 	// 	"test": {
-	// 		"versioning": false,
 	// 		"events": {
 	// 			"created:*": "./function.ts"
 	// 		}
