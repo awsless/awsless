@@ -1,16 +1,16 @@
-import { Command } from 'commander'
-import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
-import { layout } from '../ui/complex/layout.js'
-import { buildAssets } from '../ui/complex/build-assets.js'
-import { createApp } from '../../app.js'
 import { confirm } from '@clack/prompts'
-import { color } from '../ui/style.js'
-import { debug } from '../debug.js'
+import { Command } from 'commander'
+import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
-import { task } from '../ui/util.js'
-import { runTests } from '../ui/complex/run-tests.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
 import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
+import { debug } from '../debug.js'
+import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
+import { buildAssets } from '../ui/complex/build-assets.js'
+import { layout } from '../ui/complex/layout.js'
+import { runTests } from '../ui/complex/run-tests.js'
+import { color } from '../ui/style.js'
+import { task } from '../ui/util.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -43,8 +43,8 @@ export const deploy = (program: Command) => {
 						message: deployAll
 							? `Are you sure you want to deploy ${color.warning('all')} stacks?`
 							: deploySingle
-							? `Are you sure you want to deploy the ${formattedFilter} stack?`
-							: `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`,
+								? `Are you sure you want to deploy the ${formattedFilter} stack?`
+								: `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`,
 					})
 
 					if (!ok) {
@@ -67,6 +67,7 @@ export const deploy = (program: Command) => {
 
 				const { workspace, stateProvider } = createWorkSpace({
 					credentials,
+					accountId,
 					region,
 				})
 

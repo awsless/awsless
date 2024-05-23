@@ -67,13 +67,17 @@ export class BucketObjectProvider implements CloudProvider {
 		}
 
 		if (oldDocument.Key !== newDocument.Key) {
-			await this.client.send(
-				new DeleteObjectCommand({
-					Bucket: oldDocument.Bucket,
-					Key: oldDocument.Key,
-				})
-			)
+			throw new Error(`BucketObject can't change the key`)
 		}
+
+		// if (oldDocument.Key !== newDocument.Key) {
+		// 	await this.client.send(
+		// 		new DeleteObjectCommand({
+		// 			Bucket: oldDocument.Bucket,
+		// 			Key: oldDocument.Key,
+		// 		})
+		// 	)
+		// }
 
 		await this.client.send(
 			new PutObjectCommand({

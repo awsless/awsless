@@ -596,9 +596,9 @@ var WorkSpace = class {
       }
       const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
+      await this.props.stateProvider.update(app.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        await this.props.stateProvider.update(app.urn, appState);
         throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
       }
       await this.props.stateProvider.delete(app.urn);
@@ -1005,6 +1005,7 @@ __export(aws_exports, {
   createCloudProviders: () => createCloudProviders,
   dynamodb: () => dynamodb_exports,
   ec2: () => ec2_exports,
+  ecr: () => ecr_exports,
   elb: () => elb_exports,
   events: () => events_exports,
   iam: () => iam_exports,
@@ -1392,7 +1393,8 @@ var CloudControlApiProvider = class {
         return this.client.send(command);
       },
       {
-        numOfAttempts: 10,
+        numOfAttempts: 20,
+        maxDelay: 1e3 * 10,
         retry(error) {
           if (error instanceof ThrottlingException) {
             console.log("ThrottlingException");
@@ -3785,6 +3787,126 @@ var InternetGateway = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/ecr/index.ts
+var ecr_exports = {};
+__export(ecr_exports, {
+  Image: () => Image,
+  ImageProvider: () => ImageProvider,
+  Repository: () => Repository
+});
+
+// src/provider/aws/ecr/image.ts
+var Image = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECR::Image", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-ecr-image";
+  get uri() {
+    return this.output((v) => v.ImageUri);
+  }
+  toState() {
+    return {
+      document: {
+        RepositoryName: this.props.repository,
+        ImageName: this.props.name,
+        Tag: this.props.tag
+      }
+    };
+  }
+};
+
+// src/provider/aws/ecr/image-provider.ts
+import { BatchDeleteImageCommand, ECRClient, GetAuthorizationTokenCommand } from "@aws-sdk/client-ecr";
+import { exec } from "promisify-child-process";
+var ImageProvider = class {
+  constructor(props) {
+    this.props = props;
+    this.client = new ECRClient({
+      ...props
+    });
+  }
+  client;
+  loggedIn = false;
+  own(id) {
+    return id === "aws-ecr-image";
+  }
+  async getCredentials() {
+    const command = new GetAuthorizationTokenCommand({});
+    const result = await this.client.send(command);
+    const [username, password] = Buffer.from(result.authorizationData[0].authorizationToken ?? "", "base64").toString("utf8").split(":");
+    return { username, password };
+  }
+  async login() {
+    if (!this.loggedIn) {
+      const { username, password } = await this.getCredentials();
+      const repoName = `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`;
+      await exec(`docker logout ${repoName}`);
+      await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${repoName}`);
+      this.loggedIn = true;
+    }
+  }
+  async push(repository, tag) {
+    await exec(
+      `docker push ${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${repository}:${tag}`
+    );
+  }
+  async get({ document }) {
+    return {
+      ImageUri: `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${document.RepositoryName}:${document.Tag}`
+    };
+  }
+  async create({ document }) {
+    await this.login();
+    await this.push(document.RepositoryName, document.Tag);
+    return JSON.stringify([document.RepositoryName, document.ImageName, document.Tag]);
+  }
+  async update({ oldDocument, newDocument }) {
+    if (oldDocument.Tag !== newDocument.Tag) {
+      throw new Error(`ECR Image can't change the tag`);
+    }
+    await this.login();
+    await this.push(newDocument.RepositoryName, newDocument.Tag);
+    return JSON.stringify([newDocument.RepositoryName, newDocument.ImageName, newDocument.Tag]);
+  }
+  async delete({ document }) {
+    await this.client.send(
+      new BatchDeleteImageCommand({
+        repositoryName: document.RepositoryName,
+        imageIds: [{ imageTag: document.Tag }]
+      })
+    );
+  }
+};
+
+// src/provider/aws/ecr/repository.ts
+var Repository = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECR::Repository", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.RepositoryName);
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get uri() {
+    return this.output((v) => v.RepositoryUri);
+  }
+  toState() {
+    return {
+      document: {
+        RepositoryName: this.props.name,
+        EmptyOnDelete: this.props.emptyOnDelete,
+        ImageTagMutability: this.props.imageTagMutability ? "MUTABLE" : "IMMUTABLE"
+      }
+    };
+  }
+};
+
 // src/provider/aws/elb/index.ts
 var elb_exports = {};
 __export(elb_exports, {
@@ -4313,6 +4435,8 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/function.ts
+import { seconds, toSeconds as toSeconds8 } from "@awsless/duration";
+import { mebibytes, toMebibytes } from "@awsless/size";
 import { constantCase as constantCase6 } from "change-case";
 
 // src/provider/aws/lambda/code.ts
@@ -4335,8 +4459,6 @@ var formatCode = (code) => {
 };
 
 // src/provider/aws/lambda/function.ts
-import { mebibytes, toMebibytes } from "@awsless/size";
-import { seconds, toSeconds as toSeconds8 } from "@awsless/duration";
 var Function = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -4391,6 +4513,7 @@ var Function = class extends CloudControlApiResource {
     if (unwrap(this.props.name).length > 64) {
       throw new TypeError(`Lambda function name length can't be greater then 64. ${unwrap(this.props.name)}`);
     }
+    const code = unwrap(this.props.code);
     return {
       asset: {
         code: this.props.code
@@ -4399,13 +4522,14 @@ var Function = class extends CloudControlApiResource {
         FunctionName: this.props.name,
         Description: this.props.description,
         MemorySize: toMebibytes(unwrap(this.props.memorySize, mebibytes(128))),
-        Handler: unwrap(this.props.handler, "index.default"),
-        Runtime: unwrap(this.props.runtime, "nodejs18.x"),
         Timeout: toSeconds8(unwrap(this.props.timeout, seconds(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
-        Code: formatCode(unwrap(this.props.code)),
+        Code: formatCode(code),
+        PackageType: "imageUri" in code ? "Image" : void 0,
+        Runtime: "imageUri" in code ? void 0 : unwrap(this.props.runtime, "nodejs18.x"),
+        Handler: "imageUri" in code ? void 0 : unwrap(this.props.handler, "index.default"),
         EphemeralStorage: {
           Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512)))
         },
@@ -5245,12 +5369,7 @@ var BucketObjectProvider = class {
       throw new Error(`BucketObject can't change the bucket name`);
     }
     if (oldDocument.Key !== newDocument.Key) {
-      await this.client.send(
-        new DeleteObjectCommand({
-          Bucket: oldDocument.Bucket,
-          Key: oldDocument.Key
-        })
-      );
+      throw new Error(`BucketObject can't change the key`);
     }
     await this.client.send(
       new PutObjectCommand({
@@ -5610,6 +5729,7 @@ var createCloudProviders = (config) => {
   return [
     //
     cloudControlApiProvider,
+    new ImageProvider(config),
     new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketObjectProvider(config),
     new TableItemProvider(config),

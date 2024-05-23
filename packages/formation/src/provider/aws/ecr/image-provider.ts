@@ -1,42 +1,93 @@
+import { BatchDeleteImageCommand, ECRClient, GetAuthorizationTokenCommand } from '@aws-sdk/client-ecr'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
-import { DynamoDB } from '@aws-sdk/client-dynamodb'
+import { exec } from 'promisify-child-process'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
+	accountId: string
 	region: string
 }
 
 type Document = {
-	table: string
-	hash: string
-	sort?: string
+	RepositoryName: string
+	ImageName: string
+	Tag: string
 }
 
 export class ImageProvider implements CloudProvider {
-	protected client: DynamoDB
+	protected client: ECRClient
+	private loggedIn = false
 
-	constructor(props: ProviderProps) {
-		this.client = new DynamoDB(props)
+	constructor(private props: ProviderProps) {
+		this.client = new ECRClient({
+			...props,
+		})
 	}
 
 	own(id: string) {
-		return id === 'aws-dynamodb-table-item'
+		return id === 'aws-ecr-image'
 	}
 
-	async get() {
-		return {}
+	private async getCredentials() {
+		const command = new GetAuthorizationTokenCommand({})
+		const result = await this.client.send(command)
+
+		const [username, password] = Buffer.from(result.authorizationData![0]!.authorizationToken ?? '', 'base64')
+			.toString('utf8')
+			.split(':')
+
+		return { username, password }
 	}
 
-	async create({ document, assets }: CreateProps<Document>) {
-		return ''
+	private async login() {
+		if (!this.loggedIn) {
+			const { username, password } = await this.getCredentials()
+			const repoName = `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`
+
+			await exec(`docker logout ${repoName}`)
+			await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${repoName}`)
+
+			this.loggedIn = true
+		}
 	}
 
-	async update({ id, oldDocument, newDocument, assets }: UpdateProps<Document>) {
-		return ''
+	private async push(repository: string, tag: string) {
+		await exec(
+			`docker push ${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${repository}:${tag}`
+		)
 	}
 
-	async delete({ id }: DeleteProps<Document>) {
-		return ''
+	async get({ document }: GetProps<Document>) {
+		return {
+			ImageUri: `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${document.RepositoryName}:${document.Tag}`,
+		}
+	}
+
+	async create({ document }: CreateProps<Document>) {
+		await this.login()
+		await this.push(document.RepositoryName, document.Tag)
+
+		return JSON.stringify([document.RepositoryName, document.ImageName, document.Tag])
+	}
+
+	async update({ oldDocument, newDocument }: UpdateProps<Document>) {
+		if (oldDocument.Tag !== newDocument.Tag) {
+			throw new Error(`ECR Image can't change the tag`)
+		}
+
+		await this.login()
+		await this.push(newDocument.RepositoryName, newDocument.Tag)
+
+		return JSON.stringify([newDocument.RepositoryName, newDocument.ImageName, newDocument.Tag])
+	}
+
+	async delete({ document }: DeleteProps<Document>) {
+		await this.client.send(
+			new BatchDeleteImageCommand({
+				repositoryName: document.RepositoryName,
+				imageIds: [{ imageTag: document.Tag }],
+			})
+		)
 	}
 }

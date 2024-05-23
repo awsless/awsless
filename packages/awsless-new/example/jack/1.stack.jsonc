@@ -6,13 +6,13 @@
 	// 		"GET /": "./function.ts"
 	// 	}
 	// },
-	"tests": "./test",
-	"configs": ["test", "test-2"],
-	"rest": {
-		"api": {
-			"GET /": "./function.ts"
-		}
-	},
+	// "tests": "./test",
+	// "configs": ["test", "test-2"],
+	// "rest": {
+	// 	"api": {
+	// 		"GET /": "./function.ts"
+	// 	}
+	// },
 	// "caches": {
 	// 	// "test": {
 	// 	// 	// "type": "t4g.small"
@@ -47,29 +47,16 @@
 	// 		}
 	// 	}
 	// },
-	"tables": {
-		"users": {
-			"hash": "id",
-			"sort": "key"
-		}
-	},
+	// "tables": {
+	// 	"users": {
+	// 		"hash": "id",
+	// 		"sort": "key"
+	// 	}
+	// },
 	"functions": {
-		"test": {
-			"file": "./function.ts"
-		}
-
-		// "echo-2": "./function.ts",
-		// "echo-3": "./function.ts",
-		// "echo-4": "./function.ts",
-		// "echo-5": "./function.ts",
-		// "echo-6": "./function.ts",
-		// "echo-7": "./function.ts",
-		// "echo-8": "./function.ts",
-		// "echo-9": "./function.ts",
-		// "echo-10": "./function.ts",
-		// "echo-11": "./function.ts",
-		// "echo-12": "./function.ts"
-	},
+		"test-1": "./docker/test1/dockerfile",
+		"test-2": "./docker/test2/dockerfile"
+	}
 	// "queues": {
 	// 	"queue": "./function.ts"
 	// },

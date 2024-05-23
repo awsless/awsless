@@ -1,12 +1,12 @@
-import { Command } from 'commander'
-import { spawn } from 'child_process'
-import { layout } from '../ui/complex/layout.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
-import { createApp } from '../../app.js'
-import { createWorkSpace } from '../../util/workspace.js'
 import { unwrap } from '@awsless/formation'
-import { list, wrap } from '../ui/util.js'
 import { note } from '@clack/prompts'
+import { spawn } from 'child_process'
+import { Command } from 'commander'
+import { createApp } from '../../app.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
+import { createWorkSpace } from '../../util/workspace.js'
+import { layout } from '../ui/complex/layout.js'
+import { list, wrap } from '../ui/util.js'
 
 export const bind = (program: Command) => {
 	program
@@ -26,6 +26,7 @@ export const bind = (program: Command) => {
 
 				const { workspace } = createWorkSpace({
 					credentials,
+					accountId,
 					region,
 				})
 

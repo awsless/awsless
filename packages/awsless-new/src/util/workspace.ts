@@ -1,12 +1,12 @@
-import { App, StateProvider, WorkSpace, aws, local } from '@awsless/formation'
-import { Credentials } from './aws.js'
-import { Region } from '../config/schema/region.js'
 import { minutes } from '@awsless/duration'
-import { directories } from './path.js'
-import { dirname, join } from 'path'
+import { App, aws, local, StateProvider, WorkSpace } from '@awsless/formation'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
+import { dirname, join } from 'path'
+import { Region } from '../config/schema/region.js'
+import { Credentials } from './aws.js'
+import { directories } from './path.js'
 
-export const createWorkSpace = (props: { credentials: Credentials; region: Region }) => {
+export const createWorkSpace = (props: { credentials: Credentials; region: Region; accountId: string }) => {
 	const lockProvider = new aws.dynamodb.LockProvider({
 		...props,
 		tableName: 'awsless-locks',

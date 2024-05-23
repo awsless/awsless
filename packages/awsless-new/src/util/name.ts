@@ -1,6 +1,6 @@
 import { paramCase } from 'change-case'
 
-export const formatGlobalResourceName = (appName: string, ns: string, id: string) => {
+export const formatGlobalResourceName = (appName: string, ns: string, id: string, seperator = '--') => {
 	return [
 		//
 		appName,
@@ -8,7 +8,7 @@ export const formatGlobalResourceName = (appName: string, ns: string, id: string
 		id,
 	]
 		.map(v => paramCase(v))
-		.join('--')
+		.join(seperator)
 }
 
 export const formatLocalResourceName = (
