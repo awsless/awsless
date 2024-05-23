@@ -10,6 +10,7 @@ import { resource } from './resource/index.js'
 import { dev } from './dev.js'
 import { state } from './state/index.js'
 import { auth } from './auth/index.js'
+import { bind } from './bind.js'
 
 export const commands = [
 	bootstrap,
@@ -20,7 +21,7 @@ export const commands = [
 	del,
 	dev,
 
-	// bind,
+	bind,
 
 	auth,
 	state,

@@ -2,7 +2,7 @@
 // import { definePlugin } from '../../feature.js'
 // import { isFunctionProps, toFunctionProps, toLambdaFunction } from '../function/index.js'
 // import { toArray } from '../../util/array.js'
-import { paramCase } from 'change-case'
+import { constantCase, paramCase } from 'change-case'
 // import { basename } from 'path'
 import { mergeTypeDefs } from '@graphql-tools/merge'
 import { generate } from '@awsless/graphql'
@@ -244,6 +244,8 @@ export const graphqlFeature = defineFeature({
 						evaluateTargetHealth: false,
 					},
 				})
+
+				ctx.bindEnv(`GRAPHQL_${constantCase(id)}_ENDPOINT`, domainName)
 
 				// ctx.registerConfig('graphql', 'config', 'endpoint')
 			}

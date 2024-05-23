@@ -1,15 +1,15 @@
 // import { camelCase } from 'change-case'
 // import { relative } from 'path'
 // import { FunctionSchema } from './schema.js'
+import { aws, Node } from '@awsless/formation'
 import { camelCase } from 'change-case'
+import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { createLambdaFunction } from './util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { relative } from 'path'
-import { Node, aws } from '@awsless/formation'
+import { createLambdaFunction } from './util.js'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
@@ -77,6 +77,13 @@ export const functionFeature = defineFeature({
 		})
 
 		ctx.shared.set('function-bucket-name', bucket.name)
+
+		const repository = new aws.ecr.Repository(group, 'repository', {
+			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-'),
+		})
+
+		ctx.shared.set('function-repository-name', repository.name)
+		ctx.shared.set('function-repository-uri', repository.uri)
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {

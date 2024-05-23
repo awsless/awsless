@@ -1,13 +1,13 @@
+import { confirm } from '@clack/prompts'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
+import { Cancelled } from '../../error.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
+import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
 import { debug } from '../debug.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
-import { Cancelled } from '../../error.js'
-import { confirm } from '@clack/prompts'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 import { task } from '../ui/util.js'
-import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
 
 export const del = (program: Command) => {
 	program
@@ -37,10 +37,10 @@ export const del = (program: Command) => {
 						message: deployAll
 							? `Are you sure you want to ${color.error('delete')} ${color.warning('all')} stacks?`
 							: deploySingle
-							? `Are you sure you want to ${color.error('delete')} the ${formattedFilter} stack?`
-							: `Are you sure you want to ${color.error(
-									'delete'
-							  )} the [ ${formattedFilter} ] stacks?`,
+								? `Are you sure you want to ${color.error('delete')} the ${formattedFilter} stack?`
+								: `Are you sure you want to ${color.error(
+										'delete'
+									)} the [ ${formattedFilter} ] stacks?`,
 					})
 
 					if (!ok) {
@@ -52,6 +52,7 @@ export const del = (program: Command) => {
 
 				const { workspace, stateProvider } = createWorkSpace({
 					credentials,
+					accountId,
 					region,
 				})
 

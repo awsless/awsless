@@ -1,13 +1,13 @@
+import { Duration, seconds, toSeconds } from '@awsless/duration'
+import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { constantCase } from 'change-case'
-import { Code, formatCode } from './code.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
-import { Size, mebibytes, toMebibytes } from '@awsless/size'
-import { Duration, seconds, toSeconds } from '@awsless/duration'
+import { Code, formatCode } from './code.js'
 // import { Url, UrlProps } from './url.js'
 // import { Permission } from './permission.js'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Node } from '../../../core/node.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 
 export type FunctionProps = {
 	name: Input<string>
@@ -38,7 +38,11 @@ export type FunctionProps = {
 export class Function extends CloudControlApiResource {
 	private environmentVariables: Record<string, Input<string>> = {}
 
-	constructor(readonly parent: Node, id: string, private props: FunctionProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: FunctionProps
+	) {
 		super(parent, 'AWS::Lambda::Function', id, props)
 	}
 
@@ -106,6 +110,17 @@ export class Function extends CloudControlApiResource {
 			throw new TypeError(`Lambda function name length can't be greater then 64. ${unwrap(this.props.name)}`)
 		}
 
+		const code = unwrap(this.props.code)
+
+		const nativeProps = {
+			Runtime: unwrap(this.props.runtime, 'nodejs18.x'),
+			Handler: unwrap(this.props.handler, 'index.default'),
+		}
+
+		const containerProps = {
+			PackageType: 'Image',
+		}
+
 		return {
 			asset: {
 				code: this.props.code,
@@ -114,13 +129,12 @@ export class Function extends CloudControlApiResource {
 				FunctionName: this.props.name,
 				Description: this.props.description,
 				MemorySize: toMebibytes(unwrap(this.props.memorySize, mebibytes(128))),
-				Handler: unwrap(this.props.handler, 'index.default'),
-				Runtime: unwrap(this.props.runtime, 'nodejs18.x'),
 				Timeout: toSeconds(unwrap(this.props.timeout, seconds(10))),
 				Architectures: [unwrap(this.props.architecture, 'arm64')],
 				Role: this.props.role,
 				...this.attr('ReservedConcurrentExecutions', this.props.reserved),
-				Code: formatCode(unwrap(this.props.code)),
+				...('imageUri' in code ? containerProps : nativeProps),
+				Code: formatCode(code),
 				EphemeralStorage: {
 					Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512))),
 				},
@@ -131,7 +145,7 @@ export class Function extends CloudControlApiResource {
 								ApplicationLogLevel: constantCase(unwrap(unwrap(this.props.log).level, 'error')),
 								SystemLogLevel: constantCase(unwrap(unwrap(this.props.log).system, 'warn')),
 							},
-					  }
+						}
 					: {}),
 				...(this.props.vpc
 					? {
@@ -139,7 +153,7 @@ export class Function extends CloudControlApiResource {
 								SecurityGroupIds: unwrap(this.props.vpc).securityGroupIds,
 								SubnetIds: unwrap(this.props.vpc).subnetIds,
 							},
-					  }
+						}
 					: {}),
 				Environment: {
 					Variables: {

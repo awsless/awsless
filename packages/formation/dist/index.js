@@ -1005,6 +1005,7 @@ __export(aws_exports, {
   createCloudProviders: () => createCloudProviders,
   dynamodb: () => dynamodb_exports,
   ec2: () => ec2_exports,
+  ecr: () => ecr_exports,
   elb: () => elb_exports,
   events: () => events_exports,
   iam: () => iam_exports,
@@ -2228,394 +2229,6 @@ var SourceApiAssociation = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/s3/bucket-object-provider.ts
-import {
-  DeleteObjectCommand,
-  GetObjectAttributesCommand,
-  PutObjectCommand,
-  S3Client,
-  S3ServiceException
-} from "@aws-sdk/client-s3";
-var BucketObjectProvider = class {
-  client;
-  constructor(props) {
-    this.client = new S3Client(props);
-  }
-  own(id) {
-    return id === "aws-s3-bucket-object";
-  }
-  async get({ document }) {
-    const result = await this.client.send(
-      new GetObjectAttributesCommand({
-        Bucket: document.Bucket,
-        Key: document.Key,
-        ObjectAttributes: ["ETag", "Checksum"]
-      })
-    );
-    return {
-      VersionId: result.VersionId,
-      ETag: result.ETag,
-      Checksum: result.Checksum
-    };
-  }
-  async create({ document, assets }) {
-    await this.client.send(
-      new PutObjectCommand({
-        ...document,
-        Body: assets.body?.data
-      })
-    );
-    return JSON.stringify([document.Bucket, document.Key]);
-  }
-  async update({ oldDocument, newDocument, assets }) {
-    if (oldDocument.Bucket !== newDocument.Bucket) {
-      throw new Error(`BucketObject can't change the bucket name`);
-    }
-    if (oldDocument.Key !== newDocument.Key) {
-      await this.client.send(
-        new DeleteObjectCommand({
-          Bucket: oldDocument.Bucket,
-          Key: oldDocument.Key
-        })
-      );
-    }
-    await this.client.send(
-      new PutObjectCommand({
-        ...newDocument,
-        Body: assets.body?.data
-      })
-    );
-    return JSON.stringify([newDocument.Bucket, newDocument.Key]);
-  }
-  async delete({ document }) {
-    try {
-      await this.client.send(
-        new DeleteObjectCommand({
-          Bucket: document.Bucket,
-          Key: document.Key
-        })
-      );
-    } catch (error) {
-      if (error instanceof S3ServiceException) {
-        if (error.name === "NoSuchBucket") {
-          return;
-        }
-      }
-      throw error;
-    }
-  }
-};
-
-// src/provider/aws/dynamodb/table-item-provider.ts
-import { DeleteItemCommand, DynamoDB, PutItemCommand } from "@aws-sdk/client-dynamodb";
-import { marshall } from "@aws-sdk/util-dynamodb";
-var TableItemProvider = class {
-  client;
-  constructor(props) {
-    this.client = new DynamoDB(props);
-  }
-  own(id) {
-    return id === "aws-dynamodb-table-item";
-  }
-  marshall(item) {
-    return marshall(item, {
-      removeUndefinedValues: true
-    });
-  }
-  primaryKey(document, item) {
-    const key = {
-      [document.hash]: item[document.hash]
-    };
-    if (document.sort) {
-      key[document.sort] = item[document.sort];
-    }
-    return key;
-  }
-  async get() {
-    return {};
-  }
-  async create({ document, assets }) {
-    const item = JSON.parse(assets.item.data.toString("utf8"));
-    const key = this.primaryKey(document, item);
-    await this.client.send(
-      new PutItemCommand({
-        TableName: document.table,
-        Item: this.marshall(item)
-      })
-    );
-    return JSON.stringify([document.table, key]);
-  }
-  async update({ id, oldDocument, newDocument, assets }) {
-    if (oldDocument.table !== newDocument.table) {
-      throw new Error(`TableItem can't change the table name`);
-    }
-    if (oldDocument.hash !== newDocument.hash) {
-      throw new Error(`TableItem can't change the hash key`);
-    }
-    if (oldDocument.sort !== newDocument.sort) {
-      throw new Error(`TableItem can't change the sort key`);
-    }
-    const [_, oldKey] = JSON.parse(id);
-    const item = JSON.parse(assets.item.data.toString("utf8"));
-    const key = this.primaryKey(newDocument, item);
-    if (JSON.stringify(oldKey) !== JSON.stringify(key)) {
-      await this.client.send(
-        new DeleteItemCommand({
-          TableName: newDocument.table,
-          Key: this.marshall(oldKey)
-        })
-      );
-    }
-    await this.client.send(
-      new PutItemCommand({
-        TableName: newDocument.table,
-        Item: this.marshall(item)
-      })
-    );
-    return JSON.stringify([newDocument.table, key]);
-  }
-  async delete({ id }) {
-    const [table, oldKey] = JSON.parse(id);
-    await this.client.send(
-      new DeleteItemCommand({
-        TableName: table,
-        Key: this.marshall(oldKey)
-      })
-    );
-  }
-};
-
-// src/provider/aws/route53/record-set-provider.ts
-import {
-  ChangeResourceRecordSetsCommand,
-  ListResourceRecordSetsCommand,
-  Route53Client
-} from "@aws-sdk/client-route-53";
-import { randomUUID as randomUUID2 } from "crypto";
-var RecordSetProvider = class {
-  client;
-  constructor(props) {
-    this.client = new Route53Client(props);
-  }
-  own(id) {
-    return id === "aws-route53-record-set";
-  }
-  async get({ id, document }) {
-    const result = await this.client.send(
-      new ListResourceRecordSetsCommand({
-        HostedZoneId: document.HostedZoneId,
-        MaxItems: 1,
-        StartRecordIdentifier: id,
-        StartRecordName: document.Name,
-        StartRecordType: document.Type
-      })
-    );
-    return result.ResourceRecordSets?.at(0);
-  }
-  formatRecordSet(id, document) {
-    return {
-      Name: document.Name,
-      Type: document.Type,
-      ResourceRecords: document.ResourceRecords?.map((Value) => ({ Value })),
-      Weight: document.Weight,
-      TTL: document.TTL,
-      SetIdentifier: id,
-      AliasTarget: document.AliasTarget
-    };
-  }
-  async create({ document }) {
-    const id = randomUUID2();
-    await this.client.send(
-      new ChangeResourceRecordSetsCommand({
-        HostedZoneId: document.HostedZoneId,
-        ChangeBatch: {
-          Changes: [
-            {
-              Action: "CREATE",
-              ResourceRecordSet: this.formatRecordSet(id, document)
-            }
-          ]
-        }
-      })
-    );
-    return id;
-  }
-  async update({ id, oldDocument, newDocument }) {
-    if (oldDocument.HostedZoneId !== newDocument.HostedZoneId) {
-      throw new Error(`RecordSet hosted zone id can't be changed after creation.`);
-    }
-    if (oldDocument.Name !== newDocument.Name) {
-      throw new Error(`RecordSet name id can't be changed after creation.`);
-    }
-    if (oldDocument.Type !== newDocument.Type) {
-      throw new Error(`RecordSet type can't be changed after creation.`);
-    }
-    await this.client.send(
-      new ChangeResourceRecordSetsCommand({
-        HostedZoneId: newDocument.HostedZoneId,
-        ChangeBatch: {
-          Changes: [
-            {
-              Action: "UPSERT",
-              ResourceRecordSet: this.formatRecordSet(id, newDocument)
-            }
-          ]
-        }
-      })
-    );
-    return id;
-  }
-  async delete({ id, document }) {
-    await this.client.send(
-      new ChangeResourceRecordSetsCommand({
-        HostedZoneId: document.HostedZoneId,
-        ChangeBatch: {
-          Changes: [
-            {
-              Action: "DELETE",
-              ResourceRecordSet: this.formatRecordSet(id, document)
-            }
-          ]
-        }
-      })
-    );
-  }
-};
-
-// src/provider/aws/s3/bucket-provider.ts
-import {
-  DeleteObjectsCommand,
-  ListObjectVersionsCommand,
-  ListObjectsV2Command,
-  S3Client as S3Client2
-} from "@aws-sdk/client-s3";
-var BucketProvider = class {
-  client;
-  cloudProvider;
-  constructor(props) {
-    this.client = new S3Client2(props);
-    this.cloudProvider = props.cloudProvider;
-  }
-  own(id) {
-    return id === "aws-s3-bucket";
-  }
-  async get(props) {
-    return this.cloudProvider.get(props);
-  }
-  async create(props) {
-    return this.cloudProvider.create(props);
-  }
-  async update(props) {
-    return this.cloudProvider.update(props);
-  }
-  async delete(props) {
-    if (props.extra.forceDelete) {
-      await this.emptyBucket(props.document.BucketName);
-    }
-    return this.cloudProvider.delete(props);
-  }
-  async emptyBucket(bucket) {
-    await Promise.all([
-      //
-      this.deleteBucketObjects(bucket),
-      this.deleteBucketObjectVersions(bucket)
-    ]);
-  }
-  async deleteBucketObjects(bucket) {
-    while (true) {
-      const result = await this.client.send(
-        new ListObjectsV2Command({
-          Bucket: bucket,
-          MaxKeys: 1e3
-        })
-      );
-      if (!result.Contents || result.Contents.length === 0) {
-        break;
-      }
-      await this.client.send(
-        new DeleteObjectsCommand({
-          Bucket: bucket,
-          Delete: {
-            Objects: result.Contents.map((object) => ({
-              Key: object.Key
-            }))
-          }
-        })
-      );
-    }
-  }
-  async deleteBucketObjectVersions(bucket) {
-    while (true) {
-      const result = await this.client.send(
-        new ListObjectVersionsCommand({
-          Bucket: bucket,
-          MaxKeys: 1e3
-        })
-      );
-      const objects = [...result.DeleteMarkers ?? [], ...result.Versions ?? []];
-      if (objects.length === 0) {
-        break;
-      }
-      await this.client.send(
-        new DeleteObjectsCommand({
-          Bucket: bucket,
-          Delete: {
-            Objects: objects.map((object) => ({
-              Key: object.Key,
-              VersionId: object.VersionId
-            }))
-          }
-        })
-      );
-    }
-  }
-};
-
-// src/provider/aws/sns/subscription-provider.ts
-import {
-  GetSubscriptionAttributesCommand,
-  SNSClient,
-  SubscribeCommand,
-  UnsubscribeCommand
-} from "@aws-sdk/client-sns";
-var SubscriptionProvider = class {
-  client;
-  constructor(props) {
-    this.client = new SNSClient(props);
-  }
-  own(id) {
-    return id === "aws-sns-subscription";
-  }
-  async get({ id }) {
-    const result = await this.client.send(
-      new GetSubscriptionAttributesCommand({
-        SubscriptionArn: id
-      })
-    );
-    return result.Attributes;
-  }
-  async create({ document }) {
-    const result = await this.client.send(
-      new SubscribeCommand({
-        ...document,
-        ReturnSubscriptionArn: true
-      })
-    );
-    return result.SubscriptionArn;
-  }
-  async update({}) {
-    throw new Error(`SNS Subscription can't be changed after creation.`);
-    return "";
-  }
-  async delete({ id }) {
-    await this.client.send(
-      new UnsubscribeCommand({
-        SubscriptionArn: id
-      })
-    );
-  }
-};
-
 // src/provider/aws/cloud-front/index.ts
 var cloud_front_exports = {};
 __export(cloud_front_exports, {
@@ -3057,12 +2670,516 @@ var LambdaTriggersProvider = class {
   }
 };
 
+// src/provider/aws/dynamodb/table-item-provider.ts
+import { DeleteItemCommand, DynamoDB, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall } from "@aws-sdk/util-dynamodb";
+var TableItemProvider = class {
+  client;
+  constructor(props) {
+    this.client = new DynamoDB(props);
+  }
+  own(id) {
+    return id === "aws-dynamodb-table-item";
+  }
+  marshall(item) {
+    return marshall(item, {
+      removeUndefinedValues: true
+    });
+  }
+  primaryKey(document, item) {
+    const key = {
+      [document.hash]: item[document.hash]
+    };
+    if (document.sort) {
+      key[document.sort] = item[document.sort];
+    }
+    return key;
+  }
+  async get() {
+    return {};
+  }
+  async create({ document, assets }) {
+    const item = JSON.parse(assets.item.data.toString("utf8"));
+    const key = this.primaryKey(document, item);
+    await this.client.send(
+      new PutItemCommand({
+        TableName: document.table,
+        Item: this.marshall(item)
+      })
+    );
+    return JSON.stringify([document.table, key]);
+  }
+  async update({ id, oldDocument, newDocument, assets }) {
+    if (oldDocument.table !== newDocument.table) {
+      throw new Error(`TableItem can't change the table name`);
+    }
+    if (oldDocument.hash !== newDocument.hash) {
+      throw new Error(`TableItem can't change the hash key`);
+    }
+    if (oldDocument.sort !== newDocument.sort) {
+      throw new Error(`TableItem can't change the sort key`);
+    }
+    const [_, oldKey] = JSON.parse(id);
+    const item = JSON.parse(assets.item.data.toString("utf8"));
+    const key = this.primaryKey(newDocument, item);
+    if (JSON.stringify(oldKey) !== JSON.stringify(key)) {
+      await this.client.send(
+        new DeleteItemCommand({
+          TableName: newDocument.table,
+          Key: this.marshall(oldKey)
+        })
+      );
+    }
+    await this.client.send(
+      new PutItemCommand({
+        TableName: newDocument.table,
+        Item: this.marshall(item)
+      })
+    );
+    return JSON.stringify([newDocument.table, key]);
+  }
+  async delete({ id }) {
+    const [table, oldKey] = JSON.parse(id);
+    await this.client.send(
+      new DeleteItemCommand({
+        TableName: table,
+        Key: this.marshall(oldKey)
+      })
+    );
+  }
+};
+
+// src/provider/aws/ecr/index.ts
+var ecr_exports = {};
+__export(ecr_exports, {
+  Image: () => Image,
+  ImageProvider: () => ImageProvider,
+  Repository: () => Repository
+});
+
+// src/provider/aws/ecr/image.ts
+var Image = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECR::Image", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-ecr-image";
+  get uri() {
+    return this.output((v) => v.ImageUri);
+  }
+  toState() {
+    return {
+      document: {
+        RepositoryName: this.props.repository,
+        ImageName: this.props.name,
+        Tag: this.props.tag
+      }
+    };
+  }
+};
+
+// src/provider/aws/ecr/image-provider.ts
+import { BatchDeleteImageCommand, ECRClient, GetAuthorizationTokenCommand } from "@aws-sdk/client-ecr";
+import { exec } from "promisify-child-process";
+var ImageProvider = class {
+  constructor(props) {
+    this.props = props;
+    this.client = new ECRClient({
+      ...props
+    });
+  }
+  client;
+  loggedIn = false;
+  own(id) {
+    return id === "aws-ecr-image";
+  }
+  async getCredentials() {
+    const command = new GetAuthorizationTokenCommand({});
+    const result = await this.client.send(command);
+    const [username, password] = Buffer.from(result.authorizationData[0].authorizationToken ?? "", "base64").toString("utf8").split(":");
+    return { username, password };
+  }
+  async login() {
+    if (!this.loggedIn) {
+      const { username, password } = await this.getCredentials();
+      const repoName = `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`;
+      await exec(`docker logout ${repoName}`);
+      await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${repoName}`);
+      this.loggedIn = true;
+    }
+  }
+  async push(repository, tag) {
+    await exec(
+      `docker push ${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${repository}:${tag}`
+    );
+  }
+  async get({ document }) {
+    return {
+      ImageUri: `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${document.RepositoryName}:${document.Tag}`
+    };
+  }
+  async create({ document }) {
+    await this.login();
+    await this.push(document.RepositoryName, document.Tag);
+    return JSON.stringify([document.RepositoryName, document.ImageName, document.Tag]);
+  }
+  async update({ oldDocument, newDocument }) {
+    if (oldDocument.Tag !== newDocument.Tag) {
+      throw new Error(`ECR Image can't change the tag`);
+    }
+    await this.login();
+    await this.push(newDocument.RepositoryName, newDocument.Tag);
+    return JSON.stringify([newDocument.RepositoryName, newDocument.ImageName, newDocument.Tag]);
+  }
+  async delete({ document }) {
+    await this.client.send(
+      new BatchDeleteImageCommand({
+        repositoryName: document.RepositoryName,
+        imageIds: [{ imageTag: document.Tag }]
+      })
+    );
+  }
+};
+
+// src/provider/aws/ecr/repository.ts
+var Repository = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECR::Repository", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.RepositoryName);
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get uri() {
+    return this.output((v) => v.RepositoryUri);
+  }
+  toState() {
+    return {
+      document: {
+        RepositoryName: this.props.name,
+        EmptyOnDelete: this.props.emptyOnDelete,
+        ImageTagMutability: this.props.imageTagMutability ? "MUTABLE" : "IMMUTABLE"
+      }
+    };
+  }
+};
+
+// src/provider/aws/route53/record-set-provider.ts
+import {
+  ChangeResourceRecordSetsCommand,
+  ListResourceRecordSetsCommand,
+  Route53Client
+} from "@aws-sdk/client-route-53";
+import { randomUUID as randomUUID2 } from "crypto";
+var RecordSetProvider = class {
+  client;
+  constructor(props) {
+    this.client = new Route53Client(props);
+  }
+  own(id) {
+    return id === "aws-route53-record-set";
+  }
+  async get({ id, document }) {
+    const result = await this.client.send(
+      new ListResourceRecordSetsCommand({
+        HostedZoneId: document.HostedZoneId,
+        MaxItems: 1,
+        StartRecordIdentifier: id,
+        StartRecordName: document.Name,
+        StartRecordType: document.Type
+      })
+    );
+    return result.ResourceRecordSets?.at(0);
+  }
+  formatRecordSet(id, document) {
+    return {
+      Name: document.Name,
+      Type: document.Type,
+      ResourceRecords: document.ResourceRecords?.map((Value) => ({ Value })),
+      Weight: document.Weight,
+      TTL: document.TTL,
+      SetIdentifier: id,
+      AliasTarget: document.AliasTarget
+    };
+  }
+  async create({ document }) {
+    const id = randomUUID2();
+    await this.client.send(
+      new ChangeResourceRecordSetsCommand({
+        HostedZoneId: document.HostedZoneId,
+        ChangeBatch: {
+          Changes: [
+            {
+              Action: "CREATE",
+              ResourceRecordSet: this.formatRecordSet(id, document)
+            }
+          ]
+        }
+      })
+    );
+    return id;
+  }
+  async update({ id, oldDocument, newDocument }) {
+    if (oldDocument.HostedZoneId !== newDocument.HostedZoneId) {
+      throw new Error(`RecordSet hosted zone id can't be changed after creation.`);
+    }
+    if (oldDocument.Name !== newDocument.Name) {
+      throw new Error(`RecordSet name id can't be changed after creation.`);
+    }
+    if (oldDocument.Type !== newDocument.Type) {
+      throw new Error(`RecordSet type can't be changed after creation.`);
+    }
+    await this.client.send(
+      new ChangeResourceRecordSetsCommand({
+        HostedZoneId: newDocument.HostedZoneId,
+        ChangeBatch: {
+          Changes: [
+            {
+              Action: "UPSERT",
+              ResourceRecordSet: this.formatRecordSet(id, newDocument)
+            }
+          ]
+        }
+      })
+    );
+    return id;
+  }
+  async delete({ id, document }) {
+    await this.client.send(
+      new ChangeResourceRecordSetsCommand({
+        HostedZoneId: document.HostedZoneId,
+        ChangeBatch: {
+          Changes: [
+            {
+              Action: "DELETE",
+              ResourceRecordSet: this.formatRecordSet(id, document)
+            }
+          ]
+        }
+      })
+    );
+  }
+};
+
+// src/provider/aws/s3/bucket-object-provider.ts
+import {
+  DeleteObjectCommand,
+  GetObjectAttributesCommand,
+  PutObjectCommand,
+  S3Client,
+  S3ServiceException
+} from "@aws-sdk/client-s3";
+var BucketObjectProvider = class {
+  client;
+  constructor(props) {
+    this.client = new S3Client(props);
+  }
+  own(id) {
+    return id === "aws-s3-bucket-object";
+  }
+  async get({ document }) {
+    const result = await this.client.send(
+      new GetObjectAttributesCommand({
+        Bucket: document.Bucket,
+        Key: document.Key,
+        ObjectAttributes: ["ETag", "Checksum"]
+      })
+    );
+    return {
+      VersionId: result.VersionId,
+      ETag: result.ETag,
+      Checksum: result.Checksum
+    };
+  }
+  async create({ document, assets }) {
+    await this.client.send(
+      new PutObjectCommand({
+        ...document,
+        Body: assets.body?.data
+      })
+    );
+    return JSON.stringify([document.Bucket, document.Key]);
+  }
+  async update({ oldDocument, newDocument, assets }) {
+    if (oldDocument.Bucket !== newDocument.Bucket) {
+      throw new Error(`BucketObject can't change the bucket name`);
+    }
+    if (oldDocument.Key !== newDocument.Key) {
+      throw new Error(`BucketObject can't change the key`);
+    }
+    await this.client.send(
+      new PutObjectCommand({
+        ...newDocument,
+        Body: assets.body?.data
+      })
+    );
+    return JSON.stringify([newDocument.Bucket, newDocument.Key]);
+  }
+  async delete({ document }) {
+    try {
+      await this.client.send(
+        new DeleteObjectCommand({
+          Bucket: document.Bucket,
+          Key: document.Key
+        })
+      );
+    } catch (error) {
+      if (error instanceof S3ServiceException) {
+        if (error.name === "NoSuchBucket") {
+          return;
+        }
+      }
+      throw error;
+    }
+  }
+};
+
+// src/provider/aws/s3/bucket-provider.ts
+import {
+  DeleteObjectsCommand,
+  ListObjectVersionsCommand,
+  ListObjectsV2Command,
+  S3Client as S3Client2
+} from "@aws-sdk/client-s3";
+var BucketProvider = class {
+  client;
+  cloudProvider;
+  constructor(props) {
+    this.client = new S3Client2(props);
+    this.cloudProvider = props.cloudProvider;
+  }
+  own(id) {
+    return id === "aws-s3-bucket";
+  }
+  async get(props) {
+    return this.cloudProvider.get(props);
+  }
+  async create(props) {
+    return this.cloudProvider.create(props);
+  }
+  async update(props) {
+    return this.cloudProvider.update(props);
+  }
+  async delete(props) {
+    if (props.extra.forceDelete) {
+      await this.emptyBucket(props.document.BucketName);
+    }
+    return this.cloudProvider.delete(props);
+  }
+  async emptyBucket(bucket) {
+    await Promise.all([
+      //
+      this.deleteBucketObjects(bucket),
+      this.deleteBucketObjectVersions(bucket)
+    ]);
+  }
+  async deleteBucketObjects(bucket) {
+    while (true) {
+      const result = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          MaxKeys: 1e3
+        })
+      );
+      if (!result.Contents || result.Contents.length === 0) {
+        break;
+      }
+      await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: {
+            Objects: result.Contents.map((object) => ({
+              Key: object.Key
+            }))
+          }
+        })
+      );
+    }
+  }
+  async deleteBucketObjectVersions(bucket) {
+    while (true) {
+      const result = await this.client.send(
+        new ListObjectVersionsCommand({
+          Bucket: bucket,
+          MaxKeys: 1e3
+        })
+      );
+      const objects = [...result.DeleteMarkers ?? [], ...result.Versions ?? []];
+      if (objects.length === 0) {
+        break;
+      }
+      await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: {
+            Objects: objects.map((object) => ({
+              Key: object.Key,
+              VersionId: object.VersionId
+            }))
+          }
+        })
+      );
+    }
+  }
+};
+
+// src/provider/aws/sns/subscription-provider.ts
+import {
+  GetSubscriptionAttributesCommand,
+  SNSClient,
+  SubscribeCommand,
+  UnsubscribeCommand
+} from "@aws-sdk/client-sns";
+var SubscriptionProvider = class {
+  client;
+  constructor(props) {
+    this.client = new SNSClient(props);
+  }
+  own(id) {
+    return id === "aws-sns-subscription";
+  }
+  async get({ id }) {
+    const result = await this.client.send(
+      new GetSubscriptionAttributesCommand({
+        SubscriptionArn: id
+      })
+    );
+    return result.Attributes;
+  }
+  async create({ document }) {
+    const result = await this.client.send(
+      new SubscribeCommand({
+        ...document,
+        ReturnSubscriptionArn: true
+      })
+    );
+    return result.SubscriptionArn;
+  }
+  async update({}) {
+    throw new Error(`SNS Subscription can't be changed after creation.`);
+    return "";
+  }
+  async delete({ id }) {
+    await this.client.send(
+      new UnsubscribeCommand({
+        SubscriptionArn: id
+      })
+    );
+  }
+};
+
 // src/provider/aws/cloud.ts
 var createCloudProviders = (config) => {
   const cloudControlApiProvider = new CloudControlApiProvider(config);
   return [
     //
     cloudControlApiProvider,
+    new ImageProvider(config),
     new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketObjectProvider(config),
     new TableItemProvider(config),
@@ -4646,6 +4763,8 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/function.ts
+import { seconds, toSeconds as toSeconds8 } from "@awsless/duration";
+import { mebibytes, toMebibytes } from "@awsless/size";
 import { constantCase as constantCase6 } from "change-case";
 
 // src/provider/aws/lambda/code.ts
@@ -4668,8 +4787,6 @@ var formatCode = (code) => {
 };
 
 // src/provider/aws/lambda/function.ts
-import { mebibytes, toMebibytes } from "@awsless/size";
-import { seconds, toSeconds as toSeconds8 } from "@awsless/duration";
 var Function = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -4724,6 +4841,14 @@ var Function = class extends CloudControlApiResource {
     if (unwrap(this.props.name).length > 64) {
       throw new TypeError(`Lambda function name length can't be greater then 64. ${unwrap(this.props.name)}`);
     }
+    const code = unwrap(this.props.code);
+    const nativeProps = {
+      Runtime: unwrap(this.props.runtime, "nodejs18.x"),
+      Handler: unwrap(this.props.handler, "index.default")
+    };
+    const containerProps = {
+      PackageType: "Image"
+    };
     return {
       asset: {
         code: this.props.code
@@ -4732,13 +4857,12 @@ var Function = class extends CloudControlApiResource {
         FunctionName: this.props.name,
         Description: this.props.description,
         MemorySize: toMebibytes(unwrap(this.props.memorySize, mebibytes(128))),
-        Handler: unwrap(this.props.handler, "index.default"),
-        Runtime: unwrap(this.props.runtime, "nodejs18.x"),
         Timeout: toSeconds8(unwrap(this.props.timeout, seconds(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
-        Code: formatCode(unwrap(this.props.code)),
+        ..."imageUri" in code ? containerProps : nativeProps,
+        Code: formatCode(code),
         EphemeralStorage: {
           Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512)))
         },

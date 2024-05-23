@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.248",
+	"version": "0.0.249",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -104,6 +104,7 @@
 		"parse-static-imports": "^1.1.0",
 		"pretty-hrtime": "^1.0.3",
 		"promise-dag": "^1.0.0",
+		"promisify-child-process": "^4.1.2",
 		"rollup": "^4.0.2",
 		"rollup-plugin-replace": "^2.2.0",
 		"rollup-plugin-swc3": "^0.10.2",

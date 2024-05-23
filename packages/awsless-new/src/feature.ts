@@ -1,4 +1,4 @@
-import { Stack, App, aws } from '@awsless/formation'
+import { Stack, App, aws, Input } from '@awsless/formation'
 import { StackConfig } from './config/stack.js'
 import { AppConfig } from './config/app.js'
 import { Builder } from './build/index.js'
@@ -11,6 +11,8 @@ type RegisterFunction = (
 	policy: aws.iam.RolePolicy
 ) => void
 
+type RegisterSiteFunction = (lambda: aws.lambda.Function) => void
+
 type RegisterBuild = (
 	//
 	type: string,
@@ -21,6 +23,7 @@ type RegisterBuild = (
 type RegisterConfig = (name: string) => void
 
 type RegisterTest = (name: string, paths: string[]) => void
+type BindEnv = (name: string, value: Input<string>) => void
 
 export type OnFunction = (callback: OnFunctionListener) => void
 export type OnFunctionListener = (entry: OnFunctionEntry) => void
@@ -48,6 +51,9 @@ export type AppContext = {
 	registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerFunction: RegisterFunction
+	registerSiteFunction: RegisterSiteFunction
+
+	bindEnv: BindEnv
 
 	onFunction: OnFunction
 }

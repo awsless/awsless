@@ -1,15 +1,17 @@
-import { Asset, Node, aws } from '@awsless/formation'
-import { AppContext, StackContext } from '../../feature.js'
-import { FunctionSchema } from './schema.js'
-import { z } from 'zod'
+import { Asset, aws, Node } from '@awsless/formation'
 import deepmerge from 'deepmerge'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { bundleTypeScript } from './build/typescript/bundle.js'
-import { zipFiles } from './build/zip.js'
-import { fingerprintFromFile } from './build/typescript/fingerprint.js'
-import { formatByteSize } from '../../util/byte-size.js'
+import { basename, dirname, extname } from 'path'
+import { exec } from 'promisify-child-process'
+import { z } from 'zod'
 import { getBuildPath } from '../../build/index.js'
+import { AppContext, StackContext } from '../../feature.js'
+import { formatByteSize } from '../../util/byte-size.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
+import { bundleTypeScript } from './build/typescript/bundle.js'
+import { fingerprintFromFile } from './build/typescript/fingerprint.js'
+import { zipFiles } from './build/zip.js'
+import { FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 type Function = aws.lambda.Function
@@ -31,31 +33,66 @@ export const createLambdaFunction = (
 	}
 
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
+	const ext = extname(props.file)
+	let code: aws.lambda.Code | undefined
 
-	ctx.registerBuild('function', name, async build => {
-		const version = await fingerprintFromFile(props.file)
+	if (['.ts', '.js', '.tsx', '.sx'].includes(ext)) {
+		ctx.registerBuild('function', name, async build => {
+			const version = await fingerprintFromFile(props.file)
 
-		return build(version, async write => {
-			const bundle = await bundleTypeScript({ file: props.file })
-			const archive = await zipFiles(bundle.files)
+			return build(version, async write => {
+				const bundle = await bundleTypeScript({ file: props.file })
+				const archive = await zipFiles(bundle.files)
 
-			await Promise.all([
-				write('bundle.zip', archive),
-				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
-				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
-			])
+				await Promise.all([
+					write('bundle.zip', archive),
+					...bundle.files.map(file => write(`files/${file.name}`, file.code)),
+					...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
+				])
 
-			return {
-				size: formatByteSize(archive.byteLength),
-			}
+				return {
+					size: formatByteSize(archive.byteLength),
+				}
+			})
 		})
-	})
 
-	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('function-bucket-name'),
-		key: `/lambda/${name}.zip`,
-		body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
-	})
+		code = new aws.s3.BucketObject(group, 'code', {
+			bucket: ctx.shared.get('function-bucket-name'),
+			key: `/lambda/${name}.zip`,
+			body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
+		})
+	} else if (basename(props.file) === 'dockerfile') {
+		ctx.registerBuild('function', name, async build => {
+			const version = Math.random().toString()
+
+			return build(version, async () => {
+				const repoName = formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-')
+
+				await exec(`docker build -t ${name} .`, {
+					cwd: dirname(props.file),
+				})
+
+				await exec(
+					`docker tag ${name}:latest ${ctx.accountId}.dkr.ecr.${ctx.appConfig.region}.amazonaws.com/${repoName}:${name}`,
+					{
+						cwd: dirname(props.file),
+					}
+				)
+			})
+		})
+
+		const image = new aws.ecr.Image(group, 'image', {
+			repository: ctx.shared.get('function-repository-name'),
+			name: name,
+			tag: name,
+		})
+
+		code = {
+			imageUri: image.uri,
+		}
+	} else {
+		throw new Error('Unknown Lambda Function type.')
+	}
 
 	// const inlinePolicies: aws.iam.PolicyDocument[] = []
 
@@ -92,8 +129,8 @@ export const createLambdaFunction = (
 	const lambda = new aws.lambda.Function(group, `function`, {
 		...props,
 		name,
-		code,
 		role: role.arn,
+		code,
 
 		// Remove conflicting props.
 		vpc: undefined,

@@ -1,22 +1,24 @@
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudControlApiProvider } from './cloud-control-api/provider'
-import { BucketObjectProvider } from './s3/bucket-object-provider'
-import { TableItemProvider } from './dynamodb/table-item-provider'
-import { RecordSetProvider } from './route53/record-set-provider'
-import { BucketProvider } from './s3/bucket-provider'
+import { Duration } from '@awsless/duration'
 import { CertificateProvider } from './acm/certificate-provider'
 import { CertificateValidationProvider } from './acm/certificate-validation-provider'
+import { IntegrationProvider, StageProvider } from './api-gateway-v2'
+import { DataSourceProvider } from './appsync/data-source-provider'
 import { GraphQLApiProvider } from './appsync/graphql-api-provider'
 import { GraphQLSchemaProvider } from './appsync/graphql-schema-provider'
-import { DataSourceProvider } from './appsync/data-source-provider'
-import { Duration } from '@awsless/duration'
-import { SubscriptionProvider } from './sns/subscription-provider'
+import { CloudControlApiProvider } from './cloud-control-api/provider'
 import { InvalidateCacheProvider } from './cloud-front'
 import { LambdaTriggersProvider } from './cognito/lambda-triggers-provider'
-import { IntegrationProvider, StageProvider } from './api-gateway-v2'
+import { TableItemProvider } from './dynamodb/table-item-provider'
+import { ImageProvider } from './ecr'
+import { RecordSetProvider } from './route53/record-set-provider'
+import { BucketObjectProvider } from './s3/bucket-object-provider'
+import { BucketProvider } from './s3/bucket-provider'
+import { SubscriptionProvider } from './sns/subscription-provider'
 
 type ConfigProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
+	accountId: string
 	region: string
 	timeout?: Duration
 }
@@ -26,6 +28,7 @@ export const createCloudProviders = (config: ConfigProps) => {
 	return [
 		//
 		cloudControlApiProvider,
+		new ImageProvider(config),
 		new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
 		new BucketObjectProvider(config),
 		new TableItemProvider(config),

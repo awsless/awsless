@@ -3,7 +3,7 @@
 // import { style } from './cli/style.js'
 import { StackConfig } from './config/stack.js'
 import { AppConfig } from './config/app.js'
-import { App, Stack } from '@awsless/formation'
+import { App, Input, Stack, aws } from '@awsless/formation'
 import { features } from './feature/index.js'
 import { OnFunctionEntry, OnFunctionListener } from './feature.js'
 import { Builder } from './build/index.js'
@@ -46,11 +46,18 @@ export type BuildTask = {
 	builder: Builder
 }
 
+export type BindEnv = {
+	name: string
+	value: Input<string>
+}
+
 export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const app = new App(props.appConfig.name)
 	const base = new Stack(app, 'base')
 	const shared = new SharedData()
 
+	const binds: BindEnv[] = []
+	const siteFunctions: aws.lambda.Function[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
@@ -80,6 +87,12 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 			},
 			registerBuild(type, name, builder) {
 				builders.push({ type, name, builder })
+			},
+			registerSiteFunction(lambda) {
+				siteFunctions.push(lambda)
+			},
+			bindEnv(name, value) {
+				binds.push({ name, value })
 			},
 		})
 	}
@@ -127,6 +140,12 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				registerConfig(name) {
 					configs.add(name)
 				},
+				registerSiteFunction(lambda) {
+					siteFunctions.push(lambda)
+				},
+				bindEnv(name, value) {
+					binds.push({ name, value })
+				},
 			})
 		}
 
@@ -146,6 +165,15 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	for (const listener of globalListeners) {
 		for (const fn of allFunctions) {
 			listener(fn)
+		}
+	}
+
+	// ---------------------------------------------------------------
+	// Site env binds
+
+	for (const lambda of siteFunctions) {
+		for (const { name, value } of binds) {
+			lambda.addEnvironment(name, value)
 		}
 	}
 
@@ -198,6 +226,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		app,
 		base,
 		tests,
+		binds,
 		shared,
 		configs,
 		builders,

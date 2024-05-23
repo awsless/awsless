@@ -1,41 +1,34 @@
-import { constantCase } from 'change-case'
-import { ARN } from '../types.js'
-import { Input, unwrap } from '../../../core/output.js'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { Node } from '../../../core/node.js'
+import { Input } from '../../../core/output.js'
 import { Resource } from '../../../core/resource.js'
 
 export type ImageProps = {
+	repository: Input<string>
 	name: Input<string>
-	emptyOnDelete?: Input<boolean>
-	// functionArn: Input<ARN>
-	// action?: Input<string>
-	// principal: Input<string>
-	// sourceArn?: Input<ARN>
-	// urlAuthType?: Input<'none' | 'aws-iam'>
+	tag: Input<string>
 }
 
 export class Image extends Resource {
-	constructor(readonly parent: Node, id: string, private props: ImageProps) {
-		super(parent, 'AWS::ECR::Repository', id, props)
+	cloudProviderId = 'aws-ecr-image'
+
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: ImageProps
+	) {
+		super(parent, 'AWS::ECR::Image', id, props)
+	}
+
+	get uri() {
+		return this.output<string>(v => v.ImageUri)
 	}
 
 	toState() {
 		return {
 			document: {
-				EmptyOnDelete: this.props.emptyOnDelete,
-				// EncryptionConfiguration: EncryptionConfiguration,
-				// ImageScanningConfiguration: ImageScanningConfiguration,
-				// ImageTagMutability: String,
-				// LifecyclePolicy: LifecyclePolicy,
-				RepositoryName: this.props.name,
-				// RepositoryPolicyText: Json,
-
-				// FunctionName: this.props.functionArn,
-				// Action: unwrap(this.props.action, 'lambda:InvokeFunction'),
-				// Principal: this.props.principal,
-				// ...this.attr('SourceArn', this.props.sourceArn),
-				// ...this.attr('FunctionUrlAuthType', this.props.urlAuthType, constantCase),
+				RepositoryName: this.props.repository,
+				ImageName: this.props.name,
+				Tag: this.props.tag,
 			},
 		}
 	}
