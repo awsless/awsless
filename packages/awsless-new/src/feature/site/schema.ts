@@ -41,6 +41,15 @@ export const SitesSchema = z
 			domain: ResourceIdSchema.describe('The domain id to link your site with.'),
 			subDomain: z.string().optional(),
 
+			// bind: z
+			// 	.object({
+			// 		auth: z.array(ResourceIdSchema),
+			// 		graphql: z.array(ResourceIdSchema),
+			// 		// http: z.array(ResourceIdSchema),
+			// 		// rest: z.array(ResourceIdSchema),
+			// 	})
+			// 	.optional(),
+
 			static: LocalDirectorySchema.optional().describe('Specifies the path to the static files directory.'),
 			ssr: FunctionSchema.optional().describe('Specifies the ssr file.'),
 

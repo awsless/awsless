@@ -16,6 +16,8 @@ export type ImageProps = {
 }
 
 export class Image extends Resource {
+	cloudProviderId = 'aws-ecr-image'
+
 	constructor(readonly parent: Node, id: string, private props: ImageProps) {
 		super(parent, 'AWS::ECR::Repository', id, props)
 	}

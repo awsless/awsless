@@ -20,6 +20,6 @@ export const getAuthProps = (name: string) => {
 		// clientSecret: env[`AWSLESS_CLIENT_AUTH_${id}_CLIENT_SECRET`]!,
 		userPoolId: env[`AUTH_${id}_USER_POOL_ID`]!,
 		clientId: env[`AUTH_${id}_CLIENT_ID`]!,
-		clientSecret: env[`AUTH_${id}_CLIENT_SECRET`]!,
+		// clientSecret: env[`AUTH_${id}_CLIENT_SECRET`]!,
 	} as const
 }

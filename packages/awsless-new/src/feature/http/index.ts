@@ -3,7 +3,7 @@ import { defineFeature } from '../../feature.js'
 import { Route } from './schema.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { camelCase } from 'change-case'
+import { camelCase, constantCase } from 'change-case'
 import { relative } from 'path'
 import { directories } from '../../util/path.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
@@ -152,6 +152,8 @@ export const httpFeature = defineFeature({
 				],
 			})
 
+			ctx.shared.set(`http-${id}-listener-arn`, listener.arn)
+
 			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
 			new aws.route53.RecordSet(group, domainName, {
@@ -165,7 +167,7 @@ export const httpFeature = defineFeature({
 				},
 			})
 
-			ctx.shared.set(`http-${id}-listener-arn`, listener.arn)
+			ctx.bindEnv(`HTTP_${constantCase(id)}_ENDPOINT`, domainName)
 		}
 	},
 	onStack(ctx) {

@@ -169,6 +169,9 @@ export const authFeature = defineFeature({
 
 			// ctx.outputs.set('auth', id, 'user-pool-id', userPool.id)
 
+			ctx.bindEnv(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
+			ctx.bindEnv(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
+
 			ctx.shared.set(`auth-${id}-user-pool-arn`, userPool.arn)
 			ctx.shared.set(`auth-${id}-user-pool-id`, userPool.id)
 			ctx.shared.set(`auth-${id}-client-id`, client.id)

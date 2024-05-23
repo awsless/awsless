@@ -6,12 +6,12 @@ export const getConfigName = (name: string) => {
 	return `/.awsless/${APP}/${name}`
 }
 
-const TEST = process.env.NODE_ENV === 'test'
+const IS_TEST = process.env.NODE_ENV === 'test'
 const CONFIGS = process.env.CONFIG
 
 /*@__NO_SIDE_EFFECTS__*/
 const loadConfigData = async () => {
-	if (!TEST && CONFIGS) {
+	if (!IS_TEST && CONFIGS) {
 		const keys = CONFIGS.split(',')
 
 		if (keys.length > 0) {
@@ -42,7 +42,7 @@ export const Config: ConfigResources = /*@__PURE__*/ new Proxy(
 			if (typeof value === 'undefined') {
 				throw new Error(
 					`The "${name}" config value hasn't been set yet. ${
-						TEST
+						IS_TEST
 							? `Use "Config.${name} = 'VAlUE'" to define your mock value.`
 							: `Define access to the desired config value inside your awsless stack file.`
 					}`
