@@ -5,7 +5,8 @@
 	// "stores": {
 	// 	"test": {
 	// 		"events": {
-	// 			"created:*": "./function.ts"
+	// 			"created:*": "./function.ts",
+	// 			"removed:*": "./function.ts"
 	// 		}
 	// 	}
 	// }

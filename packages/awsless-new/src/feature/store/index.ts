@@ -1,7 +1,9 @@
 import { aws, Node, Output } from '@awsless/formation'
+import { paramCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
+import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 
@@ -68,7 +70,9 @@ export const storeFeature = defineFeature({
 			for (const [event, funcProps] of Object.entries(props.events ?? {})) {
 				const eventGroup = new Node(group, 'event', event)
 
-				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, id, funcProps)
+				const eventId = paramCase(`${id}-${shortId(event)}`)
+
+				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, eventId, funcProps)
 
 				new aws.lambda.Permission(eventGroup, 'permission', {
 					action: 'lambda:InvokeFunction',
