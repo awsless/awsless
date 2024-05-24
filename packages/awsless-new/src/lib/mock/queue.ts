@@ -1,6 +1,6 @@
 import { mockSQS } from '@awsless/sqs'
-import { getQueueName } from '../resource/queue.js'
-import { createProxy } from '../resource/util.js'
+import { createProxy } from '../proxy.js'
+import { getQueueName } from '../server/queue.js'
 
 export interface QueueMock {}
 export interface QueueMockResponse {}

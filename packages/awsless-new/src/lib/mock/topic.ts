@@ -1,6 +1,6 @@
-import { createProxy } from '../resource/util.js'
-import { getTopicName } from '../resource/topic.js'
 import { mockSNS } from '@awsless/sns'
+import { createProxy } from '../proxy.js'
+import { getTopicName } from '../server/topic.js'
 
 export interface TopicMock {}
 export interface TopicMockResponse {}

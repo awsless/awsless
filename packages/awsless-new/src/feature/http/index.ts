@@ -1,15 +1,15 @@
-import { Node, aws } from '@awsless/formation'
-import { defineFeature } from '../../feature.js'
-import { Route } from './schema.js'
-import { TypeFile } from '../../type-gen/file.js'
-import { TypeObject } from '../../type-gen/object.js'
+import { aws, Node } from '@awsless/formation'
 import { camelCase, constantCase } from 'change-case'
 import { relative } from 'path'
-import { directories } from '../../util/path.js'
+import { defineFeature } from '../../feature.js'
+import { TypeFile } from '../../type-gen/file.js'
+import { TypeObject } from '../../type-gen/object.js'
+import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { directories } from '../../util/path.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
-import { shortId } from '../../util/id.js'
+import { Route } from './schema.js'
 
 const parseRoute = (route: Route) => {
 	const [method, ...paths] = route.split(' ') as [aws.elb.HttpRequestMethod, string]
@@ -33,7 +33,7 @@ const generatePriority = (stackName: string, route: string) => {
 export const httpFeature = defineFeature({
 	name: 'http',
 	async onTypeGen(ctx) {
-		const types = new TypeFile('@awsless/awsless')
+		const types = new TypeFile('@awsless/awsless/client')
 		const resources = new TypeObject(1)
 
 		const api: Record<string, Partial<Record<aws.elb.HttpRequestMethod, Record<string, string>>>> = {}

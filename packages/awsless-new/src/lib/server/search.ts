@@ -1,6 +1,7 @@
+import { AnyStruct, define, searchClient } from '@awsless/open-search'
 import { constantCase } from 'change-case'
-import { STACK, bindLocalResourceName, createProxy } from './util.js'
-import { searchClient, define, AnyStruct } from '@awsless/open-search'
+import { createProxy } from '../proxy.js'
+import { bindLocalResourceName, STACK } from './util.js'
 
 export const getSearchName = bindLocalResourceName('search')
 

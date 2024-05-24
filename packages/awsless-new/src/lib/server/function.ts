@@ -1,6 +1,7 @@
 import { invoke, InvokeOptions } from '@awsless/lambda'
-import { bindLocalResourceName, createProxy } from './util.js'
 import { WeakCache } from '@awsless/weak-cache'
+import { createProxy } from '../proxy.js'
+import { bindLocalResourceName } from './util.js'
 
 const cache = new WeakCache<string, unknown>()
 

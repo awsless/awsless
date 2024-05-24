@@ -1,7 +1,8 @@
 import { Duration } from '@awsless/duration'
-import { bindLocalResourceName, createProxy } from './util.js'
-import { putObject, getObject, deleteObject, StorageClass, Body, createPresignedPost } from '@awsless/s3'
+import { Body, createPresignedPost, deleteObject, getObject, putObject, StorageClass } from '@awsless/s3'
 import { Size } from '@awsless/size'
+import { createProxy } from '../proxy.js'
+import { bindLocalResourceName } from './util.js'
 
 export const getStoreName = bindLocalResourceName('store')
 

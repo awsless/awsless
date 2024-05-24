@@ -1,10 +1,10 @@
-import { Node, aws } from '@awsless/formation'
+import { aws, Node } from '@awsless/formation'
+import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
-import { formatFullDomainName } from '../domain/util.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
-import { constantCase } from 'change-case'
 
 export const restFeature = defineFeature({
 	name: 'rest',
@@ -58,6 +58,8 @@ export const restFeature = defineFeature({
 				record.dependsOn(domain, mapping)
 
 				ctx.bindEnv(`REST_${constantCase(id)}_ENDPOINT`, domainName)
+			} else {
+				// We should also export a env binding for when we don't use a domain.
 			}
 		}
 	},

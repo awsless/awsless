@@ -1,6 +1,7 @@
+import { Cluster, command, CommandOptions } from '@awsless/redis'
 import { constantCase } from 'change-case'
-import { STACK, createProxy } from './util.js'
-import { command, Cluster, CommandOptions } from '@awsless/redis'
+import { createProxy } from '../proxy.js'
+import { STACK } from './util.js'
 
 export const getCacheProps = (name: string, stack: string = STACK) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`

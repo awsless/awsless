@@ -1,6 +1,6 @@
 import { mockLambda } from '@awsless/lambda'
-import { createProxy } from '../resource/util.js'
-import { getTaskName } from '../resource/task.js'
+import { createProxy } from '../proxy.js'
+import { getTaskName } from '../server/task.js'
 // import type { Mock } from 'vitest'
 
 export interface TaskMock {}

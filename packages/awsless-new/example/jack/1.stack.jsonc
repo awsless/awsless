@@ -37,16 +37,16 @@
 	// 		"consumer": "./function.ts"
 	// 	}
 	// },
-	// "graphql": {
-	// 	"api": {
-	// 		"schema": "./graphql/schema.gql",
-	// 		"resolvers": {
-	// 			"Mutation": {
-	// 				"test": "./graphql.ts"
-	// 			}
-	// 		}
-	// 	}
-	// },
+	"graphql": {
+		"api": {
+			"schema": "./graphql/schema.gql",
+			"resolvers": {
+				"Mutation": {
+					"test": "./graphql.ts"
+				}
+			}
+		}
+	},
 	// "tables": {
 	// 	"users": {
 	// 		"hash": "id",

@@ -16,7 +16,7 @@ import { FunctionSchema } from './schema.js'
 
 type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
-type Code = aws.s3.BucketObject
+type Code = aws.lambda.Code
 
 export const createLambdaFunction = (
 	group: Node,

@@ -1,15 +1,15 @@
-import { Command } from 'commander'
-import { createApp } from '../../../../app.js'
-import { layout } from '../../../ui/complex/layout.js'
-import { getAccountId, getCredentials } from '../../../../util/aws.js'
-import { unwrap } from '@awsless/formation'
-import { createWorkSpace } from '../../../../util/workspace.js'
 import {
 	AdminCreateUserCommand,
 	AdminSetUserPasswordCommand,
 	CognitoIdentityProviderClient,
 } from '@aws-sdk/client-cognito-identity-provider'
+import { unwrap } from '@awsless/formation'
 import { password, select, text } from '@clack/prompts'
+import { Command } from 'commander'
+import { createApp } from '../../../../app.js'
+import { getAccountId, getCredentials } from '../../../../util/aws.js'
+import { createWorkSpace } from '../../../../util/workspace.js'
+import { layout } from '../../../ui/complex/layout.js'
 
 export const create = (program: Command) => {
 	program
@@ -40,6 +40,7 @@ export const create = (program: Command) => {
 
 				const { workspace } = createWorkSpace({
 					credentials,
+					accountId,
 					region,
 				})
 

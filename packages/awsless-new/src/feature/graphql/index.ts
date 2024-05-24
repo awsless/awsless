@@ -4,25 +4,25 @@
 // import { toArray } from '../../util/array.js'
 import { constantCase, paramCase } from 'change-case'
 // import { basename } from 'path'
-import { mergeTypeDefs } from '@graphql-tools/merge'
 import { generate } from '@awsless/graphql'
-import { buildSchema, print } from 'graphql'
+import { mergeTypeDefs } from '@graphql-tools/merge'
 import { readFile } from 'fs/promises'
+import { buildSchema, print } from 'graphql'
 // import { FunctionSchema } from '../function/schema.js'
+import { Asset, aws, Node } from '@awsless/formation'
+import { createHash } from 'crypto'
+import { fingerprintFromFile } from '../../build/fingerprint.js'
+import { getBuildPath } from '../../build/index.js'
+import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { Asset, Node, aws } from '@awsless/formation'
-import { formatGlobalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
-import { formatFullDomainName } from '../domain/util.js'
-import { FileError } from '../../error.js'
-import { fingerprintFromFile } from '../../build/fingerprint.js'
 import { formatByteSize } from '../../util/byte-size.js'
-import { getBuildPath } from '../../build/index.js'
-import { buildTypeScriptResolver } from './build/typescript/resolver.js'
-import { createHash } from 'crypto'
 import { shortId } from '../../util/id.js'
+import { formatGlobalResourceName } from '../../util/name.js'
+import { formatFullDomainName } from '../domain/util.js'
+import { createLambdaFunction } from '../function/util.js'
+import { buildTypeScriptResolver } from './build/typescript/resolver.js'
 // import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
@@ -65,15 +65,14 @@ scalar AWSIPAddress
 export const graphqlFeature = defineFeature({
 	name: 'graphql',
 	async onTypeGen(ctx) {
-		const types = new TypeFile('@awsless/awsless')
+		const types = new TypeFile('@awsless/awsless/client')
+		const schemas = new TypeObject(1)
 		const resources = new TypeObject(1)
 
 		const apis: Map<string, string[]> = new Map()
 
-		for (const stack of ctx.stackConfigs) {
-			for (const id of Object.keys(stack.graphql || {})) {
-				apis.set(id, [])
-			}
+		for (const id of Object.keys(ctx.appConfig.defaults.graphql ?? {})) {
+			apis.set(id, [])
 		}
 
 		for (const stack of ctx.stackConfigs) {
@@ -112,11 +111,14 @@ export const graphqlFeature = defineFeature({
 				await ctx.write(`graphql/${id}.ts`, output)
 
 				types.addImport({ Schema: id }, `./graphql/${id}.ts`)
-				resources.addType(id, id)
+				schemas.addType(id, id)
 			}
+
+			resources.addType(id, '{ readonly endpoint: string }')
 		}
 
-		types.addInterface('GraphQL', resources)
+		types.addInterface('GraphQLSchema', schemas)
+		types.addInterface('GraphQLResources', resources)
 
 		await ctx.write('graphql.d.ts', types, true)
 	},
@@ -141,16 +143,16 @@ export const graphqlFeature = defineFeature({
 									type: 'cognito',
 									region: ctx.appConfig.region,
 									userPoolId: ctx.shared.get(`auth-${props.auth}-user-pool-id`),
-							  }
+								}
 							: typeof props.auth === 'object'
-							? {
-									type: 'lambda',
-									functionArn: authorizer!.arn,
-									resultTtl: props.auth.ttl,
-							  }
-							: {
-									type: 'iam',
-							  },
+								? {
+										type: 'lambda',
+										functionArn: authorizer!.arn,
+										resultTtl: props.auth.ttl,
+									}
+								: {
+										type: 'iam',
+									},
 				},
 			})
 
@@ -246,8 +248,11 @@ export const graphqlFeature = defineFeature({
 				})
 
 				ctx.bindEnv(`GRAPHQL_${constantCase(id)}_ENDPOINT`, domainName)
+				// ctx.bindEnv(`AWSLESS_CLIENT_GRAPHQL_${constantCase(id)}_ENDPOINT`, domainName)
 
 				// ctx.registerConfig('graphql', 'config', 'endpoint')
+			} else {
+				ctx.bindEnv(`GRAPHQL_${constantCase(id)}_ENDPOINT`, api.graphql.uri)
 			}
 		}
 	},
@@ -256,10 +261,7 @@ export const graphqlFeature = defineFeature({
 			const defaultProps = ctx.appConfig.defaults.graphql?.[id]
 
 			if (!defaultProps) {
-				throw new FileError(
-					ctx.stackConfig.file,
-					`GraphQL definition is not defined on app level for "${id}"`
-				)
+				throw new FileError(ctx.stackConfig.file, `GraphQL definition is not defined on app level for "${id}"`)
 			}
 
 			const group = new Node(ctx.stack, 'graphql', id)

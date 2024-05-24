@@ -1,23 +1,20 @@
+import { aws, Node, Output } from '@awsless/formation'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { Node, Output, aws } from '@awsless/formation'
 import { createAsyncLambdaFunction } from '../function/util.js'
 
 export const authFeature = defineFeature({
 	name: 'auth',
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('@awsless/awsless')
+		const gen = new TypeFile('@awsless/awsless/client')
 		const resources = new TypeObject(1)
 
 		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
 			const authName = formatGlobalResourceName(ctx.appConfig.name, 'auth', name)
-			resources.addType(
-				name,
-				`{ readonly name: '${authName}', readonly userPoolId: string, readonly clientId: string }`
-			)
+			resources.addType(name, `{ readonly userPoolId: string, readonly clientId: string }`)
 		}
 
 		gen.addInterface('AuthResources', resources)
@@ -164,13 +161,11 @@ export const authFeature = defineFeature({
 			// 	domain: '',
 			// })
 
-			// ctx.registerSharedParameter('AUTH', id, 'USER_POOL_ID', userPoolId)
-			// ctx.registerSharedParameter('AUTH', id, 'CLIENT_ID', clientId)
-
-			// ctx.outputs.set('auth', id, 'user-pool-id', userPool.id)
-
 			ctx.bindEnv(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
 			ctx.bindEnv(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
+
+			// ctx.bindEnv(`AWSLESS_CLIENT_AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
+			// ctx.bindEnv(`AWSLESS_CLIENT_AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
 
 			ctx.shared.set(`auth-${id}-user-pool-arn`, userPool.arn)
 			ctx.shared.set(`auth-${id}-user-pool-id`, userPool.id)

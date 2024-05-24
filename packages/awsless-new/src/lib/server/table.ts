@@ -1,4 +1,5 @@
-import { bindLocalResourceName, createProxy } from './util.js'
+import { createProxy } from '../proxy.js'
+import { bindLocalResourceName } from './util.js'
 
 export const getTableName = bindLocalResourceName('table')
 
