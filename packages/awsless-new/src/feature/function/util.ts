@@ -14,6 +14,8 @@ import { zipFiles } from './build/zip.js'
 import { FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
+import { hashElement } from 'folder-hash'
+
 type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
 type Code = aws.lambda.Code
@@ -63,21 +65,30 @@ export const createLambdaFunction = (
 		})
 	} else if (basename(props.file) === 'dockerfile') {
 		ctx.registerBuild('function', name, async build => {
-			const version = Math.random().toString()
+			const basePath = dirname(props.file)
+			const version = await hashElement(basePath, {
+				files: {
+					exclude: ['stack.json'],
+				},
+			})
 
-			return build(version, async () => {
+			console.log(version)
+
+			return build(version.hash, async () => {
 				const repoName = formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-')
 
 				await exec(`docker build -t ${name} .`, {
-					cwd: dirname(props.file),
+					cwd: basePath,
 				})
 
 				await exec(
 					`docker tag ${name}:latest ${ctx.accountId}.dkr.ecr.${ctx.appConfig.region}.amazonaws.com/${repoName}:${name}`,
-					{
-						cwd: dirname(props.file),
-					}
+					{ cwd: basePath }
 				)
+
+				return {
+					size: 'unknown',
+				}
 			})
 		})
 
