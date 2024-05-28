@@ -38,7 +38,7 @@ export const Store: StoreResources = /*@__PURE__*/ createProxy(stack => {
 				return deleteObject({ bucket, key })
 			},
 			copy(from: string, to: string, versionId?: string) {
-				return copyObject({ bucket, from, to, versionId })
+				return copyObject({ bucket, source: `/${bucket}/${from}`, key: to, versionId })
 			},
 			createPresignedPost(
 				key: string,

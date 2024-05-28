@@ -1,17 +1,17 @@
 import {
-	scan,
-	transactWrite,
-	transactPut,
-	transactConditionCheck,
 	define,
 	mockDynamoDB,
-	object,
 	number,
-	TransactionCanceledException,
-	transactUpdate,
+	object,
 	optional,
+	scan,
 	string,
+	transactConditionCheck,
 	transactDelete,
+	TransactionCanceledException,
+	transactPut,
+	transactUpdate,
+	transactWrite,
 } from '../../src/index'
 
 describe('DynamoDB Transact', () => {

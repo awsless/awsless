@@ -46,11 +46,11 @@ declare const deleteObject: ({ client, bucket, key }: DeleteObjectProps) => Prom
 type CopyObjectProps = {
     client?: S3Client;
     bucket: string;
-    from: string;
-    to: string;
+    source: string;
+    key: string;
     versionId?: string;
 };
-declare const copyObject: ({ client, bucket, from, to, versionId }: CopyObjectProps) => Promise<void>;
+declare const copyObject: ({ client, bucket, source, key, versionId }: CopyObjectProps) => Promise<void>;
 type CreatePresignedPostProps = {
     client?: S3Client;
     bucket: string;
@@ -63,4 +63,4 @@ declare const createPresignedPost: ({ client, bucket, key, fields, expires, cont
 
 declare const mockS3: () => Mock<any, any>;
 
-export { Body, BodyStream, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, PutObjectProps, copyObject, createPresignedPost, deleteObject, getObject, mockS3, putObject, s3Client };
+export { Body, BodyStream, CopyObjectProps, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, PutObjectProps, copyObject, createPresignedPost, deleteObject, getObject, mockS3, putObject, s3Client };

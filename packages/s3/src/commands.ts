@@ -88,23 +88,20 @@ export const deleteObject = async ({ client = s3Client(), bucket, key }: DeleteO
 export type CopyObjectProps = {
 	client?: S3Client
 	bucket: string
-	from: string
-	to: string
+	source: string
+	key: string
 	versionId?: string
 }
 
-export const copyObject = async ({ client = s3Client(), bucket, from, to, versionId }: CopyObjectProps) => {
-	let source: string
+export const copyObject = async ({ client = s3Client(), bucket, source, key, versionId }: CopyObjectProps) => {
 	if (versionId) {
-		source = `/${bucket}/${from}?versionId=${versionId}`
-	} else {
-		source = `/${bucket}/${from}`
+		source = `${source}?versionId=${versionId}`
 	}
 
 	const command = new CopyObjectCommand({
 		Bucket: bucket,
 		CopySource: source,
-		Key: to,
+		Key: key,
 	})
 
 	await client.send(command)
