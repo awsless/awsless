@@ -1,5 +1,3 @@
-import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 import {
 	DeleteObjectCommand,
 	GetObjectAttributesCommand,
@@ -7,6 +5,8 @@ import {
 	S3Client,
 	S3ServiceException,
 } from '@aws-sdk/client-s3'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -59,7 +59,7 @@ export class BucketObjectProvider implements CloudProvider {
 		return JSON.stringify([document.Bucket, document.Key])
 	}
 
-	async update({ oldDocument, newDocument, assets }: UpdateProps<Document>) {
+	async update({ oldDocument, newDocument, newAssets }: UpdateProps<Document>) {
 		// Note: We could also allow changing buckets.
 
 		if (oldDocument.Bucket !== newDocument.Bucket) {
@@ -82,7 +82,7 @@ export class BucketObjectProvider implements CloudProvider {
 		await this.client.send(
 			new PutObjectCommand({
 				...newDocument,
-				Body: assets.body?.data,
+				Body: newAssets.body?.data,
 			})
 		)
 

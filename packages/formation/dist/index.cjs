@@ -406,25 +406,43 @@ function unwrap(input, defaultValue) {
 }
 
 // src/core/workspace/workspace.ts
+var import_crypto = require("crypto");
+var import_p_limit = __toESM(require("p-limit"), 1);
 var import_promise_dag = require("promise-dag");
 
-// src/core/workspace/lock.ts
-var lockApp = async (lockProvider, app, fn) => {
-  let release;
-  try {
-    release = await lockProvider.lock(app.urn);
-  } catch (error) {
-    throw new Error(`Already in progress: ${app.urn}`);
+// src/core/workspace/asset.ts
+var loadAssets = async (assets) => {
+  const resolved = {};
+  const hashes = {};
+  await Promise.all(
+    Object.entries(assets).map(async ([name, asset]) => {
+      const data = await unwrap(asset).load();
+      const buff = await crypto.subtle.digest("SHA-256", data);
+      const hash = Buffer.from(buff).toString("hex");
+      hashes[name] = hash;
+      resolved[name] = {
+        data,
+        hash
+      };
+    })
+  );
+  return [resolved, hashes];
+};
+var resolveDocumentAssets = (document, assets) => {
+  if (document !== null && typeof document === "object") {
+    for (const [key, value] of Object.entries(document)) {
+      if (value !== null && typeof value === "object" && "__ASSET__" in value && typeof value.__ASSET__ === "string") {
+        document[key] = assets[value.__ASSET__]?.data.toString("utf8");
+      } else {
+        resolveDocumentAssets(value, assets);
+      }
+    }
+  } else if (Array.isArray(document)) {
+    for (const value of document) {
+      resolveDocumentAssets(value, assets);
+    }
   }
-  let result;
-  try {
-    result = await fn();
-  } catch (error) {
-    throw error;
-  } finally {
-    await release();
-  }
-  return result;
+  return document;
 };
 
 // src/core/workspace/document.ts
@@ -465,45 +483,23 @@ var compareDocuments = (left, right) => {
   return l === r;
 };
 
-// src/core/workspace/asset.ts
-var loadAssets = async (assets) => {
-  const resolved = {};
-  const hashes = {};
-  await Promise.all(
-    Object.entries(assets).map(async ([name, asset]) => {
-      const data = await unwrap(asset).load();
-      const buff = await crypto.subtle.digest("SHA-256", data);
-      const hash = Buffer.from(buff).toString("hex");
-      hashes[name] = hash;
-      resolved[name] = {
-        data,
-        hash
-      };
-    })
-  );
-  return [resolved, hashes];
-};
-var resolveDocumentAssets = (document, assets) => {
-  if (document !== null && typeof document === "object") {
-    for (const [key, value] of Object.entries(document)) {
-      if (value !== null && typeof value === "object" && "__ASSET__" in value && typeof value.__ASSET__ === "string") {
-        document[key] = assets[value.__ASSET__]?.data.toString("utf8");
-      } else {
-        resolveDocumentAssets(value, assets);
-      }
-    }
-  } else if (Array.isArray(document)) {
-    for (const value of document) {
-      resolveDocumentAssets(value, assets);
-    }
+// src/core/workspace/lock.ts
+var lockApp = async (lockProvider, app, fn) => {
+  let release;
+  try {
+    release = await lockProvider.lock(app.urn);
+  } catch (error) {
+    throw new Error(`Already in progress: ${app.urn}`);
   }
-  return document;
-};
-
-// src/core/workspace/token.ts
-var import_uuid = require("uuid");
-var createIdempotantToken = (appToken, urn, operation) => {
-  return (0, import_uuid.v5)(`${urn}-${operation}`, appToken);
+  let result;
+  try {
+    result = await fn();
+  } catch (error) {
+    throw error;
+  } finally {
+    await release();
+  }
+  return result;
 };
 
 // src/core/workspace/provider.ts
@@ -516,9 +512,13 @@ var getCloudProvider = (cloudProviders, providerId) => {
   throw new TypeError(`Can't find the "${providerId}" cloud provider.`);
 };
 
+// src/core/workspace/token.ts
+var import_uuid = require("uuid");
+var createIdempotantToken = (appToken, urn, operation) => {
+  return (0, import_uuid.v5)(`${urn}-${operation}`, appToken);
+};
+
 // src/core/workspace/workspace.ts
-var import_crypto = require("crypto");
-var import_p_limit = __toESM(require("p-limit"), 1);
 var WorkSpace = class {
   constructor(props) {
     this.props = props;
@@ -590,23 +590,11 @@ var WorkSpace = class {
               }
             }
             if (Object.keys(deleteResourcesBefore).length > 0) {
-              await this.deleteStackResources(
-                app.urn,
-                appState,
-                stackState,
-                deleteResourcesBefore,
-                limit
-              );
+              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore, limit);
             }
             await this.deployStackResources(app.urn, appState, stackState, resources, limit);
             if (Object.keys(deleteResourcesAfter).length > 0) {
-              await this.deleteStackResources(
-                app.urn,
-                appState,
-                stackState,
-                deleteResourcesAfter,
-                limit
-              );
+              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter, limit);
             }
             stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
           }
@@ -898,13 +886,11 @@ var WorkSpace = class {
                 urn: resource.urn,
                 id: resourceState.id,
                 type: resource.type,
-                remoteDocument: resolveDocumentAssets(
-                  cloneObject(resourceState.remote),
-                  assets
-                ),
+                remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
                 oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
                 newDocument: resolveDocumentAssets(cloneObject(document), assets),
-                assets,
+                oldAssets: resourceState.assets,
+                newAssets: assets,
                 extra,
                 token
               });
@@ -2128,14 +2114,14 @@ var GraphQLSchemaProvider = class {
     await this.waitStatusComplete(document.apiId);
     return document.apiId;
   }
-  async update({ oldDocument, newDocument, assets }) {
+  async update({ oldDocument, newDocument, newAssets }) {
     if (oldDocument.apiId !== newDocument.apiId) {
       throw new Error(`GraphGLSchema can't change the api id`);
     }
     await this.client.send(
       new import_client_appsync3.StartSchemaCreationCommand({
         apiId: newDocument.apiId,
-        definition: assets.definition?.data
+        definition: newAssets.definition?.data
       })
     );
     await this.waitStatusComplete(newDocument.apiId);
@@ -2706,7 +2692,7 @@ var TableItemProvider = class {
     );
     return JSON.stringify([document.table, key]);
   }
-  async update({ id, oldDocument, newDocument, assets }) {
+  async update({ id, oldDocument, newDocument, newAssets }) {
     if (oldDocument.table !== newDocument.table) {
       throw new Error(`TableItem can't change the table name`);
     }
@@ -2717,7 +2703,7 @@ var TableItemProvider = class {
       throw new Error(`TableItem can't change the sort key`);
     }
     const [_, oldKey] = JSON.parse(id);
-    const item = JSON.parse(assets.item.data.toString("utf8"));
+    const item = JSON.parse(newAssets.item.data.toString("utf8"));
     const key = this.primaryKey(newDocument, item);
     if (JSON.stringify(oldKey) !== JSON.stringify(key)) {
       await this.client.send(
@@ -2767,6 +2753,9 @@ var Image = class extends Resource {
   }
   toState() {
     return {
+      assets: {
+        hash: this.props.hash
+      },
       document: {
         RepositoryName: this.props.repository,
         ImageName: this.props.name,
@@ -2863,6 +2852,48 @@ var Repository = class extends CloudControlApiResource {
         ImageTagMutability: this.props.imageTagMutability ? "MUTABLE" : "IMMUTABLE"
       }
     };
+  }
+};
+
+// src/provider/aws/lambda/function-provider.ts
+var import_client_lambda = require("@aws-sdk/client-lambda");
+var FunctionProvider = class {
+  constructor(props) {
+    this.props = props;
+    this.client = new import_client_lambda.LambdaClient(props);
+  }
+  client;
+  own(id) {
+    return id === "aws-lambda-function";
+  }
+  async get(props) {
+    return this.props.cloudProvider.get(props);
+  }
+  async create(props) {
+    return this.props.cloudProvider.create(props);
+  }
+  async update(props) {
+    const id = await this.props.cloudProvider.update(props);
+    if (props.newAssets.sourceCodeHash && props.oldAssets.sourceCodeHash !== props.newAssets.sourceCodeHash.hash) {
+      await this.updateFunctionCode(props);
+    }
+    return id;
+  }
+  async delete(props) {
+    return this.props.cloudProvider.delete(props);
+  }
+  async updateFunctionCode(props) {
+    const code = props.newDocument.Code;
+    if ("ZipFile" in code) {
+      return;
+    }
+    await this.client.send(
+      new import_client_lambda.UpdateFunctionCodeCommand({
+        FunctionName: props.newDocument.FunctionName,
+        Architectures: props.newDocument.Architectures,
+        ...code
+      })
+    );
   }
 };
 
@@ -2992,7 +3023,7 @@ var BucketObjectProvider = class {
     );
     return JSON.stringify([document.Bucket, document.Key]);
   }
-  async update({ oldDocument, newDocument, assets }) {
+  async update({ oldDocument, newDocument, newAssets }) {
     if (oldDocument.Bucket !== newDocument.Bucket) {
       throw new Error(`BucketObject can't change the bucket name`);
     }
@@ -3002,7 +3033,7 @@ var BucketObjectProvider = class {
     await this.client.send(
       new import_client_s3.PutObjectCommand({
         ...newDocument,
-        Body: assets.body?.data
+        Body: newAssets.body?.data
       })
     );
     return JSON.stringify([newDocument.Bucket, newDocument.Key]);
@@ -3157,6 +3188,7 @@ var createCloudProviders = (config) => {
     //
     cloudControlApiProvider,
     new ImageProvider(config),
+    new FunctionProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketObjectProvider(config),
     new TableItemProvider(config),
@@ -4665,84 +4697,11 @@ __export(lambda_exports, {
   EventInvokeConfig: () => EventInvokeConfig,
   EventSourceMapping: () => EventSourceMapping,
   Function: () => Function,
+  FunctionProvider: () => FunctionProvider,
   Permission: () => Permission,
   Url: () => Url,
   formatCode: () => formatCode
 });
-
-// src/provider/aws/lambda/url.ts
-var import_change_case6 = require("change-case");
-var import_duration11 = require("@awsless/duration");
-var Url = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::Url", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get url() {
-    return this.output((v) => v.FunctionUrl);
-  }
-  get domain() {
-    return this.url.apply((url) => url.split("/")[2]);
-  }
-  cors() {
-    const cors = unwrap(this.props.cors);
-    if (!cors) {
-      return {};
-    }
-    const allow = unwrap(cors.allow, {});
-    const expose = unwrap(cors.expose, {});
-    return {
-      ...this.attr("AllowCredentials", allow.credentials),
-      ...this.attr("AllowHeaders", allow.headers),
-      ...this.attr("AllowMethods", allow.methods),
-      ...this.attr("AllowOrigins", allow.origins),
-      ...this.attr("ExposeHeaders", expose.headers),
-      ...this.attr("MaxAge", cors.maxAge, import_duration11.toSeconds)
-    };
-  }
-  toState() {
-    return {
-      document: {
-        AuthType: (0, import_change_case6.constantCase)(unwrap(this.props.authType, "none")),
-        InvokeMode: (0, import_change_case6.constantCase)(unwrap(this.props.invokeMode, "buffered")),
-        TargetFunctionArn: this.props.targetArn,
-        ...this.attr("Qualifier", this.props.qualifier),
-        Cors: this.cors()
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/permission.ts
-var import_change_case7 = require("change-case");
-var Permission = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::Permission", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  toState() {
-    return {
-      document: {
-        FunctionName: this.props.functionArn,
-        Action: unwrap(this.props.action, "lambda:InvokeFunction"),
-        Principal: this.props.principal,
-        ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case7.constantCase)
-        // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
-        // ...(this.props.urlAuthType
-        // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
-        // 	: {}),
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/function.ts
-var import_duration12 = require("@awsless/duration");
-var import_size = require("@awsless/size");
-var import_change_case8 = require("change-case");
 
 // src/provider/aws/lambda/code.ts
 var formatCode = (code) => {
@@ -4763,13 +4722,104 @@ var formatCode = (code) => {
   };
 };
 
+// src/provider/aws/lambda/event-invoke-config.ts
+var import_duration11 = require("@awsless/duration");
+var EventInvokeConfig = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  setOnFailure(arn) {
+    this.props.onFailure = arn;
+    return this;
+  }
+  setOnSuccess(arn) {
+    this.props.onSuccess = arn;
+    return this;
+  }
+  toState() {
+    return {
+      document: {
+        FunctionName: this.props.functionArn,
+        Qualifier: unwrap(this.props.qualifier, "$LATEST"),
+        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration11.toSeconds),
+        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
+        ...this.props.onFailure || this.props.onSuccess ? {
+          DestinationConfig: {
+            ...this.props.onFailure ? {
+              OnFailure: {
+                Destination: this.props.onFailure
+              }
+            } : {},
+            ...this.props.onSuccess ? {
+              OnSuccess: {
+                Destination: this.props.onSuccess
+              }
+            } : {}
+          }
+        } : {}
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/event-source-mapping.ts
+var import_duration12 = require("@awsless/duration");
+var import_change_case6 = require("change-case");
+var EventSourceMapping = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::EventSourceMapping", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  setOnFailure(arn) {
+    this.props.onFailure = arn;
+    return this;
+  }
+  toState() {
+    return {
+      document: {
+        Enabled: true,
+        FunctionName: this.props.functionArn,
+        EventSourceArn: this.props.sourceArn,
+        ...this.attr("BatchSize", this.props.batchSize),
+        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration12.toSeconds),
+        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration12.toSeconds),
+        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
+        ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
+        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration12.toSeconds),
+        ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
+        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case6.constantCase),
+        ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
+        ...this.props.maxConcurrency ? {
+          ScalingConfig: {
+            MaximumConcurrency: this.props.maxConcurrency
+          }
+        } : {},
+        ...this.props.onFailure ? {
+          DestinationConfig: {
+            OnFailure: {
+              Destination: this.props.onFailure
+            }
+          }
+        } : {}
+      }
+    };
+  }
+};
+
 // src/provider/aws/lambda/function.ts
-var Function = class extends CloudControlApiResource {
+var import_duration13 = require("@awsless/duration");
+var import_size = require("@awsless/size");
+var import_change_case7 = require("change-case");
+var Function = class extends Resource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
     this.parent = parent;
     this.props = props;
   }
+  cloudProviderId = "aws-lambda-function";
   environmentVariables = {};
   get arn() {
     return this.output((v) => v.Arn);
@@ -4828,13 +4878,13 @@ var Function = class extends CloudControlApiResource {
     };
     return {
       asset: {
-        code: this.props.code
+        sourceCodeHash: this.props.sourceCodeHash
       },
       document: {
         FunctionName: this.props.name,
         Description: this.props.description,
         MemorySize: (0, import_size.toMebibytes)(unwrap(this.props.memorySize, (0, import_size.mebibytes)(128))),
-        Timeout: (0, import_duration12.toSeconds)(unwrap(this.props.timeout, (0, import_duration12.seconds)(10))),
+        Timeout: (0, import_duration13.toSeconds)(unwrap(this.props.timeout, (0, import_duration13.seconds)(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
@@ -4846,8 +4896,8 @@ var Function = class extends CloudControlApiResource {
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: (0, import_change_case8.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -4867,88 +4917,70 @@ var Function = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/lambda/event-invoke-config.ts
-var import_duration13 = require("@awsless/duration");
-var EventInvokeConfig = class extends CloudControlApiResource {
+// src/provider/aws/lambda/permission.ts
+var import_change_case8 = require("change-case");
+var Permission = class extends CloudControlApiResource {
   constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
+    super(parent, "AWS::Lambda::Permission", id, props);
     this.parent = parent;
     this.props = props;
-  }
-  setOnFailure(arn) {
-    this.props.onFailure = arn;
-    return this;
-  }
-  setOnSuccess(arn) {
-    this.props.onSuccess = arn;
-    return this;
   }
   toState() {
     return {
       document: {
         FunctionName: this.props.functionArn,
-        Qualifier: unwrap(this.props.qualifier, "$LATEST"),
-        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration13.toSeconds),
-        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
-        ...this.props.onFailure || this.props.onSuccess ? {
-          DestinationConfig: {
-            ...this.props.onFailure ? {
-              OnFailure: {
-                Destination: this.props.onFailure
-              }
-            } : {},
-            ...this.props.onSuccess ? {
-              OnSuccess: {
-                Destination: this.props.onSuccess
-              }
-            } : {}
-          }
-        } : {}
+        Action: unwrap(this.props.action, "lambda:InvokeFunction"),
+        Principal: this.props.principal,
+        ...this.attr("SourceArn", this.props.sourceArn),
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case8.constantCase)
+        // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
+        // ...(this.props.urlAuthType
+        // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
+        // 	: {}),
       }
     };
   }
 };
 
-// src/provider/aws/lambda/event-source-mapping.ts
-var import_duration14 = require("@awsless/duration");
+// src/provider/aws/lambda/url.ts
 var import_change_case9 = require("change-case");
-var EventSourceMapping = class extends CloudControlApiResource {
+var import_duration14 = require("@awsless/duration");
+var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::EventSourceMapping", id, props);
+    super(parent, "AWS::Lambda::Url", id, props);
     this.parent = parent;
     this.props = props;
   }
-  setOnFailure(arn) {
-    this.props.onFailure = arn;
-    return this;
+  get url() {
+    return this.output((v) => v.FunctionUrl);
+  }
+  get domain() {
+    return this.url.apply((url) => url.split("/")[2]);
+  }
+  cors() {
+    const cors = unwrap(this.props.cors);
+    if (!cors) {
+      return {};
+    }
+    const allow = unwrap(cors.allow, {});
+    const expose = unwrap(cors.expose, {});
+    return {
+      ...this.attr("AllowCredentials", allow.credentials),
+      ...this.attr("AllowHeaders", allow.headers),
+      ...this.attr("AllowMethods", allow.methods),
+      ...this.attr("AllowOrigins", allow.origins),
+      ...this.attr("ExposeHeaders", expose.headers),
+      ...this.attr("MaxAge", cors.maxAge, import_duration14.toSeconds)
+    };
   }
   toState() {
     return {
       document: {
-        Enabled: true,
-        FunctionName: this.props.functionArn,
-        EventSourceArn: this.props.sourceArn,
-        ...this.attr("BatchSize", this.props.batchSize),
-        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration14.toSeconds),
-        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration14.toSeconds),
-        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
-        ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
-        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration14.toSeconds),
-        ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case9.constantCase),
-        ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
-        ...this.props.maxConcurrency ? {
-          ScalingConfig: {
-            MaximumConcurrency: this.props.maxConcurrency
-          }
-        } : {},
-        ...this.props.onFailure ? {
-          DestinationConfig: {
-            OnFailure: {
-              Destination: this.props.onFailure
-            }
-          }
-        } : {}
+        AuthType: (0, import_change_case9.constantCase)(unwrap(this.props.authType, "none")),
+        InvokeMode: (0, import_change_case9.constantCase)(unwrap(this.props.invokeMode, "buffered")),
+        TargetFunctionArn: this.props.targetArn,
+        ...this.attr("Qualifier", this.props.qualifier),
+        Cors: this.cors()
       }
     };
   }

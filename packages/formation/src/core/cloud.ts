@@ -21,7 +21,8 @@ export type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
 	newDocument: D
 	remoteDocument: any
 	extra: E
-	assets: Record<string, ResolvedAsset>
+	oldAssets: Record<string, string>
+	newAssets: Record<string, ResolvedAsset>
 	token: string
 }
 

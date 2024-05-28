@@ -1,17 +1,17 @@
+import { randomUUID } from 'crypto'
+import promiseLimit, { LimitFunction } from 'p-limit'
+import { run, Step } from 'promise-dag'
+import { App } from '../app'
 import { CloudProvider, ResourceDocument } from '../cloud'
+import { AppError, ResourceError, ResourceNotFound, StackError } from '../error'
+import { LockProvider } from '../lock'
 import { Resource, URN } from '../resource'
 import { AppState, ResourceState, StackState, StateProvider } from '../state'
-import { Step, run } from 'promise-dag'
-import { AppError, ResourceError, ResourceNotFound, StackError } from '../error'
-import { App } from '../app'
-import { lockApp } from './lock'
-import { cloneObject, compareDocuments, unwrapOutputsFromDocument } from './document'
 import { loadAssets, resolveDocumentAssets } from './asset'
-import { createIdempotantToken } from './token'
+import { cloneObject, compareDocuments, unwrapOutputsFromDocument } from './document'
+import { lockApp } from './lock'
 import { getCloudProvider } from './provider'
-import { randomUUID } from 'crypto'
-import { LockProvider } from '../lock'
-import promiseLimit, { LimitFunction } from 'p-limit'
+import { createIdempotantToken } from './token'
 
 export type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get'
 export type StackOperation = 'deploy' | 'delete'
@@ -106,9 +106,7 @@ export class WorkSpace {
 
 						// -------------------------------------------------------------------
 
-						const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[
-							stack.urn
-						] ?? {
+						const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
 							name: stack.name,
 							// exports: {},
 							dependencies: [],
@@ -140,13 +138,7 @@ export class WorkSpace {
 						// Delete resources before deployment...
 
 						if (Object.keys(deleteResourcesBefore).length > 0) {
-							await this.deleteStackResources(
-								app.urn,
-								appState,
-								stackState,
-								deleteResourcesBefore,
-								limit
-							)
+							await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore, limit)
 						}
 
 						// -------------------------------------------------------------------
@@ -158,13 +150,7 @@ export class WorkSpace {
 						// Delete resources after deployment...
 
 						if (Object.keys(deleteResourcesAfter).length > 0) {
-							await this.deleteStackResources(
-								app.urn,
-								appState,
-								stackState,
-								deleteResourcesAfter,
-								limit
-							)
+							await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter, limit)
 						}
 
 						// -------------------------------------------------------------------
@@ -198,9 +184,7 @@ export class WorkSpace {
 
 			// -------------------------------------------------------------------
 
-			const errors = results
-				.filter(r => r.status === 'rejected')
-				.map(r => (r as PromiseRejectedResult).reason)
+			const errors = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason)
 
 			if (errors.length > 0) {
 				throw new AppError(app.name, [...new Set(errors)], 'Deploying app failed.')
@@ -256,9 +240,7 @@ export class WorkSpace {
 
 			// -------------------------------------------------------
 
-			const errors = results
-				.filter(r => r.status === 'rejected')
-				.map(r => (r as PromiseRejectedResult).reason)
+			const errors = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason)
 
 			if (errors.length > 0) {
 				throw new AppError(app.name, [...new Set(errors)], 'Deleting app failed.')
@@ -609,13 +591,11 @@ export class WorkSpace {
 									urn: resource.urn,
 									id: resourceState.id,
 									type: resource.type,
-									remoteDocument: resolveDocumentAssets(
-										cloneObject(resourceState.remote),
-										assets
-									),
+									remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
 									oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
 									newDocument: resolveDocumentAssets(cloneObject(document), assets),
-									assets,
+									oldAssets: resourceState.assets,
+									newAssets: assets,
 									extra,
 									token,
 								})

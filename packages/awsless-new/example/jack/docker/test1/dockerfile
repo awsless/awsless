@@ -1,2 +1,2 @@
 FROM ubuntu:18.04
-RUN echo 'Hello, World!'
+RUN echo 'Hello, World! V2'

@@ -1,17 +1,20 @@
 import { Duration, seconds, toSeconds } from '@awsless/duration'
 import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { constantCase } from 'change-case'
+import { Asset } from '../../../core/asset'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 import { Code, formatCode } from './code.js'
+
 // import { Url, UrlProps } from './url.js'
 // import { Permission } from './permission.js'
 import { Node } from '../../../core/node.js'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { Resource } from '../../../core/resource'
 
 export type FunctionProps = {
 	name: Input<string>
 	code: Input<Code>
+	sourceCodeHash?: Input<Asset>
 	role: Input<ARN>
 	description?: Input<string>
 	runtime?: Input<'nodejs18.x' | 'nodejs20.x'>
@@ -35,7 +38,9 @@ export type FunctionProps = {
 	}>
 }
 
-export class Function extends CloudControlApiResource {
+export class Function extends Resource {
+	cloudProviderId = 'aws-lambda-function'
+
 	private environmentVariables: Record<string, Input<string>> = {}
 
 	constructor(
@@ -123,7 +128,7 @@ export class Function extends CloudControlApiResource {
 
 		return {
 			asset: {
-				code: this.props.code,
+				sourceCodeHash: this.props.sourceCodeHash,
 			},
 			document: {
 				FunctionName: this.props.name,
