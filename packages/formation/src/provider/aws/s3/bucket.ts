@@ -106,7 +106,14 @@ export class Bucket extends Resource {
 
 	get permissions() {
 		return {
-			actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
+			actions: [
+				's3:ListBucket',
+				's3:GetObject',
+				's3:PutObject',
+				's3:DeleteObject',
+				's3:CopyObject',
+				's3:GetObjectAttributes',
+			],
 			resources: [
 				this.arn,
 				this.arn.apply<ARN>(arn => `${arn}/*`),

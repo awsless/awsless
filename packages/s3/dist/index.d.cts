@@ -1,14 +1,12 @@
-import { Mock } from 'vitest';
 import { S3Client, StorageClass } from '@aws-sdk/client-s3';
 export { S3Client, StorageClass } from '@aws-sdk/client-s3';
 import * as _smithy_types from '@smithy/types';
 import { PresignedPost } from '@aws-sdk/s3-presigned-post';
-import { SdkStream } from '@aws-sdk/types';
-import { Readable } from 'stream';
 import { Duration } from '@awsless/duration';
 import { Size } from '@awsless/size';
-
-declare const mockS3: () => Mock<any, any>;
+import { SdkStream } from '@aws-sdk/types';
+import { Readable } from 'stream';
+import { Mock } from 'vitest';
 
 declare const s3Client: {
     (): S3Client;
@@ -45,6 +43,14 @@ type DeleteObjectProps = {
     key: string;
 };
 declare const deleteObject: ({ client, bucket, key }: DeleteObjectProps) => Promise<void>;
+type CopyObjectProps = {
+    client?: S3Client;
+    bucket: string;
+    from: string;
+    to: string;
+    versionId?: string;
+};
+declare const copyObject: ({ client, bucket, from, to, versionId }: CopyObjectProps) => Promise<void>;
 type CreatePresignedPostProps = {
     client?: S3Client;
     bucket: string;
@@ -55,4 +61,6 @@ type CreatePresignedPostProps = {
 };
 declare const createPresignedPost: ({ client, bucket, key, fields, expires, contentLengthRange, }: CreatePresignedPostProps) => Promise<PresignedPost>;
 
-export { Body, BodyStream, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, PutObjectProps, createPresignedPost, deleteObject, getObject, mockS3, putObject, s3Client };
+declare const mockS3: () => Mock<any, any>;
+
+export { Body, BodyStream, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, PutObjectProps, copyObject, createPresignedPost, deleteObject, getObject, mockS3, putObject, s3Client };

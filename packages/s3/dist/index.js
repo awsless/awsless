@@ -1,45 +1,3 @@
-// src/mock.ts
-import {
-  S3Client as S3Client3,
-  GetObjectCommand as GetObjectCommand2,
-  PutObjectCommand as PutObjectCommand2,
-  DeleteObjectCommand as DeleteObjectCommand2
-} from "@aws-sdk/client-s3";
-import { nextTick } from "@awsless/utils";
-import { mockClient } from "aws-sdk-client-mock";
-import { sdkStreamMixin } from "@aws-sdk/util-stream-node";
-import { Readable as Readable2 } from "stream";
-
-// src/hash.ts
-import { createHash } from "crypto";
-import { Readable } from "stream";
-var hashSHA1 = async (data) => {
-  if (!data) {
-    return "";
-  }
-  if (typeof data === "string") {
-    data = Buffer.from(data);
-  }
-  if (data instanceof Blob) {
-    const arrayBuffer = await data.arrayBuffer();
-    data = Buffer.from(arrayBuffer);
-  }
-  if (data instanceof Readable) {
-    return "";
-  }
-  if (data instanceof ReadableStream) {
-    return "";
-  }
-  return createHash("sha1").update(data).digest("hex");
-};
-
-// src/commands.ts
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  PutObjectCommand
-} from "@aws-sdk/client-s3";
-
 // src/client.ts
 import { S3Client } from "@aws-sdk/client-s3";
 import { globalClient } from "@awsless/utils";
@@ -48,6 +6,12 @@ var s3Client = globalClient(() => {
 });
 
 // src/commands.ts
+import {
+  CopyObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand
+} from "@aws-sdk/client-s3";
 import { createPresignedPost as signedPost } from "@aws-sdk/s3-presigned-post";
 import { toSeconds } from "@awsless/duration";
 import { toBytes } from "@awsless/size";
@@ -94,6 +58,20 @@ var deleteObject = async ({ client = s3Client(), bucket, key }) => {
   });
   await client.send(command);
 };
+var copyObject = async ({ client = s3Client(), bucket, from, to, versionId }) => {
+  let source;
+  if (versionId) {
+    source = `/${bucket}/${from}?versionId=${versionId}`;
+  } else {
+    source = `/${bucket}/${from}`;
+  }
+  const command = new CopyObjectCommand({
+    Bucket: bucket,
+    CopySource: source,
+    Key: to
+  });
+  await client.send(command);
+};
 var mock;
 var setPresignedMock = (m) => {
   mock = m;
@@ -115,15 +93,44 @@ var createPresignedPost = async ({
     Key: key,
     Fields: fields,
     Expires: expires ? Number(toSeconds(expires)) : void 0,
-    Conditions: contentLengthRange ? [
-      [
-        "content-length-range",
-        Number(toBytes(contentLengthRange[0])),
-        Number(toBytes(contentLengthRange[1]))
-      ]
-    ] : void 0
+    Conditions: contentLengthRange ? [["content-length-range", Number(toBytes(contentLengthRange[0])), Number(toBytes(contentLengthRange[1]))]] : void 0
   });
   return result;
+};
+
+// src/mock.ts
+import {
+  DeleteObjectCommand as DeleteObjectCommand2,
+  GetObjectCommand as GetObjectCommand2,
+  PutObjectCommand as PutObjectCommand2,
+  S3Client as S3Client3
+} from "@aws-sdk/client-s3";
+import { sdkStreamMixin } from "@aws-sdk/util-stream-node";
+import { nextTick } from "@awsless/utils";
+import { mockClient } from "aws-sdk-client-mock";
+import { Readable as Readable2 } from "stream";
+
+// src/hash.ts
+import { createHash } from "crypto";
+import { Readable } from "stream";
+var hashSHA1 = async (data) => {
+  if (!data) {
+    return "";
+  }
+  if (typeof data === "string") {
+    data = Buffer.from(data);
+  }
+  if (data instanceof Blob) {
+    const arrayBuffer = await data.arrayBuffer();
+    data = Buffer.from(arrayBuffer);
+  }
+  if (data instanceof Readable) {
+    return "";
+  }
+  if (data instanceof ReadableStream) {
+    return "";
+  }
+  return createHash("sha1").update(data).digest("hex");
 };
 
 // src/mock.ts
@@ -171,6 +178,7 @@ var mockS3 = () => {
   return fn;
 };
 export {
+  copyObject,
   createPresignedPost,
   deleteObject,
   getObject,

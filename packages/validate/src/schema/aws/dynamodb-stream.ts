@@ -1,5 +1,5 @@
-import { BaseSchema, array, object, optional, transform, unknown, union, literal } from 'valibot'
 import { PrimaryKey, TableDefinition } from '@awsless/dynamodb'
+import { array, BaseSchema, literal, object, optional, transform, union, unknown } from 'valibot'
 
 type EventName = 'MODIFY' | 'INSERT' | 'REMOVE'
 

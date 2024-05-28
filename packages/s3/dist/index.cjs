@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  copyObject: () => copyObject,
   createPresignedPost: () => createPresignedPost,
   deleteObject: () => deleteObject,
   getObject: () => getObject,
@@ -29,39 +30,6 @@ __export(src_exports, {
 });
 module.exports = __toCommonJS(src_exports);
 
-// src/mock.ts
-var import_client_s33 = require("@aws-sdk/client-s3");
-var import_utils2 = require("@awsless/utils");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
-var import_util_stream_node = require("@aws-sdk/util-stream-node");
-var import_stream2 = require("stream");
-
-// src/hash.ts
-var import_crypto = require("crypto");
-var import_stream = require("stream");
-var hashSHA1 = async (data) => {
-  if (!data) {
-    return "";
-  }
-  if (typeof data === "string") {
-    data = Buffer.from(data);
-  }
-  if (data instanceof Blob) {
-    const arrayBuffer = await data.arrayBuffer();
-    data = Buffer.from(arrayBuffer);
-  }
-  if (data instanceof import_stream.Readable) {
-    return "";
-  }
-  if (data instanceof ReadableStream) {
-    return "";
-  }
-  return (0, import_crypto.createHash)("sha1").update(data).digest("hex");
-};
-
-// src/commands.ts
-var import_client_s32 = require("@aws-sdk/client-s3");
-
 // src/client.ts
 var import_client_s3 = require("@aws-sdk/client-s3");
 var import_utils = require("@awsless/utils");
@@ -70,6 +38,7 @@ var s3Client = (0, import_utils.globalClient)(() => {
 });
 
 // src/commands.ts
+var import_client_s32 = require("@aws-sdk/client-s3");
 var import_s3_presigned_post = require("@aws-sdk/s3-presigned-post");
 var import_duration = require("@awsless/duration");
 var import_size = require("@awsless/size");
@@ -116,6 +85,20 @@ var deleteObject = async ({ client = s3Client(), bucket, key }) => {
   });
   await client.send(command);
 };
+var copyObject = async ({ client = s3Client(), bucket, from, to, versionId }) => {
+  let source;
+  if (versionId) {
+    source = `/${bucket}/${from}?versionId=${versionId}`;
+  } else {
+    source = `/${bucket}/${from}`;
+  }
+  const command = new import_client_s32.CopyObjectCommand({
+    Bucket: bucket,
+    CopySource: source,
+    Key: to
+  });
+  await client.send(command);
+};
 var mock;
 var setPresignedMock = (m) => {
   mock = m;
@@ -137,15 +120,39 @@ var createPresignedPost = async ({
     Key: key,
     Fields: fields,
     Expires: expires ? Number((0, import_duration.toSeconds)(expires)) : void 0,
-    Conditions: contentLengthRange ? [
-      [
-        "content-length-range",
-        Number((0, import_size.toBytes)(contentLengthRange[0])),
-        Number((0, import_size.toBytes)(contentLengthRange[1]))
-      ]
-    ] : void 0
+    Conditions: contentLengthRange ? [["content-length-range", Number((0, import_size.toBytes)(contentLengthRange[0])), Number((0, import_size.toBytes)(contentLengthRange[1]))]] : void 0
   });
   return result;
+};
+
+// src/mock.ts
+var import_client_s33 = require("@aws-sdk/client-s3");
+var import_util_stream_node = require("@aws-sdk/util-stream-node");
+var import_utils2 = require("@awsless/utils");
+var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_stream2 = require("stream");
+
+// src/hash.ts
+var import_crypto = require("crypto");
+var import_stream = require("stream");
+var hashSHA1 = async (data) => {
+  if (!data) {
+    return "";
+  }
+  if (typeof data === "string") {
+    data = Buffer.from(data);
+  }
+  if (data instanceof Blob) {
+    const arrayBuffer = await data.arrayBuffer();
+    data = Buffer.from(arrayBuffer);
+  }
+  if (data instanceof import_stream.Readable) {
+    return "";
+  }
+  if (data instanceof ReadableStream) {
+    return "";
+  }
+  return (0, import_crypto.createHash)("sha1").update(data).digest("hex");
 };
 
 // src/mock.ts
@@ -194,6 +201,7 @@ var mockS3 = () => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  copyObject,
   createPresignedPost,
   deleteObject,
   getObject,

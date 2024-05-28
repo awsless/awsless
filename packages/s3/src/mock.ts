@@ -1,21 +1,21 @@
 import {
-	S3Client,
-	GetObjectCommand,
-	PutObjectCommandInput,
-	GetObjectCommandInput,
-	PutObjectCommand,
 	DeleteObjectCommand,
 	DeleteObjectCommandInput,
+	GetObjectCommand,
+	GetObjectCommandInput,
+	PutObjectCommand,
+	PutObjectCommandInput,
+	S3Client,
 } from '@aws-sdk/client-s3'
+import { sdkStreamMixin } from '@aws-sdk/util-stream-node'
 import { nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
-import { sdkStreamMixin } from '@aws-sdk/util-stream-node'
+import { Readable } from 'stream'
 // @ts-ignore
 import { Mock } from 'vitest'
-import { Readable } from 'stream'
-import { Body } from './types'
-import { hashSHA1 } from './hash'
 import { setPresignedMock } from './commands'
+import { hashSHA1 } from './hash'
+import { Body } from './types'
 
 export const mockS3 = () => {
 	const fn = vi.fn()

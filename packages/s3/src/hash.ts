@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
-import { Body } from './types'
 import { Readable } from 'stream'
+import { Body } from './types'
 
 export const hashSHA1 = async (data: Body) => {
 	if (!data) {

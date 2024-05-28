@@ -1,15 +1,16 @@
 import {
+	CopyObjectCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
 	PutObjectCommand,
 	S3Client,
 	StorageClass,
 } from '@aws-sdk/client-s3'
-import { s3Client } from './client'
-import { PresignedPost, createPresignedPost as signedPost } from '@aws-sdk/s3-presigned-post'
-import { Body } from './types'
+import { createPresignedPost as signedPost, PresignedPost } from '@aws-sdk/s3-presigned-post'
 import { Duration, toSeconds } from '@awsless/duration'
 import { Size, toBytes } from '@awsless/size'
+import { s3Client } from './client'
+import { Body } from './types'
 
 export type PutObjectProps = {
 	client?: S3Client
@@ -84,6 +85,31 @@ export const deleteObject = async ({ client = s3Client(), bucket, key }: DeleteO
 	await client.send(command)
 }
 
+export type CopyObjectProps = {
+	client?: S3Client
+	bucket: string
+	from: string
+	to: string
+	versionId?: string
+}
+
+export const copyObject = async ({ client = s3Client(), bucket, from, to, versionId }: CopyObjectProps) => {
+	let source: string
+	if (versionId) {
+		source = `/${bucket}/${from}?versionId=${versionId}`
+	} else {
+		source = `/${bucket}/${from}`
+	}
+
+	const command = new CopyObjectCommand({
+		Bucket: bucket,
+		CopySource: source,
+		Key: to,
+	})
+
+	await client.send(command)
+}
+
 export type CreatePresignedPostProps = {
 	client?: S3Client
 	bucket: string
@@ -117,13 +143,7 @@ export const createPresignedPost = async ({
 		Fields: fields,
 		Expires: expires ? Number(toSeconds(expires)) : undefined,
 		Conditions: contentLengthRange
-			? [
-					[
-						'content-length-range',
-						Number(toBytes(contentLengthRange[0])),
-						Number(toBytes(contentLengthRange[1])),
-					],
-			  ]
+			? [['content-length-range', Number(toBytes(contentLengthRange[0])), Number(toBytes(contentLengthRange[1]))]]
 			: undefined,
 	})
 
