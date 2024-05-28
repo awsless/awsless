@@ -1,7 +1,7 @@
-import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
 import { AttributeValue, DeleteItemCommand, DynamoDB, PutItemCommand } from '@aws-sdk/client-dynamodb'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { marshall } from '@aws-sdk/util-dynamodb'
+import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -61,7 +61,7 @@ export class TableItemProvider implements CloudProvider {
 		return JSON.stringify([document.table, key])
 	}
 
-	async update({ id, oldDocument, newDocument, assets }: UpdateProps<Document>) {
+	async update({ id, oldDocument, newDocument, newAssets }: UpdateProps<Document>) {
 		if (oldDocument.table !== newDocument.table) {
 			throw new Error(`TableItem can't change the table name`)
 		}
@@ -75,7 +75,7 @@ export class TableItemProvider implements CloudProvider {
 		}
 
 		const [_, oldKey] = JSON.parse(id)
-		const item = JSON.parse(assets.item!.data.toString('utf8'))
+		const item = JSON.parse(newAssets.item!.data.toString('utf8'))
 		const key = this.primaryKey(newDocument, item)
 
 		if (JSON.stringify(oldKey) !== JSON.stringify(key)) {

@@ -31,7 +31,10 @@ export abstract class Asset {
 }
 
 export class StringAsset extends Asset {
-	constructor(readonly value: string, readonly encoding: BufferEncoding = 'utf8') {
+	constructor(
+		readonly value: string,
+		readonly encoding: BufferEncoding = 'utf8'
+	) {
 		super()
 	}
 

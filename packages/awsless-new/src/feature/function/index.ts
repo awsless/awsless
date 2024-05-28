@@ -80,6 +80,7 @@ export const functionFeature = defineFeature({
 
 		const repository = new aws.ecr.Repository(group, 'repository', {
 			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-'),
+			imageTagMutability: true,
 		})
 
 		ctx.shared.set('function-repository-name', repository.name)

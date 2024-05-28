@@ -1,5 +1,19 @@
 import { Input } from '../../../core/output'
 
+// export type Code =
+// 	| {
+// 			bucket: Input<string>
+// 			key: Input<string>
+// 			version?: Input<string | undefined>
+// 	  }
+// 	| {
+// 			imageUri: Input<string>
+// 			imageHash: Input<Asset>
+// 	  }
+// 	| {
+// 			zipFile: Input<string>
+// 	  }
+
 export type Code =
 	| {
 			bucket: Input<string>

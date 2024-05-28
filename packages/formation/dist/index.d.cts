@@ -12,6 +12,7 @@ import * as _aws_sdk_client_cognito_identity_provider from '@aws-sdk/client-cogn
 import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider';
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { ECRClient } from '@aws-sdk/client-ecr';
+import { LambdaClient } from '@aws-sdk/client-lambda';
 import * as _aws_sdk_client_route_53 from '@aws-sdk/client-route-53';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import * as _aws_sdk_client_s3 from '@aws-sdk/client-s3';
@@ -65,7 +66,8 @@ type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
     newDocument: D;
     remoteDocument: any;
     extra: E;
-    assets: Record<string, ResolvedAsset>;
+    oldAssets: Record<string, string>;
+    newAssets: Record<string, ResolvedAsset>;
     token: string;
 };
 type DeleteProps<D = ResourceDocument, E = ResourceExtra> = {
@@ -167,6 +169,11 @@ declare class App extends Node {
     get stacks(): Stack[];
 }
 
+interface LockProvider$3 {
+    locked(urn: URN): Promise<boolean>;
+    lock(urn: URN): Promise<() => Promise<void>>;
+}
+
 interface StateProvider$3 {
     get(urn: URN): Promise<AppState | undefined>;
     update(urn: URN, state: AppState): Promise<void>;
@@ -195,11 +202,6 @@ type ResourceState = {
         deletion: ResourceDeletionPolicy;
     };
 };
-
-interface LockProvider$3 {
-    locked(urn: URN): Promise<boolean>;
-    lock(urn: URN): Promise<() => Promise<void>>;
-}
 
 type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get';
 type StackOperation = 'deploy' | 'delete';
@@ -346,14 +348,14 @@ declare class Certificate extends Resource {
     };
 }
 
-type ProviderProps$h = {
+type ProviderProps$i = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
 type Extra = {
     region?: string;
 };
-type Document$d = {
+type Document$e = {
     DomainName: string;
     SubjectAlternativeNames: string[];
     DomainValidationOptions: {
@@ -366,34 +368,34 @@ type Document$d = {
 declare class CertificateProvider implements CloudProvider {
     private props;
     protected clients: Record<string, ACMClient>;
-    constructor(props: ProviderProps$h);
+    constructor(props: ProviderProps$i);
     own(id: string): boolean;
     private wait;
     private client;
-    get({ id, extra }: GetProps<Document$d, Extra>): Promise<_aws_sdk_client_acm.CertificateDetail>;
-    create({ urn, document, extra }: CreateProps<Document$d, Extra>): Promise<string>;
+    get({ id, extra }: GetProps<Document$e, Extra>): Promise<_aws_sdk_client_acm.CertificateDetail>;
+    create({ urn, document, extra }: CreateProps<Document$e, Extra>): Promise<string>;
     update(): Promise<string>;
-    delete({ id, extra }: DeleteProps<Document$d, Extra>): Promise<void>;
+    delete({ id, extra }: DeleteProps<Document$e, Extra>): Promise<void>;
 }
 
-type ProviderProps$g = {
+type ProviderProps$h = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$c = {
+type Document$d = {
     Region: string;
     CertificateArn: string;
 };
 declare class CertificateValidationProvider implements CloudProvider {
     private props;
     protected clients: Record<string, ACMClient>;
-    constructor(props: ProviderProps$g);
+    constructor(props: ProviderProps$h);
     own(id: string): boolean;
     private client;
     private wait;
-    get({ id, document }: GetProps<Document$c>): Promise<_aws_sdk_client_acm.CertificateDetail>;
-    create({ document }: CreateProps<Document$c>): Promise<string>;
-    update({ newDocument }: UpdateProps<Document$c>): Promise<string>;
+    get({ id, document }: GetProps<Document$d>): Promise<_aws_sdk_client_acm.CertificateDetail>;
+    create({ document }: CreateProps<Document$d>): Promise<string>;
+    update({ newDocument }: UpdateProps<Document$d>): Promise<string>;
     delete(): Promise<void>;
 }
 
@@ -495,7 +497,7 @@ declare class Api extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$f = {
+type ProviderProps$g = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
     timeout?: Duration;
@@ -504,7 +506,7 @@ type ProviderProps$f = {
 declare class CloudControlApiProvider implements CloudProvider {
     private props;
     protected client: CloudControlClient;
-    constructor(props: ProviderProps$f);
+    constructor(props: ProviderProps$g);
     own(id: string): boolean;
     private send;
     private progressStatus;
@@ -551,11 +553,11 @@ declare class DomainName$1 extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$e = {
+type ProviderProps$f = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$b = {
+type Document$c = {
     ApiId: string;
     IntegrationType: IntegrationType;
     IntegrationUri: string;
@@ -565,12 +567,12 @@ type Document$b = {
 };
 declare class IntegrationProvider implements CloudProvider {
     private client;
-    constructor(props: ProviderProps$e);
+    constructor(props: ProviderProps$f);
     own(id: string): boolean;
-    get({ id, document }: GetProps<Document$b>): Promise<_aws_sdk_client_apigatewayv2.GetIntegrationCommandOutput>;
-    create({ document }: CreateProps<Document$b>): Promise<string>;
-    update({ id, oldDocument, newDocument }: UpdateProps<Document$b>): Promise<string>;
-    delete({ id, document }: DeleteProps<Document$b>): Promise<void>;
+    get({ id, document }: GetProps<Document$c>): Promise<_aws_sdk_client_apigatewayv2.GetIntegrationCommandOutput>;
+    create({ document }: CreateProps<Document$c>): Promise<string>;
+    update({ id, oldDocument, newDocument }: UpdateProps<Document$c>): Promise<string>;
+    delete({ id, document }: DeleteProps<Document$c>): Promise<void>;
 }
 
 declare class Integration extends Resource {
@@ -615,11 +617,11 @@ declare class Route$1 extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$d = {
+type ProviderProps$e = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$a = {
+type Document$b = {
     ApiId: string;
     StageName: string;
     AutoDeploy: boolean;
@@ -628,12 +630,12 @@ type Document$a = {
 };
 declare class StageProvider implements CloudProvider {
     private client;
-    constructor(props: ProviderProps$d);
+    constructor(props: ProviderProps$e);
     own(id: string): boolean;
-    get({ document }: GetProps<Document$a>): Promise<_aws_sdk_client_apigatewayv2.GetStageCommandOutput>;
-    create({ document }: CreateProps<Document$a>): Promise<string>;
-    update({ oldDocument, newDocument }: UpdateProps<Document$a>): Promise<string>;
-    delete({ document }: DeleteProps<Document$a>): Promise<void>;
+    get({ document }: GetProps<Document$b>): Promise<_aws_sdk_client_apigatewayv2.GetStageCommandOutput>;
+    create({ document }: CreateProps<Document$b>): Promise<string>;
+    update({ oldDocument, newDocument }: UpdateProps<Document$b>): Promise<string>;
+    delete({ document }: DeleteProps<Document$b>): Promise<void>;
 }
 
 declare class Stage extends Resource {
@@ -683,19 +685,19 @@ declare namespace index$o {
   };
 }
 
-type ProviderProps$c = {
+type ProviderProps$d = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$9 = any;
+type Document$a = any;
 declare class DataSourceProvider implements CloudProvider {
     protected client: AppSyncClient;
-    constructor(props: ProviderProps$c);
+    constructor(props: ProviderProps$d);
     own(id: string): boolean;
-    get({ document }: GetProps<Document$9>): Promise<_aws_sdk_client_appsync.DataSource>;
-    create({ document }: CreateProps<Document$9>): Promise<string>;
-    update({ id, oldDocument, newDocument }: UpdateProps<Document$9>): Promise<string>;
-    delete({ document }: DeleteProps<Document$9>): Promise<void>;
+    get({ document }: GetProps<Document$a>): Promise<_aws_sdk_client_appsync.DataSource>;
+    create({ document }: CreateProps<Document$a>): Promise<string>;
+    update({ id, oldDocument, newDocument }: UpdateProps<Document$a>): Promise<string>;
+    delete({ document }: DeleteProps<Document$a>): Promise<void>;
 }
 
 type DataSourceProps = {
@@ -793,19 +795,19 @@ declare class FunctionConfiguration extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$b = {
+type ProviderProps$c = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$8 = any;
+type Document$9 = any;
 declare class GraphQLApiProvider implements CloudProvider {
     protected client: AppSyncClient;
-    constructor(props: ProviderProps$b);
+    constructor(props: ProviderProps$c);
     own(id: string): boolean;
-    get({ id }: GetProps<Document$8>): Promise<_aws_sdk_client_appsync.GraphqlApi>;
-    create({ document }: CreateProps<Document$8>): Promise<string>;
-    update({ id, newDocument }: UpdateProps<Document$8>): Promise<string>;
-    delete({ id }: DeleteProps<Document$8>): Promise<void>;
+    get({ id }: GetProps<Document$9>): Promise<_aws_sdk_client_appsync.GraphqlApi>;
+    create({ document }: CreateProps<Document$9>): Promise<string>;
+    update({ id, newDocument }: UpdateProps<Document$9>): Promise<string>;
+    delete({ id }: DeleteProps<Document$9>): Promise<void>;
 }
 
 type CognitoAuth = {
@@ -947,22 +949,22 @@ declare class GraphQLApi extends Resource {
     };
 }
 
-type ProviderProps$a = {
+type ProviderProps$b = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$7 = {
+type Document$8 = {
     apiId: string;
 };
 declare class GraphQLSchemaProvider implements CloudProvider {
     protected client: AppSyncClient;
-    constructor(props: ProviderProps$a);
+    constructor(props: ProviderProps$b);
     own(id: string): boolean;
     private waitStatusComplete;
     get(): Promise<{}>;
-    create({ document, assets }: CreateProps<Document$7>): Promise<string>;
-    update({ oldDocument, newDocument, assets }: UpdateProps<Document$7>): Promise<string>;
-    delete({ id }: DeleteProps<Document$7>): Promise<void>;
+    create({ document, assets }: CreateProps<Document$8>): Promise<string>;
+    update({ oldDocument, newDocument, newAssets }: UpdateProps<Document$8>): Promise<string>;
+    delete({ id }: DeleteProps<Document$8>): Promise<void>;
 }
 
 type GraphQLSchemaProps = {
@@ -1257,23 +1259,23 @@ declare class Distribution extends CloudControlApiResource {
     };
 }
 
-type ProviderProps$9 = {
+type ProviderProps$a = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$6 = {
+type Document$7 = {
     DistributionId: string;
     Versions: Array<undefined | string>;
     Paths: string[];
 };
 declare class InvalidateCacheProvider implements CloudProvider {
     protected client: CloudFrontClient;
-    constructor(props: ProviderProps$9);
+    constructor(props: ProviderProps$a);
     own(id: string): boolean;
     private invalidate;
     get(): Promise<{}>;
-    create({ document }: CreateProps<Document$6>): Promise<string>;
-    update({ newDocument }: UpdateProps<Document$6>): Promise<string>;
+    create({ document }: CreateProps<Document$7>): Promise<string>;
+    update({ newDocument }: UpdateProps<Document$7>): Promise<string>;
     delete(): Promise<void>;
 }
 
@@ -1489,11 +1491,11 @@ declare namespace index$m {
   };
 }
 
-type ProviderProps$8 = {
+type ProviderProps$9 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$5 = {
+type Document$6 = {
     UserPoolId: string;
     LambdaConfig: {
         PreAuthentication?: string;
@@ -1510,38 +1512,39 @@ type Document$5 = {
 };
 declare class LambdaTriggersProvider implements CloudProvider {
     protected client: CognitoIdentityProviderClient;
-    constructor(props: ProviderProps$8);
+    constructor(props: ProviderProps$9);
     own(id: string): boolean;
     private updateUserPool;
-    get({ document }: GetProps<Document$5>): Promise<_aws_sdk_client_cognito_identity_provider.LambdaConfigType>;
-    create({ document }: CreateProps<Document$5>): Promise<string>;
-    update({ oldDocument, newDocument }: UpdateProps<Document$5>): Promise<string>;
-    delete({ document }: DeleteProps<Document$5>): Promise<void>;
+    get({ document }: GetProps<Document$6>): Promise<_aws_sdk_client_cognito_identity_provider.LambdaConfigType>;
+    create({ document }: CreateProps<Document$6>): Promise<string>;
+    update({ oldDocument, newDocument }: UpdateProps<Document$6>): Promise<string>;
+    delete({ document }: DeleteProps<Document$6>): Promise<void>;
 }
 
-type ProviderProps$7 = {
+type ProviderProps$8 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Document$4 = {
+type Document$5 = {
     table: string;
     hash: string;
     sort?: string;
 };
 declare class TableItemProvider implements CloudProvider {
     protected client: DynamoDB;
-    constructor(props: ProviderProps$7);
+    constructor(props: ProviderProps$8);
     own(id: string): boolean;
     private marshall;
     private primaryKey;
     get(): Promise<{}>;
-    create({ document, assets }: CreateProps<Document$4>): Promise<string>;
-    update({ id, oldDocument, newDocument, assets }: UpdateProps<Document$4>): Promise<string>;
-    delete({ id }: DeleteProps<Document$4>): Promise<void>;
+    create({ document, assets }: CreateProps<Document$5>): Promise<string>;
+    update({ id, oldDocument, newDocument, newAssets }: UpdateProps<Document$5>): Promise<string>;
+    delete({ id }: DeleteProps<Document$5>): Promise<void>;
 }
 
 type ImageProps = {
     repository: Input<string>;
+    hash: Input<Asset>;
     name: Input<string>;
     tag: Input<string>;
 };
@@ -1552,6 +1555,9 @@ declare class Image extends Resource {
     constructor(parent: Node, id: string, props: ImageProps);
     get uri(): Output<string>;
     toState(): {
+        assets: {
+            hash: Input<Asset>;
+        };
         document: {
             RepositoryName: Input<string>;
             ImageName: Input<string>;
@@ -1560,12 +1566,12 @@ declare class Image extends Resource {
     };
 }
 
-type ProviderProps$6 = {
+type ProviderProps$7 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     accountId: string;
     region: string;
 };
-type Document$3 = {
+type Document$4 = {
     RepositoryName: string;
     ImageName: string;
     Tag: string;
@@ -1574,17 +1580,17 @@ declare class ImageProvider implements CloudProvider {
     private props;
     protected client: ECRClient;
     private loggedIn;
-    constructor(props: ProviderProps$6);
+    constructor(props: ProviderProps$7);
     own(id: string): boolean;
     private getCredentials;
     private login;
     private push;
-    get({ document }: GetProps<Document$3>): Promise<{
+    get({ document }: GetProps<Document$4>): Promise<{
         ImageUri: string;
     }>;
-    create({ document }: CreateProps<Document$3>): Promise<string>;
-    update({ oldDocument, newDocument }: UpdateProps<Document$3>): Promise<string>;
-    delete({ document }: DeleteProps<Document$3>): Promise<void>;
+    create({ document }: CreateProps<Document$4>): Promise<string>;
+    update({ oldDocument, newDocument }: UpdateProps<Document$4>): Promise<string>;
+    delete({ document }: DeleteProps<Document$4>): Promise<void>;
 }
 
 type RepositoryProps = {
@@ -1624,6 +1630,36 @@ declare namespace index$l {
     index$l_Repository as Repository,
     index$l_RepositoryProps as RepositoryProps,
   };
+}
+
+type ProviderProps$6 = {
+    credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
+    region: string;
+    cloudProvider: CloudProvider;
+};
+type Document$3 = {
+    FunctionName: string;
+    Architectures: string[];
+    Code: {
+        S3Bucket: string;
+        S3Key: string;
+        S3ObjectVersion?: string;
+    } | {
+        ImageUri: string;
+    } | {
+        ZipFile: string;
+    };
+};
+declare class FunctionProvider implements CloudProvider {
+    private props;
+    protected client: LambdaClient;
+    constructor(props: ProviderProps$6);
+    own(id: string): boolean;
+    get(props: GetProps): Promise<any>;
+    create(props: CreateProps): Promise<string>;
+    update(props: UpdateProps<Document$3>): Promise<string>;
+    delete(props: DeleteProps): Promise<void>;
+    updateFunctionCode(props: UpdateProps<Document$3>): Promise<void>;
 }
 
 type ProviderProps$5 = {
@@ -1675,7 +1711,7 @@ declare class BucketObjectProvider implements CloudProvider {
         Checksum: _aws_sdk_client_s3.Checksum | undefined;
     }>;
     create({ document, assets }: CreateProps<Document$1>): Promise<string>;
-    update({ oldDocument, newDocument, assets }: UpdateProps<Document$1>): Promise<string>;
+    update({ oldDocument, newDocument, newAssets }: UpdateProps<Document$1>): Promise<string>;
     delete({ document }: DeleteProps<Document$1>): Promise<void>;
 }
 
@@ -1727,7 +1763,7 @@ type ConfigProps = {
     region: string;
     timeout?: Duration;
 };
-declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | ImageProvider | RecordSetProvider | BucketObjectProvider | BucketProvider | SubscriptionProvider)[];
+declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | ImageProvider | FunctionProvider | RecordSetProvider | BucketObjectProvider | BucketProvider | SubscriptionProvider)[];
 
 declare class LogGroup extends CloudControlApiResource {
     readonly parent: Node;
@@ -2971,65 +3007,6 @@ declare namespace index$d {
   };
 }
 
-type UrlProps = {
-    targetArn: Input<ARN>;
-    qualifier?: Input<string>;
-    invokeMode?: Input<'buffered' | 'response-stream'>;
-    authType?: Input<'aws-iam' | 'none'>;
-    cors?: Input<{
-        allow?: Input<{
-            credentials?: Input<boolean>;
-            headers?: Input<Input<string>[]>;
-            methods?: Input<Input<string>[]>;
-            origins?: Input<Input<string>[]>;
-        }>;
-        expose?: Input<{
-            headers?: Input<Input<string>[]>;
-        }>;
-        maxAge?: Input<Duration>;
-    }>;
-};
-declare class Url extends CloudControlApiResource {
-    readonly parent: Node;
-    private props;
-    constructor(parent: Node, id: string, props: UrlProps);
-    get url(): Output<string>;
-    get domain(): Output<string | undefined>;
-    protected cors(): {
-        [x: string]: unknown;
-    };
-    toState(): {
-        document: {
-            Cors: {
-                [x: string]: unknown;
-            };
-            AuthType: string;
-            InvokeMode: string;
-            TargetFunctionArn: Input<`arn:${string}`>;
-        };
-    };
-}
-
-type PermissionProps = {
-    functionArn: Input<ARN>;
-    action?: Input<string>;
-    principal: Input<string>;
-    sourceArn?: Input<ARN>;
-    urlAuthType?: Input<'none' | 'aws-iam'>;
-};
-declare class Permission extends CloudControlApiResource {
-    readonly parent: Node;
-    private props;
-    constructor(parent: Node, id: string, props: PermissionProps);
-    toState(): {
-        document: {
-            FunctionName: Input<`arn:${string}`>;
-            Action: string;
-            Principal: Input<string>;
-        };
-    };
-}
-
 type Code = {
     bucket: Input<string>;
     key: Input<string>;
@@ -3059,9 +3036,78 @@ declare const formatCode: (code: Code) => {
     ImageUri?: undefined;
 };
 
+type EventInvokeConfigProps = {
+    functionArn: Input<ARN>;
+    maxEventAge?: Input<Duration>;
+    onFailure?: Input<ARN>;
+    onSuccess?: Input<ARN>;
+    qualifier?: Input<string>;
+    retryAttempts?: Input<number>;
+};
+declare class EventInvokeConfig extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: EventInvokeConfigProps);
+    setOnFailure(arn: Input<ARN>): this;
+    setOnSuccess(arn: Input<ARN>): this;
+    toState(): {
+        document: {
+            DestinationConfig?: {
+                OnSuccess?: {
+                    Destination: Input<`arn:${string}`>;
+                } | undefined;
+                OnFailure?: {
+                    Destination: Input<`arn:${string}`>;
+                } | undefined;
+            } | undefined;
+            FunctionName: Input<`arn:${string}`>;
+            Qualifier: string;
+        };
+    };
+}
+
+type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp';
+type EventSourceMappingProps = {
+    functionArn: Input<ARN>;
+    sourceArn: Input<ARN>;
+    batchSize?: Input<number>;
+    maxBatchingWindow?: Input<Duration>;
+    maxConcurrency?: Input<number>;
+    maxRecordAge?: Input<Duration>;
+    bisectBatchOnError?: Input<boolean>;
+    parallelizationFactor?: Input<number>;
+    retryAttempts?: Input<number>;
+    tumblingWindow?: Input<Duration>;
+    onFailure?: Input<ARN>;
+    startingPosition?: Input<StartingPosition>;
+    startingPositionTimestamp?: Input<number>;
+};
+declare class EventSourceMapping extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: EventSourceMappingProps);
+    setOnFailure(arn: Input<ARN>): this;
+    toState(): {
+        document: {
+            DestinationConfig?: {
+                OnFailure: {
+                    Destination: Input<`arn:${string}`>;
+                };
+            } | undefined;
+            ScalingConfig?: {
+                MaximumConcurrency: Input<number>;
+            } | undefined;
+            Enabled: boolean;
+            FunctionName: Input<`arn:${string}`>;
+            EventSourceArn: Input<`arn:${string}`>;
+        };
+    };
+}
+
 type FunctionProps = {
     name: Input<string>;
     code: Input<Code>;
+    sourceCodeHash?: Input<Asset>;
     role: Input<ARN>;
     description?: Input<string>;
     runtime?: Input<'nodejs18.x' | 'nodejs20.x'>;
@@ -3082,9 +3128,10 @@ type FunctionProps = {
         system?: Input<'debug' | 'info' | 'warn'>;
     }>;
 };
-declare class Function extends CloudControlApiResource {
+declare class Function extends Resource {
     readonly parent: Node;
     private props;
+    cloudProviderId: string;
     private environmentVariables;
     constructor(parent: Node, id: string, props: FunctionProps);
     get arn(): Output<`arn:${string}`>;
@@ -3100,7 +3147,7 @@ declare class Function extends CloudControlApiResource {
     };
     toState(): {
         asset: {
-            code: Input<Code>;
+            sourceCodeHash: Input<Asset> | undefined;
         };
         document: {
             Environment: {
@@ -3195,70 +3242,61 @@ declare class Function extends CloudControlApiResource {
     };
 }
 
-type EventInvokeConfigProps = {
+type PermissionProps = {
     functionArn: Input<ARN>;
-    maxEventAge?: Input<Duration>;
-    onFailure?: Input<ARN>;
-    onSuccess?: Input<ARN>;
-    qualifier?: Input<string>;
-    retryAttempts?: Input<number>;
+    action?: Input<string>;
+    principal: Input<string>;
+    sourceArn?: Input<ARN>;
+    urlAuthType?: Input<'none' | 'aws-iam'>;
 };
-declare class EventInvokeConfig extends CloudControlApiResource {
+declare class Permission extends CloudControlApiResource {
     readonly parent: Node;
     private props;
-    constructor(parent: Node, id: string, props: EventInvokeConfigProps);
-    setOnFailure(arn: Input<ARN>): this;
-    setOnSuccess(arn: Input<ARN>): this;
+    constructor(parent: Node, id: string, props: PermissionProps);
     toState(): {
         document: {
-            DestinationConfig?: {
-                OnSuccess?: {
-                    Destination: Input<`arn:${string}`>;
-                } | undefined;
-                OnFailure?: {
-                    Destination: Input<`arn:${string}`>;
-                } | undefined;
-            } | undefined;
             FunctionName: Input<`arn:${string}`>;
-            Qualifier: string;
+            Action: string;
+            Principal: Input<string>;
         };
     };
 }
 
-type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp';
-type EventSourceMappingProps = {
-    functionArn: Input<ARN>;
-    sourceArn: Input<ARN>;
-    batchSize?: Input<number>;
-    maxBatchingWindow?: Input<Duration>;
-    maxConcurrency?: Input<number>;
-    maxRecordAge?: Input<Duration>;
-    bisectBatchOnError?: Input<boolean>;
-    parallelizationFactor?: Input<number>;
-    retryAttempts?: Input<number>;
-    tumblingWindow?: Input<Duration>;
-    onFailure?: Input<ARN>;
-    startingPosition?: Input<StartingPosition>;
-    startingPositionTimestamp?: Input<number>;
+type UrlProps = {
+    targetArn: Input<ARN>;
+    qualifier?: Input<string>;
+    invokeMode?: Input<'buffered' | 'response-stream'>;
+    authType?: Input<'aws-iam' | 'none'>;
+    cors?: Input<{
+        allow?: Input<{
+            credentials?: Input<boolean>;
+            headers?: Input<Input<string>[]>;
+            methods?: Input<Input<string>[]>;
+            origins?: Input<Input<string>[]>;
+        }>;
+        expose?: Input<{
+            headers?: Input<Input<string>[]>;
+        }>;
+        maxAge?: Input<Duration>;
+    }>;
 };
-declare class EventSourceMapping extends CloudControlApiResource {
+declare class Url extends CloudControlApiResource {
     readonly parent: Node;
     private props;
-    constructor(parent: Node, id: string, props: EventSourceMappingProps);
-    setOnFailure(arn: Input<ARN>): this;
+    constructor(parent: Node, id: string, props: UrlProps);
+    get url(): Output<string>;
+    get domain(): Output<string | undefined>;
+    protected cors(): {
+        [x: string]: unknown;
+    };
     toState(): {
         document: {
-            DestinationConfig?: {
-                OnFailure: {
-                    Destination: Input<`arn:${string}`>;
-                };
-            } | undefined;
-            ScalingConfig?: {
-                MaximumConcurrency: Input<number>;
-            } | undefined;
-            Enabled: boolean;
-            FunctionName: Input<`arn:${string}`>;
-            EventSourceArn: Input<`arn:${string}`>;
+            Cors: {
+                [x: string]: unknown;
+            };
+            AuthType: string;
+            InvokeMode: string;
+            TargetFunctionArn: Input<`arn:${string}`>;
         };
     };
 }
@@ -3273,6 +3311,8 @@ type index$c_EventSourceMappingProps = EventSourceMappingProps;
 type index$c_Function = Function;
 declare const index$c_Function: typeof Function;
 type index$c_FunctionProps = FunctionProps;
+type index$c_FunctionProvider = FunctionProvider;
+declare const index$c_FunctionProvider: typeof FunctionProvider;
 type index$c_Permission = Permission;
 declare const index$c_Permission: typeof Permission;
 type index$c_PermissionProps = PermissionProps;
@@ -3290,6 +3330,7 @@ declare namespace index$c {
     index$c_EventSourceMappingProps as EventSourceMappingProps,
     index$c_Function as Function,
     index$c_FunctionProps as FunctionProps,
+    index$c_FunctionProvider as FunctionProvider,
     index$c_Permission as Permission,
     index$c_PermissionProps as PermissionProps,
     index$c_StartingPosition as StartingPosition,

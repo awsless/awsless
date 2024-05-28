@@ -1,5 +1,3 @@
-import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
 import {
 	AppSyncClient,
 	DeleteGraphqlApiCommand,
@@ -7,8 +5,10 @@ import {
 	NotFoundException,
 	StartSchemaCreationCommand,
 } from '@aws-sdk/client-appsync'
-import { sleep } from '../../../core/hash'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
+import { CloudProvider, CreateProps, DeleteProps, UpdateProps } from '../../../core/cloud'
 import { ResourceNotFound } from '../../../core/error'
+import { sleep } from '../../../core/hash'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -67,7 +67,7 @@ export class GraphQLSchemaProvider implements CloudProvider {
 		return document.apiId
 	}
 
-	async update({ oldDocument, newDocument, assets }: UpdateProps<Document>) {
+	async update({ oldDocument, newDocument, newAssets }: UpdateProps<Document>) {
 		if (oldDocument.apiId !== newDocument.apiId) {
 			throw new Error(`GraphGLSchema can't change the api id`)
 		}
@@ -75,7 +75,7 @@ export class GraphQLSchemaProvider implements CloudProvider {
 		await this.client.send(
 			new StartSchemaCreationCommand({
 				apiId: newDocument.apiId,
-				definition: assets.definition?.data,
+				definition: newAssets.definition?.data,
 			})
 		)
 

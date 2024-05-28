@@ -37,6 +37,7 @@ export const createLambdaFunction = (
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
 	const ext = extname(props.file)
 	let code: aws.lambda.Code | undefined
+	let sourceCodeHash: Asset | undefined
 
 	if (['.ts', '.js', '.tsx', '.sx'].includes(ext)) {
 		ctx.registerBuild('function', name, async build => {
@@ -72,9 +73,7 @@ export const createLambdaFunction = (
 				},
 			})
 
-			console.log(version)
-
-			return build(version.hash, async () => {
+			return build(version.hash, async write => {
 				const repoName = formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-')
 
 				await exec(`docker build -t ${name} .`, {
@@ -86,6 +85,8 @@ export const createLambdaFunction = (
 					{ cwd: basePath }
 				)
 
+				await write('HASH', version.hash)
+
 				return {
 					size: 'unknown',
 				}
@@ -94,10 +95,12 @@ export const createLambdaFunction = (
 
 		const image = new aws.ecr.Image(group, 'image', {
 			repository: ctx.shared.get('function-repository-name'),
+			hash: Asset.fromFile(getBuildPath('function', name, 'HASH')),
 			name: name,
 			tag: name,
 		})
 
+		sourceCodeHash = Asset.fromFile(getBuildPath('function', name, 'HASH'))
 		code = {
 			imageUri: image.uri,
 		}
@@ -142,6 +145,7 @@ export const createLambdaFunction = (
 		name,
 		role: role.arn,
 		code,
+		sourceCodeHash,
 
 		// Remove conflicting props.
 		vpc: undefined,
