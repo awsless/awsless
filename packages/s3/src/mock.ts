@@ -67,7 +67,7 @@ export const mockS3 = () => {
 
 		throw new NoSuchKey({
 			$metadata: {},
-			message: 'no such key',
+			message: 'No such key',
 		})
 	})
 
@@ -85,7 +85,7 @@ export const mockS3 = () => {
 
 		throw new NoSuchKey({
 			$metadata: {},
-			message: 'no such key',
+			message: 'No such key',
 		})
 	})
 

@@ -192,7 +192,7 @@ var mockS3 = () => {
     }
     throw new import_client_s33.NoSuchKey({
       $metadata: {},
-      message: "no such key"
+      message: "No such key"
     });
   });
   s3ClientMock.on(import_client_s33.HeadObjectCommand).callsFake(async (input) => {
@@ -206,7 +206,7 @@ var mockS3 = () => {
     }
     throw new import_client_s33.NoSuchKey({
       $metadata: {},
-      message: "no such key"
+      message: "No such key"
     });
   });
   s3ClientMock.on(import_client_s33.CopyObjectCommand).callsFake(async (input) => {

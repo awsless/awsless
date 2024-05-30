@@ -175,7 +175,7 @@ var mockS3 = () => {
     }
     throw new NoSuchKey2({
       $metadata: {},
-      message: "no such key"
+      message: "No such key"
     });
   });
   s3ClientMock.on(HeadObjectCommand2).callsFake(async (input) => {
@@ -189,7 +189,7 @@ var mockS3 = () => {
     }
     throw new NoSuchKey2({
       $metadata: {},
-      message: "no such key"
+      message: "No such key"
     });
   });
   s3ClientMock.on(CopyObjectCommand2).callsFake(async (input) => {
