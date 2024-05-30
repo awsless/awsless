@@ -17,6 +17,7 @@ type Store<Name extends string> = {
 	readonly name: Name
 	readonly put: (key: string, body: Body, options?: Pick<PutObjectProps, 'metadata' | 'storageClass'>) => Promise<void>
 	readonly get: (key: string) => Promise<BodyStream | undefined>
+	readonly has: (key: string) => Promise<boolean>
 	readonly delete: (key: string) => Promise<void>
 	readonly copy: (from: string, to: string, versionId?: string) => Promise<void>
 	readonly createPresignedPost: (key: string, contentLengthRange: [Size, Size], expires?: Duration, fields?: Record<string, string>) => Promise<PresignedPost>

@@ -24,6 +24,7 @@ __export(src_exports, {
   createPresignedPost: () => createPresignedPost,
   deleteObject: () => deleteObject,
   getObject: () => getObject,
+  headObject: () => headObject,
   mockS3: () => mockS3,
   putObject: () => putObject,
   s3Client: () => s3Client
@@ -84,6 +85,28 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
     metadata: result.Metadata ?? {},
     sha1: result.ChecksumSHA1,
     body: result.Body
+  };
+};
+var headObject = async ({ client = s3Client(), bucket, key }) => {
+  const command = new import_client_s32.HeadObjectCommand({
+    Bucket: bucket,
+    Key: key
+  });
+  let result;
+  try {
+    result = await client.send(command);
+  } catch (error) {
+    if (error instanceof import_client_s32.NoSuchKey) {
+      return;
+    }
+    throw error;
+  }
+  if (!result) {
+    return;
+  }
+  return {
+    metadata: result.Metadata ?? {},
+    sha1: result.ChecksumSHA1
   };
 };
 var deleteObject = async ({ client = s3Client(), bucket, key }) => {
@@ -237,6 +260,7 @@ var mockS3 = () => {
   createPresignedPost,
   deleteObject,
   getObject,
+  headObject,
   mockS3,
   putObject,
   s3Client

@@ -8,6 +8,8 @@ export {
 	DeleteObjectProps,
 	getObject,
 	GetObjectProps,
+	headObject,
+	HeadObjectProps,
 	putObject,
 	PutObjectProps,
 } from './commands'

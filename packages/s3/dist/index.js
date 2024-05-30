@@ -61,6 +61,28 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
     body: result.Body
   };
 };
+var headObject = async ({ client = s3Client(), bucket, key }) => {
+  const command = new HeadObjectCommand({
+    Bucket: bucket,
+    Key: key
+  });
+  let result;
+  try {
+    result = await client.send(command);
+  } catch (error) {
+    if (error instanceof NoSuchKey) {
+      return;
+    }
+    throw error;
+  }
+  if (!result) {
+    return;
+  }
+  return {
+    metadata: result.Metadata ?? {},
+    sha1: result.ChecksumSHA1
+  };
+};
 var deleteObject = async ({ client = s3Client(), bucket, key }) => {
   const command = new DeleteObjectCommand({
     Bucket: bucket,
@@ -219,6 +241,7 @@ export {
   createPresignedPost,
   deleteObject,
   getObject,
+  headObject,
   mockS3,
   putObject,
   s3Client

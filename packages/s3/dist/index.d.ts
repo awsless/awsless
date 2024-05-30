@@ -37,6 +37,15 @@ declare const getObject: ({ client, bucket, key }: GetObjectProps) => Promise<{
     sha1: string;
     body: _smithy_types.StreamingBlobPayloadOutputTypes;
 } | undefined>;
+type HeadObjectProps = {
+    client?: S3Client;
+    bucket: string;
+    key: string;
+};
+declare const headObject: ({ client, bucket, key }: HeadObjectProps) => Promise<{
+    metadata: Record<string, string>;
+    sha1: string;
+} | undefined>;
 type DeleteObjectProps = {
     client?: S3Client;
     bucket: string;
@@ -63,4 +72,4 @@ declare const createPresignedPost: ({ client, bucket, key, fields, expires, cont
 
 declare const mockS3: () => Mock<any, any>;
 
-export { Body, BodyStream, CopyObjectProps, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, PutObjectProps, copyObject, createPresignedPost, deleteObject, getObject, mockS3, putObject, s3Client };
+export { Body, BodyStream, CopyObjectProps, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, HeadObjectProps, PutObjectProps, copyObject, createPresignedPost, deleteObject, getObject, headObject, mockS3, putObject, s3Client };
