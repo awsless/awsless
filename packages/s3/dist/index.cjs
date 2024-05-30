@@ -68,7 +68,15 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
     Bucket: bucket,
     Key: key
   });
-  const result = await client.send(command);
+  let result;
+  try {
+    result = await client.send(command);
+  } catch (error) {
+    if (error instanceof import_client_s32.NoSuchKey) {
+      return;
+    }
+    throw error;
+  }
   if (!result || !result.Body) {
     return;
   }
@@ -162,7 +170,8 @@ var mockS3 = () => {
     const sha1 = await hashSHA1(input.Body);
     store[input.Key] = {
       body: input.Body,
-      sha1
+      sha1,
+      meta: input.Metadata ?? {}
     };
     return {
       ChecksumSHA1: sha1
@@ -176,11 +185,29 @@ var mockS3 = () => {
       stream.push(data.body);
       stream.push(null);
       return {
+        Metadata: data.meta,
         ChecksumSHA1: data.sha1,
         Body: (0, import_util_stream_node.sdkStreamMixin)(stream)
       };
     }
-    return;
+    throw new import_client_s33.NoSuchKey({
+      $metadata: {},
+      message: "no such key"
+    });
+  });
+  s3ClientMock.on(import_client_s33.HeadObjectCommand).callsFake(async (input) => {
+    await (0, import_utils2.nextTick)(fn);
+    const data = store[input.Key];
+    if (data) {
+      return {
+        Metadata: data.meta,
+        ChecksumSHA1: data.sha1
+      };
+    }
+    throw new import_client_s33.NoSuchKey({
+      $metadata: {},
+      message: "no such key"
+    });
   });
   s3ClientMock.on(import_client_s33.CopyObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);

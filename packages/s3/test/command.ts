@@ -1,4 +1,5 @@
-import { mockS3, putObject, getObject, deleteObject, createPresignedPost } from '../src'
+import { createPresignedPost, deleteObject, getObject, mockS3, putObject } from '../src'
+import { headObject } from '../src/commands'
 import { hashSHA1 } from '../src/hash'
 
 describe('S3 Commands', () => {
@@ -10,6 +11,9 @@ describe('S3 Commands', () => {
 			bucket: 'test',
 			key: 'test',
 			body,
+			metadata: {
+				test: 'test',
+			},
 		})
 
 		expect(mock).toBeCalledTimes(1)
@@ -24,9 +28,25 @@ describe('S3 Commands', () => {
 			key: 'test',
 		})
 
+		expect(mock).toBeCalledTimes(1)
 		expect(await result?.body.transformToString()).toBe(body)
 		expect(result?.sha1).toBe(await hashSHA1(body))
+		expect(result?.metadata).toStrictEqual({
+			test: 'test',
+		})
+	})
+
+	it('should retrieve the header of a file from s3', async () => {
+		const result = await headObject({
+			bucket: 'test',
+			key: 'test',
+		})
+
 		expect(mock).toBeCalledTimes(1)
+		expect(result?.sha1).toBe(await hashSHA1(body))
+		expect(result?.metadata).toStrictEqual({
+			test: 'test',
+		})
 	})
 
 	it('should delete a file from s3', async () => {

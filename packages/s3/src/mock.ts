@@ -5,6 +5,8 @@ import {
 	DeleteObjectCommandInput,
 	GetObjectCommand,
 	GetObjectCommandInput,
+	HeadObjectCommand,
+	NoSuchKey,
 	PutObjectCommand,
 	PutObjectCommandInput,
 	S3Client,
@@ -26,6 +28,7 @@ export const mockS3 = () => {
 		{
 			body: Body
 			sha1: string
+			meta: Record<string, string>
 		}
 	> = {}
 
@@ -38,6 +41,7 @@ export const mockS3 = () => {
 		store[input.Key!] = {
 			body: input.Body,
 			sha1: sha1,
+			meta: input.Metadata ?? {},
 		}
 
 		return {
@@ -55,12 +59,34 @@ export const mockS3 = () => {
 			stream.push(data.body)
 			stream.push(null)
 			return {
+				Metadata: data.meta,
 				ChecksumSHA1: data.sha1,
 				Body: sdkStreamMixin(stream),
 			}
 		}
 
-		return
+		throw new NoSuchKey({
+			$metadata: {},
+			message: 'no such key',
+		})
+	})
+
+	s3ClientMock.on(HeadObjectCommand).callsFake(async (input: GetObjectCommandInput) => {
+		await nextTick(fn)
+
+		const data = store[input.Key!]
+
+		if (data) {
+			return {
+				Metadata: data.meta,
+				ChecksumSHA1: data.sha1,
+			}
+		}
+
+		throw new NoSuchKey({
+			$metadata: {},
+			message: 'no such key',
+		})
 	})
 
 	s3ClientMock.on(CopyObjectCommand).callsFake(async (input: CopyObjectCommandInput) => {

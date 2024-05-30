@@ -10,6 +10,8 @@ import {
   CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
+  NoSuchKey,
   PutObjectCommand
 } from "@aws-sdk/client-s3";
 import { createPresignedPost as signedPost } from "@aws-sdk/s3-presigned-post";
@@ -41,7 +43,15 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
     Bucket: bucket,
     Key: key
   });
-  const result = await client.send(command);
+  let result;
+  try {
+    result = await client.send(command);
+  } catch (error) {
+    if (error instanceof NoSuchKey) {
+      return;
+    }
+    throw error;
+  }
   if (!result || !result.Body) {
     return;
   }
@@ -100,6 +110,8 @@ import {
   CopyObjectCommand as CopyObjectCommand2,
   DeleteObjectCommand as DeleteObjectCommand2,
   GetObjectCommand as GetObjectCommand2,
+  HeadObjectCommand as HeadObjectCommand2,
+  NoSuchKey as NoSuchKey2,
   PutObjectCommand as PutObjectCommand2,
   S3Client as S3Client3
 } from "@aws-sdk/client-s3";
@@ -141,7 +153,8 @@ var mockS3 = () => {
     const sha1 = await hashSHA1(input.Body);
     store[input.Key] = {
       body: input.Body,
-      sha1
+      sha1,
+      meta: input.Metadata ?? {}
     };
     return {
       ChecksumSHA1: sha1
@@ -155,11 +168,29 @@ var mockS3 = () => {
       stream.push(data.body);
       stream.push(null);
       return {
+        Metadata: data.meta,
         ChecksumSHA1: data.sha1,
         Body: sdkStreamMixin(stream)
       };
     }
-    return;
+    throw new NoSuchKey2({
+      $metadata: {},
+      message: "no such key"
+    });
+  });
+  s3ClientMock.on(HeadObjectCommand2).callsFake(async (input) => {
+    await nextTick(fn);
+    const data = store[input.Key];
+    if (data) {
+      return {
+        Metadata: data.meta,
+        ChecksumSHA1: data.sha1
+      };
+    }
+    throw new NoSuchKey2({
+      $metadata: {},
+      message: "no such key"
+    });
   });
   s3ClientMock.on(CopyObjectCommand2).callsFake(async (input) => {
     await nextTick(fn);

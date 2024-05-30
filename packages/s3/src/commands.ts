@@ -2,6 +2,8 @@ import {
 	CopyObjectCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
+	HeadObjectCommand,
+	NoSuchKey,
 	PutObjectCommand,
 	S3Client,
 	StorageClass,
@@ -57,7 +59,17 @@ export const getObject = async ({ client = s3Client(), bucket, key }: GetObjectP
 		Key: key,
 	})
 
-	const result = await client.send(command)
+	let result
+
+	try {
+		result = await client.send(command)
+	} catch (error) {
+		if (error instanceof NoSuchKey) {
+			return
+		}
+
+		throw error
+	}
 
 	if (!result || !result.Body) {
 		return
@@ -67,6 +79,40 @@ export const getObject = async ({ client = s3Client(), bucket, key }: GetObjectP
 		metadata: result.Metadata ?? {},
 		sha1: result.ChecksumSHA1!,
 		body: result.Body,
+	}
+}
+
+export type HeadObjectProps = {
+	client?: S3Client
+	bucket: string
+	key: string
+}
+
+export const headObject = async ({ client = s3Client(), bucket, key }: HeadObjectProps) => {
+	const command = new HeadObjectCommand({
+		Bucket: bucket,
+		Key: key,
+	})
+
+	let result
+
+	try {
+		result = await client.send(command)
+	} catch (error) {
+		if (error instanceof NoSuchKey) {
+			return
+		}
+
+		throw error
+	}
+
+	if (!result) {
+		return
+	}
+
+	return {
+		metadata: result.Metadata ?? {},
+		sha1: result.ChecksumSHA1!,
 	}
 }
 
