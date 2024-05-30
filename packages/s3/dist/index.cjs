@@ -182,6 +182,14 @@ var mockS3 = () => {
     }
     return;
   });
+  s3ClientMock.on(import_client_s33.CopyObjectCommand).callsFake(async (input) => {
+    await (0, import_utils2.nextTick)(fn);
+    const data = store[input.CopySource];
+    if (data) {
+      store[input.Key] = data;
+    }
+    return;
+  });
   s3ClientMock.on(import_client_s33.DeleteObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);
     delete store[input.Key];

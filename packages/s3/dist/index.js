@@ -97,6 +97,7 @@ var createPresignedPost = async ({
 
 // src/mock.ts
 import {
+  CopyObjectCommand as CopyObjectCommand2,
   DeleteObjectCommand as DeleteObjectCommand2,
   GetObjectCommand as GetObjectCommand2,
   PutObjectCommand as PutObjectCommand2,
@@ -157,6 +158,14 @@ var mockS3 = () => {
         ChecksumSHA1: data.sha1,
         Body: sdkStreamMixin(stream)
       };
+    }
+    return;
+  });
+  s3ClientMock.on(CopyObjectCommand2).callsFake(async (input) => {
+    await nextTick(fn);
+    const data = store[input.CopySource];
+    if (data) {
+      store[input.Key] = data;
     }
     return;
   });

@@ -1,4 +1,6 @@
 import {
+	CopyObjectCommand,
+	CopyObjectCommandInput,
 	DeleteObjectCommand,
 	DeleteObjectCommandInput,
 	GetObjectCommand,
@@ -56,6 +58,17 @@ export const mockS3 = () => {
 				ChecksumSHA1: data.sha1,
 				Body: sdkStreamMixin(stream),
 			}
+		}
+
+		return
+	})
+
+	s3ClientMock.on(CopyObjectCommand).callsFake(async (input: CopyObjectCommandInput) => {
+		await nextTick(fn)
+		const data = store[input.CopySource!]
+
+		if (data) {
+			store[input.Key!] = data
 		}
 
 		return
