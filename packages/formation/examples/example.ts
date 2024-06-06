@@ -1,6 +1,7 @@
 import { fromIni } from '@aws-sdk/credential-providers'
 import { minutes } from '@awsless/duration'
-import { App, AppError, aws, Stack, WorkSpace } from '../src'
+import { App, AppError, Asset, aws, Stack, WorkSpace } from '../src'
+import { createVPC } from './resources/_util'
 
 const region = 'eu-west-1'
 const credentials = fromIni({
@@ -40,23 +41,58 @@ const repo = new aws.ecr.Repository(stack, 'repo', {
 	name: 'test',
 })
 
-const image = new aws.ecr.Image(stack, `image-1`, {
+const image = new aws.ecr.Image(stack, `image`, {
 	repository: repo.name,
 	name: 'test-2',
 	tag: 'latest',
+	hash: Asset.fromString('1'),
 })
 
-const image2 = new aws.ecr.Image(stack, `image-2`, {
-	repository: repo.name,
-	name: 'test-2',
-	tag: 'latest',
+const cluster = new aws.ecs.Cluster(stack, 'cluster', {
+	name: 'test',
 })
 
-// image.uri.apply(console.log)
+const vpc = createVPC(stack, 'eu-west-1', 'test')
 
-// const repo = new aws.ecr.Image(stack, 'image', {
-// 	image: Asset.fromFile('./docket.image'),
-// })
+const role = new aws.iam.Role(stack, 'test', {
+	name: 'test',
+	assumedBy: 'ec2.amazonaws.com',
+	// policies: [{}],
+	// ManagedPolicyArns
+})
+
+role.addManagedPolicy(aws.iam.fromAwsManagedPolicyName('AmazonEC2ContainerServiceforEC2Role'))
+role.addManagedPolicy('arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore')
+role.addManagedPolicy(aws.iam.fromAwsManagedPolicyName('AmazonECS_FullAccess'))
+
+const profile = new aws.iam.InstanceProfile(stack, 'test', {
+	name: 'test',
+	roles: [role.name],
+})
+
+const template = new aws.ec2.LaunchTemplate(stack, 'test', {
+	name: 'test',
+	// 'instanceType': 'g4ad.xlarge'
+	instanceType: 't4g.nano',
+	imageId: 'amzn2-ami-ecs-kernel-5.10-hvm-2.0.20240528-arm64-ebs',
+	iamInstanceProfile: profile.arn,
+})
+
+// amzn2-ami-ecs-kernel-5.10-hvm-2.0.20240528-arm64-ebs
+// amzn2-ami-ecs-kernel-5.10-gpu-hvm-2.0.20240528-x86_64-ebs
+// amzn2-ami-ecs-kernel-5.10-hvm-2.0.20240528-x86_64-ebs
+// amzn2-ami-ecs-kernel-5.10-inf-hvm-2.0.20240528-x86_64-ebs
+// amzn2-ami-ecs-gpu-hvm-2.0.20240528-x86_64-ebs
+// amzn2-ami-ecs-hvm-2.0.20240528-arm64-ebs
+// amzn2-ami-ecs-hvm-2.0.20240528-x86_64-ebs
+
+const autoScalingGroup = new aws.autoScaling.AutoScalingGroup(stack, 'test', {
+	name: 'test',
+	subnets: vpc.subnets.private.map(s => s.id),
+	maxSize: 1,
+	minSize: 1,
+	launchTemplate: template,
+})
 
 const main = async () => {
 	// const diff1 = await workspace.diffStack(stack)
