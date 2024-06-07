@@ -1,8 +1,8 @@
-import { Node, aws } from '@awsless/formation'
+import { aws, Node } from '@awsless/formation'
+import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { constantCase } from 'change-case'
 
 const typeGenCode = `
 import { AnyStruct, Table } from '@awsless/open-search'
@@ -66,11 +66,14 @@ export const searchFeature = defineFeature({
 				})
 			}
 
-			ctx.onFunction(({ lambda, policy }) => {
+			ctx.onFunction(lambda => {
 				lambda.addEnvironment(
 					`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`,
 					openSearch.domainEndpoint
 				)
+			})
+
+			ctx.onPolicy(policy => {
 				policy.addStatement({
 					actions: ['es:*'],
 					resources: [openSearch.arn],

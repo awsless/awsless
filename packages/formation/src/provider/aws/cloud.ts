@@ -10,6 +10,7 @@ import { CloudControlApiProvider } from './cloud-control-api/provider'
 import { InvalidateCacheProvider } from './cloud-front'
 import { LambdaTriggersProvider } from './cognito/lambda-triggers-provider'
 import { TableItemProvider } from './dynamodb/table-item-provider'
+import { InstanceProvider } from './ec2'
 import { ImageProvider } from './ecr'
 import { FunctionProvider } from './lambda/function-provider'
 import { RecordSetProvider } from './route53/record-set-provider'
@@ -30,6 +31,7 @@ export const createCloudProviders = (config: ConfigProps) => {
 		//
 		cloudControlApiProvider,
 		new ImageProvider(config),
+		new InstanceProvider(config),
 		new FunctionProvider({ ...config, cloudProvider: cloudControlApiProvider }),
 		new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
 		new BucketObjectProvider(config),

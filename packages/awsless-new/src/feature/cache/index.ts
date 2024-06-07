@@ -1,9 +1,9 @@
+import { aws, Node } from '@awsless/formation'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { Node, aws } from '@awsless/formation'
 
 const typeGenCode = `
 import { Cluster, CommandOptions } from '@awsless/redis'
@@ -71,7 +71,7 @@ export const cacheFeature = defineFeature({
 				...props,
 			})
 
-			ctx.onFunction(({ lambda }) => {
+			ctx.onFunction(lambda => {
 				const prefix = `CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}`
 				lambda.addEnvironment(`${prefix}_HOST`, cluster.address)
 				lambda.addEnvironment(`${prefix}_PORT`, props.port.toString())

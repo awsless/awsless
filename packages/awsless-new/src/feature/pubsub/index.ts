@@ -1,12 +1,12 @@
-import { Node, aws } from '@awsless/formation'
+import { aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
+import { createAsyncLambdaFunction } from '../function/util.js'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
 	onApp(ctx) {
-		ctx.onFunction(({ policy }) => {
+		ctx.onPolicy(policy => {
 			policy.addStatement({
 				actions: ['iot-data:publish'],
 				resources: [`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:rule/*`],

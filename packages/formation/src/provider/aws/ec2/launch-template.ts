@@ -1,9 +1,17 @@
+import { Asset } from '../../../core/asset.js'
 import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
 
 export type InstanceType =
+	| 't3.nano'
+	| 't3.micro'
+	| 't3.small'
+	| 't3.medium'
+	| 't3.large'
+	| 't3.xlarge'
+	| 't3.2xlarge'
 	| 't4g.nano'
 	| 't4g.micro'
 	| 't4g.small'
@@ -21,7 +29,7 @@ export type LaunchTemplateProps = {
 	iamInstanceProfile?: Input<ARN>
 	monitoring?: Input<boolean>
 	securityGroupIds?: Input<Input<string>[]>
-	userData?: Input<string>
+	userData?: Input<Asset>
 }
 
 export class LaunchTemplate extends CloudControlApiResource {
@@ -55,6 +63,9 @@ export class LaunchTemplate extends CloudControlApiResource {
 
 	toState() {
 		return {
+			assets: {
+				userData: this.props.userData,
+			},
 			document: {
 				LaunchTemplateName: this.props.name,
 				LaunchTemplateData: {
@@ -68,7 +79,10 @@ export class LaunchTemplate extends CloudControlApiResource {
 						Enabled: unwrap(this.props.monitoring, false),
 					},
 					SecurityGroupIds: this.props.securityGroupIds,
-					...this.attr('UserData', this.props.userData, v => Buffer.from(v, 'utf8').toString('base64')),
+					UserData: {
+						__ASSET__: 'userData',
+					},
+					// ...this.attr('UserData', this.props.userData, v => Buffer.from(v, 'utf8').toString('base64')),
 				},
 			},
 		}

@@ -1,16 +1,12 @@
-import { Stack, App, aws, Input } from '@awsless/formation'
-import { StackConfig } from './config/stack.js'
-import { AppConfig } from './config/app.js'
+import { App, aws, Input, Stack } from '@awsless/formation'
 import { Builder } from './build/index.js'
-import { TypeFile } from './type-gen/file.js'
+import { AppConfig } from './config/app.js'
+import { StackConfig } from './config/stack.js'
 import { SharedData } from './shared.js'
+import { TypeFile } from './type-gen/file.js'
 
-type RegisterFunction = (
-	//
-	lambda: aws.lambda.Function,
-	policy: aws.iam.RolePolicy
-) => void
-
+type RegisterPolicy = (policy: aws.iam.RolePolicy) => void
+type RegisterFunction = (lambda: aws.lambda.Function) => void
 type RegisterSiteFunction = (lambda: aws.lambda.Function) => void
 
 type RegisterBuild = (
@@ -26,11 +22,10 @@ type RegisterTest = (name: string, paths: string[]) => void
 type BindEnv = (name: string, value: Input<string>) => void
 
 export type OnFunction = (callback: OnFunctionListener) => void
-export type OnFunctionListener = (entry: OnFunctionEntry) => void
-export type OnFunctionEntry = {
-	lambda: aws.lambda.Function
-	policy: aws.iam.RolePolicy
-}
+export type OnFunctionListener = (lambda: aws.lambda.Function) => void
+
+export type OnPolicy = (callback: OnPolicyListener) => void
+export type OnPolicyListener = (policy: aws.iam.RolePolicy) => void
 
 export type StackContext = AppContext & {
 	stackConfig: StackConfig
@@ -50,12 +45,23 @@ export type AppContext = {
 
 	registerTest: RegisterTest
 	registerBuild: RegisterBuild
+	registerPolicy: RegisterPolicy
 	registerFunction: RegisterFunction
 	registerSiteFunction: RegisterSiteFunction
 
+	// env: {
+	// 	bind: (name: string, value: Input<string>) => void
+	// 	set: (name: string, value: Input<string>) => void
+	// 	list(): Record<string, Input<string>>
+	// }
+
 	bindEnv: BindEnv
 
+	// setEnv:
+	// listEnvs:
+
 	onFunction: OnFunction
+	onPolicy: OnPolicy
 }
 
 export type TypeGenContext = {

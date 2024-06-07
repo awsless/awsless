@@ -28,9 +28,12 @@ export const configFeature = defineFeature({
 			ctx.registerConfig(name)
 		}
 
-		ctx.onFunction(({ lambda, policy }) => {
-			if (configs.length) {
+		if (configs.length) {
+			ctx.onFunction(lambda => {
 				lambda.addEnvironment('CONFIG', configs.join(','))
+			})
+
+			ctx.onPolicy(policy => {
 				policy.addStatement({
 					actions: [
 						'ssm:GetParameter',
@@ -45,7 +48,7 @@ export const configFeature = defineFeature({
 							)}/${paramCase(name)}` as const
 					),
 				})
-			}
-		})
+			})
+		}
 	},
 })

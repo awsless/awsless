@@ -1,6 +1,22 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
+	"streams": {
+		"arena": {
+			"type": "basic"
+		}
+	},
+	"instances": {
+		"stream": {
+			"type": "t4g.nano",
+			"imageId": "ami-05172b510cbeb4f59",
+			"userData": "./instance/user-data.sh",
+			"code": {
+				"test": "./instance"
+			}
+		}
+	}
+
 	// "http": {
 	// 	"api": {
 	// 		"GET /": "./function.ts"
@@ -37,26 +53,26 @@
 	// 		"consumer": "./function.ts"
 	// 	}
 	// },
-	"graphql": {
-		"api": {
-			"schema": "./graphql/schema.gql",
-			"resolvers": {
-				"Mutation": {
-					"test": "./graphql.ts"
-				}
-			}
-		}
-	},
+	// "graphql": {
+	// 	"api": {
+	// 		"schema": "./graphql/schema.gql",
+	// 		"resolvers": {
+	// 			"Mutation": {
+	// 				"test": "./graphql.ts"
+	// 			}
+	// 		}
+	// 	}
+	// },
 	// "tables": {
 	// 	"users": {
 	// 		"hash": "id",
 	// 		"sort": "key"
 	// 	}
 	// },
-	"functions": {
-		"test-1": "./docker/test1/dockerfile",
-		"test-2": "./docker/test2/dockerfile"
-	}
+	// "functions": {
+	// 	"test-1": "./docker/test1/dockerfile",
+	// 	"test-2": "./docker/test2/dockerfile"
+	// }
 	// "queues": {
 	// 	"queue": "./function.ts"
 	// },

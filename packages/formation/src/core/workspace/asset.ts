@@ -2,20 +2,22 @@ import { Asset, ResolvedAsset } from '../asset'
 import { ResourceDocument } from '../cloud'
 import { Input, unwrap } from '../output'
 
-export const loadAssets = async (assets: Record<string, Input<Asset>>) => {
+export const loadAssets = async (assets: Record<string, Input<Asset> | undefined>) => {
 	const resolved: Record<string, ResolvedAsset> = {}
 	const hashes: Record<string, string> = {}
 
 	await Promise.all(
 		Object.entries(assets).map(async ([name, asset]) => {
-			const data = await unwrap(asset).load()
-			const buff = await crypto.subtle.digest('SHA-256', data)
-			const hash = Buffer.from(buff).toString('hex')
+			if (asset instanceof Asset) {
+				const data = await unwrap(asset).load()
+				const buff = await crypto.subtle.digest('SHA-256', data)
+				const hash = Buffer.from(buff).toString('hex')
 
-			hashes[name] = hash
-			resolved[name] = {
-				data,
-				hash,
+				hashes[name] = hash
+				resolved[name] = {
+					data,
+					hash,
+				}
 			}
 		})
 	)

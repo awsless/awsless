@@ -1,11 +1,11 @@
-import { Asset, Node, Input, aws } from '@awsless/formation'
-import { defineFeature } from '../../feature.js'
-import { createLambdaFunction } from '../function/util.js'
-import { formatLocalResourceName } from '../../util/name.js'
 import { days, seconds } from '@awsless/duration'
-import { formatFullDomainName } from '../domain/util.js'
+import { Asset, aws, Input, Node } from '@awsless/formation'
 import { glob } from 'glob'
 import { join } from 'path'
+import { defineFeature } from '../../feature.js'
+import { formatLocalResourceName } from '../../util/name.js'
+import { formatFullDomainName } from '../domain/util.js'
+import { createLambdaFunction } from '../function/util.js'
 import { getCacheControl, getContentType } from './util.js'
 
 export const siteFeature = defineFeature({

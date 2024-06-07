@@ -1,11 +1,11 @@
 // import { getGlobalOnFailure } from '../on-failure/util.js'
+import { aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
-import { formatLocalResourceName } from '../../util/name.js'
-import { Node, aws } from '@awsless/formation'
-import { createLambdaFunction } from '../function/util.js'
-import { getGlobalOnFailure } from '../on-failure/util.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
+import { formatLocalResourceName } from '../../util/name.js'
+import { createLambdaFunction } from '../function/util.js'
+import { getGlobalOnFailure } from '../on-failure/util.js'
 
 export const tableFeature = defineFeature({
 	name: 'table',
@@ -70,7 +70,7 @@ export const tableFeature = defineFeature({
 				// ctx.stack.add(lambda, source)
 			}
 
-			ctx.onFunction(({ policy }) => {
+			ctx.onPolicy(policy => {
 				policy.addStatement(...table.permissions)
 			})
 		}

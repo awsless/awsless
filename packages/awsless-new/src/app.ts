@@ -1,12 +1,12 @@
 // import { createDeploymentLine } from './util/deployment.js'
 // import { debug } from './cli/logger.js'
 // import { style } from './cli/style.js'
-import { StackConfig } from './config/stack.js'
-import { AppConfig } from './config/app.js'
-import { App, Input, Stack, aws } from '@awsless/formation'
-import { features } from './feature/index.js'
-import { OnFunctionEntry, OnFunctionListener } from './feature.js'
+import { App, aws, Input, Stack } from '@awsless/formation'
 import { Builder } from './build/index.js'
+import { AppConfig } from './config/app.js'
+import { StackConfig } from './config/stack.js'
+import { OnFunctionListener, OnPolicyListener } from './feature.js'
+import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
 
 const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
@@ -61,10 +61,16 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
-	const allFunctions: OnFunctionEntry[] = []
-	const globalListeners: OnFunctionListener[] = []
-	const allLocalListeners: Record<string, OnFunctionListener[]> = {}
-	const allLocalFunctions: Record<string, OnFunctionEntry[]> = {}
+
+	const allFunctions: aws.lambda.Function[] = []
+	const allFunctionListeners: OnFunctionListener[] = []
+	const allLocalFunctions: Record<string, aws.lambda.Function[]> = {}
+	const allLocalFunctionListeners: Record<string, OnFunctionListener[]> = {}
+
+	const allPolicies: aws.iam.RolePolicy[] = []
+	const allPoliciesListeners: OnPolicyListener[] = []
+	const allLocalPolicies: Record<string, aws.iam.RolePolicy[]> = {}
+	const allLocalPolicyListeners: Record<string, OnPolicyListener[]> = {}
 
 	// ---------------------------------------------------------------
 
@@ -76,11 +82,17 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 			app,
 			base,
 			shared,
-			onFunction(callback) {
-				globalListeners.push(callback)
+			onPolicy(callback) {
+				allPoliciesListeners.push(callback)
 			},
-			registerFunction(lambda, policy) {
-				allFunctions.push({ lambda, policy })
+			onFunction(callback) {
+				allFunctionListeners.push(callback)
+			},
+			registerFunction(lambda) {
+				allFunctions.push(lambda)
+			},
+			registerPolicy(policy) {
+				allPolicies.push(policy)
 			},
 			registerTest(name, paths) {
 				tests.push({ name, paths })
@@ -108,12 +120,16 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	}
 
 	for (const stackConfig of filterdStacks) {
-		const localListeners: OnFunctionListener[] = []
-		const localFunctions: OnFunctionEntry[] = []
+		const localPolicyListeners: OnPolicyListener[] = []
+		const localPolicies: aws.iam.RolePolicy[] = []
+		const localFunctionListeners: OnFunctionListener[] = []
+		const localFunctions: aws.lambda.Function[] = []
 
 		const stack = new Stack(app, stackConfig.name)
 
-		allLocalListeners[stack.name] = localListeners
+		allLocalPolicyListeners[stack.name] = localPolicyListeners
+		allLocalPolicies[stack.name] = localPolicies
+		allLocalFunctionListeners[stack.name] = localFunctionListeners
 		allLocalFunctions[stack.name] = localFunctions
 
 		for (const feature of features) {
@@ -125,11 +141,18 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				stack,
 				shared,
 				onFunction(callback) {
-					localListeners.push(callback)
+					localFunctionListeners.push(callback)
 				},
-				registerFunction(lambda, policy) {
-					allFunctions.push({ lambda, policy })
-					localFunctions.push({ lambda, policy })
+				registerFunction(lambda) {
+					allFunctions.push(lambda)
+					localFunctions.push(lambda)
+				},
+				onPolicy(callback) {
+					localPolicyListeners.push(callback)
+				},
+				registerPolicy(policy) {
+					allPolicies.push(policy)
+					localPolicies.push(policy)
 				},
 				registerTest(name, paths) {
 					tests.push({ name, paths })
@@ -152,8 +175,14 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		// ---------------------------------------------------------------
 		// Local stack binds
 
-		for (const listener of localListeners) {
+		for (const listener of localFunctionListeners) {
 			for (const fn of localFunctions) {
+				listener(fn)
+			}
+		}
+
+		for (const listener of localPolicyListeners) {
+			for (const fn of localPolicies) {
 				listener(fn)
 			}
 		}
@@ -162,8 +191,14 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	// ---------------------------------------------------------------
 	// Global app binds
 
-	for (const listener of globalListeners) {
+	for (const listener of allFunctionListeners) {
 		for (const fn of allFunctions) {
+			listener(fn)
+		}
+	}
+
+	for (const listener of allPoliciesListeners) {
+		for (const fn of allPolicies) {
 			listener(fn)
 		}
 	}
@@ -182,12 +217,20 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 
 	for (const stackConfig of filterdStacks) {
 		const functions = allLocalFunctions[stackConfig.name]!
+		const policies = allLocalPolicies[stackConfig.name]!
 
 		for (const dependency of stackConfig.depends ?? []) {
-			const listeners = allLocalListeners[dependency]!
+			const functionListeners = allLocalFunctionListeners[dependency]!
+			const policyListeners = allLocalPolicyListeners[dependency]!
 
 			for (const fn of functions) {
-				for (const listener of listeners) {
+				for (const listener of functionListeners) {
+					listener(fn)
+				}
+			}
+
+			for (const fn of policies) {
+				for (const listener of policyListeners) {
 					listener(fn)
 				}
 			}

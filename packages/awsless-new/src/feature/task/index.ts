@@ -1,12 +1,12 @@
+import { Node } from '@awsless/formation'
 import { camelCase } from 'change-case'
+import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { relative } from 'path'
-import { Node } from '@awsless/formation'
+import { createAsyncLambdaFunction } from '../function/util.js'
 
 const typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'

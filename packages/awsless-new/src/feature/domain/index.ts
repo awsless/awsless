@@ -1,6 +1,6 @@
-import { Node, aws } from '@awsless/formation'
-import { defineFeature } from '../../feature.js'
 import { minutes } from '@awsless/duration'
+import { aws, Node } from '@awsless/formation'
+import { defineFeature } from '../../feature.js'
 
 export const domainFeature = defineFeature({
 	name: 'domain',
@@ -124,7 +124,7 @@ export const domainFeature = defineFeature({
 			}
 		}
 
-		ctx.onFunction(({ policy }) =>
+		ctx.onPolicy(policy =>
 			policy.addStatement({
 				actions: ['ses:*'],
 				resources: [`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`],

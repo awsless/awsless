@@ -105,7 +105,7 @@ export const storeFeature = defineFeature({
 				],
 			})
 
-			ctx.onFunction(({ policy }) => {
+			ctx.onPolicy(policy => {
 				policy.addStatement(bucket.permissions)
 			})
 		}

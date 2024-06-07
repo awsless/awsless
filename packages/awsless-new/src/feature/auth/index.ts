@@ -13,7 +13,6 @@ export const authFeature = defineFeature({
 		const resources = new TypeObject(1)
 
 		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
-			const authName = formatGlobalResourceName(ctx.appConfig.name, 'auth', name)
 			resources.addType(name, `{ readonly userPoolId: string, readonly clientId: string }`)
 		}
 

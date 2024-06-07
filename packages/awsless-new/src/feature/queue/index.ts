@@ -1,14 +1,14 @@
-import { getGlobalOnFailure } from '../on-failure/util.js'
+import { aws, Node } from '@awsless/formation'
 import { camelCase, constantCase } from 'change-case'
-import { directories } from '../../util/path.js'
+import deepmerge from 'deepmerge'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import deepmerge from 'deepmerge'
-import { Node, aws } from '@awsless/formation'
+import { directories } from '../../util/path.js'
 import { createLambdaFunction } from '../function/util.js'
+import { getGlobalOnFailure } from '../on-failure/util.js'
 
 const typeGenCode = `
 import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless/sqs'
@@ -48,8 +48,8 @@ export const queueFeature = defineFeature({
 					typeof fileOrProps === 'string'
 						? fileOrProps
 						: typeof fileOrProps.consumer === 'string'
-						? fileOrProps.consumer
-						: fileOrProps.consumer.file
+							? fileOrProps.consumer
+							: fileOrProps.consumer.file
 				const relFile = relative(directories.types, file)
 
 				gen.addImport(varName, relFile)
@@ -109,9 +109,12 @@ export const queueFeature = defineFeature({
 				resources: [queue.arn],
 			})
 
-			ctx.onFunction(({ lambda, policy }) => {
-				policy.addStatement(queue.permissions)
+			ctx.onFunction(lambda => {
 				lambda.addEnvironment(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
+			})
+
+			ctx.onPolicy(policy => {
+				policy.addStatement(queue.permissions)
 			})
 		}
 	},

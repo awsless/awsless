@@ -416,14 +416,16 @@ var loadAssets = async (assets) => {
   const hashes = {};
   await Promise.all(
     Object.entries(assets).map(async ([name, asset]) => {
-      const data = await unwrap(asset).load();
-      const buff = await crypto.subtle.digest("SHA-256", data);
-      const hash = Buffer.from(buff).toString("hex");
-      hashes[name] = hash;
-      resolved[name] = {
-        data,
-        hash
-      };
+      if (asset instanceof Asset) {
+        const data = await unwrap(asset).load();
+        const buff = await crypto.subtle.digest("SHA-256", data);
+        const hash = Buffer.from(buff).toString("hex");
+        hashes[name] = hash;
+        resolved[name] = {
+          data,
+          hash
+        };
+      }
     })
   );
   return [resolved, hashes];
@@ -1034,6 +1036,7 @@ __export(aws_exports, {
   acm: () => acm_exports,
   apiGatewayV2: () => api_gateway_v2_exports,
   appsync: () => appsync_exports,
+  autoScaling: () => auto_scaling_exports,
   cloudControlApi: () => cloud_control_api_exports,
   cloudFront: () => cloud_front_exports,
   cloudWatch: () => cloud_watch_exports,
@@ -1042,10 +1045,12 @@ __export(aws_exports, {
   dynamodb: () => dynamodb_exports,
   ec2: () => ec2_exports,
   ecr: () => ecr_exports,
+  ecs: () => ecs_exports,
   elb: () => elb_exports,
   events: () => events_exports,
   iam: () => iam_exports,
   iot: () => iot_exports,
+  ivs: () => ivs_exports,
   lambda: () => lambda_exports,
   memorydb: () => memorydb_exports,
   openSearch: () => open_search_exports,
@@ -1387,9 +1392,9 @@ __export(cloud_control_api_exports, {
 
 // src/provider/aws/cloud-control-api/provider.ts
 var import_client_cloudcontrol = require("@aws-sdk/client-cloudcontrol");
-var import_rfc6902 = require("rfc6902");
 var import_duration2 = require("@awsless/duration");
 var import_exponential_backoff = require("exponential-backoff");
+var import_rfc6902 = require("rfc6902");
 var CloudControlApiProvider = class {
   constructor(props) {
     this.props = props;
@@ -2216,6 +2221,74 @@ var SourceApiAssociation = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/auto-scaling/index.ts
+var auto_scaling_exports = {};
+__export(auto_scaling_exports, {
+  AutoScalingGroup: () => AutoScalingGroup
+});
+
+// src/provider/aws/auto-scaling/auto-scaling-group.ts
+var import_duration4 = require("@awsless/duration");
+var import_change_case = require("change-case");
+var AutoScalingGroup = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::AutoScaling::AutoScalingGroup", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.AutoScalingGroupName);
+  }
+  // get arn() {
+  // 	return this.output<ARN>(v => v.Arn)
+  // }
+  toState() {
+    return {
+      document: {
+        AutoScalingGroupName: this.props.name,
+        ...this.attr("DefaultInstanceWarmup", this.props.defaultInstanceWarmup, import_duration4.toSeconds),
+        ...this.attr("DesiredCapacity", this.props.desiredCapacity),
+        DesiredCapacityType: "units",
+        // "HealthCheckGracePeriod" : Integer,
+        // "HealthCheckType" : String,
+        // "InstanceId" : String,
+        InstanceMaintenancePolicy: {
+          MaxHealthyPercentage: this.props.maxHealthyPercentage,
+          MinHealthyPercentage: this.props.minHealthyPercentage
+        },
+        // LaunchConfigurationName: this.props.launchConfiguration,
+        LaunchTemplate: {
+          LaunchTemplateSpecification: {
+            LaunchTemplateId: unwrap(this.props.launchTemplate).id,
+            Version: unwrap(this.props.launchTemplate).version
+          }
+        },
+        // "LifecycleHookSpecificationList" : [ LifecycleHookSpecification, ... ],
+        // "LoadBalancerNames" : [ String, ... ],
+        // "MaxInstanceLifetime" : Integer,
+        MaxSize: this.props.maxSize,
+        MinSize: this.props.minSize,
+        // "MetricsCollection" : [ MetricsCollection, ... ],
+        // "MixedInstancesPolicy" : MixedInstancesPolicy,
+        // "NewInstancesProtectedFromScaleIn" : Boolean,
+        // "NotificationConfigurations" : [ NotificationConfiguration, ... ],
+        NotificationConfigurations: unwrap(this.props.notifications, []).map((v) => unwrap(v)).map((n) => ({
+          NotificationTypes: unwrap(n.type).map(
+            (t) => `autoscaling:EC2_INSTANCE_${(0, import_change_case.constantCase)(unwrap(t))}`
+          ),
+          TopicARN: n.topic
+        })),
+        // "PlacementGroup" : String,
+        // "ServiceLinkedRoleARN" : String,
+        // "Tags" : [ TagProperty, ... ],
+        // "TargetGroupARNs" : [ String, ... ],
+        TerminationPolicies: unwrap(this.props.terminationPolicy, []).map((v) => unwrap(v)).map((v) => (0, import_change_case.pascalCase)(v)),
+        VPCZoneIdentifier: this.props.subnets
+      }
+    };
+  }
+};
+
 // src/provider/aws/cloud-front/index.ts
 var cloud_front_exports = {};
 __export(cloud_front_exports, {
@@ -2229,7 +2302,7 @@ __export(cloud_front_exports, {
 });
 
 // src/provider/aws/cloud-front/cache-policy.ts
-var import_duration4 = require("@awsless/duration");
+var import_duration5 = require("@awsless/duration");
 var CachePolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::CachePolicy", id, props);
@@ -2244,9 +2317,9 @@ var CachePolicy = class extends CloudControlApiResource {
       document: {
         CachePolicyConfig: {
           Name: this.props.name,
-          MinTTL: (0, import_duration4.toSeconds)(unwrap(this.props.minTtl)),
-          MaxTTL: (0, import_duration4.toSeconds)(unwrap(this.props.maxTtl)),
-          DefaultTTL: (0, import_duration4.toSeconds)(unwrap(this.props.defaultTtl)),
+          MinTTL: (0, import_duration5.toSeconds)(unwrap(this.props.minTtl)),
+          MaxTTL: (0, import_duration5.toSeconds)(unwrap(this.props.maxTtl)),
+          DefaultTTL: (0, import_duration5.toSeconds)(unwrap(this.props.defaultTtl)),
           ParametersInCacheKeyAndForwardedToOrigin: {
             EnableAcceptEncodingGzip: unwrap(this.props.acceptGzip, false),
             EnableAcceptEncodingBrotli: unwrap(this.props.acceptBrotli, false),
@@ -2270,7 +2343,7 @@ var CachePolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/distribution.ts
-var import_duration5 = require("@awsless/duration");
+var import_duration6 = require("@awsless/duration");
 var Distribution = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::Distribution", id, props);
@@ -2363,7 +2436,7 @@ var Distribution = class extends CloudControlApiResource {
             ErrorCode: item.errorCode,
             ...this.attr(
               "ErrorCachingMinTTL",
-              item.cacheMinTTL && (0, import_duration5.toSeconds)(unwrap(item.cacheMinTTL))
+              item.cacheMinTTL && (0, import_duration6.toSeconds)(unwrap(item.cacheMinTTL))
             ),
             ...this.attr("ResponseCode", item.responseCode),
             ...this.attr("ResponsePagePath", item.responsePath)
@@ -2477,7 +2550,7 @@ var OriginAccessControl = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/origin-request-policy.ts
-var import_change_case = require("change-case");
+var import_change_case2 = require("change-case");
 var OriginRequestPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::OriginRequestPolicy", id, props);
@@ -2496,15 +2569,15 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
         OriginRequestPolicyConfig: {
           Name: this.props.name,
           CookiesConfig: {
-            CookieBehavior: (0, import_change_case.camelCase)(unwrap(cookie?.behavior, "all")),
+            CookieBehavior: (0, import_change_case2.camelCase)(unwrap(cookie?.behavior, "all")),
             ...this.attr("Cookies", cookie?.values)
           },
           HeadersConfig: {
-            HeaderBehavior: (0, import_change_case.camelCase)(unwrap(header?.behavior, "all-viewer")),
+            HeaderBehavior: (0, import_change_case2.camelCase)(unwrap(header?.behavior, "all-viewer")),
             ...this.attr("Headers", header?.values)
           },
           QueryStringsConfig: {
-            QueryStringBehavior: (0, import_change_case.camelCase)(unwrap(query?.behavior, "all")),
+            QueryStringBehavior: (0, import_change_case2.camelCase)(unwrap(query?.behavior, "all")),
             ...this.attr("QueryStrings", query?.values)
           }
         }
@@ -2514,7 +2587,7 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/response-headers-policy.ts
-var import_duration6 = require("@awsless/duration");
+var import_duration7 = require("@awsless/duration");
 var ResponseHeadersPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::ResponseHeadersPolicy", id, props);
@@ -2547,7 +2620,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
           CorsConfig: {
             OriginOverride: unwrap(cors.override, false),
             AccessControlAllowCredentials: unwrap(cors.credentials, false),
-            AccessControlMaxAgeSec: (0, import_duration6.toSeconds)(unwrap(cors.maxAge, (0, import_duration6.days)(365))),
+            AccessControlMaxAgeSec: (0, import_duration7.toSeconds)(unwrap(cors.maxAge, (0, import_duration7.days)(365))),
             AccessControlAllowHeaders: {
               Items: unwrap(cors.headers, ["*"])
             },
@@ -2584,7 +2657,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
             StrictTransportSecurity: {
               Override: unwrap(strictTransportSecurity.override, false),
               Preload: unwrap(strictTransportSecurity.preload, true),
-              AccessControlMaxAgeSec: (0, import_duration6.toSeconds)(unwrap(strictTransportSecurity.maxAge, (0, import_duration6.days)(365))),
+              AccessControlMaxAgeSec: (0, import_duration7.toSeconds)(unwrap(strictTransportSecurity.maxAge, (0, import_duration7.days)(365))),
               IncludeSubdomains: unwrap(strictTransportSecurity.includeSubdomains, true)
             },
             XSSProtection: {
@@ -2729,6 +2802,681 @@ var TableItemProvider = class {
         Key: this.marshall(oldKey)
       })
     );
+  }
+};
+
+// src/provider/aws/ec2/index.ts
+var ec2_exports = {};
+__export(ec2_exports, {
+  Instance: () => Instance,
+  InstanceProvider: () => InstanceProvider,
+  InternetGateway: () => InternetGateway,
+  LaunchTemplate: () => LaunchTemplate,
+  Peer: () => Peer,
+  Port: () => Port,
+  Protocol: () => Protocol,
+  Route: () => Route2,
+  RouteTable: () => RouteTable,
+  SecurityGroup: () => SecurityGroup,
+  Subnet: () => Subnet,
+  SubnetRouteTableAssociation: () => SubnetRouteTableAssociation,
+  VPCGatewayAttachment: () => VPCGatewayAttachment,
+  Vpc: () => Vpc
+});
+
+// src/provider/aws/ec2/instance.ts
+var Instance = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::Instance", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-ec2-instance";
+  get id() {
+    return this.output((v) => v.InstanceId);
+  }
+  get privateDnsName() {
+    return this.output((v) => v.PrivateDnsName);
+  }
+  get privateIp() {
+    return this.output((v) => v.PrivateIp);
+  }
+  get publicDnsName() {
+    return this.output((v) => v.PublicDnsName);
+  }
+  get publicIp() {
+    return this.output((v) => v.PublicIp);
+  }
+  toState() {
+    const template = unwrap(this.props.launchTemplate);
+    return {
+      document: {
+        LaunchTemplate: {
+          LaunchTemplateId: template.id,
+          Version: template.version
+        },
+        KeyName: this.props.keyName,
+        SubnetId: this.props.subnetId,
+        SecurityGroupIds: this.props.securityGroupIds,
+        IamInstanceProfile: this.props.iamInstanceProfile,
+        Tags: [
+          {
+            Key: "Name",
+            Value: this.props.name
+          },
+          ...Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+            Key: k,
+            Value: v
+          }))
+        ]
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/instance-provider.ts
+var import_client_ec2 = require("@aws-sdk/client-ec2");
+var InstanceProvider = class {
+  client;
+  constructor(props) {
+    this.client = new import_client_ec2.EC2Client(props);
+  }
+  own(id) {
+    return id === "aws-ec2-instance";
+  }
+  async get({ id }) {
+    const result = await this.client.send(
+      new import_client_ec2.DescribeInstancesCommand({
+        InstanceIds: [id]
+      })
+    );
+    return result.Reservations.at(0).Instances.at(0);
+  }
+  async create({ document }) {
+    return this.runInstance(document);
+  }
+  async update({ id, newDocument }) {
+    await this.terminateInstance(id);
+    return this.runInstance(newDocument);
+  }
+  async delete({ id }) {
+    await this.terminateInstance(id);
+  }
+  async runInstance(document) {
+    const result = await this.client.send(
+      new import_client_ec2.RunInstancesCommand({
+        ...document,
+        MinCount: 1,
+        MaxCount: 1,
+        IamInstanceProfile: {
+          Arn: document.IamInstanceProfile
+        },
+        TagSpecifications: [
+          {
+            ResourceType: "instance",
+            Tags: document.Tags
+          }
+        ]
+      })
+    );
+    const id = result.Instances.at(0).InstanceId;
+    await (0, import_client_ec2.waitUntilInstanceRunning)(
+      {
+        client: this.client,
+        maxWaitTime: 5 * 60
+      },
+      {
+        InstanceIds: [id]
+      }
+    );
+    return id;
+  }
+  async terminateInstance(id) {
+    await this.client.send(
+      new import_client_ec2.TerminateInstancesCommand({
+        InstanceIds: [id]
+      })
+    );
+    await (0, import_client_ec2.waitUntilInstanceTerminated)(
+      {
+        client: this.client,
+        maxWaitTime: 5 * 60
+      },
+      {
+        InstanceIds: [id]
+      }
+    );
+  }
+};
+
+// src/provider/aws/ec2/internet-gateway.ts
+var InternetGateway = class extends CloudControlApiResource {
+  constructor(parent, id, props = {}) {
+    super(parent, "AWS::EC2::InternetGateway", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.InternetGatewayId);
+  }
+  toState() {
+    return {
+      document: {
+        Tags: this.props.name ? [
+          {
+            Key: "Name",
+            Value: this.props.name
+          }
+        ] : []
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/launch-template.ts
+var LaunchTemplate = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::LaunchTemplate", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.LaunchTemplateName);
+  }
+  get id() {
+    return this.output((v) => v.LaunchTemplateId);
+  }
+  get defaultVersion() {
+    return this.output((v) => v.DefaultVersionNumber);
+  }
+  get latestVersion() {
+    return this.output((v) => v.LatestVersionNumber);
+  }
+  get version() {
+    return this.latestVersion;
+  }
+  toState() {
+    return {
+      assets: {
+        userData: this.props.userData
+      },
+      document: {
+        LaunchTemplateName: this.props.name,
+        LaunchTemplateData: {
+          EbsOptimized: this.props.ebsOptimized,
+          IamInstanceProfile: {
+            Arn: this.props.iamInstanceProfile
+          },
+          ImageId: this.props.imageId,
+          InstanceType: this.props.instanceType,
+          Monitoring: {
+            Enabled: unwrap(this.props.monitoring, false)
+          },
+          SecurityGroupIds: this.props.securityGroupIds,
+          UserData: {
+            __ASSET__: "userData"
+          }
+          // ...this.attr('UserData', this.props.userData, v => Buffer.from(v, 'utf8').toString('base64')),
+        }
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/peer.ts
+var Peer = class _Peer {
+  constructor(ip, type) {
+    this.ip = ip;
+    this.type = type;
+  }
+  static ipv4(cidrIp) {
+    const cidrMatch = cidrIp.match(/^(\d{1,3}\.){3}\d{1,3}(\/\d+)?$/);
+    if (!cidrMatch) {
+      throw new Error(`Invalid IPv4 CIDR: "${cidrIp}"`);
+    }
+    if (!cidrMatch[2]) {
+      throw new Error(`CIDR mask is missing in IPv4: "${cidrIp}". Did you mean "${cidrIp}/32"?`);
+    }
+    return new _Peer(cidrIp, "v4");
+  }
+  static anyIpv4() {
+    return new _Peer("0.0.0.0/0", "v4");
+  }
+  static ipv6(cidrIpv6) {
+    const cidrMatch = cidrIpv6.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/);
+    if (!cidrMatch) {
+      throw new Error(`Invalid IPv6 CIDR: "${cidrIpv6}"`);
+    }
+    if (!cidrMatch[3]) {
+      throw new Error(`CIDR mask is missing in IPv6: "${cidrIpv6}". Did you mean "${cidrIpv6}/128"?`);
+    }
+    return new _Peer(cidrIpv6, "v6");
+  }
+  static anyIpv6() {
+    return new _Peer("::/0", "v6");
+  }
+  toRuleJson() {
+    switch (this.type) {
+      case "v4":
+        return { CidrIp: this.ip };
+      case "v6":
+        return { CidrIpv6: this.ip };
+    }
+  }
+  toString() {
+    return this.ip;
+  }
+};
+
+// src/provider/aws/ec2/port.ts
+var Protocol = /* @__PURE__ */ ((Protocol2) => {
+  Protocol2["ALL"] = "-1";
+  Protocol2["HOPOPT"] = "0";
+  Protocol2["ICMP"] = "icmp";
+  Protocol2["IGMP"] = "2";
+  Protocol2["GGP"] = "3";
+  Protocol2["IPV4"] = "4";
+  Protocol2["ST"] = "5";
+  Protocol2["TCP"] = "tcp";
+  Protocol2["CBT"] = "7";
+  Protocol2["EGP"] = "8";
+  Protocol2["IGP"] = "9";
+  Protocol2["BBN_RCC_MON"] = "10";
+  Protocol2["NVP_II"] = "11";
+  Protocol2["PUP"] = "12";
+  Protocol2["EMCON"] = "14";
+  Protocol2["XNET"] = "15";
+  Protocol2["CHAOS"] = "16";
+  Protocol2["UDP"] = "udp";
+  Protocol2["MUX"] = "18";
+  Protocol2["DCN_MEAS"] = "19";
+  Protocol2["HMP"] = "20";
+  Protocol2["PRM"] = "21";
+  Protocol2["XNS_IDP"] = "22";
+  Protocol2["TRUNK_1"] = "23";
+  Protocol2["TRUNK_2"] = "24";
+  Protocol2["LEAF_1"] = "25";
+  Protocol2["LEAF_2"] = "26";
+  Protocol2["RDP"] = "27";
+  Protocol2["IRTP"] = "28";
+  Protocol2["ISO_TP4"] = "29";
+  Protocol2["NETBLT"] = "30";
+  Protocol2["MFE_NSP"] = "31";
+  Protocol2["MERIT_INP"] = "32";
+  Protocol2["DCCP"] = "33";
+  Protocol2["THREEPC"] = "34";
+  Protocol2["IDPR"] = "35";
+  Protocol2["XTP"] = "36";
+  Protocol2["DDP"] = "37";
+  Protocol2["IDPR_CMTP"] = "38";
+  Protocol2["TPPLUSPLUS"] = "39";
+  Protocol2["IL"] = "40";
+  Protocol2["IPV6"] = "41";
+  Protocol2["SDRP"] = "42";
+  Protocol2["IPV6_ROUTE"] = "43";
+  Protocol2["IPV6_FRAG"] = "44";
+  Protocol2["IDRP"] = "45";
+  Protocol2["RSVP"] = "46";
+  Protocol2["GRE"] = "47";
+  Protocol2["DSR"] = "48";
+  Protocol2["BNA"] = "49";
+  Protocol2["ESP"] = "50";
+  Protocol2["AH"] = "51";
+  Protocol2["I_NLSP"] = "52";
+  Protocol2["SWIPE"] = "53";
+  Protocol2["NARP"] = "54";
+  Protocol2["MOBILE"] = "55";
+  Protocol2["TLSP"] = "56";
+  Protocol2["SKIP"] = "57";
+  Protocol2["ICMPV6"] = "icmpv6";
+  Protocol2["IPV6_NONXT"] = "59";
+  Protocol2["IPV6_OPTS"] = "60";
+  Protocol2["CFTP"] = "62";
+  Protocol2["ANY_LOCAL"] = "63";
+  Protocol2["SAT_EXPAK"] = "64";
+  Protocol2["KRYPTOLAN"] = "65";
+  Protocol2["RVD"] = "66";
+  Protocol2["IPPC"] = "67";
+  Protocol2["ANY_DFS"] = "68";
+  Protocol2["SAT_MON"] = "69";
+  Protocol2["VISA"] = "70";
+  Protocol2["IPCV"] = "71";
+  Protocol2["CPNX"] = "72";
+  Protocol2["CPHB"] = "73";
+  Protocol2["WSN"] = "74";
+  Protocol2["PVP"] = "75";
+  Protocol2["BR_SAT_MON"] = "76";
+  Protocol2["SUN_ND"] = "77";
+  Protocol2["WB_MON"] = "78";
+  Protocol2["WB_EXPAK"] = "79";
+  Protocol2["ISO_IP"] = "80";
+  Protocol2["VMTP"] = "81";
+  Protocol2["SECURE_VMTP"] = "82";
+  Protocol2["VINES"] = "83";
+  Protocol2["TTP"] = "84";
+  Protocol2["IPTM"] = "84_";
+  Protocol2["NSFNET_IGP"] = "85";
+  Protocol2["DGP"] = "86";
+  Protocol2["TCF"] = "87";
+  Protocol2["EIGRP"] = "88";
+  Protocol2["OSPFIGP"] = "89";
+  Protocol2["SPRITE_RPC"] = "90";
+  Protocol2["LARP"] = "91";
+  Protocol2["MTP"] = "92";
+  Protocol2["AX_25"] = "93";
+  Protocol2["IPIP"] = "94";
+  Protocol2["MICP"] = "95";
+  Protocol2["SCC_SP"] = "96";
+  Protocol2["ETHERIP"] = "97";
+  Protocol2["ENCAP"] = "98";
+  Protocol2["ANY_ENC"] = "99";
+  Protocol2["GMTP"] = "100";
+  Protocol2["IFMP"] = "101";
+  Protocol2["PNNI"] = "102";
+  Protocol2["PIM"] = "103";
+  Protocol2["ARIS"] = "104";
+  Protocol2["SCPS"] = "105";
+  Protocol2["QNX"] = "106";
+  Protocol2["A_N"] = "107";
+  Protocol2["IPCOMP"] = "108";
+  Protocol2["SNP"] = "109";
+  Protocol2["COMPAQ_PEER"] = "110";
+  Protocol2["IPX_IN_IP"] = "111";
+  Protocol2["VRRP"] = "112";
+  Protocol2["PGM"] = "113";
+  Protocol2["ANY_0_HOP"] = "114";
+  Protocol2["L2_T_P"] = "115";
+  Protocol2["DDX"] = "116";
+  Protocol2["IATP"] = "117";
+  Protocol2["STP"] = "118";
+  Protocol2["SRP"] = "119";
+  Protocol2["UTI"] = "120";
+  Protocol2["SMP"] = "121";
+  Protocol2["SM"] = "122";
+  Protocol2["PTP"] = "123";
+  Protocol2["ISIS_IPV4"] = "124";
+  Protocol2["FIRE"] = "125";
+  Protocol2["CRTP"] = "126";
+  Protocol2["CRUDP"] = "127";
+  Protocol2["SSCOPMCE"] = "128";
+  Protocol2["IPLT"] = "129";
+  Protocol2["SPS"] = "130";
+  Protocol2["PIPE"] = "131";
+  Protocol2["SCTP"] = "132";
+  Protocol2["FC"] = "133";
+  Protocol2["RSVP_E2E_IGNORE"] = "134";
+  Protocol2["MOBILITY_HEADER"] = "135";
+  Protocol2["UDPLITE"] = "136";
+  Protocol2["MPLS_IN_IP"] = "137";
+  Protocol2["MANET"] = "138";
+  Protocol2["HIP"] = "139";
+  Protocol2["SHIM6"] = "140";
+  Protocol2["WESP"] = "141";
+  Protocol2["ROHC"] = "142";
+  Protocol2["ETHERNET"] = "143";
+  Protocol2["EXPERIMENT_1"] = "253";
+  Protocol2["EXPERIMENT_2"] = "254";
+  Protocol2["RESERVED"] = "255";
+  return Protocol2;
+})(Protocol || {});
+var Port = class _Port {
+  static tcp(port) {
+    return new _Port({
+      protocol: "tcp" /* TCP */,
+      from: port,
+      to: port
+    });
+  }
+  static tcpRange(startPort, endPort) {
+    return new _Port({
+      protocol: "tcp" /* TCP */,
+      from: startPort,
+      to: endPort
+    });
+  }
+  static allTcp() {
+    return new _Port({
+      protocol: "tcp" /* TCP */,
+      from: 0,
+      to: 65535
+    });
+  }
+  static allTraffic() {
+    return new _Port({
+      protocol: "-1" /* ALL */
+    });
+  }
+  protocol;
+  from;
+  to;
+  constructor(props) {
+    this.protocol = props.protocol;
+    this.from = props.from;
+    this.to = props.to;
+  }
+  toRuleJson() {
+    return {
+      IpProtocol: this.protocol,
+      FromPort: this.from,
+      ToPort: this.to
+    };
+  }
+};
+
+// src/provider/aws/ec2/route.ts
+var Route2 = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::Route", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get gatewayId() {
+    return this.output((v) => v.GatewayId);
+  }
+  get routeTableId() {
+    return this.output((v) => v.RouteTableId);
+  }
+  get vpcEndpointId() {
+    return this.output((v) => v.VpcEndpointId);
+  }
+  get cidrBlock() {
+    return this.output((v) => Peer.ipv4(v.CidrBlock));
+  }
+  get destinationCidrBlock() {
+    return this.output((v) => Peer.ipv4(v.DestinationCidrBlock));
+  }
+  toState() {
+    return {
+      document: {
+        GatewayId: this.props.gatewayId,
+        RouteTableId: this.props.routeTableId,
+        DestinationCidrBlock: unwrap(this.props.destination).ip
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/route-table.ts
+var RouteTable = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::RouteTable", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.RouteTableId);
+  }
+  // get name() {
+  // 	return this.output<string>(v => v.RouteTableId)
+  // }
+  toState() {
+    return {
+      document: {
+        VpcId: this.props.vpcId,
+        Tags: [
+          {
+            Key: "Name",
+            Value: this.props.name
+          }
+        ]
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/security-group.ts
+var SecurityGroup = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::SecurityGroup", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  ingress = [];
+  egress = [];
+  get id() {
+    return this.output((v) => v.GroupId);
+  }
+  get name() {
+    return this.output((v) => v.GroupName);
+  }
+  addIngressRule(rule) {
+    this.ingress.push(rule);
+    this.registerDependency(rule);
+    return this;
+  }
+  addEgressRule(rule) {
+    this.egress.push(rule);
+    this.registerDependency(rule);
+    return this;
+  }
+  toState() {
+    return {
+      document: {
+        VpcId: this.props.vpcId,
+        GroupName: this.props.name,
+        GroupDescription: this.props.description,
+        SecurityGroupEgress: this.egress.map((rule) => unwrap(rule)).map((rule) => ({
+          ...unwrap(rule.peer).toRuleJson(),
+          ...unwrap(rule.port).toRuleJson(),
+          Description: unwrap(rule.description, "")
+        })),
+        SecurityGroupIngress: this.ingress.map((rule) => unwrap(rule)).map((rule) => ({
+          ...unwrap(rule.peer).toRuleJson(),
+          ...unwrap(rule.port).toRuleJson(),
+          Description: unwrap(rule.description, "")
+        }))
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/subnet-route-table-association.ts
+var SubnetRouteTableAssociation = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::SubnetRouteTableAssociation", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.Id);
+  }
+  toState() {
+    return {
+      document: {
+        SubnetId: this.props.subnetId,
+        RouteTableId: this.props.routeTableId
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/subnet.ts
+var Subnet = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::Subnet", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.SubnetId);
+  }
+  get vpcId() {
+    return this.output((v) => v.VpcId);
+  }
+  get availabilityZone() {
+    return this.output((v) => v.AvailabilityZone);
+  }
+  get availabilityZoneId() {
+    return this.output((v) => v.AvailabilityZoneId);
+  }
+  associateRouteTable(routeTableId) {
+    return new SubnetRouteTableAssociation(this, this.identifier, {
+      routeTableId,
+      subnetId: this.id
+    });
+  }
+  toState() {
+    return {
+      document: {
+        VpcId: this.props.vpcId,
+        CidrBlock: unwrap(this.props.cidrBlock).ip,
+        AvailabilityZone: this.props.availabilityZone
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/vpc.ts
+var Vpc = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::VPC", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.VpcId);
+  }
+  get defaultNetworkAcl() {
+    return this.output((v) => v.DefaultNetworkAcl);
+  }
+  get defaultSecurityGroup() {
+    return this.output((v) => v.DefaultSecurityGroup);
+  }
+  toState() {
+    return {
+      document: {
+        CidrBlock: unwrap(this.props.cidrBlock).ip,
+        Tags: [
+          {
+            Key: "Name",
+            Value: this.props.name
+          }
+        ]
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/vpc-gateway-attachment.ts
+var VPCGatewayAttachment = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::VPCGatewayAttachment", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get vpcId() {
+    return this.output((v) => v.VpcId);
+  }
+  get internetGatewayId() {
+    return this.output((v) => v.InternetGatewayId);
+  }
+  toState() {
+    return {
+      document: {
+        VpcId: this.props.vpcId,
+        InternetGatewayId: this.props.internetGatewayId
+      }
+    };
   }
 };
 
@@ -3188,6 +3936,7 @@ var createCloudProviders = (config) => {
     //
     cloudControlApiProvider,
     new ImageProvider(config),
+    new InstanceProvider(config),
     new FunctionProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketObjectProvider(config),
@@ -3213,7 +3962,7 @@ __export(cloud_watch_exports, {
 });
 
 // src/provider/aws/cloud-watch/log-group.ts
-var import_duration7 = require("@awsless/duration");
+var import_duration8 = require("@awsless/duration");
 var LogGroup = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Logs::LogGroup", id, props);
@@ -3242,7 +3991,7 @@ var LogGroup = class extends CloudControlApiResource {
     return {
       document: {
         LogGroupName: this.props.name,
-        ...this.attr("RetentionInDays", this.props.retention && (0, import_duration7.toDays)(unwrap(this.props.retention)))
+        ...this.attr("RetentionInDays", this.props.retention && (0, import_duration8.toDays)(unwrap(this.props.retention)))
         // KmsKeyId: String
         // DataProtectionPolicy : Json,
       }
@@ -3261,7 +4010,7 @@ __export(cognito_exports, {
 });
 
 // src/provider/aws/cognito/user-pool-client.ts
-var import_duration8 = require("@awsless/duration");
+var import_duration9 = require("@awsless/duration");
 var UserPoolClient = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPoolClient", id, props);
@@ -3340,13 +4089,13 @@ var UserPoolClient = class extends CloudControlApiResource {
         ...this.attr("WriteAttributes", this.props.writeAttributes),
         ...this.attr(
           "AuthSessionValidity",
-          validity.authSession && (0, import_duration8.toMinutes)(unwrap(validity.authSession))
+          validity.authSession && (0, import_duration9.toMinutes)(unwrap(validity.authSession))
         ),
-        ...this.attr("AccessTokenValidity", validity.accessToken && (0, import_duration8.toHours)(unwrap(validity.accessToken))),
-        ...this.attr("IdTokenValidity", validity.idToken && (0, import_duration8.toHours)(unwrap(validity.idToken))),
+        ...this.attr("AccessTokenValidity", validity.accessToken && (0, import_duration9.toHours)(unwrap(validity.accessToken))),
+        ...this.attr("IdTokenValidity", validity.idToken && (0, import_duration9.toHours)(unwrap(validity.idToken))),
         ...this.attr(
           "RefreshTokenValidity",
-          validity.refreshToken && (0, import_duration8.toDays)(unwrap(validity.refreshToken))
+          validity.refreshToken && (0, import_duration9.toDays)(unwrap(validity.refreshToken))
         ),
         TokenValidityUnits: {
           ...this.attr("AccessToken", validity.accessToken && "hours"),
@@ -3382,8 +4131,8 @@ var UserPoolDomain = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cognito/user-pool.ts
-var import_change_case2 = require("change-case");
-var import_duration9 = require("@awsless/duration");
+var import_change_case3 = require("change-case");
+var import_duration10 = require("@awsless/duration");
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPool", id, props);
@@ -3452,7 +4201,7 @@ var UserPool = class extends CloudControlApiResource {
         ...this.attr(
           "EmailConfiguration",
           email && {
-            ...this.attr("EmailSendingAccount", email.type, import_change_case2.constantCase),
+            ...this.attr("EmailSendingAccount", email.type, import_change_case3.constantCase),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
             ...this.attr("SourceArn", email.sourceArn),
@@ -3472,8 +4221,8 @@ var UserPool = class extends CloudControlApiResource {
             RequireLowercase: unwrap(password?.lowercase, false),
             RequireNumbers: unwrap(password?.numbers, false),
             RequireSymbols: unwrap(password?.symbols, false),
-            TemporaryPasswordValidityDays: (0, import_duration9.toDays)(
-              unwrap(password?.temporaryPasswordValidity, (0, import_duration9.days)(7))
+            TemporaryPasswordValidityDays: (0, import_duration10.toDays)(
+              unwrap(password?.temporaryPasswordValidity, (0, import_duration10.days)(7))
             )
           }
         }
@@ -3610,7 +4359,7 @@ var TableItem = class extends Resource {
 };
 
 // src/provider/aws/dynamodb/table.ts
-var import_change_case3 = require("change-case");
+var import_change_case4 = require("change-case");
 var Table = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::DynamoDB::Table", id, props);
@@ -3714,7 +4463,7 @@ var Table = class extends CloudControlApiResource {
           ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
         ],
         AttributeDefinitions: this.attributeDefinitions(),
-        TableClass: (0, import_change_case3.constantCase)(unwrap(this.props.class, "standard")),
+        TableClass: (0, import_change_case4.constantCase)(unwrap(this.props.class, "standard")),
         DeletionProtectionEnabled: unwrap(this.props.deletionProtection, false),
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: unwrap(this.props.pointInTimeRecovery, false)
@@ -3727,7 +4476,7 @@ var Table = class extends CloudControlApiResource {
         } : {},
         ...this.props.stream ? {
           StreamSpecification: {
-            StreamViewType: (0, import_change_case3.constantCase)(unwrap(this.props.stream))
+            StreamViewType: (0, import_change_case4.constantCase)(unwrap(this.props.stream))
           }
         } : {},
         ...Object.keys(this.indexes).length ? {
@@ -3738,7 +4487,7 @@ var Table = class extends CloudControlApiResource {
               ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
             ],
             Projection: {
-              ProjectionType: (0, import_change_case3.constantCase)(props.projection || "all")
+              ProjectionType: (0, import_change_case4.constantCase)(props.projection || "all")
             }
           }))
         } : {}
@@ -3747,498 +4496,97 @@ var Table = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/ec2/index.ts
-var ec2_exports = {};
-__export(ec2_exports, {
-  InternetGateway: () => InternetGateway,
-  Peer: () => Peer,
-  Port: () => Port,
-  Protocol: () => Protocol,
-  Route: () => Route2,
-  RouteTable: () => RouteTable,
-  SecurityGroup: () => SecurityGroup,
-  Subnet: () => Subnet,
-  SubnetRouteTableAssociation: () => SubnetRouteTableAssociation,
-  VPCGatewayAttachment: () => VPCGatewayAttachment,
-  Vpc: () => Vpc
+// src/provider/aws/ecs/index.ts
+var ecs_exports = {};
+__export(ecs_exports, {
+  Cluster: () => Cluster,
+  Service: () => Service
 });
 
-// src/provider/aws/ec2/vpc.ts
-var Vpc = class extends CloudControlApiResource {
+// src/provider/aws/ecs/cluster.ts
+var Cluster = class extends CloudControlApiResource {
   constructor(parent, id, props) {
-    super(parent, "AWS::EC2::VPC", id, props);
+    super(parent, "AWS::ECS::Cluster", id, props);
     this.parent = parent;
     this.props = props;
-  }
-  get id() {
-    return this.output((v) => v.VpcId);
-  }
-  get defaultNetworkAcl() {
-    return this.output((v) => v.DefaultNetworkAcl);
-  }
-  get defaultSecurityGroup() {
-    return this.output((v) => v.DefaultSecurityGroup);
-  }
-  toState() {
-    return {
-      document: {
-        CidrBlock: unwrap(this.props.cidrBlock).ip,
-        Tags: [
-          {
-            Key: "Name",
-            Value: this.props.name
-          }
-        ]
-      }
-    };
-  }
-};
-
-// src/provider/aws/ec2/vpc-gateway-attachment.ts
-var VPCGatewayAttachment = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::EC2::VPCGatewayAttachment", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get vpcId() {
-    return this.output((v) => v.VpcId);
-  }
-  get internetGatewayId() {
-    return this.output((v) => v.InternetGatewayId);
-  }
-  toState() {
-    return {
-      document: {
-        VpcId: this.props.vpcId,
-        InternetGatewayId: this.props.internetGatewayId
-      }
-    };
-  }
-};
-
-// src/provider/aws/ec2/subnet-route-table-association.ts
-var SubnetRouteTableAssociation = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::EC2::SubnetRouteTableAssociation", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get id() {
-    return this.output((v) => v.Id);
-  }
-  toState() {
-    return {
-      document: {
-        SubnetId: this.props.subnetId,
-        RouteTableId: this.props.routeTableId
-      }
-    };
-  }
-};
-
-// src/provider/aws/ec2/subnet.ts
-var Subnet = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::EC2::Subnet", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get id() {
-    return this.output((v) => v.SubnetId);
-  }
-  get vpcId() {
-    return this.output((v) => v.VpcId);
-  }
-  get availabilityZone() {
-    return this.output((v) => v.AvailabilityZone);
-  }
-  get availabilityZoneId() {
-    return this.output((v) => v.AvailabilityZoneId);
-  }
-  associateRouteTable(routeTableId) {
-    return new SubnetRouteTableAssociation(this, this.identifier, {
-      routeTableId,
-      subnetId: this.id
-    });
-  }
-  toState() {
-    return {
-      document: {
-        VpcId: this.props.vpcId,
-        CidrBlock: unwrap(this.props.cidrBlock).ip,
-        AvailabilityZone: this.props.availabilityZone
-      }
-    };
-  }
-};
-
-// src/provider/aws/ec2/security-group.ts
-var SecurityGroup = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::EC2::SecurityGroup", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  ingress = [];
-  egress = [];
-  get id() {
-    return this.output((v) => v.GroupId);
   }
   get name() {
-    return this.output((v) => v.GroupName);
+    return this.output((v) => v.ClusterName);
   }
-  addIngressRule(rule) {
-    this.ingress.push(rule);
-    this.registerDependency(rule);
-    return this;
-  }
-  addEgressRule(rule) {
-    this.egress.push(rule);
-    this.registerDependency(rule);
-    return this;
+  get arn() {
+    return this.output((v) => v.Arn);
   }
   toState() {
+    const log = unwrap(this.props.log);
     return {
       document: {
-        VpcId: this.props.vpcId,
-        GroupName: this.props.name,
-        GroupDescription: this.props.description,
-        SecurityGroupEgress: this.egress.map((rule) => unwrap(rule)).map((rule) => ({
-          ...unwrap(rule.peer).toRuleJson(),
-          ...unwrap(rule.port).toRuleJson(),
-          Description: unwrap(rule.description, "")
-        })),
-        SecurityGroupIngress: this.ingress.map((rule) => unwrap(rule)).map((rule) => ({
-          ...unwrap(rule.peer).toRuleJson(),
-          ...unwrap(rule.port).toRuleJson(),
-          Description: unwrap(rule.description, "")
-        }))
-      }
-    };
-  }
-};
-
-// src/provider/aws/ec2/peer.ts
-var Peer = class _Peer {
-  constructor(ip, type) {
-    this.ip = ip;
-    this.type = type;
-  }
-  static ipv4(cidrIp) {
-    const cidrMatch = cidrIp.match(/^(\d{1,3}\.){3}\d{1,3}(\/\d+)?$/);
-    if (!cidrMatch) {
-      throw new Error(`Invalid IPv4 CIDR: "${cidrIp}"`);
-    }
-    if (!cidrMatch[2]) {
-      throw new Error(`CIDR mask is missing in IPv4: "${cidrIp}". Did you mean "${cidrIp}/32"?`);
-    }
-    return new _Peer(cidrIp, "v4");
-  }
-  static anyIpv4() {
-    return new _Peer("0.0.0.0/0", "v4");
-  }
-  static ipv6(cidrIpv6) {
-    const cidrMatch = cidrIpv6.match(/^([\da-f]{0,4}:){2,7}([\da-f]{0,4})?(\/\d+)?$/);
-    if (!cidrMatch) {
-      throw new Error(`Invalid IPv6 CIDR: "${cidrIpv6}"`);
-    }
-    if (!cidrMatch[3]) {
-      throw new Error(`CIDR mask is missing in IPv6: "${cidrIpv6}". Did you mean "${cidrIpv6}/128"?`);
-    }
-    return new _Peer(cidrIpv6, "v6");
-  }
-  static anyIpv6() {
-    return new _Peer("::/0", "v6");
-  }
-  toRuleJson() {
-    switch (this.type) {
-      case "v4":
-        return { CidrIp: this.ip };
-      case "v6":
-        return { CidrIpv6: this.ip };
-    }
-  }
-  toString() {
-    return this.ip;
-  }
-};
-
-// src/provider/aws/ec2/route.ts
-var Route2 = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::EC2::Route", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get gatewayId() {
-    return this.output((v) => v.GatewayId);
-  }
-  get routeTableId() {
-    return this.output((v) => v.RouteTableId);
-  }
-  get vpcEndpointId() {
-    return this.output((v) => v.VpcEndpointId);
-  }
-  get cidrBlock() {
-    return this.output((v) => Peer.ipv4(v.CidrBlock));
-  }
-  get destinationCidrBlock() {
-    return this.output((v) => Peer.ipv4(v.DestinationCidrBlock));
-  }
-  toState() {
-    return {
-      document: {
-        GatewayId: this.props.gatewayId,
-        RouteTableId: this.props.routeTableId,
-        DestinationCidrBlock: unwrap(this.props.destination).ip
-      }
-    };
-  }
-};
-
-// src/provider/aws/ec2/route-table.ts
-var RouteTable = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::EC2::RouteTable", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get id() {
-    return this.output((v) => v.RouteTableId);
-  }
-  // get name() {
-  // 	return this.output<string>(v => v.RouteTableId)
-  // }
-  toState() {
-    return {
-      document: {
-        VpcId: this.props.vpcId,
-        Tags: [
+        ClusterName: this.props.name,
+        ClusterSettings: [
           {
-            Key: "Name",
-            Value: this.props.name
+            Name: "containerInsights",
+            Value: unwrap(this.props.containerInsights, false) ? "enabled" : "disabled"
           }
-        ]
+        ],
+        Configuration: {
+          ExecuteCommandConfiguration: log ? {
+            Logging: "DEFAULT",
+            LogConfiguration: log.provider === "cloudwatch" ? {
+              CloudWatchLogGroupName: log.groupName
+            } : {
+              S3BucketName: log.bucketName,
+              S3KeyPrefix: log.keyPrefix
+            }
+          } : {
+            Logging: "NONE"
+          }
+        }
+        // CapacityProviders: - String
+        // DefaultCapacityProviderStrategy:
+        // 	- CapacityProviderStrategyItem
+        // ServiceConnectDefaults:
+        // 	ServiceConnectDefaults
       }
     };
   }
 };
 
-// src/provider/aws/ec2/port.ts
-var Protocol = /* @__PURE__ */ ((Protocol2) => {
-  Protocol2["ALL"] = "-1";
-  Protocol2["HOPOPT"] = "0";
-  Protocol2["ICMP"] = "icmp";
-  Protocol2["IGMP"] = "2";
-  Protocol2["GGP"] = "3";
-  Protocol2["IPV4"] = "4";
-  Protocol2["ST"] = "5";
-  Protocol2["TCP"] = "tcp";
-  Protocol2["CBT"] = "7";
-  Protocol2["EGP"] = "8";
-  Protocol2["IGP"] = "9";
-  Protocol2["BBN_RCC_MON"] = "10";
-  Protocol2["NVP_II"] = "11";
-  Protocol2["PUP"] = "12";
-  Protocol2["EMCON"] = "14";
-  Protocol2["XNET"] = "15";
-  Protocol2["CHAOS"] = "16";
-  Protocol2["UDP"] = "udp";
-  Protocol2["MUX"] = "18";
-  Protocol2["DCN_MEAS"] = "19";
-  Protocol2["HMP"] = "20";
-  Protocol2["PRM"] = "21";
-  Protocol2["XNS_IDP"] = "22";
-  Protocol2["TRUNK_1"] = "23";
-  Protocol2["TRUNK_2"] = "24";
-  Protocol2["LEAF_1"] = "25";
-  Protocol2["LEAF_2"] = "26";
-  Protocol2["RDP"] = "27";
-  Protocol2["IRTP"] = "28";
-  Protocol2["ISO_TP4"] = "29";
-  Protocol2["NETBLT"] = "30";
-  Protocol2["MFE_NSP"] = "31";
-  Protocol2["MERIT_INP"] = "32";
-  Protocol2["DCCP"] = "33";
-  Protocol2["THREEPC"] = "34";
-  Protocol2["IDPR"] = "35";
-  Protocol2["XTP"] = "36";
-  Protocol2["DDP"] = "37";
-  Protocol2["IDPR_CMTP"] = "38";
-  Protocol2["TPPLUSPLUS"] = "39";
-  Protocol2["IL"] = "40";
-  Protocol2["IPV6"] = "41";
-  Protocol2["SDRP"] = "42";
-  Protocol2["IPV6_ROUTE"] = "43";
-  Protocol2["IPV6_FRAG"] = "44";
-  Protocol2["IDRP"] = "45";
-  Protocol2["RSVP"] = "46";
-  Protocol2["GRE"] = "47";
-  Protocol2["DSR"] = "48";
-  Protocol2["BNA"] = "49";
-  Protocol2["ESP"] = "50";
-  Protocol2["AH"] = "51";
-  Protocol2["I_NLSP"] = "52";
-  Protocol2["SWIPE"] = "53";
-  Protocol2["NARP"] = "54";
-  Protocol2["MOBILE"] = "55";
-  Protocol2["TLSP"] = "56";
-  Protocol2["SKIP"] = "57";
-  Protocol2["ICMPV6"] = "icmpv6";
-  Protocol2["IPV6_NONXT"] = "59";
-  Protocol2["IPV6_OPTS"] = "60";
-  Protocol2["CFTP"] = "62";
-  Protocol2["ANY_LOCAL"] = "63";
-  Protocol2["SAT_EXPAK"] = "64";
-  Protocol2["KRYPTOLAN"] = "65";
-  Protocol2["RVD"] = "66";
-  Protocol2["IPPC"] = "67";
-  Protocol2["ANY_DFS"] = "68";
-  Protocol2["SAT_MON"] = "69";
-  Protocol2["VISA"] = "70";
-  Protocol2["IPCV"] = "71";
-  Protocol2["CPNX"] = "72";
-  Protocol2["CPHB"] = "73";
-  Protocol2["WSN"] = "74";
-  Protocol2["PVP"] = "75";
-  Protocol2["BR_SAT_MON"] = "76";
-  Protocol2["SUN_ND"] = "77";
-  Protocol2["WB_MON"] = "78";
-  Protocol2["WB_EXPAK"] = "79";
-  Protocol2["ISO_IP"] = "80";
-  Protocol2["VMTP"] = "81";
-  Protocol2["SECURE_VMTP"] = "82";
-  Protocol2["VINES"] = "83";
-  Protocol2["TTP"] = "84";
-  Protocol2["IPTM"] = "84_";
-  Protocol2["NSFNET_IGP"] = "85";
-  Protocol2["DGP"] = "86";
-  Protocol2["TCF"] = "87";
-  Protocol2["EIGRP"] = "88";
-  Protocol2["OSPFIGP"] = "89";
-  Protocol2["SPRITE_RPC"] = "90";
-  Protocol2["LARP"] = "91";
-  Protocol2["MTP"] = "92";
-  Protocol2["AX_25"] = "93";
-  Protocol2["IPIP"] = "94";
-  Protocol2["MICP"] = "95";
-  Protocol2["SCC_SP"] = "96";
-  Protocol2["ETHERIP"] = "97";
-  Protocol2["ENCAP"] = "98";
-  Protocol2["ANY_ENC"] = "99";
-  Protocol2["GMTP"] = "100";
-  Protocol2["IFMP"] = "101";
-  Protocol2["PNNI"] = "102";
-  Protocol2["PIM"] = "103";
-  Protocol2["ARIS"] = "104";
-  Protocol2["SCPS"] = "105";
-  Protocol2["QNX"] = "106";
-  Protocol2["A_N"] = "107";
-  Protocol2["IPCOMP"] = "108";
-  Protocol2["SNP"] = "109";
-  Protocol2["COMPAQ_PEER"] = "110";
-  Protocol2["IPX_IN_IP"] = "111";
-  Protocol2["VRRP"] = "112";
-  Protocol2["PGM"] = "113";
-  Protocol2["ANY_0_HOP"] = "114";
-  Protocol2["L2_T_P"] = "115";
-  Protocol2["DDX"] = "116";
-  Protocol2["IATP"] = "117";
-  Protocol2["STP"] = "118";
-  Protocol2["SRP"] = "119";
-  Protocol2["UTI"] = "120";
-  Protocol2["SMP"] = "121";
-  Protocol2["SM"] = "122";
-  Protocol2["PTP"] = "123";
-  Protocol2["ISIS_IPV4"] = "124";
-  Protocol2["FIRE"] = "125";
-  Protocol2["CRTP"] = "126";
-  Protocol2["CRUDP"] = "127";
-  Protocol2["SSCOPMCE"] = "128";
-  Protocol2["IPLT"] = "129";
-  Protocol2["SPS"] = "130";
-  Protocol2["PIPE"] = "131";
-  Protocol2["SCTP"] = "132";
-  Protocol2["FC"] = "133";
-  Protocol2["RSVP_E2E_IGNORE"] = "134";
-  Protocol2["MOBILITY_HEADER"] = "135";
-  Protocol2["UDPLITE"] = "136";
-  Protocol2["MPLS_IN_IP"] = "137";
-  Protocol2["MANET"] = "138";
-  Protocol2["HIP"] = "139";
-  Protocol2["SHIM6"] = "140";
-  Protocol2["WESP"] = "141";
-  Protocol2["ROHC"] = "142";
-  Protocol2["ETHERNET"] = "143";
-  Protocol2["EXPERIMENT_1"] = "253";
-  Protocol2["EXPERIMENT_2"] = "254";
-  Protocol2["RESERVED"] = "255";
-  return Protocol2;
-})(Protocol || {});
-var Port = class _Port {
-  static tcp(port) {
-    return new _Port({
-      protocol: "tcp" /* TCP */,
-      from: port,
-      to: port
-    });
-  }
-  static tcpRange(startPort, endPort) {
-    return new _Port({
-      protocol: "tcp" /* TCP */,
-      from: startPort,
-      to: endPort
-    });
-  }
-  static allTcp() {
-    return new _Port({
-      protocol: "tcp" /* TCP */,
-      from: 0,
-      to: 65535
-    });
-  }
-  static allTraffic() {
-    return new _Port({
-      protocol: "-1" /* ALL */
-    });
-  }
-  protocol;
-  from;
-  to;
-  constructor(props) {
-    this.protocol = props.protocol;
-    this.from = props.from;
-    this.to = props.to;
-  }
-  toRuleJson() {
-    return {
-      IpProtocol: this.protocol,
-      FromPort: this.from,
-      ToPort: this.to
-    };
-  }
-};
-
-// src/provider/aws/ec2/internet-gateway.ts
-var InternetGateway = class extends CloudControlApiResource {
-  constructor(parent, id, props = {}) {
-    super(parent, "AWS::EC2::InternetGateway", id, props);
+// src/provider/aws/ecs/service.ts
+var Service = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::ECS::Service", id, props);
     this.parent = parent;
     this.props = props;
   }
-  get id() {
-    return this.output((v) => v.InternetGatewayId);
+  get name() {
+    return this.output((v) => v.ServiceName);
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
   }
   toState() {
+    const log = unwrap(this.props.log);
     return {
       document: {
-        Tags: this.props.name ? [
+        ClusterName: this.props.name,
+        ClusterSettings: [
           {
-            Key: "Name",
-            Value: this.props.name
+            Name: "containerInsights",
+            Value: unwrap(this.props.containerInsights, false) ? "enabled" : "disabled"
           }
-        ] : []
+        ],
+        Configuration: {
+          ExecuteCommandConfiguration: log ? {
+            Logging: "DEFAULT",
+            LogConfiguration: log.provider === "cloudwatch" ? {
+              CloudWatchLogGroupName: log.groupName
+            } : {
+              S3BucketName: log.bucketName,
+              S3KeyPrefix: log.keyPrefix
+            }
+          } : {
+            Logging: "NONE"
+          }
+        }
       }
     };
   }
@@ -4261,7 +4609,7 @@ __export(elb_exports, {
 });
 
 // src/provider/aws/elb/listener-action.ts
-var import_duration10 = require("@awsless/duration");
+var import_duration11 = require("@awsless/duration");
 var ListenerAction = class {
   static authCognito(props) {
     return new AuthCognitoAction(props);
@@ -4321,7 +4669,7 @@ var AuthCognitoAction = class extends ListenerAction {
         OnUnauthenticatedRequest: unwrap(this.props.onUnauthenticated, "deny"),
         Scope: unwrap(this.props.scope, "openid"),
         SessionCookieName: unwrap(session.cookieName, "AWSELBAuthSessionCookie"),
-        SessionTimeout: (0, import_duration10.toSeconds)(unwrap(session.timeout, (0, import_duration10.days)(7))),
+        SessionTimeout: (0, import_duration11.toSeconds)(unwrap(session.timeout, (0, import_duration11.days)(7))),
         UserPoolArn: userPool.arn,
         UserPoolClientId: userPool.clientId,
         UserPoolDomain: userPool.domain
@@ -4396,7 +4744,7 @@ var ListenerRule = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/elb/listener.ts
-var import_change_case4 = require("change-case");
+var import_change_case5 = require("change-case");
 var Listener = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
@@ -4411,7 +4759,7 @@ var Listener = class extends CloudControlApiResource {
       document: {
         LoadBalancerArn: this.props.loadBalancerArn,
         Port: this.props.port,
-        Protocol: (0, import_change_case4.constantCase)(unwrap(this.props.protocol)),
+        Protocol: (0, import_change_case5.constantCase)(unwrap(this.props.protocol)),
         Certificates: unwrap(this.props.certificates).map((arn) => ({
           CertificateArn: arn
         })),
@@ -4532,6 +4880,7 @@ var Rule = class extends CloudControlApiResource {
 // src/provider/aws/iam/index.ts
 var iam_exports = {};
 __export(iam_exports, {
+  InstanceProfile: () => InstanceProfile,
   Role: () => Role,
   RolePolicy: () => RolePolicy,
   formatPolicyDocument: () => formatPolicyDocument,
@@ -4539,8 +4888,37 @@ __export(iam_exports, {
   fromAwsManagedPolicyName: () => fromAwsManagedPolicyName
 });
 
+// src/provider/aws/iam/instance-profile.ts
+var InstanceProfile = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IAM::InstanceProfile", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get name() {
+    return this.output((v) => v.RoleName);
+  }
+  toState() {
+    return {
+      document: {
+        ...this.attr("InstanceProfileName", this.props.name),
+        ...this.attr("Path", this.props.path),
+        Roles: this.props.roles
+      }
+    };
+  }
+};
+
+// src/provider/aws/iam/managed-policy.ts
+var fromAwsManagedPolicyName = (name) => {
+  return `arn:aws:iam::aws:policy/service-role/${name}`;
+};
+
 // src/provider/aws/iam/role-policy.ts
-var import_change_case5 = require("change-case");
+var import_change_case6 = require("change-case");
 var formatPolicyDocument = (policy) => ({
   PolicyName: policy.name,
   PolicyDocument: {
@@ -4549,7 +4927,7 @@ var formatPolicyDocument = (policy) => ({
   }
 });
 var formatStatement = (statement) => ({
-  Effect: (0, import_change_case5.capitalCase)(unwrap(statement.effect, "allow")),
+  Effect: (0, import_change_case6.capitalCase)(unwrap(statement.effect, "allow")),
   Action: statement.actions,
   Resource: statement.resources
 });
@@ -4653,11 +5031,6 @@ var Role = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/iam/managed-policy.ts
-var fromAwsManagedPolicyName = (name) => {
-  return `arn:aws:iam::aws:policy/service-role/${name}`;
-};
-
 // src/provider/aws/iot/index.ts
 var iot_exports = {};
 __export(iot_exports, {
@@ -4686,6 +5059,74 @@ var TopicRule = class extends CloudControlApiResource {
             Lambda: { FunctionArn: unwrap(unwrap(action).lambda).functionArn }
           }))
         }
+      }
+    };
+  }
+};
+
+// src/provider/aws/ivs/index.ts
+var ivs_exports = {};
+__export(ivs_exports, {
+  Channel: () => Channel,
+  StreamKey: () => StreamKey
+});
+
+// src/provider/aws/ivs/channel.ts
+var import_change_case7 = require("change-case");
+var Channel = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IVS::Channel", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get ingestEndpoint() {
+    return this.output((v) => v.IngestEndpoint);
+  }
+  get playbackUrl() {
+    return this.output((v) => v.PlaybackUrl);
+  }
+  toState() {
+    return {
+      document: {
+        Name: this.props.name,
+        Type: (0, import_change_case7.constantCase)(unwrap(this.props.type, "standard")),
+        LatencyMode: (0, import_change_case7.constantCase)(unwrap(this.props.latencyMode, "low")),
+        ...this.attr("Preset", this.props.preset, (v) => `${v.toUpperCase()}_BANDWIDTH_DELIVERY`),
+        ...this.attr("Authorized", this.props.authorized),
+        ...this.attr("InsecureIngest", this.props.insecureIngest),
+        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+          Key: k,
+          Value: v
+        }))
+      }
+    };
+  }
+};
+
+// src/provider/aws/ivs/stream-key.ts
+var StreamKey = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IVS::StreamKey", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get value() {
+    return this.output((v) => v.Value);
+  }
+  toState() {
+    return {
+      document: {
+        ChannelArn: this.props.channel,
+        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+          Key: k,
+          Value: v
+        }))
       }
     };
   }
@@ -4723,7 +5164,7 @@ var formatCode = (code) => {
 };
 
 // src/provider/aws/lambda/event-invoke-config.ts
-var import_duration11 = require("@awsless/duration");
+var import_duration12 = require("@awsless/duration");
 var EventInvokeConfig = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
@@ -4743,7 +5184,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
       document: {
         FunctionName: this.props.functionArn,
         Qualifier: unwrap(this.props.qualifier, "$LATEST"),
-        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration11.toSeconds),
+        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, import_duration12.toSeconds),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.props.onFailure || this.props.onSuccess ? {
           DestinationConfig: {
@@ -4765,8 +5206,8 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/event-source-mapping.ts
-var import_duration12 = require("@awsless/duration");
-var import_change_case6 = require("change-case");
+var import_duration13 = require("@awsless/duration");
+var import_change_case8 = require("change-case");
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventSourceMapping", id, props);
@@ -4784,13 +5225,13 @@ var EventSourceMapping = class extends CloudControlApiResource {
         FunctionName: this.props.functionArn,
         EventSourceArn: this.props.sourceArn,
         ...this.attr("BatchSize", this.props.batchSize),
-        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration12.toSeconds),
-        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration12.toSeconds),
+        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, import_duration13.toSeconds),
+        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, import_duration13.toSeconds),
         ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
-        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration12.toSeconds),
+        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration13.toSeconds),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case6.constantCase),
+        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case8.constantCase),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
         ...this.props.maxConcurrency ? {
           ScalingConfig: {
@@ -4810,9 +5251,9 @@ var EventSourceMapping = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/function.ts
-var import_duration13 = require("@awsless/duration");
+var import_duration14 = require("@awsless/duration");
 var import_size = require("@awsless/size");
-var import_change_case7 = require("change-case");
+var import_change_case9 = require("change-case");
 var Function = class extends Resource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -4884,7 +5325,7 @@ var Function = class extends Resource {
         FunctionName: this.props.name,
         Description: this.props.description,
         MemorySize: (0, import_size.toMebibytes)(unwrap(this.props.memorySize, (0, import_size.mebibytes)(128))),
-        Timeout: (0, import_duration13.toSeconds)(unwrap(this.props.timeout, (0, import_duration13.seconds)(10))),
+        Timeout: (0, import_duration14.toSeconds)(unwrap(this.props.timeout, (0, import_duration14.seconds)(10))),
         Architectures: [unwrap(this.props.architecture, "arm64")],
         Role: this.props.role,
         ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
@@ -4896,8 +5337,8 @@ var Function = class extends Resource {
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: (0, import_change_case7.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: (0, import_change_case9.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: (0, import_change_case9.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -4918,7 +5359,7 @@ var Function = class extends Resource {
 };
 
 // src/provider/aws/lambda/permission.ts
-var import_change_case8 = require("change-case");
+var import_change_case10 = require("change-case");
 var Permission = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Permission", id, props);
@@ -4932,7 +5373,7 @@ var Permission = class extends CloudControlApiResource {
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal,
         ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case8.constantCase)
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case10.constantCase)
         // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
         // ...(this.props.urlAuthType
         // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
@@ -4943,8 +5384,8 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/url.ts
-var import_change_case9 = require("change-case");
-var import_duration14 = require("@awsless/duration");
+var import_change_case11 = require("change-case");
+var import_duration15 = require("@awsless/duration");
 var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Url", id, props);
@@ -4970,14 +5411,14 @@ var Url = class extends CloudControlApiResource {
       ...this.attr("AllowMethods", allow.methods),
       ...this.attr("AllowOrigins", allow.origins),
       ...this.attr("ExposeHeaders", expose.headers),
-      ...this.attr("MaxAge", cors.maxAge, import_duration14.toSeconds)
+      ...this.attr("MaxAge", cors.maxAge, import_duration15.toSeconds)
     };
   }
   toState() {
     return {
       document: {
-        AuthType: (0, import_change_case9.constantCase)(unwrap(this.props.authType, "none")),
-        InvokeMode: (0, import_change_case9.constantCase)(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: (0, import_change_case11.constantCase)(unwrap(this.props.authType, "none")),
+        InvokeMode: (0, import_change_case11.constantCase)(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn,
         ...this.attr("Qualifier", this.props.qualifier),
         Cors: this.cors()
@@ -4989,12 +5430,12 @@ var Url = class extends CloudControlApiResource {
 // src/provider/aws/memorydb/index.ts
 var memorydb_exports = {};
 __export(memorydb_exports, {
-  Cluster: () => Cluster,
+  Cluster: () => Cluster2,
   SubnetGroup: () => SubnetGroup
 });
 
 // src/provider/aws/memorydb/cluster.ts
-var Cluster = class extends CloudControlApiResource {
+var Cluster2 = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::MemoryDB::Cluster", id, props);
     this.parent = parent;
@@ -5069,7 +5510,7 @@ __export(open_search_exports, {
 
 // src/provider/aws/open-search/domain.ts
 var import_size2 = require("@awsless/size");
-var import_change_case10 = require("change-case");
+var import_change_case12 = require("change-case");
 var Domain = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::OpenSearchService::Domain", id, props);
@@ -5132,7 +5573,7 @@ var Domain = class extends CloudControlApiResource {
         AccessPolicies: {
           Version: unwrap(accessPolicy?.version, "2012-10-17"),
           Statement: unwrap(accessPolicy?.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case10.capitalCase)(unwrap(statement.effect, "allow")),
+            Effect: (0, import_change_case12.capitalCase)(unwrap(statement.effect, "allow")),
             Action: unwrap(statement.actions, ["es:*"]),
             Resource: unwrap(statement.resources, ["*"]),
             ...statement.principal ? {
@@ -5223,7 +5664,7 @@ __export(route53_exports, {
 });
 
 // src/provider/aws/route53/record-set.ts
-var import_duration15 = require("@awsless/duration");
+var import_duration16 = require("@awsless/duration");
 var formatRecordSet = (record) => {
   const name = unwrap(record.name);
   return {
@@ -5232,7 +5673,7 @@ var formatRecordSet = (record) => {
     Weight: unwrap(record.weight, 0),
     // ...(record.ttl ? {} : {}),
     ..."records" in record ? {
-      TTL: (0, import_duration15.toSeconds)(unwrap(record.ttl, (0, import_duration15.minutes)(5))),
+      TTL: (0, import_duration16.toSeconds)(unwrap(record.ttl, (0, import_duration16.minutes)(5))),
       ResourceRecords: record.records
     } : {},
     ..."alias" in record && unwrap(record.alias) ? {
@@ -5446,7 +5887,7 @@ var Bucket = class extends Resource {
 };
 
 // src/provider/aws/s3/bucket-policy.ts
-var import_change_case11 = require("change-case");
+var import_change_case13 = require("change-case");
 var BucketPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::S3::BucketPolicy", id, props);
@@ -5460,7 +5901,7 @@ var BucketPolicy = class extends CloudControlApiResource {
         PolicyDocument: {
           Version: unwrap(this.props.version, "2012-10-17"),
           Statement: unwrap(this.props.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case11.capitalCase)(unwrap(statement.effect, "allow")),
+            Effect: (0, import_change_case13.capitalCase)(unwrap(statement.effect, "allow")),
             ...statement.principal ? {
               Principal: {
                 Service: statement.principal
@@ -5539,8 +5980,8 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-var import_change_case12 = require("change-case");
-var import_duration16 = require("@awsless/duration");
+var import_change_case14 = require("change-case");
+var import_duration17 = require("@awsless/duration");
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::SES::EmailIdentity", id, props);
@@ -5571,7 +6012,7 @@ var EmailIdentity = class extends CloudControlApiResource {
     ];
   }
   get dkimRecords() {
-    const ttl = (0, import_duration16.minutes)(5);
+    const ttl = (0, import_duration17.minutes)(5);
     return this.dkimDnsTokens.map((token) => ({
       name: token.apply((token2) => token2.name),
       type: "CNAME",
@@ -5593,7 +6034,7 @@ var EmailIdentity = class extends CloudControlApiResource {
             SigningEnabled: true
           },
           DkimSigningAttributes: {
-            NextSigningKeyLength: (0, import_change_case12.constantCase)(unwrap(this.props.dkim))
+            NextSigningKeyLength: (0, import_change_case14.constantCase)(unwrap(this.props.dkim))
           }
         } : {},
         FeedbackAttributes: {
@@ -5702,7 +6143,7 @@ __export(sqs_exports, {
 });
 
 // src/provider/aws/sqs/queue.ts
-var import_duration17 = require("@awsless/duration");
+var import_duration18 = require("@awsless/duration");
 var import_size3 = require("@awsless/size");
 var Queue = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5740,11 +6181,11 @@ var Queue = class extends CloudControlApiResource {
       document: {
         QueueName: this.props.name,
         Tags: [{ Key: "name", Value: this.props.name }],
-        DelaySeconds: (0, import_duration17.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration17.seconds)(0))),
+        DelaySeconds: (0, import_duration18.toSeconds)(unwrap(this.props.deliveryDelay, (0, import_duration18.seconds)(0))),
         MaximumMessageSize: (0, import_size3.toBytes)(unwrap(this.props.maxMessageSize, (0, import_size3.kibibytes)(256))),
-        MessageRetentionPeriod: (0, import_duration17.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration17.days)(4))),
-        ReceiveMessageWaitTimeSeconds: (0, import_duration17.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration17.seconds)(0))),
-        VisibilityTimeout: (0, import_duration17.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration17.seconds)(30))),
+        MessageRetentionPeriod: (0, import_duration18.toSeconds)(unwrap(this.props.retentionPeriod, (0, import_duration18.days)(4))),
+        ReceiveMessageWaitTimeSeconds: (0, import_duration18.toSeconds)(unwrap(this.props.receiveMessageWaitTime, (0, import_duration18.seconds)(0))),
+        VisibilityTimeout: (0, import_duration18.toSeconds)(unwrap(this.props.visibilityTimeout, (0, import_duration18.seconds)(30))),
         ...this.props.deadLetterArn ? {
           RedrivePolicy: {
             deadLetterTargetArn: this.props.deadLetterArn,

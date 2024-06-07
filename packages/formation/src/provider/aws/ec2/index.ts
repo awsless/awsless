@@ -1,3 +1,5 @@
+export * from './instance'
+export * from './instance-provider'
 export * from './internet-gateway'
 export * from './launch-template'
 export * from './peer'

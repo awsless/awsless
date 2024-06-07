@@ -1,33 +1,26 @@
 import {
 	CloudControlClient,
 	CreateResourceCommand,
+	CreateResourceCommandOutput,
 	DeleteResourceCommand,
+	DeleteResourceCommandOutput,
 	GetResourceCommand,
 	GetResourceRequestStatusCommand,
-	ProgressEvent,
-	UpdateResourceCommand,
-	ResourceNotFoundException,
-	DeleteResourceCommandOutput,
-	CreateResourceCommandOutput,
-	UpdateResourceCommandOutput,
 	GetResourceRequestStatusCommandOutput,
+	ProgressEvent,
+	ResourceNotFoundException,
 	ThrottlingException,
+	UpdateResourceCommand,
+	UpdateResourceCommandOutput,
 } from '@aws-sdk/client-cloudcontrol'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import {
-	CloudProvider,
-	CreateProps,
-	DeleteProps,
-	GetProps,
-	ResourceDocument,
-	UpdateProps,
-} from '../../../core/cloud'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, ResourceDocument, UpdateProps } from '../../../core/cloud'
 
-import { createPatch } from 'rfc6902'
-import { sleep } from '../../../core/hash'
 import { Duration, minutes, toMilliSeconds } from '@awsless/duration'
-import { ResourceNotFound } from '../../../core/error'
 import { backOff } from 'exponential-backoff'
+import { createPatch } from 'rfc6902'
+import { ResourceNotFound } from '../../../core/error'
+import { sleep } from '../../../core/hash'
 // import { exponential-backoff }
 // import { retry } from '../../../core/retry'
 
@@ -115,6 +108,10 @@ export class CloudControlApiProvider implements CloudProvider {
 				if (event.ErrorCode === 'NotFound') {
 					throw new ResourceNotFound(event.StatusMessage)
 				}
+
+				// if(event.ErrorCode === 'InternalFailure') {
+				// 	throw new Error(`[${event.ErrorCode}] ${event.StatusMessage}`)
+				// }
 
 				throw new Error(`[${event.ErrorCode}] ${event.StatusMessage}`)
 			}

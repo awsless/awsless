@@ -1,4 +1,4 @@
-import { Node, aws } from '@awsless/formation'
+import { aws, Node } from '@awsless/formation'
 import { isEmail } from '../../config/schema/email.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -58,7 +58,7 @@ export const topicFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const id of ctx.stackConfig.topics ?? []) {
-			ctx.onFunction(({ policy }) => {
+			ctx.onPolicy(policy => {
 				policy.addStatement({
 					actions: ['sns:Publish'],
 					resources: [ctx.shared.get<aws.ARN>(`topic-${id}-arn`)],

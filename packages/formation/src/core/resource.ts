@@ -6,7 +6,7 @@
 import { Asset } from './asset'
 import { ResourceDocument } from './cloud'
 import { Node } from './node'
-import { Input, Output, Unwrap, findResources, unwrap } from './output'
+import { findResources, Input, Output, Unwrap, unwrap } from './output'
 import { Stack } from './stack'
 
 export type URN = `urn:${string}`
@@ -49,7 +49,7 @@ export abstract class Resource extends Node {
 
 	abstract toState(): {
 		extra?: Record<string, unknown>
-		assets?: Record<string, Input<Asset>>
+		assets?: Record<string, Input<Asset> | undefined>
 		document?: ResourceDocument
 	}
 

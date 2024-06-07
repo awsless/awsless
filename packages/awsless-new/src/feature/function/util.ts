@@ -156,7 +156,8 @@ export const createLambdaFunction = (
 	// lambda.dependsOn(policy)
 
 	// Register the lambda in Awsless...
-	ctx.registerFunction(lambda, policy)
+	ctx.registerFunction(lambda)
+	ctx.registerPolicy(policy)
 
 	// ------------------------------------------------------------
 	// Env Vars

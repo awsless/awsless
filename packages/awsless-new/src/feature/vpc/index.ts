@@ -1,4 +1,4 @@
-import { Node, all, aws } from '@awsless/formation'
+import { all, aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 
 export const vpcFeature = defineFeature({
