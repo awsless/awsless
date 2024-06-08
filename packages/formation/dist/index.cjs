@@ -3509,6 +3509,7 @@ var Subnet = class extends CloudControlApiResource {
         VpcId: this.props.vpcId,
         AvailabilityZone: this.props.availabilityZone,
         // CidrBlock: unwrap(this.props.cidrBlock).ip,
+        AssignIpv6AddressOnCreation: this.props.assignIpv6AddressOnCreation,
         ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
         ...this.attr("Ipv6CidrBlock", this.props.ipv6CidrBlock, (v) => v.ip),
         ...this.attr("Ipv6Native", this.props.ipv6Native),
@@ -3959,11 +3960,20 @@ var BucketProvider = class {
     return this.cloudProvider.delete(props);
   }
   async emptyBucket(bucket) {
-    await Promise.all([
-      //
-      this.deleteBucketObjects(bucket),
-      this.deleteBucketObjectVersions(bucket)
-    ]);
+    try {
+      await Promise.all([
+        //
+        this.deleteBucketObjects(bucket),
+        this.deleteBucketObjectVersions(bucket)
+      ]);
+    } catch (error) {
+      if (error instanceof import_client_s32.S3ServiceException) {
+        if (error.name === "NoSuchBucket") {
+          return;
+        }
+      }
+      throw error;
+    }
   }
   async deleteBucketObjects(bucket) {
     while (true) {

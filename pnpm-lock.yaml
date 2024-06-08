@@ -229,6 +229,9 @@ importers:
 
   packages/awsless-new:
     dependencies:
+      '@arcanyx/cidr-slicer':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@aws-appsync/utils':
         specifier: ^1.5.0
         version: 1.5.0
@@ -1015,6 +1018,10 @@ packages:
     dependencies:
       '@jridgewell/gen-mapping': 0.1.1
       '@jridgewell/trace-mapping': 0.3.18
+
+  /@arcanyx/cidr-slicer@0.3.0:
+    resolution: {integrity: sha512-Rr5Fdh1akBmhLkiJLCHnTZI8mLXA07uJs4kVX24kzgPW4TVVliHNciU7P0DCEQR4E9UiTQYbLFWx2+8ohsyp2w==}
+    dev: false
 
   /@aws-appsync/utils@1.5.0:
     resolution: {integrity: sha512-mkXUxbzUW3vBVev2+EBpkfidl98RymTX4mH71OHIgfsbTLEKmqAYF2LrwtSUYetD7D3YMIQI28UqfOacoJyxVw==}

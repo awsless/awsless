@@ -2109,6 +2109,7 @@ declare class Subnet extends CloudControlApiResource {
         cidrBlock?: Input<Peer>;
         ipv6CidrBlock?: Input<Peer>;
         ipv6Native?: Input<boolean>;
+        assignIpv6AddressOnCreation?: Input<boolean>;
     });
     get id(): Output<string>;
     get vpcId(): Output<string>;
@@ -2123,6 +2124,7 @@ declare class Subnet extends CloudControlApiResource {
             }[];
             VpcId: Input<string>;
             AvailabilityZone: Input<string>;
+            AssignIpv6AddressOnCreation: Input<boolean> | undefined;
         };
     };
 }

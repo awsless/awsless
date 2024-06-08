@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
-import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
 const ImageSchema = z
@@ -30,10 +29,7 @@ const TypeSchema = z
 	])
 	.describe(`The instance type.`)
 
-const UserDataSchema = LocalFileSchema.describe(
-	`The parameters or scripts to store as user data. Any scripts in user data are run when you launch the instance. User data is limited to 16 KB`
-)
-
+const CommandSchema = z.string().describe(`The script you want to execute when the instance starts up.`)
 const CodeSchema = LocalDirectorySchema.describe(`The code directory that will be deployed to your instance.`)
 const ConnectSchema = z.boolean().describe('Allows you to connect to all instances with an Instance Connect Endpoint.')
 
@@ -51,8 +47,7 @@ export const InstancesSchema = z
 			image: ImageSchema,
 			type: TypeSchema,
 			code: CodeSchema,
-			userData: UserDataSchema.optional(),
-			// connect: ConnectSchema.default(false),
+			command: CommandSchema.optional(),
 		})
 	)
 	.optional()

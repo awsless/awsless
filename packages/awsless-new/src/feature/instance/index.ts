@@ -56,41 +56,31 @@ export const instanceFeature = defineFeature({
 				}
 			})
 
+			const bucketName = ctx.shared.get<Output<string>>('instance-bucket-name')
+
 			const userData = new Output<Asset>([], resolve => {
 				ctx.onReady(() => {
-					combine([ctx.shared.get('instance-bucket-name'), ...Object.values(env)]).apply(
-						async ([bucketName]) => {
-							const log = (msg: string) => {
-								return `sudo -u ubuntu aws logs put-log-events --log-group-name /awsless/instance/${name} --log-stream-name boot --log-events timestamp=1587488538000,message="${msg}"`
-							}
+					combine([bucketName, ...Object.values(env)]).apply(async ([bucketName]) => {
+						const u = 'ec2-user'
 
-							const code = [
-								// ...Object.entries(env)
-								// 	.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
-								// 	.join('\n'),
-								// log('booting'),
-								`sudo mkdir ~/code`,
-								// `cd /var`,
-								// log('fetching code from s3 bucket'),
-								// `sudo aws s3 cp s3://${bucketName}/${name} ./`,
-								// log('unzip code'),
-								// `sudo -u ubuntu unzip -o ${name} -d ./code`,
-								// `cd /var/code`,
-								// log('ready'),
-								// props.userData ? readFileSync(props.userData, 'utf8') : ''
-							].join('\n')
+						const code = [
+							`#!/bin/bash`,
+							`cd /home/${u}`,
+							`sudo -u ${u} aws configure set default.s3.use_dualstack_endpoint true`,
+							`sudo -u ${u} aws s3 cp s3://${bucketName}/${name} .`,
+							`sudo -u ${u} unzip -o ${name} -d ./code`,
+							`sudo -u ${u} rm ./${name}`,
+							`cd ./code`,
 
-							// const data = props.userData ? readFileSync(props.userData, 'utf8') : ''
+							...Object.entries(env).map(([key, value]) => {
+								return `export ${key}="${unwrap(value)}"`
+							}),
 
-							// const envs = Object.entries(env)
-							// 	.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
-							// 	.join('\n')
+							props.command ? `sudo -u ${u} ${props.command}` : '',
+						].join('\n')
 
-							// console.log('\n\n', 'USER_DATA', `\n${envs}\n\n${code}\n\n${data}`)
-
-							resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
-						}
-					)
+						resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
+					})
 				})
 			})
 
@@ -128,7 +118,7 @@ export const instanceFeature = defineFeature({
 
 			const code = new aws.s3.BucketObject(group, 'code', {
 				key: name,
-				bucket: ctx.shared.get('instance-bucket-name'),
+				bucket: bucketName,
 				body: Asset.fromFile(bundleFile),
 			})
 
@@ -153,6 +143,19 @@ export const instanceFeature = defineFeature({
 			const policy = new aws.iam.RolePolicy(group, 'policy', {
 				name,
 				role: role.name,
+			})
+
+			policy.addStatement({
+				actions: [
+					's3:GetObject',
+					//
+					// 's3:*',
+				],
+				resources: [
+					bucketName.apply(bucket => `arn:aws:s3:::${bucket}/${name}` as const),
+					//
+					// '*',
+				],
 			})
 
 			ctx.registerPolicy(policy)

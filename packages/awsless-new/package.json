@@ -50,6 +50,7 @@
 		"@awsless/weak-cache": "workspace:^"
 	},
 	"dependencies": {
+		"@arcanyx/cidr-slicer": "^0.3.0",
 		"@aws-appsync/utils": "^1.5.0",
 		"@aws-sdk/client-cloudformation": "^3.369.0",
 		"@aws-sdk/client-cloudfront": "^3.425.0",

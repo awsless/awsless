@@ -1,3 +1,4 @@
+import { ipv6CidrBlockFromString } from '@arcanyx/cidr-slicer'
 import { aws, combine, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 
@@ -21,6 +22,10 @@ export const vpcFeature = defineFeature({
 		const ipv6CidrBlock = new aws.ec2.VPCCidrBlock(group, 'ipv6', {
 			vpcId: vpc.id,
 			amazonProvidedIpv6CidrBlock: true,
+		})
+
+		const slices = ipv6CidrBlock.ipv6CidrBlock.apply(ip => {
+			return ipv6CidrBlockFromString(ip).slice(64)
 		})
 
 		// ipv6CidrBlock.value.apply(console.log)
@@ -64,9 +69,17 @@ export const vpcFeature = defineFeature({
 
 		// ctx.base.add(group)
 
+		// slices.apply(list => {
+		// 	console.log('\n')
+		// 	console.log('1', list.get(0n).toString())
+		// 	console.log('\n')
+		// 	console.log('2', list.get(1n).toString())
+		// 	console.log('\n')
+		// })
+
 		const zones = ['a', 'b']
 		const tables = [privateRouteTable, publicRouteTable]
-		let block = 0
+		let block = 0n
 
 		for (const table of tables) {
 			for (const i in zones) {
@@ -75,11 +88,13 @@ export const vpcFeature = defineFeature({
 				const subnet = new aws.ec2.Subnet(group, id, {
 					name: `${ctx.app.name}--${table.identifier}-${index}`,
 					vpcId: vpc.id,
-					// cidrBlock: aws.ec2.Peer.ipv4(`10.0.${block++}.0/24`),
+					cidrBlock: aws.ec2.Peer.ipv4(`10.0.${block++}.0/24`),
 					// ipv6CidrBlock: aws.ec2.Peer.ipv6(`fd00:10:20:${++block}::/64`),
-					ipv6CidrBlock: aws.ec2.Peer.ipv6(`2a05:d018:c69:660${++block}::/64`),
+					// ipv6CidrBlock: aws.ec2.Peer.ipv6(`2a05:d018:c69:660${++block}::/64`),
 					// ipv6CidrBlock: ipv6CidrBlock.ipv6CidrBlock.apply(ip => ),
-					ipv6Native: true,
+					ipv6CidrBlock: slices.apply(list => aws.ec2.Peer.ipv6(list.get(block++).toString())),
+					assignIpv6AddressOnCreation: true,
+					// ipv6Native: true,
 					availabilityZone: ctx.appConfig.region + zones[i],
 				})
 

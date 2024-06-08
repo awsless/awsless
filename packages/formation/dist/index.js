@@ -3520,6 +3520,7 @@ var Subnet = class extends CloudControlApiResource {
         VpcId: this.props.vpcId,
         AvailabilityZone: this.props.availabilityZone,
         // CidrBlock: unwrap(this.props.cidrBlock).ip,
+        AssignIpv6AddressOnCreation: this.props.assignIpv6AddressOnCreation,
         ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
         ...this.attr("Ipv6CidrBlock", this.props.ipv6CidrBlock, (v) => v.ip),
         ...this.attr("Ipv6Native", this.props.ipv6Native),
@@ -3955,9 +3956,10 @@ var BucketObjectProvider = class {
 // src/provider/aws/s3/bucket-provider.ts
 import {
   DeleteObjectsCommand,
-  ListObjectVersionsCommand,
   ListObjectsV2Command,
-  S3Client as S3Client2
+  ListObjectVersionsCommand,
+  S3Client as S3Client2,
+  S3ServiceException as S3ServiceException2
 } from "@aws-sdk/client-s3";
 var BucketProvider = class {
   client;
@@ -3985,11 +3987,20 @@ var BucketProvider = class {
     return this.cloudProvider.delete(props);
   }
   async emptyBucket(bucket) {
-    await Promise.all([
-      //
-      this.deleteBucketObjects(bucket),
-      this.deleteBucketObjectVersions(bucket)
-    ]);
+    try {
+      await Promise.all([
+        //
+        this.deleteBucketObjects(bucket),
+        this.deleteBucketObjectVersions(bucket)
+      ]);
+    } catch (error) {
+      if (error instanceof S3ServiceException2) {
+        if (error.name === "NoSuchBucket") {
+          return;
+        }
+      }
+      throw error;
+    }
   }
   async deleteBucketObjects(bucket) {
     while (true) {
@@ -6086,7 +6097,7 @@ import {
   GetObjectCommand,
   PutObjectCommand as PutObjectCommand2,
   S3Client as S3Client3,
-  S3ServiceException as S3ServiceException2
+  S3ServiceException as S3ServiceException3
 } from "@aws-sdk/client-s3";
 var StateProvider = class {
   constructor(props) {
@@ -6104,7 +6115,7 @@ var StateProvider = class {
         })
       );
     } catch (error) {
-      if (error instanceof S3ServiceException2 && error.name === "NoSuchKey") {
+      if (error instanceof S3ServiceException3 && error.name === "NoSuchKey") {
         return;
       }
       throw error;
