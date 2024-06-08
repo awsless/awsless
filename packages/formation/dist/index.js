@@ -824,6 +824,7 @@ var WorkSpace = class {
               urn: resource.urn,
               type: resource.type,
               document,
+              // assets,
               extra,
               provider
             });
@@ -889,6 +890,7 @@ var WorkSpace = class {
               urn: resource.urn,
               type: resource.type,
               document,
+              // assets,
               extra,
               provider
             });
@@ -962,6 +964,7 @@ var WorkSpace = class {
             id: resourceState.id,
             type: resourceState.type,
             document: resourceState.local,
+            // assets: resourceState.assets,
             extra: resourceState.extra,
             provider
           });
