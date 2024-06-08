@@ -31,6 +31,9 @@
 		// "rest": {
 		// 	"api": {}
 		// },
+		"instance": {
+			"connect": true
+		},
 		"function": {
 			"log": {
 				"retention": "1 days",

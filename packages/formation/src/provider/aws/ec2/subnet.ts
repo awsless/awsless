@@ -1,5 +1,5 @@
 import { Node } from '../../../core/node'
-import { Input, unwrap } from '../../../core/output'
+import { Input } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { Peer } from './peer'
 import { SubnetRouteTableAssociation } from './subnet-route-table-association'
@@ -9,9 +9,13 @@ export class Subnet extends CloudControlApiResource {
 		readonly parent: Node,
 		id: string,
 		private props: {
+			name?: Input<string>
 			vpcId: Input<string>
-			cidrBlock: Input<Peer>
 			availabilityZone: Input<string>
+
+			cidrBlock?: Input<Peer>
+			ipv6CidrBlock?: Input<Peer>
+			ipv6Native?: Input<boolean>
 		}
 	) {
 		super(parent, 'AWS::EC2::Subnet', id, props)
@@ -44,8 +48,17 @@ export class Subnet extends CloudControlApiResource {
 		return {
 			document: {
 				VpcId: this.props.vpcId,
-				CidrBlock: unwrap(this.props.cidrBlock).ip,
 				AvailabilityZone: this.props.availabilityZone,
+				// CidrBlock: unwrap(this.props.cidrBlock).ip,
+				...this.attr('CidrBlock', this.props.cidrBlock, v => v.ip),
+				...this.attr('Ipv6CidrBlock', this.props.ipv6CidrBlock, v => v.ip),
+				...this.attr('Ipv6Native', this.props.ipv6Native),
+				Tags: [
+					{
+						Key: 'Name',
+						Value: this.props.name,
+					},
+				],
 			},
 		}
 	}

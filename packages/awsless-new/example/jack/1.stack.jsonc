@@ -1,19 +1,20 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"streams": {
-		"arena": {
-			"type": "basic"
-		}
-	},
-	"instances": {
-		"stream": {
-			"type": "t4g.nano",
-			"image": "ami-05172b510cbeb4f59",
-			"userData": "./instance/user-data.sh",
-			"code": "./instance"
-		}
-	}
+	"configs": ["test"]
+	// "streams": {
+	// 	"arena": {
+	// 		"type": "basic"
+	// 	}
+	// },
+	// "instances": {
+	// 	"stream": {
+	// 		"type": "t4g.nano",
+	// 		"image": "ami-05172b510cbeb4f59",
+	// 		"userData": "./instance/user-data.sh",
+	// 		"code": "./instance"
+	// 	}
+	// }
 
 	// "http": {
 	// 	"api": {

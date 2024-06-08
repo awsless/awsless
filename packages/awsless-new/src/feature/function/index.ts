@@ -70,6 +70,8 @@ export const functionFeature = defineFeature({
 	onApp(ctx) {
 		const group = new Node(ctx.base, 'function', 'asset')
 
+		// ------------------------------------------------------
+
 		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'assets'),
 			versioning: true,
@@ -78,6 +80,8 @@ export const functionFeature = defineFeature({
 
 		ctx.shared.set('function-bucket-name', bucket.name)
 
+		// ------------------------------------------------------
+
 		const repository = new aws.ecr.Repository(group, 'repository', {
 			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-'),
 			imageTagMutability: true,
@@ -85,6 +89,16 @@ export const functionFeature = defineFeature({
 
 		ctx.shared.set('function-repository-name', repository.name)
 		ctx.shared.set('function-repository-uri', repository.uri)
+
+		// ------------------------------------------------------
+		// Give lambda access to all policies inside your app.
+
+		ctx.onPolicy(policy => {
+			policy.addStatement({
+				actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
+				resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
+			})
+		})
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {

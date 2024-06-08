@@ -1,13 +1,13 @@
+import { days } from '@awsless/duration'
 import { Asset, aws, combine, Input, Node, Output, unwrap } from '@awsless/formation'
 import { hashElement } from 'folder-hash'
 import { readFileSync } from 'fs'
-import { mkdir, readFile } from 'fs/promises'
+import { mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import { zip } from 'zip-a-folder'
 import { getBuildPath } from '../../build/index.js'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { UserData } from './__user-data.js'
 
 export const instanceFeature = defineFeature({
 	name: 'instance',
@@ -21,13 +21,32 @@ export const instanceFeature = defineFeature({
 		})
 
 		ctx.shared.set('instance-bucket-name', bucket.name)
+
+		// const keyPair = new aws.ec2.KeyPair(group, 'keys', {
+		// 	name: ctx.appConfig.name,
+		// })
+
+		// ctx.shared.set('instance-key-name', keyPair.name)
+
+		if (ctx.appConfig.defaults.instance.connect) {
+			new aws.ec2.InstanceConnectEndpoint(group, 'connect', {
+				name: ctx.appConfig.name,
+				subnetId: ctx.shared.get(`vpc-public-subnet-id-1`),
+				securityGroupIds: [ctx.shared.get('vpc-security-group-id')],
+			})
+		}
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.instances ?? {})) {
 			const group = new Node(ctx.stack, 'instance', id)
 			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'instance', id)
 
-			const env: Record<string, Input<string>> = {}
+			// --------------------------------------------------------
+
+			const env: Record<string, Input<string>> = {
+				APP: ctx.appConfig.name,
+				STACK: ctx.stackConfig.name,
+			}
 
 			ctx.onEnv((name, value) => {
 				env[name] = value
@@ -41,28 +60,35 @@ export const instanceFeature = defineFeature({
 				ctx.onReady(() => {
 					combine([ctx.shared.get('instance-bucket-name'), ...Object.values(env)]).apply(
 						async ([bucketName]) => {
+							const log = (msg: string) => {
+								return `sudo -u ubuntu aws logs put-log-events --log-group-name /awsless/instance/${name} --log-stream-name boot --log-events timestamp=1587488538000,message="${msg}"`
+							}
+
 							const code = [
-								`mkdir /var/code`,
-								`cd /var`,
-								`sudo -u ubuntu aws s3 cp s3://${bucketName}/${name} ./`,
-								`sudo -u ubuntu unzip -o ${name} -d ./code`,
-								`cd /var/code`,
+								// ...Object.entries(env)
+								// 	.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
+								// 	.join('\n'),
+								// log('booting'),
+								`sudo mkdir ~/code`,
+								// `cd /var`,
+								// log('fetching code from s3 bucket'),
+								// `sudo aws s3 cp s3://${bucketName}/${name} ./`,
+								// log('unzip code'),
+								// `sudo -u ubuntu unzip -o ${name} -d ./code`,
+								// `cd /var/code`,
+								// log('ready'),
+								// props.userData ? readFileSync(props.userData, 'utf8') : ''
 							].join('\n')
 
-							const data = props.userData ? readFileSync(props.userData, 'utf8') : ''
-							// const data = 'echo 100'
+							// const data = props.userData ? readFileSync(props.userData, 'utf8') : ''
 
-							const envs = Object.entries(env)
-								.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
-								.join('\n')
+							// const envs = Object.entries(env)
+							// 	.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
+							// 	.join('\n')
 
 							// console.log('\n\n', 'USER_DATA', `\n${envs}\n\n${code}\n\n${data}`)
 
-							resolve(
-								Asset.fromString(
-									Buffer.from(`\n${envs}\n\n${code}\n\n${data}`, 'utf8').toString('base64')
-								)
-							)
+							resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
 						}
 					)
 				})
@@ -117,13 +143,7 @@ export const instanceFeature = defineFeature({
 				userData,
 				// userData: userData.value.apply(Asset.fromString),
 				// userData: Asset.fromString('echo 1'),
-				// userData: props.userData ? Asset.fromFile(getBuildPath('user-data', name, 'base64')) : undefined,
 			})
-
-			// We need to make sure our code is deployed to s3
-			// before we launch the ec2 template.
-
-			// template.dependsOn(code)
 
 			const role = new aws.iam.Role(group, 'role', {
 				name,
@@ -146,13 +166,33 @@ export const instanceFeature = defineFeature({
 				name,
 				iamInstanceProfile: profile.arn,
 				launchTemplate: template,
-				subnetId: ctx.shared.get(`vpc-private-subnet-id-1`),
+				subnetId: ctx.shared.get(`vpc-public-subnet-id-1`),
+				// keyName: props.ssh ? ctx.shared.get('instance-key-name') : undefined,
 			})
 
 			// We need to make sure our code is deployed to s3
 			// before we launch the ec2 instance.
 
 			instance.dependsOn(code)
+
+			// --------------------------------------------------------
+			// Logging
+
+			const logGroup = new aws.cloudWatch.LogGroup(group, 'log', {
+				name: `/awsless/instance/${name}`,
+				retention: days(3),
+			})
+
+			policy.addStatement(
+				{
+					actions: ['logs:CreateLogStream'],
+					resources: [logGroup.arn],
+				},
+				{
+					actions: ['logs:PutLogEvents'],
+					resources: [logGroup.arn.apply(arn => `${arn}:*` as const)],
+				}
+			)
 		}
 	},
 })
