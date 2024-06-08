@@ -1,7 +1,7 @@
-// import { DescribeInstancesCommand, RunInstancesCommand, TerminateInstancesCommand } from '@aws-sdk/client-ec2'
 import {
 	DescribeInstancesCommand,
 	EC2Client,
+	EC2ServiceException,
 	RunInstancesCommand,
 	TerminateInstancesCommand,
 	waitUntilInstanceRunning,
@@ -9,10 +9,10 @@ import {
 } from '@aws-sdk/client-ec2'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
+import { ResourceNotFound } from '../../../core/error'
 import { ARN } from '../types'
 
 type ProviderProps = {
-	// cloudProvider: CloudProvider
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
 	region: string
 }
@@ -41,8 +41,6 @@ export class InstanceProvider implements CloudProvider {
 	}
 
 	async get({ id }: GetProps<Document>) {
-		// return this.props.cloudProvider.get(props)
-
 		const result = await this.client.send(
 			new DescribeInstancesCommand({
 				InstanceIds: [id],
@@ -53,33 +51,15 @@ export class InstanceProvider implements CloudProvider {
 	}
 
 	async create({ document }: CreateProps<Document>) {
-		// return this.props.cloudProvider.create(props)
-
 		return this.runInstance(document)
 	}
 
 	async update({ id, newDocument }: UpdateProps<Document>) {
-		// await this.props.cloudProvider.delete({
-		// 	...props,
-		// 	document: props.oldDocument,
-		// 	assets: props.oldAssets,
-		// })
-
-		// return this.props.cloudProvider.create({
-		// 	...props,
-		// 	document: props.newDocument,
-		// 	assets: props.newAssets,
-		// 	token: v5(props.token, 'e8da7f02-a6a7-4037-b14e-80b0a04a03c1'),
-		// })
-
-		await this.terminateInstance(id)
-
+		await this.terminateInstance(id, true)
 		return this.runInstance(newDocument)
 	}
 
 	async delete({ id }: DeleteProps<Document>) {
-		// return this.props.cloudProvider.delete(props)
-
 		await this.terminateInstance(id)
 	}
 
@@ -107,7 +87,8 @@ export class InstanceProvider implements CloudProvider {
 			{
 				client: this.client,
 				maxWaitTime: 5 * 60,
-				maxDelay: 10,
+				maxDelay: 15,
+				minDelay: 3,
 			},
 			{
 				InstanceIds: [id],
@@ -117,18 +98,33 @@ export class InstanceProvider implements CloudProvider {
 		return id
 	}
 
-	async terminateInstance(id: string) {
-		await this.client.send(
-			new TerminateInstancesCommand({
-				InstanceIds: [id],
-			})
-		)
+	async terminateInstance(id: string, skipOnNotFound = false) {
+		try {
+			await this.client.send(
+				new TerminateInstancesCommand({
+					InstanceIds: [id],
+				})
+			)
+		} catch (error) {
+			if (error instanceof EC2ServiceException) {
+				if (error.message.includes('not exist')) {
+					if (skipOnNotFound) {
+						return
+					}
+
+					throw new ResourceNotFound(error.message)
+				}
+			}
+
+			throw error
+		}
 
 		await waitUntilInstanceTerminated(
 			{
 				client: this.client,
 				maxWaitTime: 5 * 60,
-				maxDelay: 10,
+				maxDelay: 15,
+				minDelay: 3,
 			},
 			{
 				InstanceIds: [id],

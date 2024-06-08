@@ -35,6 +35,14 @@ const UserDataSchema = LocalFileSchema.describe(
 )
 
 const CodeSchema = LocalDirectorySchema.describe(`The code directory that will be deployed to your instance.`)
+const ConnectSchema = z.boolean().describe('Allows you to connect to all instances with an Instance Connect Endpoint.')
+
+export const InstanceDefaultSchema = z
+	.object({
+		connect: ConnectSchema.default(false),
+	})
+	.default({})
+	.describe('Define the default settings for all instances in your stacks.')
 
 export const InstancesSchema = z
 	.record(
@@ -44,6 +52,7 @@ export const InstancesSchema = z
 			type: TypeSchema,
 			code: CodeSchema,
 			userData: UserDataSchema.optional(),
+			// connect: ConnectSchema.default(false),
 		})
 	)
 	.optional()

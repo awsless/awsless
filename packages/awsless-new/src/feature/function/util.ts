@@ -120,13 +120,13 @@ export const createLambdaFunction = (
 		role: role.name,
 		name: 'lambda-policy',
 		version: '2012-10-17',
-		statements: [
-			{
-				// Give lambda access to all lambda's inside your app.
-				actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
-				resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
-			},
-		],
+		// statements: [
+		// 	{
+		// 		// Give lambda access to all lambda's inside your app.
+		// 		actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
+		// 		resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
+		// 	},
+		// ],
 	})
 
 	// const policy = role.addPolicy('policy', {

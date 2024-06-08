@@ -35,7 +35,10 @@ export class Peer {
 		return new Peer('::/0', 'v6')
 	}
 
-	constructor(readonly ip: string, readonly type: 'v4' | 'v6') {}
+	constructor(
+		readonly ip: string,
+		readonly type: 'v4' | 'v6'
+	) {}
 
 	toRuleJson() {
 		switch (this.type) {

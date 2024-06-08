@@ -18,6 +18,8 @@ export class Vpc extends CloudControlApiResource {
 		private props: {
 			name: Input<string>
 			cidrBlock: Input<Peer>
+			enableDnsSupport?: Input<boolean>
+			enableDnsHostnames?: Input<boolean>
 		}
 	) {
 		super(parent, 'AWS::EC2::VPC', id, props)
@@ -39,6 +41,8 @@ export class Vpc extends CloudControlApiResource {
 		return {
 			document: {
 				CidrBlock: unwrap(this.props.cidrBlock).ip,
+				EnableDnsSupport: this.props.enableDnsSupport,
+				EnableDnsHostnames: this.props.enableDnsHostnames,
 				Tags: [
 					{
 						Key: 'Name',

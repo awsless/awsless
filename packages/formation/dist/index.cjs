@@ -2817,8 +2817,10 @@ var TableItemProvider = class {
 var ec2_exports = {};
 __export(ec2_exports, {
   Instance: () => Instance,
+  InstanceConnectEndpoint: () => InstanceConnectEndpoint,
   InstanceProvider: () => InstanceProvider,
   InternetGateway: () => InternetGateway,
+  KeyPair: () => KeyPair,
   LaunchTemplate: () => LaunchTemplate,
   Peer: () => Peer,
   Port: () => Port,
@@ -2828,6 +2830,7 @@ __export(ec2_exports, {
   SecurityGroup: () => SecurityGroup,
   Subnet: () => Subnet,
   SubnetRouteTableAssociation: () => SubnetRouteTableAssociation,
+  VPCCidrBlock: () => VPCCidrBlock,
   VPCGatewayAttachment: () => VPCGatewayAttachment,
   Vpc: () => Vpc
 });
@@ -2882,6 +2885,34 @@ var Instance = class extends Resource {
   }
 };
 
+// src/provider/aws/ec2/instance-connect-endpoint.ts
+var InstanceConnectEndpoint = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::InstanceConnectEndpoint", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.InstanceConnectEndpointId);
+  }
+  toState() {
+    return {
+      document: {
+        PreserveClientIp: this.props.preserveClientIp,
+        SecurityGroupIds: this.props.securityGroupIds,
+        SubnetId: this.props.subnetId,
+        Tags: [
+          { Key: "Name", Value: this.props.name },
+          ...Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+            Key: k,
+            Value: v
+          }))
+        ]
+      }
+    };
+  }
+};
+
 // src/provider/aws/ec2/instance-provider.ts
 var import_client_ec2 = require("@aws-sdk/client-ec2");
 var InstanceProvider = class {
@@ -2904,7 +2935,7 @@ var InstanceProvider = class {
     return this.runInstance(document);
   }
   async update({ id, newDocument }) {
-    await this.terminateInstance(id);
+    await this.terminateInstance(id, true);
     return this.runInstance(newDocument);
   }
   async delete({ id }) {
@@ -2932,7 +2963,8 @@ var InstanceProvider = class {
       {
         client: this.client,
         maxWaitTime: 5 * 60,
-        maxDelay: 10
+        maxDelay: 15,
+        minDelay: 3
       },
       {
         InstanceIds: [id]
@@ -2940,17 +2972,30 @@ var InstanceProvider = class {
     );
     return id;
   }
-  async terminateInstance(id) {
-    await this.client.send(
-      new import_client_ec2.TerminateInstancesCommand({
-        InstanceIds: [id]
-      })
-    );
+  async terminateInstance(id, skipOnNotFound = false) {
+    try {
+      await this.client.send(
+        new import_client_ec2.TerminateInstancesCommand({
+          InstanceIds: [id]
+        })
+      );
+    } catch (error) {
+      if (error instanceof import_client_ec2.EC2ServiceException) {
+        if (error.message.includes("not exist")) {
+          if (skipOnNotFound) {
+            return;
+          }
+          throw new ResourceNotFound(error.message);
+        }
+      }
+      throw error;
+    }
     await (0, import_client_ec2.waitUntilInstanceTerminated)(
       {
         client: this.client,
         maxWaitTime: 5 * 60,
-        maxDelay: 10
+        maxDelay: 15,
+        minDelay: 3
       },
       {
         InstanceIds: [id]
@@ -2978,6 +3023,38 @@ var InternetGateway = class extends CloudControlApiResource {
             Value: this.props.name
           }
         ] : []
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/key-pair.ts
+var KeyPair = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::KeyPair", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get id() {
+    return this.output((v) => v.KeyPairId);
+  }
+  get fingerprint() {
+    return this.output((v) => v.KeyFingerprint);
+  }
+  get name() {
+    return this.output((v) => v.KeyName);
+  }
+  toState() {
+    return {
+      document: {
+        KeyName: this.props.name,
+        KeyType: unwrap(this.props.type, "rsa"),
+        KeyFormat: unwrap(this.props.format, "pem"),
+        PublicKeyMaterial: this.props.publicKey,
+        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+          Key: k,
+          Value: v
+        }))
       }
     };
   }
@@ -3296,11 +3373,12 @@ var Route2 = class extends CloudControlApiResource {
     return this.output((v) => Peer.ipv4(v.DestinationCidrBlock));
   }
   toState() {
+    const destination = unwrap(this.props.destination);
     return {
       document: {
         GatewayId: this.props.gatewayId,
         RouteTableId: this.props.routeTableId,
-        DestinationCidrBlock: unwrap(this.props.destination).ip
+        ...destination.type === "v4" ? { DestinationCidrBlock: destination.ip } : { DestinationIpv6CidrBlock: destination.ip }
       }
     };
   }
@@ -3429,8 +3507,17 @@ var Subnet = class extends CloudControlApiResource {
     return {
       document: {
         VpcId: this.props.vpcId,
-        CidrBlock: unwrap(this.props.cidrBlock).ip,
-        AvailabilityZone: this.props.availabilityZone
+        AvailabilityZone: this.props.availabilityZone,
+        // CidrBlock: unwrap(this.props.cidrBlock).ip,
+        ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
+        ...this.attr("Ipv6CidrBlock", this.props.ipv6CidrBlock, (v) => v.ip),
+        ...this.attr("Ipv6Native", this.props.ipv6Native),
+        Tags: [
+          {
+            Key: "Name",
+            Value: this.props.name
+          }
+        ]
       }
     };
   }
@@ -3456,12 +3543,41 @@ var Vpc = class extends CloudControlApiResource {
     return {
       document: {
         CidrBlock: unwrap(this.props.cidrBlock).ip,
+        EnableDnsSupport: this.props.enableDnsSupport,
+        EnableDnsHostnames: this.props.enableDnsHostnames,
         Tags: [
           {
             Key: "Name",
             Value: this.props.name
           }
         ]
+      }
+    };
+  }
+};
+
+// src/provider/aws/ec2/vpc-cidr-block.ts
+var VPCCidrBlock = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::EC2::VPCCidrBlock", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get vpcId() {
+    return this.output((v) => v.VpcId);
+  }
+  get id() {
+    return this.output((v) => v.Id);
+  }
+  get ipv6CidrBlock() {
+    return this.output((v) => v.Ipv6CidrBlock);
+  }
+  toState() {
+    return {
+      document: {
+        VpcId: this.props.vpcId,
+        ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
+        AmazonProvidedIpv6CidrBlock: this.props.amazonProvidedIpv6CidrBlock
       }
     };
   }

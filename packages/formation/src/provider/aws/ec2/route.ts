@@ -37,11 +37,14 @@ export class Route extends CloudControlApiResource {
 	}
 
 	toState() {
+		const destination = unwrap(this.props.destination)
 		return {
 			document: {
 				GatewayId: this.props.gatewayId,
 				RouteTableId: this.props.routeTableId,
-				DestinationCidrBlock: unwrap(this.props.destination).ip,
+				...(destination.type === 'v4'
+					? { DestinationCidrBlock: destination.ip }
+					: { DestinationIpv6CidrBlock: destination.ip }),
 			},
 		}
 	}

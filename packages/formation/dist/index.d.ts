@@ -1649,6 +1649,30 @@ declare class Instance extends Resource {
     };
 }
 
+declare class InstanceConnectEndpoint extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        name: Input<string>;
+        subnetId: Input<string>;
+        preserveClientIp?: Input<boolean>;
+        securityGroupIds?: Input<Input<string>[]>;
+        tags?: Input<Record<string, Input<string>>>;
+    });
+    get id(): Output<string>;
+    toState(): {
+        document: {
+            PreserveClientIp: Input<boolean> | undefined;
+            SecurityGroupIds: Input<Input<string>[]> | undefined;
+            SubnetId: Input<string>;
+            Tags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
+        };
+    };
+}
+
 type ProviderProps$8 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
@@ -1676,7 +1700,7 @@ declare class InstanceProvider implements CloudProvider {
     update({ id, newDocument }: UpdateProps<Document$5>): Promise<string>;
     delete({ id }: DeleteProps<Document$5>): Promise<void>;
     runInstance(document: Document$5): Promise<string>;
-    terminateInstance(id: string): Promise<void>;
+    terminateInstance(id: string, skipOnNotFound?: boolean): Promise<void>;
 }
 
 declare class InternetGateway extends CloudControlApiResource {
@@ -1688,6 +1712,33 @@ declare class InternetGateway extends CloudControlApiResource {
     get id(): Output<string>;
     toState(): {
         document: {
+            Tags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
+        };
+    };
+}
+
+declare class KeyPair extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        name: Input<string>;
+        type?: Input<'rsa' | 'ed25519'>;
+        format?: Input<'pem' | 'ppk'>;
+        publicKey?: Input<string>;
+        tags?: Input<Record<string, Input<string>>>;
+    });
+    get id(): Output<string>;
+    get fingerprint(): Output<string>;
+    get name(): Output<string>;
+    toState(): {
+        document: {
+            KeyName: Input<string>;
+            KeyType: "rsa" | "ed25519";
+            KeyFormat: "pem" | "ppk";
+            PublicKeyMaterial: Input<string> | undefined;
             Tags: {
                 Key: string;
                 Value: Input<string>;
@@ -1944,9 +1995,13 @@ declare class Route extends CloudControlApiResource {
     get destinationCidrBlock(): Output<Peer>;
     toState(): {
         document: {
+            DestinationCidrBlock: string;
             GatewayId: Input<string>;
             RouteTableId: Input<string>;
-            DestinationCidrBlock: string;
+        } | {
+            DestinationIpv6CidrBlock: string;
+            GatewayId: Input<string>;
+            RouteTableId: Input<string>;
         };
     };
 }
@@ -2048,9 +2103,12 @@ declare class Subnet extends CloudControlApiResource {
     readonly parent: Node;
     private props;
     constructor(parent: Node, id: string, props: {
+        name?: Input<string>;
         vpcId: Input<string>;
-        cidrBlock: Input<Peer>;
         availabilityZone: Input<string>;
+        cidrBlock?: Input<Peer>;
+        ipv6CidrBlock?: Input<Peer>;
+        ipv6Native?: Input<boolean>;
     });
     get id(): Output<string>;
     get vpcId(): Output<string>;
@@ -2059,8 +2117,11 @@ declare class Subnet extends CloudControlApiResource {
     associateRouteTable(routeTableId: Input<string>): SubnetRouteTableAssociation;
     toState(): {
         document: {
+            Tags: {
+                Key: string;
+                Value: Input<string> | undefined;
+            }[];
             VpcId: Input<string>;
-            CidrBlock: string;
             AvailabilityZone: Input<string>;
         };
     };
@@ -2072,6 +2133,8 @@ declare class Vpc extends CloudControlApiResource {
     constructor(parent: Node, id: string, props: {
         name: Input<string>;
         cidrBlock: Input<Peer>;
+        enableDnsSupport?: Input<boolean>;
+        enableDnsHostnames?: Input<boolean>;
     });
     get id(): Output<string>;
     get defaultNetworkAcl(): Output<string>;
@@ -2079,10 +2142,31 @@ declare class Vpc extends CloudControlApiResource {
     toState(): {
         document: {
             CidrBlock: string;
+            EnableDnsSupport: Input<boolean> | undefined;
+            EnableDnsHostnames: Input<boolean> | undefined;
             Tags: {
                 Key: string;
                 Value: Input<string>;
             }[];
+        };
+    };
+}
+
+declare class VPCCidrBlock extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        vpcId: Input<string>;
+        cidrBlock?: Input<Peer>;
+        amazonProvidedIpv6CidrBlock?: Input<boolean>;
+    });
+    get vpcId(): Output<string>;
+    get id(): Output<string>;
+    get ipv6CidrBlock(): Output<string>;
+    toState(): {
+        document: {
+            AmazonProvidedIpv6CidrBlock: Input<boolean> | undefined;
+            VpcId: Input<string>;
         };
     };
 }
@@ -2106,11 +2190,15 @@ declare class VPCGatewayAttachment extends CloudControlApiResource {
 
 type index$n_Instance = Instance;
 declare const index$n_Instance: typeof Instance;
+type index$n_InstanceConnectEndpoint = InstanceConnectEndpoint;
+declare const index$n_InstanceConnectEndpoint: typeof InstanceConnectEndpoint;
 type index$n_InstanceProvider = InstanceProvider;
 declare const index$n_InstanceProvider: typeof InstanceProvider;
 type index$n_InstanceType = InstanceType;
 type index$n_InternetGateway = InternetGateway;
 declare const index$n_InternetGateway: typeof InternetGateway;
+type index$n_KeyPair = KeyPair;
+declare const index$n_KeyPair: typeof KeyPair;
 type index$n_LaunchTemplate = LaunchTemplate;
 declare const index$n_LaunchTemplate: typeof LaunchTemplate;
 type index$n_LaunchTemplateProps = LaunchTemplateProps;
@@ -2131,6 +2219,8 @@ type index$n_Subnet = Subnet;
 declare const index$n_Subnet: typeof Subnet;
 type index$n_SubnetRouteTableAssociation = SubnetRouteTableAssociation;
 declare const index$n_SubnetRouteTableAssociation: typeof SubnetRouteTableAssociation;
+type index$n_VPCCidrBlock = VPCCidrBlock;
+declare const index$n_VPCCidrBlock: typeof VPCCidrBlock;
 type index$n_VPCGatewayAttachment = VPCGatewayAttachment;
 declare const index$n_VPCGatewayAttachment: typeof VPCGatewayAttachment;
 type index$n_Vpc = Vpc;
@@ -2138,9 +2228,11 @@ declare const index$n_Vpc: typeof Vpc;
 declare namespace index$n {
   export {
     index$n_Instance as Instance,
+    index$n_InstanceConnectEndpoint as InstanceConnectEndpoint,
     index$n_InstanceProvider as InstanceProvider,
     index$n_InstanceType as InstanceType,
     index$n_InternetGateway as InternetGateway,
+    index$n_KeyPair as KeyPair,
     index$n_LaunchTemplate as LaunchTemplate,
     index$n_LaunchTemplateProps as LaunchTemplateProps,
     index$n_Peer as Peer,
@@ -2152,6 +2244,7 @@ declare namespace index$n {
     index$n_SecurityGroup as SecurityGroup,
     index$n_Subnet as Subnet,
     index$n_SubnetRouteTableAssociation as SubnetRouteTableAssociation,
+    index$n_VPCCidrBlock as VPCCidrBlock,
     index$n_VPCGatewayAttachment as VPCGatewayAttachment,
     index$n_Vpc as Vpc,
   };
