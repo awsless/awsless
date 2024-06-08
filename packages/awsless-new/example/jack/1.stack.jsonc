@@ -9,11 +9,9 @@
 	"instances": {
 		"stream": {
 			"type": "t4g.nano",
-			"imageId": "ami-05172b510cbeb4f59",
+			"image": "ami-05172b510cbeb4f59",
 			"userData": "./instance/user-data.sh",
-			"code": {
-				"test": "./instance"
-			}
+			"code": "./instance"
 		}
 	}
 

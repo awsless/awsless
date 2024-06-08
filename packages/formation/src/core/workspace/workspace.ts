@@ -2,14 +2,16 @@ import { randomUUID } from 'crypto'
 import promiseLimit, { LimitFunction } from 'p-limit'
 import { run, Step } from 'promise-dag'
 import { App } from '../app'
+import { ResolvedAsset } from '../asset'
 import { CloudProvider, ResourceDocument } from '../cloud'
 import { AppError, ResourceError, ResourceNotFound, StackError } from '../error'
 import { LockProvider } from '../lock'
 import { Resource, URN } from '../resource'
 import { AppState, ResourceState, StackState, StateProvider } from '../state'
 import { loadAssets, resolveDocumentAssets } from './asset'
-import { cloneObject, compareDocuments, unwrapOutputsFromDocument } from './document'
+import { cloneObject, compareDocuments } from './document'
 import { lockApp } from './lock'
+import { unwrapOutputs } from './output'
 import { getCloudProvider } from './provider'
 import { createIdempotantToken } from './token'
 
@@ -490,6 +492,7 @@ export class WorkSpace {
 		type: string
 		id: string
 		document: ResourceDocument
+		// assets: Record<string, ResolvedAsset>
 		extra: ResourceDocument
 		provider: CloudProvider
 	}) {
@@ -528,9 +531,12 @@ export class WorkSpace {
 				() =>
 					limit(async () => {
 						const state = resource.toState()
+
+						// console.log(state)
+
 						const [assets, assetHashes] = await loadAssets(state.assets ?? {})
-						const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {})
-						const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {})
+						const document = unwrapOutputs(resource.urn, state.document ?? {})
+						const extra = unwrapOutputs(resource.urn, state.extra ?? {})
 
 						let resourceState = stackState.resources[resource.urn]
 
@@ -569,6 +575,7 @@ export class WorkSpace {
 								urn: resource.urn,
 								type: resource.type,
 								document,
+								// assets,
 								extra,
 								provider,
 							})
@@ -643,6 +650,7 @@ export class WorkSpace {
 								urn: resource.urn,
 								type: resource.type,
 								document,
+								// assets,
 								extra,
 								provider,
 							})
@@ -779,6 +787,7 @@ export class WorkSpace {
 						id: resourceState.id,
 						type: resourceState.type,
 						document: resourceState.local,
+						// assets: resourceState.assets,
 						extra: resourceState.extra,
 						provider,
 					})

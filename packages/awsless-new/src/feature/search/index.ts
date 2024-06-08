@@ -66,12 +66,14 @@ export const searchFeature = defineFeature({
 				})
 			}
 
-			ctx.onFunction(lambda => {
-				lambda.addEnvironment(
-					`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`,
-					openSearch.domainEndpoint
-				)
-			})
+			ctx.addEnv(`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`, openSearch.domainEndpoint)
+
+			// ctx.onFunction(lambda => {
+			// 	lambda.addEnvironment(
+			// 		`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`,
+			// 		openSearch.domainEndpoint
+			// 	)
+			// })
 
 			ctx.onPolicy(policy => {
 				policy.addStatement({

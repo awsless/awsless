@@ -1,4 +1,4 @@
-import { all, aws, Node } from '@awsless/formation'
+import { aws, combine, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 
 export const vpcFeature = defineFeature({
@@ -38,7 +38,7 @@ export const vpcFeature = defineFeature({
 		ctx.shared.set(
 			'vpc-id',
 			// Some resources require the internet gateway to be attached.
-			all([vpc.id, attachment.internetGatewayId]).apply(([id]) => id)
+			combine([vpc.id, attachment.internetGatewayId]).apply(([id]) => id)
 		)
 
 		ctx.shared.set('vpc-security-group-id', vpc.defaultSecurityGroup)

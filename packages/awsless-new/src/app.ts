@@ -5,7 +5,7 @@ import { App, aws, Input, Stack } from '@awsless/formation'
 import { Builder } from './build/index.js'
 import { AppConfig } from './config/app.js'
 import { StackConfig } from './config/stack.js'
-import { OnFunctionListener, OnPolicyListener } from './feature.js'
+import { OnEnvListener, OnPolicyListener, OnReadyListener } from './feature.js'
 import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
 
@@ -56,21 +56,48 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const base = new Stack(app, 'base')
 	const shared = new SharedData()
 
-	const binds: BindEnv[] = []
+	// const envVars: Record<string, Input<string>> = {}
 	const siteFunctions: aws.lambda.Function[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
 
-	const allFunctions: aws.lambda.Function[] = []
-	const allFunctionListeners: OnFunctionListener[] = []
-	const allLocalFunctions: Record<string, aws.lambda.Function[]> = {}
-	const allLocalFunctionListeners: Record<string, OnFunctionListener[]> = {}
+	const readyListeners: OnReadyListener[] = []
+
+	const binds: BindEnv[] = []
+	const bindListeners: OnEnvListener[] = []
+
+	const allEnv: BindEnv[] = []
+	const allEnvListeners: OnEnvListener[] = []
+	const allLocalEnv: Record<string, BindEnv[]> = {}
+	const allLocalEnvListeners: Record<string, OnEnvListener[]> = {}
+
+	// const all =
+
+	// const allFunctions: aws.lambda.Function[] = []
+	// const allFunctionListeners: OnFunctionListener[] = []
+	// const allLocalFunctions: Record<string, aws.lambda.Function[]> = {}
+	// const allLocalFunctionListeners: Record<string, OnFunctionListener[]> = {}
 
 	const allPolicies: aws.iam.RolePolicy[] = []
 	const allPoliciesListeners: OnPolicyListener[] = []
 	const allLocalPolicies: Record<string, aws.iam.RolePolicy[]> = {}
 	const allLocalPolicyListeners: Record<string, OnPolicyListener[]> = {}
+
+	// const env: EnvStore = {
+	// 	bind(name, value) {
+	// 		binds.push({ name, value })
+	// 	},
+	// 	set(name, value) {
+	// 		allEnvVars[name] = value
+	// 	},
+	// 	get(name) {
+	// 		return allEnvVars[name]
+	// 	},
+	// 	all() {
+	// 		return allEnvVars
+	// 	},
+	// }
 
 	// ---------------------------------------------------------------
 
@@ -80,17 +107,18 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		feature.onApp?.({
 			...props,
 			app,
+			// env,
 			base,
 			shared,
 			onPolicy(callback) {
 				allPoliciesListeners.push(callback)
 			},
-			onFunction(callback) {
-				allFunctionListeners.push(callback)
-			},
-			registerFunction(lambda) {
-				allFunctions.push(lambda)
-			},
+			// onFunction(callback) {
+			// 	allFunctionListeners.push(callback)
+			// },
+			// registerFunction(lambda) {
+			// 	allFunctions.push(lambda)
+			// },
 			registerPolicy(policy) {
 				allPolicies.push(policy)
 			},
@@ -100,11 +128,23 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 			registerBuild(type, name, builder) {
 				builders.push({ type, name, builder })
 			},
-			registerSiteFunction(lambda) {
-				siteFunctions.push(lambda)
-			},
-			bindEnv(name, value) {
+			// registerSiteFunction(lambda) {
+			// 	siteFunctions.push(lambda)
+			// },
+			bind(name, value) {
 				binds.push({ name, value })
+			},
+			onBind(cb) {
+				bindListeners.push(cb)
+			},
+			addEnv(name, value) {
+				allEnv.push({ name, value })
+			},
+			onEnv(cb) {
+				allEnvListeners.push(cb)
+			},
+			onReady(cb) {
+				readyListeners.push(cb)
 			},
 		})
 	}
@@ -122,31 +162,36 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	for (const stackConfig of filterdStacks) {
 		const localPolicyListeners: OnPolicyListener[] = []
 		const localPolicies: aws.iam.RolePolicy[] = []
-		const localFunctionListeners: OnFunctionListener[] = []
-		const localFunctions: aws.lambda.Function[] = []
+		// const localFunctionListeners: OnFunctionListener[] = []
+		// const localFunctions: aws.lambda.Function[] = []
+		const localEnvListeners: OnEnvListener[] = []
+		const localEnv: BindEnv[] = []
 
 		const stack = new Stack(app, stackConfig.name)
 
 		allLocalPolicyListeners[stack.name] = localPolicyListeners
 		allLocalPolicies[stack.name] = localPolicies
-		allLocalFunctionListeners[stack.name] = localFunctionListeners
-		allLocalFunctions[stack.name] = localFunctions
+		// allLocalFunctionListeners[stack.name] = localFunctionListeners
+		// allLocalFunctions[stack.name] = localFunctions
+		allLocalEnvListeners[stack.name] = localEnvListeners
+		allLocalEnv[stack.name] = localEnv
 
 		for (const feature of features) {
 			feature.onStack?.({
 				...props,
 				stackConfig,
 				app,
+				// env,
 				base,
 				stack,
 				shared,
-				onFunction(callback) {
-					localFunctionListeners.push(callback)
-				},
-				registerFunction(lambda) {
-					allFunctions.push(lambda)
-					localFunctions.push(lambda)
-				},
+				// onFunction(callback) {
+				// 	localFunctionListeners.push(callback)
+				// },
+				// registerFunction(lambda) {
+				// 	allFunctions.push(lambda)
+				// 	localFunctions.push(lambda)
+				// },
 				onPolicy(callback) {
 					localPolicyListeners.push(callback)
 				},
@@ -163,11 +208,26 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				registerConfig(name) {
 					configs.add(name)
 				},
-				registerSiteFunction(lambda) {
-					siteFunctions.push(lambda)
-				},
-				bindEnv(name, value) {
+				// registerSiteFunction(lambda) {
+				// 	siteFunctions.push(lambda)
+				// },
+				// bindEnv(name, value) {
+				// 	binds.push({ name, value })
+				// },
+				bind(name, value) {
 					binds.push({ name, value })
+				},
+				onBind(cb) {
+					bindListeners.push(cb)
+				},
+				addEnv(name, value) {
+					localEnv.push({ name, value })
+				},
+				onEnv(cb) {
+					localEnvListeners.push(cb)
+				},
+				onReady(cb) {
+					readyListeners.push(cb)
 				},
 			})
 		}
@@ -175,15 +235,21 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		// ---------------------------------------------------------------
 		// Local stack binds
 
-		for (const listener of localFunctionListeners) {
-			for (const fn of localFunctions) {
-				listener(fn)
+		// for (const listener of localFunctionListeners) {
+		// 	for (const fn of localFunctions) {
+		// 		listener(fn)
+		// 	}
+		// }
+
+		for (const listener of localPolicyListeners) {
+			for (const policy of localPolicies) {
+				listener(policy)
 			}
 		}
 
-		for (const listener of localPolicyListeners) {
-			for (const fn of localPolicies) {
-				listener(fn)
+		for (const listener of localEnvListeners) {
+			for (const env of localEnv) {
+				listener(env.name, env.value)
 			}
 		}
 	}
@@ -191,11 +257,11 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	// ---------------------------------------------------------------
 	// Global app binds
 
-	for (const listener of allFunctionListeners) {
-		for (const fn of allFunctions) {
-			listener(fn)
-		}
-	}
+	// for (const listener of allFunctionListeners) {
+	// 	for (const fn of allFunctions) {
+	// 		listener(fn)
+	// 	}
+	// }
 
 	for (const listener of allPoliciesListeners) {
 		for (const fn of allPolicies) {
@@ -203,35 +269,49 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		}
 	}
 
+	for (const listener of allEnvListeners) {
+		for (const env of allEnv) {
+			listener(env.name, env.value)
+		}
+	}
+
 	// ---------------------------------------------------------------
 	// Site env binds
 
-	for (const lambda of siteFunctions) {
-		for (const { name, value } of binds) {
-			lambda.addEnvironment(name, value)
-		}
-	}
+	// for (const lambda of siteFunctions) {
+	// 	for (const { name, value } of binds) {
+	// 		lambda.addEnvironment(name, value)
+	// 	}
+	// }
 
 	// ---------------------------------------------------------------
 	// Stack dependency binds
 
 	for (const stackConfig of filterdStacks) {
-		const functions = allLocalFunctions[stackConfig.name]!
+		// const functions = allLocalFunctions[stackConfig.name]!
 		const policies = allLocalPolicies[stackConfig.name]!
+		const env = allLocalEnv[stackConfig.name]!
 
 		for (const dependency of stackConfig.depends ?? []) {
-			const functionListeners = allLocalFunctionListeners[dependency]!
+			// const functionListeners = allLocalFunctionListeners[dependency]!
 			const policyListeners = allLocalPolicyListeners[dependency]!
+			const envListeners = allLocalEnvListeners[dependency]!
 
-			for (const fn of functions) {
-				for (const listener of functionListeners) {
-					listener(fn)
+			// for (const fn of functions) {
+			// 	for (const listener of functionListeners) {
+			// 		listener(fn)
+			// 	}
+			// }
+
+			for (const policy of policies) {
+				for (const listener of policyListeners) {
+					listener(policy)
 				}
 			}
 
-			for (const fn of policies) {
-				for (const listener of policyListeners) {
-					listener(fn)
+			for (const entry of env) {
+				for (const listener of envListeners) {
+					listener(entry.name, entry.value)
 				}
 			}
 		}
@@ -251,6 +331,13 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	// 		}
 	// 	}
 	// }
+
+	// ---------------------------------------------------------------
+	// Ready!
+
+	for (const listener of readyListeners) {
+		listener()
+	}
 
 	// ---------------------------------------------------------------
 	// Make a bootstrap stack if needed and add it to the

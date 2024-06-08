@@ -160,8 +160,8 @@ export const authFeature = defineFeature({
 			// 	domain: '',
 			// })
 
-			ctx.bindEnv(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
-			ctx.bindEnv(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
+			ctx.bind(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
+			ctx.bind(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
 
 			// ctx.bindEnv(`AWSLESS_CLIENT_AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
 			// ctx.bindEnv(`AWSLESS_CLIENT_AUTH_${constantCase(id)}_CLIENT_ID`, client.id)

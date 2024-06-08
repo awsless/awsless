@@ -26,7 +26,7 @@ export const diff = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, builders } = createApp({ appConfig, stackConfigs, accountId }, filters)
+				const { app, builders } = await createApp({ appConfig, stackConfigs, accountId }, filters)
 
 				// ---------------------------------------------------
 				// Building stack assets & templates & tests

@@ -99,15 +99,15 @@ interface CloudProvider {
 type Input<T> = T | Output<T>;
 declare class Output<T> {
     readonly resources: Resource[];
-    protected listeners: Set<(value: T) => unknown>;
-    protected value: T | undefined;
-    protected resolved: boolean;
+    private listeners;
+    private value;
+    private resolved;
     constructor(resources: Resource[], cb: (resolve: (data: T) => void) => void);
-    apply<N>(cb: (value: T) => N): Output<N>;
+    apply<N>(cb: (value: T) => N): Output<Awaited<N>>;
     valueOf(): T | undefined;
 }
 declare const findResources: (props: unknown) => Resource[];
-declare const all: <I extends [any, ...any[]]>(inputs: I) => Output<UnwrapArray<I>>;
+declare const combine: <I extends [any, ...any[]]>(inputs: I) => Output<UnwrapArray<I>>;
 type UnwrapArray<T extends Input<unknown>[]> = {
     [K in keyof T]: Unwrap<T[K]>;
 };
@@ -4459,4 +4459,4 @@ declare namespace index {
   };
 }
 
-export { App, AppError, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, Input, LockProvider$3 as LockProvider, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceAlreadyExists, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$3 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, all, index$3 as aws, findResources, flatten, index as local, unwrap };
+export { App, AppError, AppState, Asset, CloudProvider, CreateProps, DeleteProps, FileAsset, GetProps, Input, LockProvider$3 as LockProvider, Node, Output, RemoteAsset, ResolvedAsset, Resource, ResourceAlreadyExists, ResourceDeletionPolicy, ResourceDocument, ResourceError, ResourceExtra, ResourceNotFound, ResourceOperation, ResourcePolicies, ResourceState, Stack, StackError, StackOperation, StackState, StateProvider$3 as StateProvider, StringAsset, URN, Unwrap, UnwrapArray, UpdateProps, WorkSpace, index$3 as aws, combine, findResources, flatten, index as local, unwrap };

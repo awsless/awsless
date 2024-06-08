@@ -1,43 +1,11 @@
-// import { DescribeInstancesCommand, RunInstancesCommand, TerminateInstancesCommand } from '@aws-sdk/client-ec2'
-import {
-	DescribeInstancesCommand,
-	EC2Client,
-	RunInstancesCommand,
-	TerminateInstancesCommand,
-	waitUntilInstanceRunning,
-	waitUntilInstanceTerminated,
-} from '@aws-sdk/client-ec2'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
-import { ARN } from '../types'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '@awsless/formation'
 
-type ProviderProps = {
-	// cloudProvider: CloudProvider
-	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
-	region: string
-}
+type Document = any
 
-type Document = {
-	LaunchTemplate: {
-		LaunchTemplateId: string
-		Version: string
-	}
-	KeyName?: string
-	SubnetId?: string
-	SecurityGroupIds?: string[]
-	IamInstanceProfile?: ARN
-	Tags?: { Key: string; Value: string }[]
-}
-
-export class InstanceProvider implements CloudProvider {
-	protected client: EC2Client
-
-	constructor(props: ProviderProps) {
-		this.client = new EC2Client(props)
-	}
-
+export class UserDataProvider implements CloudProvider {
 	own(id: string) {
-		return id === 'aws-ec2-instance'
+		return id === 'awsless-instance-user-data'
 	}
 
 	async get({ id }: GetProps<Document>) {

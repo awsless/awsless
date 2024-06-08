@@ -5,9 +5,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all2) => {
-  for (var name in all2)
-    __defProp(target, name, { get: all2[name], enumerable: true });
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
@@ -45,8 +45,8 @@ __export(src_exports, {
   StackError: () => StackError,
   StringAsset: () => StringAsset,
   WorkSpace: () => WorkSpace,
-  all: () => all,
   aws: () => aws_exports,
+  combine: () => combine,
   findResources: () => findResources,
   flatten: () => flatten,
   local: () => local_exports,
@@ -347,8 +347,8 @@ var Output = class _Output {
   apply(cb) {
     return new _Output(this.resources, (resolve) => {
       if (!this.resolved) {
-        this.listeners.add((value) => {
-          resolve(cb(value));
+        this.listeners.add(async (value) => {
+          resolve(await cb(value));
         });
       } else {
         cb(this.value);
@@ -378,7 +378,7 @@ var findResources = (props) => {
   find(props);
   return resources;
 };
-var all = (inputs) => {
+var combine = (inputs) => {
   return new Output(findResources(inputs), (resolve) => {
     let count = inputs.length;
     const done = () => {
@@ -416,8 +416,11 @@ var loadAssets = async (assets) => {
   const hashes = {};
   await Promise.all(
     Object.entries(assets).map(async ([name, asset]) => {
+      if (asset instanceof Output) {
+        asset = unwrap(asset);
+      }
       if (asset instanceof Asset) {
-        const data = await unwrap(asset).load();
+        const data = await asset.load();
         const buff = await crypto.subtle.digest("SHA-256", data);
         const hash = Buffer.from(buff).toString("hex");
         hashes[name] = hash;
@@ -451,25 +454,6 @@ var resolveDocumentAssets = (document, assets) => {
 var cloneObject = (document, replacer) => {
   return JSON.parse(JSON.stringify(document, replacer));
 };
-var unwrapOutputsFromDocument = (urn, document) => {
-  const replacer = (_, value) => {
-    if (value instanceof Output) {
-      return value.valueOf();
-    }
-    if (typeof value === "bigint") {
-      return Number(value);
-    }
-    return value;
-  };
-  try {
-    return cloneObject(document, replacer);
-  } catch (error) {
-    if (error instanceof TypeError) {
-      throw new TypeError(`Resource has unresolved inputs: ${urn}`);
-    }
-    throw error;
-  }
-};
 var compareDocuments = (left, right) => {
   const replacer = (_, value) => {
     if (value !== null && value instanceof Object && !Array.isArray(value)) {
@@ -502,6 +486,27 @@ var lockApp = async (lockProvider, app, fn) => {
     await release();
   }
   return result;
+};
+
+// src/core/workspace/output.ts
+var unwrapOutputs = (urn, document) => {
+  const replacer = (_, value) => {
+    if (value instanceof Output) {
+      return value.valueOf();
+    }
+    if (typeof value === "bigint") {
+      return Number(value);
+    }
+    return value;
+  };
+  try {
+    return cloneObject(document, replacer);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new TypeError(`Resource has unresolved inputs: ${urn}`);
+    }
+    throw error;
+  }
 };
 
 // src/core/workspace/provider.ts
@@ -834,8 +839,8 @@ var WorkSpace = class {
         () => limit(async () => {
           const state = resource.toState();
           const [assets, assetHashes] = await loadAssets(state.assets ?? {});
-          const document = unwrapOutputsFromDocument(resource.urn, state.document ?? {});
-          const extra = unwrapOutputsFromDocument(resource.urn, state.extra ?? {});
+          const document = unwrapOutputs(resource.urn, state.document ?? {});
+          const extra = unwrapOutputs(resource.urn, state.extra ?? {});
           let resourceState = stackState.resources[resource.urn];
           if (!resourceState) {
             const token = createIdempotantToken(appState.token, resource.urn, "create");
@@ -2923,7 +2928,8 @@ var InstanceProvider = class {
     await (0, import_client_ec2.waitUntilInstanceRunning)(
       {
         client: this.client,
-        maxWaitTime: 5 * 60
+        maxWaitTime: 5 * 60,
+        maxDelay: 10
       },
       {
         InstanceIds: [id]
@@ -2940,7 +2946,8 @@ var InstanceProvider = class {
     await (0, import_client_ec2.waitUntilInstanceTerminated)(
       {
         client: this.client,
-        maxWaitTime: 5 * 60
+        maxWaitTime: 5 * 60,
+        maxDelay: 10
       },
       {
         InstanceIds: [id]
@@ -5720,7 +5727,7 @@ var HostedZone = class extends CloudControlApiResource {
     return this.output((v) => v.NameServers);
   }
   addRecord(id, record) {
-    const recordProps = all([this.id, record]).apply(([_, record2]) => ({
+    const recordProps = combine([this.id, record]).apply(([_, record2]) => ({
       hostedZoneId: this.id,
       ...record2
     }));
@@ -6330,8 +6337,8 @@ var StateProvider3 = class {
   StackError,
   StringAsset,
   WorkSpace,
-  all,
   aws,
+  combine,
   findResources,
   flatten,
   local,

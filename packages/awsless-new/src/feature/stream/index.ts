@@ -19,24 +19,15 @@ export const streamFeature = defineFeature({
 			})
 
 			const prefix = `STREAM_${constantCase(ctx.stack.name)}_${constantCase(id)}`
-			ctx.bindEnv(`${prefix}_ENDPOINT`, channel.playbackUrl)
+			// ctx.bindEnv(`${prefix}_ENDPOINT`, channel.playbackUrl)
 
-			ctx.onFunction(lambda => {
-				lambda.addEnvironment(`${prefix}_INGEST_ENDPOINT`, channel.ingestEndpoint)
-				lambda.addEnvironment(`${prefix}_STREAM_KEY`, streamKey.value)
-			})
+			ctx.bind(`${prefix}_ENDPOINT`, channel.playbackUrl)
+			ctx.addEnv(`${prefix}_INGEST_ENDPOINT`, channel.ingestEndpoint)
+			ctx.addEnv(`${prefix}_STREAM_KEY`, streamKey.value)
 
-			// ctx.addEnvironment()
-
-			// ctx.onInstance(instance => {
-			// 	instance.addEnvironment(`${prefix}_INGEST_ENDPOINT`, channel.ingestEndpoint)
-			// 	instance.addEnvironment(`${prefix}_STREAM_KEY`, streamKey.value)
-			// })
-
-			// ctx.onFunction(({ lambda }) => {
+			// ctx.onFunction(lambda => {
 			// 	lambda.addEnvironment(`${prefix}_INGEST_ENDPOINT`, channel.ingestEndpoint)
-			// 	lambda.addEnvironment(`${prefix}_PLAYBACK_URL`, channel.playbackUrl)
-			// 	// lambda.addEnvironment(`${prefix}_SECRET`, )
+			// 	lambda.addEnvironment(`${prefix}_STREAM_KEY`, streamKey.value)
 			// })
 		}
 	},

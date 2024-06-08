@@ -29,9 +29,7 @@ export const configFeature = defineFeature({
 		}
 
 		if (configs.length) {
-			ctx.onFunction(lambda => {
-				lambda.addEnvironment('CONFIG', configs.join(','))
-			})
+			ctx.addEnv('CONFIG', configs.join(','))
 
 			ctx.onPolicy(policy => {
 				policy.addStatement({

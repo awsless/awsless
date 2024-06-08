@@ -1,12 +1,13 @@
-import { Asset, aws, Node } from '@awsless/formation'
-import { createHash } from 'crypto'
+import { Asset, aws, combine, Input, Node, Output, unwrap } from '@awsless/formation'
 import { hashElement } from 'folder-hash'
+import { readFileSync } from 'fs'
 import { mkdir, readFile } from 'fs/promises'
 import { dirname } from 'path'
 import { zip } from 'zip-a-folder'
 import { getBuildPath } from '../../build/index.js'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { UserData } from './__user-data.js'
 
 export const instanceFeature = defineFeature({
 	name: 'instance',
@@ -26,52 +27,103 @@ export const instanceFeature = defineFeature({
 			const group = new Node(ctx.stack, 'instance', id)
 			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'instance', id)
 
-			if (props.userData) {
-				ctx.registerBuild('user-data', name, async build => {
+			const env: Record<string, Input<string>> = {}
 
-					// ctx.envi
+			ctx.onEnv((name, value) => {
+				env[name] = value
 
-					const userData = await readFile(props.userData!, 'utf8')
-					const extendedUserData = `${}\n\n${userData}`
-					const hash = createHash('sha1').update(extendedUserData).digest('hex')
+				if (value instanceof Output) {
+					template.dependsOn(...value.resources)
+				}
+			})
 
-					await build(hash, async write => {
-						await write('base64', Buffer.from(userData, 'utf8').toString('base64'))
-					})
+			const userData = new Output<Asset>([], resolve => {
+				ctx.onReady(() => {
+					combine([ctx.shared.get('instance-bucket-name'), ...Object.values(env)]).apply(
+						async ([bucketName]) => {
+							const code = [
+								`mkdir /var/code`,
+								`cd /var`,
+								`sudo -u ubuntu aws s3 cp s3://${bucketName}/${name} ./`,
+								`sudo -u ubuntu unzip -o ${name} -d ./code`,
+								`cd /var/code`,
+							].join('\n')
+
+							const data = props.userData ? readFileSync(props.userData, 'utf8') : ''
+							// const data = 'echo 100'
+
+							const envs = Object.entries(env)
+								.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
+								.join('\n')
+
+							// console.log('\n\n', 'USER_DATA', `\n${envs}\n\n${code}\n\n${data}`)
+
+							resolve(
+								Asset.fromString(
+									Buffer.from(`\n${envs}\n\n${code}\n\n${data}`, 'utf8').toString('base64')
+								)
+							)
+						}
+					)
 				})
-			}
+			})
 
-			for (const [key, codeDir] of Object.entries(props.code ?? {})) {
-				const bundleFile = getBuildPath('instance', name, key)
+			// userData.apply(console.log)
 
-				ctx.registerBuild('instance', name, async build => {
-					const version = await hashElement(codeDir, {
-						files: {
-							exclude: ['stack.json'],
-						},
-					})
+			// const userData = new UserData(group, 'data', {
+			// 	file: props.userData ? Asset.fromFile(props.userData) : undefined,
+			// 	code: {
+			// 		bucket: ctx.shared.get('instance-bucket-name'),
+			// 		key: name,
+			// 	},
+			// })
 
-					await build(version.hash, async () => {
-						await mkdir(dirname(bundleFile), { recursive: true })
-						await zip(codeDir, bundleFile)
-					})
+			// ctx.onEnv((name, value) => {
+			// 	userData.addEnvironment(name, value)
+			// })
+
+			// ----------------------------------------------------------------
+			// Build & upload the code to s3
+
+			const bundleFile = getBuildPath('instance', name, 'bundle.zip')
+
+			ctx.registerBuild('instance', name, async build => {
+				const version = await hashElement(props.code, {
+					files: {
+						exclude: ['stack.json'],
+					},
 				})
 
-				new aws.s3.BucketObject(group, key, {
-					key,
-					bucket: ctx.shared.get('instance-bucket-name'),
-					body: Asset.fromFile(bundleFile),
+				await build(version.hash, async () => {
+					await mkdir(dirname(bundleFile), { recursive: true })
+					await zip(props.code, bundleFile)
 				})
-			}
+			})
+
+			const code = new aws.s3.BucketObject(group, 'code', {
+				key: name,
+				bucket: ctx.shared.get('instance-bucket-name'),
+				body: Asset.fromFile(bundleFile),
+			})
+
+			// ----------------------------------------------------------------
 
 			const template = new aws.ec2.LaunchTemplate(group, 'template', {
 				name,
-				imageId: props.imageId,
+				imageId: props.image,
 				instanceType: props.type,
 				securityGroupIds: [ctx.shared.get('vpc-security-group-id')],
 				monitoring: true,
-				userData: props.userData ? Asset.fromFile(getBuildPath('user-data', name, 'base64')) : undefined,
+				userData,
+				// userData: userData.value.apply(Asset.fromString),
+				// userData: Asset.fromString('echo 1'),
+				// userData: props.userData ? Asset.fromFile(getBuildPath('user-data', name, 'base64')) : undefined,
 			})
+
+			// We need to make sure our code is deployed to s3
+			// before we launch the ec2 template.
+
+			// template.dependsOn(code)
 
 			const role = new aws.iam.Role(group, 'role', {
 				name,
@@ -83,19 +135,24 @@ export const instanceFeature = defineFeature({
 				role: role.name,
 			})
 
+			ctx.registerPolicy(policy)
+
 			const profile = new aws.iam.InstanceProfile(group, 'profile', {
 				name,
 				roles: [role.name],
 			})
 
-			new aws.ec2.Instance(group, 'instance', {
+			const instance = new aws.ec2.Instance(group, 'instance', {
 				name,
 				iamInstanceProfile: profile.arn,
 				launchTemplate: template,
 				subnetId: ctx.shared.get(`vpc-private-subnet-id-1`),
 			})
 
-			ctx.registerPolicy(policy)
+			// We need to make sure our code is deployed to s3
+			// before we launch the ec2 instance.
+
+			instance.dependsOn(code)
 		}
 	},
 })

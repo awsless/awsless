@@ -3,9 +3,9 @@ import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
-const ImageIdSchema = z
+const ImageSchema = z
 	.string()
-	.regex(/^ami\-/)
+	.regex(/^ami\-[0-9a-f]+/)
 	.describe('The ID of the AMI.')
 
 const TypeSchema = z
@@ -34,18 +34,16 @@ const UserDataSchema = LocalFileSchema.describe(
 	`The parameters or scripts to store as user data. Any scripts in user data are run when you launch the instance. User data is limited to 16 KB`
 )
 
-const CodeSchema = z
-	.record(z.string(), LocalDirectorySchema)
-	.describe(`Define a directory that will be zipped & uploaded to the asset bucket.`)
+const CodeSchema = LocalDirectorySchema.describe(`The code directory that will be deployed to your instance.`)
 
 export const InstancesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			imageId: ImageIdSchema,
+			image: ImageSchema,
 			type: TypeSchema,
+			code: CodeSchema,
 			userData: UserDataSchema.optional(),
-			code: CodeSchema.optional(),
 		})
 	)
 	.optional()

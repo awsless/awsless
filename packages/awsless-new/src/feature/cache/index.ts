@@ -71,11 +71,15 @@ export const cacheFeature = defineFeature({
 				...props,
 			})
 
-			ctx.onFunction(lambda => {
-				const prefix = `CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}`
-				lambda.addEnvironment(`${prefix}_HOST`, cluster.address)
-				lambda.addEnvironment(`${prefix}_PORT`, props.port.toString())
-			})
+			const prefix = `CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}`
+			ctx.addEnv(`${prefix}_HOST`, cluster.address)
+			ctx.addEnv(`${prefix}_PORT`, props.port.toString())
+
+			// ctx.onFunction(lambda => {
+			// 	const prefix = `CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}`
+			// 	lambda.addEnvironment(`${prefix}_HOST`, cluster.address)
+			// 	lambda.addEnvironment(`${prefix}_PORT`, props.port.toString())
+			// })
 		}
 	},
 })

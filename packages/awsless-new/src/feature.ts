@@ -19,13 +19,28 @@ type RegisterBuild = (
 type RegisterConfig = (name: string) => void
 
 type RegisterTest = (name: string, paths: string[]) => void
-type BindEnv = (name: string, value: Input<string>) => void
+// type BindEnv = (name: string, value: Input<string>) => void
+
+// export type EnvStore = {
+// 	bind: (name: string, value: Input<string>) => void
+
+// 	set: (name: string, value: Input<string>) => void
+// 	get: (name: string) => Input<string> | undefined
+// 	all(): Record<string, Input<string>>
+// }
+
+export type AddEnv = (name: string, value: Input<string>) => void
+export type OnEnv = (cb: OnEnvListener) => void
+export type OnEnvListener = (name: string, value: Input<string>) => void
 
 export type OnFunction = (callback: OnFunctionListener) => void
 export type OnFunctionListener = (lambda: aws.lambda.Function) => void
 
 export type OnPolicy = (callback: OnPolicyListener) => void
 export type OnPolicyListener = (policy: aws.iam.RolePolicy) => void
+
+export type OnReady = (callback: OnReadyListener) => void
+export type OnReadyListener = () => void
 
 export type StackContext = AppContext & {
 	stackConfig: StackConfig
@@ -46,22 +61,27 @@ export type AppContext = {
 	registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerPolicy: RegisterPolicy
-	registerFunction: RegisterFunction
-	registerSiteFunction: RegisterSiteFunction
+	// registerFunction: RegisterFunction
+	// registerSiteFunction: RegisterSiteFunction
 
-	// env: {
-	// 	bind: (name: string, value: Input<string>) => void
-	// 	set: (name: string, value: Input<string>) => void
-	// 	list(): Record<string, Input<string>>
-	// }
+	// env: EnvStore
 
-	bindEnv: BindEnv
+	bind: AddEnv
+	onBind: OnEnv
 
+	addEnv: AddEnv
+	onEnv: OnEnv
+
+	onReady: OnReady
+
+	// bindEnv: BindEnv
 	// setEnv:
 	// listEnvs:
 
-	onFunction: OnFunction
+	// onFunction: OnFunction
 	onPolicy: OnPolicy
+
+	// onEnv: (envVars: Record<string, Input<string>>) => void
 }
 
 export type TypeGenContext = {

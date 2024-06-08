@@ -57,7 +57,7 @@ export const restFeature = defineFeature({
 
 				record.dependsOn(domain, mapping)
 
-				ctx.bindEnv(`REST_${constantCase(id)}_ENDPOINT`, domainName)
+				ctx.bind(`REST_${constantCase(id)}_ENDPOINT`, domainName)
 			} else {
 				// We should also export a env binding for when we don't use a domain.
 			}

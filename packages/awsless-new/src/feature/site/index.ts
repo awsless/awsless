@@ -28,7 +28,11 @@ export const siteFeature = defineFeature({
 
 				versions.push(code.version)
 
-				ctx.registerSiteFunction(lambda)
+				ctx.onBind((name, value) => {
+					lambda.addEnvironment(name, value)
+				})
+
+				// ctx.registerSiteFunction(lambda)
 
 				// lambda = result.lambda
 				// code = result.code

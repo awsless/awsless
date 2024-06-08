@@ -247,12 +247,12 @@ export const graphqlFeature = defineFeature({
 					},
 				})
 
-				ctx.bindEnv(`GRAPHQL_${constantCase(id)}_ENDPOINT`, domainName)
+				ctx.bind(`GRAPHQL_${constantCase(id)}_ENDPOINT`, domainName)
 				// ctx.bindEnv(`AWSLESS_CLIENT_GRAPHQL_${constantCase(id)}_ENDPOINT`, domainName)
 
 				// ctx.registerConfig('graphql', 'config', 'endpoint')
 			} else {
-				ctx.bindEnv(`GRAPHQL_${constantCase(id)}_ENDPOINT`, api.graphql.uri)
+				ctx.bind(`GRAPHQL_${constantCase(id)}_ENDPOINT`, api.graphql.uri)
 			}
 		}
 	},

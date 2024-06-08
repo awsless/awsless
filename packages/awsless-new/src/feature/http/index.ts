@@ -167,7 +167,7 @@ export const httpFeature = defineFeature({
 				},
 			})
 
-			ctx.bindEnv(`HTTP_${constantCase(id)}_ENDPOINT`, domainName)
+			ctx.bind(`HTTP_${constantCase(id)}_ENDPOINT`, domainName)
 		}
 	},
 	onStack(ctx) {

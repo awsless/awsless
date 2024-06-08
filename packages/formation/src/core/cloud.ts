@@ -41,6 +41,7 @@ export type GetProps<D = ResourceDocument, E = ResourceExtra> = {
 	id: string
 	type: string
 	document: D
+	// assets: Record<string, ResolvedAsset>
 	extra: E
 }
 

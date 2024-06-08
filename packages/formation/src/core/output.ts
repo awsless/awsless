@@ -7,11 +7,14 @@ export type Input<T> = T | Output<T>
 export class Output<T> {
 	// protected resources = new Set<Resource>()
 	// protected deps = new Set<Resource>()
-	protected listeners = new Set<(value: T) => unknown>()
-	protected value: T | undefined
-	protected resolved = false
+	private listeners = new Set<(value: T) => unknown>()
+	private value: T | undefined
+	private resolved = false
 
-	constructor(readonly resources: Resource[], cb: (resolve: (data: T) => void) => void) {
+	constructor(
+		readonly resources: Resource[],
+		cb: (resolve: (data: T) => void) => void
+	) {
 		cb(value => {
 			if (!this.resolved) {
 				this.value = value
@@ -27,10 +30,10 @@ export class Output<T> {
 	}
 
 	apply<N>(cb: (value: T) => N) {
-		return new Output<N>(this.resources, resolve => {
+		return new Output<Awaited<N>>(this.resources, resolve => {
 			if (!this.resolved) {
-				this.listeners.add(value => {
-					resolve(cb(value))
+				this.listeners.add(async value => {
+					resolve(await cb(value))
 				})
 			} else {
 				cb(this.value as T)
@@ -66,7 +69,7 @@ export const findResources = (props: unknown) => {
 	return resources
 }
 
-export const all = <I extends [Input<any>, ...Input<any>]>(inputs: I): Output<UnwrapArray<I>> => {
+export const combine = <I extends [Input<any>, ...Input<any>]>(inputs: I): Output<UnwrapArray<I>> => {
 	return new Output(findResources(inputs), resolve => {
 		let count = inputs.length
 		const done = () => {
