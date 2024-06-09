@@ -1,6 +1,6 @@
 import { Command } from 'commander'
-import { layout } from '../ui/complex/layout.js'
 import { buildTypes } from '../ui/complex/build-types.js'
+import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
 
 export const types = (program: Command) => {

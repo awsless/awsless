@@ -4455,14 +4455,24 @@ __export(dynamodb_exports, {
 });
 
 // src/provider/aws/dynamodb/lock-provider.ts
-import { marshall as marshall2, unmarshall } from "@aws-sdk/util-dynamodb";
 import { DynamoDB as DynamoDB2, GetItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall as marshall2, unmarshall } from "@aws-sdk/util-dynamodb";
 var LockProvider = class {
   constructor(props) {
     this.props = props;
     this.client = new DynamoDB2(props);
   }
   client;
+  async insecureReleaseLock(urn) {
+    await this.client.send(
+      new UpdateItemCommand({
+        TableName: this.props.tableName,
+        Key: marshall2({ urn }),
+        ExpressionAttributeNames: { "#lock": "lock" },
+        UpdateExpression: "REMOVE #lock"
+      })
+    );
+  }
   async locked(urn) {
     const result = await this.client.send(
       new GetItemCommand({
@@ -6386,8 +6396,8 @@ __export(file_exports, {
 });
 
 // src/provider/local/file/lock-provider.ts
+import { mkdir, rm, stat } from "fs/promises";
 import { join } from "path";
-import { mkdir, stat } from "fs/promises";
 import { lock } from "proper-lockfile";
 var LockProvider2 = class {
   constructor(props) {
@@ -6400,6 +6410,11 @@ var LockProvider2 = class {
     await mkdir(this.props.dir, {
       recursive: true
     });
+  }
+  async insecureReleaseLock(urn) {
+    if (await this.locked(urn)) {
+      await rm(this.lockFile(urn));
+    }
   }
   async locked(urn) {
     const result = await stat(this.lockFile(urn));
@@ -6415,7 +6430,7 @@ var LockProvider2 = class {
 
 // src/provider/local/file/state-provider.ts
 import { join as join2 } from "path";
-import { mkdir as mkdir2, readFile as readFile2, rm, writeFile } from "fs/promises";
+import { mkdir as mkdir2, readFile as readFile2, rm as rm2, writeFile } from "fs/promises";
 var StateProvider2 = class {
   constructor(props) {
     this.props = props;
@@ -6443,7 +6458,7 @@ var StateProvider2 = class {
   }
   async delete(urn) {
     await this.mkdir();
-    await rm(this.stateFile(urn));
+    await rm2(this.stateFile(urn));
   }
 };
 
@@ -6457,6 +6472,9 @@ __export(memory_exports, {
 // src/provider/local/memory/lock-provider.ts
 var LockProvider3 = class {
   locks = /* @__PURE__ */ new Map();
+  async insecureReleaseLock(urn) {
+    this.locks.delete(urn);
+  }
   async locked(urn) {
     return this.locks.has(urn);
   }
