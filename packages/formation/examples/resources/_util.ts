@@ -1,6 +1,8 @@
+import { ipv6CidrBlockFromString } from '@arcanyx/cidr-slicer'
 import { fromIni } from '@aws-sdk/credential-providers'
 import { minutes } from '@awsless/duration'
-import { aws, local, Node, WorkSpace } from '../../src'
+import { aws, Input, local, Node, WorkSpace } from '../../src'
+import { Peer } from '../../src/provider/aws/ec2'
 
 export const createWorkspace = (profile: string, region = 'eu-west-1', timeout = 15) => {
 	const credentials = fromIni({ profile })
@@ -10,6 +12,7 @@ export const createWorkspace = (profile: string, region = 'eu-west-1', timeout =
 			region,
 			credentials,
 			timeout: minutes(timeout),
+			accountId: '468004125411',
 		}),
 		stateProvider: new local.file.StateProvider({
 			dir: './examples/resources/state',
@@ -54,12 +57,17 @@ export const createWorkspace = (profile: string, region = 'eu-west-1', timeout =
 	return workspace
 }
 
-export const createVPC = (stack: Node, region: string, ns = 'main') => {
+export const createVPC = (stack: Node, region: string, ns = 'formation') => {
 	const group = new Node(stack, 'vpc', ns)
 
 	const vpc = new aws.ec2.Vpc(group, 'vpc', {
 		name: `vpc-${ns}`,
 		cidrBlock: aws.ec2.Peer.ipv4('10.0.0.0/16'),
+	})
+
+	const cidrBlock = new aws.ec2.VPCCidrBlock(group, 'vpc', {
+		vpcId: vpc.id,
+		amazonProvidedIpv6CidrBlock: true,
 	})
 
 	const privateRouteTable = new aws.ec2.RouteTable(group, 'private', {
@@ -83,6 +91,7 @@ export const createVPC = (stack: Node, region: string, ns = 'main') => {
 		gatewayId: gateway.id,
 		routeTableId: publicRouteTable.id,
 		destination: aws.ec2.Peer.anyIpv4(),
+		destinationIpv6: aws.ec2.Peer.anyIpv6(),
 	})
 
 	const zones = ['a', 'b']
@@ -94,15 +103,25 @@ export const createVPC = (stack: Node, region: string, ns = 'main') => {
 		public: [],
 	} as Record<'private' | 'public', aws.ec2.Subnet[]>
 
+	const ip6Block = ipv6CidrBlockFromString('2a05:d018:17a5:4200::/56')
+	const slices = ip6Block.slice(64)
+
 	for (const table of tables) {
 		for (const i in zones) {
+			block = block + 1
 			const index = Number(i) + 1
 			const id = `${table.identifier}-${index}`
 			const subnet = new aws.ec2.Subnet(group, id, {
+				name: `subnet-${table.identifier}-${index}`,
 				vpcId: vpc.id,
 				cidrBlock: aws.ec2.Peer.ipv4(`10.0.${block++}.0/24`),
+				ipv6CidrBlock: aws.ec2.Peer.ipv6(slices.get(BigInt(block)).toString()),
 				availabilityZone: region + zones[i],
+				assignIpv6AddressOnCreation: true,
+				// ipv6Native: true,
 			})
+
+			subnet.dependsOn(cidrBlock)
 
 			new aws.ec2.SubnetRouteTableAssociation(group, id, {
 				routeTableId: table.id,

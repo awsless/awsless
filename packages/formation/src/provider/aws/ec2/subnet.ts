@@ -9,7 +9,7 @@ export class Subnet extends CloudControlApiResource {
 		readonly parent: Node,
 		id: string,
 		private props: {
-			name?: Input<string>
+			name: Input<string>
 			vpcId: Input<string>
 			availabilityZone: Input<string>
 

@@ -63,5 +63,8 @@
 		"typed-emitter": "^2.1.0",
 		"typescript": "^5.4.2",
 		"uuid": "^9.0.0"
+	},
+	"devDependencies": {
+		"@arcanyx/cidr-slicer": "^0.3.0"
 	}
 }
