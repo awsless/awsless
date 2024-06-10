@@ -16,6 +16,7 @@ export class Subnet extends CloudControlApiResource {
 			cidrBlock?: Input<Peer>
 			ipv6CidrBlock?: Input<Peer>
 			ipv6Native?: Input<boolean>
+			assignIpv6AddressOnCreation?: Input<boolean>
 		}
 	) {
 		super(parent, 'AWS::EC2::Subnet', id, props)
@@ -50,6 +51,7 @@ export class Subnet extends CloudControlApiResource {
 				VpcId: this.props.vpcId,
 				AvailabilityZone: this.props.availabilityZone,
 				// CidrBlock: unwrap(this.props.cidrBlock).ip,
+				AssignIpv6AddressOnCreation: this.props.assignIpv6AddressOnCreation,
 				...this.attr('CidrBlock', this.props.cidrBlock, v => v.ip),
 				...this.attr('Ipv6CidrBlock', this.props.ipv6CidrBlock, v => v.ip),
 				...this.attr('Ipv6Native', this.props.ipv6Native),

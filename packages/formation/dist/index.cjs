@@ -3509,6 +3509,7 @@ var Subnet = class extends CloudControlApiResource {
         VpcId: this.props.vpcId,
         AvailabilityZone: this.props.availabilityZone,
         // CidrBlock: unwrap(this.props.cidrBlock).ip,
+        AssignIpv6AddressOnCreation: this.props.assignIpv6AddressOnCreation,
         ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
         ...this.attr("Ipv6CidrBlock", this.props.ipv6CidrBlock, (v) => v.ip),
         ...this.attr("Ipv6Native", this.props.ipv6Native),
@@ -3959,11 +3960,20 @@ var BucketProvider = class {
     return this.cloudProvider.delete(props);
   }
   async emptyBucket(bucket) {
-    await Promise.all([
-      //
-      this.deleteBucketObjects(bucket),
-      this.deleteBucketObjectVersions(bucket)
-    ]);
+    try {
+      await Promise.all([
+        //
+        this.deleteBucketObjects(bucket),
+        this.deleteBucketObjectVersions(bucket)
+      ]);
+    } catch (error) {
+      if (error instanceof import_client_s32.S3ServiceException) {
+        if (error.name === "NoSuchBucket") {
+          return;
+        }
+      }
+      throw error;
+    }
   }
   async deleteBucketObjects(bucket) {
     while (true) {
@@ -4413,14 +4423,24 @@ __export(dynamodb_exports, {
 });
 
 // src/provider/aws/dynamodb/lock-provider.ts
-var import_util_dynamodb2 = require("@aws-sdk/util-dynamodb");
 var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
+var import_util_dynamodb2 = require("@aws-sdk/util-dynamodb");
 var LockProvider = class {
   constructor(props) {
     this.props = props;
     this.client = new import_client_dynamodb2.DynamoDB(props);
   }
   client;
+  async insecureReleaseLock(urn) {
+    await this.client.send(
+      new import_client_dynamodb2.UpdateItemCommand({
+        TableName: this.props.tableName,
+        Key: (0, import_util_dynamodb2.marshall)({ urn }),
+        ExpressionAttributeNames: { "#lock": "lock" },
+        UpdateExpression: "REMOVE #lock"
+      })
+    );
+  }
   async locked(urn) {
     const result = await this.client.send(
       new import_client_dynamodb2.GetItemCommand({
@@ -6338,8 +6358,8 @@ __export(file_exports, {
 });
 
 // src/provider/local/file/lock-provider.ts
-var import_path = require("path");
 var import_promises2 = require("fs/promises");
+var import_path = require("path");
 var import_proper_lockfile = require("proper-lockfile");
 var LockProvider2 = class {
   constructor(props) {
@@ -6352,6 +6372,11 @@ var LockProvider2 = class {
     await (0, import_promises2.mkdir)(this.props.dir, {
       recursive: true
     });
+  }
+  async insecureReleaseLock(urn) {
+    if (await this.locked(urn)) {
+      await (0, import_promises2.rm)(this.lockFile(urn));
+    }
   }
   async locked(urn) {
     const result = await (0, import_promises2.stat)(this.lockFile(urn));
@@ -6409,6 +6434,9 @@ __export(memory_exports, {
 // src/provider/local/memory/lock-provider.ts
 var LockProvider3 = class {
   locks = /* @__PURE__ */ new Map();
+  async insecureReleaseLock(urn) {
+    this.locks.delete(urn);
+  }
   async locked(urn) {
     return this.locks.has(urn);
   }

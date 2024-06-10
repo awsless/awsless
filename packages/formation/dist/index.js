@@ -3520,6 +3520,7 @@ var Subnet = class extends CloudControlApiResource {
         VpcId: this.props.vpcId,
         AvailabilityZone: this.props.availabilityZone,
         // CidrBlock: unwrap(this.props.cidrBlock).ip,
+        AssignIpv6AddressOnCreation: this.props.assignIpv6AddressOnCreation,
         ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
         ...this.attr("Ipv6CidrBlock", this.props.ipv6CidrBlock, (v) => v.ip),
         ...this.attr("Ipv6Native", this.props.ipv6Native),
@@ -3955,9 +3956,10 @@ var BucketObjectProvider = class {
 // src/provider/aws/s3/bucket-provider.ts
 import {
   DeleteObjectsCommand,
-  ListObjectVersionsCommand,
   ListObjectsV2Command,
-  S3Client as S3Client2
+  ListObjectVersionsCommand,
+  S3Client as S3Client2,
+  S3ServiceException as S3ServiceException2
 } from "@aws-sdk/client-s3";
 var BucketProvider = class {
   client;
@@ -3985,11 +3987,20 @@ var BucketProvider = class {
     return this.cloudProvider.delete(props);
   }
   async emptyBucket(bucket) {
-    await Promise.all([
-      //
-      this.deleteBucketObjects(bucket),
-      this.deleteBucketObjectVersions(bucket)
-    ]);
+    try {
+      await Promise.all([
+        //
+        this.deleteBucketObjects(bucket),
+        this.deleteBucketObjectVersions(bucket)
+      ]);
+    } catch (error) {
+      if (error instanceof S3ServiceException2) {
+        if (error.name === "NoSuchBucket") {
+          return;
+        }
+      }
+      throw error;
+    }
   }
   async deleteBucketObjects(bucket) {
     while (true) {
@@ -4444,14 +4455,24 @@ __export(dynamodb_exports, {
 });
 
 // src/provider/aws/dynamodb/lock-provider.ts
-import { marshall as marshall2, unmarshall } from "@aws-sdk/util-dynamodb";
 import { DynamoDB as DynamoDB2, GetItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall as marshall2, unmarshall } from "@aws-sdk/util-dynamodb";
 var LockProvider = class {
   constructor(props) {
     this.props = props;
     this.client = new DynamoDB2(props);
   }
   client;
+  async insecureReleaseLock(urn) {
+    await this.client.send(
+      new UpdateItemCommand({
+        TableName: this.props.tableName,
+        Key: marshall2({ urn }),
+        ExpressionAttributeNames: { "#lock": "lock" },
+        UpdateExpression: "REMOVE #lock"
+      })
+    );
+  }
   async locked(urn) {
     const result = await this.client.send(
       new GetItemCommand({
@@ -6086,7 +6107,7 @@ import {
   GetObjectCommand,
   PutObjectCommand as PutObjectCommand2,
   S3Client as S3Client3,
-  S3ServiceException as S3ServiceException2
+  S3ServiceException as S3ServiceException3
 } from "@aws-sdk/client-s3";
 var StateProvider = class {
   constructor(props) {
@@ -6104,7 +6125,7 @@ var StateProvider = class {
         })
       );
     } catch (error) {
-      if (error instanceof S3ServiceException2 && error.name === "NoSuchKey") {
+      if (error instanceof S3ServiceException3 && error.name === "NoSuchKey") {
         return;
       }
       throw error;
@@ -6375,8 +6396,8 @@ __export(file_exports, {
 });
 
 // src/provider/local/file/lock-provider.ts
+import { mkdir, rm, stat } from "fs/promises";
 import { join } from "path";
-import { mkdir, stat } from "fs/promises";
 import { lock } from "proper-lockfile";
 var LockProvider2 = class {
   constructor(props) {
@@ -6389,6 +6410,11 @@ var LockProvider2 = class {
     await mkdir(this.props.dir, {
       recursive: true
     });
+  }
+  async insecureReleaseLock(urn) {
+    if (await this.locked(urn)) {
+      await rm(this.lockFile(urn));
+    }
   }
   async locked(urn) {
     const result = await stat(this.lockFile(urn));
@@ -6404,7 +6430,7 @@ var LockProvider2 = class {
 
 // src/provider/local/file/state-provider.ts
 import { join as join2 } from "path";
-import { mkdir as mkdir2, readFile as readFile2, rm, writeFile } from "fs/promises";
+import { mkdir as mkdir2, readFile as readFile2, rm as rm2, writeFile } from "fs/promises";
 var StateProvider2 = class {
   constructor(props) {
     this.props = props;
@@ -6432,7 +6458,7 @@ var StateProvider2 = class {
   }
   async delete(urn) {
     await this.mkdir();
-    await rm(this.stateFile(urn));
+    await rm2(this.stateFile(urn));
   }
 };
 
@@ -6446,6 +6472,9 @@ __export(memory_exports, {
 // src/provider/local/memory/lock-provider.ts
 var LockProvider3 = class {
   locks = /* @__PURE__ */ new Map();
+  async insecureReleaseLock(urn) {
+    this.locks.delete(urn);
+  }
   async locked(urn) {
     return this.locks.has(urn);
   }

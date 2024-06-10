@@ -1,8 +1,8 @@
-import { URN } from '../../../core/resource'
-import { LockProvider as Provider } from '../../../core/lock'
-import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'
 import { DynamoDB, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
+import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'
+import { LockProvider as Provider } from '../../../core/lock'
+import { URN } from '../../../core/resource'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -15,6 +15,17 @@ export class LockProvider implements Provider {
 
 	constructor(private props: ProviderProps) {
 		this.client = new DynamoDB(props)
+	}
+
+	async insecureReleaseLock(urn: URN) {
+		await this.client.send(
+			new UpdateItemCommand({
+				TableName: this.props.tableName,
+				Key: marshall({ urn }),
+				ExpressionAttributeNames: { '#lock': 'lock' },
+				UpdateExpression: 'REMOVE #lock',
+			})
+		)
 	}
 
 	async locked(urn: URN) {

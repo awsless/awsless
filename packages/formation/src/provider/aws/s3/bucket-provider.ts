@@ -1,11 +1,12 @@
-import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
-import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 import {
 	DeleteObjectsCommand,
-	ListObjectVersionsCommand,
 	ListObjectsV2Command,
+	ListObjectVersionsCommand,
 	S3Client,
+	S3ServiceException,
 } from '@aws-sdk/client-s3'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
+import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider
@@ -47,11 +48,21 @@ export class BucketProvider implements CloudProvider {
 	}
 
 	private async emptyBucket(bucket: string) {
-		await Promise.all([
-			//
-			this.deleteBucketObjects(bucket),
-			this.deleteBucketObjectVersions(bucket),
-		])
+		try {
+			await Promise.all([
+				//
+				this.deleteBucketObjects(bucket),
+				this.deleteBucketObjectVersions(bucket),
+			])
+		} catch (error) {
+			if (error instanceof S3ServiceException) {
+				if (error.name === 'NoSuchBucket') {
+					return
+				}
+			}
+
+			throw error
+		}
 	}
 
 	private async deleteBucketObjects(bucket: string) {

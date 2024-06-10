@@ -1,7 +1,6 @@
 import { days } from '@awsless/duration'
 import { Asset, aws, combine, Input, Node, Output, unwrap } from '@awsless/formation'
 import { hashElement } from 'folder-hash'
-import { readFileSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import { dirname } from 'path'
 import { zip } from 'zip-a-folder'
@@ -16,17 +15,10 @@ export const instanceFeature = defineFeature({
 
 		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			name: formatGlobalResourceName(ctx.appConfig.name, 'instance', 'assets'),
-			versioning: true,
 			forceDelete: true,
 		})
 
 		ctx.shared.set('instance-bucket-name', bucket.name)
-
-		// const keyPair = new aws.ec2.KeyPair(group, 'keys', {
-		// 	name: ctx.appConfig.name,
-		// })
-
-		// ctx.shared.set('instance-key-name', keyPair.name)
 
 		if (ctx.appConfig.defaults.instance.connect) {
 			new aws.ec2.InstanceConnectEndpoint(group, 'connect', {
@@ -56,57 +48,33 @@ export const instanceFeature = defineFeature({
 				}
 			})
 
+			const bucketName = ctx.shared.get<Output<string>>('instance-bucket-name')
+
 			const userData = new Output<Asset>([], resolve => {
 				ctx.onReady(() => {
-					combine([ctx.shared.get('instance-bucket-name'), ...Object.values(env)]).apply(
-						async ([bucketName]) => {
-							const log = (msg: string) => {
-								return `sudo -u ubuntu aws logs put-log-events --log-group-name /awsless/instance/${name} --log-stream-name boot --log-events timestamp=1587488538000,message="${msg}"`
-							}
+					combine([bucketName, ...Object.values(env)]).apply(([bucketName]) => {
+						const u = 'ec2-user'
 
-							const code = [
-								// ...Object.entries(env)
-								// 	.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
-								// 	.join('\n'),
-								// log('booting'),
-								`sudo mkdir ~/code`,
-								// `cd /var`,
-								// log('fetching code from s3 bucket'),
-								// `sudo aws s3 cp s3://${bucketName}/${name} ./`,
-								// log('unzip code'),
-								// `sudo -u ubuntu unzip -o ${name} -d ./code`,
-								// `cd /var/code`,
-								// log('ready'),
-								// props.userData ? readFileSync(props.userData, 'utf8') : ''
-							].join('\n')
+						const code = [
+							`#!/bin/bash`,
+							`cd /home/${u}`,
+							`sudo -u ${u} aws configure set default.s3.use_dualstack_endpoint true`,
+							`sudo -u ${u} aws s3 cp s3://${bucketName}/${name} .`,
+							`sudo -u ${u} unzip -o ${name} -d ./code`,
+							`sudo -u ${u} rm ./${name}`,
+							`cd ./code`,
 
-							// const data = props.userData ? readFileSync(props.userData, 'utf8') : ''
+							...Object.entries(env).map(([key, value]) => {
+								return `export ${key}="${unwrap(value)}"`
+							}),
 
-							// const envs = Object.entries(env)
-							// 	.map(([key, value]) => `export ${key}="${unwrap(value)}"`)
-							// 	.join('\n')
+							props.command ? `sudo -u ${u} ${props.command}` : '',
+						].join('\n')
 
-							// console.log('\n\n', 'USER_DATA', `\n${envs}\n\n${code}\n\n${data}`)
-
-							resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
-						}
-					)
+						resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
+					})
 				})
 			})
-
-			// userData.apply(console.log)
-
-			// const userData = new UserData(group, 'data', {
-			// 	file: props.userData ? Asset.fromFile(props.userData) : undefined,
-			// 	code: {
-			// 		bucket: ctx.shared.get('instance-bucket-name'),
-			// 		key: name,
-			// 	},
-			// })
-
-			// ctx.onEnv((name, value) => {
-			// 	userData.addEnvironment(name, value)
-			// })
 
 			// ----------------------------------------------------------------
 			// Build & upload the code to s3
@@ -128,7 +96,7 @@ export const instanceFeature = defineFeature({
 
 			const code = new aws.s3.BucketObject(group, 'code', {
 				key: name,
-				bucket: ctx.shared.get('instance-bucket-name'),
+				bucket: bucketName,
 				body: Asset.fromFile(bundleFile),
 			})
 
@@ -141,8 +109,6 @@ export const instanceFeature = defineFeature({
 				securityGroupIds: [ctx.shared.get('vpc-security-group-id')],
 				monitoring: true,
 				userData,
-				// userData: userData.value.apply(Asset.fromString),
-				// userData: Asset.fromString('echo 1'),
 			})
 
 			const role = new aws.iam.Role(group, 'role', {
@@ -153,6 +119,12 @@ export const instanceFeature = defineFeature({
 			const policy = new aws.iam.RolePolicy(group, 'policy', {
 				name,
 				role: role.name,
+			})
+
+			// permissions to pull the code from s3.
+			policy.addStatement({
+				actions: ['s3:GetObject'],
+				resources: [bucketName.apply(bucket => `arn:aws:s3:::${bucket}/${name}` as const)],
 			})
 
 			ctx.registerPolicy(policy)
@@ -167,7 +139,6 @@ export const instanceFeature = defineFeature({
 				iamInstanceProfile: profile.arn,
 				launchTemplate: template,
 				subnetId: ctx.shared.get(`vpc-public-subnet-id-1`),
-				// keyName: props.ssh ? ctx.shared.get('instance-key-name') : undefined,
 			})
 
 			// We need to make sure our code is deployed to s3

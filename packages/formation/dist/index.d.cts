@@ -172,6 +172,7 @@ declare class App extends Node {
 }
 
 interface LockProvider$3 {
+    insecureReleaseLock(urn: URN): Promise<void>;
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
 }
@@ -2109,6 +2110,7 @@ declare class Subnet extends CloudControlApiResource {
         cidrBlock?: Input<Peer>;
         ipv6CidrBlock?: Input<Peer>;
         ipv6Native?: Input<boolean>;
+        assignIpv6AddressOnCreation?: Input<boolean>;
     });
     get id(): Output<string>;
     get vpcId(): Output<string>;
@@ -2123,6 +2125,7 @@ declare class Subnet extends CloudControlApiResource {
             }[];
             VpcId: Input<string>;
             AvailabilityZone: Input<string>;
+            AssignIpv6AddressOnCreation: Input<boolean> | undefined;
         };
     };
 }
@@ -2708,6 +2711,7 @@ declare class LockProvider$2 implements LockProvider$3 {
     private props;
     protected client: DynamoDB;
     constructor(props: ProviderProps$1);
+    insecureReleaseLock(urn: URN): Promise<void>;
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
 }
@@ -4498,6 +4502,7 @@ declare class LockProvider$1 implements LockProvider$3 {
     });
     private lockFile;
     private mkdir;
+    insecureReleaseLock(urn: URN): Promise<void>;
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
 }
@@ -4523,6 +4528,7 @@ declare namespace index$2 {
 
 declare class LockProvider implements LockProvider$3 {
     protected locks: Map<`urn:${string}`, number>;
+    insecureReleaseLock(urn: URN): Promise<void>;
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
 }

@@ -1,8 +1,8 @@
-import { URN } from '../../../core/resource'
-import { LockProvider as Provider } from '../../../core/lock'
+import { mkdir, rm, stat } from 'fs/promises'
 import { join } from 'path'
-import { mkdir, stat } from 'fs/promises'
 import { lock } from 'proper-lockfile'
+import { LockProvider as Provider } from '../../../core/lock'
+import { URN } from '../../../core/resource'
 
 export class LockProvider implements Provider {
 	constructor(
@@ -19,6 +19,12 @@ export class LockProvider implements Provider {
 		await mkdir(this.props.dir, {
 			recursive: true,
 		})
+	}
+
+	async insecureReleaseLock(urn: URN) {
+		if (await this.locked(urn)) {
+			await rm(this.lockFile(urn))
+		}
 	}
 
 	async locked(urn: URN) {

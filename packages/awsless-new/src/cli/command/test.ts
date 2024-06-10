@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
 
 export const test = (program: Command) => {
 	program
