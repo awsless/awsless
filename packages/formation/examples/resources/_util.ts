@@ -1,8 +1,6 @@
-import { ipv6CidrBlockFromString } from '@arcanyx/cidr-slicer'
 import { fromIni } from '@aws-sdk/credential-providers'
 import { minutes } from '@awsless/duration'
-import { aws, Input, local, Node, WorkSpace } from '../../src'
-import { Peer } from '../../src/provider/aws/ec2'
+import { aws, local, Node, WorkSpace } from '../../src'
 
 export const createWorkspace = (profile: string, region = 'eu-west-1', timeout = 15) => {
 	const credentials = fromIni({ profile })
@@ -65,10 +63,10 @@ export const createVPC = (stack: Node, region: string, ns = 'formation') => {
 		cidrBlock: aws.ec2.Peer.ipv4('10.0.0.0/16'),
 	})
 
-	const cidrBlock = new aws.ec2.VPCCidrBlock(group, 'vpc', {
-		vpcId: vpc.id,
-		amazonProvidedIpv6CidrBlock: true,
-	})
+	// const cidrBlock = new aws.ec2.VPCCidrBlock(group, 'vpc', {
+	// 	vpcId: vpc.id,
+	// 	amazonProvidedIpv6CidrBlock: true,
+	// })
 
 	const privateRouteTable = new aws.ec2.RouteTable(group, 'private', {
 		vpcId: vpc.id,
@@ -91,7 +89,6 @@ export const createVPC = (stack: Node, region: string, ns = 'formation') => {
 		gatewayId: gateway.id,
 		routeTableId: publicRouteTable.id,
 		destination: aws.ec2.Peer.anyIpv4(),
-		destinationIpv6: aws.ec2.Peer.anyIpv6(),
 	})
 
 	const zones = ['a', 'b']
@@ -103,9 +100,6 @@ export const createVPC = (stack: Node, region: string, ns = 'formation') => {
 		public: [],
 	} as Record<'private' | 'public', aws.ec2.Subnet[]>
 
-	const ip6Block = ipv6CidrBlockFromString('2a05:d018:17a5:4200::/56')
-	const slices = ip6Block.slice(64)
-
 	for (const table of tables) {
 		for (const i in zones) {
 			block = block + 1
@@ -115,13 +109,8 @@ export const createVPC = (stack: Node, region: string, ns = 'formation') => {
 				name: `subnet-${table.identifier}-${index}`,
 				vpcId: vpc.id,
 				cidrBlock: aws.ec2.Peer.ipv4(`10.0.${block++}.0/24`),
-				ipv6CidrBlock: aws.ec2.Peer.ipv6(slices.get(BigInt(block)).toString()),
 				availabilityZone: region + zones[i],
-				assignIpv6AddressOnCreation: true,
-				// ipv6Native: true,
 			})
-
-			subnet.dependsOn(cidrBlock)
 
 			new aws.ec2.SubnetRouteTableAssociation(group, id, {
 				routeTableId: table.id,
