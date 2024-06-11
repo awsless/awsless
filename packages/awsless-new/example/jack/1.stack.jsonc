@@ -12,7 +12,10 @@
 			"type": "t4g.nano",
 			"image": "ami-05172b510cbeb4f59",
 			"code": "./instance",
-			"command": "sh ./bootup.sh"
+			"command": "sh ./bootup.sh",
+			"environment": {
+				"TEST": "FOO"
+			}
 		}
 	}
 

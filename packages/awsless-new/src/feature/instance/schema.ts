@@ -33,6 +33,8 @@ const CommandSchema = z.string().describe(`The script you want to execute when t
 const CodeSchema = LocalDirectorySchema.describe(`The code directory that will be deployed to your instance.`)
 const ConnectSchema = z.boolean().describe('Allows you to connect to all instances with an Instance Connect Endpoint.')
 
+const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
+
 export const InstanceDefaultSchema = z
 	.object({
 		connect: ConnectSchema.default(false),
@@ -48,6 +50,7 @@ export const InstancesSchema = z
 			type: TypeSchema,
 			code: CodeSchema,
 			command: CommandSchema.optional(),
+			environment: EnvironmentSchema.optional(),
 		})
 	)
 	.optional()

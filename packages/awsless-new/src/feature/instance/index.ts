@@ -64,8 +64,14 @@ export const instanceFeature = defineFeature({
 							`sudo -u ${u} rm ./${name}`,
 							`cd ./code`,
 
+							// system environment vars
 							...Object.entries(env).map(([key, value]) => {
-								return `export ${key}="${unwrap(value)}"`
+								return `echo export ${key}="${unwrap(value)}" >> /etc/profile`
+							}),
+
+							// user environment vars
+							...Object.entries(props.environment ?? {}).map(([key, value]) => {
+								return `echo export ${key}="${value}" >> /etc/profile`
 							}),
 
 							props.command ? `sudo -u ${u} ${props.command}` : '',
