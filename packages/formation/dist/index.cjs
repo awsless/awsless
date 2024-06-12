@@ -3513,6 +3513,7 @@ var Subnet = class extends CloudControlApiResource {
         ...this.attr("CidrBlock", this.props.cidrBlock, (v) => v.ip),
         ...this.attr("Ipv6CidrBlock", this.props.ipv6CidrBlock, (v) => v.ip),
         ...this.attr("Ipv6Native", this.props.ipv6Native),
+        ...this.attr("MapPublicIpOnLaunch", this.props.mapPublicIpOnLaunch),
         Tags: [
           {
             Key: "Name",

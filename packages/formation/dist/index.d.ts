@@ -1748,7 +1748,7 @@ declare class KeyPair extends CloudControlApiResource {
     };
 }
 
-type InstanceType = 't3.nano' | 't3.micro' | 't3.small' | 't3.medium' | 't3.large' | 't3.xlarge' | 't3.2xlarge' | 't4g.nano' | 't4g.micro' | 't4g.small' | 't4g.medium' | 't4g.large' | 't4g.xlarge' | 't4g.2xlarge' | 'g4ad.xlarge';
+type InstanceType = 't3.nano' | 't3.micro' | 't3.small' | 't3.medium' | 't3.large' | 't3.xlarge' | 't3.2xlarge' | 't4g.nano' | 't4g.micro' | 't4g.small' | 't4g.medium' | 't4g.large' | 't4g.xlarge' | 't4g.2xlarge' | 'g4ad.xlarge' | 'g4dn.xlarge';
 type LaunchTemplateProps = {
     name: Input<string>;
     imageId: Input<string>;
@@ -2104,13 +2104,14 @@ declare class Subnet extends CloudControlApiResource {
     readonly parent: Node;
     private props;
     constructor(parent: Node, id: string, props: {
-        name?: Input<string>;
+        name: Input<string>;
         vpcId: Input<string>;
         availabilityZone: Input<string>;
         cidrBlock?: Input<Peer>;
         ipv6CidrBlock?: Input<Peer>;
         ipv6Native?: Input<boolean>;
         assignIpv6AddressOnCreation?: Input<boolean>;
+        mapPublicIpOnLaunch?: Input<boolean>;
     });
     get id(): Output<string>;
     get vpcId(): Output<string>;
@@ -2121,7 +2122,7 @@ declare class Subnet extends CloudControlApiResource {
         document: {
             Tags: {
                 Key: string;
-                Value: Input<string> | undefined;
+                Value: Input<string>;
             }[];
             VpcId: Input<string>;
             AvailabilityZone: Input<string>;

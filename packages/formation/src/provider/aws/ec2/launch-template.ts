@@ -20,6 +20,7 @@ export type InstanceType =
 	| 't4g.xlarge'
 	| 't4g.2xlarge'
 	| 'g4ad.xlarge'
+	| 'g4dn.xlarge'
 
 export type LaunchTemplateProps = {
 	name: Input<string>

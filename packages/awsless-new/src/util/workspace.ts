@@ -6,6 +6,10 @@ import { Region } from '../config/schema/region.js'
 import { Credentials } from './aws.js'
 import { directories } from './path.js'
 
+export const getStateBucketName = (accountId: string) => {
+	return `awsless-state-${accountId}`
+}
+
 export const createWorkSpace = (props: { credentials: Credentials; region: Region; accountId: string }) => {
 	const lockProvider = new aws.dynamodb.LockProvider({
 		...props,
@@ -14,7 +18,7 @@ export const createWorkSpace = (props: { credentials: Credentials; region: Regio
 
 	const stateProvider = new aws.s3.StateProvider({
 		...props,
-		bucket: 'awsless-state',
+		bucket: getStateBucketName(props.accountId),
 	})
 
 	const cloudProviders = aws.createCloudProviders({

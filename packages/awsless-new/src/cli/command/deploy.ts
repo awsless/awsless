@@ -26,7 +26,7 @@ export const deploy = (program: Command) => {
 				// ---------------------------------------------------
 				// deploy the bootstrap first...
 
-				await bootstrapAwsless({ credentials, region })
+				await bootstrapAwsless({ credentials, region, accountId })
 
 				// ---------------------------------------------------
 

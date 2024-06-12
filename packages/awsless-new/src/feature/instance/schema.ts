@@ -26,6 +26,7 @@ const TypeSchema = z
 		't4g.2xlarge',
 
 		'g4ad.xlarge',
+		'g4dn.xlarge',
 	])
 	.describe(`The instance type.`)
 
@@ -49,6 +50,7 @@ export const InstancesSchema = z
 			image: ImageSchema,
 			type: TypeSchema,
 			code: CodeSchema,
+			user: z.string().default('ec2-user'),
 			command: CommandSchema.optional(),
 			environment: EnvironmentSchema.optional(),
 		})

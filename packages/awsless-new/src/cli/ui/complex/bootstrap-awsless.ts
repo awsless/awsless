@@ -7,12 +7,13 @@ import {
 	ResourceNotFoundException,
 	ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb'
-import { confirm, log } from '@clack/prompts'
-import { Cancelled } from '../../../error.js'
-import { task } from '../util.js'
 import { CreateBucketCommand, HeadBucketCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3'
+import { confirm, log } from '@clack/prompts'
 import { Region } from '../../../config/schema/region.js'
+import { Cancelled } from '../../../error.js'
 import { Credentials } from '../../../util/aws.js'
+import { getStateBucketName } from '../../../util/workspace.js'
+import { task } from '../util.js'
 
 const hasLockTable = async (client: DynamoDB) => {
 	try {
@@ -32,20 +33,20 @@ const hasLockTable = async (client: DynamoDB) => {
 	}
 }
 
-const hasStateBucket = async (client: S3Client) => {
+const hasStateBucket = async (client: S3Client, accountId: string) => {
 	try {
 		const result = await client.send(
 			new HeadBucketCommand({
-				Bucket: 'awsless-state',
+				Bucket: getStateBucketName(accountId),
 			})
 		)
 
 		return !!result.BucketRegion
 	} catch (error) {
-		console.log(error)
-
 		if (error instanceof S3ServiceException) {
-			return false
+			if (error.name === 'NotFound') {
+				return false
+			}
 		}
 
 		throw error
@@ -73,22 +74,22 @@ const createLockTable = (client: DynamoDB) => {
 	)
 }
 
-const createStateBucket = (client: S3Client) => {
+const createStateBucket = (client: S3Client, accountId: string) => {
 	return client.send(
 		new CreateBucketCommand({
-			Bucket: 'awsless-state',
+			Bucket: getStateBucketName(accountId),
 		})
 	)
 }
 
-export const bootstrapAwsless = async (props: { region: Region; credentials: Credentials }) => {
+export const bootstrapAwsless = async (props: { region: Region; credentials: Credentials; accountId: string }) => {
 	const dynamo = new DynamoDB(props)
 	const s3 = new S3Client(props)
 
 	const [table, bucket] = await Promise.all([
 		//
 		hasLockTable(dynamo),
-		hasStateBucket(s3),
+		hasStateBucket(s3, props.accountId),
 	])
 
 	if (!table || !bucket) {
@@ -110,7 +111,7 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 			}
 
 			if (!bucket) {
-				await createStateBucket(s3)
+				await createStateBucket(s3, props.accountId)
 			}
 
 			update('Done deploying the bootstrap stack')

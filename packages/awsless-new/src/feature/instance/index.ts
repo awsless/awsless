@@ -53,15 +53,15 @@ export const instanceFeature = defineFeature({
 			const userData = new Output<Asset>([], resolve => {
 				ctx.onReady(() => {
 					combine([bucketName, ...Object.values(env)]).apply(([bucketName]) => {
-						const u = 'ec2-user'
+						const u = props.user
 
 						const code = [
 							`#!/bin/bash`,
 							`cd /home/${u}`,
-							`sudo -u ${u} aws configure set default.s3.use_dualstack_endpoint true`,
-							`sudo -u ${u} aws s3 cp s3://${bucketName}/${name} .`,
-							`sudo -u ${u} unzip -o ${name} -d ./code`,
-							`sudo -u ${u} rm ./${name}`,
+							`sudo -E -u ${u} aws configure set default.s3.use_dualstack_endpoint true`,
+							`sudo -E -u ${u} aws s3 cp s3://${bucketName}/${name} .`,
+							`sudo -E -u ${u} unzip -o ${name} -d ./code`,
+							`sudo -E -u ${u} rm ./${name}`,
 							`cd ./code`,
 
 							// system environment vars
@@ -74,7 +74,9 @@ export const instanceFeature = defineFeature({
 								return `echo export ${key}="${value}" >> /etc/profile`
 							}),
 
-							props.command ? `sudo -u ${u} ${props.command}` : '',
+							'source /etc/profile',
+
+							props.command ? `sudo -E -u ${u} ${props.command}` : '',
 						].join('\n')
 
 						resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
@@ -129,7 +131,7 @@ export const instanceFeature = defineFeature({
 
 			// permissions to pull the code from s3.
 			policy.addStatement({
-				actions: ['s3:GetObject'],
+				actions: ['s3:GetObject', 's3:ListObjects', 's3:ListObjectsV2', 's3:HeadObject'],
 				resources: [bucketName.apply(bucket => `arn:aws:s3:::${bucket}/${name}` as const)],
 			})
 
