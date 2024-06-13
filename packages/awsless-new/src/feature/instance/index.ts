@@ -135,6 +135,10 @@ export const instanceFeature = defineFeature({
 				resources: [bucketName.apply(bucket => `arn:aws:s3:::${bucket}/${name}` as const)],
 			})
 
+			if (props.permissions) {
+				policy.addStatement(...props.permissions)
+			}
+
 			ctx.registerPolicy(policy)
 
 			const profile = new aws.iam.InstanceProfile(group, 'profile', {

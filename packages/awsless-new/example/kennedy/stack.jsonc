@@ -1,6 +1,19 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack-kennedy"
+	// "tables": {
+	// 	"campaigns": {
+	// 		"hash": "code",
+	// 		"sort": "tenantId",
+	// 		"indexes": {
+	// 			"list": {
+	// 				"hash": "playerId",
+	// 				"sort": "id"
+	// 			}
+	// 		},
+	// 		"pointInTimeRecovery": true
+	// 	}
+	// }
 	// "stores": ["test"]
 	// "stores": {
 	// 	"test": {

@@ -36,6 +36,23 @@ const ConnectSchema = z.boolean().describe('Allows you to connect to all instanc
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
+const ActionSchema = z.string()
+const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])
+const ArnSchema = z.string().startsWith('arn:')
+const WildcardSchema = z.literal('*')
+const ResourceSchema = z.union([ArnSchema, WildcardSchema]).transform(v => v as `arn:${string}`)
+const ResourcesSchema = z.union([ResourceSchema.transform(v => [v]), ResourceSchema.array()])
+
+const PermissionSchema = z.object({
+	effect: z.enum(['allow', 'deny']).default('allow'),
+	actions: ActionsSchema,
+	resources: ResourcesSchema,
+})
+
+const PermissionsSchema = z
+	.union([PermissionSchema.transform(v => [v]), PermissionSchema.array()])
+	.describe('Add IAM permissions to your instance.')
+
 export const InstanceDefaultSchema = z
 	.object({
 		connect: ConnectSchema.default(false),
@@ -53,6 +70,7 @@ export const InstancesSchema = z
 			user: z.string().default('ec2-user'),
 			command: CommandSchema.optional(),
 			environment: EnvironmentSchema.optional(),
+			permissions: PermissionsSchema.optional(),
 		})
 	)
 	.optional()

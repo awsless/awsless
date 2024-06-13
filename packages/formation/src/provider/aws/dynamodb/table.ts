@@ -1,11 +1,11 @@
 import { constantCase } from 'change-case'
-import { ARN } from '../types'
-import { unwrap, Input } from '../../../core/output'
 import { Asset } from '../../../core/asset'
-import { TableItem } from './table-item'
-import { Statement } from '../iam'
-import { CloudControlApiResource } from '../cloud-control-api'
 import { Node } from '../../../core/node'
+import { Input, unwrap } from '../../../core/output'
+import { CloudControlApiResource } from '../cloud-control-api'
+import { Statement } from '../iam'
+import { ARN } from '../types'
+import { TableItem } from './table-item'
 
 export type IndexProps = {
 	hash: string
@@ -32,7 +32,11 @@ export type TableProps = {
 export class Table extends CloudControlApiResource {
 	private indexes: Record<string, IndexProps>
 
-	constructor(readonly parent: Node, id: string, private props: TableProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: TableProps
+	) {
 		super(parent, 'AWS::DynamoDB::Table', id, props)
 
 		this.indexes = { ...(this.props.indexes || {}) }
@@ -162,14 +166,14 @@ export class Table extends CloudControlApiResource {
 								AttributeName: this.props.timeToLiveAttribute,
 								Enabled: true,
 							},
-					  }
+						}
 					: {}),
 				...(this.props.stream
 					? {
 							StreamSpecification: {
 								StreamViewType: constantCase(unwrap(this.props.stream)),
 							},
-					  }
+						}
 					: {}),
 				...(Object.keys(this.indexes).length
 					? {
@@ -183,7 +187,7 @@ export class Table extends CloudControlApiResource {
 									ProjectionType: constantCase(props.projection || 'all'),
 								},
 							})),
-					  }
+						}
 					: {}),
 			},
 		}

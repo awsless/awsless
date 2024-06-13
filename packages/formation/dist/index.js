@@ -6002,6 +6002,8 @@ var Bucket = class extends Resource {
     return {
       actions: [
         "s3:ListBucket",
+        "s3:ListBucketV2",
+        "s3:HeadObject",
         "s3:GetObject",
         "s3:PutObject",
         "s3:DeleteObject",
