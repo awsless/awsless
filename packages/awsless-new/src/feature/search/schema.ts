@@ -1,18 +1,13 @@
+import { gibibytes } from '@awsless/size'
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
-import { gibibytes } from '@awsless/size'
+import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 
 const VersionSchema = z.enum(['2.13', '2.11', '2.9', '2.7', '2.5', '2.3', '1.3'])
 
 const TypeSchema = z.enum([
 	't3.small',
 	't3.medium',
-	't3.large',
-	't3.xlarge',
-	't3.2xlarge',
-	't4g.small',
-	't4g.medium',
 	'm3.medium',
 	'm3.large',
 	'm3.xlarge',
@@ -58,21 +53,6 @@ const TypeSchema = z.enum([
 	'r3.8xlarge',
 	'i2.xlarge',
 	'i2.2xlarge',
-	'd2.xlarge',
-	'd2.2xlarge',
-	'd2.4xlarge',
-	'd2.8xlarge',
-	'c4.large',
-	'c4.xlarge',
-	'c4.2xlarge',
-	'c4.4xlarge',
-	'c4.8xlarge',
-	'r4.large',
-	'r4.xlarge',
-	'r4.2xlarge',
-	'r4.4xlarge',
-	'r4.8xlarge',
-	'r4.16xlarge',
 	'i3.large',
 	'i3.xlarge',
 	'i3.2xlarge',
@@ -91,12 +71,6 @@ const TypeSchema = z.enum([
 	'm6g.4xlarge',
 	'm6g.8xlarge',
 	'm6g.12xlarge',
-	'c6g.large',
-	'c6g.xlarge',
-	'c6g.2xlarge',
-	'c6g.4xlarge',
-	'c6g.8xlarge',
-	'c6g.12xlarge',
 	'r6gd.large',
 	'r6gd.xlarge',
 	'r6gd.2xlarge',

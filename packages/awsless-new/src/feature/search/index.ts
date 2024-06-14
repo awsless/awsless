@@ -3,6 +3,7 @@ import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
+import { shortId } from '../../util/id.js'
 
 const typeGenCode = `
 import { AnyStruct, Table } from '@awsless/open-search'
@@ -39,7 +40,7 @@ export const searchFeature = defineFeature({
 			const group = new Node(ctx.stack, 'search', id)
 
 			const openSearch = new aws.openSearch.Domain(group, 'domain', {
-				// name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
+				name: `${id}-${shortId([ctx.app.name, ctx.stack.name, this.name, id].join('--'))}`,
 				version: props.version,
 				storageSize: props.storage,
 				instance: {

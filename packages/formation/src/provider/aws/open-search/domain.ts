@@ -1,20 +1,15 @@
-import { Size, gibibytes, toGibibytes } from '@awsless/size'
+import { gibibytes, Size, toGibibytes } from '@awsless/size'
+import { capitalCase } from 'change-case'
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
-import { capitalCase } from 'change-case'
-import { Node } from '../../../core/node'
 
 export type Version = '2.13' | '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
 
 export type NodeType =
 	| 't3.small'
 	| 't3.medium'
-	| 't3.large'
-	| 't3.xlarge'
-	| 't3.2xlarge'
-	| 't4g.small'
-	| 't4g.medium'
 	| 'm3.medium'
 	| 'm3.large'
 	| 'm3.xlarge'
@@ -60,21 +55,6 @@ export type NodeType =
 	| 'r3.8xlarge'
 	| 'i2.xlarge'
 	| 'i2.2xlarge'
-	| 'd2.xlarge'
-	| 'd2.2xlarge'
-	| 'd2.4xlarge'
-	| 'd2.8xlarge'
-	| 'c4.large'
-	| 'c4.xlarge'
-	| 'c4.2xlarge'
-	| 'c4.4xlarge'
-	| 'c4.8xlarge'
-	| 'r4.large'
-	| 'r4.xlarge'
-	| 'r4.2xlarge'
-	| 'r4.4xlarge'
-	| 'r4.8xlarge'
-	| 'r4.16xlarge'
 	| 'i3.large'
 	| 'i3.xlarge'
 	| 'i3.2xlarge'
@@ -93,12 +73,6 @@ export type NodeType =
 	| 'm6g.4xlarge'
 	| 'm6g.8xlarge'
 	| 'm6g.12xlarge'
-	| 'c6g.large'
-	| 'c6g.xlarge'
-	| 'c6g.2xlarge'
-	| 'c6g.4xlarge'
-	| 'c6g.8xlarge'
-	| 'c6g.12xlarge'
 	| 'r6gd.large'
 	| 'r6gd.xlarge'
 	| 'r6gd.2xlarge'
@@ -112,7 +86,7 @@ export class Domain extends CloudControlApiResource {
 		readonly parent: Node,
 		id: string,
 		private props: {
-			name?: Input<string>
+			name: Input<string>
 			instance: Input<{
 				type: Input<NodeType>
 				count: Input<number>
@@ -207,7 +181,7 @@ export class Domain extends CloudControlApiResource {
 								SecurityGroupIds: vpc.securityGroupIds,
 								SubnetIds: vpc.subnetIds,
 							},
-					  }
+						}
 					: {}),
 
 				AccessPolicies: {
@@ -223,7 +197,7 @@ export class Domain extends CloudControlApiResource {
 										Principal: {
 											Service: statement.principal,
 										},
-								  }
+									}
 								: {}),
 							...(statement.sourceArn
 								? {
@@ -232,7 +206,7 @@ export class Domain extends CloudControlApiResource {
 												'AWS:SourceArn': statement.sourceArn,
 											},
 										},
-								  }
+									}
 								: {}),
 						})),
 				},
