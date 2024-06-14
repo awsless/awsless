@@ -3897,12 +3897,12 @@ declare namespace index$b {
 }
 
 type Version = '2.13' | '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3';
-type NodeType = 't3.small' | 't3.medium' | 't3.large' | 't3.xlarge' | 't3.2xlarge' | 't4g.small' | 't4g.medium' | 'm3.medium' | 'm3.large' | 'm3.xlarge' | 'm3.2xlarge' | 'm4.large' | 'm4.xlarge' | 'm4.2xlarge' | 'm4.4xlarge' | 'm4.10xlarge' | 'm5.large' | 'm5.xlarge' | 'm5.2xlarge' | 'm5.4xlarge' | 'm5.12xlarge' | 'm5.24xlarge' | 'r5.large' | 'r5.xlarge' | 'r5.2xlarge' | 'r5.4xlarge' | 'r5.12xlarge' | 'r5.24xlarge' | 'c5.large' | 'c5.xlarge' | 'c5.2xlarge' | 'c5.4xlarge' | 'c5.9xlarge' | 'c5.18xlarge' | 'or1.medium' | 'or1.large' | 'or1.xlarge' | 'or1.2xlarge' | 'or1.4xlarge' | 'or1.8xlarge' | 'or1.12xlarge' | 'or1.16xlarge' | 'ultrawarm1.medium' | 'ultrawarm1.large' | 'ultrawarm1.xlarge' | 'r3.large' | 'r3.xlarge' | 'r3.2xlarge' | 'r3.4xlarge' | 'r3.8xlarge' | 'i2.xlarge' | 'i2.2xlarge' | 'd2.xlarge' | 'd2.2xlarge' | 'd2.4xlarge' | 'd2.8xlarge' | 'c4.large' | 'c4.xlarge' | 'c4.2xlarge' | 'c4.4xlarge' | 'c4.8xlarge' | 'r4.large' | 'r4.xlarge' | 'r4.2xlarge' | 'r4.4xlarge' | 'r4.8xlarge' | 'r4.16xlarge' | 'i3.large' | 'i3.xlarge' | 'i3.2xlarge' | 'i3.4xlarge' | 'i3.8xlarge' | 'i3.16xlarge' | 'r6g.large' | 'r6g.xlarge' | 'r6g.2xlarge' | 'r6g.4xlarge' | 'r6g.8xlarge' | 'r6g.12xlarge' | 'm6g.large' | 'm6g.xlarge' | 'm6g.2xlarge' | 'm6g.4xlarge' | 'm6g.8xlarge' | 'm6g.12xlarge' | 'c6g.large' | 'c6g.xlarge' | 'c6g.2xlarge' | 'c6g.4xlarge' | 'c6g.8xlarge' | 'c6g.12xlarge' | 'r6gd.large' | 'r6gd.xlarge' | 'r6gd.2xlarge' | 'r6gd.4xlarge' | 'r6gd.8xlarge' | 'r6gd.12xlarge' | 'r6gd.16xlarge';
+type NodeType = 't3.small' | 't3.medium' | 'm3.medium' | 'm3.large' | 'm3.xlarge' | 'm3.2xlarge' | 'm4.large' | 'm4.xlarge' | 'm4.2xlarge' | 'm4.4xlarge' | 'm4.10xlarge' | 'm5.large' | 'm5.xlarge' | 'm5.2xlarge' | 'm5.4xlarge' | 'm5.12xlarge' | 'm5.24xlarge' | 'r5.large' | 'r5.xlarge' | 'r5.2xlarge' | 'r5.4xlarge' | 'r5.12xlarge' | 'r5.24xlarge' | 'c5.large' | 'c5.xlarge' | 'c5.2xlarge' | 'c5.4xlarge' | 'c5.9xlarge' | 'c5.18xlarge' | 'or1.medium' | 'or1.large' | 'or1.xlarge' | 'or1.2xlarge' | 'or1.4xlarge' | 'or1.8xlarge' | 'or1.12xlarge' | 'or1.16xlarge' | 'ultrawarm1.medium' | 'ultrawarm1.large' | 'ultrawarm1.xlarge' | 'r3.large' | 'r3.xlarge' | 'r3.2xlarge' | 'r3.4xlarge' | 'r3.8xlarge' | 'i2.xlarge' | 'i2.2xlarge' | 'i3.large' | 'i3.xlarge' | 'i3.2xlarge' | 'i3.4xlarge' | 'i3.8xlarge' | 'i3.16xlarge' | 'r6g.large' | 'r6g.xlarge' | 'r6g.2xlarge' | 'r6g.4xlarge' | 'r6g.8xlarge' | 'r6g.12xlarge' | 'm6g.large' | 'm6g.xlarge' | 'm6g.2xlarge' | 'm6g.4xlarge' | 'm6g.8xlarge' | 'm6g.12xlarge' | 'r6gd.large' | 'r6gd.xlarge' | 'r6gd.2xlarge' | 'r6gd.4xlarge' | 'r6gd.8xlarge' | 'r6gd.12xlarge' | 'r6gd.16xlarge';
 declare class Domain extends CloudControlApiResource {
     readonly parent: Node;
     private props;
     constructor(parent: Node, id: string, props: {
-        name?: Input<string>;
+        name: Input<string>;
         instance: Input<{
             type: Input<NodeType>;
             count: Input<number>;
@@ -3956,7 +3956,7 @@ declare class Domain extends CloudControlApiResource {
                 SecurityGroupIds: Input<Input<string>[]>;
                 SubnetIds: Input<Input<string>[]>;
             } | undefined;
-            DomainName: Input<string> | undefined;
+            DomainName: Input<string>;
             EngineVersion: string;
             IPAddressType: "ipv4" | "dualstack";
             ClusterConfig: {
