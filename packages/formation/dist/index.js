@@ -2864,6 +2864,9 @@ var Instance = class extends Resource {
   toState() {
     const template = unwrap(this.props.launchTemplate);
     return {
+      extra: {
+        waitForTermination: unwrap(this.props.waitForTermination, true)
+      },
       document: {
         LaunchTemplate: {
           LaunchTemplateId: template.id,
@@ -2945,12 +2948,12 @@ var InstanceProvider = class {
   async create({ document }) {
     return this.runInstance(document);
   }
-  async update({ id, newDocument }) {
-    await this.terminateInstance(id, true);
+  async update({ id, newDocument, extra }) {
+    await this.terminateInstance(id, true, extra.waitForTermination);
     return this.runInstance(newDocument);
   }
-  async delete({ id }) {
-    await this.terminateInstance(id);
+  async delete({ id, extra }) {
+    await this.terminateInstance(id, false, extra.waitForTermination);
   }
   async runInstance(document) {
     const result = await this.client.send(
@@ -2983,7 +2986,7 @@ var InstanceProvider = class {
     );
     return id;
   }
-  async terminateInstance(id, skipOnNotFound = false) {
+  async terminateInstance(id, skipOnNotFound = false, waitForTermination = true) {
     try {
       await this.client.send(
         new TerminateInstancesCommand({
@@ -3001,17 +3004,19 @@ var InstanceProvider = class {
       }
       throw error;
     }
-    await waitUntilInstanceTerminated(
-      {
-        client: this.client,
-        maxWaitTime: 5 * 60,
-        maxDelay: 15,
-        minDelay: 3
-      },
-      {
-        InstanceIds: [id]
-      }
-    );
+    if (waitForTermination) {
+      await waitUntilInstanceTerminated(
+        {
+          client: this.client,
+          maxWaitTime: 5 * 60,
+          maxDelay: 15,
+          minDelay: 3
+        },
+        {
+          InstanceIds: [id]
+        }
+      );
+    }
   }
 };
 
@@ -4619,7 +4624,7 @@ var Table = class extends CloudControlApiResource {
       [
         this.props.hash,
         this.props.sort,
-        ...Object.values(this.props.indexes || {}).map((index) => [index.hash, index.sort])
+        ...Object.values(this.props.indexes ?? {}).map((index) => [index.hash, index.sort])
       ].flat().filter(Boolean)
     );
     const types = {

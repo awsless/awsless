@@ -20,6 +20,7 @@ export class Instance extends Resource {
 			securityGroupIds?: Input<Input<string>[]>
 			iamInstanceProfile?: Input<ARN>
 			tags?: Input<Record<string, Input<string>>>
+			waitForTermination?: Input<boolean>
 		}
 	) {
 		super(parent, 'AWS::EC2::Instance', id, props)
@@ -49,6 +50,9 @@ export class Instance extends Resource {
 		const template = unwrap(this.props.launchTemplate)
 
 		return {
+			extra: {
+				waitForTermination: unwrap(this.props.waitForTermination, true),
+			},
 			document: {
 				LaunchTemplate: {
 					LaunchTemplateId: template.id,

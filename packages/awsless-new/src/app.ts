@@ -3,6 +3,7 @@
 // import { style } from './cli/style.js'
 import { App, aws, Input, Stack } from '@awsless/formation'
 import { Builder } from './build/index.js'
+import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
 import { StackConfig } from './config/stack.js'
 import { OnEnvListener, OnPolicyListener, OnReadyListener } from './feature.js'
@@ -55,9 +56,9 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const app = new App(props.appConfig.name)
 	const base = new Stack(app, 'base')
 	const shared = new SharedData()
-
 	// const envVars: Record<string, Input<string>> = {}
-	const siteFunctions: aws.lambda.Function[] = []
+	const commands: Command[] = []
+	// const siteFunctions: aws.lambda.Function[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
@@ -127,6 +128,9 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 			},
 			registerBuild(type, name, builder) {
 				builders.push({ type, name, builder })
+			},
+			registerCommand(command) {
+				commands.push(command)
 			},
 			// registerSiteFunction(lambda) {
 			// 	siteFunctions.push(lambda)
@@ -207,6 +211,9 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				},
 				registerConfig(name) {
 					configs.add(name)
+				},
+				registerCommand(command) {
+					commands.push(command)
 				},
 				// registerSiteFunction(lambda) {
 				// 	siteFunctions.push(lambda)
@@ -360,6 +367,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		shared,
 		configs,
 		builders,
+		commands,
 		// deploymentLine,
 	}
 }

@@ -355,7 +355,7 @@ type ProviderProps$j = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
 };
-type Extra = {
+type Extra$1 = {
     region?: string;
 };
 type Document$f = {
@@ -375,10 +375,10 @@ declare class CertificateProvider implements CloudProvider {
     own(id: string): boolean;
     private wait;
     private client;
-    get({ id, extra }: GetProps<Document$f, Extra>): Promise<_aws_sdk_client_acm.CertificateDetail>;
-    create({ urn, document, extra }: CreateProps<Document$f, Extra>): Promise<string>;
+    get({ id, extra }: GetProps<Document$f, Extra$1>): Promise<_aws_sdk_client_acm.CertificateDetail>;
+    create({ urn, document, extra }: CreateProps<Document$f, Extra$1>): Promise<string>;
     update(): Promise<string>;
-    delete({ id, extra }: DeleteProps<Document$f, Extra>): Promise<void>;
+    delete({ id, extra }: DeleteProps<Document$f, Extra$1>): Promise<void>;
 }
 
 type ProviderProps$i = {
@@ -1626,6 +1626,7 @@ declare class Instance extends Resource {
         securityGroupIds?: Input<Input<string>[]>;
         iamInstanceProfile?: Input<ARN>;
         tags?: Input<Record<string, Input<string>>>;
+        waitForTermination?: Input<boolean>;
     });
     get id(): Output<string>;
     get privateDnsName(): Output<string>;
@@ -1633,6 +1634,9 @@ declare class Instance extends Resource {
     get publicDnsName(): Output<string>;
     get publicIp(): Output<string>;
     toState(): {
+        extra: {
+            waitForTermination: boolean;
+        };
         document: {
             LaunchTemplate: {
                 LaunchTemplateId: Input<string>;
@@ -1692,16 +1696,19 @@ type Document$5 = {
         Value: string;
     }[];
 };
+type Extra = {
+    waitForTermination: boolean;
+};
 declare class InstanceProvider implements CloudProvider {
     protected client: EC2Client;
     constructor(props: ProviderProps$8);
     own(id: string): boolean;
     get({ id }: GetProps<Document$5>): Promise<_aws_sdk_client_ec2.Instance | undefined>;
     create({ document }: CreateProps<Document$5>): Promise<string>;
-    update({ id, newDocument }: UpdateProps<Document$5>): Promise<string>;
-    delete({ id }: DeleteProps<Document$5>): Promise<void>;
+    update({ id, newDocument, extra }: UpdateProps<Document$5, Extra>): Promise<string>;
+    delete({ id, extra }: DeleteProps<Document$5, Extra>): Promise<void>;
     runInstance(document: Document$5): Promise<string>;
-    terminateInstance(id: string, skipOnNotFound?: boolean): Promise<void>;
+    terminateInstance(id: string, skipOnNotFound?: boolean, waitForTermination?: boolean): Promise<void>;
 }
 
 declare class InternetGateway extends CloudControlApiResource {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { AuthSchema } from '../feature/auth/schema.js'
 import { CachesSchema } from '../feature/cache/schema.js'
+import { CommandsSchema } from '../feature/command/schema.js'
 import { ConfigsSchema } from '../feature/config/schema.js'
 import { CronsSchema } from '../feature/cron/schema/index.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
@@ -31,6 +32,8 @@ export const StackSchema = z.object({
 	$schema: z.string().optional(),
 	name: NameSchema,
 	depends: DependsSchema,
+
+	commands: CommandsSchema,
 
 	onFailure: OnFailureSchema,
 	auth: AuthSchema,
