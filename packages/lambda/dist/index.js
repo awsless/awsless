@@ -1,5 +1,9 @@
-// src/errors/validation.ts
-import { ValiError } from "@awsless/validate";
+// src/index.ts
+import { LambdaClient as LambdaClient3 } from "@aws-sdk/client-lambda";
+
+// src/commands/invoke.ts
+import { InvokeCommand } from "@aws-sdk/client-lambda";
+import { fromUtf8, toUtf8 } from "@aws-sdk/util-utf8-node";
 
 // src/errors/viewable.ts
 var prefix = "[viewable]";
@@ -37,66 +41,6 @@ var parseViewableErrorString = (value) => {
 var getViewableErrorData = (error) => {
   return parseViewableErrorString(error.message);
 };
-
-// src/errors/validation.ts
-var ValidationError = class extends ViewableError {
-  constructor(issues) {
-    super("validation", "Validation Error", {
-      issues: issues.map((issue) => ({
-        path: issue.path?.map((path) => ({
-          key: path.key,
-          type: path.type
-        })),
-        reason: issue.reason,
-        message: issue.message,
-        received: issue.received,
-        expected: issue.expected
-      }))
-    });
-  }
-};
-var transformValidationErrors = async (callback) => {
-  try {
-    return await callback();
-  } catch (error) {
-    if (error instanceof ValiError) {
-      throw new ValidationError(error.issues);
-    }
-    throw error;
-  }
-};
-
-// src/lambda.ts
-import { parse } from "@awsless/validate";
-
-// src/errors/timeout.ts
-var TimeoutError = class extends Error {
-  constructor(remainingTime) {
-    super(`Lambda will timeout in ${remainingTime}ms`);
-  }
-};
-var createTimeoutWrap = async (context, log, callback) => {
-  if (!context) {
-    return callback();
-  }
-  const time = context.getRemainingTimeInMillis();
-  const delay = Math.max(time - 1e3, 1e3);
-  const id = setTimeout(() => {
-    log(new TimeoutError(context.getRemainingTimeInMillis()));
-  }, delay);
-  try {
-    return await callback();
-  } finally {
-    clearTimeout(id);
-  }
-};
-
-// src/helpers/warm-up.ts
-import { randomUUID } from "crypto";
-
-// src/commands/invoke.ts
-import { fromUtf8, toUtf8 } from "@aws-sdk/util-utf8-node";
-import { InvokeCommand } from "@aws-sdk/client-lambda";
 
 // src/helpers/client.ts
 import { LambdaClient } from "@aws-sdk/client-lambda";
@@ -154,7 +98,119 @@ var invoke = async ({
   return response;
 };
 
+// src/errors/timeout.ts
+var TimeoutError = class extends Error {
+  constructor(remainingTime) {
+    super(`Lambda will timeout in ${remainingTime}ms`);
+  }
+};
+var createTimeoutWrap = async (context, log, callback) => {
+  if (!context) {
+    return callback();
+  }
+  const time = context.getRemainingTimeInMillis();
+  const delay = Math.max(time - 1e3, 1e3);
+  const id = setTimeout(() => {
+    log(new TimeoutError(context.getRemainingTimeInMillis()));
+  }, delay);
+  try {
+    return await callback();
+  } finally {
+    clearTimeout(id);
+  }
+};
+
+// src/errors/validation.ts
+import { ValiError } from "@awsless/validate";
+var ValidationError = class extends ViewableError {
+  constructor(issues) {
+    super("validation", "Validation Error", {
+      issues: issues.map((issue) => ({
+        path: issue.path?.map((path) => ({
+          key: path.key,
+          type: path.type
+        })),
+        reason: issue.reason,
+        message: issue.message,
+        received: issue.received,
+        expected: issue.expected
+      }))
+    });
+  }
+};
+var transformValidationErrors = async (callback) => {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof ValiError) {
+      throw new ValidationError(error.issues);
+    }
+    throw error;
+  }
+};
+
+// src/helpers/mock.ts
+import { nextTick, mockObjectValues } from "@awsless/utils";
+import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2 } from "@aws-sdk/client-lambda";
+import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
+import { mockClient } from "aws-sdk-client-mock";
+var globalList = {};
+var mockLambda = (lambdas) => {
+  const alreadyMocked = Object.keys(globalList).length > 0;
+  const list = mockObjectValues(lambdas);
+  Object.assign(globalList, list);
+  if (alreadyMocked) {
+    return list;
+  }
+  mockClient(LambdaClient2).on(InvokeCommand2).callsFake(async (input) => {
+    const name = input.FunctionName ?? "";
+    const type = input.InvocationType ?? "RequestResponse";
+    const payload = input.Payload ? JSON.parse(toUtf82(input.Payload)) : void 0;
+    const callback = globalList[name];
+    if (!callback) {
+      throw new TypeError(`Lambda mock function not defined for: ${name}`);
+    }
+    const result = await nextTick(callback, payload);
+    if (type === "RequestResponse" && result) {
+      return {
+        Payload: fromUtf82(JSON.stringify(result))
+      };
+    }
+    return {
+      Payload: void 0
+    };
+  });
+  beforeEach && beforeEach(() => {
+    Object.values(globalList).forEach((fn) => {
+      fn.mockClear();
+    });
+  });
+  return list;
+};
+
+// src/lambda.ts
+import { parse } from "@awsless/validate";
+
+// src/helpers/error.ts
+var normalizeError = (maybeError) => {
+  if (maybeError instanceof Error) {
+    return maybeError;
+  }
+  switch (typeof maybeError) {
+    case "string":
+    case "number":
+    case "boolean":
+      return new Error(String(maybeError));
+    case "object":
+      return new Error(JSON.stringify(maybeError));
+  }
+  const error = new Error("Received a non-error.");
+  error.name = "InvalidError";
+  return error;
+};
+
 // src/helpers/warm-up.ts
+import { randomUUID } from "crypto";
 var warmerKey = "warmer";
 var invocationKey = "__WARMER_INVOCATION_ID__";
 var correlationKey = "__WARMER_CORRELATION_ID__";
@@ -210,24 +266,6 @@ var warmUp = async (input, context) => {
   }
 };
 
-// src/helpers/error.ts
-var normalizeError = (maybeError) => {
-  if (maybeError instanceof Error) {
-    return maybeError;
-  }
-  switch (typeof maybeError) {
-    case "string":
-    case "number":
-    case "boolean":
-      return new Error(String(maybeError));
-    case "object":
-      return new Error(JSON.stringify(maybeError));
-  }
-  const error = new Error("Received a non-error.");
-  error.name = "InvalidError";
-  return error;
-};
-
 // src/lambda.ts
 var lambda = (options) => {
   return async (event, context) => {
@@ -267,48 +305,6 @@ var lambda = (options) => {
     }
   };
 };
-
-// src/helpers/mock.ts
-import { nextTick, mockObjectValues } from "@awsless/utils";
-import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2 } from "@aws-sdk/client-lambda";
-import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
-import { mockClient } from "aws-sdk-client-mock";
-var globalList = {};
-var mockLambda = (lambdas) => {
-  const alreadyMocked = Object.keys(globalList).length > 0;
-  const list = mockObjectValues(lambdas);
-  Object.assign(globalList, list);
-  if (alreadyMocked) {
-    return list;
-  }
-  mockClient(LambdaClient2).on(InvokeCommand2).callsFake(async (input) => {
-    const name = input.FunctionName ?? "";
-    const type = input.InvocationType ?? "RequestResponse";
-    const payload = input.Payload ? JSON.parse(toUtf82(input.Payload)) : void 0;
-    const callback = globalList[name];
-    if (!callback) {
-      throw new TypeError(`Lambda mock function not defined for: ${name}`);
-    }
-    const result = await nextTick(callback, payload);
-    if (type === "RequestResponse" && result) {
-      return {
-        Payload: fromUtf82(JSON.stringify(result))
-      };
-    }
-    return {
-      Payload: void 0
-    };
-  });
-  beforeEach && beforeEach(() => {
-    Object.values(globalList).forEach((fn) => {
-      fn.mockClear();
-    });
-  });
-  return list;
-};
-
-// src/index.ts
-import { LambdaClient as LambdaClient3 } from "@aws-sdk/client-lambda";
 export {
   LambdaClient3 as LambdaClient,
   TimeoutError,

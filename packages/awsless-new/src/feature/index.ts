@@ -1,5 +1,6 @@
 import { authFeature } from './auth/index.js'
 import { cacheFeature } from './cache/index.js'
+import { commandFeature } from './command/index.js'
 import { configFeature } from './config/index.js'
 import { cronFeature } from './cron/index.js'
 import { domainFeature } from './domain/index.js'
@@ -25,6 +26,7 @@ export const features = [
 	// 1
 	vpcFeature,
 	domainFeature,
+	commandFeature,
 	onFailureFeature,
 
 	// 2

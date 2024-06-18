@@ -32,7 +32,7 @@
 		// 	"api": {}
 		// },
 		"instance": {
-			"connect": true
+			// "connect": true
 		},
 		"function": {
 			"log": {

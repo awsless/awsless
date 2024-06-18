@@ -4,9 +4,10 @@ import {
 	CognitoIdentityProviderClient,
 } from '@aws-sdk/client-cognito-identity-provider'
 import { unwrap } from '@awsless/formation'
-import { password, select, text } from '@clack/prompts'
+import { isCancel, password, select, text } from '@clack/prompts'
 import { Command } from 'commander'
 import { createApp } from '../../../../app.js'
+import { Cancelled } from '../../../../error.js'
 import { getAccountId, getCredentials } from '../../../../util/aws.js'
 import { createWorkSpace } from '../../../../util/workspace.js'
 import { layout } from '../../../ui/complex/layout.js'
@@ -23,13 +24,20 @@ export const create = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				if (!name) {
-					name = (await select({
+					const selectedName = await select({
 						message: 'Select the auth userpool:',
+						initialValue: Object.keys(appConfig.defaults.auth)[0]!,
 						options: Object.keys(appConfig.defaults.auth).map(name => ({
 							label: name,
 							value: name,
 						})),
-					})) as string
+					})
+
+					if (isCancel(selectedName)) {
+						throw new Cancelled()
+					}
+
+					name = selectedName
 				}
 
 				if (!(name! in appConfig.defaults.auth)) {
@@ -64,6 +72,10 @@ export const create = (program: Command) => {
 					},
 				})
 
+				if (isCancel(user)) {
+					throw new Cancelled()
+				}
+
 				const pass = await password({
 					message: 'Password:',
 					mask: '*',
@@ -75,6 +87,10 @@ export const create = (program: Command) => {
 						return
 					},
 				})
+
+				if (isCancel(user)) {
+					throw new Cancelled()
+				}
 
 				const client = new CognitoIdentityProviderClient({
 					region,

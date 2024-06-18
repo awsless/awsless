@@ -1,4 +1,4 @@
-import { confirm } from '@clack/prompts'
+import { confirm, isCancel } from '@clack/prompts'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
@@ -43,7 +43,7 @@ export const del = (program: Command) => {
 									)} the [ ${formattedFilter} ] stacks?`,
 					})
 
-					if (!ok) {
+					if (!ok || isCancel(ok)) {
 						throw new Cancelled()
 					}
 				}

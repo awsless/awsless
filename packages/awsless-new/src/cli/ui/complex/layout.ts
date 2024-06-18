@@ -1,12 +1,12 @@
 import { intro, outro } from '@clack/prompts'
-import { ProgramOptions, program } from '../../program.js'
-import { loadAppConfig, loadStackConfigs } from '../../../config/load/load.js'
-import { logApp } from '../app.js'
-import { color } from '../style.js'
 import { AppConfig } from '../../../config/app.js'
+import { loadAppConfig, loadStackConfigs } from '../../../config/load/load.js'
 import { StackConfig } from '../../../config/stack.js'
-import { logo } from '../logo.js'
+import { program, ProgramOptions } from '../../program.js'
+import { logApp } from '../app.js'
 import { logError } from '../error/error.js'
+import { logo } from '../logo.js'
+import { color } from '../style.js'
 
 type Options = {
 	options: ProgramOptions

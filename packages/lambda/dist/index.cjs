@@ -35,9 +35,11 @@ __export(src_exports, {
   parseViewableErrorString: () => parseViewableErrorString
 });
 module.exports = __toCommonJS(src_exports);
+var import_client_lambda4 = require("@aws-sdk/client-lambda");
 
-// src/errors/validation.ts
-var import_validate = require("@awsless/validate");
+// src/commands/invoke.ts
+var import_client_lambda2 = require("@aws-sdk/client-lambda");
+var import_util_utf8_node = require("@aws-sdk/util-utf8-node");
 
 // src/errors/viewable.ts
 var prefix = "[viewable]";
@@ -75,66 +77,6 @@ var parseViewableErrorString = (value) => {
 var getViewableErrorData = (error) => {
   return parseViewableErrorString(error.message);
 };
-
-// src/errors/validation.ts
-var ValidationError = class extends ViewableError {
-  constructor(issues) {
-    super("validation", "Validation Error", {
-      issues: issues.map((issue) => ({
-        path: issue.path?.map((path) => ({
-          key: path.key,
-          type: path.type
-        })),
-        reason: issue.reason,
-        message: issue.message,
-        received: issue.received,
-        expected: issue.expected
-      }))
-    });
-  }
-};
-var transformValidationErrors = async (callback) => {
-  try {
-    return await callback();
-  } catch (error) {
-    if (error instanceof import_validate.ValiError) {
-      throw new ValidationError(error.issues);
-    }
-    throw error;
-  }
-};
-
-// src/lambda.ts
-var import_validate2 = require("@awsless/validate");
-
-// src/errors/timeout.ts
-var TimeoutError = class extends Error {
-  constructor(remainingTime) {
-    super(`Lambda will timeout in ${remainingTime}ms`);
-  }
-};
-var createTimeoutWrap = async (context, log, callback) => {
-  if (!context) {
-    return callback();
-  }
-  const time = context.getRemainingTimeInMillis();
-  const delay = Math.max(time - 1e3, 1e3);
-  const id = setTimeout(() => {
-    log(new TimeoutError(context.getRemainingTimeInMillis()));
-  }, delay);
-  try {
-    return await callback();
-  } finally {
-    clearTimeout(id);
-  }
-};
-
-// src/helpers/warm-up.ts
-var import_crypto = require("crypto");
-
-// src/commands/invoke.ts
-var import_util_utf8_node = require("@aws-sdk/util-utf8-node");
-var import_client_lambda2 = require("@aws-sdk/client-lambda");
 
 // src/helpers/client.ts
 var import_client_lambda = require("@aws-sdk/client-lambda");
@@ -192,7 +134,119 @@ var invoke = async ({
   return response;
 };
 
+// src/errors/timeout.ts
+var TimeoutError = class extends Error {
+  constructor(remainingTime) {
+    super(`Lambda will timeout in ${remainingTime}ms`);
+  }
+};
+var createTimeoutWrap = async (context, log, callback) => {
+  if (!context) {
+    return callback();
+  }
+  const time = context.getRemainingTimeInMillis();
+  const delay = Math.max(time - 1e3, 1e3);
+  const id = setTimeout(() => {
+    log(new TimeoutError(context.getRemainingTimeInMillis()));
+  }, delay);
+  try {
+    return await callback();
+  } finally {
+    clearTimeout(id);
+  }
+};
+
+// src/errors/validation.ts
+var import_validate = require("@awsless/validate");
+var ValidationError = class extends ViewableError {
+  constructor(issues) {
+    super("validation", "Validation Error", {
+      issues: issues.map((issue) => ({
+        path: issue.path?.map((path) => ({
+          key: path.key,
+          type: path.type
+        })),
+        reason: issue.reason,
+        message: issue.message,
+        received: issue.received,
+        expected: issue.expected
+      }))
+    });
+  }
+};
+var transformValidationErrors = async (callback) => {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof import_validate.ValiError) {
+      throw new ValidationError(error.issues);
+    }
+    throw error;
+  }
+};
+
+// src/helpers/mock.ts
+var import_utils2 = require("@awsless/utils");
+var import_client_lambda3 = require("@aws-sdk/client-lambda");
+var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
+var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var globalList = {};
+var mockLambda = (lambdas) => {
+  const alreadyMocked = Object.keys(globalList).length > 0;
+  const list = (0, import_utils2.mockObjectValues)(lambdas);
+  Object.assign(globalList, list);
+  if (alreadyMocked) {
+    return list;
+  }
+  (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda3.LambdaClient).on(import_client_lambda3.InvokeCommand).callsFake(async (input) => {
+    const name = input.FunctionName ?? "";
+    const type = input.InvocationType ?? "RequestResponse";
+    const payload = input.Payload ? JSON.parse((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
+    const callback = globalList[name];
+    if (!callback) {
+      throw new TypeError(`Lambda mock function not defined for: ${name}`);
+    }
+    const result = await (0, import_utils2.nextTick)(callback, payload);
+    if (type === "RequestResponse" && result) {
+      return {
+        Payload: (0, import_util_utf8_node2.fromUtf8)(JSON.stringify(result))
+      };
+    }
+    return {
+      Payload: void 0
+    };
+  });
+  beforeEach && beforeEach(() => {
+    Object.values(globalList).forEach((fn) => {
+      fn.mockClear();
+    });
+  });
+  return list;
+};
+
+// src/lambda.ts
+var import_validate2 = require("@awsless/validate");
+
+// src/helpers/error.ts
+var normalizeError = (maybeError) => {
+  if (maybeError instanceof Error) {
+    return maybeError;
+  }
+  switch (typeof maybeError) {
+    case "string":
+    case "number":
+    case "boolean":
+      return new Error(String(maybeError));
+    case "object":
+      return new Error(JSON.stringify(maybeError));
+  }
+  const error = new Error("Received a non-error.");
+  error.name = "InvalidError";
+  return error;
+};
+
 // src/helpers/warm-up.ts
+var import_crypto = require("crypto");
 var warmerKey = "warmer";
 var invocationKey = "__WARMER_INVOCATION_ID__";
 var correlationKey = "__WARMER_CORRELATION_ID__";
@@ -248,24 +302,6 @@ var warmUp = async (input, context) => {
   }
 };
 
-// src/helpers/error.ts
-var normalizeError = (maybeError) => {
-  if (maybeError instanceof Error) {
-    return maybeError;
-  }
-  switch (typeof maybeError) {
-    case "string":
-    case "number":
-    case "boolean":
-      return new Error(String(maybeError));
-    case "object":
-      return new Error(JSON.stringify(maybeError));
-  }
-  const error = new Error("Received a non-error.");
-  error.name = "InvalidError";
-  return error;
-};
-
 // src/lambda.ts
 var lambda = (options) => {
   return async (event, context) => {
@@ -305,48 +341,6 @@ var lambda = (options) => {
     }
   };
 };
-
-// src/helpers/mock.ts
-var import_utils2 = require("@awsless/utils");
-var import_client_lambda3 = require("@aws-sdk/client-lambda");
-var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
-var globalList = {};
-var mockLambda = (lambdas) => {
-  const alreadyMocked = Object.keys(globalList).length > 0;
-  const list = (0, import_utils2.mockObjectValues)(lambdas);
-  Object.assign(globalList, list);
-  if (alreadyMocked) {
-    return list;
-  }
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda3.LambdaClient).on(import_client_lambda3.InvokeCommand).callsFake(async (input) => {
-    const name = input.FunctionName ?? "";
-    const type = input.InvocationType ?? "RequestResponse";
-    const payload = input.Payload ? JSON.parse((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
-    const callback = globalList[name];
-    if (!callback) {
-      throw new TypeError(`Lambda mock function not defined for: ${name}`);
-    }
-    const result = await (0, import_utils2.nextTick)(callback, payload);
-    if (type === "RequestResponse" && result) {
-      return {
-        Payload: (0, import_util_utf8_node2.fromUtf8)(JSON.stringify(result))
-      };
-    }
-    return {
-      Payload: void 0
-    };
-  });
-  beforeEach && beforeEach(() => {
-    Object.values(globalList).forEach((fn) => {
-      fn.mockClear();
-    });
-  });
-  return list;
-};
-
-// src/index.ts
-var import_client_lambda4 = require("@aws-sdk/client-lambda");
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   LambdaClient,

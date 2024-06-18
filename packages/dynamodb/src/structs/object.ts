@@ -1,4 +1,4 @@
-import { Struct, AnyStruct } from './struct'
+import { AnyStruct, Struct } from './struct'
 
 type Schema = Record<string | symbol, AnyStruct>
 
@@ -56,7 +56,7 @@ export const object = <S extends Schema>(schema: S) =>
 			const unmarshalled: Record<string, unknown> = {}
 
 			for (const [key, type] of Object.entries(schema)) {
-				const value = marshalled[key]
+				const value = marshalled[key]!
 
 				if (type.filterOut(value)) {
 					continue
@@ -68,7 +68,7 @@ export const object = <S extends Schema>(schema: S) =>
 			return unmarshalled as InferOutput<S>
 		},
 		(path, ...rest) => {
-			const type = schema[path]
+			const type = schema[path]!
 			return rest.length ? type.walk?.(...rest) : type
 		}
 	)

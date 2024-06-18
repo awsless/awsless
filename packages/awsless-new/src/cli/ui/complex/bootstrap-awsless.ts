@@ -8,7 +8,7 @@ import {
 	ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb'
 import { CreateBucketCommand, HeadBucketCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3'
-import { confirm, log } from '@clack/prompts'
+import { confirm, isCancel, log } from '@clack/prompts'
 import { Region } from '../../../config/schema/region.js'
 import { Cancelled } from '../../../error.js'
 import { Credentials } from '../../../util/aws.js'
@@ -100,7 +100,7 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 				message: 'Would you like to bootstrap now?',
 			})
 
-			if (!confirmed) {
+			if (!confirmed || isCancel(confirmed)) {
 				throw new Cancelled()
 			}
 		}

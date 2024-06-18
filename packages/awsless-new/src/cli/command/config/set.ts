@@ -1,8 +1,9 @@
+import { isCancel, spinner, text } from '@clack/prompts'
 import { Command } from 'commander'
+import { Cancelled } from '../../../error.js'
+import { getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'
 import { layout } from '../../ui/complex/layout.js'
-import { getCredentials } from '../../../util/aws.js'
-import { spinner, text } from '@clack/prompts'
 
 export const set = (program: Command) => {
 	program
@@ -31,11 +32,15 @@ export const set = (program: Command) => {
 					},
 				})
 
+				if (isCancel(value)) {
+					throw new Cancelled()
+				}
+
 				const spin = spinner()
 
 				spin.start('Saving remote config parameter')
 
-				await params.set(name, value.toString())
+				await params.set(name, value)
 
 				spin.stop(`Done saving remote config parameter.`)
 			})

@@ -1,12 +1,12 @@
-import { Command } from 'commander'
-import { layout } from '../../ui/complex/layout.js'
-import { SsmStore } from '../../../util/ssm.js'
-import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { log, spinner } from '@clack/prompts'
-import { table } from '../../ui/util.js'
 import chalk from 'chalk'
+import { Command } from 'commander'
 import { createApp } from '../../../app.js'
+import { getAccountId, getCredentials } from '../../../util/aws.js'
+import { SsmStore } from '../../../util/ssm.js'
+import { layout } from '../../ui/complex/layout.js'
 import { color } from '../../ui/style.js'
+import { table } from '../../ui/util.js'
 
 export const list = (program: Command) => {
 	program

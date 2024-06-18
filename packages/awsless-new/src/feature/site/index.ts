@@ -26,7 +26,9 @@ export const siteFeature = defineFeature({
 			if (props.ssr) {
 				const { lambda, code } = createLambdaFunction(group, ctx, `site`, id, props.ssr)
 
-				versions.push(code.version)
+				if ('version' in code) {
+					versions.push(code.version)
+				}
 
 				ctx.onBind((name, value) => {
 					lambda.addEnvironment(name, value)

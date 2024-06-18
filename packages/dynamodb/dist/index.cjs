@@ -164,11 +164,7 @@ var flatten = (builder) => {
       const parent = data.parent[key];
       const found = parent.items.findIndex((item) => item === cursor);
       const index = found >= 0 ? found : parent.items.length;
-      parent.items = [
-        ...parent.items.slice(0, index),
-        ...data.items,
-        ...parent.items.slice(index + 1)
-      ];
+      parent.items = [...parent.items.slice(0, index), ...data.items, ...parent.items.slice(index + 1)];
       current = data.parent;
     } else {
       break;

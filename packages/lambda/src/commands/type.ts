@@ -1,8 +1,8 @@
 import { LambdaClient } from '@aws-sdk/client-lambda'
 import { Context } from 'aws-lambda'
-import { Jsonify, AsyncReturnType } from 'type-fest'
+import { AsyncReturnType } from 'type-fest'
 
-export interface InvokeOptions {
+export type InvokeOptions = {
 	client?: LambdaClient
 	type?: 'RequestResponse' | 'Event' | 'DryRun'
 	name: string
@@ -11,15 +11,38 @@ export interface InvokeOptions {
 	reflectViewableErrors?: boolean
 }
 
-export interface UnknownInvokeOptions extends InvokeOptions {
+export type UnknownInvokeOptions = InvokeOptions & {
 	payload?: unknown
 }
 
-export interface KnownInvokeOptions<Lambda extends LambdaFunction> extends InvokeOptions {
-	payload: Parameters<Lambda>[0]
-}
+// export type KnownInvokeOptions<Lambda extends LambdaFunction> = InvokeOptions & {
+// 	payload: Parameters<Lambda>[0]
+// }
 
-export type InvokeResponse<Lambda extends LambdaFunction> = Promise<Jsonify<AsyncReturnType<Lambda>>>
+export type KnownInvokeOptions<Lambda extends LambdaFunction> = unknown extends Parameters<Lambda>[0]
+	? InvokeOptions & {
+			payload?: unknown
+		}
+	: InvokeOptions & {
+			payload: Parameters<Lambda>[0]
+		}
+
+// type InvokeResponseType<T> = unknown extends T
+// 	? unknown
+// 	: void extends T
+// 		? void
+// 		: T extends undefined
+// 			? Jsonify<T> | undefined
+// 			: Jsonify<T>
+
+// export type InvokeResponse<Lambda extends LambdaFunction> = Promise<
+// 	// AsyncReturnType<Lambda> extends undefined
+// 	// 	? Jsonify<AsyncReturnType<Lambda>> | undefined
+// 	// 	: Jsonify<AsyncReturnType<Lambda>>
+// 	InvokeResponseType<AsyncReturnType<Lambda>>
+// >
+
+export type InvokeResponse<Lambda extends LambdaFunction> = Promise<AsyncReturnType<Lambda>>
 
 export interface LambdaError extends Error {
 	name: string
@@ -33,7 +56,19 @@ export interface ErrorResponse {
 	errorMessage: string
 }
 
-type LambdaFunction = (event: any, context?: Context) => Promise<unknown>
+type LambdaFunction = (event?: any, context?: Context) => Promise<unknown>
+
+// export type Invoke = {
+// 	({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>
+// 	<Lambda extends LambdaFunction>({
+// 		client,
+// 		name,
+// 		qualifier,
+// 		type,
+// 		payload,
+// 		reflectViewableErrors,
+// 	}: KnownInvokeOptions<Lambda>): InvokeResponse<Lambda>
+// }
 
 export type Invoke = {
 	({ client, name, qualifier, type, payload, reflectViewableErrors }: UnknownInvokeOptions): Promise<unknown>

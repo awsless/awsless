@@ -1,11 +1,12 @@
-import { Context } from 'aws-lambda'
-import { transformValidationErrors } from './errors/validation.js'
 import { parse } from '@awsless/validate'
-import { Logger, Loggers, Schema, Context as ExtendedContext, Handler, Input } from './type.js'
+import { Context } from 'aws-lambda'
+import { Jsonify } from 'type-fest'
 import { createTimeoutWrap } from './errors/timeout.js'
+import { transformValidationErrors } from './errors/validation.js'
 import { isViewableError } from './errors/viewable.js'
-import { getWarmUpEvent, warmUp } from './helpers/warm-up.js'
 import { normalizeError } from './helpers/error.js'
+import { getWarmUpEvent, warmUp } from './helpers/warm-up.js'
+import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
 
 interface Options<H extends Handler<S>, S extends Schema = undefined> {
 	/** A validation struct to validate the input. */
@@ -24,26 +25,31 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
 }
 
 export type LambdaFactory = {
-	<H extends Handler>(options: Options<H, undefined>): (
-		event?: unknown,
-		context?: Context
-	) => Promise<ReturnType<H>>
-	<H extends Handler<S>, S extends Schema>(options: Options<H, S>): (
-		event: Input<S>,
-		context?: Context
-	) => Promise<ReturnType<H>>
+	<H extends Handler>(
+		options: Options<H, undefined>
+	): (event?: unknown, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
+	<H extends Handler<S>, S extends Schema>(
+		options: Options<H, S>
+	): (event: Input<S>, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
 }
 
-export type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = (
-	event: Input<S>,
-	context?: Context
-) => Promise<ReturnType<H>>
+type Response<T> = unknown extends T
+	? unknown
+	: void extends T
+		? void
+		: T extends undefined
+			? Jsonify<T> | undefined
+			: Jsonify<T>
+
+export type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S extends undefined
+	? (event?: unknown, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
+	: (event: Input<S>, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
 
 /** Create a lambda handle function. */
 export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = undefined>(
 	options: Options<H, S>
 ): LambdaFunction<H, S> => {
-	return async (event: Input<S>, context?: Context): Promise<ReturnType<H>> => {
+	return (async (event?: unknown, context?: Context) => {
 		const log = async (maybeError: unknown) => {
 			const error = normalizeError(maybeError)
 			const list = [options.logger].flat(10) as Array<Logger | undefined>
@@ -71,7 +77,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 					const input = options.schema ? parse(options.schema, event) : event
 					const extendedContext = { ...(context ?? {}), event, log } as ExtendedContext
 
-					return options.handle(input, extendedContext)
+					return options.handle(input as Output<S>, extendedContext)
 				})
 			})
 
@@ -79,7 +85,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 				return JSON.parse(JSON.stringify(result))
 			}
 
-			return result as ReturnType<H>
+			return result as Awaited<ReturnType<H>>
 		} catch (error) {
 			if (!isViewableError(error) || options.logViewableErrors) {
 				await log(error)
@@ -87,5 +93,5 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 
 			throw error
 		}
-	}
+	}) as LambdaFunction<H, S>
 }

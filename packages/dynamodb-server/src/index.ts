@@ -1,11 +1,11 @@
 import { DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
-import { parseUrl } from '@aws-sdk/url-parser'
 import { Endpoint } from '@aws-sdk/types'
+import { parseUrl } from '@aws-sdk/url-parser'
 import { sleepAwait } from 'sleep-await'
 
 // @ts-ignore
-import dynamoDbLocal from 'dynamo-db-local'
+import { spawn } from 'dynamo-db-local'
 
 export class DynamoDBServer {
 	private client?: DynamoDBClient
@@ -23,12 +23,12 @@ export class DynamoDBServer {
 			throw new Error(`DynamoDB server is already listening on port: ${this.endpoint.port}`)
 		}
 
-		if(port < 0 || port >= 65536) {
+		if (port < 0 || port >= 65536) {
 			throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`)
 		}
 
 		this.endpoint.port = port
-		this.process = await dynamoDbLocal.spawn({ port })
+		this.process = await spawn({ port })
 	}
 
 	/** Kill the DynamoDB server. */

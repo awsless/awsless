@@ -127,7 +127,7 @@ export class Table extends CloudControlApiResource {
 			[
 				this.props.hash,
 				this.props.sort,
-				...Object.values(this.props.indexes || {}).map(index => [index.hash, index.sort]),
+				...Object.values(this.props.indexes ?? {}).map(index => [index.hash, index.sort]),
 			]
 				.flat()
 				.filter(Boolean) as string[]

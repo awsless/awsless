@@ -69,6 +69,9 @@ export const instanceFeature = defineFeature({
 								return `echo export ${key}="${unwrap(value)}" >> /etc/profile`
 							}),
 
+							// log group name
+							`echo export CLOUDWATCH_LOG_GROUP_NAME="/awsless/instance/${name}" >> /etc/profile`,
+
 							// user environment vars
 							...Object.entries(props.environment ?? {}).map(([key, value]) => {
 								return `echo export ${key}="${value}" >> /etc/profile`
@@ -151,6 +154,7 @@ export const instanceFeature = defineFeature({
 				iamInstanceProfile: profile.arn,
 				launchTemplate: template,
 				subnetId: ctx.shared.get(`vpc-public-subnet-id-1`),
+				waitForTermination: props.waitForTermination,
 			})
 
 			// We need to make sure our code is deployed to s3

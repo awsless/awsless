@@ -29,6 +29,10 @@ type Document = {
 	Tags?: { Key: string; Value: string }[]
 }
 
+type Extra = {
+	waitForTermination: boolean
+}
+
 export class InstanceProvider implements CloudProvider {
 	protected client: EC2Client
 
@@ -54,13 +58,13 @@ export class InstanceProvider implements CloudProvider {
 		return this.runInstance(document)
 	}
 
-	async update({ id, newDocument }: UpdateProps<Document>) {
-		await this.terminateInstance(id, true)
+	async update({ id, newDocument, extra }: UpdateProps<Document, Extra>) {
+		await this.terminateInstance(id, true, extra.waitForTermination)
 		return this.runInstance(newDocument)
 	}
 
-	async delete({ id }: DeleteProps<Document>) {
-		await this.terminateInstance(id)
+	async delete({ id, extra }: DeleteProps<Document, Extra>) {
+		await this.terminateInstance(id, false, extra.waitForTermination)
 	}
 
 	async runInstance(document: Document) {
@@ -98,7 +102,7 @@ export class InstanceProvider implements CloudProvider {
 		return id
 	}
 
-	async terminateInstance(id: string, skipOnNotFound = false) {
+	async terminateInstance(id: string, skipOnNotFound = false, waitForTermination = true) {
 		try {
 			await this.client.send(
 				new TerminateInstancesCommand({
@@ -119,16 +123,18 @@ export class InstanceProvider implements CloudProvider {
 			throw error
 		}
 
-		await waitUntilInstanceTerminated(
-			{
-				client: this.client,
-				maxWaitTime: 5 * 60,
-				maxDelay: 15,
-				minDelay: 3,
-			},
-			{
-				InstanceIds: [id],
-			}
-		)
+		if (waitForTermination) {
+			await waitUntilInstanceTerminated(
+				{
+					client: this.client,
+					maxWaitTime: 5 * 60,
+					maxDelay: 15,
+					minDelay: 3,
+				},
+				{
+					InstanceIds: [id],
+				}
+			)
+		}
 	}
 }

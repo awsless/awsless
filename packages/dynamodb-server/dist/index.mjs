@@ -3,7 +3,7 @@ import { DynamoDBClient, ListTablesCommand } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { parseUrl } from "@aws-sdk/url-parser";
 import { sleepAwait } from "sleep-await";
-import dynamoDbLocal from "dynamo-db-local";
+import { spawn } from "dynamo-db-local";
 var DynamoDBServer = class {
   constructor(region = "us-east-1") {
     this.region = region;
@@ -21,7 +21,7 @@ var DynamoDBServer = class {
       throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
     }
     this.endpoint.port = port;
-    this.process = await dynamoDbLocal.spawn({ port });
+    this.process = await spawn({ port });
   }
   /** Kill the DynamoDB server. */
   async kill() {

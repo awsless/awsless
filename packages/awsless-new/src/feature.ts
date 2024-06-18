@@ -1,13 +1,15 @@
 import { App, aws, Input, Stack } from '@awsless/formation'
 import { Builder } from './build/index.js'
+import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
 import { StackConfig } from './config/stack.js'
 import { SharedData } from './shared.js'
 import { TypeFile } from './type-gen/file.js'
 
 type RegisterPolicy = (policy: aws.iam.RolePolicy) => void
-type RegisterFunction = (lambda: aws.lambda.Function) => void
-type RegisterSiteFunction = (lambda: aws.lambda.Function) => void
+// type RegisterFunction = (lambda: aws.lambda.Function) => void
+// type RegisterSiteFunction = (lambda: aws.lambda.Function) => void
+type RegisterCommand = (command: Command) => void
 
 type RegisterBuild = (
 	//
@@ -61,6 +63,7 @@ export type AppContext = {
 	registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerPolicy: RegisterPolicy
+	registerCommand: RegisterCommand
 	// registerFunction: RegisterFunction
 	// registerSiteFunction: RegisterSiteFunction
 

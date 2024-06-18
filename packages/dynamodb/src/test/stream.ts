@@ -5,8 +5,8 @@ import {
 	TransactWriteItemsCommand,
 	UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { AnyTableDefinition, InferOutput } from '../table'
 import { getItem } from '../operations/get-item'
+import { AnyTableDefinition, InferOutput } from '../table'
 import { PrimaryKey } from '../types/key'
 
 type StreamData<T extends AnyTableDefinition> = {
@@ -247,7 +247,7 @@ const pipeToTable = async <Command extends { input: { TableName?: string } }>({
 		return send()
 	}
 
-	const table = listeners[0].table
+	const table = listeners[0]!.table
 	const key = getKey(command, table)
 
 	const image1 = await getItem(table, key)

@@ -1,18 +1,29 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
+	"depends": ["stack-2"],
 	"configs": ["test"],
-	// "streams": {
-	// 	"arena": {
-	// 		"type": "basic"
-	// 	}
-	// },
+	"commands": {
+		"test": {
+			"file": "./command.ts",
+			"description": "Test command"
+		}
+	},
+	"functions": {
+		"echo": "./function.ts"
+	},
+	"streams": {
+		"arena": {
+			"type": "basic"
+		}
+	},
 	"instances": {
 		"stream": {
 			"type": "t4g.nano",
 			"image": "ami-05172b510cbeb4f59",
 			"code": "./instance",
 			"command": "sh ./bootup.sh",
+			"waitForTermination": false,
 			"environment": {
 				"TEST": "FOO"
 			}

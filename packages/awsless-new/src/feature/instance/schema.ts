@@ -71,6 +71,7 @@ export const InstancesSchema = z
 			command: CommandSchema.optional(),
 			environment: EnvironmentSchema.optional(),
 			permissions: PermissionsSchema.optional(),
+			waitForTermination: z.boolean().default(true),
 		})
 	)
 	.optional()
