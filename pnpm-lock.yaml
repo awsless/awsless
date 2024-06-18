@@ -661,8 +661,8 @@ importers:
         specifier: ^3.272.0
         version: 3.272.0
       dynamo-db-local:
-        specifier: ^9.1.1
-        version: 9.1.1
+        specifier: ^4.0.0
+        version: 4.0.0
       sleep-await:
         specifier: ^1.0.2
         version: 1.0.2
@@ -13832,11 +13832,9 @@ packages:
     engines: {node: '>=4'}
     dev: false
 
-  /dynamo-db-local@9.1.1:
-    resolution: {integrity: sha512-ENfcyzzIdWoSqczwjY/r+geVQDQ9ovMD5Dv+FSOD5c0gUsXKlGjZJ+zZm137sVCtaVHNg/Db3J/0jH4lVx9/Cw==}
-    engines: {node: '>=18.2.0'}
-    dependencies:
-      tslib: 2.6.2
+  /dynamo-db-local@4.0.0:
+    resolution: {integrity: sha512-Q2sAYje7kTLDRkIWSwl5jtP2teNFXlgYdyu0npGDSQhBpBgh/IkinO0z3HJvADKk1v7oeS5SjoUyYzbs/0Sk7A==}
+    engines: {node: '>=12.20.1'}
     dev: false
 
   /eastasianwidth@0.2.0:
