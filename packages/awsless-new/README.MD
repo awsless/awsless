@@ -14,12 +14,14 @@
 
 - VPC
 - Tests
+- Commands
 - Auth
 - Config
 - Domains
 - Sites
 - Functions
 - Tasks
+- Instances
 - Database
   - Tables
   - Stores
@@ -74,6 +76,24 @@ Tasks are an lower cost alternative to queues.
 {
   "tasks": {
   	"TASK_NAME": "task.ts"
+  }
+}
+```
+
+## Instances
+
+We use AWS EC2 Instances to provide low level server instances.
+Tasks are an lower cost alternative to queues.
+
+```json
+{
+  "instances": {
+  	"INSTANCE_NAME": {
+	  "type": "t4g.nano",
+	  "image": "ami-000000",
+	  "code": "./src",
+	  "command": "sh ./startup.sh",
+	}
   }
 }
 ```
@@ -236,6 +256,35 @@ We use AWS AppSync to provide a serverless GraphQL API.
         }
       }
     }
+  }
+}
+```
+
+## Auth
+
+We use AWS Cognito to provide a serverless Authentication API.
+
+```json
+{
+  "auth": {
+    "AUTH_USER_POOL_NAME": {
+   	  "allowUserRegistration": false,
+   	  "password": {
+   	    "minLength": 24
+   	  }
+    }
+  }
+}
+```
+
+## Commands
+
+You can define custom cli commands that you can run from the awsless cli tool.
+
+```json
+{
+  "commands": {
+    "COMMAND_NAME": "./cli/your-command.ts"
   }
 }
 ```

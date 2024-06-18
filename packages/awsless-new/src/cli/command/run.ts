@@ -1,13 +1,10 @@
 import { isCancel, select } from '@clack/prompts'
 import { Command as CliCommand } from 'commander'
-import minimist from 'minimist'
-import { join } from 'path'
 import { tsImport } from 'tsx/esm/api'
 import { createApp } from '../../app.js'
-import { Command, CommandHandler } from '../../command.js'
-import { Cancelled } from '../../error.js'
+import { Command, CommandHandler, CommandOptions } from '../../command.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
-import { directories } from '../../util/path.js'
 import { layout } from '../ui/complex/layout.js'
 import { task } from '../ui/util.js'
 
@@ -20,7 +17,7 @@ export const run = (program: CliCommand) => {
 		.argument('[command]', 'The command you want to run')
 		.description('Run one of your defined commands.')
 		.action(async (selected: string | undefined) => {
-			await layout(`run ${selected}`, async ({ appConfig, stackConfigs }) => {
+			await layout(`run ${selected ?? ''}`, async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
@@ -54,7 +51,7 @@ export const run = (program: CliCommand) => {
 				}
 
 				if (!command) {
-					throw new Error(`The provided command doesn't exist.`)
+					throw new ExpectedError(`The provided command doesn't exist.`)
 				}
 
 				// ---------------------------------------------------
@@ -72,12 +69,11 @@ export const run = (program: CliCommand) => {
 				const handler: CommandHandler | undefined = module[command.handler]
 
 				if (!handler) {
-					throw new Error(`No "${command.handler}" handler found.`)
+					throw new ExpectedError(`No "${command.handler}" handler found.`)
 				}
 
 				const result = await task('Running', update => {
-					const options: Record<string, any> = minimist(program.args)
-					delete options._
+					const options = new CommandOptions(program.args)
 
 					return handler(options, {
 						region,

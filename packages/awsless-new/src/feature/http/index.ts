@@ -1,6 +1,7 @@
 import { aws, Node } from '@awsless/formation'
 import { camelCase, constantCase } from 'change-case'
 import { relative } from 'path'
+import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -175,7 +176,7 @@ export const httpFeature = defineFeature({
 			const props = ctx.appConfig.defaults.http?.[id]
 
 			if (!props) {
-				throw new Error(`Http definition is not defined on app level for "${id}"`)
+				throw new FileError(ctx.stackConfig.file, `Http definition is not defined on app level for "${id}"`)
 			}
 
 			const group = new Node(ctx.stack, 'http', id)

@@ -1,10 +1,10 @@
+import { confirm, isCancel, spinner } from '@clack/prompts'
 import { Command } from 'commander'
-import { layout } from '../../ui/complex/layout.js'
-import { SsmStore } from '../../../util/ssm.js'
-import { confirm, spinner } from '@clack/prompts'
-import { color } from '../../ui/style.js'
-import { getCredentials } from '../../../util/aws.js'
 import { Cancelled } from '../../../error.js'
+import { getCredentials } from '../../../util/aws.js'
+import { SsmStore } from '../../../util/ssm.js'
+import { layout } from '../../ui/complex/layout.js'
+import { color } from '../../ui/style.js'
 
 export const del = (program: Command) => {
 	program
@@ -23,7 +23,7 @@ export const del = (program: Command) => {
 					initialValue: false,
 				})
 
-				if (!ok) {
+				if (!ok || isCancel(ok)) {
 					throw new Cancelled()
 				}
 

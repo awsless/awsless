@@ -1,3 +1,5 @@
+// Command
+export { CommandContext, CommandHandler, CommandOptions } from './command.js'
 // Handlers
 export { cron, CronProps } from './lib/handle/cron.js'
 export { func, FunctionProps } from './lib/handle/function.js'

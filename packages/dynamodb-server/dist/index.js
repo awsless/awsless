@@ -1,9 +1,7 @@
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -17,14 +15,6 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -37,7 +27,7 @@ var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
 var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
 var import_url_parser = require("@aws-sdk/url-parser");
 var import_sleep_await = require("sleep-await");
-var import_dynamo_db_local = __toESM(require("dynamo-db-local"));
+var import_dynamo_db_local = require("dynamo-db-local");
 var DynamoDBServer = class {
   constructor(region = "us-east-1") {
     this.region = region;
@@ -55,7 +45,7 @@ var DynamoDBServer = class {
       throw new RangeError(`Port should be >= 0 and < 65536. Received ${port}.`);
     }
     this.endpoint.port = port;
-    this.process = await import_dynamo_db_local.default.spawn({ port });
+    this.process = await (0, import_dynamo_db_local.spawn)({ port });
   }
   /** Kill the DynamoDB server. */
   async kill() {

@@ -14,9 +14,16 @@ import type { Mock } from 'vitest'
 
 type Func = (...args: any[]) => any
 
-type Invoke<Name extends string, F extends Func> = {
+type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
+
+type InvokeWithPayload<Name extends string, F extends Func> = {
 	readonly name: Name
 	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>): Promise<void>
+}
+
+type InvokeWithoutPayload<Name extends string, F extends Func> = {
+	readonly name: Name
+	(payload?: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>): Promise<void>
 }
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void | Promise<void> | Promise<Promise<void>>

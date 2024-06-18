@@ -1,11 +1,11 @@
-import { Command } from 'commander'
-import { layout } from '../../ui/complex/layout.js'
-import { table } from '../../ui/util.js'
-import { createApp } from '../../../app.js'
 import { Stack, URN } from '@awsless/formation'
-import { color } from '../../ui/style.js'
 import chalk from 'chalk'
+import { Command } from 'commander'
+import { createApp } from '../../../app.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
+import { layout } from '../../ui/complex/layout.js'
+import { color } from '../../ui/style.js'
+import { table } from '../../ui/util.js'
 
 export const list = (program: Command) => {
 	program

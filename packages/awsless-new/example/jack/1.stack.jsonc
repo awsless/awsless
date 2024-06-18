@@ -1,16 +1,20 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
+	"depends": ["stack-2"],
 	"configs": ["test"],
-	// "streams": {
-	// 	"arena": {
-	// 		"type": "basic"
-	// 	}
-	// },
 	"commands": {
 		"test": {
 			"file": "./command.ts",
 			"description": "Test command"
+		}
+	},
+	"functions": {
+		"echo": "./function.ts"
+	},
+	"streams": {
+		"arena": {
+			"type": "basic"
 		}
 	},
 	"instances": {

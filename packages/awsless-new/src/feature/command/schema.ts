@@ -23,8 +23,8 @@ import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 export const CommandSchema = z.union([
 	z.object({
 		file: LocalFileSchema,
-		handler: z.string().default('default'),
-		description: z.string().optional(),
+		handler: z.string().default('default').describe('The name of the handler that needs to run'),
+		description: z.string().optional().describe('A description of the command'),
 		// options: z.record(ResourceIdSchema, OptionSchema).optional(),
 		// arguments: z.record(ResourceIdSchema, ArgumentSchema).optional(),
 	}),
@@ -38,7 +38,7 @@ export const CommandSchema = z.union([
 export const CommandsSchema = z
 	.record(ResourceIdSchema, CommandSchema)
 	.optional()
-	.describe('Define the config values for your stack.')
+	.describe('Define the custom commands for your stack.')
 
 // const commands = {
 // 	'generate-seed-chain': {
