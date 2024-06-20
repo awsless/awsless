@@ -1,5 +1,5 @@
-import { lambda, mockLambda } from '../src'
 import { string } from '@awsless/validate'
+import { lambda, mockLambda } from '../src'
 
 describe('Warm up support', () => {
 	process.env.AWS_LAMBDA_FUNCTION_NAME = 'test'

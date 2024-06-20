@@ -47,11 +47,10 @@ export type InvokeResponse<Lambda extends LambdaFunction> = Promise<AsyncReturnT
 export interface LambdaError extends Error {
 	name: string
 	message: string
-	response?: ErrorResponse
-	metadata?: { service: string }
+	metadata?: { functionName: string }
 }
 
-export interface ErrorResponse {
+export type ErrorResponse = {
 	errorType: string
 	errorMessage: string
 }

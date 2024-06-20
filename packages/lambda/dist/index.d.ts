@@ -42,16 +42,15 @@ declare class ViewableError extends Error {
     readonly name = "ViewableError";
     constructor(type: string, message: string, data?: unknown);
 }
-interface ViewableErrorData {
-    type: string;
-    message: string;
-    data?: unknown;
-}
-declare const isViewableErrorType: (error: unknown, type: string) => boolean;
-declare const isViewableError: (error: unknown) => error is ViewableError;
-declare const isViewableErrorString: (value: string) => boolean;
-declare const parseViewableErrorString: (value: string) => ViewableErrorData;
-declare const getViewableErrorData: (error: ViewableError) => ViewableErrorData;
+type ViewableErrorResponse = {
+    __error__: {
+        type: string;
+        message: string;
+        data?: unknown;
+    };
+};
+declare const isViewableErrorResponse: (response: unknown) => response is ViewableErrorResponse;
+declare const toViewableErrorResponse: (error: ViewableError) => ViewableErrorResponse;
 
 declare class ValidationError extends ViewableError {
     constructor(issues: SchemaIssues);
@@ -101,4 +100,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
-export { Context, ExtraMetaData, Handler, Input, Invoke, InvokeOptions, InvokeResponse, LambdaFunction, Logger, Loggers, TimeoutError, ValidationError, ViewableError, getViewableErrorData, invoke, isViewableError, isViewableErrorString, isViewableErrorType, lambda, lambdaClient, mockLambda, parseViewableErrorString };
+export { Context, ExtraMetaData, Handler, Input, Invoke, InvokeOptions, InvokeResponse, LambdaFunction, Logger, Loggers, TimeoutError, ValidationError, ViewableError, invoke, isViewableErrorResponse, lambda, lambdaClient, mockLambda, toViewableErrorResponse };

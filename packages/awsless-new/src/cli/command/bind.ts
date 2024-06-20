@@ -39,6 +39,10 @@ export const bind = (program: Command) => {
 
 				note(wrap(list(env)), 'Bind Env')
 
+				if (commands.length === 0) {
+					return
+				}
+
 				const command = commands.join(' ')
 
 				spawn(command, {

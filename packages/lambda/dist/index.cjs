@@ -24,15 +24,12 @@ __export(src_exports, {
   TimeoutError: () => TimeoutError,
   ValidationError: () => ValidationError,
   ViewableError: () => ViewableError,
-  getViewableErrorData: () => getViewableErrorData,
   invoke: () => invoke,
-  isViewableError: () => isViewableError,
-  isViewableErrorString: () => isViewableErrorString,
-  isViewableErrorType: () => isViewableErrorType,
+  isViewableErrorResponse: () => isViewableErrorResponse,
   lambda: () => lambda,
   lambdaClient: () => lambdaClient,
   mockLambda: () => mockLambda,
-  parseViewableErrorString: () => parseViewableErrorString
+  toViewableErrorResponse: () => toViewableErrorResponse
 });
 module.exports = __toCommonJS(src_exports);
 var import_client_lambda4 = require("@aws-sdk/client-lambda");
@@ -42,40 +39,25 @@ var import_client_lambda2 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node = require("@aws-sdk/util-utf8-node");
 
 // src/errors/viewable.ts
-var prefix = "[viewable]";
 var ViewableError = class extends Error {
   constructor(type, message, data) {
-    super(
-      `${prefix} ${JSON.stringify({
-        type,
-        message,
-        data
-      })}`
-    );
+    super(message);
     this.type = type;
     this.data = data;
   }
   name = "ViewableError";
 };
-var isViewableErrorType = (error, type) => {
-  return isViewableError(error) && getViewableErrorData(error).type === type;
+var isViewableErrorResponse = (response) => {
+  return typeof response === "object" && response !== null && "__error__" in response && typeof response.__error__ === "object";
 };
-var isViewableError = (error) => {
-  return error instanceof ViewableError || error instanceof Error && isViewableErrorString(error.message);
-};
-var isViewableErrorString = (value) => {
-  return 0 === value.indexOf(prefix);
-};
-var parseViewableErrorString = (value) => {
-  const json = value.substring(prefix.length);
-  const data = JSON.parse(json);
-  if (typeof data.type !== "string" || typeof data.message !== "string") {
-    throw new TypeError("Invalid viewable error string");
-  }
-  return data;
-};
-var getViewableErrorData = (error) => {
-  return parseViewableErrorString(error.message);
+var toViewableErrorResponse = (error) => {
+  return {
+    __error__: {
+      type: error.type,
+      data: error.data,
+      message: error.message
+    }
+  };
 };
 
 // src/helpers/client.ts
@@ -112,22 +94,19 @@ var invoke = async ({
     return void 0;
   }
   const response = JSON.parse(json);
-  if (isErrorResponse(response)) {
-    let error;
-    if (isViewableErrorString(response.errorMessage)) {
-      const errorData = parseViewableErrorString(response.errorMessage);
-      if (reflectViewableErrors) {
-        error = new ViewableError(errorData.type, errorData.message, errorData.data);
-      } else {
-        error = new Error(errorData.message);
-      }
-    } else {
-      error = new Error(response.errorMessage);
-    }
-    error.name = response.errorType;
-    error.response = response;
+  if (isViewableErrorResponse(response)) {
+    const e = response.__error__;
+    const error = reflectViewableErrors ? new ViewableError(e.type, e.message, e.data) : new Error(e.message);
     error.metadata = {
-      service: name
+      functionName: name
+    };
+    throw error;
+  }
+  if (isErrorResponse(response)) {
+    const error = new Error(response.errorMessage);
+    error.name = response.errorType;
+    error.metadata = {
+      functionName: name
     };
     throw error;
   }
@@ -316,6 +295,7 @@ var lambda = (options) => {
         })
       );
     };
+    const isTestEnv = process.env.NODE_ENV === "test";
     try {
       const warmUpEvent = getWarmUpEvent(event);
       if (warmUpEvent) {
@@ -329,13 +309,16 @@ var lambda = (options) => {
           return options.handle(input, extendedContext);
         });
       });
-      if (result && process.env.NODE_ENV === "test") {
+      if (result && isTestEnv) {
         return JSON.parse(JSON.stringify(result));
       }
       return result;
     } catch (error) {
-      if (!isViewableError(error) || options.logViewableErrors) {
+      if (!(error instanceof ViewableError) || options.logViewableErrors) {
         await log(error);
+      }
+      if (error instanceof ViewableError && !isTestEnv) {
+        return toViewableErrorResponse(error);
       }
       throw error;
     }
@@ -347,13 +330,10 @@ var lambda = (options) => {
   TimeoutError,
   ValidationError,
   ViewableError,
-  getViewableErrorData,
   invoke,
-  isViewableError,
-  isViewableErrorString,
-  isViewableErrorType,
+  isViewableErrorResponse,
   lambda,
   lambdaClient,
   mockLambda,
-  parseViewableErrorString
+  toViewableErrorResponse
 });

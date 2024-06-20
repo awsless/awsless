@@ -1,4 +1,4 @@
-import { getViewableErrorData, isViewableError, isViewableErrorType, ViewableError } from '../src'
+import { isViewableErrorResponse, toViewableErrorResponse, ViewableError } from '../src'
 
 describe('ViewableError', () => {
 	it('should support instanceof', () => {
@@ -9,38 +9,35 @@ describe('ViewableError', () => {
 		expect(error.data).toStrictEqual({ foo: 'bar' })
 	})
 
-	it('should know if an error is viewable', () => {
-		const error1 = new ViewableError('type', 'message')
-		const error2 = new Error(error1.message)
-		const error3 = new Error('message')
+	it('should know convert to error response', () => {
+		const error = new ViewableError('type', 'message', { foo: 'bar' })
 
-		expect(isViewableError(error1)).toBe(true)
-		expect(isViewableError(error2)).toBe(true)
-		expect(isViewableError(error3)).toBe(false)
-	})
-
-	it('should know what error type is', () => {
-		const error = new ViewableError('one', 'message')
-
-		expect(isViewableErrorType(error, 'one')).toBe(true)
-		expect(isViewableErrorType(error, 'two')).toBe(false)
-	})
-
-	it('should get viewable error data', () => {
-		const error1 = new ViewableError('type', 'message')
-		const error2 = new ViewableError('type', 'message', { foo: 'bar' })
-
-		expect(getViewableErrorData(error1)).toStrictEqual({
-			type: 'type',
-			message: 'message',
-		})
-
-		expect(getViewableErrorData(error2)).toStrictEqual({
-			type: 'type',
-			message: 'message',
-			data: {
-				foo: 'bar',
+		expect(toViewableErrorResponse(error)).toStrictEqual({
+			__error__: {
+				type: 'type',
+				data: { foo: 'bar' },
+				message: 'message',
 			},
 		})
+	})
+
+	it('should succeed check error response', () => {
+		const response = {
+			__error__: {
+				type: 'type',
+				data: { foo: 'bar' },
+				message: 'message',
+			},
+		}
+
+		expect(isViewableErrorResponse(response)).toBe(true)
+	})
+
+	it('should fail check error response', () => {
+		const response = {
+			__unknown__: {},
+		}
+
+		expect(isViewableErrorResponse(response)).toBe(false)
 	})
 })

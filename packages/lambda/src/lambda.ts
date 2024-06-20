@@ -3,7 +3,7 @@ import { Context } from 'aws-lambda'
 import { Jsonify } from 'type-fest'
 import { createTimeoutWrap } from './errors/timeout.js'
 import { transformValidationErrors } from './errors/validation.js'
-import { isViewableError } from './errors/viewable.js'
+import { toViewableErrorResponse, ViewableError } from './errors/viewable.js'
 import { normalizeError } from './helpers/error.js'
 import { getWarmUpEvent, warmUp } from './helpers/warm-up.js'
 import { Context as ExtendedContext, Handler, Input, Logger, Loggers, Output, Schema } from './type.js'
@@ -63,6 +63,8 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			)
 		}
 
+		const isTestEnv = process.env.NODE_ENV === 'test'
+
 		try {
 			const warmUpEvent = getWarmUpEvent(event)
 
@@ -81,14 +83,18 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 				})
 			})
 
-			if (result && process.env.NODE_ENV === 'test') {
+			if (result && isTestEnv) {
 				return JSON.parse(JSON.stringify(result))
 			}
 
 			return result as Awaited<ReturnType<H>>
 		} catch (error) {
-			if (!isViewableError(error) || options.logViewableErrors) {
+			if (!(error instanceof ViewableError) || options.logViewableErrors) {
 				await log(error)
+			}
+
+			if (error instanceof ViewableError && !isTestEnv) {
+				return toViewableErrorResponse(error)
 			}
 
 			throw error
