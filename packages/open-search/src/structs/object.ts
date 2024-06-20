@@ -18,18 +18,19 @@ export const object = <S extends Schema>(schema: S) => {
 	const properties: Record<string, Props> = {}
 
 	for (const key in schema) {
-		properties[key] = schema[key].props
+		properties[key] = schema[key]!.props
 	}
 
 	return new Struct<InferEncoded<S>, InferInput<S>, InferOutput<S>>(
 		input => {
 			const encoded: Record<string, unknown> = {}
 			for (const key in input) {
-				if (typeof schema[key] === 'undefined') {
+				const field = schema[key]
+				if (typeof field === 'undefined') {
 					throw new TypeError(`No '${key}' property present on schema.`)
 				}
 
-				encoded[key] = schema[key].encode(input[key])
+				encoded[key] = field.encode(input[key])
 			}
 
 			return encoded as InferEncoded<S>
@@ -37,11 +38,12 @@ export const object = <S extends Schema>(schema: S) => {
 		encoded => {
 			const output: Record<string, unknown> = {}
 			for (const key in encoded) {
-				if (typeof schema[key] === 'undefined') {
+				const field = schema[key]
+				if (typeof field === 'undefined') {
 					throw new TypeError(`No '${key}' property present on schema.`)
 				}
 
-				output[key] = schema[key].decode(encoded[key])
+				output[key] = field.decode(encoded[key])
 			}
 
 			return output as InferOutput<S>

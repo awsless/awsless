@@ -10,7 +10,7 @@ import { AnyStruct, Table } from '@awsless/open-search'
 
 type Search = {
 	readonly domain: string
-	readonly defineTable: <N extends stringm S extends AnyStruct>(tableName: N, schema: S) => Table<N, S>
+	readonly defineTable: <N extends string, S extends AnyStruct>(tableName: N, schema: S) => Table<N, S>
 }
 `
 

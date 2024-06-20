@@ -17,7 +17,6 @@ type Response<T extends AnyTable> = {
 
 const encodeCursor = (cursor: object) => {
 	const json = JSON.stringify(cursor)
-
 	return Buffer.from(json, 'utf8').toString('base64')
 }
 
@@ -59,7 +58,10 @@ export const search = async <T extends AnyTable>(
 	let nextCursor: string | undefined
 
 	if (hits.length > limit) {
-		nextCursor = encodeCursor(hits[limit - 1].sort)
+		const last = hits[limit - 1]
+		if (last) {
+			nextCursor = encodeCursor(last.sort)
+		}
 	}
 
 	const items = hits.splice(0, limit)

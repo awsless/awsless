@@ -350,7 +350,10 @@ var search = async (table, { query, aggs, limit = 10, cursor, sort }) => {
   const { hits, total } = result.body.hits;
   let nextCursor;
   if (hits.length > limit) {
-    nextCursor = encodeCursor(hits[limit - 1].sort);
+    const last = hits[limit - 1];
+    if (last) {
+      nextCursor = encodeCursor(last.sort);
+    }
   }
   const items = hits.splice(0, limit);
   return {
@@ -432,20 +435,22 @@ var object = (schema) => {
     (input) => {
       const encoded = {};
       for (const key in input) {
-        if (typeof schema[key] === "undefined") {
+        const field = schema[key];
+        if (typeof field === "undefined") {
           throw new TypeError(`No '${key}' property present on schema.`);
         }
-        encoded[key] = schema[key].encode(input[key]);
+        encoded[key] = field.encode(input[key]);
       }
       return encoded;
     },
     (encoded) => {
       const output = {};
       for (const key in encoded) {
-        if (typeof schema[key] === "undefined") {
+        const field = schema[key];
+        if (typeof field === "undefined") {
           throw new TypeError(`No '${key}' property present on schema.`);
         }
-        output[key] = schema[key].decode(encoded[key]);
+        output[key] = field.decode(encoded[key]);
       }
       return output;
     },
