@@ -1,6 +1,5 @@
 import { string } from '@awsless/validate'
-import { Jsonify } from 'type-fest'
-import { Invoke, invoke, lambda, mockLambda } from '../src'
+import { invoke, lambda, mockLambda } from '../src'
 
 describe('Lambda', () => {
 	const mock = mockLambda({

@@ -8,11 +8,13 @@ export { TimeoutError } from './errors/timeout'
 export { ValidationError } from './errors/validation'
 // errors
 export {
-	getViewableErrorData,
-	isViewableError,
-	isViewableErrorString,
-	isViewableErrorType,
-	parseViewableErrorString,
+	// getViewableErrorData,
+	// isViewableError,
+	// isViewableErrorString,
+	// isViewableErrorType,
+	// parseViewableErrorString,
+	isViewableErrorResponse,
+	toViewableErrorResponse,
 	ViewableError,
 } from './errors/viewable'
 // client

@@ -902,15 +902,33 @@ var serializeTable = (table) => {
 
 // src/test/migrate.ts
 var migrate = (client2, tables) => {
-  return Promise.all([tables].flat().map((table) => {
-    if (table instanceof TableDefinition) {
-      table = serializeTable(table);
-    }
-    return client2.send(new CreateTableCommand({
-      ...table,
-      BillingMode: "PAY_PER_REQUEST"
-    }));
-  }));
+  return Promise.all(
+    [tables].flat().map((table) => {
+      if (table instanceof TableDefinition) {
+        table = serializeTable(table);
+      }
+      return client2.send(
+        new CreateTableCommand({
+          ...table,
+          BillingMode: "PAY_PER_REQUEST"
+          // Fix for using the older & faster local dynamodb v3
+          // ProvisionedThroughput: {
+          // 	ReadCapacityUnits: 1,
+          // 	WriteCapacityUnits: 1,
+          // },
+          // GlobalSecondaryIndexes: table.GlobalSecondaryIndexes?.map(index => {
+          // 	return {
+          // 		...index,
+          // 		ProvisionedThroughput: {
+          // 			ReadCapacityUnits: 1,
+          // 			WriteCapacityUnits: 1,
+          // 		},
+          // 	}
+          // }),
+        })
+      );
+    })
+  );
 };
 
 // src/test/stream.ts

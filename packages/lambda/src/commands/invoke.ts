@@ -1,6 +1,6 @@
 import { InvokeCommand } from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
-import { isViewableErrorString, parseViewableErrorString, ViewableError } from '../errors/viewable'
+import { isViewableErrorResponse, ViewableError } from '../errors/viewable'
 import { lambdaClient } from '../helpers/client'
 import { ErrorResponse, Invoke, LambdaError, UnknownInvokeOptions } from './type'
 
@@ -40,24 +40,25 @@ export const invoke: Invoke = async ({
 
 	const response = JSON.parse(json) as unknown
 
-	if (isErrorResponse(response)) {
-		let error: LambdaError
+	if (isViewableErrorResponse(response)) {
+		const e = response.__error__
+		const error: LambdaError = reflectViewableErrors
+			? new ViewableError(e.type, e.message, e.data)
+			: new Error(e.message)
 
-		if (isViewableErrorString(response.errorMessage)) {
-			const errorData = parseViewableErrorString(response.errorMessage)
-			if (reflectViewableErrors) {
-				error = new ViewableError(errorData.type, errorData.message, errorData.data)
-			} else {
-				error = new Error(errorData.message)
-			}
-		} else {
-			error = new Error(response.errorMessage)
+		error.metadata = {
+			functionName: name,
 		}
 
+		throw error
+	}
+
+	if (isErrorResponse(response)) {
+		const error: LambdaError = new Error(response.errorMessage)
 		error.name = response.errorType
-		error.response = response
+
 		error.metadata = {
-			service: name,
+			functionName: name,
 		}
 
 		throw error
