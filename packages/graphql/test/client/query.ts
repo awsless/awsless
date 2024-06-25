@@ -1,5 +1,5 @@
-import { createQuery } from '../../src/client/query'
 import { $ } from '../../src/client/argument'
+import { createQuery } from '../../src/client/query'
 
 describe('query', () => {
 	it('should generate simple operation', async () => {

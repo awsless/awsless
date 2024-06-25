@@ -13,7 +13,11 @@ type Keno {
 	numbers: [Int!]!
 }
 
-union Game = Dice | Keno
+union GameState = Dice | Keno
+
+type Game {
+	state: GameState!
+}
 
 interface Transaction {
 	id: ID!

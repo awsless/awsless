@@ -29,10 +29,18 @@ export type KenoRequest = {
 	[key: `${string}:__typename`]: boolean | number
 }
 
-export type GameRequest = {
+export type GameStateRequest = {
 	['...on Dice']?: DiceRequest
 	['...on Keno']?: KenoRequest
 	__typename?: boolean | number
+}
+
+export type GameRequest = {
+	state?: GameStateRequest
+	[key: `${string}:state`]: GameStateRequest
+
+	__typename?: boolean | number
+	[key: `${string}:__typename`]: boolean | number
 }
 
 export type TransactionRequest = {
@@ -196,11 +204,19 @@ export type Keno = {
 	[key: `${string}:__typename`]: 'Keno'
 }
 
-export type Game = {
+export type GameState = {
 	__union: {
 		['...on Dice']: Dice
 		['...on Keno']: Keno
 	}
+}
+
+export type Game = {
+	state: GameState
+	[key: `${string}:state`]: GameState
+
+	__typename: 'Game'
+	[key: `${string}:__typename`]: 'Game'
 }
 
 export type Transaction = {

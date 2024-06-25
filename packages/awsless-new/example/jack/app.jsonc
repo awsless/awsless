@@ -31,6 +31,17 @@
 		// "rest": {
 		// 	"api": {}
 		// },
+		"realtime": {
+			"admin": {
+				"auth": {
+					"authorizer": "./realtime-auth.ts"
+				},
+				"policy": {
+					"publish": ["user", "game/*"],
+					"subscribe": ["user", "game/*"]
+				}
+			}
+		},
 		"instance": {
 			// "connect": true
 		},

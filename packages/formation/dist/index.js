@@ -5218,8 +5218,39 @@ var Role = class extends CloudControlApiResource {
 // src/provider/aws/iot/index.ts
 var iot_exports = {};
 __export(iot_exports, {
+  Authorizer: () => Authorizer,
   TopicRule: () => TopicRule
 });
+
+// src/provider/aws/iot/authorizer.ts
+var Authorizer = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IoT::Authorizer", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  toState() {
+    return {
+      document: {
+        AuthorizerName: this.props.name,
+        AuthorizerFunctionArn: this.props.functionArn,
+        Status: unwrap(this.props.enabled, true) ? "ACTIVE" : "INACTIVE",
+        SigningDisabled: !unwrap(this.props.enableSigning, false),
+        EnableCachingForHttp: unwrap(this.props.enableCachingForHttp, false),
+        // TokenKeyName:
+        // TokenSigningPublicKeys:
+        // 	Key: Value
+        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+          Key: k,
+          Value: v
+        }))
+      }
+    };
+  }
+};
 
 // src/provider/aws/iot/topic-rule.ts
 var TopicRule = class extends CloudControlApiResource {

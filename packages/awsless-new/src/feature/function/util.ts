@@ -20,12 +20,14 @@ type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
 type Code = aws.lambda.Code
 
+export type LambdaFunctionProps = z.infer<typeof FunctionSchema>
+
 export const createLambdaFunction = (
 	group: Node,
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: z.infer<typeof FunctionSchema>
+	local: LambdaFunctionProps
 ): { lambda: Function; policy: Policy; code: Code } => {
 	let name: string
 	if ('stackConfig' in ctx) {

@@ -1,15 +1,15 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack-2",
+	"name": "stack-2"
 	// "depends": ["stack"],
 	// "tests": "./test",
 
-	"functions": {
-		"echo": "./function.ts"
-	},
-	"stores": {
-		"store": {}
-	}
+	// "functions": {
+	// 	"echo": "./function.ts"
+	// },
+	// "stores": {
+	// 	"store": {}
+	// }
 	// "queues": {
 	// 	"queue": "./function.ts"
 	// },
