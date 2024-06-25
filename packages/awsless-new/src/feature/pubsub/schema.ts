@@ -2,6 +2,27 @@ import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 
+export const RealTimeDefaultSchema = z
+	.record(
+		ResourceIdSchema,
+		z.object({
+			auth: z.union([
+				ResourceIdSchema,
+				z.object({
+					authorizer: FunctionSchema,
+					// ttl: AuthorizerTtl.default('1 hour'),
+				}),
+			]),
+
+			policy: z.object({
+				publish: z.array(z.string()).optional(),
+				subscribe: z.array(z.string()).optional(),
+			}),
+		})
+	)
+	.optional()
+	.describe('Define the pubsub subscriber in your stack.')
+
 export const PubSubSchema = z
 	.record(
 		ResourceIdSchema,

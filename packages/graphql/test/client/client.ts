@@ -1,4 +1,4 @@
-import { createClient, $ } from '../../src'
+import { $, createClient } from '../../src'
 import type { Currency, Schema } from '../__types'
 
 describe('client', () => {
@@ -193,23 +193,32 @@ describe('client', () => {
 	it('should query games', async () => {
 		const result = await client.query({
 			games: {
-				__typename: true,
-				'...on Dice': {
-					number: true,
+				state: {
+					__typename: true,
+					'...on Dice': {
+						number: true,
+					},
 				},
 			},
 		})
 
+		// result.games[0]?.state.__typename
+
+		// if(result.games[0]?.state.__typename === 'Dice') {
+		// 	result.games[0]?.state.number
+		// }
+
 		expectTypeOf(result).toEqualTypeOf<{
-			games: (
-				| {
-						__typename: 'Dice'
-						number: number
-				  }
-				| {
-						__typename: 'Keno'
-				  }
-			)[]
+			games: {
+				state:
+					| {
+							__typename: 'Dice'
+							number: number
+					  }
+					| {
+							__typename: 'Keno'
+					  }
+			}[]
 		}>()
 	})
 
@@ -232,23 +241,26 @@ describe('client', () => {
 	it('should query aliases inside a union', async () => {
 		const result = await client.query({
 			'list:games': {
-				'type:__typename': true,
-				'...on Dice': {
-					'amount:number': true,
+				state: {
+					'type:__typename': true,
+					'...on Dice': {
+						'amount:number': true,
+					},
 				},
 			},
 		})
 
 		expectTypeOf(result).toEqualTypeOf<{
-			list: (
-				| {
-						type: 'Dice'
-						amount: number
-				  }
-				| {
-						type: 'Keno'
-				  }
-			)[]
+			list: {
+				state:
+					| {
+							type: 'Dice'
+							amount: number
+					  }
+					| {
+							type: 'Keno'
+					  }
+			}[]
 		}>()
 	})
 
@@ -284,7 +296,7 @@ describe('client', () => {
 			({
 				__args: { cursor: '1', limit: 10 },
 				id: true,
-			} as const)
+			}) as const
 
 		const result = await client.query({
 			't1:transactions': fragment(),

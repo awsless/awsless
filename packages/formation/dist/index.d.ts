@@ -3386,6 +3386,34 @@ declare namespace index$f {
   };
 }
 
+type AuthorizerProps = {
+    name: Input<string>;
+    functionArn: Input<ARN>;
+    enabled?: Input<boolean>;
+    enableCachingForHttp?: Input<boolean>;
+    enableSigning?: Input<boolean>;
+    tags?: Input<Record<string, Input<string>>>;
+};
+declare class Authorizer extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: AuthorizerProps);
+    get arn(): Output<`arn:${string}`>;
+    toState(): {
+        document: {
+            AuthorizerName: Input<string>;
+            AuthorizerFunctionArn: Input<`arn:${string}`>;
+            Status: string;
+            SigningDisabled: boolean;
+            EnableCachingForHttp: boolean;
+            Tags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
+        };
+    };
+}
+
 type TopicRuleSqlVersion = '2015-10-08' | '2016-03-23' | 'beta';
 type TopicRuleProps = {
     name: Input<string>;
@@ -3420,12 +3448,17 @@ declare class TopicRule extends CloudControlApiResource {
     };
 }
 
+type index$e_Authorizer = Authorizer;
+declare const index$e_Authorizer: typeof Authorizer;
+type index$e_AuthorizerProps = AuthorizerProps;
 type index$e_TopicRule = TopicRule;
 declare const index$e_TopicRule: typeof TopicRule;
 type index$e_TopicRuleProps = TopicRuleProps;
 type index$e_TopicRuleSqlVersion = TopicRuleSqlVersion;
 declare namespace index$e {
   export {
+    index$e_Authorizer as Authorizer,
+    index$e_AuthorizerProps as AuthorizerProps,
     index$e_TopicRule as TopicRule,
     index$e_TopicRuleProps as TopicRuleProps,
     index$e_TopicRuleSqlVersion as TopicRuleSqlVersion,
