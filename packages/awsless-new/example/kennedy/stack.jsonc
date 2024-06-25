@@ -1,6 +1,9 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack-kennedy"
+	// "functions": {
+	// 	"migrate": "./function.ts"
+	// },
 	// "tables": {
 	// 	"campaigns": {
 	// 		"hash": "code",

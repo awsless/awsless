@@ -1,11 +1,11 @@
-import { rollup } from 'rollup'
-import { createHash } from 'crypto'
-import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
-import json from '@rollup/plugin-json'
 import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
 import nodeResolve from '@rollup/plugin-node-resolve'
-import { debugError } from '../../../../cli/debug.js'
+import { createHash } from 'crypto'
 import { dirname } from 'path'
+import { rollup } from 'rollup'
+import { minify as swcMinify, swc } from 'rollup-plugin-swc3'
+import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
 
 export type BundleTypeScriptProps = {
@@ -47,7 +47,7 @@ export const bundleTypeScript = async ({ format = 'esm', minify = true, file }: 
 						module: format === 'esm',
 						sourceMap: true,
 						compress: true,
-				  })
+					})
 				: undefined,
 			// @ts-ignore
 			json(),

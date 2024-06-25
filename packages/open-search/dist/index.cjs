@@ -48,7 +48,8 @@ __export(src_exports, {
   set: () => set,
   string: () => string,
   updateItem: () => updateItem,
-  uuid: () => uuid
+  uuid: () => uuid,
+  version: () => version
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -87,12 +88,12 @@ var import_promises = require("fs/promises");
 var import_path = require("path");
 var import_find_cache_dir = __toESM(require("find-cache-dir"), 1);
 var import_decompress = __toESM(require("decompress"), 1);
-var getArchiveName = (version) => {
+var getArchiveName = (version2) => {
   switch (process.platform) {
     case "win32":
-      return `opensearch-${version}-windows-arm64.zip`;
+      return `opensearch-${version2}-windows-arm64.zip`;
     default:
-      return `opensearch-${version}-linux-x64.tar.gz`;
+      return `opensearch-${version2}-linux-x64.tar.gz`;
   }
 };
 var getDownloadPath = () => {
@@ -111,15 +112,15 @@ var exists = async (path) => {
   }
   return true;
 };
-var download = async (version) => {
+var download = async (version2) => {
   const path = getDownloadPath();
-  const name = `opensearch-${version}`;
+  const name = `opensearch-${version2}`;
   const file = (0, import_path.join)(path, name);
   if (await exists(file)) {
     return file;
   }
-  console.log(`Downloading OpenSearch ${version}`);
-  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`;
+  console.log(`Downloading OpenSearch ${version2}`);
+  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version2}/${getArchiveName(version2)}`;
   const response = await fetch(url, { method: "GET" });
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
@@ -145,7 +146,7 @@ var parseSettings = (settings) => {
     return ["-E", `${key}=${value}`];
   }).flat();
 };
-var launch = ({ path, host, port, version, debug }) => {
+var launch = ({ path, host, port, version: version2, debug }) => {
   return new Promise(async (resolve2, reject) => {
     const cache = (0, import_path2.join)(path, "cache", String(port));
     const cleanUp = async () => {
@@ -157,14 +158,14 @@ var launch = ({ path, host, port, version, debug }) => {
     };
     await cleanUp();
     const binary = (0, import_path2.join)(path, "opensearch-tar-install.sh");
-    const child = (0, import_child_process.spawn)(binary, parseSettings(version.settings({ host, port, cache })));
+    const child = (0, import_child_process.spawn)(binary, parseSettings(version2.settings({ host, port, cache })));
     const onError = (error) => fail(error);
     const onMessage = (message) => {
       const line = message.toString("utf8").toLowerCase();
       if (debug) {
         console.log(line);
       }
-      if (version.started(line)) {
+      if (version2.started(line)) {
         done();
       }
     };
@@ -240,16 +241,16 @@ var VERSION_2_8_0 = {
 };
 
 // src/mock.ts
-var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
+var mockOpenSearch = ({ version: version2 = VERSION_2_8_0, debug = false } = {}) => {
   beforeAll && beforeAll(async () => {
     const [port, release] = await (0, import_request_port.requestPort)();
     const host = "localhost";
-    const path = await download(version.version);
+    const path = await download(version2.version);
     const kill = await launch({
       path,
       port,
       host,
-      version,
+      version: version2,
       debug
     });
     mockClient(host, port);
@@ -480,6 +481,9 @@ var uuid = () => new Struct(
   (value) => value,
   { type: "keyword" }
 );
+
+// src/index.ts
+var version = "2";
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   array,
@@ -500,5 +504,6 @@ var uuid = () => new Struct(
   set,
   string,
   updateItem,
-  uuid
+  uuid,
+  version
 });

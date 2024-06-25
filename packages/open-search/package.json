@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/open-search",
-	"version": "0.0.12",
+	"version": "0.0.14",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -33,7 +33,7 @@
 		"@aws-sdk/credential-providers": "^3.369.0",
 		"@awsless/big-float": "workspace:^",
 		"@heat/request-port": "^0.0.1",
-		"@opensearch-project/opensearch": "^2.7.0",
+		"@opensearch-project/opensearch": "^2.10.0",
 		"@types/decompress": "^4.2.4",
 		"@types/find-cache-dir": "^3.2.1",
 		"decompress": "^4.2.1",

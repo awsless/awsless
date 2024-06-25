@@ -7,7 +7,7 @@ export const getSearchName = bindLocalResourceName('search')
 
 export const getSearchProps = (name: string, stack: string = STACK) => {
 	return {
-		domain: process.env[`CACHE_${constantCase(stack)}_${constantCase(name)}_DOMAIN`],
+		domain: process.env[`SEARCH_${constantCase(stack)}_${constantCase(name)}_DOMAIN`],
 	} as const
 }
 

@@ -119,4 +119,6 @@ declare const string: () => Struct<string, string, string>;
 
 declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { AnyStruct, AnyTable, Props, Struct, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
+declare const version = "2";
+
+export { AnyStruct, AnyTable, Props, Struct, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid, version };

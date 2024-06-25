@@ -1,5 +1,5 @@
 import type * as Types from '@opensearch-project/opensearch/api/types'
-export { Types }
+export type { Types }
 export type { AnyStruct, Struct, Props } from './structs/struct'
 
 export { searchClient } from './client'
@@ -29,3 +29,5 @@ export { object } from './structs/object'
 export { set } from './structs/set'
 export { string } from './structs/string'
 export { uuid } from './structs/uuid'
+
+export const version = '2'

@@ -1,4 +1,4 @@
-import { Handler, Loggers, lambda } from '@awsless/lambda'
+import { Handler, lambda, Loggers } from '@awsless/lambda'
 import { BaseSchema } from '@awsless/validate'
 
 export type CronProps<H extends Handler<S>, S extends BaseSchema> = {

@@ -1,10 +1,10 @@
 // Command
 export { CommandContext, CommandHandler, CommandOptions } from './command.js'
-// Handlers
-export { cron, CronProps } from './lib/handle/cron.js'
-export { func, FunctionProps } from './lib/handle/function.js'
-export { queue, QueueProps } from './lib/handle/queue.js'
-export { topic, TopicProps } from './lib/handle/topic.js'
+// // Handlers
+// export { cron, CronProps } from './lib/handle/cron.js'
+// export { func, FunctionProps } from './lib/handle/function.js'
+// export { queue, QueueProps } from './lib/handle/queue.js'
+// export { topic, TopicProps } from './lib/handle/topic.js'
 // Mocks
 export { FunctionMock, FunctionMockResponse, mockFunction } from './lib/mock/function.js'
 export { mockQueue, QueueMock, QueueMockResponse } from './lib/mock/queue.js'

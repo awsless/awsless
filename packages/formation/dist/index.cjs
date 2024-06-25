@@ -5729,14 +5729,12 @@ var Domain = class extends CloudControlApiResource {
             Action: unwrap(statement.actions, ["es:*"]),
             Resource: unwrap(statement.resources, ["*"]),
             ...statement.principal ? {
-              Principal: {
-                Service: statement.principal
-              }
+              Principal: statement.principal
             } : {},
-            ...statement.sourceArn ? {
+            ...statement.principalArn ? {
               Condition: {
-                StringEquals: {
-                  "AWS:SourceArn": statement.sourceArn
+                StringLike: {
+                  "AWS:PrincipalArn": statement.principalArn
                 }
               }
             } : {}

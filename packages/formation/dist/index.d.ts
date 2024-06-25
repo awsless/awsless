@@ -3922,14 +3922,14 @@ declare class Domain extends CloudControlApiResource {
             securityGroupIds: Input<Input<string>[]>;
             subnetIds: Input<Input<string>[]>;
         }>;
-        accessPolicy?: {
+        accessPolicy: {
             version?: Input<'2012-10-17'>;
             statements: Input<Input<{
                 effect?: Input<'allow' | 'deny'>;
-                principal?: Input<string>;
+                principal?: Input<Record<string, string>>;
                 actions?: Input<Input<string>[]>;
                 resources?: Input<Input<string>[]>;
-                sourceArn?: Input<ARN>;
+                principalArn?: Input<ARN>;
             }>[]>;
         };
     });
@@ -3947,13 +3947,11 @@ declare class Domain extends CloudControlApiResource {
                 Version: "2012-10-17";
                 Statement: {
                     Condition?: {
-                        StringEquals: {
-                            'AWS:SourceArn': Input<`arn:${string}`>;
+                        StringLike: {
+                            'AWS:PrincipalArn': Input<`arn:${string}`>;
                         };
                     } | undefined;
-                    Principal?: {
-                        Service: Input<string>;
-                    } | undefined;
+                    Principal?: Input<Record<string, string>> | undefined;
                     Effect: string;
                     Action: Input<string>[];
                     Resource: Input<string>[];

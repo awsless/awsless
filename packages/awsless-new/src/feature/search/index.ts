@@ -38,9 +38,10 @@ export const searchFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.searchs ?? {})) {
 			const group = new Node(ctx.stack, 'search', id)
+			const name = `${id}-${shortId([ctx.app.name, ctx.stack.name, this.name, id].join('--'))}`
 
 			const openSearch = new aws.openSearch.Domain(group, 'domain', {
-				name: `${id}-${shortId([ctx.app.name, ctx.stack.name, this.name, id].join('--'))}`,
+				name,
 				version: props.version,
 				storageSize: props.storage,
 				instance: {
@@ -50,8 +51,9 @@ export const searchFeature = defineFeature({
 				accessPolicy: {
 					statements: [
 						{
-							principal: 'lambda.amazonaws.com',
-							sourceArn: `arn:aws:lambda:${ctx.appConfig.region}:${ctx.accountId}:function:${ctx.app.name}--${ctx.stack.name}--*`,
+							principal: { AWS: '*' },
+							resources: [`arn:aws:es:${ctx.appConfig.region}:${ctx.accountId}:domain/${name}/*`],
+							principalArn: `arn:aws:iam::${ctx.accountId}:role/${ctx.app.name}--${ctx.stack.name}--*`,
 						},
 					],
 				},
@@ -78,7 +80,7 @@ export const searchFeature = defineFeature({
 
 			ctx.onPolicy(policy => {
 				policy.addStatement({
-					actions: ['es:*'],
+					actions: ['es:ESHttp*'],
 					resources: [openSearch.arn],
 				})
 			})

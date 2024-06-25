@@ -99,15 +99,15 @@ export class Domain extends CloudControlApiResource {
 				securityGroupIds: Input<Input<string>[]>
 				subnetIds: Input<Input<string>[]>
 			}>
-			accessPolicy?: {
+			accessPolicy: {
 				version?: Input<'2012-10-17'>
 				statements: Input<
 					Input<{
 						effect?: Input<'allow' | 'deny'>
-						principal?: Input<string>
+						principal?: Input<Record<string, string>>
 						actions?: Input<Input<string>[]>
 						resources?: Input<Input<string>[]>
-						sourceArn?: Input<ARN>
+						principalArn?: Input<ARN>
 					}>[]
 				>
 			}
@@ -194,16 +194,14 @@ export class Domain extends CloudControlApiResource {
 							Resource: unwrap(statement.resources, ['*']),
 							...(statement.principal
 								? {
-										Principal: {
-											Service: statement.principal,
-										},
+										Principal: statement.principal,
 									}
 								: {}),
-							...(statement.sourceArn
+							...(statement.principalArn
 								? {
 										Condition: {
-											StringEquals: {
-												'AWS:SourceArn': statement.sourceArn,
+											StringLike: {
+												'AWS:PrincipalArn': statement.principalArn,
 											},
 										},
 									}
