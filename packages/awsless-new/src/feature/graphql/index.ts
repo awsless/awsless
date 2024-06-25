@@ -306,7 +306,26 @@ export const graphqlFeature = defineFeature({
 					let code: Asset = Asset.fromString(defaultResolver)
 
 					if ('resolver' in props && props.resolver) {
-						code = Asset.fromFile(props.resolver)
+						ctx.registerBuild('graphql-resolver', entryId, async build => {
+							const resolver = props.resolver!
+							const version = await fingerprintFromFile(resolver)
+
+							return build(version, async write => {
+								const file = await buildTypeScriptResolver(resolver)
+
+								if (!file) {
+									throw new FileError(resolver, `Failed to build a graphql resolver.`)
+								}
+
+								await write('resolver.js', file)
+
+								return {
+									size: formatByteSize(file.byteLength),
+								}
+							})
+						})
+
+						code = Asset.fromFile(getBuildPath('graphql-resolver', entryId, 'resolver.js'))
 					} else if (defaultProps.resolver) {
 						code = Asset.fromFile(getBuildPath('graphql-resolver', id, 'resolver.js'))
 					}
