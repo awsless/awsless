@@ -325,12 +325,8 @@ export const graphqlFeature = defineFeature({
 							})
 						})
 
-						console.log('CUSTOM ENTRY RESOLVER')
-
 						code = Asset.fromFile(getBuildPath('graphql-resolver', entryId, 'resolver.js'))
 					} else if (defaultProps.resolver) {
-						console.log('CUSTOM DEFAULT RESOLVER')
-
 						code = Asset.fromFile(getBuildPath('graphql-resolver', id, 'resolver.js'))
 					}
 

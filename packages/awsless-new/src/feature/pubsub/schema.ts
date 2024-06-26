@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 
-export const RealTimeDefaultSchema = z
+export const PubSubDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({

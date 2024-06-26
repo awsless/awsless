@@ -32,17 +32,17 @@
 		// "rest": {
 		// 	"api": {}
 		// },
-		// "realtime": {
-		// 	"admin": {
-		// 		"auth": {
-		// 			"authorizer": "./realtime-auth.ts"
-		// 		},
-		// 		"policy": {
-		// 			"publish": ["user", "game/*"],
-		// 			"subscribe": ["user", "game/*"]
-		// 		}
-		// 	}
-		// },
+		"pubsub": {
+			"admin": {
+				"auth": {
+					"authorizer": "./pubsub-auth.ts"
+				},
+				"policy": {
+					"publish": ["user", "game/*"],
+					"subscribe": ["user", "game/*"]
+				}
+			}
+		},
 		// "instance": {
 		// 	// "connect": true
 		// },
