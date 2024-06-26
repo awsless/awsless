@@ -53,7 +53,7 @@ export const searchFeature = defineFeature({
 						{
 							principal: { AWS: '*' },
 							resources: [`arn:aws:es:${ctx.appConfig.region}:${ctx.accountId}:domain/${name}/*`],
-							principalArn: `arn:aws:iam::${ctx.accountId}:role/${ctx.app.name}--${ctx.stack.name}--*`,
+							principalArn: `arn:aws:iam::${ctx.accountId}:role/${ctx.app.name}--*`,
 						},
 					],
 				},

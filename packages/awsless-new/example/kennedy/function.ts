@@ -13,7 +13,7 @@ export default () => {
 		() => {
 			return searchClient(
 				{
-					node: `https://${process.env['SEARCH_STACK_KENNEDY_TEST_DOMAIN']}`,
+					node: `https://${process.env['SEARCH_STACK_KENNEDY_1_TEST_DOMAIN']}`,
 				},
 				'es'
 			)

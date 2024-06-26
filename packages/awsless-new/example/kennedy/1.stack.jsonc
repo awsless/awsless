@@ -1,0 +1,11 @@
+{
+	"$schema": "../../dist/stack.json",
+	"name": "stack-kennedy-1",
+	"searchs": {
+		"test": {
+			"type": "t3.small",
+			"count": 1
+			// "vpc": true
+		}
+	}
+}
