@@ -1,16 +1,16 @@
-import { rollup } from 'rollup'
-import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
-import json from '@rollup/plugin-json'
 import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import { dirname } from 'path'
+import { rollup } from 'rollup'
+import { minify as swcMinify, swc } from 'rollup-plugin-swc3'
 import { debugError } from '../../../../cli/debug.js'
 
 export type RollupResolverProps = {
 	minify?: boolean
 }
 
-export const buildTypeScriptResolver = async (input: string, { minify = true }: RollupResolverProps = {}) => {
+export const buildTypeScriptResolver = async (input: string, { minify = false }: RollupResolverProps = {}) => {
 	const bundle = await rollup({
 		input,
 		external: importee => {
@@ -45,7 +45,7 @@ export const buildTypeScriptResolver = async (input: string, { minify = true }: 
 						module: true,
 						sourceMap: true,
 						compress: true,
-				  })
+					})
 				: undefined,
 			// @ts-ignore
 			json(),

@@ -6,6 +6,14 @@
 - add check for conflicting types inside graphql (Like duplicate type names)
   - Types should probably only allowed to defined once. And should be extended after that.
 
+
+# BUGS
+- Container Lambda's don't update the lambda correctly when ever the container code updates.
+- GraphQL resolver code doesn't update correctly.
+- S3 bucket doesn't delete propertly when files are inside.
+- Cleanup unused network interfaces on VPC delete.
+- ECR Repo doesn't delete propertly when images are inside.
+
 ---
 ---
 ---

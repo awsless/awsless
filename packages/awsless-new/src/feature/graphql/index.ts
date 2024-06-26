@@ -31,7 +31,7 @@ const defaultResolver = `
 export function request(ctx) {
 	return {
 		operation: 'Invoke',
-		payload: ctx,
+		payload: ctx.arguments,
 	};
 }
 
@@ -325,24 +325,41 @@ export const graphqlFeature = defineFeature({
 							})
 						})
 
+						console.log('CUSTOM ENTRY RESOLVER')
+
 						code = Asset.fromFile(getBuildPath('graphql-resolver', entryId, 'resolver.js'))
 					} else if (defaultProps.resolver) {
+						console.log('CUSTOM DEFAULT RESOLVER')
+
 						code = Asset.fromFile(getBuildPath('graphql-resolver', id, 'resolver.js'))
 					}
 
-					const config = new aws.appsync.FunctionConfiguration(resolverGroup, 'config', {
-						apiId,
-						name,
-						code,
-						dataSourceName: source.name,
-					})
+					// const config = new aws.appsync.FunctionConfiguration(resolverGroup, 'config', {
+					// 	apiId,
+					// 	name,
+					// 	code,
+					// 	dataSourceName: source.name,
+					// })
 
-					new aws.appsync.Resolver(resolverGroup, 'resolver', {
+					// new aws.appsync.Resolver(resolverGroup, 'resolver', {
+					// 	apiId,
+					// 	typeName,
+					// 	fieldName,
+					// 	functions: [config.id],
+					// 	code,
+					// })
+
+					new aws.appsync.Resolver(resolverGroup, 'resolver-unit', {
 						apiId,
 						typeName,
 						fieldName,
-						functions: [config.id],
 						code,
+						kind: 'unit',
+						dataSourceName: source.name,
+						runtime: {
+							name: 'appsync-js',
+							version: '1.0.0',
+						},
 					})
 				}
 			}

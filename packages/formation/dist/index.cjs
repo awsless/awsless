@@ -895,7 +895,7 @@ var WorkSpace = class {
                 id: resourceState.id,
                 type: resource.type,
                 remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
-                oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
+                oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), {}),
                 newDocument: resolveDocumentAssets(cloneObject(document), assets),
                 oldAssets: resourceState.assets,
                 newAssets: assets,
@@ -2177,6 +2177,7 @@ var GraphQLSchema = class extends Resource {
 };
 
 // src/provider/aws/appsync/resolver.ts
+var import_change_case = require("change-case");
 var Resolver = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::AppSync::Resolver", id, props);
@@ -2193,16 +2194,17 @@ var Resolver = class extends CloudControlApiResource {
       },
       document: {
         ApiId: this.props.apiId,
-        Kind: "PIPELINE",
+        Kind: unwrap(this.props.kind).toUpperCase(),
         TypeName: this.props.typeName,
         FieldName: this.props.fieldName,
-        PipelineConfig: {
-          Functions: this.props.functions
-        },
+        DataSourceName: this.props.dataSourceName,
+        // PipelineConfig: {
+        // 	Functions: this.props.functions,
+        // },
         Code: { __ASSET__: "code" },
         Runtime: {
-          Name: "APPSYNC_JS",
-          RuntimeVersion: "1.0.0"
+          Name: (0, import_change_case.constantCase)(unwrap(this.props.runtime).name),
+          RuntimeVersion: unwrap(this.props.runtime).version
         }
       }
     };
@@ -2237,7 +2239,7 @@ __export(auto_scaling_exports, {
 
 // src/provider/aws/auto-scaling/auto-scaling-group.ts
 var import_duration4 = require("@awsless/duration");
-var import_change_case = require("change-case");
+var import_change_case2 = require("change-case");
 var AutoScalingGroup = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::AutoScaling::AutoScalingGroup", id, props);
@@ -2282,7 +2284,7 @@ var AutoScalingGroup = class extends CloudControlApiResource {
         // "NotificationConfigurations" : [ NotificationConfiguration, ... ],
         NotificationConfigurations: unwrap(this.props.notifications, []).map((v) => unwrap(v)).map((n) => ({
           NotificationTypes: unwrap(n.type).map(
-            (t) => `autoscaling:EC2_INSTANCE_${(0, import_change_case.constantCase)(unwrap(t))}`
+            (t) => `autoscaling:EC2_INSTANCE_${(0, import_change_case2.constantCase)(unwrap(t))}`
           ),
           TopicARN: n.topic
         })),
@@ -2290,7 +2292,7 @@ var AutoScalingGroup = class extends CloudControlApiResource {
         // "ServiceLinkedRoleARN" : String,
         // "Tags" : [ TagProperty, ... ],
         // "TargetGroupARNs" : [ String, ... ],
-        TerminationPolicies: unwrap(this.props.terminationPolicy, []).map((v) => unwrap(v)).map((v) => (0, import_change_case.pascalCase)(v)),
+        TerminationPolicies: unwrap(this.props.terminationPolicy, []).map((v) => unwrap(v)).map((v) => (0, import_change_case2.pascalCase)(v)),
         VPCZoneIdentifier: this.props.subnets
       }
     };
@@ -2558,7 +2560,7 @@ var OriginAccessControl = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cloud-front/origin-request-policy.ts
-var import_change_case2 = require("change-case");
+var import_change_case3 = require("change-case");
 var OriginRequestPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::CloudFront::OriginRequestPolicy", id, props);
@@ -2577,15 +2579,15 @@ var OriginRequestPolicy = class extends CloudControlApiResource {
         OriginRequestPolicyConfig: {
           Name: this.props.name,
           CookiesConfig: {
-            CookieBehavior: (0, import_change_case2.camelCase)(unwrap(cookie?.behavior, "all")),
+            CookieBehavior: (0, import_change_case3.camelCase)(unwrap(cookie?.behavior, "all")),
             ...this.attr("Cookies", cookie?.values)
           },
           HeadersConfig: {
-            HeaderBehavior: (0, import_change_case2.camelCase)(unwrap(header?.behavior, "all-viewer")),
+            HeaderBehavior: (0, import_change_case3.camelCase)(unwrap(header?.behavior, "all-viewer")),
             ...this.attr("Headers", header?.values)
           },
           QueryStringsConfig: {
-            QueryStringBehavior: (0, import_change_case2.camelCase)(unwrap(query?.behavior, "all")),
+            QueryStringBehavior: (0, import_change_case3.camelCase)(unwrap(query?.behavior, "all")),
             ...this.attr("QueryStrings", query?.values)
           }
         }
@@ -4273,7 +4275,7 @@ var UserPoolDomain = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cognito/user-pool.ts
-var import_change_case3 = require("change-case");
+var import_change_case4 = require("change-case");
 var import_duration10 = require("@awsless/duration");
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -4343,7 +4345,7 @@ var UserPool = class extends CloudControlApiResource {
         ...this.attr(
           "EmailConfiguration",
           email && {
-            ...this.attr("EmailSendingAccount", email.type, import_change_case3.constantCase),
+            ...this.attr("EmailSendingAccount", email.type, import_change_case4.constantCase),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
             ...this.attr("SourceArn", email.sourceArn),
@@ -4511,7 +4513,7 @@ var TableItem = class extends Resource {
 };
 
 // src/provider/aws/dynamodb/table.ts
-var import_change_case4 = require("change-case");
+var import_change_case5 = require("change-case");
 var Table = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::DynamoDB::Table", id, props);
@@ -4615,7 +4617,7 @@ var Table = class extends CloudControlApiResource {
           ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
         ],
         AttributeDefinitions: this.attributeDefinitions(),
-        TableClass: (0, import_change_case4.constantCase)(unwrap(this.props.class, "standard")),
+        TableClass: (0, import_change_case5.constantCase)(unwrap(this.props.class, "standard")),
         DeletionProtectionEnabled: unwrap(this.props.deletionProtection, false),
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: unwrap(this.props.pointInTimeRecovery, false)
@@ -4628,7 +4630,7 @@ var Table = class extends CloudControlApiResource {
         } : {},
         ...this.props.stream ? {
           StreamSpecification: {
-            StreamViewType: (0, import_change_case4.constantCase)(unwrap(this.props.stream))
+            StreamViewType: (0, import_change_case5.constantCase)(unwrap(this.props.stream))
           }
         } : {},
         ...Object.keys(this.indexes).length ? {
@@ -4639,7 +4641,7 @@ var Table = class extends CloudControlApiResource {
               ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
             ],
             Projection: {
-              ProjectionType: (0, import_change_case4.constantCase)(props.projection || "all")
+              ProjectionType: (0, import_change_case5.constantCase)(props.projection || "all")
             }
           }))
         } : {}
@@ -4896,7 +4898,7 @@ var ListenerRule = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/elb/listener.ts
-var import_change_case5 = require("change-case");
+var import_change_case6 = require("change-case");
 var Listener = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
@@ -4911,7 +4913,7 @@ var Listener = class extends CloudControlApiResource {
       document: {
         LoadBalancerArn: this.props.loadBalancerArn,
         Port: this.props.port,
-        Protocol: (0, import_change_case5.constantCase)(unwrap(this.props.protocol)),
+        Protocol: (0, import_change_case6.constantCase)(unwrap(this.props.protocol)),
         Certificates: unwrap(this.props.certificates).map((arn) => ({
           CertificateArn: arn
         })),
@@ -5070,7 +5072,7 @@ var fromAwsManagedPolicyName = (name) => {
 };
 
 // src/provider/aws/iam/role-policy.ts
-var import_change_case6 = require("change-case");
+var import_change_case7 = require("change-case");
 var formatPolicyDocument = (policy) => ({
   PolicyName: policy.name,
   PolicyDocument: {
@@ -5079,7 +5081,7 @@ var formatPolicyDocument = (policy) => ({
   }
 });
 var formatStatement = (statement) => ({
-  Effect: (0, import_change_case6.capitalCase)(unwrap(statement.effect, "allow")),
+  Effect: (0, import_change_case7.capitalCase)(unwrap(statement.effect, "allow")),
   Action: statement.actions,
   Resource: statement.resources
 });
@@ -5255,7 +5257,7 @@ __export(ivs_exports, {
 });
 
 // src/provider/aws/ivs/channel.ts
-var import_change_case7 = require("change-case");
+var import_change_case8 = require("change-case");
 var Channel = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::IVS::Channel", id, props);
@@ -5275,8 +5277,8 @@ var Channel = class extends CloudControlApiResource {
     return {
       document: {
         Name: this.props.name,
-        Type: (0, import_change_case7.constantCase)(unwrap(this.props.type, "standard")),
-        LatencyMode: (0, import_change_case7.constantCase)(unwrap(this.props.latencyMode, "low")),
+        Type: (0, import_change_case8.constantCase)(unwrap(this.props.type, "standard")),
+        LatencyMode: (0, import_change_case8.constantCase)(unwrap(this.props.latencyMode, "low")),
         ...this.attr("Preset", this.props.preset, (v) => `${v.toUpperCase()}_BANDWIDTH_DELIVERY`),
         ...this.attr("Authorized", this.props.authorized),
         ...this.attr("InsecureIngest", this.props.insecureIngest),
@@ -5390,7 +5392,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 
 // src/provider/aws/lambda/event-source-mapping.ts
 var import_duration13 = require("@awsless/duration");
-var import_change_case8 = require("change-case");
+var import_change_case9 = require("change-case");
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventSourceMapping", id, props);
@@ -5414,7 +5416,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
         ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, import_duration13.toSeconds),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case8.constantCase),
+        ...this.attr("StartingPosition", this.props.startingPosition, import_change_case9.constantCase),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
         ...this.props.maxConcurrency ? {
           ScalingConfig: {
@@ -5436,7 +5438,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
 // src/provider/aws/lambda/function.ts
 var import_duration14 = require("@awsless/duration");
 var import_size = require("@awsless/size");
-var import_change_case9 = require("change-case");
+var import_change_case10 = require("change-case");
 var Function = class extends Resource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -5520,8 +5522,8 @@ var Function = class extends Resource {
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: (0, import_change_case9.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: (0, import_change_case9.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: (0, import_change_case10.constantCase)(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: (0, import_change_case10.constantCase)(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -5542,7 +5544,7 @@ var Function = class extends Resource {
 };
 
 // src/provider/aws/lambda/permission.ts
-var import_change_case10 = require("change-case");
+var import_change_case11 = require("change-case");
 var Permission = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Permission", id, props);
@@ -5556,7 +5558,7 @@ var Permission = class extends CloudControlApiResource {
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal,
         ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case10.constantCase)
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, import_change_case11.constantCase)
         // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
         // ...(this.props.urlAuthType
         // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
@@ -5567,7 +5569,7 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/url.ts
-var import_change_case11 = require("change-case");
+var import_change_case12 = require("change-case");
 var import_duration15 = require("@awsless/duration");
 var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5600,8 +5602,8 @@ var Url = class extends CloudControlApiResource {
   toState() {
     return {
       document: {
-        AuthType: (0, import_change_case11.constantCase)(unwrap(this.props.authType, "none")),
-        InvokeMode: (0, import_change_case11.constantCase)(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: (0, import_change_case12.constantCase)(unwrap(this.props.authType, "none")),
+        InvokeMode: (0, import_change_case12.constantCase)(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn,
         ...this.attr("Qualifier", this.props.qualifier),
         Cors: this.cors()
@@ -5693,7 +5695,7 @@ __export(open_search_exports, {
 
 // src/provider/aws/open-search/domain.ts
 var import_size2 = require("@awsless/size");
-var import_change_case12 = require("change-case");
+var import_change_case13 = require("change-case");
 var Domain = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::OpenSearchService::Domain", id, props);
@@ -5756,7 +5758,7 @@ var Domain = class extends CloudControlApiResource {
         AccessPolicies: {
           Version: unwrap(accessPolicy?.version, "2012-10-17"),
           Statement: unwrap(accessPolicy?.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case12.capitalCase)(unwrap(statement.effect, "allow")),
+            Effect: (0, import_change_case13.capitalCase)(unwrap(statement.effect, "allow")),
             Action: unwrap(statement.actions, ["es:*"]),
             Resource: unwrap(statement.resources, ["*"]),
             ...statement.principal ? {
@@ -6070,7 +6072,7 @@ var Bucket = class extends Resource {
 };
 
 // src/provider/aws/s3/bucket-policy.ts
-var import_change_case13 = require("change-case");
+var import_change_case14 = require("change-case");
 var BucketPolicy = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::S3::BucketPolicy", id, props);
@@ -6084,7 +6086,7 @@ var BucketPolicy = class extends CloudControlApiResource {
         PolicyDocument: {
           Version: unwrap(this.props.version, "2012-10-17"),
           Statement: unwrap(this.props.statements, []).map((s) => unwrap(s)).map((statement) => ({
-            Effect: (0, import_change_case13.capitalCase)(unwrap(statement.effect, "allow")),
+            Effect: (0, import_change_case14.capitalCase)(unwrap(statement.effect, "allow")),
             ...statement.principal ? {
               Principal: {
                 Service: statement.principal
@@ -6163,7 +6165,7 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-var import_change_case14 = require("change-case");
+var import_change_case15 = require("change-case");
 var import_duration17 = require("@awsless/duration");
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -6217,7 +6219,7 @@ var EmailIdentity = class extends CloudControlApiResource {
             SigningEnabled: true
           },
           DkimSigningAttributes: {
-            NextSigningKeyLength: (0, import_change_case14.constantCase)(unwrap(this.props.dkim))
+            NextSigningKeyLength: (0, import_change_case15.constantCase)(unwrap(this.props.dkim))
           }
         } : {},
         FeedbackAttributes: {

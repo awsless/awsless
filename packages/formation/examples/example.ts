@@ -41,23 +41,23 @@ const stack = new Stack(app, 'test')
 // 	name: 'test',
 // })
 
-const vpc = createVPC(stack, 'eu-west-1', 'test')
+// const vpc = createVPC(stack, 'eu-west-1', 'test')
 
-const template = new aws.ec2.LaunchTemplate(stack, 'test', {
-	name: 'my-test',
-	imageId: 'ami-05172b510cbeb4f59',
-	instanceType: 't4g.nano',
-	userData: Asset.fromString(Buffer.from('echo 7').toString('base64')),
-})
+// const template = new aws.ec2.LaunchTemplate(stack, 'test', {
+// 	name: 'my-test',
+// 	imageId: 'ami-05172b510cbeb4f59',
+// 	instanceType: 't4g.nano',
+// 	userData: Asset.fromString(Buffer.from('echo 7').toString('base64')),
+// })
 
-template.id.apply(console.log)
-template.version.apply(console.log)
+// template.id.apply(console.log)
+// template.version.apply(console.log)
 
-const instance = new aws.ec2.Instance(stack, 'test', {
-	name: 'my-test-1',
-	launchTemplate: template,
-	subnetId: vpc.subnets.public[0]?.id,
-})
+// const instance = new aws.ec2.Instance(stack, 'test', {
+// 	name: 'my-test-1',
+// 	launchTemplate: template,
+// 	subnetId: vpc.subnets.public[0]?.id,
+// })
 
 // channel.playbackUrl.apply(console.log)
 // channel.
@@ -126,8 +126,8 @@ const main = async () => {
 	console.log('START')
 
 	try {
-		// await workspace.deployApp(app)
-		await workspace.deleteApp(app)
+		await workspace.deployApp(app)
+		// await workspace.deleteApp(app)
 	} catch (error) {
 		if (error instanceof AppError) {
 			for (const issue of error.issues) {
