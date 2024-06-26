@@ -598,7 +598,7 @@ export class WorkSpace {
 									id: resourceState.id,
 									type: resource.type,
 									remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
-									oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
+									oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), {}),
 									newDocument: resolveDocumentAssets(cloneObject(document), assets),
 									oldAssets: resourceState.assets,
 									newAssets: assets,

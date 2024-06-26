@@ -845,7 +845,7 @@ var WorkSpace = class {
                 id: resourceState.id,
                 type: resource.type,
                 remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
-                oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), assets),
+                oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), {}),
                 newDocument: resolveDocumentAssets(cloneObject(document), assets),
                 oldAssets: resourceState.assets,
                 newAssets: assets,
@@ -2176,6 +2176,7 @@ var GraphQLSchema = class extends Resource {
 };
 
 // src/provider/aws/appsync/resolver.ts
+import { constantCase } from "change-case";
 var Resolver = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::AppSync::Resolver", id, props);
@@ -2192,16 +2193,17 @@ var Resolver = class extends CloudControlApiResource {
       },
       document: {
         ApiId: this.props.apiId,
-        Kind: "PIPELINE",
+        Kind: unwrap(this.props.kind).toUpperCase(),
         TypeName: this.props.typeName,
         FieldName: this.props.fieldName,
-        PipelineConfig: {
-          Functions: this.props.functions
-        },
+        DataSourceName: this.props.dataSourceName,
+        // PipelineConfig: {
+        // 	Functions: this.props.functions,
+        // },
         Code: { __ASSET__: "code" },
         Runtime: {
-          Name: "APPSYNC_JS",
-          RuntimeVersion: "1.0.0"
+          Name: constantCase(unwrap(this.props.runtime).name),
+          RuntimeVersion: unwrap(this.props.runtime).version
         }
       }
     };
@@ -2236,7 +2238,7 @@ __export(auto_scaling_exports, {
 
 // src/provider/aws/auto-scaling/auto-scaling-group.ts
 import { toSeconds as toSeconds3 } from "@awsless/duration";
-import { constantCase, pascalCase } from "change-case";
+import { constantCase as constantCase2, pascalCase } from "change-case";
 var AutoScalingGroup = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::AutoScaling::AutoScalingGroup", id, props);
@@ -2281,7 +2283,7 @@ var AutoScalingGroup = class extends CloudControlApiResource {
         // "NotificationConfigurations" : [ NotificationConfiguration, ... ],
         NotificationConfigurations: unwrap(this.props.notifications, []).map((v) => unwrap(v)).map((n) => ({
           NotificationTypes: unwrap(n.type).map(
-            (t) => `autoscaling:EC2_INSTANCE_${constantCase(unwrap(t))}`
+            (t) => `autoscaling:EC2_INSTANCE_${constantCase2(unwrap(t))}`
           ),
           TopicARN: n.topic
         })),
@@ -4305,7 +4307,7 @@ var UserPoolDomain = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cognito/user-pool.ts
-import { constantCase as constantCase2 } from "change-case";
+import { constantCase as constantCase3 } from "change-case";
 import { days as days2, toDays as toDays3 } from "@awsless/duration";
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -4375,7 +4377,7 @@ var UserPool = class extends CloudControlApiResource {
         ...this.attr(
           "EmailConfiguration",
           email && {
-            ...this.attr("EmailSendingAccount", email.type, constantCase2),
+            ...this.attr("EmailSendingAccount", email.type, constantCase3),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
             ...this.attr("SourceArn", email.sourceArn),
@@ -4543,7 +4545,7 @@ var TableItem = class extends Resource {
 };
 
 // src/provider/aws/dynamodb/table.ts
-import { constantCase as constantCase3 } from "change-case";
+import { constantCase as constantCase4 } from "change-case";
 var Table = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::DynamoDB::Table", id, props);
@@ -4647,7 +4649,7 @@ var Table = class extends CloudControlApiResource {
           ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
         ],
         AttributeDefinitions: this.attributeDefinitions(),
-        TableClass: constantCase3(unwrap(this.props.class, "standard")),
+        TableClass: constantCase4(unwrap(this.props.class, "standard")),
         DeletionProtectionEnabled: unwrap(this.props.deletionProtection, false),
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: unwrap(this.props.pointInTimeRecovery, false)
@@ -4660,7 +4662,7 @@ var Table = class extends CloudControlApiResource {
         } : {},
         ...this.props.stream ? {
           StreamSpecification: {
-            StreamViewType: constantCase3(unwrap(this.props.stream))
+            StreamViewType: constantCase4(unwrap(this.props.stream))
           }
         } : {},
         ...Object.keys(this.indexes).length ? {
@@ -4671,7 +4673,7 @@ var Table = class extends CloudControlApiResource {
               ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
             ],
             Projection: {
-              ProjectionType: constantCase3(props.projection || "all")
+              ProjectionType: constantCase4(props.projection || "all")
             }
           }))
         } : {}
@@ -4928,7 +4930,7 @@ var ListenerRule = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/elb/listener.ts
-import { constantCase as constantCase4 } from "change-case";
+import { constantCase as constantCase5 } from "change-case";
 var Listener = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
@@ -4943,7 +4945,7 @@ var Listener = class extends CloudControlApiResource {
       document: {
         LoadBalancerArn: this.props.loadBalancerArn,
         Port: this.props.port,
-        Protocol: constantCase4(unwrap(this.props.protocol)),
+        Protocol: constantCase5(unwrap(this.props.protocol)),
         Certificates: unwrap(this.props.certificates).map((arn) => ({
           CertificateArn: arn
         })),
@@ -5287,7 +5289,7 @@ __export(ivs_exports, {
 });
 
 // src/provider/aws/ivs/channel.ts
-import { constantCase as constantCase5 } from "change-case";
+import { constantCase as constantCase6 } from "change-case";
 var Channel = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::IVS::Channel", id, props);
@@ -5307,8 +5309,8 @@ var Channel = class extends CloudControlApiResource {
     return {
       document: {
         Name: this.props.name,
-        Type: constantCase5(unwrap(this.props.type, "standard")),
-        LatencyMode: constantCase5(unwrap(this.props.latencyMode, "low")),
+        Type: constantCase6(unwrap(this.props.type, "standard")),
+        LatencyMode: constantCase6(unwrap(this.props.latencyMode, "low")),
         ...this.attr("Preset", this.props.preset, (v) => `${v.toUpperCase()}_BANDWIDTH_DELIVERY`),
         ...this.attr("Authorized", this.props.authorized),
         ...this.attr("InsecureIngest", this.props.insecureIngest),
@@ -5422,7 +5424,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 
 // src/provider/aws/lambda/event-source-mapping.ts
 import { toSeconds as toSeconds9 } from "@awsless/duration";
-import { constantCase as constantCase6 } from "change-case";
+import { constantCase as constantCase7 } from "change-case";
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventSourceMapping", id, props);
@@ -5446,7 +5448,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
         ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, toSeconds9),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, constantCase6),
+        ...this.attr("StartingPosition", this.props.startingPosition, constantCase7),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
         ...this.props.maxConcurrency ? {
           ScalingConfig: {
@@ -5468,7 +5470,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
 // src/provider/aws/lambda/function.ts
 import { seconds, toSeconds as toSeconds10 } from "@awsless/duration";
 import { mebibytes, toMebibytes } from "@awsless/size";
-import { constantCase as constantCase7 } from "change-case";
+import { constantCase as constantCase8 } from "change-case";
 var Function = class extends Resource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -5552,8 +5554,8 @@ var Function = class extends Resource {
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: constantCase7(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: constantCase7(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: constantCase8(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: constantCase8(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -5574,7 +5576,7 @@ var Function = class extends Resource {
 };
 
 // src/provider/aws/lambda/permission.ts
-import { constantCase as constantCase8 } from "change-case";
+import { constantCase as constantCase9 } from "change-case";
 var Permission = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Permission", id, props);
@@ -5588,7 +5590,7 @@ var Permission = class extends CloudControlApiResource {
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal,
         ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase8)
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase9)
         // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
         // ...(this.props.urlAuthType
         // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
@@ -5599,7 +5601,7 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/url.ts
-import { constantCase as constantCase9 } from "change-case";
+import { constantCase as constantCase10 } from "change-case";
 import { toSeconds as toSeconds11 } from "@awsless/duration";
 var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5632,8 +5634,8 @@ var Url = class extends CloudControlApiResource {
   toState() {
     return {
       document: {
-        AuthType: constantCase9(unwrap(this.props.authType, "none")),
-        InvokeMode: constantCase9(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: constantCase10(unwrap(this.props.authType, "none")),
+        InvokeMode: constantCase10(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn,
         ...this.attr("Qualifier", this.props.qualifier),
         Cors: this.cors()
@@ -6201,7 +6203,7 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-import { constantCase as constantCase10 } from "change-case";
+import { constantCase as constantCase11 } from "change-case";
 import { minutes as minutes3 } from "@awsless/duration";
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -6255,7 +6257,7 @@ var EmailIdentity = class extends CloudControlApiResource {
             SigningEnabled: true
           },
           DkimSigningAttributes: {
-            NextSigningKeyLength: constantCase10(unwrap(this.props.dkim))
+            NextSigningKeyLength: constantCase11(unwrap(this.props.dkim))
           }
         } : {},
         FeedbackAttributes: {

@@ -92,6 +92,7 @@ export const storeFeature = defineFeature({
 			const bucket = new aws.s3.Bucket(group, 'store', {
 				name: bucketName,
 				versioning: props.versioning,
+				forceDelete: true,
 				lambdaConfigs,
 				cors: [
 					// ---------------------------------------------

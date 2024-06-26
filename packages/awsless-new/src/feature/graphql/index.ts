@@ -31,7 +31,7 @@ const defaultResolver = `
 export function request(ctx) {
 	return {
 		operation: 'Invoke',
-		payload: ctx,
+		payload: ctx.arguments,
 	};
 }
 
@@ -306,24 +306,56 @@ export const graphqlFeature = defineFeature({
 					let code: Asset = Asset.fromString(defaultResolver)
 
 					if ('resolver' in props && props.resolver) {
-						code = Asset.fromFile(props.resolver)
+						ctx.registerBuild('graphql-resolver', entryId, async build => {
+							const resolver = props.resolver!
+							const version = await fingerprintFromFile(resolver)
+
+							return build(version, async write => {
+								const file = await buildTypeScriptResolver(resolver)
+
+								if (!file) {
+									throw new FileError(resolver, `Failed to build a graphql resolver.`)
+								}
+
+								await write('resolver.js', file)
+
+								return {
+									size: formatByteSize(file.byteLength),
+								}
+							})
+						})
+
+						code = Asset.fromFile(getBuildPath('graphql-resolver', entryId, 'resolver.js'))
 					} else if (defaultProps.resolver) {
 						code = Asset.fromFile(getBuildPath('graphql-resolver', id, 'resolver.js'))
 					}
 
-					const config = new aws.appsync.FunctionConfiguration(resolverGroup, 'config', {
-						apiId,
-						name,
-						code,
-						dataSourceName: source.name,
-					})
+					// const config = new aws.appsync.FunctionConfiguration(resolverGroup, 'config', {
+					// 	apiId,
+					// 	name,
+					// 	code,
+					// 	dataSourceName: source.name,
+					// })
 
-					new aws.appsync.Resolver(resolverGroup, 'resolver', {
+					// new aws.appsync.Resolver(resolverGroup, 'resolver', {
+					// 	apiId,
+					// 	typeName,
+					// 	fieldName,
+					// 	functions: [config.id],
+					// 	code,
+					// })
+
+					new aws.appsync.Resolver(resolverGroup, 'resolver-unit', {
 						apiId,
 						typeName,
 						fieldName,
-						functions: [config.id],
 						code,
+						kind: 'unit',
+						dataSourceName: source.name,
+						runtime: {
+							name: 'appsync-js',
+							version: '1.0.0',
+						},
 					})
 				}
 			}

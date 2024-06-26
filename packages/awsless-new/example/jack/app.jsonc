@@ -18,23 +18,24 @@
 		// 		"subDomain": "elb"
 		// 	}
 		// },
-		// "graphql": {
-		// 	"api": {
-		// 		"auth": {
-		// 			"authorizer": "./auth.ts"
-		// 		}
-		// 		// "domain": "main",
-		// 		// "subDomain": "api",
-		// 		// "auth": "users"
-		// 	}
-		// },
+		"graphql": {
+			"api": {
+				"resolver": "./graphql/resolver.ts"
+				// "auth": {
+				// 	"authorizer": "./auth.ts"
+				// }
+				// "domain": "main",
+				// "subDomain": "api",
+				// "auth": "users"
+			}
+		},
 		// "rest": {
 		// 	"api": {}
 		// },
-		"realtime": {
+		"pubsub": {
 			"admin": {
 				"auth": {
-					"authorizer": "./realtime-auth.ts"
+					"authorizer": "./pubsub-auth.ts"
 				},
 				"policy": {
 					"publish": ["user", "game/*"],
@@ -42,9 +43,9 @@
 				}
 			}
 		},
-		"instance": {
-			// "connect": true
-		},
+		// "instance": {
+		// 	// "connect": true
+		// },
 		"function": {
 			"log": {
 				"retention": "1 days",

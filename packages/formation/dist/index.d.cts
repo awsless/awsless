@@ -991,9 +991,14 @@ declare class GraphQLSchema extends Resource {
 
 type ResolverProps = {
     apiId: Input<string>;
+    kind: Input<'pipeline' | 'unit'>;
+    runtime: Input<{
+        name: 'appsync-js';
+        version: '1.0.0';
+    }>;
     typeName: Input<string>;
     fieldName: Input<string>;
-    functions: Input<Input<string>[]>;
+    dataSourceName: Input<string>;
     code: Input<Asset>;
 };
 declare class Resolver extends CloudControlApiResource {
@@ -1010,15 +1015,13 @@ declare class Resolver extends CloudControlApiResource {
             Kind: string;
             TypeName: Input<string>;
             FieldName: Input<string>;
-            PipelineConfig: {
-                Functions: Input<Input<string>[]>;
-            };
+            DataSourceName: Input<string>;
             Code: {
                 __ASSET__: string;
             };
             Runtime: {
                 Name: string;
-                RuntimeVersion: string;
+                RuntimeVersion: "1.0.0";
             };
         };
     };

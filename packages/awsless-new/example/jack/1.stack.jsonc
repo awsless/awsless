@@ -1,12 +1,24 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"depends": ["stack-2"],
-	"configs": ["test"],
-	"commands": {
-		"test": {
-			"file": "./command.ts",
-			"description": "Test command"
+	// "depends": ["stack-2"],
+	// "configs": ["test"],
+	// "commands": {
+	// 	"test": {
+	// 		"file": "./command.ts",
+	// 		"description": "Test command"
+	// 	}
+	// },
+	"graphql": {
+		"api": {
+			"schema": "./graphql/schema.gql",
+			"resolvers": {
+				"Query": {
+					"test": {
+						"consumer": "./graphql.ts"
+					}
+				}
+			}
 		}
 	}
 	// "functions": {

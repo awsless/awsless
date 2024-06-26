@@ -5,7 +5,7 @@ import { FunctionDefaultSchema } from '../feature/function/schema.js'
 import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
 import { HttpDefaultSchema } from '../feature/http/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
-import { RealTimeDefaultSchema } from '../feature/pubsub/schema.js'
+import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 import { RestDefaultSchema } from '../feature/rest/schema.js'
 import { RegionSchema } from './schema/region.js'
@@ -34,7 +34,7 @@ export const AppSchema = z.object({
 			graphql: GraphQLDefaultSchema,
 			http: HttpDefaultSchema,
 			rest: RestDefaultSchema,
-			realtime: RealTimeDefaultSchema,
+			pubsub: PubSubDefaultSchema,
 		})
 		.default({})
 		.describe('Default properties'),
