@@ -1,4 +1,4 @@
-import { readFile, stat } from 'fs/promises'
+import { stat } from 'fs/promises'
 import { basename, join } from 'path'
 
 // const readFiles = async (files: string[]) => {

@@ -1,9 +1,18 @@
 import { execFile } from 'child_process'
 
 export type PackageManager = 'pnpm'
+export type LoadPackageDependencyVersionsProps = {
+	packageManager: PackageManager
+	dev?: boolean
+}
 
-export const loadPackageDependencyVersions = (entry: string, packageManager: PackageManager) => {
-	if (packageManager === 'pnpm') {
+type PnpmListResponse = {
+	dependencies?: Record<string, { version: string }>
+	devDependencies?: Record<string, { version: string }>
+}[]
+
+export const loadPackageDependencyVersions = (entry: string, props: LoadPackageDependencyVersionsProps) => {
+	if (props.packageManager === 'pnpm') {
 		return new Promise<Record<string, string>>((resolve, reject) => {
 			execFile(`pnpm`, ['list', '--json'], { cwd: entry }, (error, stdout) => {
 				if (error) {
@@ -11,9 +20,15 @@ export const loadPackageDependencyVersions = (entry: string, packageManager: Pac
 				}
 
 				const versions: Record<string, string> = {}
-				const data = JSON.parse(stdout) as [{ dependencies: Record<string, { version: string }> }]
+				const data = JSON.parse(stdout) as PnpmListResponse
 
-				for (const [name, entry] of Object.entries(data[0]!.dependencies)) {
+				if (props.dev) {
+					for (const [name, entry] of Object.entries(data.at(0)?.devDependencies ?? {})) {
+						versions[name] = entry.version
+					}
+				}
+
+				for (const [name, entry] of Object.entries(data.at(0)?.dependencies ?? {})) {
 					versions[name] = entry.version
 				}
 
@@ -22,5 +37,5 @@ export const loadPackageDependencyVersions = (entry: string, packageManager: Pac
 		})
 	}
 
-	throw new Error(`Unsupported package manager: ${packageManager}`)
+	throw new Error(`Unsupported package manager: ${props.packageManager}`)
 }
