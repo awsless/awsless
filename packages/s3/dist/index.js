@@ -90,14 +90,14 @@ var deleteObject = async ({ client = s3Client(), bucket, key }) => {
   });
   await client.send(command);
 };
-var copyObject = async ({ client = s3Client(), bucket, source, key, versionId }) => {
-  if (versionId) {
-    source = `${source}?versionId=${versionId}`;
+var copyObject = async ({ client = s3Client(), source, destination }) => {
+  if (source.versionId) {
+    source.key = `${source.key}?versionId=${source.versionId}`;
   }
   const command = new CopyObjectCommand({
-    Bucket: bucket,
-    CopySource: source,
-    Key: key
+    Bucket: destination.bucket,
+    CopySource: `/${source.bucket}/${source.key}`,
+    Key: destination.key
   });
   await client.send(command);
 };

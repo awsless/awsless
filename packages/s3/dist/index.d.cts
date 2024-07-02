@@ -54,12 +54,17 @@ type DeleteObjectProps = {
 declare const deleteObject: ({ client, bucket, key }: DeleteObjectProps) => Promise<void>;
 type CopyObjectProps = {
     client?: S3Client;
-    bucket: string;
-    source: string;
-    key: string;
-    versionId?: string;
+    source: {
+        bucket: string;
+        key: string;
+        versionId?: string;
+    };
+    destination: {
+        bucket: string;
+        key: string;
+    };
 };
-declare const copyObject: ({ client, bucket, source, key, versionId }: CopyObjectProps) => Promise<void>;
+declare const copyObject: ({ client, source, destination }: CopyObjectProps) => Promise<void>;
 type CreatePresignedPostProps = {
     client?: S3Client;
     bucket: string;

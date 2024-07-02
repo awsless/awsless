@@ -1,4 +1,5 @@
 import {
+	CopyObjectCommand,
 	DeleteObjectCommand,
 	GetObjectCommand,
 	HeadObjectCommand,
@@ -49,6 +50,18 @@ describe('S3 Mock', () => {
 		)
 
 		expect(result.Metadata).toStrictEqual({ test: 'test' })
+		expect(s3).toBeCalledTimes(1)
+	})
+
+	it('should copy files between s3 buckets', async () => {
+		await client.send(
+			new CopyObjectCommand({
+				Bucket: 'test-new',
+				CopySource: `/test/test`,
+				Key: 'test-new',
+			})
+		)
+
 		expect(s3).toBeCalledTimes(1)
 	})
 
