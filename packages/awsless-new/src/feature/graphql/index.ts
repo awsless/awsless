@@ -11,7 +11,6 @@ import { buildSchema, print } from 'graphql'
 // import { FunctionSchema } from '../function/schema.js'
 import { Asset, aws, Node } from '@awsless/formation'
 import { createHash } from 'crypto'
-import { fingerprintFromFile } from '../../build/fingerprint.js'
 import { getBuildPath } from '../../build/index.js'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
@@ -23,6 +22,7 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { buildTypeScriptResolver } from './build/typescript/resolver.js'
+import { generateFileHash } from '@awsless/ts-file-cache'
 // import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
@@ -202,9 +202,11 @@ export const graphqlFeature = defineFeature({
 			})
 
 			if (props.resolver) {
-				ctx.registerBuild('graphql-resolver', id, async build => {
+				ctx.registerBuild('graphql-resolver', id, async (build, { packageVersions }) => {
 					const resolver = props.resolver!
-					const version = await fingerprintFromFile(resolver)
+					const version = await generateFileHash(resolver, {
+						packageVersions,
+					})
 
 					return build(version, async write => {
 						const file = await buildTypeScriptResolver(resolver)
@@ -306,9 +308,11 @@ export const graphqlFeature = defineFeature({
 					let code: Asset = Asset.fromString(defaultResolver)
 
 					if ('resolver' in props && props.resolver) {
-						ctx.registerBuild('graphql-resolver', entryId, async build => {
+						ctx.registerBuild('graphql-resolver', entryId, async (build, { packageVersions }) => {
 							const resolver = props.resolver!
-							const version = await fingerprintFromFile(resolver)
+							const version = await generateFileHash(resolver, {
+								packageVersions,
+							})
 
 							return build(version, async write => {
 								const file = await buildTypeScriptResolver(resolver)
@@ -345,7 +349,7 @@ export const graphqlFeature = defineFeature({
 					// 	code,
 					// })
 
-					new aws.appsync.Resolver(resolverGroup, 'resolver-unit', {
+					new aws.appsync.Resolver(resolverGroup, 'resolver', {
 						apiId,
 						typeName,
 						fieldName,

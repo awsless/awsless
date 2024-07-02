@@ -2,6 +2,7 @@ import { aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction, createLambdaFunction, LambdaFunctionProps } from '../function/util.js'
+import { constantCase } from 'change-case'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
@@ -16,8 +17,9 @@ export const pubsubFeature = defineFeature({
 			lambda.addEnvironment('PUBSUB_POLICY', JSON.stringify(props.policy))
 			lambda.addEnvironment('AWS_ACCOUNT_ID', ctx.accountId)
 
+			const name = formatGlobalResourceName(ctx.app.name, 'pubsub', id)
 			const authorizer = new aws.iot.Authorizer(group, 'authorizer', {
-				name: formatGlobalResourceName(ctx.app.name, 'pubsub', id),
+				name,
 				functionArn: lambda.arn,
 			})
 
@@ -27,6 +29,9 @@ export const pubsubFeature = defineFeature({
 				sourceArn: authorizer.arn,
 				action: 'lambda:InvokeFunction',
 			})
+
+			// ctx.addEnv(`PUBSUB_${constantCase(id)}_ENDPOINT`)
+			ctx.addEnv(`PUBSUB_${constantCase(id)}_AUTHORIZER`, name)
 		}
 
 		ctx.onPolicy(policy => {

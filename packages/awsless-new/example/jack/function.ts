@@ -1,5 +1,9 @@
+import { string } from 'zod'
+
 export default () => {
 	// console.log('HELLO !!!')
+
+	string()
 
 	return Promise.resolve({
 		statusCode: 200,

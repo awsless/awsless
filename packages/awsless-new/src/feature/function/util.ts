@@ -1,4 +1,5 @@
 import { Asset, aws, Node } from '@awsless/formation'
+import { generateFileHash } from '@awsless/ts-file-cache'
 import deepmerge from 'deepmerge'
 import { basename, dirname, extname } from 'path'
 import { exec } from 'promisify-child-process'
@@ -9,7 +10,6 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
-import { fingerprintFromFile } from './build/typescript/fingerprint.js'
 import { zipFiles } from './build/zip.js'
 import { FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
@@ -42,8 +42,10 @@ export const createLambdaFunction = (
 	let sourceCodeHash: Asset | undefined
 
 	if (['.ts', '.js', '.tsx', '.sx'].includes(ext)) {
-		ctx.registerBuild('function', name, async build => {
-			const version = await fingerprintFromFile(props.file)
+		ctx.registerBuild('function', name, async (build, { packageVersions }) => {
+			const version = await generateFileHash(props.file, {
+				packageVersions,
+			})
 
 			return build(version, async write => {
 				const bundle = await bundleTypeScript({ file: props.file })
@@ -179,7 +181,7 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 	// Logging
 
-	if (props.log.retention.value > 0n) {
+	if (props.log.retention!.value > 0n) {
 		const logGroup = new aws.cloudWatch.LogGroup(group, 'log', {
 			name: lambda.name.apply(name => `/aws/lambda/${name}`),
 			retention: props.log.retention,

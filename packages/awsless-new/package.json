@@ -68,6 +68,7 @@
 		"@awsless/formation": "workspace:^",
 		"@awsless/graphql": "workspace:^",
 		"@awsless/size": "workspace:^",
+		"@awsless/ts-file-cache": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@clack/prompts": "^0.7.0",
 		"@graphql-tools/merge": "^9.0.0",

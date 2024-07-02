@@ -1,6 +1,7 @@
-import { BuildTask } from '../../../app.js'
-import { Metadata, build } from '../../../build/index.js'
+import { loadPackageDependencyVersions } from '@awsless/ts-file-cache'
 import chalk from 'chalk'
+import { BuildTask } from '../../../app.js'
+import { build, Metadata } from '../../../build/index.js'
 import { table, task } from '../util.js'
 
 export const buildAssets = async (builders: BuildTask[], showResult = false) => {
@@ -15,8 +16,13 @@ export const buildAssets = async (builders: BuildTask[], showResult = false) => 
 	> = []
 
 	await task('Building assets', async update => {
+		const packageVersions = await loadPackageDependencyVersions('.', 'pnpm')
+
 		for (const builder of builders) {
-			const result = await build(builder.type, builder.name, builder.builder)
+			const result = await build(builder.type, builder.name, builder.builder, {
+				packageVersions,
+			})
+
 			results.push({ ...builder, result })
 		}
 

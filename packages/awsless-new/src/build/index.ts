@@ -8,7 +8,10 @@ export type Metadata = Record<string, string | number | boolean> | undefined | v
 export type Write = (file: string, data: Buffer | string) => Promise<void>
 export type BuildCallback = (write: Write) => Promise<Metadata>
 export type Build = (fingerprint: string, callback: BuildCallback) => Promise<Metadata>
-export type Builder = (build: Build) => Promise<Metadata>
+export type Builder = (build: Build, props: BuildProps) => Promise<Metadata>
+export type BuildProps = {
+	packageVersions: Record<string, string>
+}
 
 const readCache = async (file: string) => {
 	try {
@@ -33,7 +36,7 @@ export const getBuildPath = (type: string, name: string, file: string) => {
 	return join(directories.build, type, name, file)
 }
 
-export const build = (type: string, name: string, builder: Builder) => {
+export const build = (type: string, name: string, builder: Builder, props: BuildProps) => {
 	return builder(async (version, callback) => {
 		const cacheFile = getBuildPath(type, name, 'cache.json')
 		const cache = await readCache(cacheFile)
@@ -62,5 +65,5 @@ export const build = (type: string, name: string, builder: Builder) => {
 			...data,
 			cached: false,
 		}
-	})
+	}, props)
 }

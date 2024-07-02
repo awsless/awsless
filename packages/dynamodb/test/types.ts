@@ -1,33 +1,33 @@
 import { BigFloat } from '@awsless/big-float'
+import { randomUUID, UUID } from 'crypto'
 import {
-	define,
-	number,
-	object,
-	string,
-	date,
-	putItem,
-	mockDynamoDB,
+	any,
 	array,
 	bigfloat,
 	bigint,
-	binary,
-	unknown,
-	boolean,
 	bigintSet,
-	stringSet,
-	numberSet,
+	binary,
 	binarySet,
+	boolean,
+	date,
+	define,
 	getItem,
-	updateItem,
-	record,
-	optional,
-	uuid,
-	ttl,
-	any,
-	stringEnum,
+	mockDynamoDB,
+	number,
 	numberEnum,
+	numberSet,
+	object,
+	optional,
+	putItem,
+	record,
+	string,
+	stringEnum,
+	stringSet,
+	ttl,
+	unknown,
+	updateItem,
+	uuid,
 } from '../src'
-import { UUID, randomUUID } from 'crypto'
 // import { any } from '../src/structs/any'
 // import { AttributeTypes } from '../src/structs/struct'
 // import { CATCH_ALL } from '../src/structs/object'
@@ -71,6 +71,7 @@ describe('Types', () => {
 			ttl: ttl(),
 			optional: optional(string()),
 			unknown: unknown(),
+			unknown2: unknown(),
 			array: array(
 				object({
 					key: string(),
@@ -115,6 +116,7 @@ describe('Types', () => {
 		ttl: now,
 		optional: '1',
 		unknown: { random: 1 },
+		unknown2: undefined,
 		array: [{ key: '1' }],
 		record: {
 			key1: { key: '1' },
@@ -154,6 +156,7 @@ describe('Types', () => {
 		expectTypeOf(result!.date).toEqualTypeOf<Date>()
 		expectTypeOf(result!.ttl).toEqualTypeOf<Date>()
 		expectTypeOf(result!.unknown).toEqualTypeOf<unknown>()
+		expectTypeOf(result!.unknown2).toEqualTypeOf<unknown>()
 		expectTypeOf(result!.optional).toEqualTypeOf<string | undefined>()
 		expectTypeOf(result!.array).toEqualTypeOf<{ key: string }[]>()
 		expectTypeOf(result!.record).toEqualTypeOf<Record<string, { key: string }>>()
@@ -165,8 +168,11 @@ describe('Types', () => {
 		expectTypeOf(result!.sets.bigint).toEqualTypeOf<Set<bigint>>()
 		expectTypeOf(result!.sets.binary).toEqualTypeOf<Set<Uint8Array>>()
 
+		delete item.unknown2
+
 		expect(result).toStrictEqual({
 			...item,
+			// unknown2: expect.not.set()
 			binary: new Uint8Array(bytes),
 			ttl: new Date(Math.floor(now.getTime() / 1000) * 1000),
 			sets: {
@@ -215,6 +221,8 @@ describe('Types', () => {
 						.del()
 						.update('unknown')
 						.set({ random: 2 })
+						.update('unknown2')
+						.set(undefined)
 						.update('array', 0)
 						.set({ key: '2' })
 						.update('record', 'key1')
@@ -251,6 +259,7 @@ describe('Types', () => {
 			date,
 			ttl: new Date(Math.floor(date.getTime() / 1000) * 1000),
 			unknown: { random: 2 },
+			// unknown2: undefined,
 			array: [{ key: '2' }],
 			record: {
 				key1: { key: '2' },

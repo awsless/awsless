@@ -307,6 +307,9 @@ var Update = class extends Chain {
   }
   /** Set a value */
   set(value) {
+    if (typeof value === "undefined") {
+      return this.del();
+    }
     return this.u("set", { p: this.path }, "=", { v: value, p: this.path });
   }
   /** Set a value if the attribute doesn't already exists */
@@ -706,7 +709,7 @@ var ttl = () => new Struct(
 var unknown = () => new Struct(
   "S",
   (value) => JSON.stringify(value),
-  (value) => JSON.parse(value)
+  (value) => typeof value === "undefined" ? value : JSON.parse(value)
 );
 
 // src/structs/enum/string.ts

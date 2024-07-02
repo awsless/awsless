@@ -1,6 +1,6 @@
 import { BigFloat } from '@awsless/big-float'
-import { isPath, isValue, QueryItem } from '../helper/query'
 import { IDGenerator } from '../helper/id-generator'
+import { isPath, isValue, QueryItem } from '../helper/query'
 import { AnyTableDefinition } from '../table'
 import { InferPath, InferValue } from '../types/infer'
 
@@ -53,7 +53,10 @@ export class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
 }
 
 class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
-	constructor(query: ChainData<T>, private path: P) {
+	constructor(
+		query: ChainData<T>,
+		private path: P
+	) {
 		super(query)
 	}
 
@@ -78,6 +81,10 @@ class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain
 
 	/** Set a value */
 	set(value: InferValue<T, P>) {
+		if (typeof value === 'undefined') {
+			return this.del()
+		}
+
 		return this.u('set', { p: this.path }, '=', { v: value, p: this.path })
 	}
 
