@@ -1,14 +1,14 @@
-import { color, icon } from '../style.js'
-import { join } from 'path'
-import { directories, fileExist } from '../../../util/path.js'
-import { mkdir, readFile, writeFile } from 'fs/promises'
-import { TestCase } from '../../../app.js'
-import { fingerprintFromDirectory } from '../../../build/fingerprint.js'
-import { task, wrap } from '../util.js'
-import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
-import { startTest } from '../../../test/start.js'
 import { log } from '@clack/prompts'
 import chalk from 'chalk'
+import { mkdir, readFile, writeFile } from 'fs/promises'
+import { join } from 'path'
+import { TestCase } from '../../../app.js'
+import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
+import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
+import { startTest } from '../../../test/start.js'
+import { directories, fileExist } from '../../../util/path.js'
+import { color, icon } from '../style.js'
+import { task, wrap } from '../util.js'
 
 type StoredState = {
 	fingerprint: string

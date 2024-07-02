@@ -172,11 +172,11 @@ export const instanceFeature = defineFeature({
 
 			policy.addStatement(
 				{
-					actions: ['logs:CreateLogStream'],
+					actions: ['logs:CreateLogStream', 'logs:DescribeLogStreams'],
 					resources: [logGroup.arn],
 				},
 				{
-					actions: ['logs:PutLogEvents'],
+					actions: ['logs:PutLogEvents', 'logs:GetLogEvents'],
 					resources: [logGroup.arn.apply(arn => `${arn}:*` as const)],
 				}
 			)

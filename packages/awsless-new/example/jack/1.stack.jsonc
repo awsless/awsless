@@ -20,10 +20,10 @@
 				}
 			}
 		}
+	},
+	"functions": {
+		"echo": "./function.ts"
 	}
-	// "functions": {
-	// 	"echo": "./function.ts"
-	// },
 	// "streams": {
 	// 	"arena": {
 	// 		"type": "basic"

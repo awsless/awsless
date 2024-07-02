@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { readFile, readdir, stat } from 'fs/promises'
+import { readdir, readFile, stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 // @ts-ignore
 import parseStaticImports from 'parse-static-imports'
@@ -40,7 +40,7 @@ export const fingerprintFromDirectory = async (dir: string) => {
 	const files = await readdir(dir, { recursive: true })
 
 	for (const file of files) {
-		if (extensions.includes(extname(file).substring(1))) {
+		if (extensions.includes(extname(file).substring(1)) && file.at(0) !== '_') {
 			await generateFileHashes(join(dir, file), hashes)
 		}
 	}

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.303",
+	"version": "0.0.304",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -68,6 +68,7 @@
 		"@awsless/formation": "workspace:^",
 		"@awsless/graphql": "workspace:^",
 		"@awsless/size": "workspace:^",
+		"@awsless/ts-file-cache": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@clack/prompts": "^0.7.0",
 		"@graphql-tools/merge": "^9.0.0",

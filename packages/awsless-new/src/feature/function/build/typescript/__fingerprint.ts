@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { readFile, readdir, stat } from 'fs/promises'
+import { readdir, readFile, stat } from 'fs/promises'
 import { basename, dirname, extname, join } from 'path'
 // @ts-ignore
 import parseStaticImports from 'parse-static-imports'
@@ -20,6 +20,9 @@ const generateFileHashes = async (file: string, hashes: Map<string, Buffer>) => 
 	for (const dep of deps) {
 		if (dep.startsWith('/')) {
 			await generateFileHashes(dep, hashes)
+		} else {
+			// get hash
+			// hashes.set(dep, deps[dep])
 		}
 	}
 }
@@ -40,7 +43,7 @@ export const fingerprintFromDirectory = async (dir: string) => {
 	const files = await readdir(dir, { recursive: true })
 
 	for (const file of files) {
-		if (extensions.includes(extname(file).substring(1)) && file.at(0) !== '_') {
+		if (extensions.includes(extname(file).substring(1))) {
 			await generateFileHashes(join(dir, file), hashes)
 		}
 	}
@@ -88,3 +91,5 @@ const findDependencies = async (file: string, code: string) => {
 		.filter(Boolean)
 		.map(value => (value?.startsWith('.') ? join(dirname(file), value) : value))
 }
+
+// pnpm list --json

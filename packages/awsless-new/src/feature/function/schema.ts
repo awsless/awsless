@@ -1,10 +1,10 @@
-import { z } from 'zod'
-import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
-import { LocalFileSchema } from '../../config/schema/local-file.js'
-import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
 import { days, minutes, seconds } from '@awsless/duration'
 import { gibibytes, mebibytes } from '@awsless/size'
+import { z } from 'zod'
+import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
+import { LocalFileSchema } from '../../config/schema/local-file.js'
+import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 
 const MemorySizeSchema = SizeSchema.refine(sizeMin(mebibytes(128)), 'Minimum memory size is 128 MB')
 	.refine(sizeMax(gibibytes(10)), 'Maximum memory size is 10 GB')
@@ -29,14 +29,9 @@ const ReservedConcurrentExecutionsSchema = z
 	.number()
 	.int()
 	.min(0)
-	.describe(
-		'The number of simultaneous executions to reserve for the function. You can specify a number from 0.'
-	)
+	.describe('The number of simultaneous executions to reserve for the function. You can specify a number from 0.')
 
-const EnvironmentSchema = z
-	.record(z.string(), z.string())
-	.optional()
-	.describe('Environment variable key-value pairs.')
+const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
 const ArchitectureSchema = z
 	.enum(['x86_64', 'arm64'])
@@ -77,9 +72,7 @@ const WarmSchema = z
 	.int()
 	.min(0)
 	.max(10)
-	.describe(
-		'Specify how many functions you want to warm up each 5 minutes. You can specify a number from 0 to 10.'
-	)
+	.describe('Specify how many functions you want to warm up each 5 minutes. You can specify a number from 0 to 10.')
 
 const VPCSchema = z.boolean().describe('Put the function inside your global VPC.')
 
@@ -96,14 +89,14 @@ const DescriptionSchema = z.string().describe('A description of the function.')
 const LogRetentionSchema = DurationSchema.refine(
 	durationMin(days(0)),
 	'Minimum log retention is 0 day, which will disable logging.'
-)
+).describe('The log retention duration.')
 
 const LogSchema = z
 	.union([
 		z.boolean().transform(enabled => ({ retention: enabled ? days(7) : days(0) })),
 		LogRetentionSchema.transform(retention => ({ retention })),
 		z.object({
-			retention: LogRetentionSchema.describe('The log retention duration.'),
+			retention: LogRetentionSchema.optional(),
 			format: z
 				.enum(['text', 'json'])
 				.describe(
@@ -124,9 +117,7 @@ const LogSchema = z
 				.optional(),
 		}),
 	])
-	.describe(
-		'Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.'
-	)
+	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
 export const FunctionSchema = z.union([
 	LocalFileSchema.transform(file => ({

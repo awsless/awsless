@@ -4,24 +4,24 @@
 // import { toArray } from '../../util/array.js'
 import { paramCase } from 'change-case'
 // import { basename } from 'path'
-import { mergeTypeDefs } from '@graphql-tools/merge'
 import { generate } from '@awsless/graphql'
-import { buildSchema, isObjectType, print } from 'graphql'
+import { mergeTypeDefs } from '@graphql-tools/merge'
 import { readFile } from 'fs/promises'
+import { buildSchema, isObjectType, print } from 'graphql'
 // import { FunctionSchema } from '../function/schema.js'
+import { Asset, aws, Node } from '@awsless/formation'
+import { createHash } from 'crypto'
+import { getBuildPath } from '../../build/index.js'
+import { fingerprintFromFile } from '../../build/__fingerprint.js'
+import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { Asset, Node, aws } from '@awsless/formation'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
-import { formatFullDomainName } from '../domain/util.js'
-import { FileError } from '../../error.js'
-import { fingerprintFromFile } from '../../build/fingerprint.js'
 import { formatByteSize } from '../../util/byte-size.js'
-import { getBuildPath } from '../../build/index.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatFullDomainName } from '../domain/util.js'
+import { createLambdaFunction } from '../function/util.js'
 import { buildTypeScriptResolver } from './build/typescript/resolver.js'
-import { createHash } from 'crypto'
 // import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
@@ -152,10 +152,10 @@ export const graphqlFeature = defineFeature({
 								type: 'cognito',
 								region: ctx.appConfig.region,
 								userPoolId: ctx.shared.get(`auth-${props.auth}-user-pool-id`),
-						  }
+							}
 						: {
 								type: 'iam',
-						  },
+							},
 				},
 			})
 
@@ -225,10 +225,7 @@ export const graphqlFeature = defineFeature({
 
 			if (!defaultProps) {
 				// throw new ConfigError(ctx.stackConfig.file, )
-				throw new FileError(
-					ctx.stackConfig.file,
-					`GraphQL definition is not defined on app level for "${id}"`
-				)
+				throw new FileError(ctx.stackConfig.file, `GraphQL definition is not defined on app level for "${id}"`)
 			}
 
 			const group = new Node(ctx.stack, 'graphql', id)
