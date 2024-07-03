@@ -1,5 +1,14 @@
-import { copyObject, createPresignedPost, deleteObject, getObject, mockS3, putObject } from '../src'
-import { headObject } from '../src/commands'
+import { minutes } from '@awsless/duration'
+import {
+	copyObject,
+	createSignedDownloadUrl,
+	createSignedUploadUrl,
+	deleteObject,
+	getObject,
+	headObject,
+	mockS3,
+	putObject,
+} from '../src'
 import { hashSHA1 } from '../src/hash'
 
 describe('S3 Commands', () => {
@@ -82,15 +91,26 @@ describe('S3 Commands', () => {
 		expect(result).toBe(undefined)
 	})
 
-	it('should create a presigned post', async () => {
-		const result = await createPresignedPost({
+	it('should create a upload url', async () => {
+		const result = await createSignedUploadUrl({
 			bucket: 'test',
 			key: 'test',
+			expires: minutes(5),
 		})
 
 		expect(result).toStrictEqual({
 			url: expect.any(String),
 			fields: expect.any(Object),
 		})
+	})
+
+	it('should create a presigned post', async () => {
+		const result = await createSignedDownloadUrl({
+			bucket: 'test',
+			key: 'test',
+			expires: minutes(5),
+		})
+
+		expect(result).toBeTypeOf('string')
 	})
 })

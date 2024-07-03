@@ -31,8 +31,9 @@ type GetObjectProps = {
     client?: S3Client;
     bucket: string;
     key: string;
+    versionId?: string;
 };
-declare const getObject: ({ client, bucket, key }: GetObjectProps) => Promise<{
+declare const getObject: ({ client, bucket, key, versionId }: GetObjectProps) => Promise<{
     metadata: Record<string, string>;
     sha1: string;
     body: _smithy_types.StreamingBlobPayloadOutputTypes;
@@ -41,8 +42,9 @@ type HeadObjectProps = {
     client?: S3Client;
     bucket: string;
     key: string;
+    versionId?: string;
 };
-declare const headObject: ({ client, bucket, key }: HeadObjectProps) => Promise<{
+declare const headObject: ({ client, bucket, key, versionId }: HeadObjectProps) => Promise<{
     metadata: Record<string, string>;
     sha1: string;
 } | undefined>;
@@ -65,7 +67,7 @@ type CopyObjectProps = {
     };
 };
 declare const copyObject: ({ client, source, destination }: CopyObjectProps) => Promise<void>;
-type CreatePresignedPostProps = {
+type CreateSignedUploadUrlProps = {
     client?: S3Client;
     bucket: string;
     key: string;
@@ -73,8 +75,16 @@ type CreatePresignedPostProps = {
     expires?: Duration;
     contentLengthRange?: [Size, Size];
 };
-declare const createPresignedPost: ({ client, bucket, key, fields, expires, contentLengthRange, }: CreatePresignedPostProps) => Promise<PresignedPost>;
+declare const createSignedUploadUrl: ({ client, bucket, key, fields, expires, contentLengthRange, }: CreateSignedUploadUrlProps) => Promise<PresignedPost>;
+type CreateSignedDownloadUrlProps = {
+    client?: S3Client;
+    bucket: string;
+    key: string;
+    versionId?: string;
+    expires?: Duration;
+};
+declare const createSignedDownloadUrl: ({ client, bucket, key, versionId, expires, }: CreateSignedDownloadUrlProps) => Promise<string>;
 
 declare const mockS3: () => Mock<any, any>;
 
-export { Body, BodyStream, CopyObjectProps, CreatePresignedPostProps, DeleteObjectProps, GetObjectProps, HeadObjectProps, PutObjectProps, copyObject, createPresignedPost, deleteObject, getObject, headObject, mockS3, putObject, s3Client };
+export { Body, BodyStream, CopyObjectProps, CreateSignedDownloadUrlProps, CreateSignedUploadUrlProps, DeleteObjectProps, GetObjectProps, HeadObjectProps, PutObjectProps, copyObject, createSignedDownloadUrl, createSignedUploadUrl, deleteObject, getObject, headObject, mockS3, putObject, s3Client };

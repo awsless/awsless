@@ -9,6 +9,7 @@ import {
 	StorageClass,
 } from '@aws-sdk/client-s3'
 import { createPresignedPost as signedPost, PresignedPost } from '@aws-sdk/s3-presigned-post'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { Duration, toSeconds } from '@awsless/duration'
 import { Size, toBytes } from '@awsless/size'
 import { s3Client } from './client'
@@ -51,12 +52,14 @@ export type GetObjectProps = {
 	client?: S3Client
 	bucket: string
 	key: string
+	versionId?: string
 }
 
-export const getObject = async ({ client = s3Client(), bucket, key }: GetObjectProps) => {
+export const getObject = async ({ client = s3Client(), bucket, key, versionId }: GetObjectProps) => {
 	const command = new GetObjectCommand({
 		Bucket: bucket,
 		Key: key,
+		VersionId: versionId,
 	})
 
 	let result
@@ -86,12 +89,14 @@ export type HeadObjectProps = {
 	client?: S3Client
 	bucket: string
 	key: string
+	versionId?: string
 }
 
-export const headObject = async ({ client = s3Client(), bucket, key }: HeadObjectProps) => {
+export const headObject = async ({ client = s3Client(), bucket, key, versionId }: HeadObjectProps) => {
 	const command = new HeadObjectCommand({
 		Bucket: bucket,
 		Key: key,
+		VersionId: versionId,
 	})
 
 	let result
@@ -158,7 +163,7 @@ export const copyObject = async ({ client = s3Client(), source, destination }: C
 	await client.send(command)
 }
 
-export type CreatePresignedPostProps = {
+export type CreateSignedUploadUrlProps = {
 	client?: S3Client
 	bucket: string
 	key: string
@@ -167,12 +172,12 @@ export type CreatePresignedPostProps = {
 	contentLengthRange?: [Size, Size]
 }
 
-let mock: PresignedPost | undefined
-export const setPresignedMock = (m: PresignedPost) => {
-	mock = m
+let signedUploadUrlMock: PresignedPost | undefined
+export const setSignedUploadUrlMock = (m: PresignedPost) => {
+	signedUploadUrlMock = m
 }
 
-export const createPresignedPost = async ({
+export const createSignedUploadUrl = async ({
 	client = s3Client(),
 	bucket,
 	key,
@@ -180,9 +185,9 @@ export const createPresignedPost = async ({
 	/** Duration before the presigned post expires. */
 	expires,
 	contentLengthRange,
-}: CreatePresignedPostProps) => {
-	if (mock) {
-		return mock
+}: CreateSignedUploadUrlProps) => {
+	if (signedUploadUrlMock) {
+		return signedUploadUrlMock
 	}
 
 	const result = await signedPost(client, {
@@ -196,4 +201,43 @@ export const createPresignedPost = async ({
 	})
 
 	return result
+}
+
+export type CreateSignedDownloadUrlProps = {
+	client?: S3Client
+	bucket: string
+	key: string
+	versionId?: string
+	expires?: Duration
+	// headers?: Record<string, string>
+}
+
+let signedDownloadUrlMock: string | undefined
+
+export const setSignedDownloadUrlMock = (url: string) => {
+	signedDownloadUrlMock = url
+}
+
+export const createSignedDownloadUrl = async ({
+	client = s3Client(),
+	bucket,
+	key,
+	versionId,
+	expires,
+}: CreateSignedDownloadUrlProps) => {
+	if (signedDownloadUrlMock) {
+		return signedDownloadUrlMock
+	}
+
+	const command = new GetObjectCommand({
+		Bucket: bucket,
+		Key: key,
+		VersionId: versionId,
+	})
+
+	const url = await getSignedUrl(client, command, {
+		expiresIn: expires ? Number(toSeconds(expires)) : undefined,
+	})
+
+	return url
 }

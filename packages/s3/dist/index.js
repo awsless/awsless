@@ -15,6 +15,7 @@ import {
   PutObjectCommand
 } from "@aws-sdk/client-s3";
 import { createPresignedPost as signedPost } from "@aws-sdk/s3-presigned-post";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { toSeconds } from "@awsless/duration";
 import { toBytes } from "@awsless/size";
 var putObject = async ({
@@ -38,10 +39,11 @@ var putObject = async ({
     sha1: result.ChecksumSHA1
   };
 };
-var getObject = async ({ client = s3Client(), bucket, key }) => {
+var getObject = async ({ client = s3Client(), bucket, key, versionId }) => {
   const command = new GetObjectCommand({
     Bucket: bucket,
-    Key: key
+    Key: key,
+    VersionId: versionId
   });
   let result;
   try {
@@ -61,10 +63,11 @@ var getObject = async ({ client = s3Client(), bucket, key }) => {
     body: result.Body
   };
 };
-var headObject = async ({ client = s3Client(), bucket, key }) => {
+var headObject = async ({ client = s3Client(), bucket, key, versionId }) => {
   const command = new HeadObjectCommand({
     Bucket: bucket,
-    Key: key
+    Key: key,
+    VersionId: versionId
   });
   let result;
   try {
@@ -101,11 +104,11 @@ var copyObject = async ({ client = s3Client(), source, destination }) => {
   });
   await client.send(command);
 };
-var mock;
-var setPresignedMock = (m) => {
-  mock = m;
+var signedUploadUrlMock;
+var setSignedUploadUrlMock = (m) => {
+  signedUploadUrlMock = m;
 };
-var createPresignedPost = async ({
+var createSignedUploadUrl = async ({
   client = s3Client(),
   bucket,
   key,
@@ -114,8 +117,8 @@ var createPresignedPost = async ({
   expires,
   contentLengthRange
 }) => {
-  if (mock) {
-    return mock;
+  if (signedUploadUrlMock) {
+    return signedUploadUrlMock;
   }
   const result = await signedPost(client, {
     Bucket: bucket,
@@ -125,6 +128,30 @@ var createPresignedPost = async ({
     Conditions: contentLengthRange ? [["content-length-range", Number(toBytes(contentLengthRange[0])), Number(toBytes(contentLengthRange[1]))]] : void 0
   });
   return result;
+};
+var signedDownloadUrlMock;
+var setSignedDownloadUrlMock = (url) => {
+  signedDownloadUrlMock = url;
+};
+var createSignedDownloadUrl = async ({
+  client = s3Client(),
+  bucket,
+  key,
+  versionId,
+  expires
+}) => {
+  if (signedDownloadUrlMock) {
+    return signedDownloadUrlMock;
+  }
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    VersionId: versionId
+  });
+  const url = await getSignedUrl(client, command, {
+    expiresIn: expires ? Number(toSeconds(expires)) : void 0
+  });
+  return url;
 };
 
 // src/mock.ts
@@ -227,7 +254,8 @@ var mockS3 = () => {
     delete store[input.Key];
     return {};
   });
-  setPresignedMock({
+  setSignedDownloadUrlMock("http://s3-download-url.com");
+  setSignedUploadUrlMock({
     url: "http://s3-upload-url.com",
     fields: {}
   });
@@ -238,7 +266,8 @@ var mockS3 = () => {
 };
 export {
   copyObject,
-  createPresignedPost,
+  createSignedDownloadUrl,
+  createSignedUploadUrl,
   deleteObject,
   getObject,
   headObject,

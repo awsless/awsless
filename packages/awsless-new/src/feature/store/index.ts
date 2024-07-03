@@ -8,10 +8,9 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 
 const typeGenCode = `
-import { Body, PutObjectProps, BodyStream, createPresignedPost } from '@awsless/s3'
+import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
 import { Size } from '@awsless/size'
 import { Duration } from '@awsless/duration'
-import { PresignedPost } from '@aws-sdk/s3-presigned-post'
 
 type Store<Name extends string> = {
 	readonly name: Name
@@ -19,7 +18,6 @@ type Store<Name extends string> = {
 	readonly get: (key: string) => Promise<BodyStream | undefined>
 	readonly has: (key: string) => Promise<boolean>
 	readonly delete: (key: string) => Promise<void>
-	readonly createPresignedPost: (key: string, contentLengthRange: [Size, Size], expires?: Duration, fields?: Record<string, string>) => Promise<PresignedPost>
 }
 `
 

@@ -17,7 +17,7 @@ import { mockClient } from 'aws-sdk-client-mock'
 import { Readable } from 'stream'
 // @ts-ignore
 import { Mock } from 'vitest'
-import { setPresignedMock } from './commands'
+import { setSignedDownloadUrlMock, setSignedUploadUrlMock } from './commands'
 import { hashSHA1 } from './hash'
 import { Body } from './types'
 
@@ -106,7 +106,9 @@ export const mockS3 = () => {
 		return {}
 	})
 
-	setPresignedMock({
+	setSignedDownloadUrlMock('http://s3-download-url.com')
+
+	setSignedUploadUrlMock({
 		url: 'http://s3-upload-url.com',
 		fields: {},
 	})

@@ -2,8 +2,10 @@ export { s3Client } from './client'
 export {
 	copyObject,
 	CopyObjectProps,
-	createPresignedPost,
-	CreatePresignedPostProps,
+	createSignedDownloadUrl,
+	CreateSignedDownloadUrlProps,
+	createSignedUploadUrl,
+	CreateSignedUploadUrlProps,
 	deleteObject,
 	DeleteObjectProps,
 	getObject,
