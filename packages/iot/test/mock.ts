@@ -1,5 +1,5 @@
+import { IoTDataPlaneClient, PublishCommand } from '@aws-sdk/client-iot-data-plane'
 import { mockIoT } from '../src'
-import { PublishCommand, IoTDataPlaneClient } from '@aws-sdk/client-iot-data-plane'
 
 describe('IoT Mock', () => {
 	const iot = mockIoT()
@@ -9,7 +9,7 @@ describe('IoT Mock', () => {
 		await client.send(
 			new PublishCommand({
 				qos: 1,
-				topic: '',
+				topic: 'test',
 				payload: Buffer.from(JSON.stringify({})),
 			})
 		)

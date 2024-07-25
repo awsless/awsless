@@ -9,32 +9,27 @@ var iotClient = globalClient(() => {
 });
 
 // src/commands.ts
-var publish = async ({ client = iotClient(), topic, id, event, value, qos = 0 }) => {
-  const payload = {
-    e: event,
-    v: value
-  };
-  if (id) {
-    payload.i = id;
-  }
-  const command = new PublishCommand({
-    qos,
-    topic,
-    payload: Buffer.from(JSON.stringify(payload))
-  });
+var QoS = /* @__PURE__ */ ((QoS2) => {
+  QoS2[QoS2["AtMostOnce"] = 0] = "AtMostOnce";
+  QoS2[QoS2["AtLeastOnce"] = 1] = "AtLeastOnce";
+  QoS2[QoS2["ExactlyOnce"] = 2] = "ExactlyOnce";
+  return QoS2;
+})(QoS || {});
+var publish = async ({ client = iotClient(), ...props }) => {
+  const command = new PublishCommand(props);
   await client.send(command);
 };
 
 // src/mock.ts
-import { IoTClient, DescribeEndpointCommand } from "@aws-sdk/client-iot";
-import { IoTDataPlaneClient as IoTDataPlaneClient2, PublishCommand as PublishCommand2 } from "@aws-sdk/client-iot-data-plane";
+import { DescribeEndpointCommand, IoTClient } from "@aws-sdk/client-iot";
+import { IoTDataPlaneClient as IoTDataPlaneClient3, PublishCommand as PublishCommand2 } from "@aws-sdk/client-iot-data-plane";
 import { mockClient } from "aws-sdk-client-mock";
 var mockIoT = () => {
   const fn = vi.fn();
   mockClient(IoTClient).on(DescribeEndpointCommand).resolves({
     endpointAddress: "endpoint"
   });
-  mockClient(IoTDataPlaneClient2).on(PublishCommand2).callsFake(() => {
+  mockClient(IoTDataPlaneClient3).on(PublishCommand2).callsFake(() => {
     fn();
   });
   beforeEach(() => {
@@ -43,6 +38,7 @@ var mockIoT = () => {
   return fn;
 };
 export {
+  QoS,
   iotClient,
   mockIoT,
   publish

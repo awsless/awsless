@@ -1,8 +1,8 @@
 import { z } from 'zod'
+import { DurationSchema } from '../../config/schema/duration.js'
+import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
-import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
-import { DurationSchema } from '../../config/schema/duration.js'
 
 const ErrorResponsePathSchema = z
 	.string()
@@ -38,7 +38,7 @@ export const SitesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your site with.'),
+			domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
 			subDomain: z.string().optional(),
 
 			// bind: z

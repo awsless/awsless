@@ -55,8 +55,25 @@ export const instanceFeature = defineFeature({
 					combine([bucketName, ...Object.values(env)]).apply(([bucketName]) => {
 						const u = props.user
 
+						// 'sudo mkdir /var/infra',
+						// 'sudo mkdir /var/code',
+
+						// 'sudo chmod -R a+rwx /var/infra',
+						// 'sudo chmod -R a+rwx /var/code',
+
+						// `sudo chown -R ${u} /var/infra`,
+						// `sudo chown -R ${u} /var/code`,
+
+						// `sudo -E -u ${u} aws configure set default.s3.use_dualstack_endpoint true`,
+						// `sudo -E -u ${u} aws s3 cp s3://${bucketName}/${name} /var/infra`,
+						// `sudo -E -u ${u} unzip -o /var/infra/${name} -d /var/code`,
+						// `sudo -E -u ${u} rm /var/infra/${name}`,
+
+						// `cd /var/code`,
+
 						const code = [
 							`#!/bin/bash`,
+
 							`cd /home/${u}`,
 							`sudo -E -u ${u} aws configure set default.s3.use_dualstack_endpoint true`,
 							`sudo -E -u ${u} aws s3 cp s3://${bucketName}/${name} .`,
@@ -79,7 +96,7 @@ export const instanceFeature = defineFeature({
 
 							'source /etc/profile',
 
-							props.command ? `sudo -E -u ${u} ${props.command}` : '',
+							props.command ? `${props.command}` : '',
 						].join('\n')
 
 						resolve(Asset.fromString(Buffer.from(code, 'utf8').toString('base64')))
@@ -161,6 +178,11 @@ export const instanceFeature = defineFeature({
 			// before we launch the ec2 instance.
 
 			instance.dependsOn(code)
+
+			// We need to make sure our policies are set before
+			// we launch the ec2 instance.
+
+			instance.dependsOn(policy)
 
 			// --------------------------------------------------------
 			// Logging

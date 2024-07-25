@@ -3,6 +3,7 @@ import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction, createLambdaFunction, LambdaFunctionProps } from '../function/util.js'
 import { constantCase } from 'change-case'
+import { formatFullDomainName } from '../domain/util.js'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
@@ -30,8 +31,36 @@ export const pubsubFeature = defineFeature({
 				action: 'lambda:InvokeFunction',
 			})
 
-			// ctx.addEnv(`PUBSUB_${constantCase(id)}_ENDPOINT`)
-			ctx.addEnv(`PUBSUB_${constantCase(id)}_AUTHORIZER`, name)
+			ctx.bind(`PUBSUB_${constantCase(id)}_AUTHORIZER`, name)
+
+			const endpoint = new aws.iot.Endpoint(group, 'endpoint', {
+				type: 'data-ats',
+			})
+
+			if (props.domain) {
+				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+
+				new aws.iot.DomainConfiguration(group, 'domain', {
+					name,
+					domainName,
+					certificates: [ctx.shared.get(`local-certificate-${props.domain}-arn`)],
+					authorizer: {
+						name,
+					},
+					// validationCertificate: ctx.shared.get(`global-certificate-${props.domain}-arn`),
+				})
+
+				new aws.route53.RecordSet(group, 'record', {
+					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
+					name: domainName,
+					type: 'CNAME',
+					records: [endpoint.address],
+				})
+
+				ctx.bind(`PUBSUB_${constantCase(id)}_ENDPOINT`, domainName)
+			} else {
+				ctx.bind(`PUBSUB_${constantCase(id)}_ENDPOINT`, endpoint.address)
+			}
 		}
 
 		ctx.onPolicy(policy => {

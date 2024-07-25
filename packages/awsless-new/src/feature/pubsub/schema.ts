@@ -2,10 +2,15 @@ import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 
+const DomainSchema = ResourceIdSchema.describe('The domain id to link your Pubsub API with.')
+
 export const PubSubDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
+			domain: DomainSchema.optional(),
+			subDomain: z.string().optional(),
+
 			auth: z.union([
 				ResourceIdSchema,
 				z.object({
@@ -14,10 +19,12 @@ export const PubSubDefaultSchema = z
 				}),
 			]),
 
-			policy: z.object({
-				publish: z.array(z.string()).optional(),
-				subscribe: z.array(z.string()).optional(),
-			}),
+			policy: z
+				.object({
+					publish: z.array(z.string()).optional(),
+					subscribe: z.array(z.string()).optional(),
+				})
+				.optional(),
 		})
 	)
 	.optional()

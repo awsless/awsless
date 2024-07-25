@@ -24,9 +24,9 @@ var define = (name, options) => new TableDefinition(name, options);
 import { TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb";
 
 // src/client.ts
-import { globalClient } from "@awsless/utils";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { globalClient } from "@awsless/utils";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 var dynamoDBClient = /* @__PURE__ */ globalClient(() => {
   return new DynamoDBClient({
@@ -547,7 +547,11 @@ var optional = (struct) => {
 };
 
 // src/structs/any.ts
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 var Any = class {
+  constructor(options = {}) {
+    this.options = options;
+  }
   filterIn(value) {
     return typeof value === "undefined";
   }
@@ -555,10 +559,10 @@ var Any = class {
     return typeof value === "undefined";
   }
   marshall(value) {
-    return value;
+    return marshall({ value }, this.options).value;
   }
   unmarshall(value) {
-    return value;
+    return unmarshall(value.M, this.options);
   }
   _marshall(value) {
     return value;
@@ -570,7 +574,7 @@ var Any = class {
   optional = true;
   walk;
 };
-var any = () => new Any();
+var any = (options = {}) => new Any(options);
 
 // src/structs/uuid.ts
 var uuid = () => new Struct(
@@ -1064,10 +1068,10 @@ var pipeStream = (streams, command, send) => {
           const stream = streams.find((stream2) => stream2.table.name === tableName);
           if (!stream)
             return;
-          const marshall = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
+          const marshall2 = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
           return {
             ...stream,
-            items: [{ key: stream.table.unmarshall(marshall) }]
+            items: [{ key: stream.table.unmarshall(marshall2) }]
           };
         });
       }

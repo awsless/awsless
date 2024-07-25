@@ -28,7 +28,7 @@ export const CommandSchema = z.union([
 		// options: z.record(ResourceIdSchema, OptionSchema).optional(),
 		// arguments: z.record(ResourceIdSchema, ArgumentSchema).optional(),
 	}),
-	z.string().transform(file => ({
+	LocalFileSchema.transform(file => ({
 		file,
 		handler: 'default',
 		description: undefined,

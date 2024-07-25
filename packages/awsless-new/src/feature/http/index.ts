@@ -157,7 +157,7 @@ export const httpFeature = defineFeature({
 
 			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-			new aws.route53.RecordSet(group, domainName, {
+			new aws.route53.RecordSet(group, 'record', {
 				hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
 				name: domainName,
 				type: 'A',

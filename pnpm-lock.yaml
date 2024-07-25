@@ -280,6 +280,9 @@ importers:
       '@awsless/graphql':
         specifier: workspace:^
         version: link:../graphql
+      '@awsless/iot':
+        specifier: workspace:^
+        version: link:../iot
       '@awsless/lambda':
         specifier: workspace:^
         version: link:../lambda
@@ -704,6 +707,9 @@ importers:
       '@aws-sdk/client-iam':
         specifier: ^3.535.0
         version: 3.535.0
+      '@aws-sdk/client-iot':
+        specifier: 3.329.0
+        version: 3.329.0
       '@aws-sdk/client-lambda':
         specifier: 3.329.0
         version: 3.329.0
@@ -1819,7 +1825,7 @@ packages:
       '@aws-sdk/util-user-agent-browser': 3.329.0
       '@aws-sdk/util-user-agent-node': 3.329.0
       '@aws-sdk/util-utf8': 3.310.0
-      tslib: 2.5.1
+      tslib: 2.6.2
       uuid: 8.3.2
     transitivePeerDependencies:
       - aws-crt

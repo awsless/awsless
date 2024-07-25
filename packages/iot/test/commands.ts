@@ -1,4 +1,4 @@
-import { publish, mockIoT } from '../src'
+import { mockIoT, publish, QoS } from '../src'
 
 describe('IoT', () => {
 	const mock = mockIoT()
@@ -6,8 +6,8 @@ describe('IoT', () => {
 	it('should publish IoT message', async () => {
 		await publish({
 			topic: 'test',
-			event: 'test',
-			value: 'test',
+			payload: Buffer.from('test'),
+			qos: QoS.AtLeastOnce,
 		})
 
 		expect(mock).toBeCalledTimes(1)
