@@ -5,6 +5,7 @@ export * from 'valibot'
 
 export { json, JsonSchema } from './schema/json.js'
 export { bigfloat, BigFloatSchema } from './schema/bigfloat.js'
+export { bigint, BigIntSchema } from './schema/bigint.js'
 export { date, DateSchema } from './schema/date.js'
 export { uuid, UuidSchema } from './schema/uuid.js'
 export { duration, DurationSchema } from './schema/duration.js'
