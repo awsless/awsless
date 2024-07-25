@@ -122,11 +122,7 @@ describe('Types', () => {
 			key1: { key: '1' },
 			key2: { key: '1' },
 		},
-		any: {
-			M: {
-				id: { S: '1' },
-			},
-		},
+		any: { id: 1 },
 		sets: {
 			empty: new Set<string>(),
 			string: new Set(['1']),
@@ -230,7 +226,8 @@ describe('Types', () => {
 						.update('record', 'key2')
 						.set({ key: '2' })
 						.update('any')
-						.set({ M: { id: { S: '2' } } })
+						// .set({ M: { id: { S: '2' } } })
+						.set({ id: 2 })
 						.update('sets', 'empty')
 						.append(new Set(['foo']))
 						.update('sets', 'string')
@@ -265,9 +262,10 @@ describe('Types', () => {
 				key1: { key: '2' },
 				key2: { key: '2' },
 			},
-			any: {
-				M: { id: { S: '2' } },
-			},
+			// any: {
+			// 	M: { id: { S: '2' } },
+			// },
+			any: { id: 2 },
 			sets: {
 				empty: new Set(['foo']),
 				string: new Set(['2']),

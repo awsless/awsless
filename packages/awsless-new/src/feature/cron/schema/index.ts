@@ -16,3 +16,4 @@ export const CronsSchema = z
 		})
 	)
 	.optional()
+	.describe(`Define the cron jobs in your stack.`)

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.305",
+	"version": "0.0.313",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -46,6 +46,7 @@
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
+		"@awsless/iot": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^"
 	},

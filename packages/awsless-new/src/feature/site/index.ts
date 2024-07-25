@@ -7,6 +7,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { getCacheControl, getContentType } from './util.js'
+import { constantCase } from 'change-case'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -80,6 +81,10 @@ export const siteFeature = defineFeature({
 					],
 				})
 
+				ctx.onPolicy(policy => {
+					policy.addStatement(bucket.permissions)
+				})
+
 				bucket.deletionPolicy = 'after-deployment'
 
 				const accessControl = new aws.cloudFront.OriginAccessControl(group, `access`, {
@@ -140,7 +145,6 @@ export const siteFeature = defineFeature({
 				},
 			})
 
-			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 			const responseHeaders = new aws.cloudFront.ResponseHeadersPolicy(group, 'response', {
 				name,
 				cors: props.cors,
@@ -157,11 +161,19 @@ export const siteFeature = defineFeature({
 
 			// console.log(domainName)
 
+			const domainName = props.domain
+				? formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				: undefined
+
+			const certificateArn = props.domain
+				? ctx.shared.get<aws.ARN>(`global-certificate-${props.domain}-arn`)
+				: undefined
+
 			const distribution = new aws.cloudFront.Distribution(group, 'distribution', {
 				name,
-				certificateArn: ctx.shared.get(`global-certificate-${props.domain}-arn`),
 				compress: true,
-				aliases: [domainName],
+				certificateArn,
+				aliases: domainName ? [domainName] : [],
 				origins,
 				originGroups,
 				// defaultRootObject: 'index.html',
@@ -238,16 +250,23 @@ export const siteFeature = defineFeature({
 				})
 			}
 
-			new aws.route53.RecordSet(group, `record`, {
-				hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
-				type: 'A',
-				name: domainName,
-				alias: {
-					dnsName: distribution.domainName,
-					hostedZoneId: distribution.hostedZoneId,
-					evaluateTargetHealth: false,
-				},
-			})
+			if (domainName) {
+				new aws.route53.RecordSet(group, `record`, {
+					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
+					type: 'A',
+					name: domainName,
+					alias: {
+						dnsName: distribution.domainName,
+						hostedZoneId: distribution.hostedZoneId,
+						evaluateTargetHealth: false,
+					},
+				})
+			}
+
+			ctx.bind(
+				`SITE_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`,
+				domainName ? domainName : distribution.domainName
+			)
 		}
 	},
 })

@@ -6,6 +6,7 @@ import { Builder } from './build/index.js'
 import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
 import { StackConfig } from './config/stack.js'
+import { FileError } from './error.js'
 import { OnEnvListener, OnPolicyListener, OnReadyListener } from './feature.js'
 import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
@@ -28,6 +29,15 @@ const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
 
 	walk(filters)
 	return list
+}
+
+const assertDepsExists = (stack: StackConfig, stacks: StackConfig[]) => {
+	for (const dep of stack.depends ?? []) {
+		const found = stacks.find(i => i.name === dep)
+		if (!found) {
+			throw new FileError(stack.file, `Stack "${stack.name}" depends on a stack "${dep}" that doesn't exist.`)
+		}
+	}
 }
 
 export type CreateAppProps = {
@@ -73,32 +83,17 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const allLocalEnv: Record<string, BindEnv[]> = {}
 	const allLocalEnvListeners: Record<string, OnEnvListener[]> = {}
 
-	// const all =
-
-	// const allFunctions: aws.lambda.Function[] = []
-	// const allFunctionListeners: OnFunctionListener[] = []
-	// const allLocalFunctions: Record<string, aws.lambda.Function[]> = {}
-	// const allLocalFunctionListeners: Record<string, OnFunctionListener[]> = {}
-
 	const globalPolicies: aws.iam.RolePolicy[] = []
 	const globalPoliciesListeners: OnPolicyListener[] = []
 	const allLocalPolicies: Record<string, aws.iam.RolePolicy[]> = {}
 	const allLocalPolicyListeners: Record<string, OnPolicyListener[]> = {}
 
-	// const env: EnvStore = {
-	// 	bind(name, value) {
-	// 		binds.push({ name, value })
-	// 	},
-	// 	set(name, value) {
-	// 		allEnvVars[name] = value
-	// 	},
-	// 	get(name) {
-	// 		return allEnvVars[name]
-	// 	},
-	// 	all() {
-	// 		return allEnvVars
-	// 	},
-	// }
+	// ---------------------------------------------------------------
+	// Run some checks
+
+	for (const stackConfig of props.stackConfigs) {
+		assertDepsExists(stackConfig, props.stackConfigs)
+	}
 
 	// ---------------------------------------------------------------
 
@@ -164,19 +159,19 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	}
 
 	for (const stackConfig of filterdStacks) {
-		const localPolicyListeners: OnPolicyListener[] = []
-		const localPolicies: aws.iam.RolePolicy[] = []
-		// const localFunctionListeners: OnFunctionListener[] = []
-		// const localFunctions: aws.lambda.Function[] = []
-		const localEnvListeners: OnEnvListener[] = []
-		const localEnv: BindEnv[] = []
+		// checkDepsExists(stackConfig, props.stackConfigs)
 
 		const stack = new Stack(app, stackConfig.name)
 
+		const localPolicyListeners: OnPolicyListener[] = []
+		const localPolicies: aws.iam.RolePolicy[] = []
+
+		const localEnvListeners: OnEnvListener[] = []
+		const localEnv: BindEnv[] = []
+
 		allLocalPolicyListeners[stack.name] = localPolicyListeners
 		allLocalPolicies[stack.name] = localPolicies
-		// allLocalFunctionListeners[stack.name] = localFunctionListeners
-		// allLocalFunctions[stack.name] = localFunctions
+
 		allLocalEnvListeners[stack.name] = localEnvListeners
 		allLocalEnv[stack.name] = localEnv
 

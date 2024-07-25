@@ -1,4 +1,4 @@
-import { IoTClient, DescribeEndpointCommand } from '@aws-sdk/client-iot'
+import { DescribeEndpointCommand, IoTClient } from '@aws-sdk/client-iot'
 import { IoTDataPlaneClient, PublishCommand } from '@aws-sdk/client-iot-data-plane'
 import { mockClient } from 'aws-sdk-client-mock'
 // @ts-ignore

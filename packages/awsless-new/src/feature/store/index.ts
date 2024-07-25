@@ -9,8 +9,6 @@ import { createAsyncLambdaFunction } from '../function/util.js'
 
 const typeGenCode = `
 import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
-import { Size } from '@awsless/size'
-import { Duration } from '@awsless/duration'
 
 type Store<Name extends string> = {
 	readonly name: Name

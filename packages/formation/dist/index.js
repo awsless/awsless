@@ -3749,6 +3749,171 @@ var Repository = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/aws/iot/index.ts
+var iot_exports = {};
+__export(iot_exports, {
+  Authorizer: () => Authorizer,
+  DomainConfiguration: () => DomainConfiguration,
+  Endpoint: () => Endpoint,
+  EndpointProvider: () => EndpointProvider,
+  TopicRule: () => TopicRule
+});
+
+// src/provider/aws/iot/authorizer.ts
+var Authorizer = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IoT::Authorizer", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  toState() {
+    return {
+      document: {
+        AuthorizerName: this.props.name,
+        AuthorizerFunctionArn: this.props.functionArn,
+        Status: unwrap(this.props.enabled, true) ? "ACTIVE" : "INACTIVE",
+        SigningDisabled: !unwrap(this.props.enableSigning, false),
+        EnableCachingForHttp: unwrap(this.props.enableCachingForHttp, false),
+        // TokenKeyName:
+        // TokenSigningPublicKeys:
+        // 	Key: Value
+        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+          Key: k,
+          Value: v
+        }))
+      }
+    };
+  }
+};
+
+// src/provider/aws/iot/domain-configuration.ts
+import { constantCase as constantCase3 } from "change-case";
+var DomainConfiguration = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IoT::DomainConfiguration", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  toState() {
+    return {
+      document: {
+        DomainConfigurationName: this.props.name,
+        DomainConfigurationStatus: unwrap(this.props.enabled, true) ? "ENABLED" : "DISABLED",
+        DomainName: this.props.domainName,
+        ServiceType: constantCase3(unwrap(this.props.type, "data")),
+        ...this.attr("ValidationCertificateArn", this.props.validationCertificate),
+        ...this.attr("ServerCertificateArns", this.props.certificates),
+        ServerCertificateConfig: {
+          EnableOCSPCheck: unwrap(this.props.enableOCSP, false)
+        },
+        ...this.props.authorizer ? {
+          AuthorizerConfig: {
+            DefaultAuthorizerName: unwrap(this.props.authorizer).name,
+            AllowAuthorizerOverride: unwrap(unwrap(this.props.authorizer).allowOverride, false)
+          }
+        } : {},
+        // TlsConfig: {
+        // 	SecurityPolicy: {
+        // 	}
+        // },
+        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
+          Key: k,
+          Value: v
+        }))
+      }
+    };
+  }
+};
+
+// src/provider/aws/iot/endpoint-provider.ts
+import { DescribeEndpointCommand, IoTClient } from "@aws-sdk/client-iot";
+var EndpointProvider = class {
+  client;
+  constructor(props) {
+    this.client = new IoTClient(props);
+  }
+  own(id) {
+    return id === "aws-iot-endpoint";
+  }
+  async get({ document }) {
+    const result = await this.client.send(
+      new DescribeEndpointCommand({
+        endpointType: document.endpointType
+      })
+    );
+    return {
+      address: result.endpointAddress
+    };
+  }
+  async create() {
+    return "endpoint";
+  }
+  async update() {
+    return "endpoint";
+  }
+  async delete() {
+  }
+};
+
+// src/provider/aws/iot/endpoint.ts
+var Endpoint = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IoT::Endpoint", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-iot-endpoint";
+  get address() {
+    return this.output((v) => v.address);
+  }
+  toState() {
+    const type = {
+      jobs: "iot:Jobs",
+      data: "iot:Data",
+      "data-ats": "iot:Data-ATS",
+      "credential-provider": "iot:CredentialProvider"
+    }[unwrap(this.props.type)];
+    return {
+      document: {
+        endpointType: type
+      }
+    };
+  }
+};
+
+// src/provider/aws/iot/topic-rule.ts
+var TopicRule = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::IoT::TopicRule", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  toState() {
+    return {
+      document: {
+        RuleName: this.props.name,
+        TopicRulePayload: {
+          Sql: this.props.sql,
+          AwsIotSqlVersion: unwrap(this.props.sqlVersion, "2016-03-23"),
+          RuleDisabled: !unwrap(this.props.enabled, true),
+          Actions: unwrap(this.props.actions).map((action) => ({
+            Lambda: { FunctionArn: unwrap(unwrap(action).lambda).functionArn }
+          }))
+        }
+      }
+    };
+  }
+};
+
 // src/provider/aws/lambda/function-provider.ts
 import { LambdaClient, UpdateFunctionCodeCommand } from "@aws-sdk/client-lambda";
 var FunctionProvider = class {
@@ -4117,6 +4282,7 @@ var createCloudProviders = (config) => {
     new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketObjectProvider(config),
     new TableItemProvider(config),
+    new EndpointProvider(config),
     new RecordSetProvider(config),
     new CertificateProvider(config),
     new CertificateValidationProvider(config),
@@ -4307,7 +4473,7 @@ var UserPoolDomain = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cognito/user-pool.ts
-import { constantCase as constantCase3 } from "change-case";
+import { constantCase as constantCase4 } from "change-case";
 import { days as days2, toDays as toDays3 } from "@awsless/duration";
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -4377,7 +4543,7 @@ var UserPool = class extends CloudControlApiResource {
         ...this.attr(
           "EmailConfiguration",
           email && {
-            ...this.attr("EmailSendingAccount", email.type, constantCase3),
+            ...this.attr("EmailSendingAccount", email.type, constantCase4),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
             ...this.attr("SourceArn", email.sourceArn),
@@ -4545,7 +4711,7 @@ var TableItem = class extends Resource {
 };
 
 // src/provider/aws/dynamodb/table.ts
-import { constantCase as constantCase4 } from "change-case";
+import { constantCase as constantCase5 } from "change-case";
 var Table = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::DynamoDB::Table", id, props);
@@ -4649,7 +4815,7 @@ var Table = class extends CloudControlApiResource {
           ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
         ],
         AttributeDefinitions: this.attributeDefinitions(),
-        TableClass: constantCase4(unwrap(this.props.class, "standard")),
+        TableClass: constantCase5(unwrap(this.props.class, "standard")),
         DeletionProtectionEnabled: unwrap(this.props.deletionProtection, false),
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: unwrap(this.props.pointInTimeRecovery, false)
@@ -4662,7 +4828,7 @@ var Table = class extends CloudControlApiResource {
         } : {},
         ...this.props.stream ? {
           StreamSpecification: {
-            StreamViewType: constantCase4(unwrap(this.props.stream))
+            StreamViewType: constantCase5(unwrap(this.props.stream))
           }
         } : {},
         ...Object.keys(this.indexes).length ? {
@@ -4673,7 +4839,7 @@ var Table = class extends CloudControlApiResource {
               ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
             ],
             Projection: {
-              ProjectionType: constantCase4(props.projection || "all")
+              ProjectionType: constantCase5(props.projection || "all")
             }
           }))
         } : {}
@@ -4930,7 +5096,7 @@ var ListenerRule = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/elb/listener.ts
-import { constantCase as constantCase5 } from "change-case";
+import { constantCase as constantCase6 } from "change-case";
 var Listener = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
@@ -4945,7 +5111,7 @@ var Listener = class extends CloudControlApiResource {
       document: {
         LoadBalancerArn: this.props.loadBalancerArn,
         Port: this.props.port,
-        Protocol: constantCase5(unwrap(this.props.protocol)),
+        Protocol: constantCase6(unwrap(this.props.protocol)),
         Certificates: unwrap(this.props.certificates).map((arn) => ({
           CertificateArn: arn
         })),
@@ -5217,70 +5383,6 @@ var Role = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/iot/index.ts
-var iot_exports = {};
-__export(iot_exports, {
-  Authorizer: () => Authorizer,
-  TopicRule: () => TopicRule
-});
-
-// src/provider/aws/iot/authorizer.ts
-var Authorizer = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::IoT::Authorizer", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get arn() {
-    return this.output((v) => v.Arn);
-  }
-  toState() {
-    return {
-      document: {
-        AuthorizerName: this.props.name,
-        AuthorizerFunctionArn: this.props.functionArn,
-        Status: unwrap(this.props.enabled, true) ? "ACTIVE" : "INACTIVE",
-        SigningDisabled: !unwrap(this.props.enableSigning, false),
-        EnableCachingForHttp: unwrap(this.props.enableCachingForHttp, false),
-        // TokenKeyName:
-        // TokenSigningPublicKeys:
-        // 	Key: Value
-        Tags: Object.entries(unwrap(this.props.tags, {})).map(([k, v]) => ({
-          Key: k,
-          Value: v
-        }))
-      }
-    };
-  }
-};
-
-// src/provider/aws/iot/topic-rule.ts
-var TopicRule = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::IoT::TopicRule", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get arn() {
-    return this.output((v) => v.Arn);
-  }
-  toState() {
-    return {
-      document: {
-        RuleName: this.props.name,
-        TopicRulePayload: {
-          Sql: this.props.sql,
-          AwsIotSqlVersion: unwrap(this.props.sqlVersion, "2016-03-23"),
-          RuleDisabled: !unwrap(this.props.enabled, true),
-          Actions: unwrap(this.props.actions).map((action) => ({
-            Lambda: { FunctionArn: unwrap(unwrap(action).lambda).functionArn }
-          }))
-        }
-      }
-    };
-  }
-};
-
 // src/provider/aws/ivs/index.ts
 var ivs_exports = {};
 __export(ivs_exports, {
@@ -5289,7 +5391,7 @@ __export(ivs_exports, {
 });
 
 // src/provider/aws/ivs/channel.ts
-import { constantCase as constantCase6 } from "change-case";
+import { constantCase as constantCase7 } from "change-case";
 var Channel = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::IVS::Channel", id, props);
@@ -5309,8 +5411,8 @@ var Channel = class extends CloudControlApiResource {
     return {
       document: {
         Name: this.props.name,
-        Type: constantCase6(unwrap(this.props.type, "standard")),
-        LatencyMode: constantCase6(unwrap(this.props.latencyMode, "low")),
+        Type: constantCase7(unwrap(this.props.type, "standard")),
+        LatencyMode: constantCase7(unwrap(this.props.latencyMode, "low")),
         ...this.attr("Preset", this.props.preset, (v) => `${v.toUpperCase()}_BANDWIDTH_DELIVERY`),
         ...this.attr("Authorized", this.props.authorized),
         ...this.attr("InsecureIngest", this.props.insecureIngest),
@@ -5424,7 +5526,7 @@ var EventInvokeConfig = class extends CloudControlApiResource {
 
 // src/provider/aws/lambda/event-source-mapping.ts
 import { toSeconds as toSeconds9 } from "@awsless/duration";
-import { constantCase as constantCase7 } from "change-case";
+import { constantCase as constantCase8 } from "change-case";
 var EventSourceMapping = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::EventSourceMapping", id, props);
@@ -5448,7 +5550,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
         ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
         ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, toSeconds9),
         ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, constantCase7),
+        ...this.attr("StartingPosition", this.props.startingPosition, constantCase8),
         ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
         ...this.props.maxConcurrency ? {
           ScalingConfig: {
@@ -5470,7 +5572,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
 // src/provider/aws/lambda/function.ts
 import { seconds, toSeconds as toSeconds10 } from "@awsless/duration";
 import { mebibytes, toMebibytes } from "@awsless/size";
-import { constantCase as constantCase8 } from "change-case";
+import { constantCase as constantCase9 } from "change-case";
 var Function = class extends Resource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
@@ -5554,8 +5656,8 @@ var Function = class extends Resource {
         ...this.props.log ? {
           LoggingConfig: {
             LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: constantCase8(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: constantCase8(unwrap(unwrap(this.props.log).system, "warn"))
+            ApplicationLogLevel: constantCase9(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: constantCase9(unwrap(unwrap(this.props.log).system, "warn"))
           }
         } : {},
         ...this.props.vpc ? {
@@ -5576,7 +5678,7 @@ var Function = class extends Resource {
 };
 
 // src/provider/aws/lambda/permission.ts
-import { constantCase as constantCase9 } from "change-case";
+import { constantCase as constantCase10 } from "change-case";
 var Permission = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Permission", id, props);
@@ -5590,7 +5692,7 @@ var Permission = class extends CloudControlApiResource {
         Action: unwrap(this.props.action, "lambda:InvokeFunction"),
         Principal: this.props.principal,
         ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase9)
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase10)
         // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
         // ...(this.props.urlAuthType
         // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
@@ -5601,7 +5703,7 @@ var Permission = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/lambda/url.ts
-import { constantCase as constantCase10 } from "change-case";
+import { constantCase as constantCase11 } from "change-case";
 import { toSeconds as toSeconds11 } from "@awsless/duration";
 var Url = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5634,8 +5736,8 @@ var Url = class extends CloudControlApiResource {
   toState() {
     return {
       document: {
-        AuthType: constantCase10(unwrap(this.props.authType, "none")),
-        InvokeMode: constantCase10(unwrap(this.props.invokeMode, "buffered")),
+        AuthType: constantCase11(unwrap(this.props.authType, "none")),
+        InvokeMode: constantCase11(unwrap(this.props.invokeMode, "buffered")),
         TargetFunctionArn: this.props.targetArn,
         ...this.attr("Qualifier", this.props.qualifier),
         Cors: this.cors()
@@ -6203,7 +6305,7 @@ __export(ses_exports, {
 });
 
 // src/provider/aws/ses/email-identity.ts
-import { constantCase as constantCase11 } from "change-case";
+import { constantCase as constantCase12 } from "change-case";
 import { minutes as minutes3 } from "@awsless/duration";
 var EmailIdentity = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -6257,7 +6359,7 @@ var EmailIdentity = class extends CloudControlApiResource {
             SigningEnabled: true
           },
           DkimSigningAttributes: {
-            NextSigningKeyLength: constantCase11(unwrap(this.props.dkim))
+            NextSigningKeyLength: constantCase12(unwrap(this.props.dkim))
           }
         } : {},
         FeedbackAttributes: {

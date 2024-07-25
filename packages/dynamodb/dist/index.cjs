@@ -123,9 +123,9 @@ var define = (name, options) => new TableDefinition(name, options);
 var import_client_dynamodb2 = require("@aws-sdk/client-dynamodb");
 
 // src/client.ts
-var import_utils = require("@awsless/utils");
-var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
 var import_client_dynamodb = require("@aws-sdk/client-dynamodb");
+var import_lib_dynamodb = require("@aws-sdk/lib-dynamodb");
+var import_utils = require("@awsless/utils");
 var import_node_http_handler = require("@smithy/node-http-handler");
 var dynamoDBClient = /* @__PURE__ */ (0, import_utils.globalClient)(() => {
   return new import_client_dynamodb.DynamoDBClient({
@@ -646,7 +646,11 @@ var optional = (struct) => {
 };
 
 // src/structs/any.ts
+var import_util_dynamodb = require("@aws-sdk/util-dynamodb");
 var Any = class {
+  constructor(options = {}) {
+    this.options = options;
+  }
   filterIn(value) {
     return typeof value === "undefined";
   }
@@ -654,10 +658,10 @@ var Any = class {
     return typeof value === "undefined";
   }
   marshall(value) {
-    return value;
+    return (0, import_util_dynamodb.marshall)({ value }, this.options).value;
   }
   unmarshall(value) {
-    return value;
+    return (0, import_util_dynamodb.unmarshall)(value.M, this.options);
   }
   _marshall(value) {
     return value;
@@ -669,7 +673,7 @@ var Any = class {
   optional = true;
   walk;
 };
-var any = () => new Any();
+var any = (options = {}) => new Any(options);
 
 // src/structs/uuid.ts
 var uuid = () => new Struct(
@@ -1157,10 +1161,10 @@ var pipeStream = (streams, command, send) => {
           const stream = streams.find((stream2) => stream2.table.name === tableName);
           if (!stream)
             return;
-          const marshall = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
+          const marshall2 = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
           return {
             ...stream,
-            items: [{ key: stream.table.unmarshall(marshall) }]
+            items: [{ key: stream.table.unmarshall(marshall2) }]
           };
         });
       }

@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  QoS: () => QoS,
   iotClient: () => iotClient,
   mockIoT: () => mockIoT,
   publish: () => publish
@@ -37,19 +38,14 @@ var iotClient = (0, import_utils.globalClient)(() => {
 });
 
 // src/commands.ts
-var publish = async ({ client = iotClient(), topic, id, event, value, qos = 0 }) => {
-  const payload = {
-    e: event,
-    v: value
-  };
-  if (id) {
-    payload.i = id;
-  }
-  const command = new import_client_iot_data_plane2.PublishCommand({
-    qos,
-    topic,
-    payload: Buffer.from(JSON.stringify(payload))
-  });
+var QoS = /* @__PURE__ */ ((QoS2) => {
+  QoS2[QoS2["AtMostOnce"] = 0] = "AtMostOnce";
+  QoS2[QoS2["AtLeastOnce"] = 1] = "AtLeastOnce";
+  QoS2[QoS2["ExactlyOnce"] = 2] = "ExactlyOnce";
+  return QoS2;
+})(QoS || {});
+var publish = async ({ client = iotClient(), ...props }) => {
+  const command = new import_client_iot_data_plane2.PublishCommand(props);
   await client.send(command);
 };
 
@@ -72,6 +68,7 @@ var mockIoT = () => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  QoS,
   iotClient,
   mockIoT,
   publish

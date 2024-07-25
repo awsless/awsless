@@ -1,8 +1,8 @@
-import { globalClient } from '@awsless/utils'
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { Options } from './types/options.js'
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
+import { globalClient } from '@awsless/utils'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { Options } from './types/options.js'
 
 export const dynamoDBClient = /* @__PURE__ */ globalClient(() => {
 	return new DynamoDBClient({
