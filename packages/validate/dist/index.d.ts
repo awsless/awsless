@@ -16,6 +16,10 @@ type BigFloatSchema = BaseSchema<string | number | BigFloat | {
 declare function bigfloat(pipe?: Pipe<BigFloat>): BigFloatSchema;
 declare function bigfloat(error?: ErrorMessage, pipe?: Pipe<BigFloat>): BigFloatSchema;
 
+type BigIntSchema = BaseSchema<string | bigint, bigint>;
+declare function bigint(pipe?: Pipe<bigint>): BigIntSchema;
+declare function bigint(error?: ErrorMessage, pipe?: Pipe<bigint>): BigIntSchema;
+
 type DateSchema = BaseSchema<string | Date, Date>;
 declare function date(pipe?: Pipe<Date>): DateSchema;
 declare function date(error?: ErrorMessage, pipe?: Pipe<Date>): DateSchema;
@@ -70,4 +74,4 @@ declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) 
 declare function minDuration<T extends Duration>(min: Duration, error?: ErrorMessage): valibot.CustomValidation<T>;
 declare function maxDuration<T extends Duration>(max: Duration, error?: ErrorMessage): valibot.CustomValidation<T>;
 
-export { BigFloatSchema, DateSchema, DurationSchema, DynamoDBStreamSchema, JsonSchema, SnsTopicSchema, SqsQueueSchema, UuidSchema, bigfloat, date, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, snsTopic, sqsQueue, unique, uuid };
+export { BigFloatSchema, BigIntSchema, DateSchema, DurationSchema, DynamoDBStreamSchema, JsonSchema, SnsTopicSchema, SqsQueueSchema, UuidSchema, bigfloat, bigint, date, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, snsTopic, sqsQueue, unique, uuid };

@@ -52,19 +52,38 @@ function bigfloat(arg1, arg2) {
   );
 }
 
-// src/schema/date.ts
-import { defaultArgs as defaultArgs2, date as base, string as string3, union as union2, transform as transform3 } from "valibot";
-function date(arg1, arg2) {
+// src/schema/bigint.ts
+import { bigint as base, defaultArgs as defaultArgs2, regex, string as string3, transform as transform3, union as union2 } from "valibot";
+function bigint2(arg1, arg2) {
   const [error, pipe] = defaultArgs2(arg1, arg2);
   return union2(
     [
       base(pipe),
       transform3(
-        string3(),
+        string3([regex(/^-?[0-9]+$/)]),
+        (input) => {
+          return BigInt(input);
+        },
+        base(pipe)
+      )
+    ],
+    error ?? "Invalid BigInt"
+  );
+}
+
+// src/schema/date.ts
+import { defaultArgs as defaultArgs3, date as base2, string as string4, union as union3, transform as transform4 } from "valibot";
+function date(arg1, arg2) {
+  const [error, pipe] = defaultArgs3(arg1, arg2);
+  return union3(
+    [
+      base2(pipe),
+      transform4(
+        string4(),
         (input) => {
           return new Date(input);
         },
-        base(pipe)
+        base2(pipe)
       )
     ],
     error ?? "Invalid date"
@@ -72,19 +91,19 @@ function date(arg1, arg2) {
 }
 
 // src/schema/uuid.ts
-import { string as string4, uuid as base2, transform as transform4 } from "valibot";
+import { string as string5, uuid as base3, transform as transform5 } from "valibot";
 var uuid = (error) => {
-  return transform4(string4(error ?? "Invalid UUID", [base2()]), (v) => v);
+  return transform5(string5(error ?? "Invalid UUID", [base3()]), (v) => v);
 };
 
 // src/schema/duration.ts
-import { defaultArgs as defaultArgs3, regex, string as string5, transform as transform5 } from "valibot";
+import { defaultArgs as defaultArgs4, regex as regex2, string as string6, transform as transform6 } from "valibot";
 import { parse } from "@awsless/duration";
 function duration(arg1, arg2) {
-  const [msg, pipe] = defaultArgs3(arg1, arg2);
+  const [msg, pipe] = defaultArgs4(arg1, arg2);
   const error = msg ?? "Invalid duration";
-  return transform5(
-    string5(error, [regex(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
+  return transform6(
+    string6(error, [regex2(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
     (value) => {
       return parse(value);
     },
@@ -93,14 +112,14 @@ function duration(arg1, arg2) {
 }
 
 // src/schema/aws/sqs-queue.ts
-import { array, object as object2, transform as transform6, union as union3, unknown } from "valibot";
+import { array, object as object2, transform as transform7, union as union4, unknown } from "valibot";
 var sqsQueue = (body) => {
   const schema = body ?? unknown();
-  return union3(
+  return union4(
     [
-      transform6(schema, (input) => [input]),
+      transform7(schema, (input) => [input]),
       array(schema),
-      transform6(
+      transform7(
         object2({
           Records: array(
             object2({
@@ -118,14 +137,14 @@ var sqsQueue = (body) => {
 };
 
 // src/schema/aws/sns-topic.ts
-import { array as array2, object as object3, transform as transform7, union as union4, unknown as unknown2 } from "valibot";
+import { array as array2, object as object3, transform as transform8, union as union5, unknown as unknown2 } from "valibot";
 var snsTopic = (body) => {
   const schema = body ?? unknown2();
-  return union4(
+  return union5(
     [
-      transform7(schema, (input) => [input]),
+      transform8(schema, (input) => [input]),
       array2(schema),
-      transform7(
+      transform8(
         object3({
           Records: array2(
             object3({
@@ -145,15 +164,17 @@ var snsTopic = (body) => {
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, object as object4, optional, transform as transform8, unknown as unknown3, union as union5, literal } from "valibot";
+import { array as array3, literal, object as object4, optional, transform as transform9, union as union6, unknown as unknown3 } from "valibot";
 var dynamoDbStream = (table) => {
-  const marshall = () => transform8(unknown3(), (value) => table.unmarshall(value));
-  return transform8(
+  const marshall = () => transform9(unknown3(), (value) => table.unmarshall(value));
+  return transform9(
     object4(
       {
         Records: array3(
           object4({
-            eventName: union5([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
+            // For some reason picklist fails to build.
+            // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
+            eventName: union6([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
             dynamodb: object4({
               Keys: marshall(),
               OldImage: optional(marshall()),
@@ -220,6 +241,7 @@ function maxDuration(max, error) {
 }
 export {
   bigfloat,
+  bigint2 as bigint,
   date,
   duration,
   dynamoDbStream,

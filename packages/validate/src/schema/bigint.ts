@@ -1,4 +1,4 @@
-import { BaseSchema, bigint as base, defaultArgs, ErrorMessage, Pipe, string, transform, union } from 'valibot'
+import { BaseSchema, bigint as base, defaultArgs, ErrorMessage, Pipe, regex, string, transform, union } from 'valibot'
 
 export type BigIntSchema = BaseSchema<string | bigint, bigint>
 
@@ -11,7 +11,7 @@ export function bigint(arg1?: ErrorMessage | Pipe<bigint>, arg2?: Pipe<bigint>):
 		[
 			base(pipe),
 			transform(
-				string(),
+				string([regex(/^-?[0-9]+$/)]),
 				input => {
 					return BigInt(input)
 				},
