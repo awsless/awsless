@@ -29,7 +29,11 @@ export const topicFeature = defineFeature({
 
 		for (const stack of ctx.stackConfigs) {
 			for (const topic of stack.topics || []) {
-				const name = formatGlobalResourceName(ctx.appConfig.name, 'topic', topic)
+				const name = formatGlobalResourceName({
+					appName: ctx.appConfig.name,
+					resourceType: 'topic',
+					resourceName: topic,
+				})
 
 				mockResponses.addType(topic, 'Mock')
 				resources.addType(topic, `Publish<'${name}'>`)
@@ -48,8 +52,14 @@ export const topicFeature = defineFeature({
 		for (const stack of ctx.stackConfigs) {
 			for (const id of stack.topics ?? []) {
 				const group = new Node(ctx.base, 'topic', id)
+				const name = formatGlobalResourceName({
+					appName: ctx.appConfig.name,
+					resourceType: 'topic',
+					resourceName: id,
+				})
+
 				const topic = new aws.sns.Topic(group, 'topic', {
-					name: formatGlobalResourceName(ctx.appConfig.name, 'topic', id),
+					name,
 				})
 
 				ctx.shared.set(`topic-${id}-arn`, topic.arn)

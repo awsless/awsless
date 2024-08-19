@@ -1,7 +1,6 @@
 import { Duration, seconds, toSeconds } from '@awsless/duration'
 import { mebibytes, Size, toMebibytes } from '@awsless/size'
 import { constantCase } from 'change-case'
-import { Asset } from '../../../core/asset'
 import { Input, unwrap } from '../../../core/output.js'
 import { ARN } from '../types.js'
 import { Code, formatCode } from './code.js'
@@ -9,12 +8,11 @@ import { Code, formatCode } from './code.js'
 // import { Url, UrlProps } from './url.js'
 // import { Permission } from './permission.js'
 import { Node } from '../../../core/node.js'
-import { Resource } from '../../../core/resource'
+import { CloudControlApiResource } from '../cloud-control-api'
 
 export type FunctionProps = {
 	name: Input<string>
 	code: Input<Code>
-	sourceCodeHash?: Input<Asset>
 	role: Input<ARN>
 	description?: Input<string>
 	runtime?: Input<'nodejs18.x' | 'nodejs20.x'>
@@ -31,6 +29,8 @@ export type FunctionProps = {
 		subnetIds: Input<Input<string>[]>
 	}>
 
+	layers?: Input<Input<ARN>[]>
+
 	log?: Input<{
 		format?: Input<'text' | 'json'>
 		level?: Input<'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'>
@@ -38,9 +38,7 @@ export type FunctionProps = {
 	}>
 }
 
-export class Function extends Resource {
-	cloudProviderId = 'aws-lambda-function'
-
+export class Function extends CloudControlApiResource {
 	private environmentVariables: Record<string, Input<string>> = {}
 
 	constructor(
@@ -127,9 +125,6 @@ export class Function extends Resource {
 		}
 
 		return {
-			asset: {
-				sourceCodeHash: this.props.sourceCodeHash,
-			},
 			document: {
 				FunctionName: this.props.name,
 				Description: this.props.description,
@@ -143,6 +138,7 @@ export class Function extends Resource {
 				EphemeralStorage: {
 					Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512))),
 				},
+				Layers: this.props.layers,
 				...(this.props.log
 					? {
 							LoggingConfig: {

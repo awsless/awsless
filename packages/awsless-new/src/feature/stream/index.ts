@@ -8,7 +8,14 @@ export const streamFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.streams ?? {})) {
 			const group = new Node(ctx.stack, 'stream', id)
-			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'stream', id)
+
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'stream',
+				resourceName: id,
+			})
+
 			const channel = new aws.ivs.Channel(group, 'channel', {
 				name,
 				...props,

@@ -12,7 +12,12 @@ export const cronFeature = defineFeature({
 			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, props.consumer)
 
 			const rule = new aws.events.Rule(group, 'rule', {
-				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, this.name, id),
+				name: formatLocalResourceName({
+					appName: ctx.app.name,
+					stackName: ctx.stack.name,
+					resourceType: 'cron',
+					resourceName: id,
+				}),
 				schedule: props.schedule,
 				enabled: props.enabled,
 				targets: [

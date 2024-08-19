@@ -1,7 +1,7 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"depends": ["stack-2", "unknown"],
+	"depends": ["stack-2"],
 	// "configs": ["test"],
 	// "commands": {
 	// 	"test": {
@@ -9,16 +9,27 @@
 	// 		"description": "Test command"
 	// 	}
 	// },
-	"graphql": {
-		"api": {
-			"schema": "./graphql/schema.gql",
-			"resolvers": {
-				"Query": {
-					"test": {
-						"consumer": "./graphql.ts"
-					}
-				}
-			}
+	// "graphql": {
+	// 	"api": {
+	// 		"schema": "./graphql/schema.gql",
+	// 		"resolvers": {
+	// 			"Query": {
+	// 				"test": {
+	// 					"consumer": "./graphql.ts"
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// },
+	"tables": {
+		"jack-test": {
+			"hash": "id",
+			"deleteProtection": true
+		}
+	},
+	"stores": {
+		"jack-test": {
+			"deleteProtection": true
 		}
 	},
 	"functions": {

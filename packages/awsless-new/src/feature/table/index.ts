@@ -16,7 +16,13 @@ export const tableFeature = defineFeature({
 		for (const stack of ctx.stackConfigs) {
 			const list = new TypeObject(2)
 			for (const name of Object.keys(stack.tables || {})) {
-				const tableName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'table', name)
+				const tableName = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'table',
+					resourceName: name,
+				})
+
 				list.addType(name, `'${tableName}'`)
 			}
 			resources.addType(stack.name, list)
@@ -29,12 +35,28 @@ export const tableFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
 			const group = new Node(ctx.stack, 'table', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'table',
+				resourceName: id,
+			})
+
+			const deletionProtection = props.deletionProtection ?? ctx.appConfig.defaults.table?.deletionProtection
 
 			const table = new aws.dynamodb.Table(group, 'table', {
 				...props,
-				name: formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, 'table', id),
+				name,
 				stream: props.stream?.type,
+				deletionProtection,
 			})
+
+			// --------------------------------------------------------
+			// Deletion protection
+
+			if (deletionProtection) {
+				table.deletionPolicy = 'retain'
+			}
 
 			// --------------------------------------------------------
 			// Stream support

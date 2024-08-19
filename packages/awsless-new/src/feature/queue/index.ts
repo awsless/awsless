@@ -43,7 +43,13 @@ export const queueFeature = defineFeature({
 
 			for (const [name, fileOrProps] of Object.entries(stack.queues || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
-				const queueName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'queue', name)
+				const queueName = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'queue',
+					resourceName: name,
+				})
+
 				const file =
 					typeof fileOrProps === 'string'
 						? fileOrProps
@@ -78,9 +84,15 @@ export const queueFeature = defineFeature({
 			const props = deepmerge(ctx.appConfig.defaults.queue, local)
 
 			const group = new Node(ctx.stack, 'queue', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'queue',
+				resourceName: id,
+			})
 
 			const queue = new aws.sqs.Queue(group, 'queue', {
-				name: formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'queue', id),
+				name,
 				deadLetterArn: getGlobalOnFailure(ctx),
 				...props,
 			})

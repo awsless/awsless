@@ -41,7 +41,7 @@ enum NumberEnum {
 	two = 2,
 }
 
-describe('Types', () => {
+describe('Schema', () => {
 	// const obj1 = string()
 	// const obj2 = array(string())
 	// const obj3 = { s: string() }

@@ -1,5 +1,5 @@
-import { BaseSchema, SnsTopicSchema, snsTopic } from '@awsless/validate'
-import { Handler, Loggers, lambda } from '@awsless/lambda'
+import { Handler, lambda, Loggers } from '@awsless/lambda'
+import { BaseSchema, snsTopic, SnsTopicSchema } from '@awsless/validate'
 
 export type TopicProps<H extends Handler<S>, S extends BaseSchema> = {
 	handle: H

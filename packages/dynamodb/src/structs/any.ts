@@ -29,7 +29,7 @@ class Any {
 	}
 
 	unmarshall(value: any) {
-		return unmarshall(value.M, this.options) as any
+		return unmarshall({ value }, this.options).value as any
 	}
 
 	_marshall(value: any) {

@@ -1,8 +1,8 @@
 import { Duration, toSeconds } from '@awsless/duration'
-import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Input, unwrap } from '../../../core/output.js'
-import { ARN } from '../types.js'
 import { Node } from '../../../core/node.js'
+import { Input, unwrap } from '../../../core/output.js'
+import { CloudControlApiResource } from '../cloud-control-api/resource.js'
+import { ARN } from '../types.js'
 
 export type AssociationType = 'viewer-request' | 'viewer-response' | 'origin-request' | 'origin-response'
 
@@ -119,31 +119,29 @@ export class Distribution extends CloudControlApiResource {
 						? {
 								SslSupportMethod: 'sni-only',
 								AcmCertificateArn: this.props.certificateArn,
-						  }
-						: {},
+							}
+						: { CloudFrontDefaultCertificate: true },
 
 					Origins: unwrap(this.props.origins, [])
 						.map(v => unwrap(v))
 						.map(origin => ({
 							Id: origin.id,
 							DomainName: origin.domainName,
-							OriginCustomHeaders: Object.entries(unwrap(origin.headers, {})).map(
-								([name, value]) => ({
-									HeaderName: name,
-									HeaderValue: value,
-								})
-							),
+							OriginCustomHeaders: Object.entries(unwrap(origin.headers, {})).map(([name, value]) => ({
+								HeaderName: name,
+								HeaderValue: value,
+							})),
 							...(origin.path
 								? {
 										OriginPath: origin.path,
-								  }
+									}
 								: {}),
 							...(origin.protocol
 								? {
 										CustomOriginConfig: {
 											OriginProtocolPolicy: origin.protocol,
 										},
-								  }
+									}
 								: {}),
 							...(origin.originAccessIdentityId
 								? {
@@ -152,7 +150,7 @@ export class Distribution extends CloudControlApiResource {
 												origin.originAccessIdentityId
 											)}`,
 										},
-								  }
+									}
 								: {}),
 							...(origin.originAccessControlId
 								? {
@@ -160,7 +158,7 @@ export class Distribution extends CloudControlApiResource {
 										S3OriginConfig: {
 											OriginAccessIdentity: '',
 										},
-								  }
+									}
 								: {}),
 						})),
 
@@ -189,10 +187,7 @@ export class Distribution extends CloudControlApiResource {
 						.map(v => unwrap(v))
 						.map(item => ({
 							ErrorCode: item.errorCode,
-							...this.attr(
-								'ErrorCachingMinTTL',
-								item.cacheMinTTL && toSeconds(unwrap(item.cacheMinTTL))
-							),
+							...this.attr('ErrorCachingMinTTL', item.cacheMinTTL && toSeconds(unwrap(item.cacheMinTTL))),
 							...this.attr('ResponseCode', item.responseCode),
 							...this.attr('ResponsePagePath', item.responsePath),
 						})),

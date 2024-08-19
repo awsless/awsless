@@ -46,7 +46,13 @@ export const taskFeature = defineFeature({
 
 			for (const [name, props] of Object.entries(stack.tasks || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
-				const funcName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'task', name)
+				const funcName = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'task',
+					resourceName: name,
+				})
+
 				const relFile = relative(directories.types, props.consumer.file)
 
 				types.addImport(varName, relFile)

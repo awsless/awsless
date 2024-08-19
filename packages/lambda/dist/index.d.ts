@@ -53,7 +53,7 @@ declare const isViewableErrorResponse: (response: unknown) => response is Viewab
 declare const toViewableErrorResponse: (error: ViewableError) => ViewableErrorResponse;
 
 declare class ValidationError extends ViewableError {
-    constructor(issues: SchemaIssues);
+    constructor(message: string, issues: SchemaIssues);
 }
 
 declare const lambdaClient: {
@@ -100,4 +100,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
-export { Context, ExtraMetaData, Handler, Input, Invoke, InvokeOptions, InvokeResponse, LambdaFunction, Logger, Loggers, TimeoutError, ValidationError, ViewableError, invoke, isViewableErrorResponse, lambda, lambdaClient, mockLambda, toViewableErrorResponse };
+export { Context, ExtraMetaData, Handler, Input, Invoke, InvokeOptions, InvokeResponse, LambdaFactory, LambdaFunction, Logger, Loggers, TimeoutError, ValidationError, ViewableError, invoke, isViewableErrorResponse, lambda, lambdaClient, mockLambda, toViewableErrorResponse };

@@ -10,6 +10,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { createLambdaFunction } from './util.js'
+import deepmerge from 'deepmerge'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
@@ -52,15 +53,27 @@ export const functionFeature = defineFeature({
 			const mock = new TypeObject(2)
 			const mockResponse = new TypeObject(2)
 
-			for (const [name, props] of Object.entries(stack.functions || {})) {
+			for (const [name, local] of Object.entries(stack.functions || {})) {
+				const props = deepmerge(ctx.appConfig.defaults.function, local)
 				const varName = camelCase(`${stack.name}-${name}`)
-				const funcName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'function', name)
+				const funcName = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'function',
+					resourceName: name,
+				})
 				const relFile = relative(directories.types, props.file)
 
-				types.addImport(varName, relFile)
-				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				mock.addType(name, `MockBuilder<typeof ${varName}>`)
-				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				if (props.runtime === 'container') {
+					resource.addType(name, `Invoke<'${funcName}', Func>`)
+					mock.addType(name, `MockBuilder<Func>`)
+					mockResponse.addType(name, `MockObject<Func>`)
+				} else {
+					types.addImport(varName, relFile)
+					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+					mock.addType(name, `MockBuilder<typeof ${varName}>`)
+					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				}
 			}
 
 			mocks.addType(stack.name, mock)
@@ -81,8 +94,13 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 
 		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'assets'),
-			versioning: true,
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'function',
+				resourceName: 'assets',
+				postfix: ctx.appId,
+			}),
+			// versioning: true,
 			forceDelete: true,
 		})
 
@@ -91,7 +109,12 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 
 		const repository = new aws.ecr.Repository(group, 'repository', {
-			name: formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-'),
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'function',
+				resourceName: 'repository',
+				seperator: '-',
+			}),
 			imageTagMutability: true,
 		})
 

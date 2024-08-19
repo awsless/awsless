@@ -1,15 +1,14 @@
-import { basename, dirname, join } from 'path'
-import { ProgramOptions } from '../../cli/program.js'
-import { debug } from '../../cli/debug.js'
-import { color } from '../../cli/ui/style.js'
-import { AppSchema } from '../app.js'
-import { directories, findRootDir, setRoot } from '../../util/path.js'
 import { glob } from 'glob'
-import { StackConfig, StackSchema } from '../stack.js'
+import { basename, dirname, join } from 'path'
+import { debug } from '../../cli/debug.js'
+import { ProgramOptions } from '../../cli/program.js'
+import { color } from '../../cli/ui/style.js'
+import { directories, findRootDir, setRoot } from '../../util/path.js'
+import { AppConfig, AppSchema } from '../app.js'
 import { setLocalBasePath } from '../schema/local-file.js'
+import { StackConfig, StackSchema } from '../stack.js'
 import { readConfigWithStage } from './read.js'
 import { validateConfig } from './validate.js'
-import { AppConfig } from '../app.js'
 
 export const loadAppConfig = async (options: ProgramOptions) => {
 	debug('Find the root directory')

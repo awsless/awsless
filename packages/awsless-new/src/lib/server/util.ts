@@ -2,16 +2,74 @@ import { paramCase } from 'change-case'
 
 export const APP = (process.env.APP ?? 'app') as 'app'
 export const STACK = (process.env.STACK ?? 'stack') as 'stack'
-// export const STAGE = (process.env.STAGE ?? 'stage') as 'stage'
 
-export const bindLocalResourceName = <T extends string>(type: T) => {
-	return <N extends string, S extends string = typeof STACK>(name: N, stack: S = STACK as S) => {
-		return [APP, paramCase(stack), paramCase(type), paramCase(name)].join('--') as `${typeof APP}--${S}--${T}--${N}`
+// const bindResourceName = (
+// 	resourceType: string,
+// 	opts?: {
+// 		prefix?: string
+// 		postfix?: string
+// 	}
+// ) => {
+// 	return (resourceName: string, stackName?: string) => {
+// 		return [
+// 			opts?.prefix,
+// 			APP,
+// 			stackName && paramCase(stackName),
+// 			paramCase(resourceType),
+// 			paramCase(resourceName),
+// 			opts?.postfix,
+// 		].join('--')
+// 	}
+// }
+
+const build = (opt: {
+	prefix?: string
+	stackName?: string
+	resourceType: string
+	resourceName: string
+	postfix?: string
+	seperator?: string
+}) => {
+	return [
+		//
+		opt?.prefix,
+		APP,
+		opt.stackName,
+		opt.resourceType,
+		opt.resourceName,
+		opt?.postfix,
+	]
+		.filter(v => typeof v === 'string')
+		.map(v => paramCase(v))
+		.join(opt.seperator ?? '--')
+}
+
+export const bindPostfixedLocalResourceName = <T extends string, P extends string>(resourceType: T, postfix: P) => {
+	return <N extends string, S extends string = typeof STACK>(resourceName: N, stackName: S = STACK as S) => {
+		return build({
+			stackName,
+			resourceName,
+			resourceType,
+			postfix,
+		}) as `${typeof APP}--${S}--${T}--${N}--${P}`
 	}
 }
 
-export const bindGlobalResourceName = <T extends string>(type: T) => {
-	return <N extends string>(name: N) => {
-		return [APP, paramCase(type), paramCase(name)].join('--') as `${typeof APP}--${T}--${N}`
+export const bindLocalResourceName = <T extends string>(resourceType: T) => {
+	return <N extends string, S extends string = typeof STACK>(resourceName: N, stackName: S = STACK as S) => {
+		return build({
+			stackName,
+			resourceType,
+			resourceName,
+		}) as `${typeof APP}--${S}--${T}--${N}`
+	}
+}
+
+export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
+	return <N extends string>(resourceName: N) => {
+		return build({
+			resourceType,
+			resourceName,
+		}) as `${typeof APP}--${T}--${N}`
 	}
 }

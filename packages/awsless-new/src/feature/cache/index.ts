@@ -41,7 +41,13 @@ export const cacheFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.caches ?? {})) {
 			const group = new Node(ctx.stack, this.name, id)
 
-			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, this.name, id, '-')
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'cache',
+				resourceName: id,
+				seperator: '-',
+			})
 
 			const subnetGroup = new aws.memorydb.SubnetGroup(group, 'subnets', {
 				name,

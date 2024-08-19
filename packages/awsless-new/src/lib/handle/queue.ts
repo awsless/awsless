@@ -1,5 +1,5 @@
-import { Handler, Loggers, lambda } from '@awsless/lambda'
-import { BaseSchema, SqsQueueSchema, sqsQueue } from '@awsless/validate'
+import { Handler, lambda, Loggers } from '@awsless/lambda'
+import { BaseSchema, sqsQueue, SqsQueueSchema } from '@awsless/validate'
 
 export type QueueProps<H extends Handler<S>, S extends BaseSchema> = {
 	handle: H

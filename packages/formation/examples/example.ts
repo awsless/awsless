@@ -23,7 +23,7 @@ const workspace = new WorkSpace({
 	stateProvider: new aws.s3.StateProvider({
 		region,
 		credentials,
-		bucket: 'awsless-state',
+		bucket: 'awsless-state-468004125411',
 	}),
 	// stateProvider: new local.file.StateProvider({
 	// 	dir: './examples/state',
@@ -34,6 +34,41 @@ const workspace = new WorkSpace({
 
 const app = new App('test')
 const stack = new Stack(app, 'test')
+
+const bucket = new aws.s3.Bucket(stack, 'test', {
+	name: 'update-code-123',
+})
+
+const file = Asset.fromFile('./examples/state-data/v2.js.zip')
+
+const code = new aws.s3.BucketObject(stack, 'test', {
+	bucket: bucket.name,
+	key: 'code',
+	body: file,
+})
+
+const role = new aws.iam.Role(stack, 'test', {
+	assumedBy: 'lambda.amazonaws.com',
+})
+
+const lambda = new aws.lambda.Function(stack, 'test', {
+	name: 'update-code',
+	role: role.arn,
+	runtime: 'nodejs20.x',
+	handler: 'v2.default',
+	code,
+})
+
+const update = new aws.lambda.SourceCodeUpdate(stack, 'test', {
+	functionName: lambda.name,
+	hash: file,
+	code,
+})
+
+// const role = new aws.iam.Role(stack, 'test', {
+// 	name: 'my-test-role',
+// 	assumedBy: 'ec2.amazonaws.com',
+// })
 
 // ------------------------------------------
 

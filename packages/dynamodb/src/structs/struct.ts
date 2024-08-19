@@ -1,4 +1,4 @@
-import { AttributeValue } from "@aws-sdk/client-dynamodb"
+import { AttributeValue } from '@aws-sdk/client-dynamodb'
 
 export type AttributeTypes = keyof AttributeValue
 
@@ -6,12 +6,10 @@ export type AnyStruct = Struct<
 	any,
 	any,
 	any,
-
 	// any,
 	// any,
 	Array<string | number>,
 	Array<string | number>,
-
 	// any,
 	// any
 	AttributeTypes,
@@ -36,13 +34,13 @@ export class Struct<
 	// declare readonly OPTIONAL: Optional
 	constructor(
 		readonly type: Type,
-		readonly _marshall: (value:Input) => Marshalled,
-		readonly _unmarshall: (value:Marshalled) => Output,
-		readonly walk: undefined | ((...path:Array<string | number>) => AnyStruct | undefined) = undefined,
+		readonly _marshall: (value: Input) => Marshalled,
+		readonly _unmarshall: (value: Marshalled) => Output,
+		readonly walk: undefined | ((...path: Array<string | number>) => AnyStruct | undefined) = undefined,
 		readonly optional: Optional = false as Optional
 	) {}
 
-	filterIn(value:Input | undefined) {
+	filterIn(value: Input | undefined): boolean {
 		// if(!this.optional){
 		// 	return false
 		// }
@@ -50,17 +48,17 @@ export class Struct<
 		return typeof value === 'undefined'
 	}
 
-	filterOut(value:Input | undefined) {
+	filterOut(value: Input | undefined): boolean {
 		return typeof value === 'undefined'
 	}
 
-	marshall(value:Input): Record<Type, Marshalled> {
+	marshall(value: Input): Record<Type, Marshalled> {
 		return {
-			[ this.type ]: this._marshall(value)
+			[this.type]: this._marshall(value),
 		} as Record<Type, Marshalled>
 	}
 
-	unmarshall(value:Record<Type, Marshalled>): Output {
-		return this._unmarshall(value[ this.type ])
+	unmarshall(value: Record<Type, Marshalled>): Output {
+		return this._unmarshall(value[this.type])
 	}
 }

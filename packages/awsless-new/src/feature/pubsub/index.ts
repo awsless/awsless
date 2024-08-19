@@ -18,7 +18,12 @@ export const pubsubFeature = defineFeature({
 			lambda.addEnvironment('PUBSUB_POLICY', JSON.stringify(props.policy))
 			lambda.addEnvironment('AWS_ACCOUNT_ID', ctx.accountId)
 
-			const name = formatGlobalResourceName(ctx.app.name, 'pubsub', id)
+			const name = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'pubsub',
+				resourceName: id,
+			})
+
 			const authorizer = new aws.iot.Authorizer(group, 'authorizer', {
 				name,
 				functionArn: lambda.arn,
@@ -77,7 +82,13 @@ export const pubsubFeature = defineFeature({
 
 			const { lambda } = createAsyncLambdaFunction(group, ctx, `pubsub`, id, props.consumer)
 
-			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'pubsub', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'pubsub',
+				resourceName: id,
+			})
+
 			const topic = new aws.iot.TopicRule(group, 'rule', {
 				name: name.replaceAll('-', '_'),
 				sql: props.sql,

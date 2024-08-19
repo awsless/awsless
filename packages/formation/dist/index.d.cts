@@ -1267,7 +1267,9 @@ declare class Distribution extends CloudControlApiResource {
                 ViewerCertificate: {
                     SslSupportMethod: string;
                     AcmCertificateArn: Input<`arn:${string}`>;
+                    CloudFrontDefaultCertificate?: undefined;
                 } | {
+                    CloudFrontDefaultCertificate: boolean;
                     SslSupportMethod?: undefined;
                     AcmCertificateArn?: undefined;
                 };
@@ -2522,10 +2524,342 @@ declare namespace index$l {
   };
 }
 
+type Code = {
+    bucket: Input<string>;
+    key: Input<string>;
+    version?: Input<string | undefined>;
+} | {
+    imageUri: Input<string>;
+} | {
+    zipFile: Input<string>;
+};
+declare const formatCode: (code: Code) => {
+    S3Bucket: Input<string>;
+    S3Key: Input<string>;
+    S3ObjectVersion: Input<string | undefined>;
+    ImageUri?: undefined;
+    ZipFile?: undefined;
+} | {
+    ImageUri: Input<string>;
+    S3Bucket?: undefined;
+    S3Key?: undefined;
+    S3ObjectVersion?: undefined;
+    ZipFile?: undefined;
+} | {
+    ZipFile: Input<string>;
+    S3Bucket?: undefined;
+    S3Key?: undefined;
+    S3ObjectVersion?: undefined;
+    ImageUri?: undefined;
+};
+
+type EventInvokeConfigProps = {
+    functionArn: Input<ARN>;
+    maxEventAge?: Input<Duration>;
+    onFailure?: Input<ARN>;
+    onSuccess?: Input<ARN>;
+    qualifier?: Input<string>;
+    retryAttempts?: Input<number>;
+};
+declare class EventInvokeConfig extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: EventInvokeConfigProps);
+    setOnFailure(arn: Input<ARN>): this;
+    setOnSuccess(arn: Input<ARN>): this;
+    toState(): {
+        document: {
+            DestinationConfig?: {
+                OnSuccess?: {
+                    Destination: Input<`arn:${string}`>;
+                } | undefined;
+                OnFailure?: {
+                    Destination: Input<`arn:${string}`>;
+                } | undefined;
+            } | undefined;
+            FunctionName: Input<`arn:${string}`>;
+            Qualifier: string;
+        };
+    };
+}
+
+type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp';
+type EventSourceMappingProps = {
+    functionArn: Input<ARN>;
+    sourceArn: Input<ARN>;
+    batchSize?: Input<number>;
+    maxBatchingWindow?: Input<Duration>;
+    maxConcurrency?: Input<number>;
+    maxRecordAge?: Input<Duration>;
+    bisectBatchOnError?: Input<boolean>;
+    parallelizationFactor?: Input<number>;
+    retryAttempts?: Input<number>;
+    tumblingWindow?: Input<Duration>;
+    onFailure?: Input<ARN>;
+    startingPosition?: Input<StartingPosition>;
+    startingPositionTimestamp?: Input<number>;
+};
+declare class EventSourceMapping extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: EventSourceMappingProps);
+    setOnFailure(arn: Input<ARN>): this;
+    toState(): {
+        document: {
+            DestinationConfig?: {
+                OnFailure: {
+                    Destination: Input<`arn:${string}`>;
+                };
+            } | undefined;
+            ScalingConfig?: {
+                MaximumConcurrency: Input<number>;
+            } | undefined;
+            Enabled: boolean;
+            FunctionName: Input<`arn:${string}`>;
+            EventSourceArn: Input<`arn:${string}`>;
+        };
+    };
+}
+
+type FunctionProps = {
+    name: Input<string>;
+    code: Input<Code>;
+    role: Input<ARN>;
+    description?: Input<string>;
+    runtime?: Input<'nodejs18.x' | 'nodejs20.x'>;
+    handler?: Input<string>;
+    architecture?: Input<'arm64' | 'x86_64'>;
+    memorySize?: Input<Size>;
+    timeout?: Input<Duration>;
+    ephemeralStorageSize?: Input<Size>;
+    environment?: Input<Record<string, Input<string>>>;
+    reserved?: Input<number>;
+    vpc?: Input<{
+        securityGroupIds: Input<Input<string>[]>;
+        subnetIds: Input<Input<string>[]>;
+    }>;
+    layers?: Input<Input<ARN>[]>;
+    log?: Input<{
+        format?: Input<'text' | 'json'>;
+        level?: Input<'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'>;
+        system?: Input<'debug' | 'info' | 'warn'>;
+    }>;
+};
+declare class Function extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    private environmentVariables;
+    constructor(parent: Node, id: string, props: FunctionProps);
+    get arn(): Output<`arn:${string}`>;
+    get name(): Output<string>;
+    addEnvironment(name: string, value: Input<string>): this;
+    setVpc(vpc: Input<{
+        securityGroupIds: Input<Input<string>[]>;
+        subnetIds: Input<Input<string>[]>;
+    }>): this;
+    get permissions(): {
+        actions: string[];
+        resources: Output<`arn:${string}`>[];
+    };
+    toState(): {
+        document: {
+            Environment: {
+                Variables: {
+                    [x: string]: Input<string>;
+                };
+            };
+            VpcConfig?: {
+                SecurityGroupIds: Input<Input<string>[]>;
+                SubnetIds: Input<Input<string>[]>;
+            } | undefined;
+            LoggingConfig?: {
+                LogFormat: string;
+                ApplicationLogLevel: string;
+                SystemLogLevel: string;
+            } | undefined;
+            Code: {
+                S3Bucket: Input<string>;
+                S3Key: Input<string>;
+                S3ObjectVersion: Input<string | undefined>;
+                ImageUri?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ImageUri: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ZipFile: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ImageUri?: undefined;
+            };
+            EphemeralStorage: {
+                Size: bigint;
+            };
+            Layers: Input<Input<`arn:${string}`>[]> | undefined;
+            PackageType: string;
+            FunctionName: Input<string>;
+            Description: Input<string> | undefined;
+            MemorySize: bigint;
+            Timeout: bigint;
+            Architectures: ("arm64" | "x86_64")[];
+            Role: Input<`arn:${string}`>;
+        } | {
+            Environment: {
+                Variables: {
+                    [x: string]: Input<string>;
+                };
+            };
+            VpcConfig?: {
+                SecurityGroupIds: Input<Input<string>[]>;
+                SubnetIds: Input<Input<string>[]>;
+            } | undefined;
+            LoggingConfig?: {
+                LogFormat: string;
+                ApplicationLogLevel: string;
+                SystemLogLevel: string;
+            } | undefined;
+            Code: {
+                S3Bucket: Input<string>;
+                S3Key: Input<string>;
+                S3ObjectVersion: Input<string | undefined>;
+                ImageUri?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ImageUri: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ZipFile: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ImageUri?: undefined;
+            };
+            EphemeralStorage: {
+                Size: bigint;
+            };
+            Layers: Input<Input<`arn:${string}`>[]> | undefined;
+            Runtime: "nodejs18.x" | "nodejs20.x";
+            Handler: string;
+            FunctionName: Input<string>;
+            Description: Input<string> | undefined;
+            MemorySize: bigint;
+            Timeout: bigint;
+            Architectures: ("arm64" | "x86_64")[];
+            Role: Input<`arn:${string}`>;
+        };
+    };
+}
+
+type PermissionProps = {
+    functionArn: Input<ARN>;
+    action?: Input<string>;
+    principal: Input<string>;
+    sourceArn?: Input<ARN>;
+    urlAuthType?: Input<'none' | 'aws-iam'>;
+};
+declare class Permission extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: PermissionProps);
+    toState(): {
+        document: {
+            FunctionName: Input<`arn:${string}`>;
+            Action: string;
+            Principal: Input<string>;
+        };
+    };
+}
+
+type UrlProps = {
+    targetArn: Input<ARN>;
+    qualifier?: Input<string>;
+    invokeMode?: Input<'buffered' | 'response-stream'>;
+    authType?: Input<'aws-iam' | 'none'>;
+    cors?: Input<{
+        allow?: Input<{
+            credentials?: Input<boolean>;
+            headers?: Input<Input<string>[]>;
+            methods?: Input<Input<string>[]>;
+            origins?: Input<Input<string>[]>;
+        }>;
+        expose?: Input<{
+            headers?: Input<Input<string>[]>;
+        }>;
+        maxAge?: Input<Duration>;
+    }>;
+};
+declare class Url extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: UrlProps);
+    get url(): Output<string>;
+    get domain(): Output<string | undefined>;
+    protected cors(): {
+        [x: string]: unknown;
+    };
+    toState(): {
+        document: {
+            Cors: {
+                [x: string]: unknown;
+            };
+            AuthType: string;
+            InvokeMode: string;
+            TargetFunctionArn: Input<`arn:${string}`>;
+        };
+    };
+}
+
+type SourceCodeUpdateProps = {
+    functionName: Input<string>;
+    version: Input<Asset>;
+    code: Input<Code>;
+    architecture?: Input<'arm64' | 'x86_64'>;
+};
+declare class SourceCodeUpdate extends Resource {
+    readonly parent: Node;
+    private props;
+    cloudProviderId: string;
+    constructor(parent: Node, id: string, props: SourceCodeUpdateProps);
+    toState(): {
+        assets: {
+            version: Input<Asset>;
+        };
+        document: {
+            FunctionName: Input<string>;
+            Architectures: ("arm64" | "x86_64")[];
+            Code: {
+                S3Bucket: Input<string>;
+                S3Key: Input<string>;
+                S3ObjectVersion: Input<string | undefined>;
+                ImageUri?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ImageUri: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ZipFile: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ImageUri?: undefined;
+            };
+        };
+    };
+}
+
 type ProviderProps$6 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
-    cloudProvider: CloudProvider;
 };
 type Document$3 = {
     FunctionName: string;
@@ -2540,16 +2874,59 @@ type Document$3 = {
         ZipFile: string;
     };
 };
-declare class FunctionProvider implements CloudProvider {
-    private props;
+declare class SourceCodeUpdateProvider implements CloudProvider {
     protected client: LambdaClient;
     constructor(props: ProviderProps$6);
     own(id: string): boolean;
-    get(props: GetProps): Promise<any>;
-    create(props: CreateProps): Promise<string>;
+    get(): Promise<{}>;
+    create(props: CreateProps<Document$3>): Promise<string>;
     update(props: UpdateProps<Document$3>): Promise<string>;
-    delete(props: DeleteProps): Promise<void>;
+    delete(): Promise<void>;
     updateFunctionCode(props: UpdateProps<Document$3>): Promise<void>;
+}
+
+type index$k_Code = Code;
+type index$k_EventInvokeConfig = EventInvokeConfig;
+declare const index$k_EventInvokeConfig: typeof EventInvokeConfig;
+type index$k_EventInvokeConfigProps = EventInvokeConfigProps;
+type index$k_EventSourceMapping = EventSourceMapping;
+declare const index$k_EventSourceMapping: typeof EventSourceMapping;
+type index$k_EventSourceMappingProps = EventSourceMappingProps;
+type index$k_Function = Function;
+declare const index$k_Function: typeof Function;
+type index$k_FunctionProps = FunctionProps;
+type index$k_Permission = Permission;
+declare const index$k_Permission: typeof Permission;
+type index$k_PermissionProps = PermissionProps;
+type index$k_SourceCodeUpdate = SourceCodeUpdate;
+declare const index$k_SourceCodeUpdate: typeof SourceCodeUpdate;
+type index$k_SourceCodeUpdateProps = SourceCodeUpdateProps;
+type index$k_SourceCodeUpdateProvider = SourceCodeUpdateProvider;
+declare const index$k_SourceCodeUpdateProvider: typeof SourceCodeUpdateProvider;
+type index$k_StartingPosition = StartingPosition;
+type index$k_Url = Url;
+declare const index$k_Url: typeof Url;
+type index$k_UrlProps = UrlProps;
+declare const index$k_formatCode: typeof formatCode;
+declare namespace index$k {
+  export {
+    index$k_Code as Code,
+    index$k_EventInvokeConfig as EventInvokeConfig,
+    index$k_EventInvokeConfigProps as EventInvokeConfigProps,
+    index$k_EventSourceMapping as EventSourceMapping,
+    index$k_EventSourceMappingProps as EventSourceMappingProps,
+    index$k_Function as Function,
+    index$k_FunctionProps as FunctionProps,
+    index$k_Permission as Permission,
+    index$k_PermissionProps as PermissionProps,
+    index$k_SourceCodeUpdate as SourceCodeUpdate,
+    index$k_SourceCodeUpdateProps as SourceCodeUpdateProps,
+    index$k_SourceCodeUpdateProvider as SourceCodeUpdateProvider,
+    index$k_StartingPosition as StartingPosition,
+    index$k_Url as Url,
+    index$k_UrlProps as UrlProps,
+    index$k_formatCode as formatCode,
+  };
 }
 
 type ProviderProps$5 = {
@@ -2653,7 +3030,7 @@ type ConfigProps = {
     region: string;
     timeout?: Duration;
 };
-declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | InstanceProvider | ImageProvider | EndpointProvider | FunctionProvider | RecordSetProvider | BucketObjectProvider | BucketProvider | SubscriptionProvider)[];
+declare const createCloudProviders: (config: ConfigProps) => (CertificateProvider | CertificateValidationProvider | CloudControlApiProvider | IntegrationProvider | StageProvider | DataSourceProvider | GraphQLApiProvider | GraphQLSchemaProvider | InvalidateCacheProvider | LambdaTriggersProvider | TableItemProvider | InstanceProvider | ImageProvider | EndpointProvider | SourceCodeUpdateProvider | RecordSetProvider | BucketObjectProvider | BucketProvider | SubscriptionProvider)[];
 
 declare class LogGroup extends CloudControlApiResource {
     readonly parent: Node;
@@ -2675,11 +3052,11 @@ declare class LogGroup extends CloudControlApiResource {
     };
 }
 
-type index$k_LogGroup = LogGroup;
-declare const index$k_LogGroup: typeof LogGroup;
-declare namespace index$k {
+type index$j_LogGroup = LogGroup;
+declare const index$j_LogGroup: typeof LogGroup;
+declare namespace index$j {
   export {
-    index$k_LogGroup as LogGroup,
+    index$j_LogGroup as LogGroup,
   };
 }
 
@@ -2853,31 +3230,31 @@ declare class LambdaTriggers extends Resource {
     };
 }
 
-type index$j_LambaTriggersProps = LambaTriggersProps;
-type index$j_LambdaTriggers = LambdaTriggers;
-declare const index$j_LambdaTriggers: typeof LambdaTriggers;
-type index$j_LambdaTriggersProvider = LambdaTriggersProvider;
-declare const index$j_LambdaTriggersProvider: typeof LambdaTriggersProvider;
-type index$j_UserPool = UserPool;
-declare const index$j_UserPool: typeof UserPool;
-type index$j_UserPoolClient = UserPoolClient;
-declare const index$j_UserPoolClient: typeof UserPoolClient;
-type index$j_UserPoolClientProps = UserPoolClientProps;
-type index$j_UserPoolDomain = UserPoolDomain;
-declare const index$j_UserPoolDomain: typeof UserPoolDomain;
-type index$j_UserPoolDomainProps = UserPoolDomainProps;
-type index$j_UserPoolProps = UserPoolProps;
-declare namespace index$j {
+type index$i_LambaTriggersProps = LambaTriggersProps;
+type index$i_LambdaTriggers = LambdaTriggers;
+declare const index$i_LambdaTriggers: typeof LambdaTriggers;
+type index$i_LambdaTriggersProvider = LambdaTriggersProvider;
+declare const index$i_LambdaTriggersProvider: typeof LambdaTriggersProvider;
+type index$i_UserPool = UserPool;
+declare const index$i_UserPool: typeof UserPool;
+type index$i_UserPoolClient = UserPoolClient;
+declare const index$i_UserPoolClient: typeof UserPoolClient;
+type index$i_UserPoolClientProps = UserPoolClientProps;
+type index$i_UserPoolDomain = UserPoolDomain;
+declare const index$i_UserPoolDomain: typeof UserPoolDomain;
+type index$i_UserPoolDomainProps = UserPoolDomainProps;
+type index$i_UserPoolProps = UserPoolProps;
+declare namespace index$i {
   export {
-    index$j_LambaTriggersProps as LambaTriggersProps,
-    index$j_LambdaTriggers as LambdaTriggers,
-    index$j_LambdaTriggersProvider as LambdaTriggersProvider,
-    index$j_UserPool as UserPool,
-    index$j_UserPoolClient as UserPoolClient,
-    index$j_UserPoolClientProps as UserPoolClientProps,
-    index$j_UserPoolDomain as UserPoolDomain,
-    index$j_UserPoolDomainProps as UserPoolDomainProps,
-    index$j_UserPoolProps as UserPoolProps,
+    index$i_LambaTriggersProps as LambaTriggersProps,
+    index$i_LambdaTriggers as LambdaTriggers,
+    index$i_LambdaTriggersProvider as LambdaTriggersProvider,
+    index$i_UserPool as UserPool,
+    index$i_UserPoolClient as UserPoolClient,
+    index$i_UserPoolClientProps as UserPoolClientProps,
+    index$i_UserPoolDomain as UserPoolDomain,
+    index$i_UserPoolDomainProps as UserPoolDomainProps,
+    index$i_UserPoolProps as UserPoolProps,
   };
 }
 
@@ -3020,29 +3397,29 @@ declare class Role extends CloudControlApiResource {
     };
 }
 
-type index$i_InstanceProfile = InstanceProfile;
-declare const index$i_InstanceProfile: typeof InstanceProfile;
-type index$i_PolicyDocument = PolicyDocument;
-type index$i_PolicyDocumentVersion = PolicyDocumentVersion;
-type index$i_Role = Role;
-declare const index$i_Role: typeof Role;
-type index$i_RolePolicy = RolePolicy;
-declare const index$i_RolePolicy: typeof RolePolicy;
-type index$i_Statement = Statement;
-declare const index$i_formatPolicyDocument: typeof formatPolicyDocument;
-declare const index$i_formatStatement: typeof formatStatement;
-declare const index$i_fromAwsManagedPolicyName: typeof fromAwsManagedPolicyName;
-declare namespace index$i {
+type index$h_InstanceProfile = InstanceProfile;
+declare const index$h_InstanceProfile: typeof InstanceProfile;
+type index$h_PolicyDocument = PolicyDocument;
+type index$h_PolicyDocumentVersion = PolicyDocumentVersion;
+type index$h_Role = Role;
+declare const index$h_Role: typeof Role;
+type index$h_RolePolicy = RolePolicy;
+declare const index$h_RolePolicy: typeof RolePolicy;
+type index$h_Statement = Statement;
+declare const index$h_formatPolicyDocument: typeof formatPolicyDocument;
+declare const index$h_formatStatement: typeof formatStatement;
+declare const index$h_fromAwsManagedPolicyName: typeof fromAwsManagedPolicyName;
+declare namespace index$h {
   export {
-    index$i_InstanceProfile as InstanceProfile,
-    index$i_PolicyDocument as PolicyDocument,
-    index$i_PolicyDocumentVersion as PolicyDocumentVersion,
-    index$i_Role as Role,
-    index$i_RolePolicy as RolePolicy,
-    index$i_Statement as Statement,
-    index$i_formatPolicyDocument as formatPolicyDocument,
-    index$i_formatStatement as formatStatement,
-    index$i_fromAwsManagedPolicyName as fromAwsManagedPolicyName,
+    index$h_InstanceProfile as InstanceProfile,
+    index$h_PolicyDocument as PolicyDocument,
+    index$h_PolicyDocumentVersion as PolicyDocumentVersion,
+    index$h_Role as Role,
+    index$h_RolePolicy as RolePolicy,
+    index$h_Statement as Statement,
+    index$h_formatPolicyDocument as formatPolicyDocument,
+    index$h_formatStatement as formatStatement,
+    index$h_fromAwsManagedPolicyName as fromAwsManagedPolicyName,
   };
 }
 
@@ -3141,24 +3518,24 @@ declare class TableItem extends Resource {
     };
 }
 
-type index$h_IndexProps = IndexProps;
-type index$h_StreamViewType = StreamViewType;
-type index$h_Table = Table;
-declare const index$h_Table: typeof Table;
-type index$h_TableItem = TableItem;
-declare const index$h_TableItem: typeof TableItem;
-type index$h_TableItemProvider = TableItemProvider;
-declare const index$h_TableItemProvider: typeof TableItemProvider;
-type index$h_TableProps = TableProps;
-declare namespace index$h {
+type index$g_IndexProps = IndexProps;
+type index$g_StreamViewType = StreamViewType;
+type index$g_Table = Table;
+declare const index$g_Table: typeof Table;
+type index$g_TableItem = TableItem;
+declare const index$g_TableItem: typeof TableItem;
+type index$g_TableItemProvider = TableItemProvider;
+declare const index$g_TableItemProvider: typeof TableItemProvider;
+type index$g_TableProps = TableProps;
+declare namespace index$g {
   export {
-    index$h_IndexProps as IndexProps,
+    index$g_IndexProps as IndexProps,
     LockProvider$2 as LockProvider,
-    index$h_StreamViewType as StreamViewType,
-    index$h_Table as Table,
-    index$h_TableItem as TableItem,
-    index$h_TableItemProvider as TableItemProvider,
-    index$h_TableProps as TableProps,
+    index$g_StreamViewType as StreamViewType,
+    index$g_Table as Table,
+    index$g_TableItem as TableItem,
+    index$g_TableItemProvider as TableItemProvider,
+    index$g_TableProps as TableProps,
   };
 }
 
@@ -3254,16 +3631,16 @@ declare class Service extends CloudControlApiResource {
     };
 }
 
-type index$g_ClusterProps = ClusterProps;
-type index$g_Service = Service;
-declare const index$g_Service: typeof Service;
-type index$g_ServiceProps = ServiceProps;
-declare namespace index$g {
+type index$f_ClusterProps = ClusterProps;
+type index$f_Service = Service;
+declare const index$f_Service: typeof Service;
+type index$f_ServiceProps = ServiceProps;
+declare namespace index$f {
   export {
     Cluster$1 as Cluster,
-    index$g_ClusterProps as ClusterProps,
-    index$g_Service as Service,
-    index$g_ServiceProps as ServiceProps,
+    index$f_ClusterProps as ClusterProps,
+    index$f_Service as Service,
+    index$f_ServiceProps as ServiceProps,
   };
 }
 
@@ -3461,55 +3838,55 @@ declare class TargetGroup extends CloudControlApiResource {
     };
 }
 
-type index$f_AuthCognitoAction = AuthCognitoAction;
-declare const index$f_AuthCognitoAction: typeof AuthCognitoAction;
-type index$f_AuthenticateCognitoProps = AuthenticateCognitoProps;
-type index$f_ContentType = ContentType;
-type index$f_FixedResponseAction = FixedResponseAction;
-declare const index$f_FixedResponseAction: typeof FixedResponseAction;
-type index$f_FixedResponseProps = FixedResponseProps;
-type index$f_ForwardAction = ForwardAction;
-declare const index$f_ForwardAction: typeof ForwardAction;
-type index$f_ForwardProps = ForwardProps;
-type index$f_HttpRequestMethod = HttpRequestMethod;
-type index$f_HttpRequestMethods = HttpRequestMethods;
-declare const index$f_HttpRequestMethods: typeof HttpRequestMethods;
-type index$f_HttpRequestMethodsProps = HttpRequestMethodsProps;
-type index$f_Listener = Listener;
-declare const index$f_Listener: typeof Listener;
-type index$f_ListenerAction = ListenerAction;
-declare const index$f_ListenerAction: typeof ListenerAction;
-type index$f_ListenerCondition = ListenerCondition;
-declare const index$f_ListenerCondition: typeof ListenerCondition;
-type index$f_ListenerRule = ListenerRule;
-declare const index$f_ListenerRule: typeof ListenerRule;
-type index$f_LoadBalancer = LoadBalancer;
-declare const index$f_LoadBalancer: typeof LoadBalancer;
-type index$f_PathPattern = PathPattern;
-declare const index$f_PathPattern: typeof PathPattern;
-type index$f_PathPatternProps = PathPatternProps;
-type index$f_TargetGroup = TargetGroup;
-declare const index$f_TargetGroup: typeof TargetGroup;
-declare namespace index$f {
+type index$e_AuthCognitoAction = AuthCognitoAction;
+declare const index$e_AuthCognitoAction: typeof AuthCognitoAction;
+type index$e_AuthenticateCognitoProps = AuthenticateCognitoProps;
+type index$e_ContentType = ContentType;
+type index$e_FixedResponseAction = FixedResponseAction;
+declare const index$e_FixedResponseAction: typeof FixedResponseAction;
+type index$e_FixedResponseProps = FixedResponseProps;
+type index$e_ForwardAction = ForwardAction;
+declare const index$e_ForwardAction: typeof ForwardAction;
+type index$e_ForwardProps = ForwardProps;
+type index$e_HttpRequestMethod = HttpRequestMethod;
+type index$e_HttpRequestMethods = HttpRequestMethods;
+declare const index$e_HttpRequestMethods: typeof HttpRequestMethods;
+type index$e_HttpRequestMethodsProps = HttpRequestMethodsProps;
+type index$e_Listener = Listener;
+declare const index$e_Listener: typeof Listener;
+type index$e_ListenerAction = ListenerAction;
+declare const index$e_ListenerAction: typeof ListenerAction;
+type index$e_ListenerCondition = ListenerCondition;
+declare const index$e_ListenerCondition: typeof ListenerCondition;
+type index$e_ListenerRule = ListenerRule;
+declare const index$e_ListenerRule: typeof ListenerRule;
+type index$e_LoadBalancer = LoadBalancer;
+declare const index$e_LoadBalancer: typeof LoadBalancer;
+type index$e_PathPattern = PathPattern;
+declare const index$e_PathPattern: typeof PathPattern;
+type index$e_PathPatternProps = PathPatternProps;
+type index$e_TargetGroup = TargetGroup;
+declare const index$e_TargetGroup: typeof TargetGroup;
+declare namespace index$e {
   export {
-    index$f_AuthCognitoAction as AuthCognitoAction,
-    index$f_AuthenticateCognitoProps as AuthenticateCognitoProps,
-    index$f_ContentType as ContentType,
-    index$f_FixedResponseAction as FixedResponseAction,
-    index$f_FixedResponseProps as FixedResponseProps,
-    index$f_ForwardAction as ForwardAction,
-    index$f_ForwardProps as ForwardProps,
-    index$f_HttpRequestMethod as HttpRequestMethod,
-    index$f_HttpRequestMethods as HttpRequestMethods,
-    index$f_HttpRequestMethodsProps as HttpRequestMethodsProps,
-    index$f_Listener as Listener,
-    index$f_ListenerAction as ListenerAction,
-    index$f_ListenerCondition as ListenerCondition,
-    index$f_ListenerRule as ListenerRule,
-    index$f_LoadBalancer as LoadBalancer,
-    index$f_PathPattern as PathPattern,
-    index$f_PathPatternProps as PathPatternProps,
-    index$f_TargetGroup as TargetGroup,
+    index$e_AuthCognitoAction as AuthCognitoAction,
+    index$e_AuthenticateCognitoProps as AuthenticateCognitoProps,
+    index$e_ContentType as ContentType,
+    index$e_FixedResponseAction as FixedResponseAction,
+    index$e_FixedResponseProps as FixedResponseProps,
+    index$e_ForwardAction as ForwardAction,
+    index$e_ForwardProps as ForwardProps,
+    index$e_HttpRequestMethod as HttpRequestMethod,
+    index$e_HttpRequestMethods as HttpRequestMethods,
+    index$e_HttpRequestMethodsProps as HttpRequestMethodsProps,
+    index$e_Listener as Listener,
+    index$e_ListenerAction as ListenerAction,
+    index$e_ListenerCondition as ListenerCondition,
+    index$e_ListenerRule as ListenerRule,
+    index$e_LoadBalancer as LoadBalancer,
+    index$e_PathPattern as PathPattern,
+    index$e_PathPatternProps as PathPatternProps,
+    index$e_TargetGroup as TargetGroup,
   };
 }
 
@@ -3545,15 +3922,15 @@ declare class Rule extends CloudControlApiResource {
     };
 }
 
-type index$e_Rule = Rule;
-declare const index$e_Rule: typeof Rule;
-type index$e_RuleProps = RuleProps;
-type index$e_RuleTarget = RuleTarget;
-declare namespace index$e {
+type index$d_Rule = Rule;
+declare const index$d_Rule: typeof Rule;
+type index$d_RuleProps = RuleProps;
+type index$d_RuleTarget = RuleTarget;
+declare namespace index$d {
   export {
-    index$e_Rule as Rule,
-    index$e_RuleProps as RuleProps,
-    index$e_RuleTarget as RuleTarget,
+    index$d_Rule as Rule,
+    index$d_RuleProps as RuleProps,
+    index$d_RuleTarget as RuleTarget,
   };
 }
 
@@ -3607,351 +3984,18 @@ declare class StreamKey extends CloudControlApiResource {
     };
 }
 
-type index$d_Channel = Channel;
-declare const index$d_Channel: typeof Channel;
-type index$d_ChannelProps = ChannelProps;
-type index$d_StreamKey = StreamKey;
-declare const index$d_StreamKey: typeof StreamKey;
-type index$d_StreamKeyProps = StreamKeyProps;
-declare namespace index$d {
-  export {
-    index$d_Channel as Channel,
-    index$d_ChannelProps as ChannelProps,
-    index$d_StreamKey as StreamKey,
-    index$d_StreamKeyProps as StreamKeyProps,
-  };
-}
-
-type Code = {
-    bucket: Input<string>;
-    key: Input<string>;
-    version?: Input<string | undefined>;
-} | {
-    imageUri: Input<string>;
-} | {
-    zipFile: Input<string>;
-};
-declare const formatCode: (code: Code) => {
-    S3Bucket: Input<string>;
-    S3Key: Input<string>;
-    S3ObjectVersion: Input<string | undefined>;
-    ImageUri?: undefined;
-    ZipFile?: undefined;
-} | {
-    ImageUri: Input<string>;
-    S3Bucket?: undefined;
-    S3Key?: undefined;
-    S3ObjectVersion?: undefined;
-    ZipFile?: undefined;
-} | {
-    ZipFile: Input<string>;
-    S3Bucket?: undefined;
-    S3Key?: undefined;
-    S3ObjectVersion?: undefined;
-    ImageUri?: undefined;
-};
-
-type EventInvokeConfigProps = {
-    functionArn: Input<ARN>;
-    maxEventAge?: Input<Duration>;
-    onFailure?: Input<ARN>;
-    onSuccess?: Input<ARN>;
-    qualifier?: Input<string>;
-    retryAttempts?: Input<number>;
-};
-declare class EventInvokeConfig extends CloudControlApiResource {
-    readonly parent: Node;
-    private props;
-    constructor(parent: Node, id: string, props: EventInvokeConfigProps);
-    setOnFailure(arn: Input<ARN>): this;
-    setOnSuccess(arn: Input<ARN>): this;
-    toState(): {
-        document: {
-            DestinationConfig?: {
-                OnSuccess?: {
-                    Destination: Input<`arn:${string}`>;
-                } | undefined;
-                OnFailure?: {
-                    Destination: Input<`arn:${string}`>;
-                } | undefined;
-            } | undefined;
-            FunctionName: Input<`arn:${string}`>;
-            Qualifier: string;
-        };
-    };
-}
-
-type StartingPosition = 'latest' | 'trim-horizon' | 'at-timestamp';
-type EventSourceMappingProps = {
-    functionArn: Input<ARN>;
-    sourceArn: Input<ARN>;
-    batchSize?: Input<number>;
-    maxBatchingWindow?: Input<Duration>;
-    maxConcurrency?: Input<number>;
-    maxRecordAge?: Input<Duration>;
-    bisectBatchOnError?: Input<boolean>;
-    parallelizationFactor?: Input<number>;
-    retryAttempts?: Input<number>;
-    tumblingWindow?: Input<Duration>;
-    onFailure?: Input<ARN>;
-    startingPosition?: Input<StartingPosition>;
-    startingPositionTimestamp?: Input<number>;
-};
-declare class EventSourceMapping extends CloudControlApiResource {
-    readonly parent: Node;
-    private props;
-    constructor(parent: Node, id: string, props: EventSourceMappingProps);
-    setOnFailure(arn: Input<ARN>): this;
-    toState(): {
-        document: {
-            DestinationConfig?: {
-                OnFailure: {
-                    Destination: Input<`arn:${string}`>;
-                };
-            } | undefined;
-            ScalingConfig?: {
-                MaximumConcurrency: Input<number>;
-            } | undefined;
-            Enabled: boolean;
-            FunctionName: Input<`arn:${string}`>;
-            EventSourceArn: Input<`arn:${string}`>;
-        };
-    };
-}
-
-type FunctionProps = {
-    name: Input<string>;
-    code: Input<Code>;
-    sourceCodeHash?: Input<Asset>;
-    role: Input<ARN>;
-    description?: Input<string>;
-    runtime?: Input<'nodejs18.x' | 'nodejs20.x'>;
-    handler?: Input<string>;
-    architecture?: Input<'arm64' | 'x86_64'>;
-    memorySize?: Input<Size>;
-    timeout?: Input<Duration>;
-    ephemeralStorageSize?: Input<Size>;
-    environment?: Input<Record<string, Input<string>>>;
-    reserved?: Input<number>;
-    vpc?: Input<{
-        securityGroupIds: Input<Input<string>[]>;
-        subnetIds: Input<Input<string>[]>;
-    }>;
-    log?: Input<{
-        format?: Input<'text' | 'json'>;
-        level?: Input<'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'>;
-        system?: Input<'debug' | 'info' | 'warn'>;
-    }>;
-};
-declare class Function extends Resource {
-    readonly parent: Node;
-    private props;
-    cloudProviderId: string;
-    private environmentVariables;
-    constructor(parent: Node, id: string, props: FunctionProps);
-    get arn(): Output<`arn:${string}`>;
-    get name(): Output<string>;
-    addEnvironment(name: string, value: Input<string>): this;
-    setVpc(vpc: Input<{
-        securityGroupIds: Input<Input<string>[]>;
-        subnetIds: Input<Input<string>[]>;
-    }>): this;
-    get permissions(): {
-        actions: string[];
-        resources: Output<`arn:${string}`>[];
-    };
-    toState(): {
-        asset: {
-            sourceCodeHash: Input<Asset> | undefined;
-        };
-        document: {
-            Environment: {
-                Variables: {
-                    [x: string]: Input<string>;
-                };
-            };
-            VpcConfig?: {
-                SecurityGroupIds: Input<Input<string>[]>;
-                SubnetIds: Input<Input<string>[]>;
-            } | undefined;
-            LoggingConfig?: {
-                LogFormat: string;
-                ApplicationLogLevel: string;
-                SystemLogLevel: string;
-            } | undefined;
-            Code: {
-                S3Bucket: Input<string>;
-                S3Key: Input<string>;
-                S3ObjectVersion: Input<string | undefined>;
-                ImageUri?: undefined;
-                ZipFile?: undefined;
-            } | {
-                ImageUri: Input<string>;
-                S3Bucket?: undefined;
-                S3Key?: undefined;
-                S3ObjectVersion?: undefined;
-                ZipFile?: undefined;
-            } | {
-                ZipFile: Input<string>;
-                S3Bucket?: undefined;
-                S3Key?: undefined;
-                S3ObjectVersion?: undefined;
-                ImageUri?: undefined;
-            };
-            EphemeralStorage: {
-                Size: bigint;
-            };
-            PackageType: string;
-            FunctionName: Input<string>;
-            Description: Input<string> | undefined;
-            MemorySize: bigint;
-            Timeout: bigint;
-            Architectures: ("arm64" | "x86_64")[];
-            Role: Input<`arn:${string}`>;
-        } | {
-            Environment: {
-                Variables: {
-                    [x: string]: Input<string>;
-                };
-            };
-            VpcConfig?: {
-                SecurityGroupIds: Input<Input<string>[]>;
-                SubnetIds: Input<Input<string>[]>;
-            } | undefined;
-            LoggingConfig?: {
-                LogFormat: string;
-                ApplicationLogLevel: string;
-                SystemLogLevel: string;
-            } | undefined;
-            Code: {
-                S3Bucket: Input<string>;
-                S3Key: Input<string>;
-                S3ObjectVersion: Input<string | undefined>;
-                ImageUri?: undefined;
-                ZipFile?: undefined;
-            } | {
-                ImageUri: Input<string>;
-                S3Bucket?: undefined;
-                S3Key?: undefined;
-                S3ObjectVersion?: undefined;
-                ZipFile?: undefined;
-            } | {
-                ZipFile: Input<string>;
-                S3Bucket?: undefined;
-                S3Key?: undefined;
-                S3ObjectVersion?: undefined;
-                ImageUri?: undefined;
-            };
-            EphemeralStorage: {
-                Size: bigint;
-            };
-            Runtime: "nodejs18.x" | "nodejs20.x";
-            Handler: string;
-            FunctionName: Input<string>;
-            Description: Input<string> | undefined;
-            MemorySize: bigint;
-            Timeout: bigint;
-            Architectures: ("arm64" | "x86_64")[];
-            Role: Input<`arn:${string}`>;
-        };
-    };
-}
-
-type PermissionProps = {
-    functionArn: Input<ARN>;
-    action?: Input<string>;
-    principal: Input<string>;
-    sourceArn?: Input<ARN>;
-    urlAuthType?: Input<'none' | 'aws-iam'>;
-};
-declare class Permission extends CloudControlApiResource {
-    readonly parent: Node;
-    private props;
-    constructor(parent: Node, id: string, props: PermissionProps);
-    toState(): {
-        document: {
-            FunctionName: Input<`arn:${string}`>;
-            Action: string;
-            Principal: Input<string>;
-        };
-    };
-}
-
-type UrlProps = {
-    targetArn: Input<ARN>;
-    qualifier?: Input<string>;
-    invokeMode?: Input<'buffered' | 'response-stream'>;
-    authType?: Input<'aws-iam' | 'none'>;
-    cors?: Input<{
-        allow?: Input<{
-            credentials?: Input<boolean>;
-            headers?: Input<Input<string>[]>;
-            methods?: Input<Input<string>[]>;
-            origins?: Input<Input<string>[]>;
-        }>;
-        expose?: Input<{
-            headers?: Input<Input<string>[]>;
-        }>;
-        maxAge?: Input<Duration>;
-    }>;
-};
-declare class Url extends CloudControlApiResource {
-    readonly parent: Node;
-    private props;
-    constructor(parent: Node, id: string, props: UrlProps);
-    get url(): Output<string>;
-    get domain(): Output<string | undefined>;
-    protected cors(): {
-        [x: string]: unknown;
-    };
-    toState(): {
-        document: {
-            Cors: {
-                [x: string]: unknown;
-            };
-            AuthType: string;
-            InvokeMode: string;
-            TargetFunctionArn: Input<`arn:${string}`>;
-        };
-    };
-}
-
-type index$c_Code = Code;
-type index$c_EventInvokeConfig = EventInvokeConfig;
-declare const index$c_EventInvokeConfig: typeof EventInvokeConfig;
-type index$c_EventInvokeConfigProps = EventInvokeConfigProps;
-type index$c_EventSourceMapping = EventSourceMapping;
-declare const index$c_EventSourceMapping: typeof EventSourceMapping;
-type index$c_EventSourceMappingProps = EventSourceMappingProps;
-type index$c_Function = Function;
-declare const index$c_Function: typeof Function;
-type index$c_FunctionProps = FunctionProps;
-type index$c_FunctionProvider = FunctionProvider;
-declare const index$c_FunctionProvider: typeof FunctionProvider;
-type index$c_Permission = Permission;
-declare const index$c_Permission: typeof Permission;
-type index$c_PermissionProps = PermissionProps;
-type index$c_StartingPosition = StartingPosition;
-type index$c_Url = Url;
-declare const index$c_Url: typeof Url;
-type index$c_UrlProps = UrlProps;
-declare const index$c_formatCode: typeof formatCode;
+type index$c_Channel = Channel;
+declare const index$c_Channel: typeof Channel;
+type index$c_ChannelProps = ChannelProps;
+type index$c_StreamKey = StreamKey;
+declare const index$c_StreamKey: typeof StreamKey;
+type index$c_StreamKeyProps = StreamKeyProps;
 declare namespace index$c {
   export {
-    index$c_Code as Code,
-    index$c_EventInvokeConfig as EventInvokeConfig,
-    index$c_EventInvokeConfigProps as EventInvokeConfigProps,
-    index$c_EventSourceMapping as EventSourceMapping,
-    index$c_EventSourceMappingProps as EventSourceMappingProps,
-    index$c_Function as Function,
-    index$c_FunctionProps as FunctionProps,
-    index$c_FunctionProvider as FunctionProvider,
-    index$c_Permission as Permission,
-    index$c_PermissionProps as PermissionProps,
-    index$c_StartingPosition as StartingPosition,
-    index$c_Url as Url,
-    index$c_UrlProps as UrlProps,
-    index$c_formatCode as formatCode,
+    index$c_Channel as Channel,
+    index$c_ChannelProps as ChannelProps,
+    index$c_StreamKey as StreamKey,
+    index$c_StreamKeyProps as StreamKeyProps,
   };
 }
 
@@ -4602,19 +4646,19 @@ declare namespace index$3 {
     index$p as autoScaling,
     index$s as cloudControlApi,
     index$o as cloudFront,
-    index$k as cloudWatch,
-    index$j as cognito,
+    index$j as cloudWatch,
+    index$i as cognito,
     index$3_createCloudProviders as createCloudProviders,
-    index$h as dynamodb,
+    index$g as dynamodb,
     index$n as ec2,
     index$m as ecr,
-    index$g as ecs,
-    index$f as elb,
-    index$e as events,
-    index$i as iam,
+    index$f as ecs,
+    index$e as elb,
+    index$d as events,
+    index$h as iam,
     index$l as iot,
-    index$d as ivs,
-    index$c as lambda,
+    index$c as ivs,
+    index$k as lambda,
     index$b as memorydb,
     index$a as openSearch,
     index$9 as openSearchServerless,

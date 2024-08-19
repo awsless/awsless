@@ -14,7 +14,12 @@ export const searchFeature = defineFeature({
 			const list = new TypeObject(2)
 
 			for (const id of Object.keys(stack.searchs ?? {})) {
-				const name = formatLocalResourceName(ctx.appConfig.name, stack.name, 'search', id)
+				const name = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'search',
+					resourceName: id,
+				})
 				list.addType(name, `{ readonly name: '${name}' }`)
 			}
 
@@ -29,7 +34,12 @@ export const searchFeature = defineFeature({
 		for (const id of ctx.stackConfig.searchs ?? {}) {
 			const group = new Node(ctx.stack, 'search', id)
 
-			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'search',
+				resourceName: id,
+			})
 
 			const policy = new aws.openSearchServerless.SecurityPolicy(group, 'security', {
 				name,
@@ -46,11 +56,11 @@ export const searchFeature = defineFeature({
 			})
 
 			const collection = new aws.openSearchServerless.Collection(group, 'collection', {
-				name: formatLocalResourceName(ctx.app.name, ctx.stack.name, 'search', id),
+				name,
 				type: 'search',
 			}).dependsOn(policy)
 
-			ctx.onFunction(({ policy }) => {
+			ctx.onPolicy(policy => {
 				policy.addStatement(collection.permissions)
 			})
 		}

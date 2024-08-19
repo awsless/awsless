@@ -21,6 +21,6 @@ export {
 export { lambdaClient } from './helpers/client'
 // mock
 export { mockLambda } from './helpers/mock'
-export { lambda, LambdaFunction } from './lambda'
+export { lambda, LambdaFunction, LambdaFactory } from './lambda'
 // types
 export { Context, ExtraMetaData, Handler, Input, Logger, Loggers } from './type'

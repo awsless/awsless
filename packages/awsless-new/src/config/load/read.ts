@@ -1,11 +1,11 @@
+import merge from 'deepmerge'
+import { readFile } from 'fs/promises'
+import JSON5 from 'json5'
 import { basename, dirname, extname, join } from 'path'
 import { debug } from '../../cli/debug.js'
 import { color } from '../../cli/ui/style.js'
-import { fileExist } from '../../util/path.js'
-import { readFile } from 'fs/promises'
-import JSON5 from 'json5'
-import merge from 'deepmerge'
 import { FileError } from '../../error.js'
+import { fileExist } from '../../util/path.js'
 
 export const readConfig = async (file: string) => {
 	try {
@@ -22,8 +22,13 @@ export const readConfig = async (file: string) => {
 	}
 }
 
-export const readConfigWithStage = async (file: string, stage: string) => {
+export const readConfigWithStage = async (file: string, stage?: string) => {
 	const config = await readConfig(file)
+
+	if (!stage) {
+		return config
+	}
+
 	const ext = extname(file)
 	const stageFileName = basename(file, ext) + '.' + stage + ext
 	const stageFile = join(dirname(file), stageFileName)

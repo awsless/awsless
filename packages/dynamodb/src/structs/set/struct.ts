@@ -7,7 +7,7 @@ export class SetStruct<
 	Paths extends Array<string | number> = [],
 	OptionalPaths extends Array<string | number> = [],
 	Type extends AttributeTypes = AttributeTypes,
-	Optional extends boolean = false
+	Optional extends boolean = false,
 > {
 	// declare readonly TYPE: Type
 	declare readonly MARSHALLED: Marshalled

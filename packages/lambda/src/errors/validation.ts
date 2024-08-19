@@ -2,8 +2,8 @@ import { SchemaIssues, ValiError } from '@awsless/validate'
 import { ViewableError } from './viewable.js'
 
 export class ValidationError extends ViewableError {
-	constructor(issues: SchemaIssues) {
-		super('validation', 'Validation Error', {
+	constructor(message: string, issues: SchemaIssues) {
+		super('validation', message, {
 			issues: issues.map(issue => ({
 				path: issue.path?.map(path => ({
 					key: path.key,
@@ -24,7 +24,7 @@ export const transformValidationErrors = async <T>(callback: () => Promise<T> | 
 		return await callback()
 	} catch (error) {
 		if (error instanceof ValiError) {
-			throw new ValidationError(error.issues)
+			throw new ValidationError(error.message, error.issues)
 		}
 
 		throw error

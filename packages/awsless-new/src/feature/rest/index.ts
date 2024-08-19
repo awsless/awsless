@@ -11,9 +11,14 @@ export const restFeature = defineFeature({
 	onApp(ctx) {
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults?.rest ?? {})) {
 			const group = new Node(ctx.base, 'rest', id)
+			const name = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'rest',
+				resourceName: id,
+			})
 
 			const api = new aws.apiGatewayV2.Api(group, 'api', {
-				name: formatGlobalResourceName(ctx.app.name, 'rest', id),
+				name,
 				protocolType: 'HTTP',
 			})
 

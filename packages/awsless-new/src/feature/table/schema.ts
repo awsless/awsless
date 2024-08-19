@@ -3,6 +3,15 @@ import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 
 const KeySchema = z.string().min(1).max(255)
+const DeletionProtectionSchema = z
+	.boolean()
+	.describe('Specifies if you want to protect the table from being deleted by awsless.')
+
+export const TableDefaultSchema = z
+	.object({
+		deletionProtection: DeletionProtectionSchema.optional(),
+	})
+	.optional()
 
 export const TablesSchema = z
 	.record(
@@ -34,6 +43,8 @@ export const TablesSchema = z
 			timeToLiveAttribute: KeySchema.optional().describe(
 				'The name of the TTL attribute used to store the expiration time for items in the table. To update this property, you must first disable TTL and then enable TTL with the new attribute name.'
 			),
+
+			deletionProtection: DeletionProtectionSchema.optional(),
 
 			stream: z
 				.object({

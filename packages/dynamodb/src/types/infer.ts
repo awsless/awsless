@@ -1,14 +1,11 @@
-
-import { AnyTableDefinition } from "../table"
+import { AnyTableDefinition } from '../table'
 // import { Union } from 'ts-toolbelt'
 
 // type KeysOfUnion<T> = T extends T ? keyof T: never;
 
-type WalkPath<Object, Path extends Array<unknown>> = (
-	Path extends [ infer Key extends keyof Object, ...infer Rest ]
+type WalkPath<Object, Path extends Array<unknown>> = Path extends [infer Key extends keyof Object, ...infer Rest]
 	? WalkPath<Object[Key], Rest>
 	: Object
-)
 
 export type InferPath<T extends AnyTableDefinition> = T['schema']['PATHS']
 

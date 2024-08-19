@@ -105,8 +105,8 @@ var createTimeoutWrap = async (context, log, callback) => {
 // src/errors/validation.ts
 import { ValiError } from "@awsless/validate";
 var ValidationError = class extends ViewableError {
-  constructor(issues) {
-    super("validation", "Validation Error", {
+  constructor(message, issues) {
+    super("validation", message, {
       issues: issues.map((issue) => ({
         path: issue.path?.map((path) => ({
           key: path.key,
@@ -125,7 +125,7 @@ var transformValidationErrors = async (callback) => {
     return await callback();
   } catch (error) {
     if (error instanceof ValiError) {
-      throw new ValidationError(error.issues);
+      throw new ValidationError(error.message, error.issues);
     }
     throw error;
   }

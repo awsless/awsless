@@ -8,6 +8,8 @@ import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 import { RestDefaultSchema } from '../feature/rest/schema.js'
+import { StoreDefaultSchema } from '../feature/store/schema.js'
+import { TableDefaultSchema } from '../feature/table/schema.js'
 import { RegionSchema } from './schema/region.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
 
@@ -35,6 +37,9 @@ export const AppSchema = z.object({
 			http: HttpDefaultSchema,
 			rest: RestDefaultSchema,
 			pubsub: PubSubDefaultSchema,
+			table: TableDefaultSchema,
+			store: StoreDefaultSchema,
+			// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
 		})
 		.default({})
 		.describe('Default properties'),

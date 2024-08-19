@@ -39,8 +39,8 @@ describe('S3 Commands', () => {
 
 		expect(mock).toBeCalledTimes(1)
 		expect(await result?.body.transformToString()).toBe(body)
-		expect(result?.sha1).toBe(await hashSHA1(body))
-		expect(result?.metadata).toStrictEqual({
+		expect(result!.sha1).toBe(await hashSHA1(body))
+		expect(result!.metadata).toStrictEqual({
 			test: 'test',
 		})
 	})
@@ -52,8 +52,8 @@ describe('S3 Commands', () => {
 		})
 
 		expect(mock).toBeCalledTimes(1)
-		expect(result?.sha1).toBe(await hashSHA1(body))
-		expect(result?.metadata).toStrictEqual({
+		expect(result!.sha1).toBe(await hashSHA1(body))
+		expect(result!.metadata).toStrictEqual({
 			test: 'test',
 		})
 	})
@@ -71,6 +71,15 @@ describe('S3 Commands', () => {
 		})
 
 		expect(mock).toBeCalledTimes(1)
+
+		const result = await getObject({
+			bucket: 'test-new',
+			key: 'test-new',
+		})
+
+		expect(mock).toBeCalledTimes(2)
+		expect(result).toBeDefined()
+		expect(await result!.body.transformToString()).toBe(body)
 	})
 
 	it('should delete a file from s3', async () => {

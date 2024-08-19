@@ -55,6 +55,7 @@ export type AppContext = {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
 	accountId: string
+	appId: string
 
 	app: App
 	base: Stack

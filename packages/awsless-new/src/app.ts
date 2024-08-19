@@ -10,6 +10,7 @@ import { FileError } from './error.js'
 import { OnEnvListener, OnPolicyListener, OnReadyListener } from './feature.js'
 import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
+import { generateGlobalAppId } from './util/name.js'
 
 const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
 	const list: string[] = []
@@ -66,6 +67,12 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	const app = new App(props.appConfig.name)
 	const base = new Stack(app, 'base')
 	const shared = new SharedData()
+	const appId = generateGlobalAppId({
+		accountId: props.accountId,
+		region: props.appConfig.region,
+		appName: props.appConfig.name,
+	})
+
 	// const envVars: Record<string, Input<string>> = {}
 	const commands: Command[] = []
 	// const siteFunctions: aws.lambda.Function[] = []
@@ -103,6 +110,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 		feature.onApp?.({
 			...props,
 			app,
+			appId,
 			// env,
 			base,
 			shared,
@@ -180,6 +188,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 				...props,
 				stackConfig,
 				app,
+				appId,
 				// env,
 				base,
 				stack,

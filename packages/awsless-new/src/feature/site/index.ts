@@ -15,7 +15,13 @@ export const siteFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
 			const group = new Node(ctx.stack, 'site', id)
 
-			const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'site', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'site',
+				resourceName: id,
+			})
+
 			const origins: aws.cloudFront.Origin[] = []
 			const originGroups: aws.cloudFront.OriginGroup[] = []
 
@@ -65,7 +71,13 @@ export const siteFeature = defineFeature({
 
 			if (props.static) {
 				bucket = new aws.s3.Bucket(group, 'bucket', {
-					name,
+					name: formatLocalResourceName({
+						appName: ctx.app.name,
+						stackName: ctx.stack.name,
+						resourceType: 'site',
+						resourceName: id,
+						postfix: ctx.appId,
+					}),
 					forceDelete: true,
 					website: {
 						indexDocument: 'index.html',
@@ -173,7 +185,7 @@ export const siteFeature = defineFeature({
 				name,
 				compress: true,
 				certificateArn,
-				aliases: domainName ? [domainName] : [],
+				aliases: domainName ? [domainName] : undefined,
 				origins,
 				originGroups,
 				// defaultRootObject: 'index.html',
@@ -255,11 +267,7 @@ export const siteFeature = defineFeature({
 					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
 					type: 'A',
 					name: domainName,
-					alias: {
-						dnsName: distribution.domainName,
-						hostedZoneId: distribution.hostedZoneId,
-						evaluateTargetHealth: false,
-					},
+					alias: distribution.aliasTarget,
 				})
 			}
 

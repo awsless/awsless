@@ -93,7 +93,7 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 	])
 
 	if (!table || !bucket) {
-		log.warn(`Your Awsless hasn't been bootstrapped yet.`)
+		log.warn(`Awsless hasn't been bootstrapped yet.`)
 
 		if (!process.env.SKIP_PROMPT) {
 			const confirmed = await confirm({
@@ -114,7 +114,7 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 				await createStateBucket(s3, props.accountId)
 			}
 
-			update('Done deploying the bootstrap stack')
+			update('Done deploying the bootstrap stack.')
 		})
 	} else {
 		log.step('Awsless has already been bootstrapped.')

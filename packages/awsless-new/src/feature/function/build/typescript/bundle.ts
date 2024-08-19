@@ -11,15 +11,16 @@ import { File } from '../zip.js'
 export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'
 	minify?: boolean
+	external?: string[]
 	handler?: string
 	file: string
 }
 
-export const bundleTypeScript = async ({ format = 'esm', minify = true, file }: BundleTypeScriptProps) => {
+export const bundleTypeScript = async ({ format = 'esm', minify = true, file, external }: BundleTypeScriptProps) => {
 	const bundle = await rollup({
 		input: file,
 		external: importee => {
-			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk')
+			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
 		},
 		onwarn: error => {
 			debugError(error.message)

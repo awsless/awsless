@@ -114,7 +114,11 @@ export const httpFeature = defineFeature({
 
 		const securityGroup = new aws.ec2.SecurityGroup(group, 'http', {
 			vpcId: ctx.shared.get(`vpc-id`),
-			name: formatGlobalResourceName(ctx.app.name, 'http', 'http'),
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'http',
+				resourceName: 'http',
+			}),
 			description: `Global security group for HTTP api.`,
 		})
 
@@ -127,7 +131,11 @@ export const httpFeature = defineFeature({
 			const group = new Node(ctx.base, 'http', id)
 
 			const loadBalancer = new aws.elb.LoadBalancer(group, 'balancer', {
-				name: formatGlobalResourceName(ctx.app.name, 'http', id),
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'http',
+					resourceName: id,
+				}),
 				type: 'application',
 				securityGroups: [securityGroup.id],
 				subnets: [
@@ -193,7 +201,12 @@ export const httpFeature = defineFeature({
 					description: routeKey,
 				})
 
-				const name = formatLocalResourceName(ctx.app.name, ctx.stack.name, 'http', routeId)
+				const name = formatLocalResourceName({
+					appName: ctx.app.name,
+					stackName: ctx.stack.name,
+					resourceType: 'http',
+					resourceName: routeId,
+				})
 
 				const permission = new aws.lambda.Permission(routeGroup, id, {
 					action: 'lambda:InvokeFunction',

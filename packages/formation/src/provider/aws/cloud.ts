@@ -13,7 +13,7 @@ import { TableItemProvider } from './dynamodb/table-item-provider'
 import { InstanceProvider } from './ec2'
 import { ImageProvider } from './ecr'
 import { EndpointProvider } from './iot'
-import { FunctionProvider } from './lambda/function-provider'
+import { SourceCodeUpdateProvider } from './lambda'
 import { RecordSetProvider } from './route53/record-set-provider'
 import { BucketObjectProvider } from './s3/bucket-object-provider'
 import { BucketProvider } from './s3/bucket-provider'
@@ -33,7 +33,7 @@ export const createCloudProviders = (config: ConfigProps) => {
 		cloudControlApiProvider,
 		new ImageProvider(config),
 		new InstanceProvider(config),
-		new FunctionProvider({ ...config, cloudProvider: cloudControlApiProvider }),
+		new SourceCodeUpdateProvider(config),
 		new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
 		new BucketObjectProvider(config),
 		new TableItemProvider(config),

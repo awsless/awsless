@@ -4,11 +4,11 @@
 	"region": "eu-west-1",
 	"profile": "jacksclub",
 	"defaults": {
-		"domains": {
-			"main": {
-				"domain": "getblockalert.com"
-			}
-		},
+		// "domains": {
+		// 	"main": {
+		// 		"domain": "getblockalert.com"
+		// 	}
+		// },
 		// "auth": {
 		// 	"users": {}
 		// },

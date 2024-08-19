@@ -212,25 +212,45 @@ var hashSHA1 = async (data) => {
 };
 
 // src/mock.ts
+var MemoryStore = class {
+  store = {};
+  bucket(name) {
+    if (!this.store[name]) {
+      this.store[name] = {};
+    }
+    return this.store[name];
+  }
+  get(bucket, key) {
+    return this.bucket(bucket)[key];
+  }
+  put(bucket, key, object) {
+    this.bucket(bucket)[key] = object;
+    return this;
+  }
+  del(bucket, key) {
+    delete this.bucket(bucket)[key];
+    return this;
+  }
+};
 var mockS3 = () => {
   const fn = vi.fn();
-  const store = {};
+  const store = new MemoryStore();
   const s3ClientMock = (0, import_aws_sdk_client_mock.mockClient)(import_client_s33.S3Client);
   s3ClientMock.on(import_client_s33.PutObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);
     const sha1 = await hashSHA1(input.Body);
-    store[input.Key] = {
+    store.put(input.Bucket, input.Key, {
       body: input.Body,
       sha1,
       meta: input.Metadata ?? {}
-    };
+    });
     return {
       ChecksumSHA1: sha1
     };
   });
   s3ClientMock.on(import_client_s33.GetObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);
-    const data = store[input.Key];
+    const data = store.get(input.Bucket, input.Key);
     if (data) {
       const stream = new import_stream2.Readable();
       stream.push(data.body);
@@ -248,7 +268,7 @@ var mockS3 = () => {
   });
   s3ClientMock.on(import_client_s33.HeadObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);
-    const data = store[input.Key];
+    const data = store.get(input.Bucket, input.Key);
     if (data) {
       return {
         Metadata: data.meta,
@@ -262,15 +282,17 @@ var mockS3 = () => {
   });
   s3ClientMock.on(import_client_s33.CopyObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);
-    const data = store[input.CopySource];
+    const [_, SourceBucket, ...Path] = input.CopySource.split("/");
+    const SourceKey = Path.join("/");
+    const data = store.get(SourceBucket, SourceKey);
     if (data) {
-      store[input.Key] = data;
+      store.put(input.Bucket, input.Key, data);
     }
     return;
   });
   s3ClientMock.on(import_client_s33.DeleteObjectCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(fn);
-    delete store[input.Key];
+    store.del(input.Bucket, input.Key);
     return {};
   });
   setSignedDownloadUrlMock("http://s3-download-url.com");

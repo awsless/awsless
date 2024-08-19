@@ -10,8 +10,8 @@ export const test = (program: Command) => {
 		.argument('[stacks...]', 'Optionally filter stacks to test')
 		.option('-f --filters <string...>', 'Optionally filter test files')
 		.description('Test your app')
-		.action(async (stacks: string[], options?: { filters?: string[] }) => {
-			await layout('test', async props => {
+		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
+			await layout(`test ${stacks ?? ''}`, async props => {
 				const region = props.appConfig.region
 				const credentials = getCredentials(props.appConfig.profile)
 				const accountId = await getAccountId(credentials, region)

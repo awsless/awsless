@@ -557,6 +557,21 @@ var WorkSpace = class {
           }
         ];
       }
+      for (const [_urn, stackState] of Object.entries(appState.stacks)) {
+        const urn = _urn;
+        const found = app.stacks.find((stack) => {
+          return stack.urn === urn;
+        });
+        if (!found) {
+          graph[urn] = [
+            ...this.dependentsOn(appState.stacks, urn),
+            async () => {
+              await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit);
+              delete appState.stacks[urn];
+            }
+          ];
+        }
+      }
       const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
       await this.props.stateProvider.update(app.urn, appState);
@@ -927,20 +942,22 @@ var WorkSpace = class {
       deleteGraph[urn] = [
         ...this.dependentsOn(resources, urn),
         () => limit(async () => {
-          try {
-            await provider.delete({
-              urn,
-              id: state.id,
-              type: state.type,
-              document: state.local,
-              assets: state.assets,
-              extra: state.extra,
-              token
-            });
-          } catch (error) {
-            if (error instanceof ResourceNotFound) {
-            } else {
-              throw ResourceError.wrap(urn, state.type, state.id, "delete", error);
+          if (state.policies.deletion !== "retain") {
+            try {
+              await provider.delete({
+                urn,
+                id: state.id,
+                type: state.type,
+                document: state.local,
+                assets: state.assets,
+                extra: state.extra,
+                token
+              });
+            } catch (error) {
+              if (error instanceof ResourceNotFound) {
+              } else {
+                throw ResourceError.wrap(urn, state.type, state.id, "delete", error);
+              }
             }
           }
           delete stackState.resources[urn];
@@ -2391,16 +2408,14 @@ var Distribution = class extends CloudControlApiResource {
           ViewerCertificate: this.props.certificateArn ? {
             SslSupportMethod: "sni-only",
             AcmCertificateArn: this.props.certificateArn
-          } : {},
+          } : { CloudFrontDefaultCertificate: true },
           Origins: unwrap(this.props.origins, []).map((v) => unwrap(v)).map((origin) => ({
             Id: origin.id,
             DomainName: origin.domainName,
-            OriginCustomHeaders: Object.entries(unwrap(origin.headers, {})).map(
-              ([name, value]) => ({
-                HeaderName: name,
-                HeaderValue: value
-              })
-            ),
+            OriginCustomHeaders: Object.entries(unwrap(origin.headers, {})).map(([name, value]) => ({
+              HeaderName: name,
+              HeaderValue: value
+            })),
             ...origin.path ? {
               OriginPath: origin.path
             } : {},
@@ -2443,10 +2458,7 @@ var Distribution = class extends CloudControlApiResource {
           },
           CustomErrorResponses: unwrap(this.props.customErrorResponses, []).map((v) => unwrap(v)).map((item) => ({
             ErrorCode: item.errorCode,
-            ...this.attr(
-              "ErrorCachingMinTTL",
-              item.cacheMinTTL && toSeconds5(unwrap(item.cacheMinTTL))
-            ),
+            ...this.attr("ErrorCachingMinTTL", item.cacheMinTTL && toSeconds5(unwrap(item.cacheMinTTL))),
             ...this.attr("ResponseCode", item.responseCode),
             ...this.attr("ResponsePagePath", item.responsePath)
           })),
@@ -3914,32 +3926,344 @@ var TopicRule = class extends CloudControlApiResource {
   }
 };
 
-// src/provider/aws/lambda/function-provider.ts
-import { LambdaClient, UpdateFunctionCodeCommand } from "@aws-sdk/client-lambda";
-var FunctionProvider = class {
-  constructor(props) {
+// src/provider/aws/lambda/index.ts
+var lambda_exports = {};
+__export(lambda_exports, {
+  EventInvokeConfig: () => EventInvokeConfig,
+  EventSourceMapping: () => EventSourceMapping,
+  Function: () => Function,
+  Permission: () => Permission,
+  SourceCodeUpdate: () => SourceCodeUpdate,
+  SourceCodeUpdateProvider: () => SourceCodeUpdateProvider,
+  Url: () => Url,
+  formatCode: () => formatCode
+});
+
+// src/provider/aws/lambda/code.ts
+var formatCode = (code) => {
+  if ("bucket" in code) {
+    return {
+      S3Bucket: code.bucket,
+      S3Key: code.key,
+      S3ObjectVersion: code.version
+    };
+  }
+  if ("imageUri" in code) {
+    return {
+      ImageUri: code.imageUri
+    };
+  }
+  return {
+    ZipFile: code.zipFile
+  };
+};
+
+// src/provider/aws/lambda/event-invoke-config.ts
+import { toSeconds as toSeconds7 } from "@awsless/duration";
+var EventInvokeConfig = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
+    this.parent = parent;
     this.props = props;
+  }
+  setOnFailure(arn) {
+    this.props.onFailure = arn;
+    return this;
+  }
+  setOnSuccess(arn) {
+    this.props.onSuccess = arn;
+    return this;
+  }
+  toState() {
+    return {
+      document: {
+        FunctionName: this.props.functionArn,
+        Qualifier: unwrap(this.props.qualifier, "$LATEST"),
+        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, toSeconds7),
+        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
+        ...this.props.onFailure || this.props.onSuccess ? {
+          DestinationConfig: {
+            ...this.props.onFailure ? {
+              OnFailure: {
+                Destination: this.props.onFailure
+              }
+            } : {},
+            ...this.props.onSuccess ? {
+              OnSuccess: {
+                Destination: this.props.onSuccess
+              }
+            } : {}
+          }
+        } : {}
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/event-source-mapping.ts
+import { toSeconds as toSeconds8 } from "@awsless/duration";
+import { constantCase as constantCase4 } from "change-case";
+var EventSourceMapping = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::EventSourceMapping", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  setOnFailure(arn) {
+    this.props.onFailure = arn;
+    return this;
+  }
+  toState() {
+    return {
+      document: {
+        Enabled: true,
+        FunctionName: this.props.functionArn,
+        EventSourceArn: this.props.sourceArn,
+        ...this.attr("BatchSize", this.props.batchSize),
+        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, toSeconds8),
+        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, toSeconds8),
+        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
+        ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
+        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, toSeconds8),
+        ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
+        ...this.attr("StartingPosition", this.props.startingPosition, constantCase4),
+        ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
+        ...this.props.maxConcurrency ? {
+          ScalingConfig: {
+            MaximumConcurrency: this.props.maxConcurrency
+          }
+        } : {},
+        ...this.props.onFailure ? {
+          DestinationConfig: {
+            OnFailure: {
+              Destination: this.props.onFailure
+            }
+          }
+        } : {}
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/function.ts
+import { seconds, toSeconds as toSeconds9 } from "@awsless/duration";
+import { mebibytes, toMebibytes } from "@awsless/size";
+import { constantCase as constantCase5 } from "change-case";
+var Function = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::Function", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  environmentVariables = {};
+  get arn() {
+    return this.output((v) => v.Arn);
+  }
+  get name() {
+    return this.output((v) => v.FunctionName);
+  }
+  addEnvironment(name, value) {
+    this.environmentVariables[name] = value;
+    this.registerDependency(value);
+    return this;
+  }
+  setVpc(vpc) {
+    this.props.vpc = vpc;
+    this.registerDependency(vpc);
+    return this;
+  }
+  get permissions() {
+    return {
+      actions: [
+        //
+        "lambda:InvokeFunction",
+        "lambda:InvokeAsync"
+      ],
+      resources: [this.arn]
+    };
+  }
+  // enableUrlAccess(props: Omit<UrlProps, 'targetArn'> = {}) {
+  // 	const url = new Url('url', {
+  // 		...props,
+  // 		targetArn: this.arn,
+  // 	})
+  // 	const permissions = new Permission('url', {
+  // 		principal: '*',
+  // 		// principal: 'cloudfront.amazonaws.com',
+  // 		// sourceArn: distribution.arn,
+  // 		action: 'lambda:InvokeFunctionUrl',
+  // 		functionArn: this.arn,
+  // 		urlAuthType: props.authType ?? 'none',
+  // 	})
+  // 	this.add(permissions)
+  // 	this.add(url)
+  // 	return url
+  // }
+  toState() {
+    if (unwrap(this.props.name).length > 64) {
+      throw new TypeError(`Lambda function name length can't be greater then 64. ${unwrap(this.props.name)}`);
+    }
+    const code = unwrap(this.props.code);
+    const nativeProps = {
+      Runtime: unwrap(this.props.runtime, "nodejs18.x"),
+      Handler: unwrap(this.props.handler, "index.default")
+    };
+    const containerProps = {
+      PackageType: "Image"
+    };
+    return {
+      document: {
+        FunctionName: this.props.name,
+        Description: this.props.description,
+        MemorySize: toMebibytes(unwrap(this.props.memorySize, mebibytes(128))),
+        Timeout: toSeconds9(unwrap(this.props.timeout, seconds(10))),
+        Architectures: [unwrap(this.props.architecture, "arm64")],
+        Role: this.props.role,
+        ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
+        ..."imageUri" in code ? containerProps : nativeProps,
+        Code: formatCode(code),
+        EphemeralStorage: {
+          Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512)))
+        },
+        Layers: this.props.layers,
+        ...this.props.log ? {
+          LoggingConfig: {
+            LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
+            ApplicationLogLevel: constantCase5(unwrap(unwrap(this.props.log).level, "error")),
+            SystemLogLevel: constantCase5(unwrap(unwrap(this.props.log).system, "warn"))
+          }
+        } : {},
+        ...this.props.vpc ? {
+          VpcConfig: {
+            SecurityGroupIds: unwrap(this.props.vpc).securityGroupIds,
+            SubnetIds: unwrap(this.props.vpc).subnetIds
+          }
+        } : {},
+        Environment: {
+          Variables: {
+            ...unwrap(this.props.environment),
+            ...this.environmentVariables
+          }
+        }
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/permission.ts
+import { constantCase as constantCase6 } from "change-case";
+var Permission = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::Permission", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  toState() {
+    return {
+      document: {
+        FunctionName: this.props.functionArn,
+        Action: unwrap(this.props.action, "lambda:InvokeFunction"),
+        Principal: this.props.principal,
+        ...this.attr("SourceArn", this.props.sourceArn),
+        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase6)
+        // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
+        // ...(this.props.urlAuthType
+        // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
+        // 	: {}),
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/url.ts
+import { constantCase as constantCase7 } from "change-case";
+import { toSeconds as toSeconds10 } from "@awsless/duration";
+var Url = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::Url", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get url() {
+    return this.output((v) => v.FunctionUrl);
+  }
+  get domain() {
+    return this.url.apply((url) => url.split("/")[2]);
+  }
+  cors() {
+    const cors = unwrap(this.props.cors);
+    if (!cors) {
+      return {};
+    }
+    const allow = unwrap(cors.allow, {});
+    const expose = unwrap(cors.expose, {});
+    return {
+      ...this.attr("AllowCredentials", allow.credentials),
+      ...this.attr("AllowHeaders", allow.headers),
+      ...this.attr("AllowMethods", allow.methods),
+      ...this.attr("AllowOrigins", allow.origins),
+      ...this.attr("ExposeHeaders", expose.headers),
+      ...this.attr("MaxAge", cors.maxAge, toSeconds10)
+    };
+  }
+  toState() {
+    return {
+      document: {
+        AuthType: constantCase7(unwrap(this.props.authType, "none")),
+        InvokeMode: constantCase7(unwrap(this.props.invokeMode, "buffered")),
+        TargetFunctionArn: this.props.targetArn,
+        ...this.attr("Qualifier", this.props.qualifier),
+        Cors: this.cors()
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/source-code-update.ts
+var SourceCodeUpdate = class extends Resource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::SourceCodeUpdate", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  cloudProviderId = "aws-lambda-source-code-update";
+  toState() {
+    return {
+      assets: {
+        version: this.props.version
+      },
+      document: {
+        FunctionName: this.props.functionName,
+        Architectures: [unwrap(this.props.architecture, "arm64")],
+        Code: formatCode(unwrap(this.props.code))
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/source-code-update-provider.ts
+import { LambdaClient, UpdateFunctionCodeCommand } from "@aws-sdk/client-lambda";
+var SourceCodeUpdateProvider = class {
+  client;
+  constructor(props) {
     this.client = new LambdaClient(props);
   }
-  client;
   own(id) {
-    return id === "aws-lambda-function";
+    return id === "aws-lambda-source-code-update";
   }
-  async get(props) {
-    return this.props.cloudProvider.get(props);
+  async get() {
+    return {};
   }
   async create(props) {
-    return this.props.cloudProvider.create(props);
+    return props.document.FunctionName;
   }
   async update(props) {
-    const id = await this.props.cloudProvider.update(props);
-    if (props.newAssets.sourceCodeHash && props.oldAssets.sourceCodeHash !== props.newAssets.sourceCodeHash.hash) {
+    if (props.oldAssets.version !== props.newAssets.version?.hash) {
       await this.updateFunctionCode(props);
     }
-    return id;
+    return props.newDocument.FunctionName;
   }
-  async delete(props) {
-    return this.props.cloudProvider.delete(props);
+  async delete() {
   }
   async updateFunctionCode(props) {
     const code = props.newDocument.Code;
@@ -4278,7 +4602,7 @@ var createCloudProviders = (config) => {
     cloudControlApiProvider,
     new ImageProvider(config),
     new InstanceProvider(config),
-    new FunctionProvider({ ...config, cloudProvider: cloudControlApiProvider }),
+    new SourceCodeUpdateProvider(config),
     new BucketProvider({ ...config, cloudProvider: cloudControlApiProvider }),
     new BucketObjectProvider(config),
     new TableItemProvider(config),
@@ -4473,7 +4797,7 @@ var UserPoolDomain = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/cognito/user-pool.ts
-import { constantCase as constantCase4 } from "change-case";
+import { constantCase as constantCase8 } from "change-case";
 import { days as days2, toDays as toDays3 } from "@awsless/duration";
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -4543,7 +4867,7 @@ var UserPool = class extends CloudControlApiResource {
         ...this.attr(
           "EmailConfiguration",
           email && {
-            ...this.attr("EmailSendingAccount", email.type, constantCase4),
+            ...this.attr("EmailSendingAccount", email.type, constantCase8),
             ...this.attr("From", email.from),
             ...this.attr("ReplyToEmailAddress", email.replyTo),
             ...this.attr("SourceArn", email.sourceArn),
@@ -4711,7 +5035,7 @@ var TableItem = class extends Resource {
 };
 
 // src/provider/aws/dynamodb/table.ts
-import { constantCase as constantCase5 } from "change-case";
+import { constantCase as constantCase9 } from "change-case";
 var Table = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::DynamoDB::Table", id, props);
@@ -4815,7 +5139,7 @@ var Table = class extends CloudControlApiResource {
           ...this.props.sort ? [{ KeyType: "RANGE", AttributeName: this.props.sort }] : []
         ],
         AttributeDefinitions: this.attributeDefinitions(),
-        TableClass: constantCase5(unwrap(this.props.class, "standard")),
+        TableClass: constantCase9(unwrap(this.props.class, "standard")),
         DeletionProtectionEnabled: unwrap(this.props.deletionProtection, false),
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: unwrap(this.props.pointInTimeRecovery, false)
@@ -4828,7 +5152,7 @@ var Table = class extends CloudControlApiResource {
         } : {},
         ...this.props.stream ? {
           StreamSpecification: {
-            StreamViewType: constantCase5(unwrap(this.props.stream))
+            StreamViewType: constantCase9(unwrap(this.props.stream))
           }
         } : {},
         ...Object.keys(this.indexes).length ? {
@@ -4839,7 +5163,7 @@ var Table = class extends CloudControlApiResource {
               ...props.sort ? [{ KeyType: "RANGE", AttributeName: props.sort }] : []
             ],
             Projection: {
-              ProjectionType: constantCase5(props.projection || "all")
+              ProjectionType: constantCase9(props.projection || "all")
             }
           }))
         } : {}
@@ -4961,7 +5285,7 @@ __export(elb_exports, {
 });
 
 // src/provider/aws/elb/listener-action.ts
-import { days as days3, toSeconds as toSeconds7 } from "@awsless/duration";
+import { days as days3, toSeconds as toSeconds11 } from "@awsless/duration";
 var ListenerAction = class {
   static authCognito(props) {
     return new AuthCognitoAction(props);
@@ -5021,7 +5345,7 @@ var AuthCognitoAction = class extends ListenerAction {
         OnUnauthenticatedRequest: unwrap(this.props.onUnauthenticated, "deny"),
         Scope: unwrap(this.props.scope, "openid"),
         SessionCookieName: unwrap(session.cookieName, "AWSELBAuthSessionCookie"),
-        SessionTimeout: toSeconds7(unwrap(session.timeout, days3(7))),
+        SessionTimeout: toSeconds11(unwrap(session.timeout, days3(7))),
         UserPoolArn: userPool.arn,
         UserPoolClientId: userPool.clientId,
         UserPoolDomain: userPool.domain
@@ -5096,7 +5420,7 @@ var ListenerRule = class extends CloudControlApiResource {
 };
 
 // src/provider/aws/elb/listener.ts
-import { constantCase as constantCase6 } from "change-case";
+import { constantCase as constantCase10 } from "change-case";
 var Listener = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ElasticLoadBalancingV2::Listener", id, props);
@@ -5111,7 +5435,7 @@ var Listener = class extends CloudControlApiResource {
       document: {
         LoadBalancerArn: this.props.loadBalancerArn,
         Port: this.props.port,
-        Protocol: constantCase6(unwrap(this.props.protocol)),
+        Protocol: constantCase10(unwrap(this.props.protocol)),
         Certificates: unwrap(this.props.certificates).map((arn) => ({
           CertificateArn: arn
         })),
@@ -5391,7 +5715,7 @@ __export(ivs_exports, {
 });
 
 // src/provider/aws/ivs/channel.ts
-import { constantCase as constantCase7 } from "change-case";
+import { constantCase as constantCase11 } from "change-case";
 var Channel = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::IVS::Channel", id, props);
@@ -5411,8 +5735,8 @@ var Channel = class extends CloudControlApiResource {
     return {
       document: {
         Name: this.props.name,
-        Type: constantCase7(unwrap(this.props.type, "standard")),
-        LatencyMode: constantCase7(unwrap(this.props.latencyMode, "low")),
+        Type: constantCase11(unwrap(this.props.type, "standard")),
+        LatencyMode: constantCase11(unwrap(this.props.latencyMode, "low")),
         ...this.attr("Preset", this.props.preset, (v) => `${v.toUpperCase()}_BANDWIDTH_DELIVERY`),
         ...this.attr("Authorized", this.props.authorized),
         ...this.attr("InsecureIngest", this.props.insecureIngest),
@@ -5446,301 +5770,6 @@ var StreamKey = class extends CloudControlApiResource {
           Key: k,
           Value: v
         }))
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/index.ts
-var lambda_exports = {};
-__export(lambda_exports, {
-  EventInvokeConfig: () => EventInvokeConfig,
-  EventSourceMapping: () => EventSourceMapping,
-  Function: () => Function,
-  FunctionProvider: () => FunctionProvider,
-  Permission: () => Permission,
-  Url: () => Url,
-  formatCode: () => formatCode
-});
-
-// src/provider/aws/lambda/code.ts
-var formatCode = (code) => {
-  if ("bucket" in code) {
-    return {
-      S3Bucket: code.bucket,
-      S3Key: code.key,
-      S3ObjectVersion: code.version
-    };
-  }
-  if ("imageUri" in code) {
-    return {
-      ImageUri: code.imageUri
-    };
-  }
-  return {
-    ZipFile: code.zipFile
-  };
-};
-
-// src/provider/aws/lambda/event-invoke-config.ts
-import { toSeconds as toSeconds8 } from "@awsless/duration";
-var EventInvokeConfig = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::EventInvokeConfig", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  setOnFailure(arn) {
-    this.props.onFailure = arn;
-    return this;
-  }
-  setOnSuccess(arn) {
-    this.props.onSuccess = arn;
-    return this;
-  }
-  toState() {
-    return {
-      document: {
-        FunctionName: this.props.functionArn,
-        Qualifier: unwrap(this.props.qualifier, "$LATEST"),
-        ...this.attr("MaximumEventAgeInSeconds", this.props.maxEventAge, toSeconds8),
-        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
-        ...this.props.onFailure || this.props.onSuccess ? {
-          DestinationConfig: {
-            ...this.props.onFailure ? {
-              OnFailure: {
-                Destination: this.props.onFailure
-              }
-            } : {},
-            ...this.props.onSuccess ? {
-              OnSuccess: {
-                Destination: this.props.onSuccess
-              }
-            } : {}
-          }
-        } : {}
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/event-source-mapping.ts
-import { toSeconds as toSeconds9 } from "@awsless/duration";
-import { constantCase as constantCase8 } from "change-case";
-var EventSourceMapping = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::EventSourceMapping", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  setOnFailure(arn) {
-    this.props.onFailure = arn;
-    return this;
-  }
-  toState() {
-    return {
-      document: {
-        Enabled: true,
-        FunctionName: this.props.functionArn,
-        EventSourceArn: this.props.sourceArn,
-        ...this.attr("BatchSize", this.props.batchSize),
-        ...this.attr("MaximumBatchingWindowInSeconds", this.props.maxBatchingWindow, toSeconds9),
-        ...this.attr("MaximumRecordAgeInSeconds", this.props.maxRecordAge, toSeconds9),
-        ...this.attr("MaximumRetryAttempts", this.props.retryAttempts),
-        ...this.attr("ParallelizationFactor", this.props.parallelizationFactor),
-        ...this.attr("TumblingWindowInSeconds", this.props.tumblingWindow, toSeconds9),
-        ...this.attr("BisectBatchOnFunctionError", this.props.bisectBatchOnError),
-        ...this.attr("StartingPosition", this.props.startingPosition, constantCase8),
-        ...this.attr("StartingPositionTimestamp", this.props.startingPositionTimestamp),
-        ...this.props.maxConcurrency ? {
-          ScalingConfig: {
-            MaximumConcurrency: this.props.maxConcurrency
-          }
-        } : {},
-        ...this.props.onFailure ? {
-          DestinationConfig: {
-            OnFailure: {
-              Destination: this.props.onFailure
-            }
-          }
-        } : {}
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/function.ts
-import { seconds, toSeconds as toSeconds10 } from "@awsless/duration";
-import { mebibytes, toMebibytes } from "@awsless/size";
-import { constantCase as constantCase9 } from "change-case";
-var Function = class extends Resource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::Function", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  cloudProviderId = "aws-lambda-function";
-  environmentVariables = {};
-  get arn() {
-    return this.output((v) => v.Arn);
-  }
-  get name() {
-    return this.output((v) => v.FunctionName);
-  }
-  addEnvironment(name, value) {
-    this.environmentVariables[name] = value;
-    this.registerDependency(value);
-    return this;
-  }
-  setVpc(vpc) {
-    this.props.vpc = vpc;
-    this.registerDependency(vpc);
-    return this;
-  }
-  get permissions() {
-    return {
-      actions: [
-        //
-        "lambda:InvokeFunction",
-        "lambda:InvokeAsync"
-      ],
-      resources: [this.arn]
-    };
-  }
-  // enableUrlAccess(props: Omit<UrlProps, 'targetArn'> = {}) {
-  // 	const url = new Url('url', {
-  // 		...props,
-  // 		targetArn: this.arn,
-  // 	})
-  // 	const permissions = new Permission('url', {
-  // 		principal: '*',
-  // 		// principal: 'cloudfront.amazonaws.com',
-  // 		// sourceArn: distribution.arn,
-  // 		action: 'lambda:InvokeFunctionUrl',
-  // 		functionArn: this.arn,
-  // 		urlAuthType: props.authType ?? 'none',
-  // 	})
-  // 	this.add(permissions)
-  // 	this.add(url)
-  // 	return url
-  // }
-  toState() {
-    if (unwrap(this.props.name).length > 64) {
-      throw new TypeError(`Lambda function name length can't be greater then 64. ${unwrap(this.props.name)}`);
-    }
-    const code = unwrap(this.props.code);
-    const nativeProps = {
-      Runtime: unwrap(this.props.runtime, "nodejs18.x"),
-      Handler: unwrap(this.props.handler, "index.default")
-    };
-    const containerProps = {
-      PackageType: "Image"
-    };
-    return {
-      asset: {
-        sourceCodeHash: this.props.sourceCodeHash
-      },
-      document: {
-        FunctionName: this.props.name,
-        Description: this.props.description,
-        MemorySize: toMebibytes(unwrap(this.props.memorySize, mebibytes(128))),
-        Timeout: toSeconds10(unwrap(this.props.timeout, seconds(10))),
-        Architectures: [unwrap(this.props.architecture, "arm64")],
-        Role: this.props.role,
-        ...this.attr("ReservedConcurrentExecutions", this.props.reserved),
-        ..."imageUri" in code ? containerProps : nativeProps,
-        Code: formatCode(code),
-        EphemeralStorage: {
-          Size: toMebibytes(unwrap(this.props.ephemeralStorageSize, mebibytes(512)))
-        },
-        ...this.props.log ? {
-          LoggingConfig: {
-            LogFormat: unwrap(this.props.log).format === "text" ? "Text" : "JSON",
-            ApplicationLogLevel: constantCase9(unwrap(unwrap(this.props.log).level, "error")),
-            SystemLogLevel: constantCase9(unwrap(unwrap(this.props.log).system, "warn"))
-          }
-        } : {},
-        ...this.props.vpc ? {
-          VpcConfig: {
-            SecurityGroupIds: unwrap(this.props.vpc).securityGroupIds,
-            SubnetIds: unwrap(this.props.vpc).subnetIds
-          }
-        } : {},
-        Environment: {
-          Variables: {
-            ...unwrap(this.props.environment),
-            ...this.environmentVariables
-          }
-        }
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/permission.ts
-import { constantCase as constantCase10 } from "change-case";
-var Permission = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::Permission", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  toState() {
-    return {
-      document: {
-        FunctionName: this.props.functionArn,
-        Action: unwrap(this.props.action, "lambda:InvokeFunction"),
-        Principal: this.props.principal,
-        ...this.attr("SourceArn", this.props.sourceArn),
-        ...this.attr("FunctionUrlAuthType", this.props.urlAuthType, constantCase10)
-        // ...(this.props.sourceArn ? { SourceArn: this.props.sourceArn } : {}),
-        // ...(this.props.urlAuthType
-        // 	? { FunctionUrlAuthType: constantCase(unwrap(this.props.urlAuthType)) }
-        // 	: {}),
-      }
-    };
-  }
-};
-
-// src/provider/aws/lambda/url.ts
-import { constantCase as constantCase11 } from "change-case";
-import { toSeconds as toSeconds11 } from "@awsless/duration";
-var Url = class extends CloudControlApiResource {
-  constructor(parent, id, props) {
-    super(parent, "AWS::Lambda::Url", id, props);
-    this.parent = parent;
-    this.props = props;
-  }
-  get url() {
-    return this.output((v) => v.FunctionUrl);
-  }
-  get domain() {
-    return this.url.apply((url) => url.split("/")[2]);
-  }
-  cors() {
-    const cors = unwrap(this.props.cors);
-    if (!cors) {
-      return {};
-    }
-    const allow = unwrap(cors.allow, {});
-    const expose = unwrap(cors.expose, {});
-    return {
-      ...this.attr("AllowCredentials", allow.credentials),
-      ...this.attr("AllowHeaders", allow.headers),
-      ...this.attr("AllowMethods", allow.methods),
-      ...this.attr("AllowOrigins", allow.origins),
-      ...this.attr("ExposeHeaders", expose.headers),
-      ...this.attr("MaxAge", cors.maxAge, toSeconds11)
-    };
-  }
-  toState() {
-    return {
-      document: {
-        AuthType: constantCase11(unwrap(this.props.authType, "none")),
-        InvokeMode: constantCase11(unwrap(this.props.invokeMode, "buffered")),
-        TargetFunctionArn: this.props.targetArn,
-        ...this.attr("Qualifier", this.props.qualifier),
-        Cors: this.cors()
       }
     };
   }

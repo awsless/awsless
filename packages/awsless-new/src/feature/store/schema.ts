@@ -36,6 +36,16 @@ import { FunctionSchema } from '../function/schema.js'
 // 	.optional()
 // 	.describe('Describes the AWS Lambda functions to invoke and the events for which to invoke them.')
 
+const DeletionProtectionSchema = z
+	.boolean()
+	.describe('Specifies if you want to protect the store from being deleted by awsless.')
+
+export const StoreDefaultSchema = z
+	.object({
+		deletionProtection: DeletionProtectionSchema.optional(),
+	})
+	.optional()
+
 export const StoresSchema = z
 	.union([
 		z.array(ResourceIdSchema).transform(list => {
@@ -43,6 +53,7 @@ export const StoresSchema = z
 				string,
 				{
 					versioning?: boolean
+					deletionProtection?: boolean
 					events?: Record<string, z.output<typeof FunctionSchema>>
 				}
 			> = {}
@@ -57,6 +68,7 @@ export const StoresSchema = z
 			ResourceIdSchema,
 			z.object({
 				// cors: CorsSchema,
+				deletionProtection: DeletionProtectionSchema.optional(),
 				versioning: z.boolean().default(false).describe('Enable versioning of your store.'),
 				events: z
 					.object({

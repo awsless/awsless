@@ -132,7 +132,12 @@ export const graphqlFeature = defineFeature({
 				authorizer = lambda
 			}
 
-			const name = formatGlobalResourceName(ctx.app.name, 'graphql', id)
+			const name = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'graphql',
+				resourceName: id,
+			})
+
 			const api = new aws.appsync.GraphQLApi(group, 'api', {
 				name,
 				type: 'graphql',

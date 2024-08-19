@@ -134,7 +134,11 @@ export const authFeature = defineFeature({
 				}
 			}
 
-			const name = formatGlobalResourceName(ctx.appConfig.name, 'auth', id)
+			const name = formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'auth',
+				resourceName: id,
+			})
 
 			const userPool = new aws.cognito.UserPool(group, 'user-pool', {
 				name,

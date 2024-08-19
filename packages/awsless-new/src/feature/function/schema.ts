@@ -1,4 +1,5 @@
-import { days, minutes, seconds } from '@awsless/duration'
+import { days, minutes, seconds, toDays } from '@awsless/duration'
+import { aws } from '@awsless/formation'
 import { gibibytes, mebibytes } from '@awsless/size'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
@@ -46,15 +47,20 @@ const RetryAttemptsSchema = z
 		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
 	)
 
-const RuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x']).describe("The identifier of the function's runtime.")
+const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x']).describe("The identifier of the function's runtime.")
+const ContainerRuntimeSchema = z.literal('container').describe("The identifier of the function's runtime.")
+const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema)
 
 const ActionSchema = z.string()
 const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])
 
-const ArnSchema = z.string().startsWith('arn:')
+const ArnSchema = z
+	.string()
+	.startsWith('arn:')
+	.transform(v => v as aws.ARN)
 const WildcardSchema = z.literal('*')
 
-const ResourceSchema = z.union([ArnSchema, WildcardSchema]).transform(v => v as `arn:${string}`)
+const ResourceSchema = z.union([ArnSchema, WildcardSchema])
 const ResourcesSchema = z.union([ResourceSchema.transform(v => [v]), ResourceSchema.array()])
 
 const PermissionSchema = z.object({
@@ -86,10 +92,23 @@ const FileSchema = LocalFileSchema.describe('The file path of the function code.
 
 const DescriptionSchema = z.string().describe('A description of the function.')
 
+const validLogRetentionDays = [
+	...[1n, 3n, 5n, 7n, 14n, 30n, 60n, 90n, 120n, 150n],
+	...[180n, 365n, 400n, 545n, 731n, 1096n, 1827n, 2192n],
+	...[2557n, 2922n, 3288n, 3653n],
+]
+
 const LogRetentionSchema = DurationSchema.refine(
 	durationMin(days(0)),
 	'Minimum log retention is 0 day, which will disable logging.'
-).describe('The log retention duration.')
+)
+	.refine(
+		duration => {
+			return validLogRetentionDays.includes(toDays(duration))
+		},
+		`Invalid log retention. Valid days are: ${validLogRetentionDays.map(days => `${days}`).join(', ')}`
+	)
+	.describe('The log retention duration.')
 
 const LogSchema = z
 	.union([
@@ -119,31 +138,77 @@ const LogSchema = z
 	])
 	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
+const LayersSchema = ArnSchema.array().describe(
+	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
+)
+
+const BuildSchema = z
+	.object({
+		minify: MinifySchema.default(true),
+		external: z
+			.string()
+			.array()
+			.optional()
+			.describe(`A list of external packages that won't be included in the bundle.`),
+	})
+	.describe(`Options for the function bundler`)
+
+// export const FunctionSchema = z.union([
+// 	LocalFileSchema.transform(file => ({
+// 		file,
+// 	})),
+// 	z.object({
+// 		file: FileSchema,
+// 		description: DescriptionSchema.optional(),
+// 		handler: HandlerSchema.optional(),
+// 		minify: MinifySchema.optional(),
+// 		warm: WarmSchema.optional(),
+// 		vpc: VPCSchema.optional(),
+// 		log: LogSchema.optional(),
+// 		timeout: TimeoutSchema.optional(),
+// 		runtime: NodeRuntimeSchema.optional(),
+// 		memorySize: MemorySizeSchema.optional(),
+// 		architecture: ArchitectureSchema.optional(),
+// 		ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
+// 		retryAttempts: RetryAttemptsSchema.optional(),
+// 		reserved: ReservedConcurrentExecutionsSchema.optional(),
+// 		layers: LayersSchema.optional(),
+// 		build: BuildSchema.optional(),
+// 		environment: EnvironmentSchema.optional(),
+// 		permissions: PermissionsSchema.optional(),
+// 	}),
+// ])
+
 export const FunctionSchema = z.union([
 	LocalFileSchema.transform(file => ({
 		file,
 	})),
 	z.object({
 		file: FileSchema,
-		description: DescriptionSchema.optional(),
+
+		// node
 		handler: HandlerSchema.optional(),
-		minify: MinifySchema.optional(),
+		build: BuildSchema.optional(),
+
+		// container
+		// ...
+
+		runtime: RuntimeSchema.optional(),
+		description: DescriptionSchema.optional(),
 		warm: WarmSchema.optional(),
 		vpc: VPCSchema.optional(),
 		log: LogSchema.optional(),
 		timeout: TimeoutSchema.optional(),
-		runtime: RuntimeSchema.optional(),
 		memorySize: MemorySizeSchema.optional(),
 		architecture: ArchitectureSchema.optional(),
 		ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
 		retryAttempts: RetryAttemptsSchema.optional(),
 		reserved: ReservedConcurrentExecutionsSchema.optional(),
+		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 	}),
 ])
-
-export const AsyncFunctionSchema = z
 
 export const FunctionsSchema = z
 	.record(ResourceIdSchema, FunctionSchema)
@@ -152,8 +217,16 @@ export const FunctionsSchema = z
 
 export const FunctionDefaultSchema = z
 	.object({
+		runtime: RuntimeSchema.default('nodejs20.x'),
+
+		// node
 		handler: HandlerSchema.default('index.default'),
-		minify: MinifySchema.default(true),
+		build: BuildSchema.default({
+			minify: true,
+		}),
+
+		// container
+
 		warm: WarmSchema.default(0),
 		vpc: VPCSchema.default(false),
 		log: LogSchema.default({
@@ -163,13 +236,49 @@ export const FunctionDefaultSchema = z
 			format: 'json',
 		}),
 		timeout: TimeoutSchema.default('10 seconds'),
-		runtime: RuntimeSchema.default('nodejs20.x'),
 		memorySize: MemorySizeSchema.default('128 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
 		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
 		retryAttempts: RetryAttemptsSchema.default(2),
 		reserved: ReservedConcurrentExecutionsSchema.optional(),
+		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 	})
 	.default({})
+
+// export const FunctionDefaultSchema = z
+// 	.intersection(
+// 		z.object({
+// 			warm: WarmSchema.default(0),
+// 			vpc: VPCSchema.default(false),
+// 			log: LogSchema.default({
+// 				retention: '7 days',
+// 				level: 'error',
+// 				system: 'warn',
+// 				format: 'json',
+// 			}),
+// 			timeout: TimeoutSchema.default('10 seconds'),
+// 			memorySize: MemorySizeSchema.default('128 MB'),
+// 			architecture: ArchitectureSchema.default('arm64'),
+// 			ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
+// 			retryAttempts: RetryAttemptsSchema.default(2),
+// 			reserved: ReservedConcurrentExecutionsSchema.optional(),
+// 			layers: LayersSchema.optional(),
+// 			environment: EnvironmentSchema.optional(),
+// 			permissions: PermissionsSchema.optional(),
+// 		}),
+// 		z.discriminatedUnion('runtime', [
+// 			z.object({
+// 				runtime: NodeRuntimeSchema,
+// 				handler: HandlerSchema.default('index.default'),
+// 				build: BuildSchema.optional(),
+// 			}),
+// 			z.object({
+// 				runtime: ContainerRuntimeSchema,
+// 			}),
+// 		])
+// 	)
+// 	.default({
+// 		runtime: 'nodejs20.x',
+// 	})

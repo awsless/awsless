@@ -14,7 +14,12 @@ export const instanceFeature = defineFeature({
 		const group = new Node(ctx.base, 'instance', 'asset')
 
 		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			name: formatGlobalResourceName(ctx.appConfig.name, 'instance', 'assets'),
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'instance',
+				resourceName: 'assets',
+				postfix: ctx.appId,
+			}),
 			forceDelete: true,
 		})
 
@@ -22,7 +27,7 @@ export const instanceFeature = defineFeature({
 
 		if (ctx.appConfig.defaults.instance.connect) {
 			new aws.ec2.InstanceConnectEndpoint(group, 'connect', {
-				name: ctx.appConfig.name,
+				name: ctx.app.name,
 				subnetId: ctx.shared.get(`vpc-public-subnet-id-1`),
 				securityGroupIds: [ctx.shared.get('vpc-security-group-id')],
 			})
@@ -31,13 +36,20 @@ export const instanceFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.instances ?? {})) {
 			const group = new Node(ctx.stack, 'instance', id)
-			const name = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'instance', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'instance',
+				resourceName: id,
+			})
 
 			// --------------------------------------------------------
 
 			const env: Record<string, Input<string>> = {
-				APP: ctx.appConfig.name,
-				STACK: ctx.stackConfig.name,
+				APP: ctx.app.name,
+				APP_ID: ctx.appId,
+				STORE_POSTFIX: ctx.appId,
+				STACK: ctx.stack.name,
 			}
 
 			ctx.onEnv((name, value) => {

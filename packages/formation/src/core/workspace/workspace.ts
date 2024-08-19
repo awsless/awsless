@@ -169,6 +169,27 @@ export class WorkSpace {
 				]
 			}
 
+			// -------------------------------------------------------
+			// Build destroy graph
+
+			for (const [_urn, stackState] of Object.entries(appState.stacks)) {
+				const urn = _urn as URN
+
+				const found = app.stacks.find(stack => {
+					return stack.urn === urn
+				})
+
+				if (!found) {
+					graph[urn] = [
+						...this.dependentsOn(appState.stacks, urn),
+						async () => {
+							await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit)
+							delete appState.stacks[urn]
+						},
+					]
+				}
+			}
+
 			// -------------------------------------------------------------------
 
 			const results = await Promise.allSettled(Object.values(run(graph)))
@@ -729,22 +750,24 @@ export class WorkSpace {
 				...this.dependentsOn(resources, urn),
 				() =>
 					limit(async () => {
-						try {
-							await provider.delete({
-								urn,
-								id: state.id,
-								type: state.type,
-								document: state.local,
-								assets: state.assets,
-								extra: state.extra,
-								token,
-							})
-						} catch (error) {
-							if (error instanceof ResourceNotFound) {
-								// The resource has already been deleted.
-								// Let's skip this issue.
-							} else {
-								throw ResourceError.wrap(urn, state.type, state.id, 'delete', error)
+						if (state.policies.deletion !== 'retain') {
+							try {
+								await provider.delete({
+									urn,
+									id: state.id,
+									type: state.type,
+									document: state.local,
+									assets: state.assets,
+									extra: state.extra,
+									token,
+								})
+							} catch (error) {
+								if (error instanceof ResourceNotFound) {
+									// The resource has already been deleted.
+									// Let's skip this issue.
+								} else {
+									throw ResourceError.wrap(urn, state.type, state.id, 'delete', error)
+								}
 							}
 						}
 

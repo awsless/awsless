@@ -1,10 +1,10 @@
 import { Command } from 'commander'
-import { logo } from './ui/logo.js'
 import { commands } from './command/index.js'
+import { logo } from './ui/logo.js'
 
 export type ProgramOptions = {
 	configFile?: string
-	stage: string
+	stage?: string
 	// profile?: string
 	// region?: string
 	mute?: boolean
@@ -16,7 +16,7 @@ const program = new Command()
 program.name(logo())
 
 program.option('--config-file <string>', 'The app config file location')
-program.option('--stage <string>', 'The stage to use, defaults to prod stage', 'prod')
+program.option('--stage <string>', 'The stage to use')
 // program.option('--profile <string>', 'The AWS profile to use')
 // program.option('--region <string>', 'The AWS region to use')
 program.option('-c --no-cache', 'Always build & test without the cache')

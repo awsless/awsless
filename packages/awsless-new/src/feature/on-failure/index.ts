@@ -24,7 +24,11 @@ export const onFailureFeature = defineFeature({
 		// Create a single on-failure queue to capture all failed jobs
 
 		const queue = new aws.sqs.Queue(ctx.base, 'on-failure', {
-			name: formatGlobalResourceName(ctx.appConfig.name, 'on-failure', 'failure'),
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-failure',
+				resourceName: 'failure',
+			}),
 		})
 
 		ctx.shared.set('on-failure-queue-arn', queue.arn)

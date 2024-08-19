@@ -29,7 +29,13 @@ export const storeFeature = defineFeature({
 			const list = new TypeObject(2)
 
 			for (const id of Object.keys(stack.stores ?? {})) {
-				const storeName = formatLocalResourceName(ctx.appConfig.name, stack.name, 'store', id)
+				const storeName = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'store',
+					resourceName: id,
+				})
+
 				list.addType(id, `Store<'${storeName}'>`)
 			}
 
@@ -45,7 +51,13 @@ export const storeFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.stores ?? {})) {
 			const group = new Node(ctx.stack, 'store', id)
 
-			const bucketName = formatLocalResourceName(ctx.appConfig.name, ctx.stack.name, 'store', id)
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'store',
+				resourceName: id,
+				postfix: ctx.appId,
+			})
 
 			const lambdaConfigs: {
 				event: aws.s3.NotifictionEvent
@@ -69,13 +81,16 @@ export const storeFeature = defineFeature({
 
 				const eventId = paramCase(`${id}-${shortId(event)}`)
 
-				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, eventId, funcProps)
+				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, eventId, {
+					...funcProps,
+					description: `${id} event "${event}"`,
+				})
 
 				new aws.lambda.Permission(eventGroup, 'permission', {
 					action: 'lambda:InvokeFunction',
 					principal: 's3.amazonaws.com',
 					functionArn: lambda.arn,
-					sourceArn: `arn:aws:s3:::${bucketName}`,
+					sourceArn: `arn:aws:s3:::${name}`,
 				})
 
 				lambdaConfigs.push({
@@ -85,7 +100,7 @@ export const storeFeature = defineFeature({
 			}
 
 			const bucket = new aws.s3.Bucket(group, 'store', {
-				name: bucketName,
+				name,
 				versioning: props.versioning,
 				forceDelete: true,
 				lambdaConfigs,
@@ -100,6 +115,15 @@ export const storeFeature = defineFeature({
 					// ---------------------------------------------
 				],
 			})
+
+			// ---------------------------------------------
+			// Deletion protection
+
+			const deletionProtection = props.deletionProtection ?? ctx.appConfig.defaults.store?.deletionProtection
+
+			if (deletionProtection) {
+				bucket.deletionPolicy = 'retain'
+			}
 
 			ctx.onPolicy(policy => {
 				policy.addStatement(bucket.permissions)

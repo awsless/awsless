@@ -1,7 +1,7 @@
 import { Asset, aws, Node } from '@awsless/formation'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import deepmerge from 'deepmerge'
-import { basename, dirname, extname } from 'path'
+import { dirname } from 'path'
 import { exec } from 'promisify-child-process'
 import { z } from 'zod'
 import { getBuildPath } from '../../build/index.js'
@@ -30,28 +30,88 @@ export const createLambdaFunction = (
 	local: LambdaFunctionProps
 ): { lambda: Function; policy: Policy; code: Code } => {
 	let name: string
-	if ('stackConfig' in ctx) {
-		name = formatLocalResourceName(ctx.appConfig.name, ctx.stackConfig.name, ns, id)
+	if ('stack' in ctx) {
+		name = formatLocalResourceName({
+			appName: ctx.app.name,
+			stackName: ctx.stack.name,
+			resourceType: ns,
+			resourceName: id,
+		})
 	} else {
-		name = formatGlobalResourceName(ctx.appConfig.name, ns, id)
+		name = formatGlobalResourceName({
+			appName: ctx.appConfig.name,
+			resourceType: ns,
+			resourceName: id,
+		})
 	}
 
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
-	const ext = extname(props.file)
 	let code: aws.lambda.Code | undefined
-	let sourceCodeHash: Asset | undefined
 
-	if (['.ts', '.js', '.tsx', '.sx'].includes(ext)) {
+	if (props.runtime === 'container') {
+		ctx.registerBuild('function', name, async build => {
+			const basePath = dirname(props.file)
+			const version = await hashElement(basePath, {
+				files: {
+					exclude: ['stack.json'],
+				},
+			})
+
+			return build(version.hash + props.architecture, async write => {
+				const repoName = formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'function',
+					resourceName: 'repository',
+					seperator: '-',
+				})
+
+				const platform = props.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
+
+				await exec(`docker buildx build --platform ${platform} -t ${name} .`, {
+					cwd: basePath,
+				})
+
+				await exec(
+					`docker tag ${name}:latest ${ctx.accountId}.dkr.ecr.${ctx.appConfig.region}.amazonaws.com/${repoName}:${name}`,
+					{ cwd: basePath }
+				)
+
+				await write('PLATFORM', platform)
+				await write('HASH', version.hash)
+
+				return {
+					size: 'unknown',
+				}
+			})
+		})
+
+		const image = new aws.ecr.Image(group, 'image', {
+			repository: ctx.shared.get('function-repository-name'),
+			hash: Asset.fromFile(getBuildPath('function', name, 'HASH')),
+			name: name,
+			tag: name,
+		})
+
+		code = {
+			imageUri: image.uri,
+		}
+	} else {
 		ctx.registerBuild('function', name, async (build, { packageVersions }) => {
 			const version = await generateFileHash(props.file, {
 				packageVersions,
 			})
 
-			return build(version, async write => {
-				const bundle = await bundleTypeScript({ file: props.file })
+			return build(version + '-v1', async write => {
+				const bundle = await bundleTypeScript({
+					file: props.file,
+					external: props.build.external,
+					minify: props.build.minify,
+				})
+
 				const archive = await zipFiles(bundle.files)
 
 				await Promise.all([
+					write('HASH', version),
 					write('bundle.zip', archive),
 					...bundle.files.map(file => write(`files/${file.name}`, file.code)),
 					...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
@@ -68,48 +128,6 @@ export const createLambdaFunction = (
 			key: `/lambda/${name}.zip`,
 			body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
 		})
-	} else if (basename(props.file) === 'dockerfile') {
-		ctx.registerBuild('function', name, async build => {
-			const basePath = dirname(props.file)
-			const version = await hashElement(basePath, {
-				files: {
-					exclude: ['stack.json'],
-				},
-			})
-
-			return build(version.hash, async write => {
-				const repoName = formatGlobalResourceName(ctx.appConfig.name, 'function', 'repository', '-')
-
-				await exec(`docker build -t ${name} .`, {
-					cwd: basePath,
-				})
-
-				await exec(
-					`docker tag ${name}:latest ${ctx.accountId}.dkr.ecr.${ctx.appConfig.region}.amazonaws.com/${repoName}:${name}`,
-					{ cwd: basePath }
-				)
-
-				await write('HASH', version.hash)
-
-				return {
-					size: 'unknown',
-				}
-			})
-		})
-
-		const image = new aws.ecr.Image(group, 'image', {
-			repository: ctx.shared.get('function-repository-name'),
-			hash: Asset.fromFile(getBuildPath('function', name, 'HASH')),
-			name: name,
-			tag: name,
-		})
-
-		sourceCodeHash = Asset.fromFile(getBuildPath('function', name, 'HASH'))
-		code = {
-			imageUri: image.uri,
-		}
-	} else {
-		throw new Error('Unknown Lambda Function type.')
 	}
 
 	// const inlinePolicies: aws.iam.PolicyDocument[] = []
@@ -149,11 +167,17 @@ export const createLambdaFunction = (
 		name,
 		role: role.arn,
 		code,
-		sourceCodeHash,
+		runtime: props.runtime === 'container' ? undefined : props.runtime,
 
 		// Remove conflicting props.
 		vpc: undefined,
 		log: props.log as any,
+	})
+
+	new aws.lambda.SourceCodeUpdate(group, 'update', {
+		functionName: lambda.name,
+		version: Asset.fromFile(getBuildPath('function', name, 'HASH')),
+		code,
 	})
 
 	// For some features lambda will complain that the policy need to be in place first.
@@ -172,6 +196,8 @@ export const createLambdaFunction = (
 	// Env Vars
 
 	lambda.addEnvironment('APP', ctx.appConfig.name)
+	lambda.addEnvironment('APP_ID', ctx.appId)
+	lambda.addEnvironment('STORE_POSTFIX', ctx.appId)
 	// lambda.addEnvironment('STAGE', ctx.stage)
 
 	if ('stackConfig' in ctx) {
