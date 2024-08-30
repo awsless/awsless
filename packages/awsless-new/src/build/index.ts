@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { directories } from '../util/path.js'
 import { createTimer } from '../../old/util/timer.js'
+import { Workspace } from '@awsless/ts-file-cache'
 
 export type Cache = { version: string; data: Metadata }
 export type Metadata = Record<string, string | number | boolean> | undefined | void
@@ -10,7 +11,7 @@ export type BuildCallback = (write: Write) => Promise<Metadata>
 export type Build = (fingerprint: string, callback: BuildCallback) => Promise<Metadata>
 export type Builder = (build: Build, props: BuildProps) => Promise<Metadata>
 export type BuildProps = {
-	packageVersions: Record<string, string>
+	workspace: Workspace
 }
 
 const readCache = async (file: string) => {

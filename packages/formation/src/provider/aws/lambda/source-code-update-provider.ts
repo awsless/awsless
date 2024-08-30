@@ -53,7 +53,7 @@ export class SourceCodeUpdateProvider implements CloudProvider {
 
 	async delete() {}
 
-	async updateFunctionCode(props: UpdateProps<Document>) {
+	private async updateFunctionCode(props: UpdateProps<Document>) {
 		const code = props.newDocument.Code
 
 		if ('ZipFile' in code) {

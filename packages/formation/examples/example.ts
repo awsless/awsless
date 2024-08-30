@@ -1,5 +1,5 @@
 import { fromIni } from '@aws-sdk/credential-providers'
-import { minutes } from '@awsless/duration'
+import { days, minutes } from '@awsless/duration'
 import { App, AppError, Asset, aws, Stack, WorkSpace } from '../src'
 import { createVPC } from './resources/_util'
 
@@ -35,35 +35,44 @@ const workspace = new WorkSpace({
 const app = new App('test')
 const stack = new Stack(app, 'test')
 
-const bucket = new aws.s3.Bucket(stack, 'test', {
-	name: 'update-code-123',
-})
+// const repo = new aws.ecr.Repository(stack, 'repo', {
+// 	name: 'test',
+// })
 
-const file = Asset.fromFile('./examples/state-data/v2.js.zip')
+// repo.addLifecycleRule({
+// 	tagStatus: 'untagged',
+// 	maxImageAge: days(1),
+// })
 
-const code = new aws.s3.BucketObject(stack, 'test', {
-	bucket: bucket.name,
-	key: 'code',
-	body: file,
-})
+// const bucket = new aws.s3.Bucket(stack, 'test', {
+// 	name: 'update-code-123',
+// })
 
-const role = new aws.iam.Role(stack, 'test', {
-	assumedBy: 'lambda.amazonaws.com',
-})
+// const file = Asset.fromFile('./examples/state-data/v2.js.zip')
 
-const lambda = new aws.lambda.Function(stack, 'test', {
-	name: 'update-code',
-	role: role.arn,
-	runtime: 'nodejs20.x',
-	handler: 'v2.default',
-	code,
-})
+// const code = new aws.s3.BucketObject(stack, 'test', {
+// 	bucket: bucket.name,
+// 	key: 'code',
+// 	body: file,
+// })
 
-const update = new aws.lambda.SourceCodeUpdate(stack, 'test', {
-	functionName: lambda.name,
-	hash: file,
-	code,
-})
+// const role = new aws.iam.Role(stack, 'test', {
+// 	assumedBy: 'lambda.amazonaws.com',
+// })
+
+// const lambda = new aws.lambda.Function(stack, 'test', {
+// 	name: 'update-code',
+// 	role: role.arn,
+// 	runtime: 'nodejs20.x',
+// 	handler: 'v2.default',
+// 	code,
+// })
+
+// const update = new aws.lambda.SourceCodeUpdate(stack, 'test', {
+// 	functionName: lambda.name,
+// 	hash: file,
+// 	code,
+// })
 
 // const role = new aws.iam.Role(stack, 'test', {
 // 	name: 'my-test-role',

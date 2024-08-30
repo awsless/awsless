@@ -11,6 +11,7 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { directories } from '../../util/path.js'
 import { createLambdaFunction } from './util.js'
 import deepmerge from 'deepmerge'
+import { days } from '@awsless/duration'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
@@ -116,6 +117,12 @@ export const functionFeature = defineFeature({
 				seperator: '-',
 			}),
 			imageTagMutability: true,
+		})
+
+		repository.addLifecycleRule({
+			description: 'Remove untagged images older then 1 day',
+			tagStatus: 'untagged',
+			maxImageAge: days(1),
 		})
 
 		ctx.shared.set('function-repository-name', repository.name)

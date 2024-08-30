@@ -40,53 +40,69 @@ export class ImageProvider implements CloudProvider {
 		return { username, password }
 	}
 
+	private get url() {
+		return `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`
+	}
+
 	private async login() {
 		if (!this.loggedIn) {
 			const { username, password } = await this.getCredentials()
-			const repoName = `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`
 
-			await exec(`docker logout ${repoName}`)
-			await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${repoName}`)
+			await exec(`docker logout ${this.url}`)
+			await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${this.url}`)
 
 			this.loggedIn = true
 		}
 	}
 
-	private async push(repository: string, tag: string) {
-		await exec(
-			`docker push ${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${repository}:${tag}`
-		)
+	private async tag(repository: string, name: string, tag: string) {
+		await exec(`docker tag ${name}:${tag} ${this.url}/${repository}:${name}`)
+	}
+
+	private async rm(repository: string, name: string) {
+		await exec(`docker image rm ${this.url}/${repository}:${name}`)
+	}
+
+	private async push(repository: string, name: string) {
+		await exec(`docker push ${this.url}/${repository}:${name}`)
+	}
+
+	private async publish(document: Document) {
+		const repo = document.RepositoryName
+		const name = document.ImageName
+		const tag = document.Tag
+
+		await this.login()
+		await this.tag(repo, name, tag)
+		await this.push(repo, name)
+		await this.rm(repo, name)
+
+		return JSON.stringify([repo, name, tag])
 	}
 
 	async get({ document }: GetProps<Document>) {
 		return {
-			ImageUri: `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${document.RepositoryName}:${document.Tag}`,
+			ImageUri: `${this.url}/${document.RepositoryName}:${document.ImageName}`,
 		}
 	}
 
 	async create({ document }: CreateProps<Document>) {
-		await this.login()
-		await this.push(document.RepositoryName, document.Tag)
-
-		return JSON.stringify([document.RepositoryName, document.ImageName, document.Tag])
+		return this.publish(document)
 	}
 
 	async update({ oldDocument, newDocument }: UpdateProps<Document>) {
-		if (oldDocument.Tag !== newDocument.Tag) {
+		if (oldDocument.ImageName !== newDocument.ImageName) {
 			throw new Error(`ECR Image can't change the tag`)
 		}
 
-		await this.login()
-		await this.push(newDocument.RepositoryName, newDocument.Tag)
-
-		return JSON.stringify([newDocument.RepositoryName, newDocument.ImageName, newDocument.Tag])
+		return this.publish(newDocument)
 	}
 
 	async delete({ document }: DeleteProps<Document>) {
 		await this.client.send(
 			new BatchDeleteImageCommand({
 				repositoryName: document.RepositoryName,
-				imageIds: [{ imageTag: document.Tag }],
+				imageIds: [{ imageTag: document.ImageName }],
 			})
 		)
 	}

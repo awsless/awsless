@@ -1,5 +1,5 @@
 import { publish, QoS } from '@awsless/iot'
-import { APP } from './util'
+import { APP } from './util.js'
 
 export const getPubSubTopic = <N extends string>(name: N) => {
 	return `${APP}/pubsub/${name}` as const

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.332",
+	"version": "0.0.351",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -39,6 +39,7 @@
 		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; else exit; fi"
 	},
 	"peerDependencies": {
+		"@awsless/iot": "workspace:^",
 		"@awsless/lambda": "workspace:^",
 		"@awsless/open-search": "workspace:^",
 		"@awsless/redis": "workspace:^",
@@ -46,7 +47,6 @@
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
-		"@awsless/iot": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^"
 	},
@@ -107,6 +107,7 @@
 		"jszip": "^3.10.1",
 		"mime-types": "^2.1.35",
 		"minimist": "^1.2.8",
+		"node-docker-api": "^1.1.22",
 		"parse-imports": "^1.1.2",
 		"parse-static-imports": "^1.1.0",
 		"pretty-hrtime": "^1.0.3",
