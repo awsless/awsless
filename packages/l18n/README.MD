@@ -54,3 +54,12 @@ setLocale('jp')
 ## Changing the AI generated text
 
 A `li8n.json` file with all the translated text will be generated in the root of your project the first time you run a build. We use this file as a cache to not translate any text that already has been translated before. Because we never translate text twice, you can safely change any of the ai generated transactions here, if you don't like the auto generated transactions by AI.
+
+```json
+{
+	"${count} count": {
+		"es": "${count} contar",
+		"jp": "${count} カウント"
+	}
+}
+```
