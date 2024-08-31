@@ -1,0 +1,37 @@
+{
+  "head": {
+    "fr": "tête",
+    "jp": "頭",
+    "nl": "hoofd"
+  },
+  "test": {
+    "fr": "tester",
+    "jp": "テスト",
+    "nl": "test"
+  },
+  "the count is ${num}": {
+    "fr": "le compte est de ${num}",
+    "jp": "カウントは${num}です",
+    "nl": "de telling is ${num}"
+  },
+  "the number is ${1}": {
+    "fr": "le nombre est ${1}",
+    "jp": "番号は${1}です",
+    "nl": "het nummer is ${1}"
+  },
+  "Loading...": {
+    "fr": "Chargement...",
+    "jp": "読み込み中...",
+    "nl": "Bezig met laden..."
+  },
+  "Title": {
+    "fr": "Titre",
+    "jp": "タイトル",
+    "nl": "Titel"
+  },
+  "Hello ${1} world": {
+    "fr": "Bonjour ${1} monde",
+    "jp": "こんにちは ${1} 世界",
+    "nl": "Hallo ${1} wereld"
+  }
+}
