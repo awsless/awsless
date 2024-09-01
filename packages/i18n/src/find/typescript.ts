@@ -6,7 +6,6 @@ export const findTypescriptTranslatable = async (code: string) => {
 
 	const ast = await parse(code, {
 		syntax: 'typescript',
-		script: true,
 	})
 
 	simple(ast, {

@@ -1,8 +1,6 @@
 import { readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 
-// export type Cache = Record<string, Record<string, string | undefined> | undefined>
-
 export const loadCache = async (cwd: string): Promise<Cache> => {
 	try {
 		const data = await readFile(join(cwd, 'i18n.json'), 'utf8')
@@ -54,12 +52,6 @@ export class Cache {
 			}
 		}
 	}
-
-	// *originals() {
-	// 	for (const [original] of Object.entries(this.data)) {
-	// 		yield original
-	// 	}
-	// }
 
 	toJSON() {
 		return this.data
