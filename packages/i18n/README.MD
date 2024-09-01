@@ -6,7 +6,7 @@ The @awsless/i18n package is a Vite plugin that automatically translates your te
 
 - Automatic text translation
 - Inlines translations
-- Extremely lightweight
+- Extremely lightweight (373 bytes uncompressed)
 - Svelte support
 
 _A simple wrapper can be made for any framework._

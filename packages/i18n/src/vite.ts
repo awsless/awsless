@@ -18,8 +18,13 @@ export type TranslationResponse = {
 }
 
 export type I18nPluginProps = {
+	/** The default locale that your original text is writen in. */
 	default?: string
+
+	/** A list of locales that you want your text translated too. */
 	locales: string[]
+
+	/** The callback that is responsible for translating the text. */
 	translate: (
 		defaultLocale: string,
 		list: {
