@@ -1,13 +1,17 @@
-import { readFile, writeFile } from 'fs/promises'
+import { readFile, stat, writeFile } from 'fs/promises'
 import { join } from 'path'
 
 export const loadCache = async (cwd: string): Promise<Cache> => {
+	const file = join(cwd, 'i18n.json')
+
 	try {
-		const data = await readFile(join(cwd, 'i18n.json'), 'utf8')
-		return new Cache(JSON.parse(data))
+		await stat(file)
 	} catch (error) {
 		return new Cache()
 	}
+
+	const data = await readFile(file, 'utf8')
+	return new Cache(JSON.parse(data))
 }
 
 export const saveCache = async (cwd: string, cache: Cache) => {

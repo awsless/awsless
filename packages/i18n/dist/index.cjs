@@ -40,12 +40,14 @@ module.exports = __toCommonJS(src_exports);
 var import_promises = require("fs/promises");
 var import_path = require("path");
 var loadCache = async (cwd) => {
+  const file = (0, import_path.join)(cwd, "i18n.json");
   try {
-    const data = await (0, import_promises.readFile)((0, import_path.join)(cwd, "i18n.json"), "utf8");
-    return new Cache(JSON.parse(data));
+    await (0, import_promises.stat)(file);
   } catch (error) {
     return new Cache();
   }
+  const data = await (0, import_promises.readFile)(file, "utf8");
+  return new Cache(JSON.parse(data));
 };
 var saveCache = async (cwd, cache) => {
   await (0, import_promises.writeFile)((0, import_path.join)(cwd, "i18n.json"), JSON.stringify(cache, void 0, 2));
@@ -83,11 +85,6 @@ var Cache = class {
       }
     }
   }
-  // *originals() {
-  // 	for (const [original] of Object.entries(this.data)) {
-  // 		yield original
-  // 	}
-  // }
   toJSON() {
     return this.data;
   }
@@ -157,8 +154,7 @@ var import_swc_walk = require("swc-walk");
 var findTypescriptTranslatable = async (code) => {
   const found = [];
   const ast = await (0, import_core.parse)(code, {
-    syntax: "typescript",
-    script: true
+    syntax: "typescript"
   });
   (0, import_swc_walk.simple)(ast, {
     TaggedTemplateExpression(node) {
@@ -178,7 +174,12 @@ var findTypescriptTranslatable = async (code) => {
 var findTranslatable = async (cwd) => {
   const files = await (0, import_glob.glob)("**/*.{js,ts,svelte}", {
     cwd,
-    ignore: ["**/node_modules"]
+    ignore: [
+      //
+      "**/node_modules/**",
+      "**/.svelte-kit/**",
+      "**/.*/**"
+    ]
   });
   const found = [];
   for (const file of files) {
@@ -219,21 +220,22 @@ var createI18nPlugin = (props) => {
       transform(code) {
         let replaced = false;
         if (code.includes(`$t\``)) {
+          console.log(cache);
           for (const item of cache.entries()) {
-            code = code.replaceAll(`$t\`${item.original}\``, (_, original) => {
+            code = code.replaceAll(`$t\`${item.original}\``, () => {
               replaced = true;
-              return `$t.get(\`${original}\`, {${props.locales.map((locale) => {
-                return `"${locale}":\`${cache.get(original, locale)}\``;
+              return `$t.get(\`${item.original}\`, {${props.locales.map((locale) => {
+                return `"${locale}":\`${cache.get(item.original, locale)}\``;
               }).join(",")}})`;
             });
           }
         }
         if (code.includes(`get(t)\``)) {
           for (const item of cache.entries()) {
-            code = code.replaceAll(`get(t)\`${item.original}\``, (_, original) => {
+            code = code.replaceAll(`get(t)\`${item.original}\``, () => {
               replaced = true;
-              return `get(t).get(\`${original}\`, {${props.locales.map((locale) => {
-                return `"${locale}":\`${cache.get(original, locale)}\``;
+              return `get(t).get(\`${item.original}\`, {${props.locales.map((locale) => {
+                return `"${locale}":\`${cache.get(item.original, locale)}\``;
               }).join(",")}})`;
             });
           }

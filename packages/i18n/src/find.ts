@@ -9,7 +9,12 @@ export const translatableRegex = /\$t\`([a-z0-9\s\$\{\}]+)\`/gim
 export const findTranslatable = async (cwd: string) => {
 	const files = await glob('**/*.{js,ts,svelte}', {
 		cwd,
-		ignore: ['**/node_modules'],
+		ignore: [
+			//
+			'**/node_modules/**',
+			'**/.svelte-kit/**',
+			'**/.*/**',
+		],
 	})
 
 	const found: string[] = []

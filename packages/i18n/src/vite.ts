@@ -64,12 +64,14 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin[] => {
 				let replaced = false
 
 				if (code.includes(`$t\``)) {
+					console.log(cache)
+
 					for (const item of cache.entries()) {
-						code = code.replaceAll(`$t\`${item.original}\``, (_, original) => {
+						code = code.replaceAll(`$t\`${item.original}\``, () => {
 							replaced = true
-							return `$t.get(\`${original}\`, {${props.locales
+							return `$t.get(\`${item.original}\`, {${props.locales
 								.map(locale => {
-									return `"${locale}":\`${cache.get(original, locale)}\``
+									return `"${locale}":\`${cache.get(item.original, locale)}\``
 								})
 								.join(',')}})`
 						})
@@ -78,11 +80,11 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin[] => {
 
 				if (code.includes(`get(t)\``)) {
 					for (const item of cache.entries()) {
-						code = code.replaceAll(`get(t)\`${item.original}\``, (_, original) => {
+						code = code.replaceAll(`get(t)\`${item.original}\``, () => {
 							replaced = true
-							return `get(t).get(\`${original}\`, {${props.locales
+							return `get(t).get(\`${item.original}\`, {${props.locales
 								.map(locale => {
-									return `"${locale}":\`${cache.get(original, locale)}\``
+									return `"${locale}":\`${cache.get(item.original, locale)}\``
 								})
 								.join(',')}})`
 						})

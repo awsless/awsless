@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '../../src/framework/svelte'
-	import { content } from './lib'
+	import { content } from './lib/content'
 	import Head from './head.svelte'
 	// import
 
