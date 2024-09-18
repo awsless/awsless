@@ -9,7 +9,7 @@ type Options = {
 export const buildDockerImage = async (opts: Options) => {
 	const platform = opts.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
 
-	await exec(`docker image rm ${opts.name}:latest`)
+	await exec(`docker image -f rm ${opts.name}:latest 2> /dev/null || true`)
 	const buildResponse = await exec(`docker buildx build --platform ${platform} -t ${opts.name}:latest .`, {
 		cwd: opts.cwd,
 	})
