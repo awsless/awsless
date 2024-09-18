@@ -1,5 +1,5 @@
 import { unwrap } from '@awsless/formation'
-import { note } from '@clack/prompts'
+import { log, note } from '@clack/prompts'
 import { spawn } from 'child_process'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
@@ -11,12 +11,12 @@ import { list, wrap } from '../ui/util.js'
 export const bind = (program: Command) => {
 	program
 		.command('bind')
-		// .argument('stack', 'The stack name')
-		// .argument('site', 'The site name')
-		.argument('<command...>', 'The command to execute')
+
+		.argument('[command...]', 'The command to execute')
+		.option('--configs <string...>', 'List of config values that will be accessable', [])
 		.description(`Bind your site environment variables to a command`)
-		// .action(async (stack: string, site: string, commands: string[]) => {
-		.action(async (commands: string[]) => {
+
+		.action(async (commands: string[] = [], opts: { configs: string[] }) => {
 			await layout('bind', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)
@@ -37,13 +37,18 @@ export const bind = (program: Command) => {
 					env[name] = unwrap(value)
 				}
 
-				note(wrap(list(env)), 'Bind Env')
+				if (Object.keys(env).length > 0) {
+					note(wrap(list(env)), 'Bind Env')
+				} else {
+					log.warning('No bindings available.')
+				}
 
 				if (commands.length === 0) {
-					return
+					return 'No command to execute.'
 				}
 
 				const command = commands.join(' ')
+				const freshCred = await credentials()
 
 				spawn(command, {
 					env: {
@@ -53,31 +58,26 @@ export const bind = (program: Command) => {
 						// Pass the site bind env vars
 						...env,
 
-						// Basic info
+						// Pass the app config name
+						APP: appConfig.name,
+
+						// Pass in the config values to load
+						CONFIG: opts.configs.join(','),
+
+						// Basic AWS info
 						AWS_REGION: appConfig.region,
 						AWS_ACCOUNT_ID: accountId,
 
 						// Give AWS access
-
-						// AWS_ACCESS_KEY_ID: credentials.accessKeyId,
-						// AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
-						// AWS_SESSION_TOKEN: credentials.sessionToken,
+						AWS_ACCESS_KEY_ID: freshCred.accessKeyId,
+						AWS_SECRET_ACCESS_KEY: freshCred.secretAccessKey,
+						AWS_SESSION_TOKEN: freshCred.sessionToken,
 					},
 					stdio: 'inherit',
 					shell: true,
 				})
 
-				// Get stack config
-				// const stackConfig = config.stacks.find(s => s.name === stack)
-				// if (!stackConfig) {
-				// 	throw new Error(`[${stack}] Stack doesn't exist.`)
-				// }
-
-				// // Get site config
-				// const siteConfig = stackConfig.sites?.[site]
-				// if (!siteConfig) {
-				// 	throw new Error(`[${site}] Site doesn't exist.`)
-				// }
+				return
 			})
 		})
 }

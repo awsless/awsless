@@ -23,9 +23,15 @@ type I18nPluginProps = {
 };
 declare const createI18nPlugin: (props: I18nPluginProps) => Plugin[];
 
-declare const chatgpt: (props?: ClientOptions & {
+type ChatgptProps = ClientOptions & {
+    /** The maximum number of tokens that can be generated in the chat completion. */
+    maxTokens?: number;
+    /** ID of the model to use. */
+    model?: string;
+    /** The rules that chatgpt should follow. It will be added to the prompt. */
     rules?: string[];
-}) => Translator;
+};
+declare const chatgpt: (props?: ChatgptProps) => Translator;
 
 declare const mock: (translation?: string) => Translator;
 

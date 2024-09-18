@@ -1,4 +1,4 @@
-<script lang="ts">
+<script>
 	import { t } from '../../src/framework/svelte'
 	import { content } from './lib/content'
 	import Head from './head.svelte'

@@ -78,8 +78,9 @@ import { glob } from "glob";
 import { extname, join as join2 } from "path";
 
 // src/find/svelte.ts
+import { walk } from "estree-walker";
 import lineColumn from "line-column";
-import { parse as parseSvelte, walk } from "svelte/compiler";
+import { parse as parseSvelte } from "svelte/compiler";
 var findSvelteTranslatable = (code) => {
   const found = [];
   const origin = lineColumn(code);
@@ -182,7 +183,6 @@ var createI18nPlugin = (props) => {
       transform(code) {
         let replaced = false;
         if (code.includes(`$t\``)) {
-          console.log(cache);
           for (const item of cache.entries()) {
             code = code.replaceAll(`$t\`${item.original}\``, () => {
               replaced = true;
@@ -231,10 +231,8 @@ var chatgpt = (props) => {
   return async (originalLocale, list) => {
     const client = new OpenAI(props);
     const response = await client.chat.completions.create({
-      model: "gpt-4o-2024-08-06",
-      max_tokens: 4095,
-      n: 1,
-      temperature: 1,
+      model: props?.model ?? "gpt-4o-2024-08-06",
+      max_tokens: props?.maxTokens ?? 4095,
       response_format: format,
       messages: [
         { role: "system", content: "You are a helpful translator." },
@@ -242,15 +240,20 @@ var chatgpt = (props) => {
       ]
     });
     const json = response.choices[0]?.message.content;
-    if (!json) {
+    if (typeof json !== "string") {
       throw new Error("Invalid chat gpt response");
     }
-    const data = JSON.parse(json);
+    let data;
+    try {
+      data = JSON.parse(json);
+    } catch (error) {
+      throw new Error(`Invalid chat gpt json response: ${json}`);
+    }
     return data.translations;
   };
 };
 var prompt = (originalLocale, list, rules) => {
-  return `You have to translate the text inside the JSON file below from ${originalLocale} to the provided locale.
+  return `You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.
 ${rules?.join("\n") ?? ""}
 
 JSON FILE:

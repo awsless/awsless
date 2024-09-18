@@ -6,6 +6,7 @@ The goal is to generate a new hash when ever the file or it's dependecies change
 
 ```ts
 
-const hash = await generateFileHash("./file.ts")
+const workspace = await loadWorkspace('.')
+const hash = await generateFileHash(workspace, "./file.ts")
 
 ```

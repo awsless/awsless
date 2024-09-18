@@ -5,24 +5,24 @@
     "nl": "hoofd"
   },
   "test": {
-    "fr": "tester",
+    "fr": "test",
     "jp": "テスト",
     "nl": "test"
   },
   "the count is ${num}": {
-    "fr": "le compte est de ${num}",
+    "fr": "le compte est ${num}",
     "jp": "カウントは${num}です",
-    "nl": "de telling is ${num}"
+    "nl": "het aantal is ${num}"
   },
   "the number is ${1}": {
     "fr": "le nombre est ${1}",
-    "jp": "番号は${1}です",
+    "jp": "数字は${1}です",
     "nl": "het nummer is ${1}"
   },
   "Loading...": {
     "fr": "Chargement...",
     "jp": "読み込み中...",
-    "nl": "Bezig met laden..."
+    "nl": "Laden..."
   },
   "Title": {
     "fr": "Titre",
@@ -31,7 +31,7 @@
   },
   "Hello ${1} world": {
     "fr": "Bonjour ${1} monde",
-    "jp": "こんにちは ${1} 世界",
+    "jp": "こんにちは${1}世界",
     "nl": "Hallo ${1} wereld"
   }
 }

@@ -64,8 +64,6 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin[] => {
 				let replaced = false
 
 				if (code.includes(`$t\``)) {
-					console.log(cache)
-
 					for (const item of cache.entries()) {
 						code = code.replaceAll(`$t\`${item.original}\``, () => {
 							replaced = true

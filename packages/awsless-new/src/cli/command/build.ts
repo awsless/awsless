@@ -11,9 +11,8 @@ export const build = (program: Command) => {
 		.description('Build your app assets')
 		.action(async (filters: string[]) => {
 			await layout('build', async ({ appConfig, stackConfigs }) => {
-				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)
-				const accountId = await getAccountId(credentials, region)
+				const accountId = await getAccountId(credentials, appConfig.region)
 
 				const { builders } = createApp({ appConfig, stackConfigs, accountId }, filters)
 

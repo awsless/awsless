@@ -1,15 +1,13 @@
 # AI-generated internationalization made easy
 
-The @awsless/i18n package is a Vite plugin that automatically translates your text in build time using AI or any other tool you prefer. The plugin will inline the translations so you don't have to worry about loading the translations at the right time.
+The `@awsless/i18n` package is a Vite plugin that automatically translates your text in build time using AI or any other tool you prefer. The plugin will inline the translations so you don't have to worry about loading the translations at the right time.
 
 ## Features
 
 - Automatic text translation
 - Inlines translations
-- Extremely lightweight (373 bytes uncompressed)
+- Extremely lightweight (373 bytes uncompressed 🔥)
 - Svelte support
-
-_A simple wrapper can be made for any framework._
 
 ## Setup
 

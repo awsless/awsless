@@ -1,11 +1,11 @@
+import { note, spinner } from '@clack/prompts'
+import chalk from 'chalk'
 import { Command } from 'commander'
-import { color } from '../../ui/style.js'
-import { layout } from '../../ui/complex/layout.js'
 import { getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'
-import { note, spinner } from '@clack/prompts'
+import { layout } from '../../ui/complex/layout.js'
+import { color } from '../../ui/style.js'
 import { list } from '../../ui/util.js'
-import chalk from 'chalk'
 
 export const get = (program: Command) => {
 	program

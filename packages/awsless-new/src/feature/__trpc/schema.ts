@@ -45,7 +45,7 @@ export const TRPCSchema = z
 					z.string(),
 					FunctionSchema
 				)
-				.describe('The queries for your global TRPC API.')
+				.describe('The mutations for your global TRPC API.')
 				.optional(),
 		})
 	)

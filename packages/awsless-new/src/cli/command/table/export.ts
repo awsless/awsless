@@ -17,18 +17,17 @@ export const exportTable = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { stateProvider } = createWorkSpace({ credentials, region, accountId })
 
-				const ok = await confirm({
-					message: 'Pushing up the local state might corrupt your remote state. Are you sure?',
-					initialValue: false,
-				})
+				// const ok = await confirm({
+				// 	message: 'Importing your local json file will replace the remote data. Are you sure?',
+				// 	initialValue: false,
+				// })
 
-				if (!ok || isCancel(ok)) {
-					throw new Cancelled()
-				}
+				// if (!ok || isCancel(ok)) {
+				// 	throw new Cancelled()
+				// }
 
-				await pushRemoteState(app, stateProvider)
+				// await pushRemoteState(app, stateProvider)
 
 				return 'State push was successful.'
 			})

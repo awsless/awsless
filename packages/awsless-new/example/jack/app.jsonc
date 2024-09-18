@@ -18,33 +18,33 @@
 		// 		"subDomain": "elb"
 		// 	}
 		// },
-		"graphql": {
-			"api": {
-				"resolver": "./graphql/resolver.ts"
-				// "auth": {
-				// 	"authorizer": "./auth.ts"
-				// }
-				// "domain": "main",
-				// "subDomain": "api",
-				// "auth": "users"
-			}
-		},
+		// "graphql": {
+		// 	"api": {
+		// 		"resolver": "./graphql/resolver.ts"
+		// 		// "auth": {
+		// 		// 	"authorizer": "./auth.ts"
+		// 		// }
+		// 		// "domain": "main",
+		// 		// "subDomain": "api",
+		// 		// "auth": "users"
+		// 	}
+		// },
 		// "rest": {
 		// 	"api": {}
 		// },
-		"pubsub": {
-			"admin": {
-				// "domain": "main",
-				// "subDomain": "realtime",
-				"auth": {
-					"authorizer": "./pubsub-auth.ts"
-				},
-				"policy": {
-					"publish": ["user", "game/*"],
-					"subscribe": ["user", "game/*"]
-				}
-			}
-		},
+		// "pubsub": {
+		// 	"admin": {
+		// 		// "domain": "main",
+		// 		// "subDomain": "realtime",
+		// 		"auth": {
+		// 			"authorizer": "./pubsub-auth.ts"
+		// 		},
+		// 		"policy": {
+		// 			"publish": ["user", "game/*"],
+		// 			"subscribe": ["user", "game/*"]
+		// 		}
+		// 	}
+		// },
 		// "instance": {
 		// 	// "connect": true
 		// },

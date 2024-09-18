@@ -841,6 +841,9 @@ importers:
       '@types/line-column':
         specifier: ^1.0.2
         version: 1.0.2
+      estree-walker:
+        specifier: ^3.0.3
+        version: 3.0.3
       glob:
         specifier: ^10.3.9
         version: 10.3.10

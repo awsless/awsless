@@ -116,6 +116,7 @@ var import_glob = require("glob");
 var import_path2 = require("path");
 
 // src/find/svelte.ts
+var import_estree_walker = require("estree-walker");
 var import_line_column = __toESM(require("line-column"), 1);
 var import_compiler = require("svelte/compiler");
 var findSvelteTranslatable = (code) => {
@@ -138,12 +139,12 @@ var findSvelteTranslatable = (code) => {
       found.push(content);
     }
   };
-  (0, import_compiler.walk)(ast.html, { enter });
+  (0, import_estree_walker.walk)(ast.html, { enter });
   if (ast.instance) {
-    (0, import_compiler.walk)(ast.instance.content, { enter });
+    (0, import_estree_walker.walk)(ast.instance.content, { enter });
   }
   if (ast.module) {
-    (0, import_compiler.walk)(ast.module.content, { enter });
+    (0, import_estree_walker.walk)(ast.module.content, { enter });
   }
   return found;
 };
@@ -220,7 +221,6 @@ var createI18nPlugin = (props) => {
       transform(code) {
         let replaced = false;
         if (code.includes(`$t\``)) {
-          console.log(cache);
           for (const item of cache.entries()) {
             code = code.replaceAll(`$t\`${item.original}\``, () => {
               replaced = true;
@@ -269,10 +269,8 @@ var chatgpt = (props) => {
   return async (originalLocale, list) => {
     const client = new import_openai.default(props);
     const response = await client.chat.completions.create({
-      model: "gpt-4o-2024-08-06",
-      max_tokens: 4095,
-      n: 1,
-      temperature: 1,
+      model: props?.model ?? "gpt-4o-2024-08-06",
+      max_tokens: props?.maxTokens ?? 4095,
       response_format: format,
       messages: [
         { role: "system", content: "You are a helpful translator." },
@@ -280,15 +278,20 @@ var chatgpt = (props) => {
       ]
     });
     const json = response.choices[0]?.message.content;
-    if (!json) {
+    if (typeof json !== "string") {
       throw new Error("Invalid chat gpt response");
     }
-    const data = JSON.parse(json);
+    let data;
+    try {
+      data = JSON.parse(json);
+    } catch (error) {
+      throw new Error(`Invalid chat gpt json response: ${json}`);
+    }
     return data.translations;
   };
 };
 var prompt = (originalLocale, list, rules) => {
-  return `You have to translate the text inside the JSON file below from ${originalLocale} to the provided locale.
+  return `You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.
 ${rules?.join("\n") ?? ""}
 
 JSON FILE:

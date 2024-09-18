@@ -1,5 +1,6 @@
+import { Node, walk } from 'estree-walker'
 import lineColumn from 'line-column'
-import { parse as parseSvelte, walk } from 'svelte/compiler'
+import { parse as parseSvelte } from 'svelte/compiler'
 
 export const findSvelteTranslatable = (code: string) => {
 	const found: string[] = []
@@ -8,7 +9,7 @@ export const findSvelteTranslatable = (code: string) => {
 		css: false,
 	})
 
-	const enter = (node: any) => {
+	const enter = (node: Node) => {
 		if (
 			//
 			node.type === 'TaggedTemplateExpression' &&
@@ -28,7 +29,7 @@ export const findSvelteTranslatable = (code: string) => {
 		}
 	}
 
-	walk(ast.html as any, { enter })
+	walk(ast.html as Node, { enter })
 
 	if (ast.instance) {
 		walk(ast.instance.content, { enter })

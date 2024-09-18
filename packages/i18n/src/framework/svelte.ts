@@ -14,16 +14,15 @@ export const t = derived([locale], ([locale]) => {
 	return api
 })
 
-// export const fallbackLocale = $state('en')
 // export const locale = $state('en')
 
-// export const t = $derived(([locale, fallbackLocale]) => {
+// export const t = $derived(() => {
 // 	const api = (template: TemplateStringsArray, ...args: Array<string | number>) => {
 // 		return String.raw({ raw: template.raw }, ...args)
 // 	}
 
-// 	api.get = (translations: Record<string, string>) => {
-// 		return translations[locale] ?? translations[fallbackLocale] ?? ''
+// 	api.get = (og: string, translations: Record<string, string>) => {
+// 		return translations[locale] ?? og
 // 	}
 
 // 	return api
