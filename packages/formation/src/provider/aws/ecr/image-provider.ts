@@ -60,7 +60,7 @@ export class ImageProvider implements CloudProvider {
 	}
 
 	private async rm(repository: string, name: string) {
-		await exec(`docker image rm ${this.url}/${repository}:${name}`)
+		await exec(`docker image -f rm ${this.url}/${repository}:${name} 2> /dev/null || true`)
 	}
 
 	private async push(repository: string, name: string) {
