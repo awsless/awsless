@@ -3692,55 +3692,69 @@ var ImageProvider = class {
     const [username, password] = Buffer.from(result.authorizationData[0].authorizationToken ?? "", "base64").toString("utf8").split(":");
     return { username, password };
   }
+  get url() {
+    return `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`;
+  }
   async login() {
     if (!this.loggedIn) {
       const { username, password } = await this.getCredentials();
-      const repoName = `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com`;
-      await exec(`docker logout ${repoName}`);
-      await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${repoName}`);
+      await exec(`docker logout ${this.url}`);
+      await exec(`echo "${password}" | docker login --username ${username} --password-stdin ${this.url}`);
       this.loggedIn = true;
     }
   }
-  async push(repository, tag) {
-    await exec(
-      `docker push ${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${repository}:${tag}`
-    );
+  async tag(repository, name, tag) {
+    await exec(`docker tag ${name}:${tag} ${this.url}/${repository}:${name}`);
+  }
+  async rm(repository, name) {
+    await exec(`docker image rm ${this.url}/${repository}:${name}`);
+  }
+  async push(repository, name) {
+    await exec(`docker push ${this.url}/${repository}:${name}`);
+  }
+  async publish(document) {
+    const repo = document.RepositoryName;
+    const name = document.ImageName;
+    const tag = document.Tag;
+    await this.login();
+    await this.tag(repo, name, tag);
+    await this.push(repo, name);
+    await this.rm(repo, name);
+    return JSON.stringify([repo, name, tag]);
   }
   async get({ document }) {
     return {
-      ImageUri: `${this.props.accountId}.dkr.ecr.${this.props.region}.amazonaws.com/${document.RepositoryName}:${document.Tag}`
+      ImageUri: `${this.url}/${document.RepositoryName}:${document.ImageName}`
     };
   }
   async create({ document }) {
-    await this.login();
-    await this.push(document.RepositoryName, document.Tag);
-    return JSON.stringify([document.RepositoryName, document.ImageName, document.Tag]);
+    return this.publish(document);
   }
   async update({ oldDocument, newDocument }) {
-    if (oldDocument.Tag !== newDocument.Tag) {
+    if (oldDocument.ImageName !== newDocument.ImageName) {
       throw new Error(`ECR Image can't change the tag`);
     }
-    await this.login();
-    await this.push(newDocument.RepositoryName, newDocument.Tag);
-    return JSON.stringify([newDocument.RepositoryName, newDocument.ImageName, newDocument.Tag]);
+    return this.publish(newDocument);
   }
   async delete({ document }) {
     await this.client.send(
       new BatchDeleteImageCommand({
         repositoryName: document.RepositoryName,
-        imageIds: [{ imageTag: document.Tag }]
+        imageIds: [{ imageTag: document.ImageName }]
       })
     );
   }
 };
 
 // src/provider/aws/ecr/repository.ts
+import { toDays } from "@awsless/duration";
 var Repository = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::ECR::Repository", id, props);
     this.parent = parent;
     this.props = props;
   }
+  lifecycleRules = [];
   get name() {
     return this.output((v) => v.RepositoryName);
   }
@@ -3750,12 +3764,41 @@ var Repository = class extends CloudControlApiResource {
   get uri() {
     return this.output((v) => v.RepositoryUri);
   }
+  addLifecycleRule(rule) {
+    this.lifecycleRules.push(rule);
+  }
+  formatLifecycleRules() {
+    return JSON.stringify({
+      rules: this.lifecycleRules.map((rule, index) => ({
+        rulePriority: index + 1,
+        description: rule.description,
+        selection: {
+          tagStatus: rule.tagStatus,
+          tagPatternList: rule.tagPatternList,
+          ..."maxImageCount" in rule ? {
+            countType: "imageCountMoreThan",
+            countNumber: rule.maxImageCount
+          } : {
+            countType: "sinceImagePushed",
+            countNumber: Number(toDays(rule.maxImageAge)),
+            countUnit: "days"
+          }
+        },
+        action: {
+          type: "expire"
+        }
+      }))
+    });
+  }
   toState() {
     return {
       document: {
         RepositoryName: this.props.name,
         EmptyOnDelete: this.props.emptyOnDelete,
-        ImageTagMutability: this.props.imageTagMutability ? "MUTABLE" : "IMMUTABLE"
+        ImageTagMutability: this.props.imageTagMutability ? "MUTABLE" : "IMMUTABLE",
+        LifecyclePolicy: {
+          LifecyclePolicyText: this.lifecycleRules.length > 0 ? this.formatLifecycleRules() : void 0
+        }
       }
     };
   }
@@ -4628,7 +4671,7 @@ __export(cloud_watch_exports, {
 });
 
 // src/provider/aws/cloud-watch/log-group.ts
-import { toDays } from "@awsless/duration";
+import { toDays as toDays2 } from "@awsless/duration";
 var LogGroup = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Logs::LogGroup", id, props);
@@ -4657,7 +4700,7 @@ var LogGroup = class extends CloudControlApiResource {
     return {
       document: {
         LogGroupName: this.props.name,
-        ...this.attr("RetentionInDays", this.props.retention && toDays(unwrap(this.props.retention)))
+        ...this.attr("RetentionInDays", this.props.retention && toDays2(unwrap(this.props.retention)))
         // KmsKeyId: String
         // DataProtectionPolicy : Json,
       }
@@ -4676,7 +4719,7 @@ __export(cognito_exports, {
 });
 
 // src/provider/aws/cognito/user-pool-client.ts
-import { toDays as toDays2, toHours, toMinutes } from "@awsless/duration";
+import { toDays as toDays3, toHours, toMinutes } from "@awsless/duration";
 var UserPoolClient = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPoolClient", id, props);
@@ -4761,7 +4804,7 @@ var UserPoolClient = class extends CloudControlApiResource {
         ...this.attr("IdTokenValidity", validity.idToken && toHours(unwrap(validity.idToken))),
         ...this.attr(
           "RefreshTokenValidity",
-          validity.refreshToken && toDays2(unwrap(validity.refreshToken))
+          validity.refreshToken && toDays3(unwrap(validity.refreshToken))
         ),
         TokenValidityUnits: {
           ...this.attr("AccessToken", validity.accessToken && "hours"),
@@ -4798,7 +4841,7 @@ var UserPoolDomain = class extends CloudControlApiResource {
 
 // src/provider/aws/cognito/user-pool.ts
 import { constantCase as constantCase8 } from "change-case";
-import { days as days2, toDays as toDays3 } from "@awsless/duration";
+import { days as days2, toDays as toDays4 } from "@awsless/duration";
 var UserPool = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Cognito::UserPool", id, props);
@@ -4887,7 +4930,7 @@ var UserPool = class extends CloudControlApiResource {
             RequireLowercase: unwrap(password?.lowercase, false),
             RequireNumbers: unwrap(password?.numbers, false),
             RequireSymbols: unwrap(password?.symbols, false),
-            TemporaryPasswordValidityDays: toDays3(
+            TemporaryPasswordValidityDays: toDays4(
               unwrap(password?.temporaryPasswordValidity, days2(7))
             )
           }

@@ -41,5 +41,9 @@ export const readConfigWithStage = async (file: string, stage?: string) => {
 	debug('Load env file:', color.info(stageFile))
 	const stageConfig = await readConfig(stageFile)
 
-	return merge(config, stageConfig)
+	return merge(config, stageConfig, {
+		arrayMerge: (_, source) => {
+			return source
+		},
+	})
 }

@@ -2308,8 +2308,12 @@ declare class ImageProvider implements CloudProvider {
     constructor(props: ProviderProps$8);
     own(id: string): boolean;
     private getCredentials;
+    private get url();
     private login;
+    private tag;
+    private rm;
     private push;
+    private publish;
     get({ document }: GetProps<Document$5>): Promise<{
         ImageUri: string;
     }>;
@@ -2318,6 +2322,15 @@ declare class ImageProvider implements CloudProvider {
     delete({ document }: DeleteProps<Document$5>): Promise<void>;
 }
 
+type LifecycleRule = {
+    description?: string;
+    tagStatus: 'tagged' | 'untagged' | 'any';
+    tagPatternList?: string[];
+} & ({
+    maxImageAge: Duration;
+} | {
+    maxImageCount: number;
+});
 type RepositoryProps = {
     name: Input<string>;
     emptyOnDelete?: Input<boolean>;
@@ -2326,15 +2339,21 @@ type RepositoryProps = {
 declare class Repository extends CloudControlApiResource {
     readonly parent: Node;
     private props;
+    private lifecycleRules;
     constructor(parent: Node, id: string, props: RepositoryProps);
     get name(): Output<string>;
     get arn(): Output<`arn:${string}`>;
     get uri(): Output<string>;
+    addLifecycleRule(rule: LifecycleRule): void;
+    private formatLifecycleRules;
     toState(): {
         document: {
             RepositoryName: Input<string>;
             EmptyOnDelete: Input<boolean> | undefined;
             ImageTagMutability: string;
+            LifecyclePolicy: {
+                LifecyclePolicyText: string | undefined;
+            };
         };
     };
 }
@@ -2344,6 +2363,7 @@ declare const index$m_Image: typeof Image;
 type index$m_ImageProps = ImageProps;
 type index$m_ImageProvider = ImageProvider;
 declare const index$m_ImageProvider: typeof ImageProvider;
+type index$m_LifecycleRule = LifecycleRule;
 type index$m_Repository = Repository;
 declare const index$m_Repository: typeof Repository;
 type index$m_RepositoryProps = RepositoryProps;
@@ -2352,6 +2372,7 @@ declare namespace index$m {
     index$m_Image as Image,
     index$m_ImageProps as ImageProps,
     index$m_ImageProvider as ImageProvider,
+    index$m_LifecycleRule as LifecycleRule,
     index$m_Repository as Repository,
     index$m_RepositoryProps as RepositoryProps,
   };
@@ -2882,7 +2903,7 @@ declare class SourceCodeUpdateProvider implements CloudProvider {
     create(props: CreateProps<Document$3>): Promise<string>;
     update(props: UpdateProps<Document$3>): Promise<string>;
     delete(): Promise<void>;
-    updateFunctionCode(props: UpdateProps<Document$3>): Promise<void>;
+    private updateFunctionCode;
 }
 
 type index$k_Code = Code;

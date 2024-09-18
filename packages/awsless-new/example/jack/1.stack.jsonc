@@ -21,19 +21,22 @@
 	// 		}
 	// 	}
 	// },
-	"tables": {
-		"jack-test": {
-			"hash": "id",
-			"deleteProtection": true
-		}
-	},
-	"stores": {
-		"jack-test": {
-			"deleteProtection": true
-		}
-	},
+	// "tables": {
+	// 	"jack-test": {
+	// 		"hash": "id",
+	// 		"deletionProtection": true
+	// 	}
+	// },
+	// "stores": {
+	// 	"jack-test": {
+	// 		"deleteProtection": true
+	// 	}
+	// },
 	"functions": {
-		"echo": "./function.ts"
+		"echo": {
+			"runtime": "container",
+			"file": "./docker/test1/dockerfile"
+		}
 	}
 	// "streams": {
 	// 	"arena": {

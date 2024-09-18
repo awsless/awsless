@@ -1,8 +1,3 @@
-[![npm version](https://img.shields.io/npm/dw/@awsless/graphql)](https://www.npmjs.org/package/@awsless/graphql)
-[![npm version](https://img.shields.io/npm/v/@awsless/graphql.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/graphql)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
-
-
 # Type safe GraphQL query builder
 
 The @awsless/graphql package provides a fully typed graphql client. We generate the types needed for the client to be fully typesafe while still being super lightweight to use.

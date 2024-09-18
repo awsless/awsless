@@ -8,7 +8,7 @@ export type SourceCodeUpdateProps = {
 	functionName: Input<string>
 	version: Input<Asset>
 	code: Input<Code>
-	architecture?: Input<'arm64' | 'x86_64'>
+	architecture: Input<'arm64' | 'x86_64'>
 }
 
 export class SourceCodeUpdate extends Resource {

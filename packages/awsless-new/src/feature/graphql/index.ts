@@ -22,7 +22,7 @@ import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { buildTypeScriptResolver } from './build/typescript/resolver.js'
-import { generateFileHash } from '@awsless/ts-file-cache'
+import { generateFileHash } from '../../../../ts-file-cache/dist/index.js'
 // import { ConfigError } from '../../error.js'
 // import { shortId } from '../../util/id.js'
 // import { formatFullDomainName } from '../domain/util.js'
@@ -207,11 +207,9 @@ export const graphqlFeature = defineFeature({
 			})
 
 			if (props.resolver) {
-				ctx.registerBuild('graphql-resolver', id, async (build, { packageVersions }) => {
+				ctx.registerBuild('graphql-resolver', id, async (build, { workspace }) => {
 					const resolver = props.resolver!
-					const version = await generateFileHash(resolver, {
-						packageVersions,
-					})
+					const version = await generateFileHash(workspace, resolver)
 
 					return build(version, async write => {
 						const file = await buildTypeScriptResolver(resolver)
@@ -313,11 +311,9 @@ export const graphqlFeature = defineFeature({
 					let code: Asset = Asset.fromString(defaultResolver)
 
 					if ('resolver' in props && props.resolver) {
-						ctx.registerBuild('graphql-resolver', entryId, async (build, { packageVersions }) => {
+						ctx.registerBuild('graphql-resolver', entryId, async (build, { workspace }) => {
 							const resolver = props.resolver!
-							const version = await generateFileHash(resolver, {
-								packageVersions,
-							})
+							const version = await generateFileHash(workspace, resolver)
 
 							return build(version, async write => {
 								const file = await buildTypeScriptResolver(resolver)
