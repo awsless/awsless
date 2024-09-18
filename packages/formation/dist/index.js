@@ -3707,7 +3707,7 @@ var ImageProvider = class {
     await exec(`docker tag ${name}:${tag} ${this.url}/${repository}:${name}`);
   }
   async rm(repository, name) {
-    await exec(`docker image rm ${this.url}/${repository}:${name}`);
+    await exec(`docker image -f rm ${this.url}/${repository}:${name} 2> /dev/null || true`);
   }
   async push(repository, name) {
     await exec(`docker push ${this.url}/${repository}:${name}`);

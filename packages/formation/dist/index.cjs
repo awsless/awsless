@@ -3696,7 +3696,7 @@ var ImageProvider = class {
     await (0, import_promisify_child_process.exec)(`docker tag ${name}:${tag} ${this.url}/${repository}:${name}`);
   }
   async rm(repository, name) {
-    await (0, import_promisify_child_process.exec)(`docker image rm ${this.url}/${repository}:${name}`);
+    await (0, import_promisify_child_process.exec)(`docker image -f rm ${this.url}/${repository}:${name} 2> /dev/null || true`);
   }
   async push(repository, name) {
     await (0, import_promisify_child_process.exec)(`docker push ${this.url}/${repository}:${name}`);
