@@ -12,14 +12,14 @@ import { createAsyncLambdaFunction } from '../function/util.js'
 // type Auth = {
 // 	readonly userPoolId: string
 // 	readonly clientId: string
-// 	readonly listUsers: (limit: number, filter?: string) => Promise<ListUsersCommandOutput>
+// 	// readonly listUsers: (limit: number, filter?: string) => Promise<ListUsersCommandOutput>
 // }
 // `
 
 export const authFeature = defineFeature({
 	name: 'auth',
 	async onTypeGen(ctx) {
-		const gen = new TypeFile('@awsless/awsless/client')
+		const gen = new TypeFile('@awsless/awsless')
 		const resources = new TypeObject(1)
 
 		for (const name of Object.keys(ctx.appConfig.defaults.auth)) {
