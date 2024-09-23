@@ -3,7 +3,7 @@
 	"name": "stack-kennedy-2",
 	"depends": ["stack-kennedy-1"],
 	"functions": {
-		"migrate": "./function.ts"
+		"test": "./function.ts"
 	}
 	// "tables": {
 	// 	"campaigns": {

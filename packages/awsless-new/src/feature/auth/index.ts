@@ -6,6 +6,16 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 
+// const typeGenCode = `
+// import { ListUsersCommandOutput } from '@aws-sdk/client-cognito-identity-provider'
+
+// type Auth = {
+// 	readonly userPoolId: string
+// 	readonly clientId: string
+// 	readonly listUsers: (limit: number, filter?: string) => Promise<ListUsersCommandOutput>
+// }
+// `
+
 export const authFeature = defineFeature({
 	name: 'auth',
 	async onTypeGen(ctx) {
@@ -16,6 +26,7 @@ export const authFeature = defineFeature({
 			resources.addType(name, `{ readonly userPoolId: string, readonly clientId: string }`)
 		}
 
+		// gen.addCode(typeGenCode)
 		gen.addInterface('AuthResources', resources)
 
 		await ctx.write('auth.d.ts', gen, true)
