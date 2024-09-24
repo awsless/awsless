@@ -34,69 +34,72 @@ export type I18nPluginProps = {
 	) => TranslationResponse[] | Promise<TranslationResponse[]>
 }
 
-export const createI18nPlugin = (props: I18nPluginProps): Plugin[] => {
+export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
-	return [
-		{
-			name: 'awsless/i18n',
-			enforce: 'pre',
-			async buildStart() {
-				const cwd = process.cwd()
-				const originals = await findTranslatable(cwd)
+	return {
+		name: 'awsless/i18n',
+		enforce: 'pre',
+		async buildStart() {
+			const cwd = process.cwd()
 
-				cache = await loadCache(cwd)
+			this.info('Finding all translatable text...')
+			const originals = await findTranslatable(cwd)
 
-				// Clean up the unused transations from the cache
-				removeUnusedTranslations(cache, originals, props.locales)
+			cache = await loadCache(cwd)
 
-				const newOriginals = findNewTranslations(cache, originals, props.locales)
+			// Clean up the unused transations from the cache
+			removeUnusedTranslations(cache, originals, props.locales)
 
-				if (newOriginals.length > 0) {
-					const translations = await props.translate(props.default ?? 'en', newOriginals)
-					for (const item of translations) {
-						cache.set(item.original, item.locale, item.translation)
-					}
+			const newOriginals = findNewTranslations(cache, originals, props.locales)
+
+			if (newOriginals.length > 0) {
+				this.info(`Translating ${newOriginals.length} new texts.`)
+
+				const translations = await props.translate(props.default ?? 'en', newOriginals)
+				for (const item of translations) {
+					cache.set(item.original, item.locale, item.translation)
 				}
+			}
 
-				await saveCache(cwd, cache)
-			},
-			transform(code) {
-				let replaced = false
-
-				if (code.includes(`$t\``)) {
-					for (const item of cache.entries()) {
-						code = code.replaceAll(`$t\`${item.original}\``, () => {
-							replaced = true
-							return `$t.get(\`${item.original}\`, {${props.locales
-								.map(locale => {
-									return `"${locale}":\`${cache.get(item.original, locale)}\``
-								})
-								.join(',')}})`
-						})
-					}
-				}
-
-				if (code.includes(`get(t)\``)) {
-					for (const item of cache.entries()) {
-						code = code.replaceAll(`get(t)\`${item.original}\``, () => {
-							replaced = true
-							return `get(t).get(\`${item.original}\`, {${props.locales
-								.map(locale => {
-									return `"${locale}":\`${cache.get(item.original, locale)}\``
-								})
-								.join(',')}})`
-						})
-					}
-				}
-
-				if (!replaced) {
-					return
-				}
-
-				return {
-					code,
-				}
-			},
+			await saveCache(cwd, cache)
+			this.info(`Translating done.`)
 		},
-	]
+		transform(code) {
+			let replaced = false
+
+			if (code.includes(`$t\``)) {
+				for (const item of cache.entries()) {
+					code = code.replaceAll(`$t\`${item.original}\``, () => {
+						replaced = true
+						return `$t.get(\`${item.original}\`, {${props.locales
+							.map(locale => {
+								return `"${locale}":\`${cache.get(item.original, locale)}\``
+							})
+							.join(',')}})`
+					})
+				}
+			}
+
+			if (code.includes(`get(t)\``)) {
+				for (const item of cache.entries()) {
+					code = code.replaceAll(`get(t)\`${item.original}\``, () => {
+						replaced = true
+						return `get(t).get(\`${item.original}\`, {${props.locales
+							.map(locale => {
+								return `"${locale}":\`${cache.get(item.original, locale)}\``
+							})
+							.join(',')}})`
+					})
+				}
+			}
+
+			if (!replaced) {
+				return
+			}
+
+			return {
+				code,
+			}
+		},
+	}
 }

@@ -30,30 +30,38 @@ const loadConfigData = async () => {
 
 const data: Record<string, string> = await /*@__PURE__*/ loadConfigData()
 
+export const getConfigValue = (name: string) => {
+	const key = paramCase(name)
+	const value = data[key]
+
+	if (typeof value === 'undefined') {
+		throw new Error(
+			`The "${name}" config value hasn't been set yet. ${
+				IS_TEST
+					? `Use "Config.${name} = 'VAlUE'" to define your mock value.`
+					: `Define access to the desired config value inside your awsless stack file.`
+			}`
+		)
+	}
+
+	return value
+}
+
+export const setConfigValue = (name: string, value: string) => {
+	const key = paramCase(name)
+	data[key] = value
+}
+
 export interface ConfigResources {}
 
 export const Config: ConfigResources = /*@__PURE__*/ new Proxy(
 	{},
 	{
 		get(_, name: string) {
-			const key = paramCase(name)
-			const value = data[key]
-
-			if (typeof value === 'undefined') {
-				throw new Error(
-					`The "${name}" config value hasn't been set yet. ${
-						IS_TEST
-							? `Use "Config.${name} = 'VAlUE'" to define your mock value.`
-							: `Define access to the desired config value inside your awsless stack file.`
-					}`
-				)
-			}
-
-			return value
+			return getConfigValue(name)
 		},
 		set(_, name: string, value: string) {
-			const key = paramCase(name)
-			data[key] = value
+			setConfigValue(name, value)
 
 			return true
 		},

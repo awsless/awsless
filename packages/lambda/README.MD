@@ -5,6 +5,7 @@
 
 # TODO
 - Rename ViewableError to ExpectedError
+- Think of ways to type errors
 
 # Basic usage
 

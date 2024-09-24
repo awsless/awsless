@@ -37,5 +37,7 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 	} catch (error) {
 		logError(error)
 		outro()
+
+		process.exit(1)
 	}
 }

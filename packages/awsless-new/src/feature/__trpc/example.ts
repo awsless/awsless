@@ -3,28 +3,22 @@ const defs = {
 	deleteUser: '../user/delete.ts',
 }
 
-const api = createClient(() => ({
+const api = createClient<Schema>(() => ({
 	endpoint: import.env.TRPC_CASINO_ENDPOINT,
 	headers: {
 		authentication: await getSession().getAccessToken(),
 	},
 }))
 
-await api.mutate.createUser({
+await api.createUser({
 	name: 'Jack',
 })
 
-Promise.all([
-	api.query.getUser({ name: 'Jack' }),
-	api.query.getUser({ name: 'Jack' }),
-	api.query.getUser({ name: 'Jack' }),
-])
+api.getUser({ name: 'Jack' })
+api.getUser({ name: 'Jack' })
+api.getUser({ name: 'Jack' })
 
-await api.batch(({ query }) => ({
-	one: query.getUser({ name: 'Jack' }),
-	two: query.getUser({ name: 'Jack' }),
-	three: query.getUser({ name: 'Jack' }),
-}))
+Promise.all([api.getUser({ name: 'Jack' }), api.getUser({ name: 'Jack' }), api.getUser({ name: 'Jack' })])
 
 Promise.all([
 	// (-.-)
@@ -35,7 +29,11 @@ Promise.all([
 
 /*
 	POST /trpc
-	{ default: { method: 'getUser', payload } }
+	[
+		{ method: 'getUser', payload },
+		{ method: 'getUser', payload },
+		{ method: 'getUser', payload }
+	]
 */
 
 /*

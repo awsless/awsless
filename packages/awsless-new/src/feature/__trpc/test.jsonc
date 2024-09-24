@@ -11,10 +11,10 @@
 		"rpc": {
 			"casino": {
 				"deleteUser": "./lambda/user/delete.ts",
-				"createUser": {
-					"auth": ["players"],
-					"consumer": "./lambda/user/create.ts",
-				},
+				// "createUser": {
+				// 	"auth": ["players"],
+				// 	"consumer": "./lambda/user/create.ts",
+				// },
 			},
 		},
 	},

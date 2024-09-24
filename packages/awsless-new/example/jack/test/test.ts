@@ -6,5 +6,7 @@ describe('Test', () => {
 		// expect(1).toBeTypeOf('object')
 
 		console.log('Hello')
+
+		throw new Error()
 	})
 })
