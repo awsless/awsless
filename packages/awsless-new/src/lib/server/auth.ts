@@ -4,8 +4,8 @@ import { createProxy } from '../proxy.js'
 
 export const getAuthProps = (name: string) => {
 	return {
-		userPoolId: process.env[`${constantCase(name)}_USER_POOL_ID`],
-		clientId: process.env[`${constantCase(name)}_CLIENT_ID`],
+		userPoolId: process.env[`AUTH_${constantCase(name)}_USER_POOL_ID`],
+		clientId: process.env[`AUTH_${constantCase(name)}_CLIENT_ID`],
 	} as const
 }
 
