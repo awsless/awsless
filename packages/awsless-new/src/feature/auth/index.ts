@@ -87,7 +87,7 @@ export const authFeature = defineFeature({
 				item.lambda.addEnvironment(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPoolId)
 				item.lambda.addEnvironment(`AUTH_${constantCase(id)}_CLIENT_ID`, clientId)
 				item.policy.addStatement({
-					actions: ['cognito:*'],
+					actions: ['cognito-idp:*'],
 					resources: [
 						// Not yet known if this is correct way to grant access to all resources
 						userPoolArn,
