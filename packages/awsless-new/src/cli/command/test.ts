@@ -16,14 +16,14 @@ export const test = (program: Command) => {
 				const credentials = getCredentials(props.appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const { tests } = createApp({ ...props, accountId }, stacks)
+				const { tests } = createApp({ ...props, accountId })
 
 				if (tests.length === 0) {
 					// log.warn('No tests found.')
 					return 'No tests found.'
 				}
 
-				await runTests(tests, options?.filters)
+				await runTests(tests, stacks, options?.filters)
 
 				return 'All tests finished.'
 			})

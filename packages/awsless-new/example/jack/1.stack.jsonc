@@ -2,6 +2,7 @@
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
 	"depends": ["stack-2"],
+	"tests": "./test",
 	// "configs": ["test"],
 	// "commands": {
 	// 	"test": {
@@ -33,10 +34,7 @@
 	// 	}
 	// },
 	"functions": {
-		"echo": {
-			"runtime": "container",
-			"file": "./docker/test1/dockerfile"
-		}
+		"echo": "./function.ts"
 	}
 	// "streams": {
 	// 	"arena": {

@@ -14,9 +14,9 @@ export const build = (program: Command) => {
 				const credentials = getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, appConfig.region)
 
-				const { builders } = createApp({ appConfig, stackConfigs, accountId }, filters)
+				const { builders } = createApp({ appConfig, stackConfigs, accountId })
 
-				await buildAssets(builders, true)
+				await buildAssets(builders, filters, true)
 
 				return 'Build was successful.'
 			})

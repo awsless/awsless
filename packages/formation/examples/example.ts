@@ -33,7 +33,25 @@ const workspace = new WorkSpace({
 // ------------------------------------------
 
 const app = new App('test')
+
 const stack = new Stack(app, 'test')
+
+// const zone = new aws.route53.HostedZone(stack, 'test', {
+// 	name: 'my-domain.com',
+// })
+
+// const bucket = new aws.s3.Bucket(stack, 'test', {
+// 	name: 'update-code-123',
+// })
+
+// const stack2 = new Stack(app, 'test-2')
+// const code = new aws.s3.BucketObject(stack2, 'test', {
+// 	bucket: bucket.name,
+// 	key: 'code',
+// 	body: Asset.fromString('lol'),
+// })
+
+// workspace.deployApp(app)
 
 // const repo = new aws.ecr.Repository(stack, 'repo', {
 // 	name: 'test',
@@ -170,8 +188,12 @@ const main = async () => {
 	console.log('START')
 
 	try {
-		await workspace.deployApp(app)
-		// await workspace.deleteApp(app)
+		await workspace.deployApp(app, {
+			// filters: ['test', 'test-2'],
+		})
+		// await workspace.deleteApp(app, {
+		// 	filters: ['test', 'test-2'],
+		// })
 	} catch (error) {
 		if (error instanceof AppError) {
 			for (const issue of error.issues) {

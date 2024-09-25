@@ -3,9 +3,10 @@ import chalk from 'chalk'
 import { BuildTask } from '../../../app.js'
 import { build, Metadata } from '../../../build/index.js'
 import { directories } from '../../../util/path.js'
+import { logError } from '../error/error.js'
 import { table, task } from '../util.js'
 
-export const buildAssets = async (builders: BuildTask[], showResult = false) => {
+export const buildAssets = async (builders: BuildTask[], stackFilters: string[], showResult = false) => {
 	if (builders.length === 0) {
 		return
 	}
@@ -20,11 +21,21 @@ export const buildAssets = async (builders: BuildTask[], showResult = false) => 
 		const workspace = await loadWorkspace(directories.root)
 
 		for (const builder of builders) {
-			const result = await build(builder.type, builder.name, builder.builder, {
-				workspace,
-			})
+			if (stackFilters && stackFilters.length > 0) {
+				if (!stackFilters.includes(builder.stackName)) {
+					continue
+				}
+			}
 
-			results.push({ ...builder, result })
+			try {
+				const result = await build(builder.type, builder.name, builder.builder, {
+					workspace,
+				})
+				results.push({ ...builder, result })
+			} catch (error) {
+				logError(new Error(`Build failed for: ${builder.type} ${builder.name}`))
+				throw error
+			}
 		}
 
 		update('Done building assets.')

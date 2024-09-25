@@ -6,6 +6,7 @@ import { CloudProvider, ResourceDocument } from '../cloud'
 import { AppError, ResourceError, ResourceNotFound, StackError } from '../error'
 import { LockProvider } from '../lock'
 import { Resource, URN } from '../resource'
+import { Stack } from '../stack'
 import { AppState, ResourceState, StackState, StateProvider } from '../state'
 import { loadAssets, resolveDocumentAssets } from './asset'
 import { cloneObject, compareDocuments } from './document'
@@ -66,6 +67,10 @@ export class WorkSpace {
 	// 	return app
 	// }
 
+	// async deployStack(stack: Stack, app: App) {
+	// 	return lockApp(this.props.lockProvider, app, async () => {})
+	// }
+
 	async deployApp(app: App, opt: Options = {}) {
 		return lockApp(this.props.lockProvider, app, async () => {
 			// -------------------------------------------------------
@@ -88,9 +93,11 @@ export class WorkSpace {
 			// Filter only the selected stacks
 
 			let stacks = app.stacks
+			let filteredOutStacks: Stack[] = []
 
 			if (opt.filters && opt.filters.length > 0) {
 				stacks = app.stacks.filter(stack => opt.filters!.includes(stack.name))
+				filteredOutStacks = app.stacks.filter(stack => !opt.filters!.includes(stack.name))
 			}
 
 			// -------------------------------------------------------
@@ -99,11 +106,30 @@ export class WorkSpace {
 			const limit = promiseLimit(this.props.concurrency ?? 10)
 			const graph: Record<URN, Step[]> = {}
 
+			for (const stack of filteredOutStacks) {
+				graph[stack.urn] = [
+					async () => {
+						const stackState = appState.stacks[stack.urn]
+
+						if (stackState) {
+							for (const resource of stack.resources) {
+								const resourceState = stackState.resources[resource.urn]
+								if (resourceState) {
+									resource.setRemoteDocument(resourceState.remote)
+								}
+							}
+						}
+					},
+				]
+			}
+
 			for (const stack of stacks) {
 				graph[stack.urn] = [
 					...[...stack.dependencies].map(dep => dep.urn),
 					async () => {
 						const resources = stack.resources
+
+						// console.log('stack', stack.name)
 
 						// -------------------------------------------------------------------
 
@@ -179,7 +205,9 @@ export class WorkSpace {
 					return stack.urn === urn
 				})
 
-				if (!found) {
+				const filtered = opt.filters ? opt.filters!.find(filter => filter === stackState.name) : true
+
+				if (!found && filtered) {
 					graph[urn] = [
 						...this.dependentsOn(appState.stacks, urn),
 						async () => {
@@ -234,11 +262,20 @@ export class WorkSpace {
 			}
 
 			// -------------------------------------------------------
+			// Filter stacks
+
+			let stacks = Object.entries(appState.stacks)
+
+			if (opt.filters && opt.filters.length > 0) {
+				stacks = stacks.filter(([_, stack]) => opt.filters!.includes(stack.name))
+			}
+
+			// -------------------------------------------------------
 
 			const limit = promiseLimit(this.props.concurrency ?? 10)
 			const graph: Record<URN, Step[]> = {}
 
-			for (const [_urn, stackState] of Object.entries(appState.stacks)) {
+			for (const [_urn, stackState] of stacks) {
 				const urn = _urn as URN
 				graph[urn] = [
 					...this.dependentsOn(appState.stacks, urn),
@@ -272,7 +309,9 @@ export class WorkSpace {
 			// If no errors happened we can savely delete the app
 			// state
 
-			await this.props.stateProvider.delete(app.urn)
+			if (Object.keys(appState.stacks).length === 0) {
+				await this.props.stateProvider.delete(app.urn)
+			}
 		})
 	}
 
@@ -546,10 +585,14 @@ export class WorkSpace {
 		for (const resource of resources) {
 			const provider = getCloudProvider(this.props.cloudProviders, resource.cloudProviderId)
 
+			// console.log('resource', resource.urn)
+
 			deployGraph[resource.urn] = [
 				...[...resource.dependencies].map(dep => dep.urn),
 				() =>
 					limit(async () => {
+						// console.log('resource', resource.urn)
+
 						const state = resource.toState()
 
 						// console.log(state)

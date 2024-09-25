@@ -30,9 +30,9 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, tests, builders } = createApp({ appConfig, stackConfigs, accountId }, filters)
+				const { app, tests, builders } = createApp({ appConfig, stackConfigs, accountId })
 
-				const stackNames = [...app.stacks].map(stack => stack.name)
+				const stackNames = app.stacks.filter(stack => filters.includes(stack.name)).map(s => s.name)
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
 				debug('Stacks to deploy', formattedFilter)
 
@@ -55,13 +55,13 @@ export const deploy = (program: Command) => {
 				// ---------------------------------------------------
 				// Building stack assets & run tests
 
-				const passed = await runTests(tests)
+				const passed = await runTests(tests, filters)
 
 				if (!passed) {
 					throw new Cancelled()
 				}
 
-				await buildAssets(builders)
+				await buildAssets(builders, filters)
 
 				// ---------------------------------------------------
 
@@ -72,7 +72,10 @@ export const deploy = (program: Command) => {
 				})
 
 				await task('Deploying the stacks to AWS', async update => {
-					await workspace.deployApp(app)
+					await workspace.deployApp(app, {
+						filters,
+					})
+
 					await pullRemoteState(app, stateProvider)
 
 					update('Done deploying the stacks to AWS.')

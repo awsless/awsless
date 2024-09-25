@@ -12,25 +12,25 @@ import { features } from './feature/index.js'
 import { SharedData } from './shared.js'
 import { generateGlobalAppId } from './util/name.js'
 
-const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
-	const list: string[] = []
-	const walk = (deps: string[]) => {
-		deps.forEach(dep => {
-			const stack = stacks.find(stack => stack.name === dep)
-			if (stack) {
-				if (!list.includes(dep)) {
-					list.push(dep)
-					if (stack.depends) {
-						walk(stack.depends)
-					}
-				}
-			}
-		})
-	}
+// const getFiltersWithDeps = (stacks: StackConfig[], filters: string[]) => {
+// 	const list: string[] = []
+// 	const walk = (deps: string[]) => {
+// 		deps.forEach(dep => {
+// 			const stack = stacks.find(stack => stack.name === dep)
+// 			if (stack) {
+// 				if (!list.includes(dep)) {
+// 					list.push(dep)
+// 					if (stack.depends) {
+// 						walk(stack.depends)
+// 					}
+// 				}
+// 			}
+// 		})
+// 	}
 
-	walk(filters)
-	return list
-}
+// 	walk(filters)
+// 	return list
+// }
 
 const assertDepsExists = (stack: StackConfig, stacks: StackConfig[]) => {
 	for (const dep of stack.depends ?? []) {
@@ -48,11 +48,13 @@ export type CreateAppProps = {
 }
 
 export type TestCase = {
+	stackName: string
 	name: string
 	paths: string[]
 }
 
 export type BuildTask = {
+	stackName: string
 	type: string
 	name: string
 	builder: Builder
@@ -63,7 +65,7 @@ export type BindEnv = {
 	value: Input<string>
 }
 
-export const createApp = (props: CreateAppProps, filters: string[] = []) => {
+export const createApp = (props: CreateAppProps) => {
 	const app = new App(props.appConfig.name)
 	const base = new Stack(app, 'base')
 	const shared = new SharedData()
@@ -126,11 +128,13 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 			registerPolicy(policy) {
 				globalPolicies.push(policy)
 			},
-			registerTest(name, paths) {
-				tests.push({ name, paths })
-			},
 			registerBuild(type, name, builder) {
-				builders.push({ type, name, builder })
+				builders.push({
+					stackName: base.name,
+					type,
+					name,
+					builder,
+				})
 			},
 			registerCommand(command) {
 				commands.push(command)
@@ -159,14 +163,14 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	// ---------------------------------------------------------------
 	// debug('Stack filters:', filters.map(filter => style.info(filter)).join(', '))
 
-	let filterdStacks = props.stackConfigs
-	if (filters.length > 0) {
-		const filtersWithDeps = getFiltersWithDeps(filterdStacks, filters)
-		// debug('Stack filters with deps:', filtersWithDeps.map(filter => style.info(filter)).join(', '))
-		filterdStacks = filterdStacks.filter(stack => filtersWithDeps.includes(stack.name))
-	}
+	// let filterdStacks = props.stackConfigs
+	// if (filters.length > 0) {
+	// 	const filtersWithDeps = getFiltersWithDeps(filterdStacks, filters)
+	// 	// debug('Stack filters with deps:', filtersWithDeps.map(filter => style.info(filter)).join(', '))
+	// 	filterdStacks = filterdStacks.filter(stack => filtersWithDeps.includes(stack.name))
+	// }
 
-	for (const stackConfig of filterdStacks) {
+	for (const stackConfig of props.stackConfigs) {
 		// checkDepsExists(stackConfig, props.stackConfigs)
 
 		const stack = new Stack(app, stackConfig.name)
@@ -208,10 +212,19 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 					localPolicies.push(policy)
 				},
 				registerTest(name, paths) {
-					tests.push({ name, paths })
+					tests.push({
+						stackName: stack.name,
+						name,
+						paths,
+					})
 				},
 				registerBuild(type, name, builder) {
-					builders.push({ type, name, builder })
+					builders.push({
+						stackName: stack.name,
+						type,
+						name,
+						builder,
+					})
 				},
 				registerConfig(name) {
 					configs.add(name)
@@ -298,7 +311,7 @@ export const createApp = (props: CreateAppProps, filters: string[] = []) => {
 	// ---------------------------------------------------------------
 	// Stack dependency binds
 
-	for (const stackConfig of filterdStacks) {
+	for (const stackConfig of props.stackConfigs) {
 		// const functions = allLocalFunctions[stackConfig.name]!
 		const policies = allLocalPolicies[stackConfig.name]!
 		const envListeners = allLocalEnvListeners[stackConfig.name]!

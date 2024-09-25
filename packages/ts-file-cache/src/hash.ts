@@ -9,12 +9,17 @@ import { Workspace } from './types'
 export const generateRecursiveFileHashes = async (
 	workspace: Workspace,
 	file: string,
-	source: string,
+	sourceFile: string,
 	allowedExtensions: string[],
 	hashes: Map<string, Buffer>
 ) => {
 	if (isLocalCodeFile(file)) {
-		file = await resolveModuleImportFile(file, allowedExtensions)
+		try {
+			file = await resolveModuleImportFile(file, allowedExtensions)
+		} catch (error) {
+			throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`)
+		}
+
 		const relFile = relative(workspace.cwd, file)
 
 		if (hashes.has(relFile)) {
@@ -38,7 +43,7 @@ export const generateRecursiveFileHashes = async (
 		return
 	}
 
-	const dependency = findDependency(workspace, file, source)
+	const dependency = findDependency(workspace, file, sourceFile)
 
 	if (dependency) {
 		if (dependency.type === 'package') {
@@ -70,7 +75,7 @@ export const generateRecursiveFileHashes = async (
 		return
 	}
 
-	throw new Error(`Can't find the dependency version for: ${file} inside the source: ${source}`)
+	throw new Error(`Can't find the dependency version for: ${file} inside the source: ${sourceFile}`)
 }
 
 export const mergeHashes = (hashes: Map<string, Buffer>) => {

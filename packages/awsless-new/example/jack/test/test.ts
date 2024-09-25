@@ -5,8 +5,8 @@ describe('Test', () => {
 		expectTypeOf(1).toEqualTypeOf<string>()
 		// expect(1).toBeTypeOf('object')
 
-		console.log('Hello')
+		console.log('test 1')
 
-		throw new Error()
+		// throw new Error()
 	})
 })

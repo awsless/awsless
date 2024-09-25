@@ -85,9 +85,13 @@ var toAbsolute = (file) => {
 };
 
 // src/hash.ts
-var generateRecursiveFileHashes = async (workspace, file, source, allowedExtensions, hashes) => {
+var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExtensions, hashes) => {
   if (isLocalCodeFile(file)) {
-    file = await resolveModuleImportFile(file, allowedExtensions);
+    try {
+      file = await resolveModuleImportFile(file, allowedExtensions);
+    } catch (error) {
+      throw new Error(`Can't find imported file: "${file}" inside the source: "${sourceFile}"`);
+    }
     const relFile = relative(workspace.cwd, file);
     if (hashes.has(relFile)) {
       return;
@@ -104,7 +108,7 @@ var generateRecursiveFileHashes = async (workspace, file, source, allowedExtensi
   if (hashes.has(file)) {
     return;
   }
-  const dependency = findDependency(workspace, file, source);
+  const dependency = findDependency(workspace, file, sourceFile);
   if (dependency) {
     if (dependency.type === "package") {
       hashes.set(file, Buffer.from(`${file}:${dependency.version}`, "utf8"));
@@ -129,7 +133,7 @@ var generateRecursiveFileHashes = async (workspace, file, source, allowedExtensi
   if (builtinModules.includes(file.replace(/^node\:/, ""))) {
     return;
   }
-  throw new Error(`Can't find the dependency version for: ${file} inside the source: ${source}`);
+  throw new Error(`Can't find the dependency version for: ${file} inside the source: ${sourceFile}`);
 };
 var mergeHashes = (hashes) => {
   const merge = Buffer.concat(Array.from(hashes.values()).sort());

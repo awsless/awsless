@@ -48,6 +48,7 @@ export type StackContext = AppContext & {
 	stackConfig: StackConfig
 	stack: Stack
 
+	registerTest: RegisterTest
 	registerConfig: RegisterConfig
 }
 
@@ -61,7 +62,7 @@ export type AppContext = {
 	base: Stack
 	shared: SharedData
 
-	registerTest: RegisterTest
+	// registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerPolicy: RegisterPolicy
 	registerCommand: RegisterCommand

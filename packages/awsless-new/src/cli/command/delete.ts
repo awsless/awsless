@@ -22,10 +22,10 @@ export const del = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app } = createApp({ appConfig, stackConfigs, accountId }, filters)
+				const { app } = createApp({ appConfig, stackConfigs, accountId })
 
 				// const deletingLine = deploymentLine.reverse()
-				const stackNames = [...app.stacks].map(stack => stack.name)
+				const stackNames = app.stacks.filter(stack => filters.includes(stack.name)).map(s => s.name)
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
 
 				debug('Stacks to delete', formattedFilter)
@@ -57,7 +57,10 @@ export const del = (program: Command) => {
 				})
 
 				await task('Deleting the stacks to AWS', async update => {
-					await workspace.deleteApp(app)
+					await workspace.deleteApp(app, {
+						filters,
+					})
+
 					await pullRemoteState(app, stateProvider)
 
 					update('Done deleting the stacks to AWS.')

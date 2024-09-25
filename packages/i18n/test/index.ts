@@ -13,7 +13,9 @@ describe('i18n', () => {
 				plugins: [
 					createI18nPlugin({
 						locales: ['fr', 'jp', 'nl'],
-						translate: chatgpt(),
+						translate: chatgpt({
+							rules: [''],
+						}),
 					}),
 					svelte(),
 				],

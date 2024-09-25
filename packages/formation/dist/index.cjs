@@ -477,6 +477,12 @@ var lockApp = async (lockProvider, app, fn) => {
   } catch (error) {
     throw new Error(`Already in progress: ${app.urn}`);
   }
+  const cleanupAndExit = async () => {
+    await release();
+    process.exit(0);
+  };
+  process.on("SIGTERM", cleanupAndExit);
+  process.on("SIGINT", cleanupAndExit);
   let result;
   try {
     result = await fn();
@@ -555,6 +561,9 @@ var WorkSpace = class {
   // 	}
   // 	return app
   // }
+  // async deployStack(stack: Stack, app: App) {
+  // 	return lockApp(this.props.lockProvider, app, async () => {})
+  // }
   async deployApp(app, opt = {}) {
     return lockApp(this.props.lockProvider, app, async () => {
       const appState = await this.props.stateProvider.get(app.urn) ?? {
@@ -566,11 +575,28 @@ var WorkSpace = class {
         await this.props.stateProvider.update(app.urn, appState);
       }
       let stacks = app.stacks;
+      let filteredOutStacks = [];
       if (opt.filters && opt.filters.length > 0) {
         stacks = app.stacks.filter((stack) => opt.filters.includes(stack.name));
+        filteredOutStacks = app.stacks.filter((stack) => !opt.filters.includes(stack.name));
       }
       const limit = (0, import_p_limit.default)(this.props.concurrency ?? 10);
       const graph = {};
+      for (const stack of filteredOutStacks) {
+        graph[stack.urn] = [
+          async () => {
+            const stackState = appState.stacks[stack.urn];
+            if (stackState) {
+              for (const resource of stack.resources) {
+                const resourceState = stackState.resources[resource.urn];
+                if (resourceState) {
+                  resource.setRemoteDocument(resourceState.remote);
+                }
+              }
+            }
+          }
+        ];
+      }
       for (const stack of stacks) {
         graph[stack.urn] = [
           ...[...stack.dependencies].map((dep) => dep.urn),
@@ -612,7 +638,8 @@ var WorkSpace = class {
         const found = app.stacks.find((stack) => {
           return stack.urn === urn;
         });
-        if (!found) {
+        const filtered = opt.filters ? opt.filters.find((filter) => filter === stackState.name) : true;
+        if (!found && filtered) {
           graph[urn] = [
             ...this.dependentsOn(appState.stacks, urn),
             async () => {
@@ -642,9 +669,13 @@ var WorkSpace = class {
         appState.token = opt.token ?? (0, import_crypto.randomUUID)();
         await this.props.stateProvider.update(app.urn, appState);
       }
+      let stacks = Object.entries(appState.stacks);
+      if (opt.filters && opt.filters.length > 0) {
+        stacks = stacks.filter(([_, stack]) => opt.filters.includes(stack.name));
+      }
       const limit = (0, import_p_limit.default)(this.props.concurrency ?? 10);
       const graph = {};
-      for (const [_urn, stackState] of Object.entries(appState.stacks)) {
+      for (const [_urn, stackState] of stacks) {
         const urn = _urn;
         graph[urn] = [
           ...this.dependentsOn(appState.stacks, urn),
@@ -661,7 +692,9 @@ var WorkSpace = class {
       if (errors.length > 0) {
         throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
       }
-      await this.props.stateProvider.delete(app.urn);
+      if (Object.keys(appState.stacks).length === 0) {
+        await this.props.stateProvider.delete(app.urn);
+      }
     });
   }
   async hydrate(app) {

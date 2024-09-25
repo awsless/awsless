@@ -169,10 +169,16 @@ export const runTest = async (stack: string, dir: string, filters: string[]) => 
 	return result.errors.length === 0
 }
 
-export const runTests = async (tests: TestCase[], filters: string[] = []) => {
+export const runTests = async (tests: TestCase[], stackFilters: string[] = [], testFilters: string[] = []) => {
 	for (const test of tests) {
+		if (stackFilters && stackFilters.length > 0) {
+			if (!stackFilters.includes(test.stackName)) {
+				continue
+			}
+		}
+
 		for (const path of test.paths) {
-			const result = await runTest(test.name, path, filters)
+			const result = await runTest(test.name, path, testFilters)
 
 			if (!result) {
 				return false
