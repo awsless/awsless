@@ -11,7 +11,11 @@ export type GraphQLSchemaProps = {
 export class GraphQLSchema extends Resource {
 	cloudProviderId = 'aws-appsync-graphql-schema'
 
-	constructor(readonly parent: Node, id: string, private props: GraphQLSchemaProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: GraphQLSchemaProps
+	) {
 		super(parent, 'AWS::AppSync::GraphQLSchema', id, props)
 	}
 

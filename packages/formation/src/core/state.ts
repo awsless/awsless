@@ -1,3 +1,4 @@
+import { UUID } from 'crypto'
 import { ResourceDocument } from './cloud'
 import { ResourceDeletionPolicy, URN } from './resource'
 
@@ -14,7 +15,7 @@ export interface StateProvider {
 
 export type AppState = {
 	name: string
-	token?: string
+	token?: UUID
 	stacks: Record<URN, StackState>
 }
 

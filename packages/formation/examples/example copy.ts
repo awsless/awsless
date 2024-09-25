@@ -13,9 +13,12 @@ const workspace = new WorkSpace({
 		credentials,
 		timeout: minutes(15),
 	}),
-	stateProvider: new local.StateProvider({
+	stateProvider: new local.file.StateProvider({
 		dir: './examples/state',
 	}),
+	lockProvider: new local.file.LockProvider({
+		'dir': './examples/state',
+	})
 })
 
 workspace.on('stack', e =>

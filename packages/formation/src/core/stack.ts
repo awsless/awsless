@@ -8,7 +8,10 @@ export class Stack extends Node {
 	readonly exported: Record<string, Input<unknown>> = {}
 	readonly dependencies = new Set<Stack>()
 
-	constructor(readonly app: App, readonly name: string) {
+	constructor(
+		readonly app: App,
+		readonly name: string
+	) {
 		super(app, 'Stack', name)
 	}
 

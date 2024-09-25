@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { randomUUID, UUID } from 'crypto'
 import promiseLimit, { LimitFunction } from 'p-limit'
 import { run, Step } from 'promise-dag'
 import { App } from '../app'
@@ -20,7 +20,7 @@ export type StackOperation = 'deploy' | 'delete'
 
 type Options = {
 	filters?: string[]
-	token?: string
+	token?: UUID
 }
 
 export class WorkSpace {
@@ -307,7 +307,7 @@ export class WorkSpace {
 
 			// -------------------------------------------------------
 			// If no errors happened we can savely delete the app
-			// state
+			// state when all the stacks have been deleted.
 
 			if (Object.keys(appState.stacks).length === 0) {
 				await this.props.stateProvider.delete(app.urn)
@@ -401,149 +401,6 @@ export class WorkSpace {
 	// 		updates,
 	// 		deletes,
 	// 	}
-	// }
-
-	// async deployStack(stack: Stack) {
-	// 	const app = this.getStackApp(stack)
-
-	// 	return lockApp(this.props.stateProvider, app, async () => {
-	// 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
-	// 			name: app.name,
-	// 			stacks: {},
-	// 		}
-
-	// 		// -------------------------------------------------------
-	// 		// Set the idempotent token when no token exists.
-
-	// 		if (!appState.token) {
-	// 			appState.token = randomUUID()
-
-	// 			await this.props.stateProvider.update(app.urn, appState)
-	// 		}
-
-	// 		// -------------------------------------------------------
-
-	// 		const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-	// 			name: stack.name,
-	// 			exports: {},
-	// 			resources: {},
-	// 		})
-
-	// 		const resources = stack.resources
-
-	// 		// -------------------------------------------------------------------
-	// 		// Set the exported data on the app.
-
-	// 		for (const stackData of Object.values(appState.stacks)) {
-	// 			app.setExportedData(stackData.name, stackData.exports)
-	// 		}
-
-	// 		// -------------------------------------------------------------------
-	// 		// Find Deletable resources...
-
-	// 		const deleteResourcesBefore: Record<URN, ResourceState> = {}
-	// 		const deleteResourcesAfter: Record<URN, ResourceState> = {}
-
-	// 		for (const [urnStr, state] of Object.entries(stackState.resources)) {
-	// 			const urn = urnStr as URN
-	// 			const resource = resources.find(r => r.urn === urn)
-
-	// 			if (!resource) {
-	// 				if (state.policies.deletion === 'before-deployment') {
-	// 					deleteResourcesBefore[urn] = state
-	// 				}
-
-	// 				if (state.policies.deletion === 'after-deployment') {
-	// 					deleteResourcesAfter[urn] = state
-	// 				}
-	// 			}
-	// 		}
-
-	// 		// -------------------------------------------------------------------
-	// 		// Process resources...
-
-	// 		try {
-	// 			// -------------------------------------------------------------------
-	// 			// Delete resources before deployment...
-
-	// 			if (Object.keys(deleteResourcesBefore).length > 0) {
-	// 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
-	// 			}
-
-	// 			// -------------------------------------------------------------------
-	// 			// Deploy resources...
-
-	// 			await this.deployStackResources(app.urn, appState, stackState, resources)
-
-	// 			// -------------------------------------------------------------------
-	// 			// Delete resources after deployment...
-
-	// 			if (Object.keys(deleteResourcesAfter).length > 0) {
-	// 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
-	// 			}
-
-	// 			// -------------------------------------------------------------------
-	// 		} catch (error) {
-	// 			// const resourceError = new ResourceError()
-
-	// 			throw error
-	// 		}
-
-	// 		// -------------------------------------------------------------------
-	// 		// Delete the idempotant token when the deployment reaches the end.
-
-	// 		delete appState.token
-
-	// 		// -------------------------------------------------------------------
-	// 		// Save stack exports
-
-	// 		stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
-
-	// 		await this.props.stateProvider.update(app.urn, appState)
-
-	// 		// -------------------------------------------------------------------
-
-	// 		return stackState
-	// 	})
-	// }
-
-	// async deleteStack(stack: Stack) {
-	// 	const app = this.getStackApp(stack)
-
-	// 	return lockApp(this.props.stateProvider, app, async () => {
-	// 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
-	// 			name: app.name,
-	// 			stacks: {},
-	// 		}
-
-	// 		// -------------------------------------------------------
-	// 		// Set the idempotent token when no token exists.
-
-	// 		if (!appState.token) {
-	// 			appState.token = randomUUID()
-
-	// 			await this.props.stateProvider.update(app.urn, appState)
-	// 		}
-
-	// 		// -------------------------------------------------------
-
-	// 		const stackState = appState.stacks[stack.urn]
-
-	// 		if (!stackState) {
-	// 			throw new StackError(stack.name, [], `Stack already deleted: ${stack.name}`)
-	// 		}
-
-	// 		try {
-	// 			await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
-	// 		} catch (error) {
-	// 			throw error
-	// 		}
-
-	// 		delete appState.token
-	// 		delete appState.stacks[stack.urn]
-
-	// 		await this.props.stateProvider.update(app.urn, appState)
-	// 	})
 	// }
 
 	private async getRemoteResource(props: {

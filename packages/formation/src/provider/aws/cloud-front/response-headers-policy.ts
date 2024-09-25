@@ -1,7 +1,7 @@
 import { Duration, days, toSeconds } from '@awsless/duration'
-import { CloudControlApiResource } from '../cloud-control-api/resource'
-import { Input, unwrap } from '../../../core/output'
 import { Node } from '../../../core/node'
+import { Input, unwrap } from '../../../core/output'
+import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class ResponseHeadersPolicy extends CloudControlApiResource {
 	constructor(
@@ -18,9 +18,7 @@ export class ResponseHeadersPolicy extends CloudControlApiResource {
 				credentials?: Input<boolean>
 				headers?: Input<Input<string>[]>
 				origins?: Input<Input<string>[]>
-				methods?: Input<
-					Array<Input<'GET' | 'DELETE' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PUT' | 'ALL'>>
-				>
+				methods?: Input<Array<Input<'GET' | 'DELETE' | 'HEAD' | 'OPTIONS' | 'PATCH' | 'POST' | 'PUT' | 'ALL'>>>
 			}>
 			contentSecurityPolicy?: Input<{
 				override?: Input<boolean>
@@ -88,7 +86,7 @@ export class ResponseHeadersPolicy extends CloudControlApiResource {
 										Header: value,
 									})),
 								},
-						  }
+							}
 						: {}),
 					CorsConfig: {
 						OriginOverride: unwrap(cors.override, false),
@@ -112,11 +110,9 @@ export class ResponseHeadersPolicy extends CloudControlApiResource {
 							? {
 									ContentSecurityPolicy: {
 										Override: unwrap(contentSecurityPolicy.override, false),
-										ContentSecurityPolicy: unwrap(
-											contentSecurityPolicy?.contentSecurityPolicy
-										),
+										ContentSecurityPolicy: unwrap(contentSecurityPolicy?.contentSecurityPolicy),
 									},
-							  }
+								}
 							: {}),
 						ContentTypeOptions: {
 							Override: unwrap(contentTypeOptions.override, false),
