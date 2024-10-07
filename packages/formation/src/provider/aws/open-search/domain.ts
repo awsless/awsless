@@ -4,6 +4,7 @@ import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
+import { formatTags } from '../util'
 
 export type Version = '2.13' | '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3'
 
@@ -91,6 +92,7 @@ export class Domain extends CloudControlApiResource {
 				type: Input<NodeType>
 				count: Input<number>
 			}>
+			tags?: Record<string, Input<string>>
 			version?: Input<Version>
 			storageSize?: Input<Size>
 			ipType?: Input<'ipv4' | 'dualstack'>
@@ -152,6 +154,7 @@ export class Domain extends CloudControlApiResource {
 		return {
 			document: {
 				DomainName: this.props.name,
+				Tags: formatTags(this.tags),
 				EngineVersion: unwrap(`OpenSearch_${this.props.version}`, 'OpenSearch_2.13'),
 				IPAddressType: unwrap(this.props.ipType, 'ipv4'),
 				ClusterConfig: {

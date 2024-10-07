@@ -3,6 +3,7 @@ import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { Resource } from '../../../core/resource'
 import { ARN } from '../types'
+import { formatTags } from '../util'
 import { BucketObject, BucketObjectProps } from './bucket-object'
 
 export type NotifictionEvent =
@@ -46,6 +47,7 @@ export type BucketProps = {
 	// 	| 'bucket-owner-full-control'
 	// 	| 'log-delivery-write'
 	// >
+	tags?: Record<string, Input<string>>
 	versioning?: Input<boolean>
 	forceDelete?: Input<boolean>
 	website?: Input<{
@@ -139,6 +141,7 @@ export class Bucket extends Resource {
 			},
 			document: {
 				BucketName: unwrap(this.props.name, this.identifier),
+				Tags: formatTags(this.tags),
 				// AccessControl: pascalCase(unwrap(this.props.accessControl, 'private')),
 				...(unwrap(this.props.versioning, false)
 					? {

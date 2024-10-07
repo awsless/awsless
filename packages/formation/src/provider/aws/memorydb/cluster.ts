@@ -2,6 +2,7 @@ import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api/resource'
 import { ARN } from '../types'
+import { formatTags } from '../util'
 
 export type NodeType =
 	| 't4g.small'
@@ -24,6 +25,7 @@ export class Cluster extends CloudControlApiResource {
 		id: string,
 		private props: {
 			aclName: Input<string>
+			tags?: Record<string, Input<string>>
 			subnetGroupName?: Input<string>
 			securityGroupIds?: Input<Input<string>[]>
 			name: Input<string>
@@ -66,6 +68,7 @@ export class Cluster extends CloudControlApiResource {
 					Port: this.props.port,
 				},
 				Port: this.props.port,
+				Tags: formatTags(this.tags),
 				...this.attr('Description', this.props.description),
 				ACLName: this.props.aclName,
 				EngineVersion: unwrap(this.props.engine, '7.0'),

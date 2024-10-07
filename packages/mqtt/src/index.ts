@@ -154,7 +154,7 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 				await connect()
 			}
 		},
-		async subscribe(topic: string, callback: MessageCallback): Promise<Unsubscribe> {
+		async subscribe(topic: string, callback: MessageCallback, qos: QoS = QoS.AtMostOnce): Promise<Unsubscribe> {
 			const listener = { callback }
 			const list = (listeners[topic] = listeners[topic] ?? new Set())
 
@@ -163,7 +163,7 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 			if (client) {
 				if (list.size === 1) {
 					// console.log('sub', topic)
-					await client.subscribeAsync(topic, { qos: QoS.AtLeastOnce })
+					await client.subscribeAsync(topic, { qos })
 					// await client.subscribeAsync(topic)
 				}
 			} else {
@@ -177,7 +177,7 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 					// console.log('unsub', topic)
 
 					delete listeners[topic]
-					await client?.unsubscribeAsync(topic, { qos: QoS.AtLeastOnce })
+					await client?.unsubscribeAsync(topic, { qos })
 				}
 
 				if (Object.keys(listeners).length === 0) {

@@ -1,10 +1,12 @@
 import { Node } from '../../../core/node.js'
 import { combine, Input, Output, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Record, RecordSet } from './record-set.js'
+import { formatTags } from '../util.js'
+import { Record as DnsRecord, RecordSet } from './record-set.js'
 
 export type HostedZoneProps = {
 	name: Input<string>
+	tags?: Record<string, Input<string>>
 }
 
 export class HostedZone extends CloudControlApiResource {
@@ -28,11 +30,11 @@ export class HostedZone extends CloudControlApiResource {
 		return this.output<string[]>(v => v.NameServers)
 	}
 
-	addRecord(id: string, record: Input<Record>) {
+	addRecord(id: string, record: Input<DnsRecord>) {
 		const recordProps = combine([this.id, record]).apply(([_, record]) => ({
 			hostedZoneId: this.id,
 			...record,
-		})) as Output<Record & { hostedZoneId: Input<string> }>
+		})) as Output<DnsRecord & { hostedZoneId: Input<string> }>
 
 		return new RecordSet(this, id, recordProps)
 	}
@@ -43,6 +45,7 @@ export class HostedZone extends CloudControlApiResource {
 		return {
 			document: {
 				Name: name.endsWith('.') ? name : name + '.',
+				HostedZoneTags: formatTags(this.tags),
 			},
 		}
 	}
