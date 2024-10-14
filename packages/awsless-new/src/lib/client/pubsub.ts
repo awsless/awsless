@@ -1,9 +1,25 @@
-import { ClientProps, createClient, QoS } from '@awsless/mqtt'
+import { createClient, QoS } from '@awsless/mqtt'
 
 type MessageCallback = (payload: any) => void
 
-export const createPubSubClient = (props: ClientProps) => {
-	const mqtt = createClient(props)
+type ClientProps = {
+	endpoint: string
+	authorizer: string
+	token: string
+}
+
+type ClientPropsProvider = () => Promise<ClientProps> | ClientProps
+
+export const createPubSubClient = (props: ClientProps | ClientPropsProvider) => {
+	const mqtt = createClient(async () => {
+		const config = typeof props === 'function' ? await props() : props
+
+		return {
+			endpoint: `wss://${config.endpoint}/mqtt`,
+			username: `?x-amz-customauthorizer-name=${config.authorizer}`,
+			password: config.token,
+		}
+	})
 
 	return {
 		...mqtt,
