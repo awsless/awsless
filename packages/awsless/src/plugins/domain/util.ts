@@ -4,7 +4,7 @@ export const getDomainNameById = (config: Config, id: string) => {
 	const domains = config.app.defaults.domains ?? {}
 
 	if (id in domains) {
-		return domains[id].domain
+		return domains[id]?.domain
 	}
 
 	throw new TypeError(`No domain registered with id: ${id}`)

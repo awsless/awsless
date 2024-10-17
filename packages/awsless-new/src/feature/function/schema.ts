@@ -110,11 +110,26 @@ const LogRetentionSchema = DurationSchema.refine(
 	)
 	.describe('The log retention duration.')
 
+const LogSubscriptionSchema = z
+	.union([
+		LocalFileSchema.transform(file => ({
+			file,
+		})),
+		z.object({
+			subscriber: LocalFileSchema,
+			filter: z.string().optional(),
+		}),
+	])
+	.describe(
+		'Log Subscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination'
+	)
+
 const LogSchema = z
 	.union([
 		z.boolean().transform(enabled => ({ retention: enabled ? days(7) : days(0) })),
 		LogRetentionSchema.transform(retention => ({ retention })),
 		z.object({
+			subscription: LogSubscriptionSchema.optional(),
 			retention: LogRetentionSchema.optional(),
 			format: z
 				.enum(['text', 'json'])

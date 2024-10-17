@@ -209,6 +209,14 @@ export const createLambdaFunction = (
 				resources: [logGroup.arn.apply(arn => `${arn}:*` as `arn:${string}`)],
 			}
 		)
+
+		// @ts-ignore
+		if (props.log.subscription) {
+			new aws.cloudWatch.subscriptionFilter(group, `subscription`, {
+				destination: ctx.shared.get(`log-subscription-destination-arn`),
+				logGroupName: logGroup.name,
+			})
+		}
 	}
 
 	// ------------------------------------------------------------
