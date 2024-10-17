@@ -1,7 +1,7 @@
 import { Duration, minutes, toSeconds } from '@awsless/duration'
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { Resource } from '../../../core/resource.js'
-import { Node } from '../../../core/node.js'
 
 export type RecordType =
 	| 'A'
@@ -60,7 +60,7 @@ export const formatRecordSet = (record: Record) => {
 			? {
 					TTL: toSeconds(unwrap(record.ttl, minutes(5))),
 					ResourceRecords: record.records,
-			  }
+				}
 			: {}),
 		...('alias' in record && unwrap(record.alias)
 			? {
@@ -69,7 +69,7 @@ export const formatRecordSet = (record: Record) => {
 						HostedZoneId: unwrap(record.alias)!.hostedZoneId,
 						EvaluateTargetHealth: unwrap(record.alias)!.evaluateTargetHealth,
 					},
-			  }
+				}
 			: {}),
 		// ...unwrap(record.target).toJSON(),
 	}
@@ -78,7 +78,11 @@ export const formatRecordSet = (record: Record) => {
 export class RecordSet extends Resource {
 	cloudProviderId = 'aws-route53-record-set'
 
-	constructor(readonly parent: Node, id: string, private props: Input<RecordSetProps>) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: Input<RecordSetProps>
+	) {
 		super(parent, 'AWS::Route53::RecordSet', id, props)
 	}
 

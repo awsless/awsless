@@ -12,7 +12,11 @@ export type CertificateValidationProps = {
 export class CertificateValidation extends Resource {
 	cloudProviderId = 'aws-acm-certificate-validation'
 
-	constructor(readonly parent: Node, id: string, private props: CertificateValidationProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: CertificateValidationProps
+	) {
 		super(parent, 'AWS::CertificateManager::CertificateValidation', id, props)
 
 		// This resource isn't a real resource.

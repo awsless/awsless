@@ -41,6 +41,16 @@ export abstract class Resource extends Node {
 		if (inputs) {
 			this.registerDependency(inputs)
 		}
+
+		if (
+			typeof inputs === 'object' &&
+			inputs !== null &&
+			'tags' in inputs &&
+			typeof inputs.tags === 'object' &&
+			inputs.tags !== null
+		) {
+			this.setTag(inputs.tags as Record<string, Input<string>>)
+		}
 	}
 
 	abstract cloudProviderId: string

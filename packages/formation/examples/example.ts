@@ -1,6 +1,8 @@
 import { fromIni } from '@aws-sdk/credential-providers'
 import { days, minutes } from '@awsless/duration'
+import { Client } from '@grpc/grpc-js'
 import { App, AppError, Asset, aws, Stack, WorkSpace } from '../src'
+import { TerraformRegistryProvider } from '../src/provider/terraform/registry'
 import { createVPC } from './resources/_util'
 
 const region = 'eu-west-1'
@@ -33,16 +35,29 @@ const workspace = new WorkSpace({
 // ------------------------------------------
 
 const app = new App('test')
+app.setTag('app', 'test')
 
 const stack = new Stack(app, 'test')
+stack.setTag('stack', 'test')
+
+// const queue = new aws.sqs.Queue(stack, 'test', {
+// 	name: 'test-queue',
+// })
+;(async () => {
+	const provider = await TerraformRegistryProvider.load('hashicorp', 'aws')
+
+	// console.log(provider.versions)
+	console.log(provider.latestVersion)
+	console.log(provider.latestVersion?.supported)
+	// console.log(await provider.latestVersion?.getDownloadUrl())
+	// console.log(provider.latestVersion)
+})()
 
 // const zone = new aws.route53.HostedZone(stack, 'test', {
 // 	name: 'my-domain.com',
 // })
 
-// const bucket = new aws.s3.Bucket(stack, 'test', {
-// 	name: 'update-code-123',
-// })
+// const bucket = new aws.s3.Bucket(stack, 'test')
 
 // const stack2 = new Stack(app, 'test-2')
 // const code = new aws.s3.BucketObject(stack2, 'test', {
@@ -188,9 +203,7 @@ const main = async () => {
 	console.log('START')
 
 	try {
-		await workspace.deployApp(app, {
-			// filters: ['test', 'test-2'],
-		})
+		await workspace.deployApp(app)
 		// await workspace.deleteApp(app, {
 		// 	filters: ['test', 'test-2'],
 		// })

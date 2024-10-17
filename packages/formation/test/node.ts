@@ -4,7 +4,11 @@ describe('Node', () => {
 	class Record extends Resource {
 		readonly cloudProviderId = 'record'
 
-		constructor(readonly parent: Resource | Stack, id: string, props?: unknown) {
+		constructor(
+			readonly parent: Resource | Stack,
+			id: string,
+			props?: unknown
+		) {
 			super(parent, 'Record', id, props)
 		}
 
@@ -62,5 +66,27 @@ describe('Node', () => {
 		expect(parent.dependencies).toStrictEqual(new Set([]))
 		expect(child.dependencies).toStrictEqual(new Set([parent]))
 		expect(other.dependencies).toStrictEqual(new Set([]))
+	})
+
+	it('should propagate tags between node children', async () => {
+		const app = new App('app')
+		app.setTag('app', '1')
+
+		const stack = new Stack(app, 'stack')
+		stack.setTag('stack', '2')
+
+		const parent = new Record(stack, 'parent')
+		parent.setTag('parent', '3')
+
+		const child = new Record(parent, 'child', {
+			tags: {
+				child: '4',
+			},
+		})
+
+		expect(app.tags).toStrictEqual({ app: '1' })
+		expect(stack.tags).toStrictEqual({ app: '1', stack: '2' })
+		expect(parent.tags).toStrictEqual({ app: '1', stack: '2', parent: '3' })
+		expect(child.tags).toStrictEqual({ app: '1', stack: '2', parent: '3', child: '4' })
 	})
 })

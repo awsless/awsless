@@ -1,15 +1,54 @@
+import { Input } from './output'
 import { URN } from './resource'
 
 export class Node {
 	readonly children: Node[] = []
+	readonly localTags: Record<string, Input<string>> = {}
 	// private parent: Node
 
-	constructor(readonly parent: Node | undefined, readonly type: string, readonly identifier: string) {
+	constructor(
+		readonly parent: Node | undefined,
+		readonly type: string,
+		readonly identifier: string
+	) {
 		parent?.children.push(this)
 	}
 
 	get urn(): URN {
 		return `${this.parent ? this.parent.urn : 'urn'}:${this.type}:{${this.identifier}}`
+	}
+
+	get tags(): Record<string, Input<string>> {
+		return {
+			...(this.parent?.tags ?? {}),
+			...this.localTags,
+		}
+	}
+
+	// setTags(tags: Record<string, string>) {
+	// 	this.localTags[name] = value
+
+	// 	return this
+	// }
+
+	setTag(name: string, value: Input<string>): this
+	setTag(tags: Record<string, Input<string>>): this
+	setTag(name: string | Record<string, Input<string>>, value?: Input<string>) {
+		if (typeof name === 'string') {
+			this.localTags[name] = value!
+		} else {
+			Object.assign(this.localTags, name)
+		}
+
+		return this
+	}
+
+	getTag(name: string) {
+		return this.localTags[name]
+	}
+
+	removeTag(name: string) {
+		delete this.localTags[name]
 	}
 
 	// get parent() {

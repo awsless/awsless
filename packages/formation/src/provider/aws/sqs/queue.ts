@@ -1,9 +1,10 @@
 import { Duration, days, seconds, toSeconds } from '@awsless/duration'
-import { ARN } from '../types.js'
 import { Size, kibibytes, toBytes } from '@awsless/size'
+import { Node } from '../../../core/node.js'
 import { Input, unwrap } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
-import { Node } from '../../../core/node.js'
+import { ARN } from '../types.js'
+import { formatTags } from '../util.js'
 
 export type QueueProps = {
 	name: Input<string>
@@ -14,10 +15,15 @@ export type QueueProps = {
 	maxMessageSize?: Input<Size>
 	deadLetterArn?: Input<ARN>
 	maxReceiveCount?: Input<number>
+	tags?: Record<string, Input<string>>
 }
 
 export class Queue extends CloudControlApiResource {
-	constructor(readonly parent: Node, id: string, private props: QueueProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: QueueProps
+	) {
 		super(parent, 'AWS::SQS::Queue', id, props)
 	}
 
@@ -55,7 +61,8 @@ export class Queue extends CloudControlApiResource {
 		return {
 			document: {
 				QueueName: this.props.name,
-				Tags: [{ Key: 'name', Value: this.props.name }],
+				Tags: formatTags(this.tags),
+				// Tags: [{ Key: 'name', Value: this.props.name }],
 				DelaySeconds: toSeconds(unwrap(this.props.deliveryDelay, seconds(0))),
 				MaximumMessageSize: toBytes(unwrap(this.props.maxMessageSize, kibibytes(256))),
 				MessageRetentionPeriod: toSeconds(unwrap(this.props.retentionPeriod, days(4))),
@@ -67,7 +74,7 @@ export class Queue extends CloudControlApiResource {
 								deadLetterTargetArn: this.props.deadLetterArn,
 								maxReceiveCount: unwrap(this.props.maxReceiveCount, 100),
 							},
-					  }
+						}
 					: {}),
 			},
 		}

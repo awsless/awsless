@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.363",
+	"version": "0.0.366",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -48,7 +48,8 @@
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^"
+		"@awsless/weak-cache": "workspace:^",
+		"@awsless/mqtt": "workspace:^"
 	},
 	"dependencies": {
 		"@arcanyx/cidr-slicer": "^0.3.0",

@@ -1,4 +1,12 @@
+import { Input } from '../../core/output'
 import { ARN } from './types'
+
+export const formatTags = (tags: Record<string, Input<string>>) => {
+	return Object.entries(tags).map(([Key, Value]) => ({
+		Key,
+		Value,
+	}))
+}
 
 export const formatArn = (props: {
 	partition?: string

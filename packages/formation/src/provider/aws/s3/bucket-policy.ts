@@ -1,8 +1,8 @@
 import { capitalCase } from 'change-case'
+import { Node } from '../../../core/node'
 import { Input, unwrap } from '../../../core/output'
 import { CloudControlApiResource } from '../cloud-control-api'
 import { ARN } from '../types'
-import { Node } from '../../../core/node'
 
 export class BucketPolicy extends CloudControlApiResource {
 	constructor(
@@ -40,7 +40,7 @@ export class BucketPolicy extends CloudControlApiResource {
 										Principal: {
 											Service: statement.principal,
 										},
-								  }
+									}
 								: {}),
 							Action: statement.actions,
 							Resource: statement.resources,
@@ -51,7 +51,7 @@ export class BucketPolicy extends CloudControlApiResource {
 												'AWS:SourceArn': statement.sourceArn,
 											},
 										},
-								  }
+									}
 								: {}),
 						})),
 				},

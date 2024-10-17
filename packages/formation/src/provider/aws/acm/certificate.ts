@@ -34,7 +34,11 @@ export class Certificate extends Resource {
 
 	private validation: CertificateValidation | undefined
 
-	constructor(readonly parent: Node, id: string, private props: CertificateProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: CertificateProps
+	) {
 		super(parent, 'AWS::CertificateManager::Certificate', id, props)
 
 		// It should be safe for certificates to be deleted after a deployment
@@ -103,7 +107,7 @@ export class Certificate extends Resource {
 				...(this.props.alternativeNames
 					? {
 							SubjectAlternativeNames: unwrap(this.props.alternativeNames, []),
-					  }
+						}
 					: {}),
 				ValidationMethod: unwrap(this.props.validationMethod, 'dns').toUpperCase(),
 				KeyAlgorithm: unwrap(this.props.keyAlgorithm, 'RSA_2048'),
@@ -117,7 +121,7 @@ export class Certificate extends Resource {
 									// HostedZoneId: options.hostedZoneId,
 									// HostedZoneId: 'Z0157889170MJQ0XTIRZD',
 								})),
-					  }
+						}
 					: {}),
 			},
 		}

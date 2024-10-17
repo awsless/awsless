@@ -1,6 +1,6 @@
+import { ACMClient, DescribeCertificateCommand } from '@aws-sdk/client-acm'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { CloudProvider, CreateProps, GetProps, UpdateProps } from '../../../core/cloud'
-import { ACMClient, DescribeCertificateCommand } from '@aws-sdk/client-acm'
 
 type ProviderProps = {
 	credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider

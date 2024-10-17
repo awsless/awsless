@@ -1,11 +1,6 @@
+import { GetSubscriptionAttributesCommand, SNSClient, SubscribeCommand, UnsubscribeCommand } from '@aws-sdk/client-sns'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { CloudProvider, CreateProps, DeleteProps, GetProps, UpdateProps } from '../../../core/cloud'
-import {
-	GetSubscriptionAttributesCommand,
-	SNSClient,
-	SubscribeCommand,
-	UnsubscribeCommand,
-} from '@aws-sdk/client-sns'
 import { ARN } from '../types'
 
 type ProviderProps = {

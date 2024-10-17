@@ -2,13 +2,19 @@ import { Node } from '../../../core/node.js'
 import { Input } from '../../../core/output.js'
 import { CloudControlApiResource } from '../cloud-control-api/resource.js'
 import { ARN } from '../types.js'
+import { formatTags } from '../util.js'
 
 export type TopicProps = {
 	name: Input<string>
+	tags?: Record<string, Input<string>>
 }
 
 export class Topic extends CloudControlApiResource {
-	constructor(readonly parent: Node, id: string, private props: TopicProps) {
+	constructor(
+		readonly parent: Node,
+		id: string,
+		private props: TopicProps
+	) {
 		super(parent, 'AWS::SNS::Topic', id, props)
 	}
 
@@ -32,7 +38,7 @@ export class Topic extends CloudControlApiResource {
 			document: {
 				TopicName: this.props.name,
 				DisplayName: this.props.name,
-				Tags: [{ Key: 'name', Value: this.props.name }],
+				Tags: formatTags(this.tags),
 			},
 		}
 	}

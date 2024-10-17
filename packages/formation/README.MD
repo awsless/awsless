@@ -12,6 +12,10 @@ The most used IaC solutions are slow & don't effectively leverage diffing to spe
 - __5x__ faster than Terraform
 - __4x__ faster than Pulumi -->
 
+## Todo's
+- Make a build script to bridge terraform providers to awsless. (This will open up the ability for us to support all cloud providers currently supported by terraform.)
+- Add tags that will propagate to it's children nodes. (This will allow us to set tags on the stack and make the tag available for all resources inside the stack.)
+
 ## Setup
 
 Install with (NPM):
@@ -80,7 +84,7 @@ Or destroy our app.
 await workspace.deleteApp(app)
 ```
 
-Maybe you want to only deploy a subset of stacks
+Maybe you want to only deploy a subset of stacks.
 ```ts
 await workspace.deployApp(app, {
 	filters: ["storage"]
