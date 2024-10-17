@@ -1,6 +1,6 @@
-import { RedisServer } from './server'
 import { requestPort } from '@heat/request-port'
 import { overrideOptions } from './client'
+import { RedisServer } from './server'
 
 export const mockRedis = () => {
 	const server = new RedisServer()
@@ -21,13 +21,13 @@ export const mockRedis = () => {
 				host: 'localhost',
 				cluster: false,
 			})
-		})
+		}, 30 * 1000)
 
 	afterAll &&
 		afterAll(async () => {
 			await server.kill()
 			await releasePort()
-		})
+		}, 30 * 1000)
 
 	// vi.mock('ioredis', async () => {
 	// 	const module = (await vi.importActual('ioredis-mock')) as { default: typeof Redis }

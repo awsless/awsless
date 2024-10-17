@@ -28,9 +28,66 @@ __export(src_exports, {
 });
 module.exports = __toCommonJS(src_exports);
 
+// src/mock.ts
+var import_request_port = require("@heat/request-port");
+
+// src/client.ts
+var import_ioredis = require("ioredis");
+var optionOverrides = {};
+var overrideOptions = (options) => {
+  optionOverrides = options;
+};
+var redisClient = (options) => {
+  const props = {
+    lazyConnect: true,
+    stringNumbers: true,
+    keepAlive: 0,
+    noDelay: true,
+    enableReadyCheck: false,
+    maxRetriesPerRequest: 3,
+    autoResubscribe: false,
+    commandQueue: false,
+    offlineQueue: false,
+    autoResendUnfulfilledCommands: false,
+    connectTimeout: 1e3 * 5,
+    commandTimeout: 1e3 * 5,
+    ...options,
+    ...optionOverrides
+  };
+  if (!props.cluster) {
+    return new import_ioredis.Redis(props);
+  }
+  return new import_ioredis.Cluster(
+    [
+      {
+        host: props.host,
+        port: props.port
+      }
+    ],
+    {
+      redisOptions: props
+    }
+    // {
+    // 	dnsLookup: (address, callback) => callback(null, address),
+    // 	enableReadyCheck: false,
+    // 	redisOptions: {
+    // 		...props,
+    // 		// username: options.username,
+    // 		// password: options.password,
+    // 		tls: {
+    // 			checkServerIdentity: (/*host, cert*/) => {
+    // 				// skip certificate hostname validation
+    // 				return undefined
+    // 			},
+    // 		},
+    // 	},
+    // }
+  );
+};
+
 // src/server.ts
 var import_redis_memory_server = require("redis-memory-server");
-var import_ioredis = require("ioredis");
+var import_ioredis2 = require("ioredis");
 var RedisServer = class {
   client;
   process;
@@ -62,7 +119,7 @@ var RedisServer = class {
   }
   async getClient() {
     if (!this.client) {
-      this.client = new import_ioredis.Redis({
+      this.client = new import_ioredis2.Redis({
         host: await this.process?.getHost(),
         port: await this.process?.getPort(),
         stringNumbers: true,
@@ -80,63 +137,6 @@ var RedisServer = class {
 };
 
 // src/mock.ts
-var import_request_port = require("@heat/request-port");
-
-// src/client.ts
-var import_ioredis2 = require("ioredis");
-var optionOverrides = {};
-var overrideOptions = (options) => {
-  optionOverrides = options;
-};
-var redisClient = (options) => {
-  const props = {
-    lazyConnect: true,
-    stringNumbers: true,
-    keepAlive: 0,
-    noDelay: true,
-    enableReadyCheck: false,
-    maxRetriesPerRequest: 3,
-    autoResubscribe: false,
-    commandQueue: false,
-    offlineQueue: false,
-    autoResendUnfulfilledCommands: false,
-    connectTimeout: 1e3 * 5,
-    commandTimeout: 1e3 * 5,
-    ...options,
-    ...optionOverrides
-  };
-  if (!props.cluster) {
-    return new import_ioredis2.Redis(props);
-  }
-  return new import_ioredis2.Cluster(
-    [
-      {
-        host: props.host,
-        port: props.port
-      }
-    ],
-    {
-      redisOptions: props
-    }
-    // {
-    // 	dnsLookup: (address, callback) => callback(null, address),
-    // 	enableReadyCheck: false,
-    // 	redisOptions: {
-    // 		...props,
-    // 		// username: options.username,
-    // 		// password: options.password,
-    // 		tls: {
-    // 			checkServerIdentity: (/*host, cert*/) => {
-    // 				// skip certificate hostname validation
-    // 				return undefined
-    // 			},
-    // 		},
-    // 	},
-    // }
-  );
-};
-
-// src/mock.ts
 var mockRedis = () => {
   const server = new RedisServer();
   let releasePort;
@@ -150,11 +150,11 @@ var mockRedis = () => {
       host: "localhost",
       cluster: false
     });
-  });
+  }, 30 * 1e3);
   afterAll && afterAll(async () => {
     await server.kill();
     await releasePort();
-  });
+  }, 30 * 1e3);
 };
 
 // src/commands.ts
