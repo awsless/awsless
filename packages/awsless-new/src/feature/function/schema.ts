@@ -179,35 +179,39 @@ const BuildSchema = z
 // 	}),
 // ])
 
+const FnSchema = z.object({
+	file: FileSchema,
+
+	// node
+	handler: HandlerSchema.optional(),
+	build: BuildSchema.optional(),
+
+	// container
+	// ...
+
+	runtime: RuntimeSchema.optional(),
+	description: DescriptionSchema.optional(),
+	warm: WarmSchema.optional(),
+	vpc: VPCSchema.optional(),
+	log: LogSchema.optional(),
+	timeout: TimeoutSchema.optional(),
+	memorySize: MemorySizeSchema.optional(),
+	architecture: ArchitectureSchema.optional(),
+	ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
+	retryAttempts: RetryAttemptsSchema.optional(),
+	reserved: ReservedConcurrentExecutionsSchema.optional(),
+	layers: LayersSchema.optional(),
+	environment: EnvironmentSchema.optional(),
+	permissions: PermissionsSchema.optional(),
+})
+
+export type FunctionProps = z.output<typeof FnSchema>
+
 export const FunctionSchema = z.union([
 	LocalFileSchema.transform(file => ({
 		file,
 	})),
-	z.object({
-		file: FileSchema,
-
-		// node
-		handler: HandlerSchema.optional(),
-		build: BuildSchema.optional(),
-
-		// container
-		// ...
-
-		runtime: RuntimeSchema.optional(),
-		description: DescriptionSchema.optional(),
-		warm: WarmSchema.optional(),
-		vpc: VPCSchema.optional(),
-		log: LogSchema.optional(),
-		timeout: TimeoutSchema.optional(),
-		memorySize: MemorySizeSchema.optional(),
-		architecture: ArchitectureSchema.optional(),
-		ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
-		retryAttempts: RetryAttemptsSchema.optional(),
-		reserved: ReservedConcurrentExecutionsSchema.optional(),
-		layers: LayersSchema.optional(),
-		environment: EnvironmentSchema.optional(),
-		permissions: PermissionsSchema.optional(),
-	}),
+	FnSchema,
 ])
 
 export const FunctionsSchema = z

@@ -1,5 +1,5 @@
 import { camelCase, constantCase, paramCase } from 'change-case'
-import { Asset, aws, Node } from '@awsless/formation'
+import { aws, Node, Output } from '@awsless/formation'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -10,7 +10,12 @@ import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { mebibytes } from '@awsless/size'
 import { directories } from '../../util/path.js'
-import { relative } from 'path'
+import { dirname, join, relative } from 'path'
+import { fileURLToPath } from 'node:url'
+import { createPrebuildLambdaFunction } from '../function/prebuild.js'
+import { days, seconds } from '@awsless/duration'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export const rpcFeature = defineFeature({
 	name: 'rpc',
@@ -18,10 +23,10 @@ export const rpcFeature = defineFeature({
 		const types = new TypeFile('@awsless/awsless/client')
 		const schemas = new TypeObject(1)
 
-		for (const id of Object.keys(ctx.appConfig.defaults.rpc)) {
+		for (const id of Object.keys(ctx.appConfig.defaults.rpc ?? {})) {
 			const schema = new TypeObject(2)
 
-			for (const stack in ctx.stackConfigs) {
+			for (const stack of ctx.stackConfigs) {
 				for (const [name, props] of Object.entries(stack.rpc?.[id] ?? {})) {
 					const relFile = relative(directories.types, props.file)
 					const varName = camelCase(`${stack.name}-${name}`)
@@ -39,31 +44,8 @@ export const rpcFeature = defineFeature({
 		await ctx.write('rpc.d.ts', types, true)
 	},
 	onApp(ctx) {
-		if (Object.keys(ctx.appConfig.defaults.rpc).length > 0) {
-			const group = new Node(ctx.base, 'rpc', 'setup')
-			const name = formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'rpc',
-				resourceName: 'setup',
-			})
-
-			const table = new aws.dynamodb.Table(group, 'schema', {
-				name,
-				hash: 'id',
-				sort: 'name',
-			})
-
-			ctx.shared.set('rpc-schema-table-name', table.name)
-		}
-
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.rpc ?? {})) {
 			const group = new Node(ctx.base, 'rpc', id)
-
-			// let authorizer
-			// if (typeof props.auth === 'object') {
-			// 	const { lambda } = createLambdaFunction(group, ctx, 'trpc-auth', id, props.auth.authorizer)
-			// 	authorizer = lambda
-			// }
 
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -71,15 +53,41 @@ export const rpcFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const { lambda } = createLambdaFunction(group, ctx, 'api', id, {
-				file: __dirname + '/handle/rpc.js',
+			const { lambda } = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
+				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
+				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
 				memorySize: mebibytes(256),
+			})
+
+			const schema = {}
+			lambda.addEnvironment(
+				'SCHEMA',
+				new Output<string>([], resolve => {
+					ctx.onReady(() => {
+						resolve(JSON.stringify(schema))
+					})
+				})
+			)
+
+			ctx.shared.set(`rpc-${id}-schema`, schema)
+
+			if (props.auth) {
+				const authGroup = new Node(group, 'auth', 'authorizer')
+				const auth = createLambdaFunction(authGroup, ctx, 'rpc', `${id}-auth`, props.auth)
+				lambda.addEnvironment('AUTH', auth.lambda.name)
+			}
+
+			const permission = new aws.lambda.Permission(group, 'permission', {
+				principal: '*',
+				action: 'lambda:InvokeFunctionUrl',
+				functionArn: lambda.arn,
+				urlAuthType: 'none',
 			})
 
 			const url = new aws.lambda.Url(group, 'url', {
 				targetArn: lambda.arn,
 				authType: 'none',
-			})
+			}).dependsOn(permission)
 
 			const domainName = props.domain
 				? formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
@@ -89,10 +97,26 @@ export const rpcFeature = defineFeature({
 				? ctx.shared.get<aws.ARN>(`global-certificate-${props.domain}-arn`)
 				: undefined
 
-			const dns = new aws.cloudFront.Distribution(group, 'dns', {
+			const cache = new aws.cloudFront.CachePolicy(group, 'cache', {
+				name,
+				minTtl: seconds(1),
+				maxTtl: days(365),
+				defaultTtl: days(1),
+			})
+
+			const originRequest = new aws.cloudFront.OriginRequestPolicy(group, 'request', {
+				name,
+				header: {
+					behavior: 'all-except',
+					values: ['host', 'authentication'],
+				},
+			})
+
+			const cdn = new aws.cloudFront.Distribution(group, 'cdn', {
 				name,
 				compress: true,
 				certificateArn,
+				viewerProtocol: 'https-only',
 				aliases: domainName ? [domainName] : undefined,
 				origins: [
 					{
@@ -102,39 +126,24 @@ export const rpcFeature = defineFeature({
 					},
 				],
 				targetOriginId: 'default',
-				// cachePolicyId: cache.id,
+				cachePolicyId: cache.id,
+				originRequestPolicyId: originRequest.id,
 				// responseHeadersPolicyId: responseHeaders.id,
-				// customErrorResponses: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
-				// 	if (typeof item === 'string') {
-				// 		return {
-				// 			errorCode,
-				// 			responsePath: item,
-				// 			responseCode: Number(errorCode),
-				// 		}
-				// 	}
-
-				// 	return {
-				// 		errorCode,
-				// 		cacheMinTTL: item.minTTL,
-				// 		responsePath: item.path,
-				// 		responseCode: item.statusCode ?? Number(errorCode),
-				// 	}
-				// }),
 			})
 
 			if (props.domain) {
-				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				const fullDomainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
 				new aws.route53.RecordSet(group, 'record', {
 					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
 					type: 'A',
-					name: domainName,
-					alias: dns.aliasTarget,
+					name: fullDomainName,
+					alias: cdn.aliasTarget,
 				})
 
-				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, domainName)
+				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, fullDomainName)
 			} else {
-				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, url.url)
+				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, cdn.aliasTarget.dnsName)
 			}
 		}
 	},
@@ -146,21 +155,19 @@ export const rpcFeature = defineFeature({
 				throw new FileError(ctx.stackConfig.file, `RPC definition is not defined on app level for "${id}"`)
 			}
 
+			const schema = ctx.shared.get<Record<string, string>>(`rpc-${id}-schema`)
 			const group = new Node(ctx.stack, 'rpc', id)
 
 			for (const [name, props] of Object.entries(queries ?? {})) {
-				const resolverGroup = new Node(group, 'query', name)
+				const queryGroup = new Node(group, 'query', name)
 				const entryId = paramCase(`${id}-${shortId(name)}`)
 
-				const { lambda } = createLambdaFunction(resolverGroup, ctx, `rpc`, entryId, {
-					...props.consumer,
+				const lambda = createLambdaFunction(queryGroup, ctx, `rpc`, entryId, {
+					...props,
 					description: `${id} ${name}`,
 				})
 
-				new aws.dynamodb.TableItem(group, 'item', {
-					table: ctx.shared.get('rpc-schema-table-name'),
-					item: Asset.fromJSON({ id, name }),
-				})
+				schema[name] = lambda.name
 			}
 		}
 	},

@@ -8,6 +8,7 @@ import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 import { RestDefaultSchema } from '../feature/rest/schema.js'
+import { RpcDefaultSchema } from '../feature/rpc/schema.js'
 import { StoreDefaultSchema } from '../feature/store/schema.js'
 import { TableDefaultSchema } from '../feature/table/schema.js'
 import { RegionSchema } from './schema/region.js'
@@ -36,6 +37,7 @@ export const AppSchema = z.object({
 			graphql: GraphQLDefaultSchema,
 			http: HttpDefaultSchema,
 			rest: RestDefaultSchema,
+			rpc: RpcDefaultSchema,
 			pubsub: PubSubDefaultSchema,
 			table: TableDefaultSchema,
 			store: StoreDefaultSchema,

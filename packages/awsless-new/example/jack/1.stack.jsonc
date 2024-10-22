@@ -33,6 +33,11 @@
 	// 		"deleteProtection": true
 	// 	}
 	// },
+	"rpc": {
+		"api": {
+			"test": "./echo.ts"
+		}
+	},
 	"functions": {
 		"echo": "./function.ts"
 	}

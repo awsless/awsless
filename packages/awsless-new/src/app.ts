@@ -68,6 +68,7 @@ export type BindEnv = {
 export const createApp = (props: CreateAppProps) => {
 	const app = new App(props.appConfig.name)
 	const base = new Stack(app, 'base')
+
 	const shared = new SharedData()
 	const appId = generateGlobalAppId({
 		accountId: props.accountId,

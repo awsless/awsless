@@ -4,7 +4,7 @@ import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
 import { dirname } from 'path'
 import { rollup } from 'rollup'
-import { minify as swcMinify, swc } from 'rollup-plugin-swc3'
+import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
 import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
 

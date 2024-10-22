@@ -12,6 +12,7 @@ import { OnFailureSchema } from '../feature/on-failure/schema.js'
 import { PubSubSchema } from '../feature/pubsub/schema.js'
 import { QueuesSchema } from '../feature/queue/schema.js'
 import { RestSchema } from '../feature/rest/schema.js'
+import { RpcSchema } from '../feature/rpc/schema.js'
 import { SearchsSchema } from '../feature/search/schema.js'
 import { SitesSchema } from '../feature/site/schema.js'
 import { StoresSchema } from '../feature/store/schema.js'
@@ -40,6 +41,7 @@ export const StackSchema = z.object({
 	graphql: GraphQLSchema,
 	http: HttpSchema,
 	rest: RestSchema,
+	rpc: RpcSchema,
 	configs: ConfigsSchema,
 	crons: CronsSchema,
 	caches: CachesSchema,
