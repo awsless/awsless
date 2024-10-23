@@ -1,6 +1,25 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack-kennedy-1"
+	"name": "stack-kennedy-1",
+	"topics": ["test-topic"],
+	"tables": {
+		"users": {
+			"hash": "id",
+			"fields": {
+				"createdAt": "number"
+			},
+			"indexes": {
+				"list": {
+					"hash": "tenantId",
+					"sort": "createdAt"
+				},
+				"listGlobal": {
+					"hash": "key",
+					"sort": "createdAt"
+				}
+			}
+		}
+	}
 	// "searchs": {
 	// 	"test": {
 	// 		"type": "t3.small",

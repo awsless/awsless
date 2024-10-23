@@ -14,8 +14,29 @@ var Node = class {
     parent?.children.push(this);
   }
   children = [];
+  localTags = {};
   get urn() {
     return `${this.parent ? this.parent.urn : "urn"}:${this.type}:{${this.identifier}}`;
+  }
+  get tags() {
+    return {
+      ...this.parent?.tags ?? {},
+      ...this.localTags
+    };
+  }
+  setTag(name, value) {
+    if (typeof name === "string") {
+      this.localTags[name] = value;
+    } else {
+      Object.assign(this.localTags, name);
+    }
+    return this;
+  }
+  getTag(name) {
+    return this.localTags[name];
+  }
+  removeTag(name) {
+    delete this.localTags[name];
   }
   // get parent() {
   // 	return this.parental
@@ -207,6 +228,9 @@ var Resource = class extends Node {
     this.identifier = identifier;
     if (inputs) {
       this.registerDependency(inputs);
+    }
+    if (typeof inputs === "object" && inputs !== null && "tags" in inputs && typeof inputs.tags === "object" && inputs.tags !== null) {
+      this.setTag(inputs.tags);
     }
   }
   remoteDocument;
@@ -716,107 +740,6 @@ var WorkSpace = class {
   // 		updates,
   // 		deletes,
   // 	}
-  // }
-  // async deployStack(stack: Stack) {
-  // 	const app = this.getStackApp(stack)
-  // 	return lockApp(this.props.stateProvider, app, async () => {
-  // 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
-  // 			name: app.name,
-  // 			stacks: {},
-  // 		}
-  // 		// -------------------------------------------------------
-  // 		// Set the idempotent token when no token exists.
-  // 		if (!appState.token) {
-  // 			appState.token = randomUUID()
-  // 			await this.props.stateProvider.update(app.urn, appState)
-  // 		}
-  // 		// -------------------------------------------------------
-  // 		const stackState: StackState = (appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-  // 			name: stack.name,
-  // 			exports: {},
-  // 			resources: {},
-  // 		})
-  // 		const resources = stack.resources
-  // 		// -------------------------------------------------------------------
-  // 		// Set the exported data on the app.
-  // 		for (const stackData of Object.values(appState.stacks)) {
-  // 			app.setExportedData(stackData.name, stackData.exports)
-  // 		}
-  // 		// -------------------------------------------------------------------
-  // 		// Find Deletable resources...
-  // 		const deleteResourcesBefore: Record<URN, ResourceState> = {}
-  // 		const deleteResourcesAfter: Record<URN, ResourceState> = {}
-  // 		for (const [urnStr, state] of Object.entries(stackState.resources)) {
-  // 			const urn = urnStr as URN
-  // 			const resource = resources.find(r => r.urn === urn)
-  // 			if (!resource) {
-  // 				if (state.policies.deletion === 'before-deployment') {
-  // 					deleteResourcesBefore[urn] = state
-  // 				}
-  // 				if (state.policies.deletion === 'after-deployment') {
-  // 					deleteResourcesAfter[urn] = state
-  // 				}
-  // 			}
-  // 		}
-  // 		// -------------------------------------------------------------------
-  // 		// Process resources...
-  // 		try {
-  // 			// -------------------------------------------------------------------
-  // 			// Delete resources before deployment...
-  // 			if (Object.keys(deleteResourcesBefore).length > 0) {
-  // 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore)
-  // 			}
-  // 			// -------------------------------------------------------------------
-  // 			// Deploy resources...
-  // 			await this.deployStackResources(app.urn, appState, stackState, resources)
-  // 			// -------------------------------------------------------------------
-  // 			// Delete resources after deployment...
-  // 			if (Object.keys(deleteResourcesAfter).length > 0) {
-  // 				await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter)
-  // 			}
-  // 			// -------------------------------------------------------------------
-  // 		} catch (error) {
-  // 			// const resourceError = new ResourceError()
-  // 			throw error
-  // 		}
-  // 		// -------------------------------------------------------------------
-  // 		// Delete the idempotant token when the deployment reaches the end.
-  // 		delete appState.token
-  // 		// -------------------------------------------------------------------
-  // 		// Save stack exports
-  // 		stackState.exports = unwrapOutputsFromDocument(stack.urn, stack.exported)
-  // 		await this.props.stateProvider.update(app.urn, appState)
-  // 		// -------------------------------------------------------------------
-  // 		return stackState
-  // 	})
-  // }
-  // async deleteStack(stack: Stack) {
-  // 	const app = this.getStackApp(stack)
-  // 	return lockApp(this.props.stateProvider, app, async () => {
-  // 		const appState: AppState = (await this.props.stateProvider.get(app.urn)) ?? {
-  // 			name: app.name,
-  // 			stacks: {},
-  // 		}
-  // 		// -------------------------------------------------------
-  // 		// Set the idempotent token when no token exists.
-  // 		if (!appState.token) {
-  // 			appState.token = randomUUID()
-  // 			await this.props.stateProvider.update(app.urn, appState)
-  // 		}
-  // 		// -------------------------------------------------------
-  // 		const stackState = appState.stacks[stack.urn]
-  // 		if (!stackState) {
-  // 			throw new StackError(stack.name, [], `Stack already deleted: ${stack.name}`)
-  // 		}
-  // 		try {
-  // 			await this.deleteStackResources(app.urn, appState, stackState, stackState.resources)
-  // 		} catch (error) {
-  // 			throw error
-  // 		}
-  // 		delete appState.token
-  // 		delete appState.stacks[stack.urn]
-  // 		await this.props.stateProvider.update(app.urn, appState)
-  // 	})
   // }
   async getRemoteResource(props) {
     let remote;
@@ -2692,9 +2615,7 @@ var ResponseHeadersPolicy = class extends CloudControlApiResource {
             ...contentSecurityPolicy ? {
               ContentSecurityPolicy: {
                 Override: unwrap(contentSecurityPolicy.override, false),
-                ContentSecurityPolicy: unwrap(
-                  contentSecurityPolicy?.contentSecurityPolicy
-                )
+                ContentSecurityPolicy: unwrap(contentSecurityPolicy?.contentSecurityPolicy)
               }
             } : {},
             ContentTypeOptions: {
@@ -4626,12 +4547,7 @@ var BucketProvider = class {
 };
 
 // src/provider/aws/sns/subscription-provider.ts
-import {
-  GetSubscriptionAttributesCommand,
-  SNSClient,
-  SubscribeCommand,
-  UnsubscribeCommand
-} from "@aws-sdk/client-sns";
+import { GetSubscriptionAttributesCommand, SNSClient, SubscribeCommand, UnsubscribeCommand } from "@aws-sdk/client-sns";
 var SubscriptionProvider = class {
   client;
   constructor(props) {
@@ -4700,7 +4616,8 @@ var createCloudProviders = (config) => {
 // src/provider/aws/cloud-watch/index.ts
 var cloud_watch_exports = {};
 __export(cloud_watch_exports, {
-  LogGroup: () => LogGroup
+  LogGroup: () => LogGroup,
+  SubscriptionFilter: () => SubscriptionFilter
 });
 
 // src/provider/aws/cloud-watch/log-group.ts
@@ -4736,6 +4653,29 @@ var LogGroup = class extends CloudControlApiResource {
         ...this.attr("RetentionInDays", this.props.retention && toDays2(unwrap(this.props.retention)))
         // KmsKeyId: String
         // DataProtectionPolicy : Json,
+      }
+    };
+  }
+};
+
+// src/provider/aws/cloud-watch/subscription-filter.ts
+var SubscriptionFilter = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Logs::SubscriptionFilter", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.LogGroupName);
+  }
+  toState() {
+    return {
+      document: {
+        FilterName: this.props.name,
+        LogGroupName: this.props.logGroupName,
+        DestinationArn: this.props.destinationArn,
+        FilterPattern: this.props.filterPattern,
+        Distribution: unwrap(this.props.distribution, "ByLogStream")
       }
     };
   }
@@ -5858,6 +5798,14 @@ __export(memorydb_exports, {
   SubnetGroup: () => SubnetGroup
 });
 
+// src/provider/aws/util.ts
+var formatTags = (tags) => {
+  return Object.entries(tags).map(([Key, Value]) => ({
+    Key,
+    Value
+  }));
+};
+
 // src/provider/aws/memorydb/cluster.ts
 var Cluster2 = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5885,6 +5833,7 @@ var Cluster2 = class extends CloudControlApiResource {
           Port: this.props.port
         },
         Port: this.props.port,
+        Tags: formatTags(this.tags),
         ...this.attr("Description", this.props.description),
         ACLName: this.props.aclName,
         EngineVersion: unwrap(this.props.engine, "7.0"),
@@ -5965,6 +5914,7 @@ var Domain = class extends CloudControlApiResource {
     return {
       document: {
         DomainName: this.props.name,
+        Tags: formatTags(this.tags),
         EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.13"),
         IPAddressType: unwrap(this.props.ipType, "ipv4"),
         ClusterConfig: {
@@ -6152,7 +6102,8 @@ var HostedZone = class extends CloudControlApiResource {
     const name = unwrap(this.props.name);
     return {
       document: {
-        Name: name.endsWith(".") ? name : name + "."
+        Name: name.endsWith(".") ? name : name + ".",
+        HostedZoneTags: formatTags(this.tags)
       }
     };
   }
@@ -6274,6 +6225,7 @@ var Bucket = class extends Resource {
       },
       document: {
         BucketName: unwrap(this.props.name, this.identifier),
+        Tags: formatTags(this.tags),
         // AccessControl: pascalCase(unwrap(this.props.accessControl, 'private')),
         ...unwrap(this.props.versioning, false) ? {
           VersioningConfiguration: {
@@ -6560,7 +6512,7 @@ var Topic = class extends CloudControlApiResource {
       document: {
         TopicName: this.props.name,
         DisplayName: this.props.name,
-        Tags: [{ Key: "name", Value: this.props.name }]
+        Tags: formatTags(this.tags)
       }
     };
   }
@@ -6610,7 +6562,8 @@ var Queue = class extends CloudControlApiResource {
     return {
       document: {
         QueueName: this.props.name,
-        Tags: [{ Key: "name", Value: this.props.name }],
+        Tags: formatTags(this.tags),
+        // Tags: [{ Key: 'name', Value: this.props.name }],
         DelaySeconds: toSeconds13(unwrap(this.props.deliveryDelay, seconds2(0))),
         MaximumMessageSize: toBytes(unwrap(this.props.maxMessageSize, kibibytes(256))),
         MessageRetentionPeriod: toSeconds13(unwrap(this.props.retentionPeriod, days4(4))),

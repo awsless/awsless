@@ -4,10 +4,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// examples/example.ts
-import { fromIni } from "@aws-sdk/credential-providers";
-import { minutes as minutes4 } from "@awsless/duration";
-
 // src/core/node.ts
 var Node = class {
   // private parent: Node
@@ -1034,14 +1030,14 @@ var CertificateProvider = class {
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
   }
-  client(region2 = this.props.region) {
-    if (!this.clients[region2]) {
-      this.clients[region2] = new ACMClient({
+  client(region = this.props.region) {
+    if (!this.clients[region]) {
+      this.clients[region] = new ACMClient({
         ...this.props,
-        region: region2
+        region
       });
     }
-    return this.clients[region2];
+    return this.clients[region];
   }
   async get({ id, extra }) {
     const client = this.client(extra.region);
@@ -1097,14 +1093,14 @@ var CertificateValidationProvider = class {
   own(id) {
     return id === "aws-acm-certificate-validation";
   }
-  client(region2 = this.props.region) {
-    if (!this.clients[region2]) {
-      this.clients[region2] = new ACMClient2({
+  client(region = this.props.region) {
+    if (!this.clients[region]) {
+      this.clients[region] = new ACMClient2({
         ...this.props,
-        region: region2
+        region
       });
     }
-    return this.clients[region2];
+    return this.clients[region];
   }
   wait(delay) {
     return new Promise((r) => setTimeout(r, delay));
@@ -4549,12 +4545,7 @@ var BucketProvider = class {
 };
 
 // src/provider/aws/sns/subscription-provider.ts
-import {
-  GetSubscriptionAttributesCommand,
-  SNSClient,
-  SubscribeCommand,
-  UnsubscribeCommand
-} from "@aws-sdk/client-sns";
+import { GetSubscriptionAttributesCommand, SNSClient, SubscribeCommand, UnsubscribeCommand } from "@aws-sdk/client-sns";
 var SubscriptionProvider = class {
   client;
   constructor(props) {
@@ -4623,7 +4614,8 @@ var createCloudProviders = (config) => {
 // src/provider/aws/cloud-watch/index.ts
 var cloud_watch_exports = {};
 __export(cloud_watch_exports, {
-  LogGroup: () => LogGroup
+  LogGroup: () => LogGroup,
+  SubscriptionFilter: () => SubscriptionFilter
 });
 
 // src/provider/aws/cloud-watch/log-group.ts
@@ -4659,6 +4651,29 @@ var LogGroup = class extends CloudControlApiResource {
         ...this.attr("RetentionInDays", this.props.retention && toDays2(unwrap(this.props.retention)))
         // KmsKeyId: String
         // DataProtectionPolicy : Json,
+      }
+    };
+  }
+};
+
+// src/provider/aws/cloud-watch/subscription-filter.ts
+var SubscriptionFilter = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Logs::SubscriptionFilter", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get name() {
+    return this.output((v) => v.LogGroupName);
+  }
+  toState() {
+    return {
+      document: {
+        FilterName: this.props.name,
+        LogGroupName: this.props.logGroupName,
+        DestinationArn: this.props.destinationArn,
+        FilterPattern: this.props.filterPattern,
+        Distribution: unwrap(this.props.distribution, "ByLogStream")
       }
     };
   }
@@ -5781,6 +5796,14 @@ __export(memorydb_exports, {
   SubnetGroup: () => SubnetGroup
 });
 
+// src/provider/aws/util.ts
+var formatTags = (tags) => {
+  return Object.entries(tags).map(([Key, Value]) => ({
+    Key,
+    Value
+  }));
+};
+
 // src/provider/aws/memorydb/cluster.ts
 var Cluster2 = class extends CloudControlApiResource {
   constructor(parent, id, props) {
@@ -5808,6 +5831,7 @@ var Cluster2 = class extends CloudControlApiResource {
           Port: this.props.port
         },
         Port: this.props.port,
+        Tags: formatTags(this.tags),
         ...this.attr("Description", this.props.description),
         ACLName: this.props.aclName,
         EngineVersion: unwrap(this.props.engine, "7.0"),
@@ -5888,6 +5912,7 @@ var Domain = class extends CloudControlApiResource {
     return {
       document: {
         DomainName: this.props.name,
+        Tags: formatTags(this.tags),
         EngineVersion: unwrap(`OpenSearch_${this.props.version}`, "OpenSearch_2.13"),
         IPAddressType: unwrap(this.props.ipType, "ipv4"),
         ClusterConfig: {
@@ -6075,7 +6100,8 @@ var HostedZone = class extends CloudControlApiResource {
     const name = unwrap(this.props.name);
     return {
       document: {
-        Name: name.endsWith(".") ? name : name + "."
+        Name: name.endsWith(".") ? name : name + ".",
+        HostedZoneTags: formatTags(this.tags)
       }
     };
   }
@@ -6197,6 +6223,7 @@ var Bucket = class extends Resource {
       },
       document: {
         BucketName: unwrap(this.props.name, this.identifier),
+        Tags: formatTags(this.tags),
         // AccessControl: pascalCase(unwrap(this.props.accessControl, 'private')),
         ...unwrap(this.props.versioning, false) ? {
           VersioningConfiguration: {
@@ -6483,7 +6510,7 @@ var Topic = class extends CloudControlApiResource {
       document: {
         TopicName: this.props.name,
         DisplayName: this.props.name,
-        Tags: [{ Key: "name", Value: this.props.name }]
+        Tags: formatTags(this.tags)
       }
     };
   }
@@ -6498,16 +6525,6 @@ __export(sqs_exports, {
 // src/provider/aws/sqs/queue.ts
 import { days as days4, seconds as seconds2, toSeconds as toSeconds13 } from "@awsless/duration";
 import { kibibytes, toBytes } from "@awsless/size";
-
-// src/provider/aws/util.ts
-var formatTags = (tags) => {
-  return Object.entries(tags).map(([Key, Value]) => ({
-    Key,
-    Value
-  }));
-};
-
-// src/provider/aws/sqs/queue.ts
 var Queue = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::SQS::Queue", id, props);
@@ -6561,124 +6578,204 @@ var Queue = class extends CloudControlApiResource {
   }
 };
 
+// src/provider/local/index.ts
+var local_exports = {};
+__export(local_exports, {
+  file: () => file_exports,
+  memory: () => memory_exports
+});
+
+// src/provider/local/file/index.ts
+var file_exports = {};
+__export(file_exports, {
+  LockProvider: () => LockProvider2,
+  StateProvider: () => StateProvider2
+});
+
 // src/provider/local/file/lock-provider.ts
+import { mkdir, rm, stat } from "fs/promises";
+import { join } from "path";
 import { lock } from "proper-lockfile";
-
-// src/provider/terraform/registry.ts
-import { arch, platform } from "os";
-import { compare } from "semver";
-var baseUrl = "https://registry.terraform.io/v1/providers";
-var TerraformRegistryProvider = class _TerraformRegistryProvider {
-  constructor(org, type, meta) {
-    this.org = org;
-    this.type = type;
-    this.meta = meta;
+var LockProvider2 = class {
+  constructor(props) {
+    this.props = props;
   }
-  static async load(org, type) {
-    const url = `${baseUrl}/${org}/${type}/versions`;
-    const response = await fetch(url);
-    const meta = await response.json();
-    return new _TerraformRegistryProvider(org, type, meta.versions);
+  lockFile(urn) {
+    return join(this.props.dir, `${urn}.lock`);
   }
-  get versions() {
-    return this.meta.map(
-      (meta) => new TerraformRegistryProviderVersion(
-        this.org,
-        this.type,
-        meta.version,
-        meta.protocols,
-        meta.platforms
-      )
-    ).sort((a, b) => {
-      return compare(a.version, b.version);
+  async mkdir() {
+    await mkdir(this.props.dir, {
+      recursive: true
     });
   }
-  get latestVersion() {
-    return this.versions.at(-1);
-  }
-};
-var TerraformRegistryProviderVersion = class {
-  constructor(org, type, version, protocols, platforms) {
-    this.org = org;
-    this.type = type;
-    this.version = version;
-    this.protocols = protocols;
-    this.platforms = platforms;
-  }
-  get supported() {
-    const os = platform();
-    const ar = arch();
-    return !!this.platforms.find((platform2) => {
-      return platform2.os === os && platform2.arch === ar;
-    });
-  }
-  async getDownloadUrl() {
-    if (!this.supported) {
-      throw new Error("Version is unsupported for your platform.");
+  async insecureReleaseLock(urn) {
+    if (await this.locked(urn)) {
+      await rm(this.lockFile(urn));
     }
-    const url = [
-      //
-      baseUrl,
-      this.org,
-      this.type,
-      this.version,
-      "download",
-      platform(),
-      arch()
-    ].join("/");
-    const response = await fetch(url);
-    const result = await response.json();
-    return result.download_url;
+  }
+  async locked(urn) {
+    const result = await stat(this.lockFile(urn));
+    return result.isFile();
+  }
+  async lock(urn) {
+    await this.mkdir();
+    return lock(this.lockFile(urn), {
+      realpath: false
+    });
   }
 };
 
-// examples/example.ts
-var region = "eu-west-1";
-var credentials = fromIni({
-  profile: "jacksclub"
+// src/provider/local/file/state-provider.ts
+import { join as join2 } from "path";
+import { mkdir as mkdir2, readFile as readFile2, rm as rm2, writeFile } from "fs/promises";
+var StateProvider2 = class {
+  constructor(props) {
+    this.props = props;
+  }
+  stateFile(urn) {
+    return join2(this.props.dir, `${urn}.json`);
+  }
+  async mkdir() {
+    await mkdir2(this.props.dir, {
+      recursive: true
+    });
+  }
+  async get(urn) {
+    let json;
+    try {
+      json = await readFile2(join2(this.stateFile(urn)), "utf8");
+    } catch (error) {
+      return;
+    }
+    return JSON.parse(json);
+  }
+  async update(urn, state) {
+    await this.mkdir();
+    await writeFile(this.stateFile(urn), JSON.stringify(state, void 0, 2));
+  }
+  async delete(urn) {
+    await this.mkdir();
+    await rm2(this.stateFile(urn));
+  }
+};
+
+// src/provider/local/memory/index.ts
+var memory_exports = {};
+__export(memory_exports, {
+  LockProvider: () => LockProvider3,
+  StateProvider: () => StateProvider3
 });
-var workspace = new WorkSpace({
-  cloudProviders: aws_exports.createCloudProviders({
-    region,
-    credentials,
-    accountId: "468004125411",
-    timeout: minutes4(15)
-  }),
-  lockProvider: new aws_exports.dynamodb.LockProvider({
-    region,
-    credentials,
-    tableName: "awsless-locks"
-  }),
-  stateProvider: new aws_exports.s3.StateProvider({
-    region,
-    credentials,
-    bucket: "awsless-state-468004125411"
-  })
-  // stateProvider: new local.file.StateProvider({
-  // 	dir: './examples/state',
-  // }),
-});
-var app = new App("test");
-app.setTag("app", "test");
-var stack = new Stack(app, "test");
-stack.setTag("stack", "test");
-(async () => {
-  const provider = await TerraformRegistryProvider.load("hashicorp", "aws");
-  console.log(provider.latestVersion);
-  console.log(provider.latestVersion?.supported);
-})();
-var main = async () => {
-  console.log("START");
-  try {
-    await workspace.deployApp(app);
-  } catch (error) {
-    if (error instanceof AppError) {
-      for (const issue of error.issues) {
-        console.error(issue);
+
+// src/provider/local/memory/lock-provider.ts
+var LockProvider3 = class {
+  locks = /* @__PURE__ */ new Map();
+  async insecureReleaseLock(urn) {
+    this.locks.delete(urn);
+  }
+  async locked(urn) {
+    return this.locks.has(urn);
+  }
+  async lock(urn) {
+    if (this.locks.has(urn)) {
+      throw new Error("Already locked");
+    }
+    const id = Math.random();
+    this.locks.set(urn, id);
+    return async () => {
+      if (this.locks.get(urn) === id) {
+        this.locks.delete(urn);
       }
-    }
-    throw error;
+    };
   }
-  console.log("END");
 };
-main();
+
+// src/provider/local/memory/state-provider.ts
+var StateProvider3 = class {
+  states = /* @__PURE__ */ new Map();
+  async get(urn) {
+    return this.states.get(urn);
+  }
+  async update(urn, state) {
+    this.states.set(urn, state);
+  }
+  async delete(urn) {
+    this.states.delete(urn);
+  }
+};
+
+// examples/resources/_util.ts
+import { fromIni } from "@aws-sdk/credential-providers";
+import { minutes as minutes4 } from "@awsless/duration";
+var createWorkspace = (profile, region = "eu-west-1", timeout = 15) => {
+  const credentials = fromIni({ profile });
+  const workspace2 = new WorkSpace({
+    cloudProviders: aws_exports.createCloudProviders({
+      region,
+      credentials,
+      timeout: minutes4(timeout),
+      accountId: "468004125411"
+    }),
+    stateProvider: new local_exports.file.StateProvider({
+      dir: "./examples/resources/state"
+    }),
+    lockProvider: new local_exports.file.LockProvider({
+      dir: "./examples/resources/state"
+    })
+    // lockProvider: new aws.dynamodb.LockProvider({
+    // 	region,
+    // 	credentials,
+    // 	tableName: 'awsless-lock',
+    // }),
+    // stateProvider: new aws.s3.StateProvider({
+    // 	region,
+    // 	credentials,
+    // 	bucket: 'awsless-state',
+    // }),
+  });
+  return workspace2;
+};
+
+// examples/resources/log-subscriber.ts
+var workspace = createWorkspace("jacksclub");
+var app = new App("log-subscriber");
+var stack = new Stack(app, "log-subscriber");
+var logGroup = new aws_exports.cloudWatch.LogGroup(stack, "log-group", {
+  name: "/aws/lambda/log-subscriber"
+});
+var role = new aws_exports.iam.Role(stack, "role", {
+  assumedBy: "lambda.amazonaws.com"
+});
+var lambda = new aws_exports.lambda.Function(stack, "lambda", {
+  name: "awsless-formation-cron",
+  code: {
+    zipFile: 'module.exports.default = async () => ({ statusCode: 200, body: "Hello World" })'
+  },
+  role: role.arn
+});
+new aws_exports.lambda.Permission(stack, "permission", {
+  action: "lambda:InvokeFunction",
+  principal: "logs.amazonaws.com",
+  functionArn: lambda.arn,
+  sourceArn: logGroup.arn
+});
+new aws_exports.cloudWatch.SubscriptionFilter(stack, "log-subscriber", {
+  logGroupName: logGroup.name,
+  destinationArn: lambda.arn,
+  filterPattern: "{$.level = ERROR}"
+  // roleArn: role.arn,
+});
+console.log("START");
+try {
+  await workspace.deleteApp(app);
+} catch (error) {
+  if (error instanceof AppError) {
+    for (const issue of error.issues) {
+      console.error(issue);
+    }
+  }
+  throw error;
+}
+console.log("END");
+export {
+  role
+};

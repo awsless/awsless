@@ -3,6 +3,7 @@
 	"name": "app-kennedy",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
+	"logSubscription": "./function.ts",
 	"defaults": {
 		// "domains": {
 		// 	"main": {

@@ -1,13 +1,13 @@
-import { z } from 'zod'
-import { FunctionSchema } from '../function/schema.js'
-import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
-import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
-import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { days, hours, minutes, seconds } from '@awsless/duration'
 import { kibibytes } from '@awsless/size'
+import { z } from 'zod'
+import { DurationSchema, durationMax, durationMin } from '../../config/schema/duration.js'
+import { LocalFileSchema } from '../../config/schema/local-file.js'
+import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { SizeSchema, sizeMax, sizeMin } from '../../config/schema/size.js'
+import { FunctionSchema } from '../function/schema.js'
 
-const RetentionPeriodSchema = DurationSchema.refine(
+export const RetentionPeriodSchema = DurationSchema.refine(
 	durationMin(minutes(1)),
 	'Minimum retention period is 1 minute'
 )
@@ -16,21 +16,21 @@ const RetentionPeriodSchema = DurationSchema.refine(
 		'The number of seconds that Amazon SQS retains a message. You can specify a duration from 1 minute to 14 days.'
 	)
 
-const VisibilityTimeoutSchema = DurationSchema.refine(
+export const VisibilityTimeoutSchema = DurationSchema.refine(
 	durationMax(hours(12)),
 	'Maximum visibility timeout is 12 hours'
 ).describe(
 	'The length of time during which a message will be unavailable after a message is delivered from the queue. This blocks other components from receiving the same message and gives the initial component time to process and delete the message from the queue. You can specify a duration from 0 to 12 hours.'
 )
 
-const DeliveryDelaySchema = DurationSchema.refine(
+export const DeliveryDelaySchema = DurationSchema.refine(
 	durationMax(minutes(15)),
 	'Maximum delivery delay is 15 minutes'
 ).describe(
 	'The time in seconds for which the delivery of all messages in the queue is delayed. You can specify a duration from 0 to 15 minutes.'
 )
 
-const ReceiveMessageWaitTimeSchema = DurationSchema.refine(
+export const ReceiveMessageWaitTimeSchema = DurationSchema.refine(
 	durationMin(seconds(1)),
 	'Minimum receive message wait time is 1 second'
 )
@@ -39,13 +39,13 @@ const ReceiveMessageWaitTimeSchema = DurationSchema.refine(
 		"Specifies the duration, that the ReceiveMessage action call waits until a message is in the queue in order to include it in the response, rather than returning an empty response if a message isn't yet available. You can specify a duration from 1 to 20 seconds. Short polling is used as the default."
 	)
 
-const MaxMessageSizeSchema = SizeSchema.refine(sizeMin(kibibytes(1)), 'Minimum max message size is 1 KB')
+export const MaxMessageSizeSchema = SizeSchema.refine(sizeMin(kibibytes(1)), 'Minimum max message size is 1 KB')
 	.refine(sizeMax(kibibytes(256)), 'Maximum max message size is 256 KB')
 	.describe(
 		'The limit of how many bytes that a message can contain before Amazon SQS rejects it. You can specify an size from 1 KB to 256 KB.'
 	)
 
-const BatchSizeSchema = z
+export const BatchSizeSchema = z
 	.number()
 	.int()
 	.min(1, 'Minimum batch size is 1')
@@ -54,7 +54,7 @@ const BatchSizeSchema = z
 		'The maximum number of records in each batch that Lambda pulls from your queue and sends to your function. Lambda passes all of the records in the batch to the function in a single call, up to the payload limit for synchronous invocation (6 MB). You can specify an integer from 1 to 10000.'
 	)
 
-const MaxConcurrencySchema = z
+export const MaxConcurrencySchema = z
 	.number()
 	.int()
 	.min(2, 'Minimum max concurrency is 2')
@@ -63,7 +63,7 @@ const MaxConcurrencySchema = z
 		'Limits the number of concurrent instances that the queue worker can invoke. You can specify an integer from 2 to 1000.'
 	)
 
-const MaxBatchingWindow = DurationSchema.refine(
+export const MaxBatchingWindow = DurationSchema.refine(
 	durationMax(minutes(5)),
 	'Maximum max batching window is 5 minutes'
 ).describe(
@@ -93,7 +93,7 @@ export const QueuesSchema = z
 				},
 			})),
 			z.object({
-				consumer: FunctionSchema.describe('he consuming lambda function properties.'),
+				consumer: FunctionSchema.describe('The consuming lambda function properties.'),
 				retentionPeriod: RetentionPeriodSchema.optional(),
 				visibilityTimeout: VisibilityTimeoutSchema.optional(),
 				deliveryDelay: DeliveryDelaySchema.optional(),

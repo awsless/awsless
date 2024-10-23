@@ -210,12 +210,23 @@ export const createLambdaFunction = (
 			}
 		)
 
-		// @ts-ignore
-		if (props.log.subscription) {
-			new aws.cloudWatch.subscriptionFilter(group, `subscription`, {
-				destination: ctx.shared.get(`log-subscription-destination-arn`),
+		const logSubscriptionArn = ctx.shared.get<aws.ARN>('log-subscription-destination-arn')
+
+		if (logSubscriptionArn) {
+			new aws.cloudWatch.SubscriptionFilter(group, `log-subscription`, {
+				destinationArn: logSubscriptionArn,
 				logGroupName: logGroup.name,
+				filterPattern: '{$.level = ERROR}',
 			})
+
+			// const permission = new aws.lambda.Permission(group, 'log-subscription-permission', {
+			// 	action: 'lambda:InvokeFunction',
+			// 	principal: 'logs.amazonaws.com',
+			// 	functionArn: logSubscriptionArn,
+			// 	sourceArn: logGroup.arn,
+			// })
+
+			// subscriptionFilter.dependsOn(permission)
 		}
 	}
 

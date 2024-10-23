@@ -11,7 +11,9 @@ export class SubscriptionFilter extends CloudControlApiResource {
 			name?: Input<string>
 			logGroupName: Input<string>
 			destinationArn: Input<ARN>
-			distribution: Input<'Random' | 'ByLogStream'>
+			filterPattern: Input<string>
+			distribution?: Input<'Random' | 'ByLogStream'>
+			roleArn?: Input<ARN>
 		}
 	) {
 		super(parent, 'AWS::Logs::SubscriptionFilter', id, props)
@@ -27,6 +29,7 @@ export class SubscriptionFilter extends CloudControlApiResource {
 				FilterName: this.props.name,
 				LogGroupName: this.props.logGroupName,
 				DestinationArn: this.props.destinationArn,
+				FilterPattern: this.props.filterPattern,
 				Distribution: unwrap(this.props.distribution, 'ByLogStream'),
 			},
 		}

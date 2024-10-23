@@ -35,7 +35,7 @@ export const StackSchema = z.object({
 
 	commands: CommandsSchema,
 
-	// onFailure: OnFailureSchema,
+	onFailure: OnFailureSchema,
 	auth: AuthSchema,
 	graphql: GraphQLSchema,
 	http: HttpSchema,

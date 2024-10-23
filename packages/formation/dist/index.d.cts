@@ -1,3 +1,4 @@
+import { UUID } from 'crypto';
 import * as _aws_sdk_client_acm from '@aws-sdk/client-acm';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types';
@@ -97,25 +98,6 @@ interface CloudProvider {
     delete(props: DeleteProps): Promise<void>;
 }
 
-type Input<T> = T | Output<T>;
-declare class Output<T> {
-    readonly resources: Resource[];
-    private listeners;
-    private value;
-    private resolved;
-    constructor(resources: Resource[], cb: (resolve: (data: T) => void) => void);
-    apply<N>(cb: (value: T) => N): Output<Awaited<N>>;
-    valueOf(): T | undefined;
-}
-declare const findResources: (props: unknown) => Resource[];
-declare const combine: <I extends [any, ...any[]]>(inputs: I) => Output<UnwrapArray<I>>;
-type UnwrapArray<T extends Input<unknown>[]> = {
-    [K in keyof T]: Unwrap<T[K]>;
-};
-type Unwrap<T> = T extends Output<infer V> ? V : T;
-declare function unwrap<T extends Input<unknown>>(input: T): Unwrap<T>;
-declare function unwrap<T extends Input<unknown>>(input: T, defaultValue: Unwrap<T>): Exclude<Unwrap<T>, undefined>;
-
 declare class Stack extends Node {
     readonly app: App;
     readonly name: string;
@@ -156,13 +138,38 @@ declare abstract class Resource extends Node {
     };
 }
 
+type Input<T> = T | Output<T>;
+declare class Output<T> {
+    readonly resources: Resource[];
+    private listeners;
+    private value;
+    private resolved;
+    constructor(resources: Resource[], cb: (resolve: (data: T) => void) => void);
+    apply<N>(cb: (value: T) => N): Output<Awaited<N>>;
+    valueOf(): T | undefined;
+}
+declare const findResources: (props: unknown) => Resource[];
+declare const combine: <I extends [any, ...any[]]>(inputs: I) => Output<UnwrapArray<I>>;
+type UnwrapArray<T extends Input<unknown>[]> = {
+    [K in keyof T]: Unwrap<T[K]>;
+};
+type Unwrap<T> = T extends Output<infer V> ? V : T;
+declare function unwrap<T extends Input<unknown>>(input: T): Unwrap<T>;
+declare function unwrap<T extends Input<unknown>>(input: T, defaultValue: Unwrap<T>): Exclude<Unwrap<T>, undefined>;
+
 declare class Node {
     readonly parent: Node | undefined;
     readonly type: string;
     readonly identifier: string;
     readonly children: Node[];
+    readonly localTags: Record<string, Input<string>>;
     constructor(parent: Node | undefined, type: string, identifier: string);
     get urn(): URN;
+    get tags(): Record<string, Input<string>>;
+    setTag(name: string, value: Input<string>): this;
+    setTag(tags: Record<string, Input<string>>): this;
+    getTag(name: string): Input<string> | undefined;
+    removeTag(name: string): void;
 }
 declare const flatten: (node: Node) => Node[];
 
@@ -185,7 +192,7 @@ interface StateProvider$3 {
 }
 type AppState = {
     name: string;
-    token?: string;
+    token?: UUID;
     stacks: Record<URN, StackState>;
 };
 type StackState = {
@@ -211,7 +218,7 @@ type ResourceOperation = 'create' | 'update' | 'delete' | 'heal' | 'get';
 type StackOperation = 'deploy' | 'delete';
 type Options = {
     filters?: string[];
-    token?: string;
+    token?: UUID;
 };
 declare class WorkSpace {
     protected props: {
@@ -3073,11 +3080,37 @@ declare class LogGroup extends CloudControlApiResource {
     };
 }
 
+declare class SubscriptionFilter extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        name?: Input<string>;
+        logGroupName: Input<string>;
+        destinationArn: Input<ARN>;
+        filterPattern: Input<string>;
+        distribution?: Input<'Random' | 'ByLogStream'>;
+        roleArn?: Input<ARN>;
+    });
+    get name(): Output<string>;
+    toState(): {
+        document: {
+            FilterName: Input<string> | undefined;
+            LogGroupName: Input<string>;
+            DestinationArn: Input<`arn:${string}`>;
+            FilterPattern: Input<string>;
+            Distribution: "Random" | "ByLogStream";
+        };
+    };
+}
+
 type index$j_LogGroup = LogGroup;
 declare const index$j_LogGroup: typeof LogGroup;
+type index$j_SubscriptionFilter = SubscriptionFilter;
+declare const index$j_SubscriptionFilter: typeof SubscriptionFilter;
 declare namespace index$j {
   export {
     index$j_LogGroup as LogGroup,
+    index$j_SubscriptionFilter as SubscriptionFilter,
   };
 }
 
@@ -4026,6 +4059,7 @@ declare class Cluster extends CloudControlApiResource {
     private props;
     constructor(parent: Node, id: string, props: {
         aclName: Input<string>;
+        tags?: Record<string, Input<string>>;
         subnetGroupName?: Input<string>;
         securityGroupIds?: Input<Input<string>[]>;
         name: Input<string>;
@@ -4059,6 +4093,10 @@ declare class Cluster extends CloudControlApiResource {
                 Port: Input<number> | undefined;
             };
             Port: Input<number> | undefined;
+            Tags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
         };
     };
 }
@@ -4104,6 +4142,7 @@ declare class Domain extends CloudControlApiResource {
             type: Input<NodeType>;
             count: Input<number>;
         }>;
+        tags?: Record<string, Input<string>>;
         version?: Input<Version>;
         storageSize?: Input<Size>;
         ipType?: Input<'ipv4' | 'dualstack'>;
@@ -4152,6 +4191,10 @@ declare class Domain extends CloudControlApiResource {
                 SubnetIds: Input<Input<string>[]>;
             } | undefined;
             DomainName: Input<string>;
+            Tags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
             EngineVersion: string;
             IPAddressType: "ipv4" | "dualstack";
             ClusterConfig: {
@@ -4245,6 +4288,7 @@ declare namespace index$9 {
 
 type HostedZoneProps = {
     name: Input<string>;
+    tags?: Record<string, Input<string>>;
 };
 declare class HostedZone extends CloudControlApiResource {
     readonly parent: Node;
@@ -4257,6 +4301,10 @@ declare class HostedZone extends CloudControlApiResource {
     toState(): {
         document: {
             Name: string;
+            HostedZoneTags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
         };
     };
 }
@@ -4319,6 +4367,7 @@ declare class BucketObject extends Resource {
 type NotifictionEvent = 's3:TestEvent' | 's3:ObjectCreated:*' | 's3:ObjectCreated:Put' | 's3:ObjectCreated:Post' | 's3:ObjectCreated:Copy' | 's3:ObjectCreated:CompleteMultipartUpload' | 's3:ObjectRemoved:*' | 's3:ObjectRemoved:Delete' | 's3:ObjectRemoved:DeleteMarkerCreated' | 's3:ObjectRestore:*' | 's3:ObjectRestore:Post' | 's3:ObjectRestore:Completed' | 's3:ObjectRestore:Delete' | 's3:ReducedRedundancyLostObject' | 's3:Replication:*' | 's3:Replication:OperationFailedReplication' | 's3:Replication:OperationMissedThreshold' | 's3:Replication:OperationReplicatedAfterThreshold' | 's3:Replication:OperationNotTracked' | 's3:LifecycleExpiration:*' | 's3:LifecycleExpiration:Delete' | 's3:LifecycleExpiration:DeleteMarkerCreated' | 's3:LifecycleTransition' | 's3:IntelligentTiering' | 's3:ObjectTagging:*' | 's3:ObjectTagging:Put' | 's3:ObjectTagging:Delete' | 's3:ObjectAcl:Put';
 type BucketProps = {
     name?: Input<string>;
+    tags?: Record<string, Input<string>>;
     versioning?: Input<boolean>;
     forceDelete?: Input<boolean>;
     website?: Input<{
@@ -4381,6 +4430,10 @@ declare class Bucket extends Resource {
                 Status: string;
             } | undefined;
             BucketName: string;
+            Tags: {
+                Key: string;
+                Value: Input<string>;
+            }[];
         };
     };
 }
@@ -4563,6 +4616,7 @@ declare class Subscription extends Resource {
 
 type TopicProps = {
     name: Input<string>;
+    tags?: Record<string, Input<string>>;
 };
 declare class Topic extends CloudControlApiResource {
     readonly parent: Node;
@@ -4613,6 +4667,7 @@ type QueueProps = {
     maxMessageSize?: Input<Size>;
     deadLetterArn?: Input<ARN>;
     maxReceiveCount?: Input<number>;
+    tags?: Record<string, Input<string>>;
 };
 declare class Queue extends CloudControlApiResource {
     readonly parent: Node;
