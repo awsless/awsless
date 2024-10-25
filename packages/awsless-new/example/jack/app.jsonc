@@ -50,7 +50,7 @@
 		// },
 		"rpc": {
 			"api": {
-				"auth": "./rpc-auth.ts"
+				// "auth": "./rpc-auth.ts"
 			}
 		},
 		"function": {
