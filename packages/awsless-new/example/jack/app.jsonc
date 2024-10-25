@@ -48,6 +48,11 @@
 		// "instance": {
 		// 	// "connect": true
 		// },
+		"rpc": {
+			"api": {
+				// "auth": "./rpc-auth.ts"
+			}
+		},
 		"function": {
 			"log": {
 				"retention": "1 days",

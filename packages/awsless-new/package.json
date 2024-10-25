@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.366",
+	"version": "0.0.367",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -34,13 +34,15 @@
 		"build": "pnpm tsup src/server.ts src/client.ts src/bin.ts --format esm --dts --clean",
 		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; node ./dist/build-json-schema.js",
 		"build-test-setup": "pnpm tsup src/test/test-global-setup.ts --format esm",
+		"build-prebuild": "pnpm tsup src/prebuild.ts --format esm; node ./dist/prebuild.js",
 		"jack": "pnpm tsup ./example/jack/jack.ts --format esm; node ./dist/jack.js",
 		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm; node ./dist/kennedy.js",
-		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; else exit; fi"
+		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; pnpm build-prebuild; else exit; fi"
 	},
 	"peerDependencies": {
 		"@awsless/iot": "workspace:^",
 		"@awsless/lambda": "workspace:^",
+		"@awsless/mqtt": "workspace:^",
 		"@awsless/open-search": "workspace:^",
 		"@awsless/redis": "workspace:^",
 		"@awsless/s3": "workspace:^",
@@ -48,8 +50,7 @@
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^",
-		"@awsless/mqtt": "workspace:^"
+		"@awsless/weak-cache": "workspace:^"
 	},
 	"dependencies": {
 		"@arcanyx/cidr-slicer": "^0.3.0",
@@ -96,6 +97,7 @@
 		"chunk": "^0.0.3",
 		"cli-table3": "^0.6.4",
 		"commander": "^9.4.1",
+		"date-fns": "^4.1.0",
 		"decompress": "^4.2.1",
 		"deepmerge": "^4.3.1",
 		"event-iterator": "^2.0.0",

@@ -13,6 +13,7 @@ import { onFailureFeature } from './on-failure/index.js'
 import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
 import { restFeature } from './rest/index.js'
+import { rpcFeature } from './rpc/index.js'
 import { searchFeature } from './search/index.js'
 import { siteFeature } from './site/index.js'
 import { storeFeature } from './store/index.js'
@@ -55,4 +56,5 @@ export const features = [
 
 	// 4
 	logSubscriptionFeature, // I think needs to be after s3 feature
+	rpcFeature,
 ]

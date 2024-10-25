@@ -20,13 +20,5 @@ export const build = (program: Command) => {
 
 				return 'Build was successful.'
 			})
-
-			// await layout(async (config, write) => {
-
-			// 	// await cleanUp()
-			// 	// await write(typesGenerator(config))
-			// 	// await write(assetBuilder(app))
-			// 	// await write(templateBuilder(app))
-			// })
 		})
 }

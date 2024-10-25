@@ -10,7 +10,7 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
-import { FunctionSchema } from './schema.js'
+import { FunctionProps, FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 import { hashElement } from 'folder-hash'
@@ -20,15 +20,15 @@ type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
 type Code = aws.lambda.Code
 
-export type LambdaFunctionProps = z.infer<typeof FunctionSchema>
+// export type LambdaFunctionProps = z.infer<typeof FunctionSchema>
 
 export const createLambdaFunction = (
 	group: Node,
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: LambdaFunctionProps
-): { lambda: Function; policy: Policy; code: Code } => {
+	local: FunctionProps
+): { lambda: Function; policy: Policy; code: Code; name: string } => {
 	let name: string
 	if ('stack' in ctx) {
 		name = formatLocalResourceName({
@@ -50,7 +50,7 @@ export const createLambdaFunction = (
 
 	if (props.runtime === 'container') {
 		ctx.registerBuild('function', name, async build => {
-			const cwd = dirname(props.file)
+			const cwd = dirname(local.file)
 			const version = await hashElement(cwd, {
 				files: {
 					exclude: ['stack.json'],
@@ -84,11 +84,11 @@ export const createLambdaFunction = (
 		}
 	} else {
 		ctx.registerBuild('function', name, async (build, { workspace }) => {
-			const version = await generateFileHash(workspace, props.file)
+			const version = await generateFileHash(workspace, local.file)
 
 			return build(version, async write => {
 				const bundle = await bundleTypeScript({
-					file: props.file,
+					file: local.file,
 					external: props.build.external,
 					minify: props.build.minify,
 				})
@@ -330,6 +330,7 @@ export const createLambdaFunction = (
 	}
 
 	return {
+		name,
 		lambda,
 		policy,
 		code,
