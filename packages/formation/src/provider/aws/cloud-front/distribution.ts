@@ -118,9 +118,12 @@ export class Distribution extends CloudControlApiResource {
 					ViewerCertificate: this.props.certificateArn
 						? {
 								SslSupportMethod: 'sni-only',
+								MinimumProtocolVersion: 'TLSv1',
 								AcmCertificateArn: this.props.certificateArn,
 							}
-						: { CloudFrontDefaultCertificate: true },
+						: {
+								CloudFrontDefaultCertificate: true,
+							},
 
 					Origins: unwrap(this.props.origins, [])
 						.map(v => unwrap(v))

@@ -158,6 +158,10 @@ export class CloudControlApiProvider implements CloudProvider {
 		return operations
 	}
 
+	// private updateOperations(_remoteDocument: any, _oldDocument: ResourceDocument, newDocument: ResourceDocument) {
+	// 	return createPatch({}, newDocument)
+	// }
+
 	async get({ id, type }: GetProps) {
 		const result = await this.client.send(
 			new GetResourceCommand({

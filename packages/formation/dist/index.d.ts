@@ -1273,11 +1273,13 @@ declare class Distribution extends CloudControlApiResource {
                 HttpVersion: "http1.1" | "http2" | "http2and3" | "http3";
                 ViewerCertificate: {
                     SslSupportMethod: string;
+                    MinimumProtocolVersion: string;
                     AcmCertificateArn: Input<`arn:${string}`>;
                     CloudFrontDefaultCertificate?: undefined;
                 } | {
                     CloudFrontDefaultCertificate: boolean;
                     SslSupportMethod?: undefined;
+                    MinimumProtocolVersion?: undefined;
                     AcmCertificateArn?: undefined;
                 };
                 Origins: {
@@ -1411,7 +1413,7 @@ declare class OriginRequestPolicy extends CloudControlApiResource {
             values?: Input<Input<string>[]>;
         }>;
         header?: Input<{
-            behavior: Input<'all-except' | 'all-viewer' | 'all-viewer-and-whitelist-cloudfront' | 'none' | 'whitelist'>;
+            behavior: Input<'all-except' | 'all-viewer' | 'all-viewer-and-whitelist-cloud-front' | 'none' | 'whitelist'>;
             values?: Input<Input<string>[]>;
         }>;
         query?: Input<{

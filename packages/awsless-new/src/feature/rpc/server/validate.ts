@@ -2,6 +2,7 @@ import {
 	array,
 	boolean,
 	duration,
+	json,
 	maxLength,
 	minLength,
 	object,
@@ -19,15 +20,18 @@ const requestSchema = object({
 			sourceIp: string(),
 		}),
 	}),
-	headers: object({
-		authentication: optional(string([maxLength(1024)])),
-	}),
-	body: array(
-		object({
-			name: string([minLength(1), minLength(1), maxLength(64)]),
-			payload: optional(record(string(), unknown())),
-		}),
-		[minLength(1), maxLength(10)]
+	// headers: object({
+	// 	authentication: optional(string([maxLength(1024)])),
+	// }),
+	headers: record(string(), string()),
+	body: json(
+		array(
+			object({
+				name: string([minLength(1), maxLength(64)]),
+				payload: optional(record(string(), unknown())),
+			}),
+			[minLength(1), maxLength(10)]
+		)
 	),
 })
 

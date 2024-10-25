@@ -84,17 +84,17 @@ export const rpcFeature = defineFeature({
 				urlAuthType: 'none',
 			})
 
-			const url = new aws.lambda.Url(group, 'url-1', {
+			const url = new aws.lambda.Url(group, 'url-2', {
 				targetArn: lambda.arn,
 				authType: 'none',
-				// cors: {
-				// 	allow: {
-				// 		origins: ['*'],
-				// 		methods: ['POST', 'GET'],
-				// 		headers: ['authentication', 'content-type'],
-				// 		// credentials: true,
-				// 	},
-				// },
+				cors: {
+					allow: {
+						origins: ['*'],
+						methods: ['*'],
+						headers: ['Authentication', 'Content-Type'],
+						// credentials: true,
+					},
+				},
 			}).dependsOn(permission)
 
 			const domainName = props.domain
@@ -116,25 +116,11 @@ export const rpcFeature = defineFeature({
 				name,
 				header: {
 					behavior: 'all-except',
-					values: ['host', 'authentication'],
+					values: ['Host'],
 				},
 			})
 
-			const responseHeaders = new aws.cloudFront.ResponseHeadersPolicy(group, 'response-1', {
-				name,
-				remove: ['server'],
-				cors: {
-					origins: ['*'],
-					methods: ['POST', 'GET'],
-					headers: ['authentication', 'content-type'],
-					// credentials: true,
-				},
-				// contentTypeOptions: {
-				// 	override: true,
-				// },
-			})
-
-			const cdn = new aws.cloudFront.Distribution(group, 'cdn', {
+			const cdn = new aws.cloudFront.Distribution(group, 'cdn-2', {
 				name,
 				compress: true,
 				certificateArn,
@@ -151,7 +137,6 @@ export const rpcFeature = defineFeature({
 				targetOriginId: 'default',
 				cachePolicyId: cache.id,
 				originRequestPolicyId: originRequest.id,
-				responseHeadersPolicyId: responseHeaders.id,
 			})
 
 			// if (props.domain) {

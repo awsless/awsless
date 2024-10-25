@@ -1,7 +1,7 @@
 import { camelCase } from 'change-case'
-import { CloudControlApiResource } from '../cloud-control-api/resource'
-import { Input, unwrap } from '../../../core/output'
 import { Node } from '../../../core/node'
+import { Input, unwrap } from '../../../core/output'
+import { CloudControlApiResource } from '../cloud-control-api/resource'
 
 export class OriginRequestPolicy extends CloudControlApiResource {
 	constructor(
@@ -15,7 +15,7 @@ export class OriginRequestPolicy extends CloudControlApiResource {
 			}>
 			header?: Input<{
 				behavior: Input<
-					'all-except' | 'all-viewer' | 'all-viewer-and-whitelist-cloudfront' | 'none' | 'whitelist'
+					'all-except' | 'all-viewer' | 'all-viewer-and-whitelist-cloud-front' | 'none' | 'whitelist'
 				>
 				values?: Input<Input<string>[]>
 			}>

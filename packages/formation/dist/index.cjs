@@ -1460,6 +1460,9 @@ var CloudControlApiProvider = class {
     const operations = (0, import_rfc6902.createPatch)(oldDocument, newDocument);
     return operations;
   }
+  // private updateOperations(_remoteDocument: any, _oldDocument: ResourceDocument, newDocument: ResourceDocument) {
+  // 	return createPatch({}, newDocument)
+  // }
   async get({ id, type }) {
     const result = await this.client.send(
       new import_client_cloudcontrol.GetResourceCommand({
@@ -2364,8 +2367,11 @@ var Distribution = class extends CloudControlApiResource {
           HttpVersion: unwrap(this.props.httpVersion, "http2and3"),
           ViewerCertificate: this.props.certificateArn ? {
             SslSupportMethod: "sni-only",
+            MinimumProtocolVersion: "TLSv1",
             AcmCertificateArn: this.props.certificateArn
-          } : { CloudFrontDefaultCertificate: true },
+          } : {
+            CloudFrontDefaultCertificate: true
+          },
           Origins: unwrap(this.props.origins, []).map((v) => unwrap(v)).map((origin) => ({
             Id: origin.id,
             DomainName: origin.domainName,

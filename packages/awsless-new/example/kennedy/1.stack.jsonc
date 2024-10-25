@@ -1,6 +1,11 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack-kennedy-1"
+	// "rpc": {
+	// 	"test": {
+	// 		"test": "./function.ts"
+	// 	}
+	// }
 	// "topics": ["test-topic"]
 	// "tables": {
 	// 	"users": {

@@ -1,5 +1,5 @@
-export default () => {
-	return 'test'
+export default async event => {
+	return event
 }
 
 // import { date, define, migrate, number, object, searchClient, string } from '@awsless/open-search'
