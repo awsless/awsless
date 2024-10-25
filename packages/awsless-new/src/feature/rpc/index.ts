@@ -87,14 +87,14 @@ export const rpcFeature = defineFeature({
 			const url = new aws.lambda.Url(group, 'url-1', {
 				targetArn: lambda.arn,
 				authType: 'none',
-				cors: {
-					allow: {
-						origins: ['*'],
-						methods: ['POST', 'GET'],
-						headers: ['authentication', 'content-type'],
-						// credentials: true,
-					},
-				},
+				// cors: {
+				// 	allow: {
+				// 		origins: ['*'],
+				// 		methods: ['POST', 'GET'],
+				// 		headers: ['authentication', 'content-type'],
+				// 		// credentials: true,
+				// 	},
+				// },
 			}).dependsOn(permission)
 
 			const domainName = props.domain
@@ -139,6 +139,7 @@ export const rpcFeature = defineFeature({
 				compress: true,
 				certificateArn,
 				viewerProtocol: 'https-only',
+				allowMethod: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'POST', 'DELETE'],
 				aliases: domainName ? [domainName] : undefined,
 				origins: [
 					{
