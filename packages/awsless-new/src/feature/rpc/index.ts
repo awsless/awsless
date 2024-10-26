@@ -21,6 +21,11 @@ export const rpcFeature = defineFeature({
 	name: 'rpc',
 	async onTypeGen(ctx) {
 		const types = new TypeFile('@awsless/awsless/client')
+
+		types.addCode(`type Input<T> = Parameters<T>[0]`)
+		types.addCode(`type Output<T> = Promise<ReturnType<T>>`)
+		types.addCode(`type Handle<T> = (input:Input<T>) => Output<T>`)
+
 		const schemas = new TypeObject(1)
 
 		for (const id of Object.keys(ctx.appConfig.defaults.rpc ?? {})) {
@@ -32,7 +37,7 @@ export const rpcFeature = defineFeature({
 					const varName = camelCase(`${stack.name}-${name}`)
 
 					types.addImport(varName, relFile)
-					schema.addType(name, `Infer<typeof ${varName}>`)
+					schema.addType(name, `Handle<typeof ${varName}>`)
 				}
 			}
 
@@ -57,6 +62,7 @@ export const rpcFeature = defineFeature({
 				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
 				memorySize: mebibytes(256),
+				warm: 3,
 			})
 
 			const schema = {}
@@ -139,20 +145,20 @@ export const rpcFeature = defineFeature({
 				originRequestPolicyId: originRequest.id,
 			})
 
-			// if (props.domain) {
-			// 	const fullDomainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+			if (props.domain) {
+				const fullDomainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-			// 	new aws.route53.RecordSet(group, 'record', {
-			// 		hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
-			// 		type: 'A',
-			// 		name: fullDomainName,
-			// 		alias: cdn.aliasTarget,
-			// 	})
+				new aws.route53.RecordSet(group, 'record', {
+					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),
+					type: 'A',
+					name: fullDomainName,
+					alias: cdn.aliasTarget,
+				})
 
-			// 	ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, fullDomainName)
-			// } else {
-			// 	ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, cdn.aliasTarget.dnsName)
-			// }
+				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, fullDomainName)
+			} else {
+				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, cdn.aliasTarget.dnsName)
+			}
 		}
 	},
 	onStack(ctx) {

@@ -13,7 +13,7 @@ import {
 	unknown,
 } from '@awsless/validate'
 
-const requestSchema = object({
+export const requestSchema = object({
 	requestContext: object({
 		http: object({
 			userAgent: string(),

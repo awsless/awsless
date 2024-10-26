@@ -12,6 +12,7 @@ import {
 } from './error.js'
 import { FunctionResult, response } from './response.js'
 import { parseRequest } from './validate.js'
+import { buildViewerPayload } from './viewer.js'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	// ----------------------------------------
@@ -20,7 +21,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 	const request = parseRequest(event)
 
 	if (!request.success) {
-		return response(400, INVALID_REQUEST)
+		return response(400, INVALID_REQUEST(request.issues))
 	}
 
 	// ----------------------------------------
@@ -34,9 +35,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 	// ----------------------------------------
 	// Execute request functions
-
-	const http = request.output.requestContext.http
-	const headers = request.output.headers
 
 	const result = await Promise.allSettled(
 		request.output.body.map(async (fn): Promise<FunctionResult> => {
@@ -53,22 +51,8 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 					payload: {
 						...(fn.payload ?? {}),
 						...(auth.context ?? {}),
-						viewer: {
-							userAgent: http.userAgent,
-							ip: http.sourceIp,
-							headers,
-							// 	country: headers['CloudFront-Viewer-Country'],
-							// 	timeZone: headers['CloudFront-Viewer-Time-Zone'],
-							// 	fingerprint: headers['CloudFront-Viewer-JA4-Fingerprint'],
-							// 	device:
-
-							// 'CloudFront-Is-Mobile-Viewer',
-							// 'CloudFront-Is-Tablet-Viewer',
-							// 'CloudFront-Is-SmartTV-Viewer',
-							// 'CloudFront-Is-Desktop-Viewer',
-							// 'CloudFront-Is-IOS-Viewer',
-							// 'CloudFront-Is-Android-Viewer',
-						},
+						// headers: request.output.headers,
+						viewer: buildViewerPayload(request.output),
 					},
 				})
 			} catch (error) {

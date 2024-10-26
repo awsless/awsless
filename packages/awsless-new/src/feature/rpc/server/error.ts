@@ -1,9 +1,12 @@
 import { ViewableError } from '@awsless/lambda'
+import { SchemaIssues } from '@awsless/validate'
 import { FunctionError, GlobalError } from './response'
 
-export const INVALID_REQUEST: GlobalError = {
-	type: 'invalid-request',
-	message: 'Invalid request payload',
+export const INVALID_REQUEST = (issues: SchemaIssues): GlobalError => {
+	return {
+		type: 'invalid-request',
+		message: `Invalid request payload: ${issues.at(0)?.message}`,
+	}
 }
 
 export const UNAUTHORIZED: GlobalError = {
