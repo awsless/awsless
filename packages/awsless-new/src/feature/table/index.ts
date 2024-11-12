@@ -32,6 +32,9 @@ export const tableFeature = defineFeature({
 
 		await ctx.write('table.d.ts', gen, true)
 	},
+	// onApp(ctx) {
+	// 	ctx.onPolicy(policy => policy.addStatement('dynamodb:*'))
+	// },
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
 			const group = new Node(ctx.stack, 'table', id)

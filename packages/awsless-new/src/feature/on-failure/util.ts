@@ -8,7 +8,6 @@ export const getGlobalOnFailure = (ctx: StackContext | AppContext) => {
 
 export const hasOnFailure = (stacks: StackConfig[]) => {
 	const onFailure = stacks.find(stack => {
-		// @ts-ignore
 		return typeof stack.onFailure !== 'undefined'
 	})
 

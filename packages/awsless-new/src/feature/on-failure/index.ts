@@ -6,11 +6,7 @@ import { Node, aws } from '@awsless/formation'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
-	onApp(ctx) {
-		if (!hasOnFailure(ctx.stackConfigs)) {
-			return
-		}
-
+	onValidate(ctx) {
 		// ----------------------------------------------------------------
 		// Only allow a on-failure single listener
 
@@ -18,6 +14,11 @@ export const onFailureFeature = defineFeature({
 
 		if (count > 1) {
 			throw new TypeError('Only 1 onFailure configuration is allowed in your app.')
+		}
+	},
+	onApp(ctx) {
+		if (!hasOnFailure(ctx.stackConfigs)) {
+			return
 		}
 
 		// ----------------------------------------------------------------
