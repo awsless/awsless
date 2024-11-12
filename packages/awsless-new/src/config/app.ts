@@ -5,7 +5,8 @@ import { FunctionDefaultSchema } from '../feature/function/schema.js'
 import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
 import { HttpDefaultSchema } from '../feature/http/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
-import { LogSubscriptionSchema } from '../feature/on-log/schema.js'
+import { OnFailureDefaultSchema } from '../feature/on-failure/schema.js'
+import { OnLogDefaultSchema } from '../feature/on-log/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 import { RestDefaultSchema } from '../feature/rest/schema.js'
@@ -29,10 +30,12 @@ export const AppSchema = z.object({
 	// 	.describe('The deployment stage.'),
 
 	// onFailure: OnFailureSchema,
-	logSubscription: LogSubscriptionSchema,
 
 	defaults: z
 		.object({
+			onFailure: OnFailureDefaultSchema,
+			onLog: OnLogDefaultSchema,
+
 			auth: AuthDefaultSchema,
 			domains: DomainsDefaultSchema,
 			function: FunctionDefaultSchema,

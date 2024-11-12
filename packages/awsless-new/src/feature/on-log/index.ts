@@ -1,79 +1,32 @@
 import { defineFeature } from '../../feature.js'
-import { formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
 import { Node, aws } from '@awsless/formation'
 
-export const logSubscriptionFeature = defineFeature({
-	name: 'log-subscription',
+export const onLogFeature = defineFeature({
+	name: 'on-log',
 	onApp(ctx) {
-		if (!ctx.appConfig.logSubscription) {
+		if (!ctx.appConfig.defaults.onLog) {
 			return
 		}
 
-		const group = new Node(ctx.base, 'log-subscription', 'main')
+		const group = new Node(ctx.base, 'on-log', 'main')
 
-		const { lambda, policy } = createLambdaFunction(
+		const { lambda } = createLambdaFunction(
+			//
 			group,
 			ctx,
-			'log-subscription',
-			'main',
-			ctx.appConfig.logSubscription
+			'on-log',
+			'consumer',
+			ctx.appConfig.defaults.onLog.consumer
 		)
 
-		new aws.lambda.Permission(group, 'log-subscription-permission', {
+		new aws.lambda.Permission(group, 'permission', {
 			action: 'lambda:InvokeFunction',
 			principal: 'logs.amazonaws.com',
 			functionArn: lambda.arn,
 			sourceArn: `arn:aws:logs:${ctx.appConfig.region}:${ctx.accountId}:log-group:/aws/lambda/${ctx.app.name}--*`,
 		})
 
-		ctx.shared.set('log-subscription-destination-arn', lambda.arn)
-
-		// for (const stack of ctx.stackConfigs) {
-		// 	// for (const id of stack.topics ?? []) {
-		// 	// 	policy.addStatement({
-		// 	// 		actions: ['sns:Publish'],
-		// 	// 		resources: [ctx.shared.get<aws.ARN>(`topic-${id}-arn`)],
-		// 	// 	})
-		// 	// }
-
-		// 	for (const [id, props] of Object.entries(stack.tables ?? {})) {
-		// 		const tableName = formatLocalResourceName({
-		// 			appName: ctx.app.name,
-		// 			stackName: stack.name,
-		// 			resourceType: 'table',
-		// 			resourceName: id,
-		// 		})
-
-		// 		policy.addStatement({
-		// 			actions: [
-		// 				'dynamodb:DescribeTable',
-		// 				'dynamodb:PutItem',
-		// 				'dynamodb:GetItem',
-		// 				'dynamodb:UpdateItem',
-		// 				'dynamodb:DeleteItem',
-		// 				'dynamodb:TransactWrite',
-		// 				'dynamodb:BatchWriteItem',
-		// 				'dynamodb:BatchGetItem',
-		// 				'dynamodb:ConditionCheckItem',
-		// 				'dynamodb:Query',
-		// 				'dynamodb:Scan',
-		// 			],
-		// 			resources: [`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${tableName}`],
-		// 		})
-
-		// 		const indexes = Object.keys(props.indexes ?? {})
-
-		// 		if (indexes.length) {
-		// 			policy.addStatement({
-		// 				actions: ['dynamodb:Query'],
-		// 				resources: indexes.map(
-		// 					indexName =>
-		// 						`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${tableName}/index/${indexName}` as aws.ARN
-		// 				),
-		// 			})
-		// 		}
-		// 	}
-		// }
+		ctx.shared.set('on-log-consumer-arn', lambda.arn)
 	},
 })

@@ -127,7 +127,7 @@ export const queueFeature = defineFeature({
 			// 	lambda.addEnvironment(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 			// })
 
-			ctx.onPolicy(policy => {
+			ctx.onStackPolicy(policy => {
 				policy.addStatement(queue.permissions)
 			})
 		}

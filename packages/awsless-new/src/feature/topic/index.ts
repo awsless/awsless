@@ -87,10 +87,24 @@ export const topicFeature = defineFeature({
 				ctx.shared.set(`topic-${id}-arn`, topic.arn)
 			}
 		}
+
+		ctx.onAppPolicy(policy => {
+			// Give access to all app functions
+			policy.addStatement({
+				actions: ['sns:Publish'],
+				resources: [
+					`arn:aws:sns:${ctx.appConfig.region}:*:${formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'topic',
+						resourceName: '*',
+					})}`,
+				],
+			})
+		})
 	},
 	onStack(ctx) {
 		for (const id of ctx.stackConfig.topics ?? []) {
-			ctx.onPolicy(policy => {
+			ctx.onStackPolicy(policy => {
 				policy.addStatement({
 					actions: ['sns:Publish'],
 					resources: [ctx.shared.get<aws.ARN>(`topic-${id}-arn`)],

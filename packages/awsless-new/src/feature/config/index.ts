@@ -31,7 +31,7 @@ export const configFeature = defineFeature({
 		if (configs.length) {
 			ctx.addEnv('CONFIG', configs.join(','))
 
-			ctx.onPolicy(policy => {
+			ctx.onStackPolicy(policy => {
 				policy.addStatement({
 					actions: [
 						'ssm:GetParameter',

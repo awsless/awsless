@@ -77,8 +77,8 @@ export const createApp = (props: CreateAppProps) => {
 	})
 
 	// const envVars: Record<string, Input<string>> = {}
-	const commands: Command[] = []
 	// const siteFunctions: aws.lambda.Function[] = []
+	const commands: Command[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
 	const builders: BuildTask[] = []
@@ -95,8 +95,10 @@ export const createApp = (props: CreateAppProps) => {
 
 	const globalPolicies: aws.iam.RolePolicy[] = []
 	const globalPoliciesListeners: OnPolicyListener[] = []
-	const allLocalPolicies: Record<string, aws.iam.RolePolicy[]> = {}
-	const allLocalPolicyListeners: Record<string, OnPolicyListener[]> = {}
+	const appPolicies: aws.iam.RolePolicy[] = []
+	const appPoliciesListeners: OnPolicyListener[] = []
+	const allStackPolicies: Record<string, aws.iam.RolePolicy[]> = {}
+	const allStackPolicyListeners: Record<string, OnPolicyListener[]> = {}
 
 	// ---------------------------------------------------------------
 	// Run some checks
@@ -107,27 +109,34 @@ export const createApp = (props: CreateAppProps) => {
 
 	// ---------------------------------------------------------------
 
-	// debug('Run plugin onApp listeners')
+	for (const feature of features) {
+		feature.onBefore?.({
+			...props,
+			app,
+			appId,
+			base,
+			shared,
+		})
+	}
+
+	// ---------------------------------------------------------------
 
 	for (const feature of features) {
 		feature.onApp?.({
 			...props,
 			app,
 			appId,
-			// env,
 			base,
 			shared,
-			onPolicy(callback) {
+			onGlobalPolicy(callback) {
 				globalPoliciesListeners.push(callback)
 			},
-			// onFunction(callback) {
-			// 	allFunctionListeners.push(callback)
-			// },
-			// registerFunction(lambda) {
-			// 	allFunctions.push(lambda)
-			// },
+			onAppPolicy(callback) {
+				appPoliciesListeners.push(callback)
+			},
 			registerPolicy(policy) {
 				globalPolicies.push(policy)
+				appPolicies.push(policy)
 			},
 			registerBuild(type, name, builder) {
 				builders.push({
@@ -140,9 +149,6 @@ export const createApp = (props: CreateAppProps) => {
 			registerCommand(command) {
 				commands.push(command)
 			},
-			// registerSiteFunction(lambda) {
-			// 	siteFunctions.push(lambda)
-			// },
 			bind(name, value) {
 				binds.push({ name, value })
 			},
@@ -176,14 +182,14 @@ export const createApp = (props: CreateAppProps) => {
 
 		const stack = new Stack(app, stackConfig.name)
 
-		const localPolicyListeners: OnPolicyListener[] = []
-		const localPolicies: aws.iam.RolePolicy[] = []
+		const stackPolicyListeners: OnPolicyListener[] = []
+		const stackPolicies: aws.iam.RolePolicy[] = []
 
 		const localEnvListeners: OnEnvListener[] = []
 		const localEnv: BindEnv[] = []
 
-		allLocalPolicyListeners[stack.name] = localPolicyListeners
-		allLocalPolicies[stack.name] = localPolicies
+		allStackPolicyListeners[stack.name] = stackPolicyListeners
+		allStackPolicies[stack.name] = stackPolicies
 
 		allLocalEnvListeners[stack.name] = localEnvListeners
 		allLocalEnv[stack.name] = localEnv
@@ -194,24 +200,26 @@ export const createApp = (props: CreateAppProps) => {
 				stackConfig,
 				app,
 				appId,
-				// env,
 				base,
 				stack,
 				shared,
-				// onFunction(callback) {
-				// 	localFunctionListeners.push(callback)
-				// },
-				// registerFunction(lambda) {
-				// 	allFunctions.push(lambda)
-				// 	localFunctions.push(lambda)
-				// },
-				onPolicy(callback) {
-					localPolicyListeners.push(callback)
+				onGlobalPolicy(callback) {
+					globalPoliciesListeners.push(callback)
+				},
+				onAppPolicy(callback) {
+					appPoliciesListeners.push(callback)
+				},
+				onStackPolicy(callback) {
+					stackPolicyListeners.push(callback)
 				},
 				registerPolicy(policy) {
 					globalPolicies.push(policy)
-					localPolicies.push(policy)
+					stackPolicies.push(policy)
 				},
+				// registerPolicy(policy) {
+				// 	globalPolicies.push(policy)
+				// 	localPolicies.push(policy)
+				// },
 				registerTest(name, paths) {
 					tests.push({
 						stackName: stack.name,
@@ -266,8 +274,8 @@ export const createApp = (props: CreateAppProps) => {
 		// 	}
 		// }
 
-		for (const listener of localPolicyListeners) {
-			for (const policy of localPolicies) {
+		for (const listener of stackPolicyListeners) {
+			for (const policy of stackPolicies) {
 				listener(policy)
 			}
 		}
@@ -287,6 +295,12 @@ export const createApp = (props: CreateAppProps) => {
 	// 		listener(fn)
 	// 	}
 	// }
+
+	for (const listener of appPoliciesListeners) {
+		for (const fn of appPolicies) {
+			listener(fn)
+		}
+	}
 
 	for (const listener of globalPoliciesListeners) {
 		for (const fn of globalPolicies) {
@@ -314,12 +328,12 @@ export const createApp = (props: CreateAppProps) => {
 
 	for (const stackConfig of props.stackConfigs) {
 		// const functions = allLocalFunctions[stackConfig.name]!
-		const policies = allLocalPolicies[stackConfig.name]!
+		const policies = allStackPolicies[stackConfig.name]!
 		const envListeners = allLocalEnvListeners[stackConfig.name]!
 
 		for (const dependency of stackConfig.depends ?? []) {
 			// const functionListeners = allLocalFunctionListeners[dependency]!
-			const policyListeners = allLocalPolicyListeners[dependency]!
+			const policyListeners = allStackPolicyListeners[dependency]!
 			const env = allLocalEnv[dependency]!
 
 			// for (const fn of functions) {

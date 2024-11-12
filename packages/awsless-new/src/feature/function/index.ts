@@ -89,7 +89,10 @@ export const functionFeature = defineFeature({
 
 		await ctx.write('function.d.ts', types, true)
 	},
-	onApp(ctx) {
+	// We are putting the resources for this feature in a onBefore hook
+	// because we will need it for functions defined in the onApp hook
+	// in different features
+	onBefore(ctx) {
 		const group = new Node(ctx.base, 'function', 'asset')
 
 		// ------------------------------------------------------
@@ -127,11 +130,12 @@ export const functionFeature = defineFeature({
 
 		ctx.shared.set('function-repository-name', repository.name)
 		ctx.shared.set('function-repository-uri', repository.uri)
-
+	},
+	onApp(ctx) {
 		// ------------------------------------------------------
 		// Give lambda access to all policies inside your app.
 
-		ctx.onPolicy(policy => {
+		ctx.onGlobalPolicy(policy => {
 			policy.addStatement({
 				actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
 				resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],

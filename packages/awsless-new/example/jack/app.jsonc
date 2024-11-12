@@ -48,6 +48,10 @@
 		// "instance": {
 		// 	// "connect": true
 		// },
+		"onLog": {
+			"consumer": "./on-log.ts",
+			"filter": ["info", "debug", "trace", "error", "fatal"]
+		},
 		"rpc": {
 			"api": {
 				// "auth": "./rpc-auth.ts"

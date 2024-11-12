@@ -40,9 +40,16 @@
 		}
 	},
 	"functions": {
-		"echo": "./function.ts",
-		"native": "./native.ts"
+		// "echo": "./function.ts"
+		// "native": "./native.ts"
+		"error": "./error.ts"
 	}
+	// "tables": {
+	// 	"logs": {
+	// 		"hash": "id"
+	// 	}
+	// }
+
 	// "streams": {
 	// 	"arena": {
 	// 		"type": "basic"

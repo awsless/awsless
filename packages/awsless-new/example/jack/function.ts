@@ -7,6 +7,8 @@ export default () => {
 
 	// string()
 
+	// throw new Error('My Own Error')
+
 	return Promise.resolve({
 		statusCode: 200,
 		headers: {

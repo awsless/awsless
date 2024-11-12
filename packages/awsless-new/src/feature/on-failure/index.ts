@@ -1,4 +1,4 @@
-import { hasOnFailure } from './util.js'
+// import { hasOnFailure } from './util.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { defineFeature } from '../../feature.js'
 import { createLambdaFunction } from '../function/util.js'
@@ -6,25 +6,31 @@ import { Node, aws } from '@awsless/formation'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
-	onValidate(ctx) {
-		// ----------------------------------------------------------------
-		// Only allow a on-failure single listener
+	// onValidate(ctx) {
+	// 	// ----------------------------------------------------------------
+	// 	// Only allow a on-failure single listener
 
-		const count = ctx.stackConfigs.filter(s => s.onFailure).length
+	// 	const count = ctx.stackConfigs.filter(s => s.onFailure).length
 
-		if (count > 1) {
-			throw new TypeError('Only 1 onFailure configuration is allowed in your app.')
-		}
-	},
+	// 	if (count > 1) {
+	// 		throw new TypeError('Only 1 onFailure configuration is allowed in your app.')
+	// 	}
+	// },
 	onApp(ctx) {
-		if (!hasOnFailure(ctx.stackConfigs)) {
+		// if (!hasOnFailure(ctx.stackConfigs)) {
+		// 	return
+		// }
+
+		if (!ctx.appConfig.defaults.onFailure) {
 			return
 		}
 
 		// ----------------------------------------------------------------
 		// Create a single on-failure queue to capture all failed jobs
 
-		const queue = new aws.sqs.Queue(ctx.base, 'on-failure', {
+		const group = new Node(ctx.base, 'on-failure', 'main')
+
+		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'on-failure',
@@ -33,26 +39,18 @@ export const onFailureFeature = defineFeature({
 		})
 
 		ctx.shared.set('on-failure-queue-arn', queue.arn)
-	},
-	onStack(ctx) {
-		const onFailure = ctx.stackConfig.onFailure
 
-		if (!onFailure) {
-			return
-		}
-
-		// ----------------------------------------------------------------
-		// The lambda listening to the on-failure queue lives on the
-		// stack level.
-
-		const queueArn = ctx.shared.get<aws.ARN>('on-failure-queue-arn')
-		const group = new Node(ctx.stack, 'on-failure', 'failure')
-
-		const { lambda, policy } = createLambdaFunction(group, ctx, 'on-failure', 'failure', onFailure)
+		const { lambda, policy } = createLambdaFunction(
+			group,
+			ctx,
+			'on-failure',
+			'consumer',
+			ctx.appConfig.defaults.onFailure
+		)
 
 		const source = new aws.lambda.EventSourceMapping(group, 'on-failure', {
 			functionArn: lambda.arn,
-			sourceArn: queueArn,
+			sourceArn: queue.arn,
 			batchSize: 10,
 		})
 
@@ -66,7 +64,38 @@ export const onFailureFeature = defineFeature({
 				'sqs:GetQueueUrl',
 				'sqs:GetQueueAttributes',
 			],
-			resources: [queueArn],
+			resources: [queue.arn],
 		})
 	},
+	// onStack(ctx) {
+	// 	const onFailure = ctx.stackConfig.onFailure
+
+	// 	if (!onFailure) {
+	// 		return
+	// 	}
+
+	// 	const queueArn = ctx.shared.get<aws.ARN>('on-failure-queue-arn')
+	// 	const group = new Node(ctx.stack, 'on-failure', 'failure')
+
+	// 	const { lambda, policy } = createLambdaFunction(group, ctx, 'on-failure', 'failure', onFailure)
+
+	// 	const source = new aws.lambda.EventSourceMapping(group, 'on-failure', {
+	// 		functionArn: lambda.arn,
+	// 		sourceArn: queueArn,
+	// 		batchSize: 10,
+	// 	})
+
+	// 	source.dependsOn(policy)
+
+	// 	policy.addStatement({
+	// 		actions: [
+	// 			'sqs:SendMessage',
+	// 			'sqs:DeleteMessage',
+	// 			'sqs:ReceiveMessage',
+	// 			'sqs:GetQueueUrl',
+	// 			'sqs:GetQueueAttributes',
+	// 		],
+	// 		resources: [queueArn],
+	// 	})
+	// },
 })

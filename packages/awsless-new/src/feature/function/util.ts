@@ -7,7 +7,7 @@ import { getBuildPath } from '../../build/index.js'
 import { AppContext, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
+import { getGlobalOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
 import { FunctionProps, FunctionSchema } from './schema.js'
@@ -15,6 +15,7 @@ import { FunctionProps, FunctionSchema } from './schema.js'
 
 import { hashElement } from 'folder-hash'
 import { createTempFolder } from '../../util/temp.js'
+import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { buildDockerImage } from './build/container/build.js'
 
 type Function = aws.lambda.Function
@@ -223,13 +224,18 @@ export const createLambdaFunction = (
 			}
 		)
 
-		const logSubscriptionArn = ctx.shared.get<aws.ARN>('log-subscription-destination-arn')
+		// ------------------------------------------------------------
+		// Add Log subscription
 
-		if (logSubscriptionArn) {
-			new aws.cloudWatch.SubscriptionFilter(group, `log-subscription`, {
-				destinationArn: logSubscriptionArn,
+		const onLogArn = getGlobalOnLog(ctx)
+
+		if (onLogArn && ctx.appConfig.defaults.onLog) {
+			const logFilter = ctx.appConfig.defaults.onLog.filter
+
+			new aws.cloudWatch.SubscriptionFilter(group, `on-log`, {
+				destinationArn: onLogArn,
 				logGroupName: logGroup.name,
-				filterPattern: '{$.level = ERROR}',
+				filterPattern: formatFilterPattern(logFilter),
 			})
 
 			// const permission = new aws.lambda.Permission(group, 'log-subscription-permission', {
@@ -376,10 +382,12 @@ export const createAsyncLambdaFunction = (
 
 	invokeConfig.dependsOn(result.policy)
 
-	if (hasOnFailure(ctx.stackConfigs)) {
+	const onFailure = getGlobalOnFailure(ctx)
+
+	if (onFailure) {
 		result.policy.addStatement({
 			actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-			resources: [getGlobalOnFailure(ctx)!],
+			resources: [onFailure],
 		})
 	}
 

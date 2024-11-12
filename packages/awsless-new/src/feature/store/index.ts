@@ -47,6 +47,34 @@ export const storeFeature = defineFeature({
 
 		await ctx.write('store.d.ts', gen, true)
 	},
+	onApp(ctx) {
+		ctx.onAppPolicy(policy => {
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: '*',
+				resourceType: 'store',
+				resourceName: '*',
+			})
+
+			policy.addStatement({
+				actions: [
+					's3:ListBucket',
+					's3:ListBucketV2',
+					's3:HeadObject',
+					's3:GetObject',
+					's3:PutObject',
+					's3:DeleteObject',
+					's3:CopyObject',
+					's3:GetObjectAttributes',
+				],
+				resources: [
+					//
+					`arn:aws:s3:::${name}`,
+					`arn:aws:s3:::${name}/*`,
+				],
+			})
+		})
+	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.stores ?? {})) {
 			const group = new Node(ctx.stack, 'store', id)
@@ -125,7 +153,7 @@ export const storeFeature = defineFeature({
 				bucket.deletionPolicy = 'retain'
 			}
 
-			ctx.onPolicy(policy => {
+			ctx.onStackPolicy(policy => {
 				policy.addStatement(bucket.permissions)
 			})
 		}

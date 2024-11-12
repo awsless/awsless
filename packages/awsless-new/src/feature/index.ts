@@ -8,7 +8,7 @@ import { functionFeature } from './function/index.js'
 import { graphqlFeature } from './graphql/index.js'
 import { httpFeature } from './http/index.js'
 import { instanceFeature } from './instance/index.js'
-import { logSubscriptionFeature } from './on-log/index.js'
+import { onLogFeature } from './on-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
 import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
@@ -30,6 +30,7 @@ export const features = [
 	domainFeature,
 	commandFeature,
 	onFailureFeature,
+	onLogFeature,
 
 	// 2
 	authFeature,
@@ -55,6 +56,5 @@ export const features = [
 	siteFeature,
 
 	// 4
-	logSubscriptionFeature, // I think needs to be after s3 feature
 	rpcFeature,
 ]

@@ -124,7 +124,7 @@ export const domainFeature = defineFeature({
 			}
 		}
 
-		ctx.onPolicy(policy =>
+		ctx.onGlobalPolicy(policy =>
 			policy.addStatement({
 				actions: ['ses:*'],
 				resources: [`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`],

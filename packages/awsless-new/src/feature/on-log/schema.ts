@@ -1,33 +1,23 @@
-// import { z } from 'zod'
-// import { LocalFileSchema } from '../../config/schema/local-file.js'
-// import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { z } from 'zod'
 import { FunctionSchema } from '../function/schema.js'
 
-// const LogFilterSchema = z
-// 	.string()
-// 	.optional()
-// 	.default('{$.level = ERROR}')
-// 	.describe('The filtering expressions that restrict what gets delivered to the consumer.')
+export type OnLogFilter = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
-// export const LogSubscriptionSchema = z
-// 	.record(
-// 		ResourceIdSchema,
-// 		z.union([
-// 			LocalFileSchema.transform(file => ({
-// 				consumer: { file },
-// 				filter: LogFilterSchema,
-// 			})),
-// 			z.object({
-// 				consumer: FunctionSchema.describe('The consuming lambda function properties.'),
-// 				filter: LogFilterSchema,
-// 			}),
-// 		])
-// 	)
-// 	.optional()
-// 	.describe(
-// 		'Log Subscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination'
-// 	)
+const FilterSchema = z
+	.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
+	.array()
+	.describe('The log level that will gets delivered to the consumer.')
 
-export const OnLogSchema = FunctionSchema.optional().describe(
-	'Log aubscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination.'
-)
+export const OnLogDefaultSchema = z
+	.union([
+		FunctionSchema.transform(consumer => ({
+			consumer,
+			filter: ['error', 'fatal'] as OnLogFilter[],
+		})),
+		z.object({
+			consumer: FunctionSchema,
+			filter: FilterSchema,
+		}),
+	])
+	.optional()
+	.describe('Define a subscription on all Lambda functions logs.')

@@ -10,6 +10,6 @@ import { FunctionSchema } from '../function/schema.js'
  * }
  */
 
-export const OnFailureSchema = FunctionSchema.optional().describe(
+export const OnFailureDefaultSchema = FunctionSchema.optional().describe(
 	'Defining a onFailure handler will add a global onFailure handler for the following resources:\n- Async lambda functions\n- SQS queues\n- DynamoDB streams'
 )

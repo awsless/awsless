@@ -68,7 +68,7 @@ export const pubsubFeature = defineFeature({
 			}
 		}
 
-		ctx.onPolicy(policy => {
+		ctx.onGlobalPolicy(policy => {
 			policy.addStatement({
 				actions: [`iot:Publish`],
 				resources: [`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`],

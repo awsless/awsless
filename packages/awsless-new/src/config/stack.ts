@@ -8,7 +8,7 @@ import { FunctionsSchema } from '../feature/function/schema.js'
 import { GraphQLSchema } from '../feature/graphql/schema.js'
 import { HttpSchema } from '../feature/http/schema.js'
 import { InstancesSchema } from '../feature/instance/schema.js'
-import { OnFailureSchema } from '../feature/on-failure/schema.js'
+// import { OnFailureSchema } from '../feature/on-failure/schema.js'
 import { PubSubSchema } from '../feature/pubsub/schema.js'
 import { QueuesSchema } from '../feature/queue/schema.js'
 import { RestSchema } from '../feature/rest/schema.js'
@@ -36,7 +36,7 @@ export const StackSchema = z.object({
 
 	commands: CommandsSchema,
 
-	onFailure: OnFailureSchema,
+	// onFailure: OnFailureSchema,
 	auth: AuthSchema,
 	graphql: GraphQLSchema,
 	http: HttpSchema,

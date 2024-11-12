@@ -32,9 +32,34 @@ export const tableFeature = defineFeature({
 
 		await ctx.write('table.d.ts', gen, true)
 	},
-	// onApp(ctx) {
-	// 	ctx.onPolicy(policy => policy.addStatement('dynamodb:*'))
-	// },
+	onApp(ctx) {
+		ctx.onAppPolicy(policy => {
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: '*',
+				resourceType: 'table',
+				resourceName: '*',
+			})
+
+			policy.addStatement({
+				actions: [
+					'dynamodb:PutItem',
+					'dynamodb:UpdateItem',
+					'dynamodb:DeleteItem',
+					'dynamodb:BatchWriteItem',
+					'dynamodb:GetItem',
+					'dynamodb:BatchGetItem',
+					'dynamodb:Scan',
+					'dynamodb:Query',
+					'dynamodb:ConditionCheckItem',
+				],
+				resources: [
+					`arn:aws:dynamodb:${ctx.appConfig.region}:*:table/${name}`,
+					`arn:aws:dynamodb:${ctx.appConfig.region}:*:table/${name}/index/*`,
+				],
+			})
+		})
+	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tables ?? {})) {
 			const group = new Node(ctx.stack, 'table', id)
@@ -95,7 +120,7 @@ export const tableFeature = defineFeature({
 				// ctx.stack.add(lambda, source)
 			}
 
-			ctx.onPolicy(policy => {
+			ctx.onStackPolicy(policy => {
 				policy.addStatement(...table.permissions)
 			})
 		}

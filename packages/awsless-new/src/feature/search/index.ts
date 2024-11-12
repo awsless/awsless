@@ -78,7 +78,7 @@ export const searchFeature = defineFeature({
 			// 	)
 			// })
 
-			ctx.onPolicy(policy => {
+			ctx.onStackPolicy(policy => {
 				policy.addStatement({
 					actions: ['es:ESHttp*'],
 					resources: [openSearch.arn],

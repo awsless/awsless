@@ -93,7 +93,7 @@ export const siteFeature = defineFeature({
 					],
 				})
 
-				ctx.onPolicy(policy => {
+				ctx.onStackPolicy(policy => {
 					policy.addStatement(bucket.permissions)
 				})
 

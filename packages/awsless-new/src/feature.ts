@@ -50,9 +50,11 @@ export type StackContext = AppContext & {
 
 	registerTest: RegisterTest
 	registerConfig: RegisterConfig
+
+	onStackPolicy: OnPolicy
 }
 
-export type AppContext = {
+export type BeforeContext = {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
 	accountId: string
@@ -61,7 +63,9 @@ export type AppContext = {
 	app: App
 	base: Stack
 	shared: SharedData
+}
 
+export type AppContext = BeforeContext & {
 	// registerTest: RegisterTest
 	registerBuild: RegisterBuild
 	registerPolicy: RegisterPolicy
@@ -84,7 +88,8 @@ export type AppContext = {
 	// listEnvs:
 
 	// onFunction: OnFunction
-	onPolicy: OnPolicy
+	onGlobalPolicy: OnPolicy
+	onAppPolicy: OnPolicy
 
 	// onEnv: (envVars: Record<string, Input<string>>) => void
 }
@@ -98,6 +103,7 @@ export type TypeGenContext = {
 
 export type Feature = {
 	name: string
+	onBefore?: (context: BeforeContext) => void
 	onApp?: (context: AppContext) => void
 	onStack?: (context: StackContext) => void
 	onTypeGen?: (context: TypeGenContext) => void | Promise<void>
