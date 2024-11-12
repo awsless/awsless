@@ -1,6 +1,6 @@
 import { Asset, aws, Node } from '@awsless/formation'
 import deepmerge from 'deepmerge'
-import { dirname } from 'path'
+import { basename, dirname } from 'path'
 import { z } from 'zod'
 import { generateFileHash } from '../../../../ts-file-cache/dist/index.js'
 import { getBuildPath } from '../../build/index.js'
@@ -14,6 +14,7 @@ import { FunctionProps, FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 import { hashElement } from 'folder-hash'
+import { createTempFolder } from '../../util/temp.js'
 import { buildDockerImage } from './build/container/build.js'
 
 type Function = aws.lambda.Function
@@ -87,13 +88,23 @@ export const createLambdaFunction = (
 			const version = await generateFileHash(workspace, local.file)
 
 			return build(version, async write => {
+				const temp = await createTempFolder(`function--${name}`)
+
 				const bundle = await bundleTypeScript({
 					file: local.file,
 					external: props.build.external,
 					minify: props.build.minify,
+					nativeDir: temp.path,
 				})
 
-				const archive = await zipFiles(bundle.files)
+				const nativeFiles = await temp.files()
+				const archive = await zipFiles([
+					...bundle.files,
+					...nativeFiles.map(file => ({
+						name: basename(file),
+						path: file,
+					})),
+				])
 
 				await Promise.all([
 					write('HASH', bundle.hash),
@@ -101,6 +112,8 @@ export const createLambdaFunction = (
 					...bundle.files.map(file => write(`files/${file.name}`, file.code)),
 					...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
 				])
+
+				await temp.delete()
 
 				return {
 					size: formatByteSize(archive.byteLength),

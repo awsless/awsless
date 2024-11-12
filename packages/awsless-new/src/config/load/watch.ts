@@ -1,10 +1,11 @@
 import { watch } from 'chokidar'
-import { loadAppConfig, loadStackConfigs } from './load.js'
-import { ProgramOptions } from '../../cli/program.js'
-import { AppConfig } from '../app.js'
 import { debug } from '../../cli/debug.js'
-import { StackConfig } from '../stack.js'
+import { ProgramOptions } from '../../cli/program.js'
+import { validateFeatures } from '../../feature/validate.js'
 import { directories } from '../../util/path.js'
+import { AppConfig } from '../app.js'
+import { StackConfig } from '../stack.js'
+import { loadAppConfig, loadStackConfigs } from './load.js'
 
 export const watchConfig = async (
 	options: ProgramOptions,
@@ -29,10 +30,8 @@ export const watchConfig = async (
 			const appConfig = await loadAppConfig(options)
 			const stackConfigs = await loadStackConfigs(options)
 
-			resolve({
-				appConfig,
-				stackConfigs,
-			})
+			validateFeatures({ appConfig, stackConfigs })
+			resolve({ appConfig, stackConfigs })
 		} catch (error) {
 			reject(error)
 		}

@@ -4,7 +4,6 @@ import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
 import { dirname } from 'path'
 import { rollup } from 'rollup'
-import natives from 'rollup-plugin-natives'
 import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
 import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
@@ -15,16 +14,9 @@ export type BundleTypeScriptProps = {
 	external?: string[]
 	handler?: string
 	file: string
-	nativeDir?: string
 }
 
-export const bundleTypeScript = async ({
-	format = 'esm',
-	minify = true,
-	file,
-	nativeDir,
-	external,
-}: BundleTypeScriptProps) => {
+export const bundleTypeScript = async ({ format = 'esm', minify = true, file, external }: BundleTypeScriptProps) => {
 	const bundle = await rollup({
 		input: file,
 		external: importee => {
@@ -38,16 +30,10 @@ export const bundleTypeScript = async ({
 			moduleSideEffects: id => file === id,
 		},
 		plugins: [
-			commonjs({ sourceMap: true }),
-			nodeResolve({ preferBuiltins: true }),
 			// @ts-ignore
-			nativeDir
-				? natives({
-						copyTo: nativeDir,
-						targetEsm: format === 'esm',
-						sourcemap: true,
-					})
-				: undefined,
+			commonjs({ sourceMap: true }),
+			// @ts-ignore
+			nodeResolve({ preferBuiltins: true }),
 			swc({
 				// minify,
 				// module: true,
@@ -64,6 +50,7 @@ export const bundleTypeScript = async ({
 						compress: true,
 					})
 				: undefined,
+			// @ts-ignore
 			json(),
 		],
 	})

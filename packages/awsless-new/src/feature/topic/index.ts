@@ -5,6 +5,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
+import { FileError } from '../../error.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
@@ -47,6 +48,27 @@ export const topicFeature = defineFeature({
 		gen.addInterface('TopicMockResponse', mockResponses)
 
 		await ctx.write('topic.d.ts', gen, true)
+	},
+	onValidate(ctx) {
+		const unique: string[] = []
+
+		for (const stack of ctx.stackConfigs) {
+			for (const topic of stack.topics ?? []) {
+				if (unique.includes(topic)) {
+					throw new FileError(stack.file, `Duplicate topic "${topic}"`)
+				} else {
+					unique.push(topic)
+				}
+			}
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const topic of Object.keys(stack.subscribers ?? {})) {
+				if (!unique.includes(topic)) {
+					throw new FileError(stack.file, `Subscription to a undefined topic "${topic}"`)
+				}
+			}
+		}
 	},
 	onApp(ctx) {
 		for (const stack of ctx.stackConfigs) {

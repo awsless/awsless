@@ -6,7 +6,6 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
-import { Topic } from '../../server.js'
 
 export const tableFeature = defineFeature({
 	name: 'table',

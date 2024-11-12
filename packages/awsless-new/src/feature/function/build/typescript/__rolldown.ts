@@ -1,11 +1,5 @@
-import commonjs from '@rollup/plugin-commonjs'
-import json from '@rollup/plugin-json'
-import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
-import { dirname } from 'path'
-import { rollup } from 'rollup'
-import natives from 'rollup-plugin-natives'
-import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
+import { rolldown } from 'rolldown'
 import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
 
@@ -15,17 +9,10 @@ export type BundleTypeScriptProps = {
 	external?: string[]
 	handler?: string
 	file: string
-	nativeDir?: string
 }
 
-export const bundleTypeScript = async ({
-	format = 'esm',
-	minify = true,
-	file,
-	nativeDir,
-	external,
-}: BundleTypeScriptProps) => {
-	const bundle = await rollup({
+export const bundleTypeScript = async ({ format = 'esm', minify = true, file, external }: BundleTypeScriptProps) => {
+	const bundle = await rolldown({
 		input: file,
 		external: importee => {
 			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
@@ -33,38 +20,18 @@ export const bundleTypeScript = async ({
 		onwarn: error => {
 			debugError(error.message)
 		},
+		// treeshake: {
+		// 	// preset: 'smallest',
+		// 	// moduleSideEffects: id => file === id,
+		// },
 		treeshake: {
-			preset: 'smallest',
-			moduleSideEffects: id => file === id,
+			moduleSideEffects: false,
 		},
+		platform: 'node',
 		plugins: [
-			commonjs({ sourceMap: true }),
-			nodeResolve({ preferBuiltins: true }),
-			// @ts-ignore
-			nativeDir
-				? natives({
-						copyTo: nativeDir,
-						targetEsm: format === 'esm',
-						sourcemap: true,
-					})
-				: undefined,
-			swc({
-				// minify,
-				// module: true,
-				jsc: {
-					baseUrl: dirname(file),
-					minify: { sourceMap: true },
-				},
-				sourceMaps: true,
-			}),
-			minify
-				? swcMinify({
-						module: format === 'esm',
-						sourceMap: true,
-						compress: true,
-					})
-				: undefined,
-			json(),
+			// commonjs({ sourceMap: true }),
+			// nodeResolve({ preferBuiltins: true }),
+			// json(),
 		],
 	})
 
@@ -73,9 +40,14 @@ export const bundleTypeScript = async ({
 		format,
 		sourcemap: 'hidden',
 		exports: 'auto',
-		manualChunks: {},
+		// manualChunks: {},
 		entryFileNames: `index.${ext}`,
 		chunkFileNames: `[name].${ext}`,
+		banner: [
+			`import __node_module__ from 'node:module';`,
+			`const require = __node_module__.createRequire(import.meta.url)`,
+		].join('\n'),
+		minify,
 	})
 
 	const hash = createHash('sha1')

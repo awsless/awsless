@@ -40,7 +40,8 @@
 		}
 	},
 	"functions": {
-		"echo": "./function.ts"
+		"echo": "./function.ts",
+		"native": "./native.ts"
 	}
 	// "streams": {
 	// 	"arena": {

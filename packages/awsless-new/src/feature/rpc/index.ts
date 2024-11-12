@@ -22,9 +22,10 @@ export const rpcFeature = defineFeature({
 	async onTypeGen(ctx) {
 		const types = new TypeFile('@awsless/awsless/client')
 
-		types.addCode(`type Input<T> = Parameters<T>[0]`)
-		types.addCode(`type Output<T> = Promise<ReturnType<T>>`)
-		types.addCode(`type Handle<T> = (input:Input<T>) => Output<T>`)
+		types.addCode(`type Func = (...args: any[]) => any`)
+		types.addCode(
+			`type Handle<T extends Func, I = Parameters<T>[0], O = Promise<ReturnType<T>>> = undefined extends I ? (input?: I) => O : (input: I) => O`
+		)
 
 		const schemas = new TypeObject(1)
 
@@ -47,6 +48,26 @@ export const rpcFeature = defineFeature({
 		types.addInterface('RpcSchema', schemas)
 
 		await ctx.write('rpc.d.ts', types, true)
+	},
+	onValidate(ctx) {
+		const names: Record<string, Set<string>> = {}
+
+		for (const id of Object.keys(ctx.appConfig.defaults.rpc ?? {})) {
+			names[id] = new Set()
+		}
+
+		for (const stack of ctx.stackConfigs) {
+			for (const [id, queries] of Object.entries(stack.rpc ?? {})) {
+				const list = names[id]!
+				for (const name of Object.keys(queries ?? {})) {
+					if (list.has(name)) {
+						throw new FileError(stack.file, `Duplicate RPC API function "${id}.${name}"`)
+					} else {
+						list.add(name)
+					}
+				}
+			}
+		}
 	},
 	onApp(ctx) {
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.rpc ?? {})) {

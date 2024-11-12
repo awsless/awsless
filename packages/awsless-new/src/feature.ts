@@ -101,6 +101,7 @@ export type Feature = {
 	onApp?: (context: AppContext) => void
 	onStack?: (context: StackContext) => void
 	onTypeGen?: (context: TypeGenContext) => void | Promise<void>
+	onValidate?: (context: { appConfig: AppConfig; stackConfigs: StackConfig[] }) => void
 }
 
 export const defineFeature = (feature: Feature) => feature

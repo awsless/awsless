@@ -6,6 +6,11 @@
 	"functions": {
 		"echo-2": "./function.ts"
 	}
+	// "rpc": {
+	// 	"api": {
+	// 		"test": "./echo.ts"
+	// 	}
+	// }
 
 	// "functions": {
 	// 	"echo": "./function.ts"

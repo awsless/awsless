@@ -1,9 +1,10 @@
 import { aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { createAsyncLambdaFunction, createLambdaFunction, LambdaFunctionProps } from '../function/util.js'
+import { createAsyncLambdaFunction, createLambdaFunction } from '../function/util.js'
 import { constantCase } from 'change-case'
 import { formatFullDomainName } from '../domain/util.js'
+import { FunctionProps } from '../function/schema.js'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
@@ -11,8 +12,7 @@ export const pubsubFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.pubsub ?? {})) {
 			const group = new Node(ctx.base, 'pubsub', id)
 
-			const functionProps: LambdaFunctionProps =
-				typeof props.auth === 'string' ? { file: '' } : props.auth.authorizer
+			const functionProps: FunctionProps = typeof props.auth === 'string' ? { file: '' } : props.auth.authorizer
 
 			const { lambda } = createLambdaFunction(group, ctx, 'pubsub-authorizer', id, functionProps)
 			lambda.addEnvironment('PUBSUB_POLICY', JSON.stringify(props.policy))

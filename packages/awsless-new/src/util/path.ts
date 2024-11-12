@@ -20,6 +20,9 @@ export const directories = {
 	get types() {
 		return join(this.output, 'types')
 	},
+	get temp() {
+		return join(this.output, 'temp')
+	},
 	// get template() {
 	// 	return join(this.output, 'template')
 	// },

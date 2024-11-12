@@ -1,5 +1,7 @@
 // import { string } from 'zod'
 
+import { randomUUID } from 'crypto'
+
 export default () => {
 	// console.log('HELLO !!!')
 
@@ -10,6 +12,6 @@ export default () => {
 		headers: {
 			'content-type': 'application/json',
 		},
-		body: 'HELLO',
+		body: randomUUID(),
 	})
 }

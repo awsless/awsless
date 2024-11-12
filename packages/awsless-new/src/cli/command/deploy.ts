@@ -16,8 +16,9 @@ export const deploy = (program: Command) => {
 	program
 		.command('deploy')
 		.argument('[stacks...]', 'Optionally filter stacks to deploy')
+		.option('--skip-tests', 'Skip tests')
 		.description('Deploy your app to AWS')
-		.action(async (filters: string[]) => {
+		.action(async (filters: string[], options: { skipTests: boolean }) => {
 			await layout('deploy', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)
@@ -55,10 +56,12 @@ export const deploy = (program: Command) => {
 				// ---------------------------------------------------
 				// Building stack assets & run tests
 
-				const passed = await runTests(tests, filters)
+				if (!options.skipTests) {
+					const passed = await runTests(tests, filters)
 
-				if (!passed) {
-					throw new Cancelled()
+					if (!passed) {
+						throw new Cancelled()
+					}
 				}
 
 				await buildAssets(builders, filters)

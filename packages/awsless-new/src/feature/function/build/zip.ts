@@ -1,3 +1,4 @@
+import { createReadStream } from 'fs'
 import JSZip from 'jszip'
 
 export type File = {
@@ -6,11 +7,20 @@ export type File = {
 	map?: Buffer
 }
 
-export const zipFiles = (files: File[]) => {
+export type LocalFile = {
+	name: string
+	path: string
+}
+
+export const zipFiles = (files: Array<File | LocalFile>) => {
 	const zip = new JSZip()
 
 	for (const file of files) {
-		zip.file(file.name, file.code)
+		if ('path' in file) {
+			zip.file(file.name, createReadStream(file.path))
+		} else {
+			zip.file(file.name, file.code)
+		}
 	}
 
 	return zip.generateAsync({
