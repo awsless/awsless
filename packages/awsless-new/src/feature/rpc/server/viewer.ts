@@ -20,7 +20,29 @@ const stripPortFromIp = (value?: string) => {
 	return parts.join(':')
 }
 
-export const buildViewerPayload = (request: Output<typeof requestSchema>) => {
+export type Viewer = {
+	userAgent: string
+	ip: string
+	city?: string
+	region: {
+		code?: string
+		name?: string
+	}
+	country: {
+		code?: string
+		name?: string
+	}
+	metroCode?: string
+	postalCode?: string
+	timeZone?: string
+	latitude?: number
+	longitude?: number
+
+	device?: 'mobile' | 'tablet' | 'desktop' | 'tv'
+	os?: 'ios' | 'android'
+}
+
+export const buildViewerPayload = (request: Output<typeof requestSchema>): Viewer => {
 	const http = request.requestContext.http
 
 	const getViewer = (name: string) => {
@@ -39,7 +61,7 @@ export const buildViewerPayload = (request: Output<typeof requestSchema>) => {
 
 	return {
 		userAgent: http.userAgent,
-		ip: stripPortFromIp(getViewer('address')),
+		ip: stripPortFromIp(getViewer('address'))!,
 		city: getViewer('city'),
 		region: {
 			code: getViewer('country-region'),
