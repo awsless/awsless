@@ -3,7 +3,7 @@
 	"name": "app-kennedy",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
-	// "logSubscription": "./function.ts",
+	"logSubscription": "./function.ts",
 	"defaults": {
 		"rpc": {
 			"test": {}
