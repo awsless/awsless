@@ -28,6 +28,6 @@ import { FunctionSchema } from '../function/schema.js'
 // 		'Log Subscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination'
 // 	)
 
-export const LogSubscriptionSchema = FunctionSchema.optional().describe(
-	'Log Subscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination.'
+export const OnLogSchema = FunctionSchema.optional().describe(
+	'Log aubscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination.'
 )
