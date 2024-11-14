@@ -18,7 +18,7 @@ export const formatGlobalResourceName = (opt: {
 		opt.postfix,
 	]
 		.filter(v => typeof v === 'string')
-		.map(v => paramCase(v))
+		.map(v => paramCase(v) || v)
 		.join(opt.seperator ?? '--')
 }
 
@@ -41,7 +41,7 @@ export const formatLocalResourceName = (opt: {
 		opt.postfix,
 	]
 		.filter(v => typeof v === 'string')
-		.map(v => paramCase(v))
+		.map(v => paramCase(v) || v)
 		.join(opt.seperator ?? '--')
 }
 
