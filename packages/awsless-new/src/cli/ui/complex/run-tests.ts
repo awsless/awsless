@@ -135,7 +135,8 @@ export const runTest = async (stack: string, dir: string, filters: string[]) => 
 					//
 					stack,
 					icon.arrow.right,
-					tasks.map(t => t.name).join(` ${icon.arrow.right} `),
+					tasks.at(-1)?.name,
+					// tasks.map(t => t.name).join(` ${icon.arrow.right} `),
 				].join(' ')
 			)
 		})

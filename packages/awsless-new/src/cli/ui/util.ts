@@ -1,8 +1,8 @@
+import { spinner } from '@clack/prompts'
+import { capitalCase } from 'change-case'
+import Table from 'cli-table3'
 import wrapAnsi, { Options } from 'wrap-ansi'
 import { char, color } from './style.js'
-import Table from 'cli-table3'
-import { capitalCase } from 'change-case'
-import { spinner } from '@clack/prompts'
 
 export const wrap = (lines: string | string[], options?: Options) => {
 	return wrapAnsi(typeof lines === 'string' ? lines : lines.join('\n'), process.stdout.columns - 8, options)
@@ -22,17 +22,14 @@ export const padText = (texts: string[]) => {
 	}
 }
 
-export const task = async <T>(
-	message: string,
-	cb: (update: (message: string) => void) => Promise<T>
-): Promise<T> => {
+export const task = async <T>(message: string, cb: (update: (message: string) => void) => Promise<T>): Promise<T> => {
 	let last = message
 	const spin = spinner()
 	spin.start(last)
 
 	try {
 		const result = await cb(m => {
-			spin.message(m)
+			spin.message(m.substring(0, process.stdout.columns - 8))
 			last = m
 		})
 
