@@ -93,7 +93,7 @@ export const topicFeature = defineFeature({
 			policy.addStatement({
 				actions: ['sns:Publish'],
 				resources: [
-					`arn:aws:sns:${ctx.appConfig.region}:*:${formatGlobalResourceName({
+					`arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({
 						appName: ctx.app.name,
 						resourceType: 'topic',
 						resourceName: '*',

@@ -54,8 +54,8 @@ export const tableFeature = defineFeature({
 					'dynamodb:ConditionCheckItem',
 				],
 				resources: [
-					`arn:aws:dynamodb:${ctx.appConfig.region}:*:table/${name}`,
-					`arn:aws:dynamodb:${ctx.appConfig.region}:*:table/${name}/index/*`,
+					`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}`,
+					`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}/index/*`,
 				],
 			})
 		})
