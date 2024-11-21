@@ -1,6 +1,12 @@
-import { nextTick, mockObjectValues } from '@awsless/utils'
-import { InvokeCommand, InvokeCommandInput, LambdaClient } from '@aws-sdk/client-lambda'
+import {
+	InvokeCommand,
+	InvokeCommandInput,
+	LambdaClient,
+	ListFunctionsCommand,
+	ListFunctionsCommandOutput,
+} from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
+import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
 // @ts-ignore
 import { Mock } from 'vitest'
@@ -22,6 +28,19 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 	}
 
 	mockClient(LambdaClient)
+		.on(ListFunctionsCommand)
+		.callsFake(async (): Promise<ListFunctionsCommandOutput> => {
+			return {
+				$metadata: {},
+				Functions: [
+					{
+						FunctionName: 'test',
+						FunctionArn: 'arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name',
+					},
+				],
+			}
+		})
+
 		.on(InvokeCommand)
 		.callsFake(async (input: InvokeCommandInput) => {
 			const name = input.FunctionName ?? ''

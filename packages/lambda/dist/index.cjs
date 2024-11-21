@@ -20,7 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
-  LambdaClient: () => import_client_lambda4.LambdaClient,
+  LambdaClient: () => import_client_lambda5.LambdaClient,
   TimeoutError: () => TimeoutError,
   ValidationError: () => ValidationError,
   ViewableError: () => ViewableError,
@@ -28,11 +28,12 @@ __export(src_exports, {
   isViewableErrorResponse: () => isViewableErrorResponse,
   lambda: () => lambda,
   lambdaClient: () => lambdaClient,
+  listFunctions: () => listFunctions,
   mockLambda: () => mockLambda,
   toViewableErrorResponse: () => toViewableErrorResponse
 });
 module.exports = __toCommonJS(src_exports);
-var import_client_lambda4 = require("@aws-sdk/client-lambda");
+var import_client_lambda5 = require("@aws-sdk/client-lambda");
 
 // src/commands/invoke.ts
 var import_client_lambda2 = require("@aws-sdk/client-lambda");
@@ -113,6 +114,20 @@ var invoke = async ({
   return response;
 };
 
+// src/commands/list-functions.ts
+var import_client_lambda3 = require("@aws-sdk/client-lambda");
+var listFunctions = async ({
+  client = lambdaClient(),
+  ...params
+}) => {
+  const command = new import_client_lambda3.ListFunctionsCommand(params);
+  const result = await client.send(command);
+  if (!result.Functions) {
+    return;
+  }
+  return result;
+};
+
 // src/errors/timeout.ts
 var TimeoutError = class extends Error {
   constructor(remainingTime) {
@@ -165,9 +180,9 @@ var transformValidationErrors = async (callback) => {
 };
 
 // src/helpers/mock.ts
-var import_utils2 = require("@awsless/utils");
-var import_client_lambda3 = require("@aws-sdk/client-lambda");
+var import_client_lambda4 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
+var import_utils2 = require("@awsless/utils");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var globalList = {};
 var mockLambda = (lambdas) => {
@@ -177,7 +192,17 @@ var mockLambda = (lambdas) => {
   if (alreadyMocked) {
     return list;
   }
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda3.LambdaClient).on(import_client_lambda3.InvokeCommand).callsFake(async (input) => {
+  (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda4.LambdaClient).on(import_client_lambda4.ListFunctionsCommand).callsFake(async () => {
+    return {
+      $metadata: {},
+      Functions: [
+        {
+          FunctionName: "test",
+          FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
+        }
+      ]
+    };
+  }).on(import_client_lambda4.InvokeCommand).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? JSON.parse((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
@@ -235,8 +260,7 @@ var isWarmUpEvent = (event) => {
   return typeof event === "object" && event.warmer === true;
 };
 var getWarmUpEvent = (event) => {
-  if (!isWarmUpEvent(event))
-    return;
+  if (!isWarmUpEvent(event)) return;
   return {
     invocation: parseInt(String(event[invocationKey]), 10) || 0,
     concurrency: parseInt(String(event[concurrencyKey]), 10) || 3,
@@ -334,6 +358,7 @@ var lambda = (options) => {
   isViewableErrorResponse,
   lambda,
   lambdaClient,
+  listFunctions,
   mockLambda,
   toViewableErrorResponse
 });

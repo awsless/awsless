@@ -3,6 +3,7 @@ export { LambdaClient } from '@aws-sdk/client-lambda'
 export type { Context as LambdaContext } from 'aws-lambda'
 // commands
 export { invoke } from './commands/invoke'
+export { listFunctions } from './commands/list-functions'
 export { Invoke, InvokeOptions, InvokeResponse } from './commands/type'
 export { TimeoutError } from './errors/timeout'
 export { ValidationError } from './errors/validation'

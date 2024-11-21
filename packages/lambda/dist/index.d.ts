@@ -1,4 +1,5 @@
-import { LambdaClient } from '@aws-sdk/client-lambda';
+import * as _aws_sdk_client_lambda from '@aws-sdk/client-lambda';
+import { LambdaClient, ListFunctionsCommandInput } from '@aws-sdk/client-lambda';
 export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
@@ -31,6 +32,10 @@ type Invoke = {
 
 /** Invoke lambda function */
 declare const invoke: Invoke;
+
+declare const listFunctions: ({ client, ...params }: ListFunctionsCommandInput & {
+    client?: LambdaClient;
+}) => Promise<_aws_sdk_client_lambda.ListFunctionsCommandOutput | undefined>;
 
 declare class TimeoutError extends Error {
     constructor(remainingTime: number);
@@ -100,4 +105,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
-export { Context, ExtraMetaData, Handler, Input, Invoke, InvokeOptions, InvokeResponse, LambdaFactory, LambdaFunction, Logger, Loggers, TimeoutError, ValidationError, ViewableError, invoke, isViewableErrorResponse, lambda, lambdaClient, mockLambda, toViewableErrorResponse };
+export { type Context, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, TimeoutError, ValidationError, ViewableError, invoke, isViewableErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toViewableErrorResponse };

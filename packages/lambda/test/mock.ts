@@ -1,4 +1,4 @@
-import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import { InvokeCommand, LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { mockLambda } from '../src'
 
@@ -16,6 +16,20 @@ describe('Lambda Mock', () => {
 	})
 
 	const client = new LambdaClient({})
+
+	it('should list lambda functions', async () => {
+		const result = await client.send(new ListFunctionsCommand({}))
+
+		expect(result).toStrictEqual({
+			$metadata: {},
+			Functions: [
+				{
+					FunctionName: 'test',
+					FunctionArn: 'arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name',
+				},
+			],
+		})
+	})
 
 	it('should invoke lambda', async () => {
 		const result = await client.send(
@@ -50,6 +64,18 @@ describe('Lambda Mock', () => {
 
 		expect(result.Payload).toBe(undefined)
 		expect(lambda2.other).toBeCalledTimes(1)
+	})
+
+	it('should throw for unknown lambda', async () => {
+		const promise = client.send(
+			new InvokeCommand({
+				FunctionName: 'unknown',
+				Payload: fromUtf8(JSON.stringify('')),
+			})
+		)
+
+		await expect(promise).rejects.toThrow(TypeError)
+		expect(lambda.echo).toBeCalledTimes(0)
 	})
 
 	it('should throw for unknown lambda', async () => {

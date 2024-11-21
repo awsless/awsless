@@ -80,6 +80,20 @@ var invoke = async ({
   return response;
 };
 
+// src/commands/list-functions.ts
+import { ListFunctionsCommand } from "@aws-sdk/client-lambda";
+var listFunctions = async ({
+  client = lambdaClient(),
+  ...params
+}) => {
+  const command = new ListFunctionsCommand(params);
+  const result = await client.send(command);
+  if (!result.Functions) {
+    return;
+  }
+  return result;
+};
+
 // src/errors/timeout.ts
 var TimeoutError = class extends Error {
   constructor(remainingTime) {
@@ -132,9 +146,13 @@ var transformValidationErrors = async (callback) => {
 };
 
 // src/helpers/mock.ts
-import { nextTick, mockObjectValues } from "@awsless/utils";
-import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2 } from "@aws-sdk/client-lambda";
+import {
+  InvokeCommand as InvokeCommand2,
+  LambdaClient as LambdaClient2,
+  ListFunctionsCommand as ListFunctionsCommand2
+} from "@aws-sdk/client-lambda";
 import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
+import { mockObjectValues, nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";
 var globalList = {};
 var mockLambda = (lambdas) => {
@@ -144,7 +162,17 @@ var mockLambda = (lambdas) => {
   if (alreadyMocked) {
     return list;
   }
-  mockClient(LambdaClient2).on(InvokeCommand2).callsFake(async (input) => {
+  mockClient(LambdaClient2).on(ListFunctionsCommand2).callsFake(async () => {
+    return {
+      $metadata: {},
+      Functions: [
+        {
+          FunctionName: "test",
+          FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
+        }
+      ]
+    };
+  }).on(InvokeCommand2).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? JSON.parse(toUtf82(input.Payload)) : void 0;
@@ -202,8 +230,7 @@ var isWarmUpEvent = (event) => {
   return typeof event === "object" && event.warmer === true;
 };
 var getWarmUpEvent = (event) => {
-  if (!isWarmUpEvent(event))
-    return;
+  if (!isWarmUpEvent(event)) return;
   return {
     invocation: parseInt(String(event[invocationKey]), 10) || 0,
     concurrency: parseInt(String(event[concurrencyKey]), 10) || 3,
@@ -300,6 +327,7 @@ export {
   isViewableErrorResponse,
   lambda,
   lambdaClient,
+  listFunctions,
   mockLambda,
   toViewableErrorResponse
 };

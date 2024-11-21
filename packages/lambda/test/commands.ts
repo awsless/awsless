@@ -1,10 +1,23 @@
 import { string } from '@awsless/validate'
-import { invoke, lambda, mockLambda } from '../src'
+import { invoke, lambda, listFunctions, mockLambda } from '../src'
 
 describe('Lambda', () => {
 	const mock = mockLambda({
 		echo: payload => payload,
 		noop: () => {},
+	})
+
+	it('should list lambda functions', async () => {
+		const result = await listFunctions({})
+		expect(result).toStrictEqual({
+			$metadata: {},
+			Functions: [
+				{
+					FunctionName: 'test',
+					FunctionArn: 'arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name',
+				},
+			],
+		})
 	})
 
 	it('should invoke lambda', async () => {
