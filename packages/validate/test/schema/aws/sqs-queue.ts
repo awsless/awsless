@@ -1,4 +1,4 @@
-import { sqsQueue, number, object, parse, ValiError, Output, Input } from '../../../src'
+import { Input, number, object, Output, parse, sqsQueue, ValiError } from '../../../src'
 
 describe('SQS Queue', () => {
 	const schema = sqsQueue(object({ id: number() }))

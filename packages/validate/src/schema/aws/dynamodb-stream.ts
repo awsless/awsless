@@ -1,9 +1,9 @@
-import { PrimaryKey, TableDefinition } from '@awsless/dynamodb'
+import { AnyTable, PrimaryKey } from '@awsless/dynamodb'
 import { array, BaseSchema, literal, object, optional, transform, union, unknown } from 'valibot'
 
 type EventName = 'MODIFY' | 'INSERT' | 'REMOVE'
 
-export type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> = BaseSchema<
+export type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<
 	{
 		Records: {
 			eventName: EventName
@@ -22,7 +22,7 @@ export type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> 
 	}[]
 >
 
-export const dynamoDbStream = <T extends TableDefinition<any, any, any, any>>(table: T) => {
+export const dynamoDbStream = <T extends AnyTable>(table: T) => {
 	const marshall = () => transform(unknown(), value => table.unmarshall(value))
 
 	return transform(

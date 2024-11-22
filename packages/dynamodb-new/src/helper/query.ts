@@ -1,14 +1,14 @@
-import { AnyTableDefinition } from '../table'
+import { AnyTable } from '../table'
 import { InferPath } from '../types/infer'
 import { AttributeValue } from '../types/value'
 import { IDGenerator } from './id-generator'
 
-export type QueryValue<T extends AnyTableDefinition> = {
+export type QueryValue<T extends AnyTable> = {
 	v: AttributeValue
 	p?: InferPath<T>
 }
 
-export type QueryPath<T extends AnyTableDefinition> = {
+export type QueryPath<T extends AnyTable> = {
 	p: InferPath<T>
 }
 
@@ -16,22 +16,17 @@ const key = Symbol()
 
 export const cursor = Symbol()
 
-export type QueryItem<T extends AnyTableDefinition> =
-	| QueryBulder<T>
-	| QueryValue<T>
-	| QueryPath<T>
-	| typeof cursor
-	| string
+export type QueryItem<T extends AnyTable> = QueryBulder<T> | QueryValue<T> | QueryPath<T> | typeof cursor | string
 
-export const isValue = <T extends AnyTableDefinition>(item: QueryItem<T>): item is QueryValue<T> => {
+export const isValue = <T extends AnyTable>(item: QueryItem<T>): item is QueryValue<T> => {
 	return typeof (item as QueryValue<T>).v !== 'undefined'
 }
 
-export const isPath = <T extends AnyTableDefinition>(item: QueryItem<T>): item is QueryPath<T> => {
+export const isPath = <T extends AnyTable>(item: QueryItem<T>): item is QueryPath<T> => {
 	return typeof (item as QueryPath<T>).p !== 'undefined'
 }
 
-export const flatten = <T extends AnyTableDefinition>(builder: QueryBulder<T>) => {
+export const flatten = <T extends AnyTable>(builder: QueryBulder<T>) => {
 	let current: QueryBulder<T> = builder
 
 	while (true) {
@@ -54,7 +49,7 @@ export const flatten = <T extends AnyTableDefinition>(builder: QueryBulder<T>) =
 	return current
 }
 
-export const build = <T extends AnyTableDefinition>(builder: QueryBulder<T>, gen: IDGenerator<T>): string => {
+export const build = <T extends AnyTable>(builder: QueryBulder<T>, gen: IDGenerator<T>): string => {
 	return builder[key].items
 		.filter(item => item !== cursor)
 		.map(item => {
@@ -75,7 +70,7 @@ export const build = <T extends AnyTableDefinition>(builder: QueryBulder<T>, gen
 		.join(' ')
 }
 
-export class QueryBulder<T extends AnyTableDefinition> {
+export class QueryBulder<T extends AnyTable> {
 	[key]: {
 		parent: QueryBulder<T> | undefined
 		items: QueryItem<T>[]

@@ -1,5 +1,5 @@
 {
-	"name": "@awsless/dynamodb",
+	"name": "@awsless/dynamodb-old",
 	"version": "0.0.49",
 	"license": "MIT",
 	"type": "module",

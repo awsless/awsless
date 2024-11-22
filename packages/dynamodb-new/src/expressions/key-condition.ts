@@ -1,25 +1,23 @@
-import { QueryBulder, build, flatten } from '../helper/query'
 import { IDGenerator } from '../helper/id-generator'
-import { AnyTableDefinition, IndexNames } from '../table'
+import { QueryBulder, build, flatten } from '../helper/query'
+import { AnyTable, IndexNames } from '../table'
 
-type PrimaryKeyNames<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> = I extends IndexNames<T>
-	? T['indexes'][I]['sort'] extends string
-		? T['indexes'][I]['hash'] | T['indexes'][I]['sort']
-		: T['indexes'][I]['hash']
-	: T['sort'] extends string
-	? T['hash'] | T['sort']
-	: T['hash']
+type PrimaryKeyNames<T extends AnyTable, I extends IndexNames<T> | undefined> =
+	I extends IndexNames<T>
+		? T['indexes'][I]['sort'] extends string
+			? T['indexes'][I]['hash'] | T['indexes'][I]['sort']
+			: T['indexes'][I]['hash']
+		: T['sort'] extends string
+			? T['hash'] | T['sort']
+			: T['hash']
 
 type InferValue<
-	T extends AnyTableDefinition,
+	T extends AnyTable,
 	P extends PrimaryKeyNames<T, I>,
-	I extends IndexNames<T> | undefined
+	I extends IndexNames<T> | undefined,
 > = T['schema']['INPUT'][P]
 
-export class KeyCondition<
-	T extends AnyTableDefinition,
-	I extends IndexNames<T> | undefined
-> extends QueryBulder<T> {
+export class KeyCondition<T extends AnyTable, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
 	where<P extends PrimaryKeyNames<T, I>>(path: P) {
 		return new Where<T, P, I>(this, path)
 	}
@@ -30,11 +28,14 @@ export class KeyCondition<
 }
 
 class Where<
-	T extends AnyTableDefinition,
+	T extends AnyTable,
 	P extends PrimaryKeyNames<T, I>,
-	I extends IndexNames<T> | undefined
+	I extends IndexNames<T> | undefined,
 > extends QueryBulder<T> {
-	constructor(query: QueryBulder<T>, private path: P) {
+	constructor(
+		query: QueryBulder<T>,
+		private path: P
+	) {
 		super(query)
 	}
 
@@ -71,17 +72,11 @@ class Where<
 	}
 
 	beginsWith(value: InferValue<T, P, I>) {
-		return new Combine<T, I>(this, [
-			'begins_with(',
-			{ p: [this.path] },
-			',',
-			{ v: value, p: [this.path] },
-			')',
-		])
+		return new Combine<T, I>(this, ['begins_with(', { p: [this.path] }, ',', { v: value, p: [this.path] }, ')'])
 	}
 }
 
-export class Combine<T extends AnyTableDefinition, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
+export class Combine<T extends AnyTable, I extends IndexNames<T> | undefined> extends QueryBulder<T> {
 	get and() {
 		return new KeyCondition<T, I>(this, ['AND'])
 	}
@@ -91,10 +86,7 @@ export class Combine<T extends AnyTableDefinition, I extends IndexNames<T> | und
 	}
 }
 
-export const keyConditionExpression = <
-	T extends AnyTableDefinition,
-	I extends IndexNames<T> | undefined = undefined
->(
+export const keyConditionExpression = <T extends AnyTable, I extends IndexNames<T> | undefined = undefined>(
 	options: {
 		index?: I
 		keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>

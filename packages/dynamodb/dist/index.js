@@ -562,7 +562,7 @@ var Any = class {
     return marshall({ value }, this.options).value;
   }
   unmarshall(value) {
-    return unmarshall(value.M, this.options);
+    return unmarshall({ value }, this.options).value;
   }
   _marshall(value) {
     return value;
@@ -1037,8 +1037,7 @@ var pipeStream = (streams, command, send) => {
       getEntries: (command2) => {
         return Object.entries(command2.input.RequestItems).map(([tableName, items]) => {
           const stream = streams.find((stream2) => stream2.table.name === tableName);
-          if (!stream)
-            return;
+          if (!stream) return;
           return {
             ...stream,
             items: items.map((item) => {
@@ -1061,13 +1060,11 @@ var pipeStream = (streams, command, send) => {
       send,
       getEntries: (command2) => {
         return command2.input.TransactItems.map((item) => {
-          if (item.ConditionCheck)
-            return;
+          if (item.ConditionCheck) return;
           const keyed = item.Delete || item.Update;
           const tableName = keyed?.TableName || item.Put?.TableName;
           const stream = streams.find((stream2) => stream2.table.name === tableName);
-          if (!stream)
-            return;
+          if (!stream) return;
           const marshall2 = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
           return {
             ...stream,

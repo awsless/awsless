@@ -197,8 +197,9 @@ export const createLambdaFunction = (
 
 	lambda.addEnvironment('APP', ctx.appConfig.name)
 	lambda.addEnvironment('APP_ID', ctx.appId)
-	lambda.addEnvironment('STORE_POSTFIX', ctx.appId)
+	// lambda.addEnvironment('STORE_POSTFIX', ctx.appId)
 	// lambda.addEnvironment('STAGE', ctx.stage)
+	lambda.addEnvironment('AWS_ACCOUNT_ID', ctx.accountId)
 
 	if ('stackConfig' in ctx) {
 		lambda.addEnvironment('STACK', ctx.stackConfig.name)

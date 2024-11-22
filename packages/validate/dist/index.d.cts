@@ -4,10 +4,10 @@ export * from 'valibot';
 import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
 import { DurationFormat, Duration } from '@awsless/duration';
-import { TableDefinition, PrimaryKey } from '@awsless/dynamodb';
+import { AnyTable, PrimaryKey } from '@awsless/dynamodb';
 
 type JsonSchema<T extends BaseSchema> = SchemaWithTransform<StringSchema, Output<T>>;
-declare const json: <T extends BaseSchema<any, any>>(schema: T) => JsonSchema<T>;
+declare const json: <T extends BaseSchema>(schema: T) => JsonSchema<T>;
 
 type BigFloatSchema = BaseSchema<string | number | BigFloat | {
     exponent: number;
@@ -36,7 +36,7 @@ type SqsQueueSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> 
         body: string | Input<S>;
     }[];
 }, Output<S>[]>;
-declare const sqsQueue: <S extends BaseSchema<any, any> = UnknownSchema<unknown>>(body?: S | undefined) => SqsQueueSchema<S>;
+declare const sqsQueue: <S extends BaseSchema = UnknownSchema<unknown>>(body?: S) => SqsQueueSchema<S>;
 
 type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> | Input<S>[] | {
     Records: {
@@ -45,10 +45,10 @@ type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> 
         };
     }[];
 }, Output<S>[]>;
-declare const snsTopic: <S extends BaseSchema<any, any> = UnknownSchema<unknown>>(body?: S | undefined) => SnsTopicSchema<S>;
+declare const snsTopic: <S extends BaseSchema = UnknownSchema<unknown>>(body?: S) => SnsTopicSchema<S>;
 
 type EventName = 'MODIFY' | 'INSERT' | 'REMOVE';
-type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> = BaseSchema<{
+type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
     Records: {
         eventName: EventName;
         dynamodb: {
@@ -63,7 +63,7 @@ type DynamoDBStreamSchema<T extends TableDefinition<any, any, any, any>> = BaseS
     old?: T['schema']['OUTPUT'];
     new?: T['schema']['OUTPUT'];
 }[]>;
-declare const dynamoDbStream: <T extends TableDefinition<any, any, any, any>>(table: T) => DynamoDBStreamSchema<T>;
+declare const dynamoDbStream: <T extends AnyTable>(table: T) => DynamoDBStreamSchema<T>;
 
 declare function positive<T extends BigFloat | number>(error?: ErrorMessage): valibot.CustomValidation<T>;
 
@@ -74,4 +74,4 @@ declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) 
 declare function minDuration<T extends Duration>(min: Duration, error?: ErrorMessage): valibot.CustomValidation<T>;
 declare function maxDuration<T extends Duration>(max: Duration, error?: ErrorMessage): valibot.CustomValidation<T>;
 
-export { BigFloatSchema, BigIntSchema, DateSchema, DurationSchema, DynamoDBStreamSchema, JsonSchema, SnsTopicSchema, SqsQueueSchema, UuidSchema, bigfloat, bigint, date, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, snsTopic, sqsQueue, unique, uuid };
+export { type BigFloatSchema, type BigIntSchema, type DateSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, bigfloat, bigint, date, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, snsTopic, sqsQueue, unique, uuid };

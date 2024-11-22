@@ -8,7 +8,7 @@ import { PrimaryKey } from '../types/key.js'
 import { Options } from '../types/options.js'
 
 // type GetOptions<
-// 	T extends AnyTableDefinition,
+// 	T extends AnyTable,
 // 	P extends ProjectionExpression<T> | undefined
 // > = Options & {
 // 	consistentRead?: boolean

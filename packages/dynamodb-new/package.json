@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -29,6 +29,7 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"vitest": {
+		"hookTimeout": 30000,
 		"maxConcurrency": 3,
 		"singleThread": true,
 		"exclude": [

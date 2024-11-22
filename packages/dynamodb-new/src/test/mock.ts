@@ -58,9 +58,12 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(
 		if (typeof beforeAll !== 'undefined') {
 			beforeAll(async () => {
 				const [port, releasePort] = await requestPort()
+				console.log(port, 'port')
 
 				await server.listen(port)
+				console.log('starting')
 				await server.wait()
+				console.log('started')
 
 				if (configOrServer.tables) {
 					await migrate(server.getClient(), configOrServer.tables)

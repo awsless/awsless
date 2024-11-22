@@ -1,5 +1,5 @@
 // define
-export { define, Output, Input, Table } from './table.js'
+export { AnyTable, define, Output, Input, Table } from './table.js'
 
 // types
 export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'

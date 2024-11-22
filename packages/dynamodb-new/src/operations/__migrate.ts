@@ -1,42 +1,28 @@
-
-import { AnyTableDefinition } from '../table.js'
+import { AnyTable } from '../table.js'
 import { CursorKey } from '../types/key.js'
 import { Options } from '../types/options.js'
 import { batchPutItem } from './batch-put-item.js'
 import { scan } from './scan.js'
 
-type MigrateOptions<
-	From extends AnyTableDefinition,
-	To extends AnyTableDefinition
-> = Options & {
+type MigrateOptions<From extends AnyTable, To extends AnyTable> = Options & {
 	consistentRead?: boolean
 	batch?: number
 	transform: TransformCallback<From, To>
 }
 
-type TransformCallback<
-	From extends AnyTableDefinition,
-	To extends AnyTableDefinition
-> = {
-	(items:From['schema']['OUTPUT'][]): (
-		To['schema']['INPUT'][] |
-		Promise<To['schema']['INPUT'][]>
-	)
+type TransformCallback<From extends AnyTable, To extends AnyTable> = {
+	(items: From['schema']['OUTPUT'][]): To['schema']['INPUT'][] | Promise<To['schema']['INPUT'][]>
 }
 
 type MigrateResponse = {
 	itemsProcessed: number
 }
 
-export const migrate = async <
-	From extends AnyTableDefinition,
-	To extends AnyTableDefinition
->(
+export const migrate = async <From extends AnyTable, To extends AnyTable>(
 	from: From,
 	to: To,
 	options: MigrateOptions<From, To>
 ): Promise<MigrateResponse> => {
-
 	let cursor: CursorKey<From>
 	let itemsProcessed = 0
 
@@ -47,7 +33,7 @@ export const migrate = async <
 			limit: options.batch || 1000,
 
 			// @ts-ignore
-			cursor
+			cursor,
 		})
 
 		itemsProcessed += result.items.length
@@ -55,7 +41,7 @@ export const migrate = async <
 		const items = await options.transform(result.items)
 		await batchPutItem(to, items, { client: options.client })
 
-		if(result.items.length === 0 || !result.cursor) {
+		if (result.items.length === 0 || !result.cursor) {
 			return false
 		}
 
@@ -63,13 +49,13 @@ export const migrate = async <
 		return true
 	}
 
-	for(;;) {
-		if(!await loop()) {
+	for (;;) {
+		if (!(await loop())) {
 			break
 		}
 	}
 
 	return {
-		itemsProcessed
+		itemsProcessed,
 	}
 }

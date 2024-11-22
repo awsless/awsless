@@ -1,11 +1,11 @@
-import { AnyTableDefinition, IndexNames } from "../table"
-import { CursorKey } from "../types/key"
+import { AnyTable, IndexNames } from '../table'
+import { CursorKey } from '../types/key'
 
-export const fromCursorString = <
-	T extends AnyTableDefinition,
-	I extends IndexNames<T> | undefined = undefined
->(table:T, cursorStringValue?:string): CursorKey<T, I> | undefined => {
-	if(!cursorStringValue) {
+export const fromCursorString = <T extends AnyTable, I extends IndexNames<T> | undefined = undefined>(
+	table: T,
+	cursorStringValue?: string
+): CursorKey<T, I> | undefined => {
+	if (!cursorStringValue) {
 		return
 	}
 
@@ -18,16 +18,16 @@ export const fromCursorString = <
 		const cursor = JSON.parse(json)
 
 		return table.unmarshall(cursor)
-	} catch(error) {
+	} catch (error) {
 		return
 	}
 }
 
-export const toCursorString = <
-	T extends AnyTableDefinition,
-	I extends IndexNames<T> | undefined = undefined
->(table:T, cursor?:CursorKey<T, I>): string | undefined => {
-	if(!cursor) {
+export const toCursorString = <T extends AnyTable, I extends IndexNames<T> | undefined = undefined>(
+	table: T,
+	cursor?: CursorKey<T, I>
+): string | undefined => {
+	if (!cursor) {
 		return
 	}
 

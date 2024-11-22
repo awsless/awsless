@@ -24,7 +24,7 @@
 		"@aws-sdk/client-dynamodb": "3.363.0",
 		"@aws-sdk/lib-dynamodb": "3.363.0",
 		"@aws-sdk/url-parser": "^3.272.0",
-		"dynamo-db-local": "^4.0.0",
+		"dynamo-db-local": "^9.3.0",
 		"sleep-await": "^1.0.2"
 	}
 }

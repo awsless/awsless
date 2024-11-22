@@ -1246,8 +1246,11 @@ var mockDynamoDB = (configOrServer) => {
     if (typeof beforeAll !== "undefined") {
       beforeAll(async () => {
         const [port, releasePort] = await (0, import_request_port.requestPort)();
+        console.log(port, "port");
         await server.listen(port);
+        console.log("starting");
         await server.wait();
+        console.log("started");
         if (configOrServer.tables) {
           await migrate(server.getClient(), configOrServer.tables);
           if (configOrServer.seed) {
@@ -1419,13 +1422,7 @@ var Where2 = class extends QueryBulder {
     ]);
   }
   beginsWith(value) {
-    return new Combine3(this, [
-      "begins_with(",
-      { p: [this.path] },
-      ",",
-      { v: value, p: [this.path] },
-      ")"
-    ]);
+    return new Combine3(this, ["begins_with(", { p: [this.path] }, ",", { v: value, p: [this.path] }, ")"]);
   }
 };
 var Combine3 = class extends QueryBulder {

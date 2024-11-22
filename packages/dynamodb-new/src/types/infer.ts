@@ -15,8 +15,8 @@ export type InferSetValue<T extends AnyTable, P extends InferPath<T>> = Paramete
 
 export type InferOptionalPath<T extends AnyTable> = T['schema']['OPT_PATHS']
 
-// export type InferTypedPath<T extends AnyTableDefinition, P extends InferPath<T>> = InferTypedPath2<T, Union.ListOf<T['schema']['PATHS'][number]>, P>
+// export type InferTypedPath<T extends AnyTable, P extends InferPath<T>> = InferTypedPath2<T, Union.ListOf<T['schema']['PATHS'][number]>, P>
 
-// export type InferTypedPath2<T extends AnyTableDefinition, Paths extends InferPath<T>, P extends InferPath<T>> = {
+// export type InferTypedPath2<T extends AnyTable, Paths extends InferPath<T>, P extends InferPath<T>> = {
 // 	[K in keyof Paths]: WalkPath<T['schema']['INPUT'], Paths[K]> extends InferValue<T, P> ? Paths[K] : never
 // }[keyof Paths]

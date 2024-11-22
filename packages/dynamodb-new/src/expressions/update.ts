@@ -1,19 +1,19 @@
 import { BigFloat } from '@awsless/big-float'
 import { IDGenerator } from '../helper/id-generator'
 import { isPath, isValue, QueryItem } from '../helper/query'
-import { AnyTableDefinition } from '../table'
+import { AnyTable } from '../table'
 import { InferPath, InferValue } from '../types/infer'
 
 const key = Symbol()
 
-type ChainData<T extends AnyTableDefinition> = {
+type ChainData<T extends AnyTable> = {
 	readonly set: QueryItem<T>[][]
 	readonly add: QueryItem<T>[][]
 	readonly rem: QueryItem<T>[][]
 	readonly del: QueryItem<T>[][]
 }
 
-class Chain<T extends AnyTableDefinition> {
+class Chain<T extends AnyTable> {
 	[key]: ChainData<T>
 
 	constructor(data: ChainData<T>) {
@@ -21,11 +21,7 @@ class Chain<T extends AnyTableDefinition> {
 	}
 }
 
-const m = <T extends AnyTableDefinition>(
-	chain: Chain<T>,
-	op?: keyof ChainData<T>,
-	...items: QueryItem<T>[]
-): ChainData<T> => {
+const m = <T extends AnyTable>(chain: Chain<T>, op?: keyof ChainData<T>, ...items: QueryItem<T>[]): ChainData<T> => {
 	const d = chain[key]
 	const n = {
 		set: [...d.set],
@@ -41,7 +37,7 @@ const m = <T extends AnyTableDefinition>(
 	return n
 }
 
-export class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
+export class UpdateExpression<T extends AnyTable> extends Chain<T> {
 	/** Update a given property */
 	update<P extends InferPath<T>>(...path: P) {
 		return new Update<T, P>(m(this), path)
@@ -52,7 +48,7 @@ export class UpdateExpression<T extends AnyTableDefinition> extends Chain<T> {
 	}
 }
 
-class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain<T> {
+class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T> {
 	constructor(
 		query: ChainData<T>,
 		private path: P
@@ -133,7 +129,7 @@ class Update<T extends AnyTableDefinition, P extends InferPath<T>> extends Chain
 	}
 }
 
-const build = <T extends AnyTableDefinition>(items: QueryItem<T>[], gen: IDGenerator<T>) => {
+const build = <T extends AnyTable>(items: QueryItem<T>[], gen: IDGenerator<T>) => {
 	return items
 		.map(item => {
 			if (isValue(item)) {
@@ -149,7 +145,7 @@ const build = <T extends AnyTableDefinition>(items: QueryItem<T>[], gen: IDGener
 		.join(' ')
 }
 
-export const updateExpression = <T extends AnyTableDefinition>(
+export const updateExpression = <T extends AnyTable>(
 	options: { update: (exp: UpdateExpression<T>) => UpdateExpression<T> },
 	gen: IDGenerator<T>
 ) => {

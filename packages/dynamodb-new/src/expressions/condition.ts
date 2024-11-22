@@ -1,11 +1,11 @@
 import { BigFloat } from '@awsless/big-float'
+import { AttributeTypes } from '../__structs/struct'
 import { IDGenerator } from '../helper/id-generator'
 import { build, flatten, QueryBulder, QueryItem, QueryValue } from '../helper/query'
-import { AnyTableDefinition } from '../table'
+import { AnyTable } from '../table'
 import { InferPath, InferSetValue, InferValue } from '../types/infer'
-import { AttributeTypes } from '../__structs/struct'
 
-export class Condition<T extends AnyTableDefinition> extends QueryBulder<T> {
+export class Condition<T extends AnyTable> extends QueryBulder<T> {
 	where<P extends InferPath<T>>(...path: P) {
 		return new Where<T, P>(this, [], path)
 	}
@@ -33,7 +33,7 @@ export class Condition<T extends AnyTableDefinition> extends QueryBulder<T> {
 	// }
 }
 
-class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBulder<T> {
+class Where<T extends AnyTable, P extends InferPath<T>> extends QueryBulder<T> {
 	constructor(
 		query: QueryBulder<T>,
 		items: QueryItem<T>[],
@@ -123,7 +123,7 @@ class Where<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryB
 	}
 }
 
-class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBulder<T> {
+class Size<T extends AnyTable, P extends InferPath<T>> extends QueryBulder<T> {
 	constructor(
 		query: QueryBulder<T>,
 		private path: P
@@ -169,7 +169,7 @@ class Size<T extends AnyTableDefinition, P extends InferPath<T>> extends QueryBu
 	}
 }
 
-export class Combine<T extends AnyTableDefinition> extends QueryBulder<T> {
+export class Combine<T extends AnyTable> extends QueryBulder<T> {
 	get and() {
 		return new Condition<T>(this, ['AND'])
 	}
@@ -179,7 +179,7 @@ export class Combine<T extends AnyTableDefinition> extends QueryBulder<T> {
 	}
 }
 
-export const conditionExpression = <T extends AnyTableDefinition>(
+export const conditionExpression = <T extends AnyTable>(
 	options: { condition?: (exp: Condition<T>) => Combine<T> },
 	gen: IDGenerator<T>
 ) => {

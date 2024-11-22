@@ -1,12 +1,10 @@
-
-import { QueryBulder, build, cursor, flatten } from '../../src/helper/query'
 import { IDGenerator } from '../../src/helper/id-generator'
-import { AnyTableDefinition } from '../../src/table'
+import { QueryBulder, build, cursor, flatten } from '../../src/helper/query'
+import { AnyTable } from '../../src/table'
 import { users } from '../aws/tables'
 
 describe('Query', () => {
-
-	class First<T extends AnyTableDefinition> extends QueryBulder<T> {
+	class First<T extends AnyTable> extends QueryBulder<T> {
 		group() {
 			return new Second<T>(this, ['(', cursor, ')'])
 		}
@@ -16,7 +14,7 @@ describe('Query', () => {
 		}
 	}
 
-	class Second<T extends AnyTableDefinition> extends QueryBulder<T> {
+	class Second<T extends AnyTable> extends QueryBulder<T> {
 		first() {
 			return new First<T>(this, ['first'])
 		}
