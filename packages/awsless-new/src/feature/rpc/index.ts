@@ -1,5 +1,5 @@
 import { camelCase, constantCase, paramCase } from 'change-case'
-import { aws, Node, Output } from '@awsless/formation'
+import { Asset, aws, Node, Output } from '@awsless/formation'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -14,6 +14,7 @@ import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'node:url'
 import { createPrebuildLambdaFunction } from '../function/prebuild.js'
 import { days, seconds } from '@awsless/duration'
+import { getBuildPath } from '../../build/index.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -79,7 +80,7 @@ export const rpcFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const { lambda } = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
+			const { lambda, code } = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
 				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
 				memorySize: mebibytes(256),
@@ -102,6 +103,14 @@ export const rpcFeature = defineFeature({
 				const authGroup = new Node(group, 'auth', 'authorizer')
 				const auth = createLambdaFunction(authGroup, ctx, 'rpc', `${id}-auth`, props.auth)
 				lambda.addEnvironment('AUTH', auth.lambda.name)
+				// lambda.addEnvironment('AUTH_HASH', auth)
+
+				new aws.lambda.SourceCodeUpdate(group, 'update', {
+					functionName: lambda.name,
+					version: Asset.fromFile(getBuildPath('function', auth.name, 'HASH')),
+					architecture: 'arm64',
+					code,
+				})
 			}
 
 			const permission = new aws.lambda.Permission(group, 'permission', {

@@ -30,7 +30,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 	const auth = await authenticate(request.output.headers.authentication)
 
 	if (!auth.authorized) {
-		return response(405, UNAUTHORIZED)
+		return response(405, UNAUTHORIZED(auth.reason))
 	}
 
 	// ----------------------------------------

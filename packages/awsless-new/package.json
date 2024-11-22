@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.390",
+	"version": "0.0.394",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,

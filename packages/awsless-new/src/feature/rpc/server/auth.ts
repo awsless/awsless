@@ -30,6 +30,7 @@ export const authenticate = async (token?: string) => {
 	if (!token) {
 		return {
 			authorized: false,
+			reason: 'No authentication token provided',
 		}
 	}
 
@@ -48,10 +49,21 @@ export const authenticate = async (token?: string) => {
 	// ------------------------------------------
 	// Invoke the custom auth lambda
 
-	const response = await invoke({
-		name: AUTH!,
-		payload: { token },
-	})
+	let response: unknown
+
+	try {
+		response = await invoke({
+			name: AUTH!,
+			payload: { token },
+		})
+	} catch (error) {
+		console.error(error)
+
+		return {
+			authorized: false,
+			reason: 'Invoke auth handle error',
+		}
+	}
 
 	// ------------------------------------------
 	// Parse & validate the response
@@ -61,6 +73,7 @@ export const authenticate = async (token?: string) => {
 	if (!result.success) {
 		return {
 			authorized: false,
+			reason: 'Invalid auth handle response',
 		}
 	}
 

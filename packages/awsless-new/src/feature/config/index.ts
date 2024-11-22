@@ -21,6 +21,23 @@ export const configFeature = defineFeature({
 
 		await ctx.write('config.d.ts', gen, true)
 	},
+	onApp(ctx) {
+		ctx.onAppPolicy(policy => {
+			policy.addStatement({
+				actions: [
+					'ssm:GetParameter',
+					'ssm:GetParameters',
+					'ssm:GetParametersByPath',
+					'ssm:GetParameterHistory',
+				],
+				resources: [
+					`arn:aws:ssm:${ctx.appConfig.region}:${ctx.accountId}:parameter${configParameterPrefix(
+						ctx.app.name
+					)}/*`,
+				],
+			})
+		})
+	},
 	onStack(ctx) {
 		const configs = ctx.stackConfig.configs ?? []
 
