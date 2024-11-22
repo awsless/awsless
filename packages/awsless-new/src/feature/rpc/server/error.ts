@@ -9,10 +9,15 @@ export const INVALID_REQUEST = (issues: SchemaIssues): GlobalError => {
 	}
 }
 
-export const UNAUTHORIZED: GlobalError = {
+export const UNAUTHORIZED = (reason?: string): GlobalError => ({
 	type: 'unauthorized',
-	message: 'Unauthorized',
-}
+	message: reason ?? 'Unauthorized',
+})
+
+// export const UNAUTHORIZED: GlobalError = {
+// 	type: 'unauthorized',
+// 	message: 'Unauthorized',
+// }
 
 export const UNKNOWN_FUNCTION_NAME: FunctionError = {
 	ok: false,
@@ -46,3 +51,10 @@ export const EXPECTED_ERROR = (error: ViewableError): FunctionError => ({
 		data: error.data,
 	},
 })
+
+// export const AUTH_HANDLE_ERROR = (error?: Error): GlobalError => {
+// 	return {
+// 		type: 'auth-handle-error',
+// 		message: error ? error.message : `Auth handle error`,
+// 	}
+// }

@@ -1,8 +1,8 @@
 import {
 	array,
-	boolean,
 	duration,
 	json,
+	literal,
 	maxLength,
 	minLength,
 	object,
@@ -10,6 +10,7 @@ import {
 	record,
 	safeParse,
 	string,
+	union,
 	unknown,
 } from '@awsless/validate'
 
@@ -39,11 +40,16 @@ export const parseRequest = (body: unknown) => {
 	return safeParse(requestSchema, body)
 }
 
-const authResponseSchema = object({
-	authorized: boolean(),
-	context: optional(record(unknown())),
-	ttl: duration(),
-})
+const authResponseSchema = union([
+	object({
+		authorized: literal(true),
+		context: optional(record(unknown())),
+		ttl: duration(),
+	}),
+	object({
+		authorized: literal(false),
+	}),
+])
 
 export const parseAuthResponse = (body: unknown) => {
 	return safeParse(authResponseSchema, body)

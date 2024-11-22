@@ -48,7 +48,7 @@ export const createLambdaFunction = (
 	}
 
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
-	let code: aws.lambda.Code | undefined
+	let code: aws.lambda.Code
 
 	if (props.runtime === 'container') {
 		ctx.registerBuild('function', name, async build => {
