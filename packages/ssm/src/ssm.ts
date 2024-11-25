@@ -37,7 +37,7 @@ export const ssm = async <T extends Paths>(
 			const item = cache[path]
 
 			if (item && item.ttl > now) {
-				values[key] = transform(cache[path].value)
+				values[key] = transform(item.value)
 				return false
 			}
 
