@@ -58,8 +58,13 @@ export class Function extends CloudControlApiResource {
 	}
 
 	addEnvironment(name: string, value: Input<string>) {
-		this.environmentVariables[name] = value
 		this.registerDependency(value)
+		this.environmentVariables[name] = value
+
+		// // If the environment variable already exists, append the new value
+		// const values = this.environmentVariables[name] ?? []
+		// values.push(value)
+		// this.environmentVariables[name] = values
 
 		return this
 	}
@@ -160,6 +165,13 @@ export class Function extends CloudControlApiResource {
 					Variables: {
 						...unwrap(this.props.environment),
 						...this.environmentVariables,
+
+						// ...Object.fromEntries(
+						// 	Object.entries(this.environmentVariables).map(([key, values]) => [
+						// 		key,
+						// 		unwrap(values).join(','),
+						// 	])
+						// ),
 					},
 				},
 			},

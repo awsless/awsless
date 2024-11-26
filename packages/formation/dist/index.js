@@ -4066,8 +4066,8 @@ var Function = class extends CloudControlApiResource {
     return this.output((v) => v.FunctionName);
   }
   addEnvironment(name, value) {
-    this.environmentVariables[name] = value;
     this.registerDependency(value);
+    this.environmentVariables[name] = value;
     return this;
   }
   setVpc(vpc) {
@@ -4146,6 +4146,12 @@ var Function = class extends CloudControlApiResource {
           Variables: {
             ...unwrap(this.props.environment),
             ...this.environmentVariables
+            // ...Object.fromEntries(
+            // 	Object.entries(this.environmentVariables).map(([key, values]) => [
+            // 		key,
+            // 		unwrap(values).join(','),
+            // 	])
+            // ),
           }
         }
       }
