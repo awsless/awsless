@@ -2,12 +2,15 @@
 	"$schema": "../../dist/stack.json",
 	"name": "stack-kennedy-2",
 	"depends": ["stack-kennedy-1"],
-	"rpc": {
-		"test": {
-			"test": "./function.ts",
-			"test2": "./function.ts"
-		}
+	"configs": ["config-2"],
+	"functions": {
+		"test": "./function.ts"
 	}
+	// "rpc": {
+	// 	"test": {
+	// 		"test": "./function.ts"
+	// 	}
+	// }
 	// "tables": {
 	// 	"campaigns": {
 	// 		"hash": "code",

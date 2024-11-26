@@ -12,7 +12,14 @@ const CONFIGS = process.env.CONFIG
 /*@__NO_SIDE_EFFECTS__*/
 const loadConfigData = async () => {
 	if (!IS_TEST && CONFIGS) {
-		const keys = CONFIGS.split(',')
+		const keys: string[] = []
+		for (const key of Object.keys(process.env)) {
+			if (key.startsWith('CONFIG_')) {
+				keys.push(process.env[key]!)
+			}
+		}
+
+		// const keys = CONFIGS.split(',')
 
 		if (keys.length > 0) {
 			const paths: Record<string, string> = {}

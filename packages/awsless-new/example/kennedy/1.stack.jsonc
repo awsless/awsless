@@ -1,6 +1,7 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack-kennedy-1"
+	"name": "stack-kennedy-1",
+	"configs": ["config-1"]
 	// "rpc": {
 	// 	"test": {
 	// 		"test": "./function.ts"

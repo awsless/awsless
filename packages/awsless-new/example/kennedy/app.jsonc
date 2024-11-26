@@ -3,11 +3,10 @@
 	"name": "app-kennedy",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
-	"logSubscription": "./function.ts",
 	"defaults": {
-		"rpc": {
-			"test": {}
-		}
+		// "rpc": {
+		// 	"test": {}
+		// }
 		// "domains": {
 		// 	"main": {
 		// 		"domain": "awsless.com",

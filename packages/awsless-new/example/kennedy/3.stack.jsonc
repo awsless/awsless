@@ -1,0 +1,5 @@
+{
+	"$schema": "../../dist/stack.json",
+	"name": "stack-kennedy-3",
+	"configs": ["config-3"]
+}
