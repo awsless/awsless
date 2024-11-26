@@ -1,5 +1,3 @@
-import { debug } from '../cli/debug.js'
-import { color } from '../cli/ui/style.js'
 import {
 	DeleteParameterCommand,
 	GetParameterCommand,
@@ -8,8 +6,10 @@ import {
 	PutParameterCommand,
 	SSMClient,
 } from '@aws-sdk/client-ssm'
-import { Credentials } from './aws.js'
+import { debug } from '../cli/debug.js'
+import { color } from '../cli/ui/style.js'
 import { AppConfig } from '../config/app.js'
+import { Credentials } from './aws.js'
 
 export const configParameterPrefix = (appName: string) => {
 	return `/.awsless/${appName}`
@@ -105,26 +105,36 @@ export class SsmStore {
 	async list() {
 		debug('Load remote config values')
 
-		const result = await this.client.send(
-			new GetParametersByPathCommand({
-				Path: configParameterPrefix(this.props.appConfig.name),
-				WithDecryption: true,
-				MaxResults: 10,
-				Recursive: true,
-			})
-		)
-
-		debug('Done loading remote config values')
-
+		const path = configParameterPrefix(this.props.appConfig.name)
 		const values: Record<string, string> = {}
 
-		result.Parameters?.forEach(param => {
-			const name = param
-				.Name!.substring(configParameterPrefix(this.props.appConfig.name).length)
-				.substring(1)
+		let token: string | undefined
 
-			values[name] = param.Value || ''
-		})
+		while (true) {
+			const result = await this.client.send(
+				new GetParametersByPathCommand({
+					Path: path,
+					WithDecryption: true,
+					MaxResults: 10,
+					Recursive: true,
+					NextToken: token,
+				})
+			)
+
+			result.Parameters?.forEach(param => {
+				const name = param.Name!.substring(configParameterPrefix(this.props.appConfig.name).length).substring(1)
+
+				values[name] = param.Value || ''
+			})
+
+			if (result.NextToken) {
+				token = result.NextToken
+			} else {
+				break
+			}
+		}
+
+		debug('Done loading remote config values')
 
 		return values
 	}
