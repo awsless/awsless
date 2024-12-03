@@ -7,11 +7,10 @@ export const getConfigName = (name: string) => {
 }
 
 const IS_TEST = process.env.NODE_ENV === 'test'
-const CONFIGS = process.env.CONFIG
 
 /*@__NO_SIDE_EFFECTS__*/
 const loadConfigData = async () => {
-	if (!IS_TEST && CONFIGS) {
+	if (!IS_TEST) {
 		const keys: string[] = []
 		for (const key of Object.keys(process.env)) {
 			if (key.startsWith('CONFIG_')) {
@@ -25,7 +24,7 @@ const loadConfigData = async () => {
 			const paths: Record<string, string> = {}
 
 			for (const key of keys) {
-				paths[key] = getConfigName(key)
+				paths[paramCase(key)] = getConfigName(key)
 			}
 
 			return ssm(paths)
