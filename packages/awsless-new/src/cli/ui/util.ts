@@ -49,6 +49,10 @@ export const list = (data: Record<string, string>) => {
 		.join(char.br)
 }
 
+export const line = (message: string) => {
+	console.log(color.line('│ '), message)
+}
+
 export const table = (props: { head: string[]; body: (string | number | boolean)[][] }) => {
 	console.log(color.line('│'))
 

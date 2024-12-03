@@ -5,7 +5,7 @@ type MessageCallback = (payload: any) => void
 type ClientProps = {
 	endpoint: string
 	authorizer: string
-	token: string
+	token?: string
 }
 
 type ClientPropsProvider = () => Promise<ClientProps> | ClientProps

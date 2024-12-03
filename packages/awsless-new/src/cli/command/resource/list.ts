@@ -1,17 +1,19 @@
 import { Stack, URN } from '@awsless/formation'
+import { log } from '@clack/prompts'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { layout } from '../../ui/complex/layout.js'
-import { color } from '../../ui/style.js'
-import { table } from '../../ui/util.js'
+import { color, icon } from '../../ui/style.js'
+import { line, table } from '../../ui/util.js'
 
 export const list = (program: Command) => {
 	program
 		.command('list')
+		.argument('[stacks...]', 'Optionally filter stack resources to list')
 		.description(`List all defined resources`)
-		.action(async () => {
+		.action(async (filters: string[]) => {
 			await layout('resource list', async ({ appConfig, stackConfigs }) => {
 				// ---------------------------------------------------
 				const region = appConfig.region
@@ -31,25 +33,33 @@ export const list = (program: Command) => {
 				}
 
 				for (const stack of app.stacks) {
+					if (filters.length > 0 && !filters.includes(stack.name)) {
+						continue
+					}
+
+					log.step(chalk.magenta(stack.name))
+					line('')
+
 					for (const resource of stack.resources) {
-						resources.push([
-							chalk.magenta(stack.name),
-							// resource.type,
-							formatResource(stack, resource.urn),
-						])
+						line(formatResource(stack, resource.urn))
+						// resources.push([
+						// 	chalk.magenta(stack.name),
+						// 	// resource.type,
+						// 	formatResource(stack, resource.urn),
+						// ])
 					}
 				}
 
 				// const maxWidth = process.stdout.columns - 8
 				// const colWidths = [Math.floor(maxWidth / 8), Math.floor(maxWidth / 4), Math.floor(maxWidth / 1.5)]
 
-				console.log(
-					table({
-						// colWidths,
-						head: ['stack', 'urn'],
-						body: resources,
-					})
-				)
+				// console.log(
+				// 	table({
+				// 		// colWidths,
+				// 		head: ['stack', 'urn'],
+				// 		body: resources,
+				// 	})
+				// )
 			})
 		})
 }
