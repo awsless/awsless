@@ -5,8 +5,8 @@ import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { layout } from '../../ui/complex/layout.js'
-import { color, icon } from '../../ui/style.js'
-import { line, table } from '../../ui/util.js'
+import { color } from '../../ui/style.js'
+import { line } from '../../ui/util.js'
 
 export const list = (program: Command) => {
 	program
@@ -21,7 +21,7 @@ export const list = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const resources: string[][] = []
+				// const resources: string[][] = []
 
 				const formatResource = (stack: Stack, urn: URN) => {
 					return urn

@@ -9,6 +9,10 @@ The `@awsless/i18n` package is a Vite plugin that automatically translates your 
 - Extremely lightweight (373 bytes uncompressed 🔥)
 - Svelte support
 
+## Todo's
+
+- Create a CLI command to find the text that needs to be translated & translate it, so that we can remove that part from the vite plugin.
+
 ## Setup
 
 Install with (NPM):

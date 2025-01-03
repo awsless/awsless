@@ -1,7 +1,7 @@
 
 # @awsless/dynamodb
 
-The @awsless/dynamodb package provides a small and tree-shakable layer around aws-sdk v3, to make working with the DynamoDB API super simple.
+The `awsless/dynamodb` package provides a small and tree-shakable layer around aws-sdk v3, to make working with the DynamoDB API super simple.
 
 ## The Problem
 
@@ -118,7 +118,6 @@ mockDynamoDB({
 it('your test', async () => {
 	const result = await getItem(posts, { id: 1 })
 })
-
 ```
 
 # Schema Types
@@ -177,16 +176,16 @@ And the output value type is always `Uint8Array`.
 
 # Typescript Infer Types
 
-## `InferInput<T>`
+## `Input<T>`
 
 Infer the item type of a table definition when inserting an item.
 
-## `InferOutput<T>`
+## `Output<T>`
 
 Infer the item type of a table definition when querying an item.
 
 ```ts
-import { define, InferInput, InferOutput, object, uuid, number, string, binary } from "@awsless/dynamodb";
+import { define, Input, Output, object, uuid, number, string, binary } from "@awsless/dynamodb";
 
 const posts = define('posts', {
 	hash: 'id',
@@ -204,7 +203,7 @@ const posts = define('posts', {
   likes: number,
   data: BinaryValue
 } */
-type Post1 = InferInput<typeof posts>
+type Post1 = Input<typeof posts>
 
 /* {
   id: UUID,
@@ -212,9 +211,7 @@ type Post1 = InferInput<typeof posts>
   likes: number,
   data: Uint8Array
 } */
-type Post2 = InferOutput<typeof posts>
-
-
+type Post2 = Output<typeof posts>
 ```
 
 ## License

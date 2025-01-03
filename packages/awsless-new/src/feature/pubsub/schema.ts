@@ -8,23 +8,24 @@ export const PubSubDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
+			auth: FunctionSchema,
 			domain: DomainSchema.optional(),
 			subDomain: z.string().optional(),
 
-			auth: z.union([
-				ResourceIdSchema,
-				z.object({
-					authorizer: FunctionSchema,
-					// ttl: AuthorizerTtl.default('1 hour'),
-				}),
-			]),
+			// auth: z.union([
+			// 	ResourceIdSchema,
+			// 	z.object({
+			// 		authorizer: FunctionSchema,
+			// 		// ttl: AuthorizerTtl.default('1 hour'),
+			// 	}),
+			// ]),
 
-			policy: z
-				.object({
-					publish: z.array(z.string()).optional(),
-					subscribe: z.array(z.string()).optional(),
-				})
-				.optional(),
+			// policy: z
+			// 	.object({
+			// 		publish: z.array(z.string()).optional(),
+			// 		subscribe: z.array(z.string()).optional(),
+			// 	})
+			// 	.optional(),
 		})
 	)
 	.optional()

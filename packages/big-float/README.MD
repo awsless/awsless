@@ -31,7 +31,7 @@ interface IBigFloat {
 
 ### Available API
 ```ts
-import { BigFloat, set_precision } from "@awsless/big-float";
+import { type BigFloat, set_precision } from "@awsless/big-float";
 
 // arithmetic
 import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor, factor } from '@awsless/big-float'

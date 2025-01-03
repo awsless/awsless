@@ -10,7 +10,7 @@ type ClientProps = {
 
 type ClientPropsProvider = () => Promise<ClientProps> | ClientProps
 
-export const createPubSubClient = (props: ClientProps | ClientPropsProvider) => {
+export const createPubSubClient = (app: string, props: ClientProps | ClientPropsProvider) => {
 	const mqtt = createClient(async () => {
 		const config = typeof props === 'function' ? await props() : props
 
@@ -21,13 +21,27 @@ export const createPubSubClient = (props: ClientProps | ClientPropsProvider) => 
 		}
 	})
 
+	const getPubSubTopic = (name: string) => {
+		return `${app}/pubsub/${name}`
+	}
+
+	const fromPubSubTopic = (name: string) => {
+		return name.replace(`${app}/pubsub/`, '')
+	}
+
 	return {
 		...mqtt,
+		get connected() {
+			return mqtt.connected
+		},
+		get topics() {
+			return mqtt.topics.map(fromPubSubTopic)
+		},
 		publish(topic: string, event: string, payload: unknown, qos: QoS) {
-			return mqtt.publish(topic, JSON.stringify([event, payload]), qos)
+			return mqtt.publish(getPubSubTopic(topic), JSON.stringify([event, payload]), qos)
 		},
 		subscribe(topic: string, event: string, callback: MessageCallback) {
-			return mqtt.subscribe(topic, message => {
+			return mqtt.subscribe(getPubSubTopic(topic), message => {
 				const [eventName, payload] = JSON.parse(message.toString('utf8'))
 
 				if (event === eventName) {

@@ -186,7 +186,7 @@ We use AWS SNS to provide serverless pubsub topics.
 }
 ```
 
-## Realtime
+## Pubsub
 
 We use AWS IoT to provide a serverless mqtt pubsub channel.
 

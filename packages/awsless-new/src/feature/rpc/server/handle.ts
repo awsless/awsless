@@ -1,4 +1,5 @@
 import { invoke, ViewableError } from '@awsless/lambda'
+// import { WeakCache } from '@awsless/weak-cache'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
 import { authenticate } from './auth.js'
 import { SCHEMA } from './config.js'
@@ -13,6 +14,8 @@ import {
 import { FunctionResult, response } from './response.js'
 import { parseRequest } from './validate.js'
 import { buildViewerPayload } from './viewer.js'
+
+// const cache = new WeakCache<string, string>()
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	// ----------------------------------------
@@ -32,6 +35,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 	if (!auth.authorized) {
 		return response(405, UNAUTHORIZED(auth.reason))
 	}
+
+	// ----------------------------------------
+	// Get schema items for every function
+
+	// const schema: Record<string, string> = {}
+	// const names = new Set(request.output.body.map(fn =>fn.name))
+	// const schemas = await batchGetItem(schemaTable, names.map(name))
 
 	// ----------------------------------------
 	// Execute request functions

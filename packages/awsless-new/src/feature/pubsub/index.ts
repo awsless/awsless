@@ -4,7 +4,6 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { createAsyncLambdaFunction, createLambdaFunction } from '../function/util.js'
 import { constantCase } from 'change-case'
 import { formatFullDomainName } from '../domain/util.js'
-import { FunctionProps } from '../function/schema.js'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
@@ -12,11 +11,10 @@ export const pubsubFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.pubsub ?? {})) {
 			const group = new Node(ctx.base, 'pubsub', id)
 
-			const functionProps: FunctionProps = typeof props.auth === 'string' ? { file: '' } : props.auth.authorizer
+			const { lambda } = createLambdaFunction(group, ctx, 'pubsub-authorizer', id, props.auth)
 
-			const { lambda } = createLambdaFunction(group, ctx, 'pubsub-authorizer', id, functionProps)
-			lambda.addEnvironment('PUBSUB_POLICY', JSON.stringify(props.policy))
-			lambda.addEnvironment('AWS_ACCOUNT_ID', ctx.accountId)
+			// lambda.addEnvironment('PUBSUB_POLICY', JSON.stringify(props.policy))
+			// lambda.addEnvironment('AWS_ACCOUNT_ID', ctx.accountId)
 
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -27,6 +25,7 @@ export const pubsubFeature = defineFeature({
 			const authorizer = new aws.iot.Authorizer(group, 'authorizer', {
 				name,
 				functionArn: lambda.arn,
+				// enableSigning: false,
 			})
 
 			new aws.lambda.Permission(group, 'permission', {
@@ -71,12 +70,19 @@ export const pubsubFeature = defineFeature({
 		ctx.onGlobalPolicy(policy => {
 			policy.addStatement({
 				actions: [`iot:Publish`],
-				resources: [`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`],
+				resources: [
+					//
+					`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`,
+					`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/${ctx.app.name}/pubsub/*`,
+				],
 				// resources: [`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/${ctx.app.name}/*`],
 			})
 		})
 	},
 	onStack(ctx) {
+		// We still need to find a way to namespace the listeners you can listen to.
+		// You only need to be able to listen to events from the spesific instance.
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.pubsub ?? {})) {
 			const group = new Node(ctx.stack, 'pubsub', id)
 

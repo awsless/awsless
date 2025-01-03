@@ -1,8 +1,3 @@
-
-[![npm version](https://img.shields.io/npm/dw/@awsless/lambda)](https://www.npmjs.org/package/@awsless/lambda)
-[![npm version](https://img.shields.io/npm/v/@awsless/lambda.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/lambda)
-[![license](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
-
 # TODO
 - Rename ViewableError to ExpectedError
 - Think of ways to type errors
