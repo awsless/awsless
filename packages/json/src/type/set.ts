@@ -1,4 +1,4 @@
-import { Serializable } from '..'
+import { Serializable } from '.'
 
 export const $set: Serializable<Set<unknown>, unknown[]> = {
 	is: v => v instanceof Set,

@@ -1,4 +1,4 @@
-import { Serializable } from '..'
+import { Serializable } from '.'
 
 export const $map: Serializable<Map<unknown, unknown>, [unknown, unknown][]> = {
 	is: v => v instanceof Map,
