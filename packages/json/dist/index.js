@@ -34,14 +34,24 @@ var $set = {
   stringify: (v) => Array.from(v)
 };
 
-// src/index.ts
+// src/type/undefined.ts
+var $undefined = {
+  is: (v) => typeof v === "undefined",
+  parse: (_) => void 0,
+  stringify: (_) => 0
+};
+
+// src/type/index.ts
 var baseTypes = {
+  $undefined,
   $bigfloat,
   $bigint,
   $date,
   $set,
   $map
 };
+
+// src/parse.ts
 var parse = (json, types = {}) => {
   return JSON.parse(json, createReviver(types));
 };
@@ -65,6 +75,8 @@ var createReviver = (types = {}) => {
     return value;
   };
 };
+
+// src/stringify.ts
 var stringify = (value, types = {}) => {
   return JSON.stringify(value, createReplacer(types));
 };
@@ -85,9 +97,19 @@ var createReplacer = (types = {}) => {
     return value;
   };
 };
+
+// src/patch.ts
+var patch = (value, types = {}) => {
+  return parse(JSON.stringify(value), types);
+};
+var unpatch = (value, types = {}) => {
+  return JSON.parse(stringify(value, types));
+};
 export {
   createReplacer,
   createReviver,
   parse,
-  stringify
+  patch,
+  stringify,
+  unpatch
 };

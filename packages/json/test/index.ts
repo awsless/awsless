@@ -1,9 +1,46 @@
 import { BigFloat } from '@awsless/big-float'
-import { parse, patch, Serializable, stringify } from '../src'
+import { parse, patch, Serializable, stringify, unpatch } from '../src'
 
 describe('JSON', () => {
 	describe('basic', () => {
+		it('stringify', () => {
+			const result = stringify(1n)
+			expect(result).toBeTypeOf('string')
+		})
+
+		it('parse', () => {
+			const result = parse(stringify(1n))
+			expect(result).toBe(1n)
+		})
+
+		it('patch', () => {
+			const result = patch({ $bigint: '1' })
+			expect(result).toBe(1n)
+		})
+
+		it('unpatch', () => {
+			const result = unpatch(1n)
+			expect(result).toStrictEqual({
+				$bigint: '1',
+			})
+		})
+	})
+
+	describe('complex', () => {
 		const complex = {
+			// -----------------------------
+			// standard supported JSON types
+
+			string: 'hello world',
+			number: 1,
+			boolean: true,
+			array: [1, 2, 3],
+			object: {},
+			null: null,
+
+			// -----------------------------
+			// extended types
+
 			map: new Map([
 				[1n, 'a'],
 				[2n, 'b'],
@@ -14,12 +51,13 @@ describe('JSON', () => {
 			bigint: BigInt(Number.MAX_SAFE_INTEGER) * 9999n,
 			bigfloat: new BigFloat(100),
 
-			// undefined: undefined, // Sadly this test will not work
+			// Sadly this line will not work
+			// undefined: undefined,
+
 			undefinedSet: new Set([undefined]),
 			undefinedMap: new Map([[undefined, undefined]]),
 			undefinedArray: [undefined],
 
-			null: null,
 			nullSet: new Set([null]),
 			nullMap: new Map([[null, null]]),
 			nullArray: [null],
@@ -27,13 +65,11 @@ describe('JSON', () => {
 
 		it('stringify', () => {
 			const result = stringify(complex)
-			// console.log(result)
 			expect(result).toBeTypeOf('string')
 		})
 
 		it('parse', () => {
 			const result = parse(stringify(complex))
-			// console.log(result)
 			expect(result).toMatchObject(complex)
 		})
 
@@ -43,6 +79,12 @@ describe('JSON', () => {
 
 			const fixed = patch(broken)
 			expect(fixed).toMatchObject(complex)
+		})
+
+		it('unpatch', () => {
+			const broken = JSON.parse(stringify(complex))
+			const result = unpatch(complex)
+			expect(result).toMatchObject(broken)
 		})
 	})
 
@@ -123,11 +165,19 @@ describe('JSON', () => {
 	})
 
 	describe('known issues', () => {
+		it(`don't use the $ character inside your JSON`, () => {
+			const value = { $bigint: 'This will break' }
+			const json = stringify(value)
+
+			expect(() => {
+				parse(json)
+			}).toThrow(SyntaxError)
+		})
+
 		it('stripping undefined object properties', () => {
 			const value = { key: undefined }
 			const result = parse(stringify(value))
 
-			// sad times :(
 			expect(result).toStrictEqual({})
 			expect(result).not.toStrictEqual(value)
 		})

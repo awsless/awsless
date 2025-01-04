@@ -65,24 +65,28 @@ const $custom: Serializable<Custom, string> = {
 	stringify: v => v.value,
 }
 
-// Stringify your custom type
+// Stringify your custom type.
 const json = stringify(new Custom('example'), { $custom })
 
-// Parse the json with your custom type
+// Parse the json with your custom type.
 const value = parse(json, { $custom })
 ```
 
 ## Known Issue's
 
-Object properties with `undefined` as value type will be stripped away.
+### Don't use the $ character inside your JSON.
+
+We use the `$` character to encode our special types inside JSON. In order to prevent parsing errors we recommend to avoid using the `$` character inside your object property names.
+
+### Object properties with `undefined` as value type will be stripped away.
 
 ```ts
-// Will result in an empty object
+// Will result in an empty object.
 const result = parse(stringify({ key: undefined }))
 
-// Will log false
+// Will log false.
 console.log('key' in result)
 
-// Will log true
+// Will log true.
 console.log(result.key === undefined)
 ```
