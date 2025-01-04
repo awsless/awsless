@@ -28,7 +28,7 @@ const json = stringify(1n)
 const value = parse(json)
 ```
 
-## Patching parsed JSON that was parsed with a different JSON parser
+## Patching incorrectly parsed JSON that was parsed with a different JSON parser
 
 In some cases you might not have control over the JSON parser that is being used. In these cases your JSON will still be able to parse, but the output will be incorrect. We can patch the incorrect output by using the `patch` function.
 
@@ -40,6 +40,7 @@ const json = stringify(1n)
 // The native JSON.parse function will not parse our bigint correctly.
 const broken = JSON.parse(json)
 
+// Will fix the broken output.
 const fixed = patch(broken)
 ```
 
