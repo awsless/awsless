@@ -5,7 +5,13 @@ The `@awsless/json` package adds support for more JavaScript native types to JSO
 
 ## The Problem
 
-JSON doesn't have support for types like Date, BigInt, or BigFloat.
+JSON doesn't have support for types like:
+- Set
+- Map
+- Date
+- BigInt
+- BigFloat - npm @awsless/bit-float
+
 Having to decode & encode these type of values can get quite annoying.
 
 ## Basic Usage
@@ -36,7 +42,7 @@ class Custom {
 	}
 }
 
-const $custom: Serializable<Custom> = {
+const $custom: Serializable<Custom, string> = {
 	is: v => v instanceof Custom,
 	parse: v => new Custom(v),
 	stringify: v => v.value,

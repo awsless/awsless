@@ -1,35 +1,23 @@
-import { BigFloat } from '@awsless/big-float'
+import { $bigfloat } from './type/bigfloat'
+import { $bigint } from './type/bigint'
+import { $date } from './type/date'
+import { $map } from './type/map'
+import { $set } from './type/set'
 
-export type Serializable<T> = {
-	is: (value: unknown) => boolean
-	parse: (value: string) => T
-	stringify: (value: T) => string
+export type Serializable<I, O> = {
+	is: (value: unknown) => value is I
+	parse: (value: O) => I
+	stringify: (value: I) => O
 }
 
-type SerializableTypes = Record<string, Serializable<any>>
-
-const $bigfloat: Serializable<BigFloat> = {
-	is: v => v instanceof BigFloat,
-	parse: v => new BigFloat(v),
-	stringify: v => v.toString(),
-}
-
-const $bigint: Serializable<bigint> = {
-	is: v => typeof v === 'bigint',
-	parse: v => BigInt(v),
-	stringify: v => v.toString(),
-}
-
-const $date: Serializable<Date> = {
-	is: v => v instanceof Date,
-	parse: v => new Date(v),
-	stringify: v => v.toISOString(),
-}
+type SerializableTypes = Record<string, Serializable<any, any>>
 
 const baseTypes: SerializableTypes = {
 	$bigfloat,
 	$bigint,
 	$date,
+	$set,
+	$map,
 }
 
 export const parse = (json: string, types: SerializableTypes = {}) => {

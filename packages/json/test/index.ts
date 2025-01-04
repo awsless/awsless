@@ -2,8 +2,14 @@ import { BigFloat } from '@awsless/big-float'
 import { parse, Serializable, stringify } from '../src'
 
 describe('JSON', () => {
-	describe('generic', () => {
+	describe('basic', () => {
 		const complex = {
+			map: new Map([
+				[1n, 'a'],
+				[2n, 'b'],
+				[3n, 'c'],
+			]),
+			set: new Set([1n, 2n, 3n]),
 			date: new Date('2025-01-01'),
 			bigint: BigInt(Number.MAX_SAFE_INTEGER) * 9999n,
 			bigfloat: new BigFloat(100),
@@ -12,16 +18,30 @@ describe('JSON', () => {
 		it('stringify', () => {
 			const result = stringify(complex)
 			expect(result).toBeTypeOf('string')
+			console.log(result)
 		})
 
 		it('parse', () => {
 			const result = parse(stringify(complex))
 			expect(result).toStrictEqual(complex)
+			console.log(result)
 		})
 	})
 
 	describe('types', () => {
 		const types = {
+			map: {
+				input: new Map([
+					[1, 'a'],
+					[2, 'b'],
+					[3, 'c'],
+				]),
+				output: '{"$map":[[1,"a"],[2,"b"],[3,"c"]]}',
+			},
+			set: {
+				input: new Set([1, 2, 3]),
+				output: '{"$set":[1,2,3]}',
+			},
 			date: {
 				input: new Date('2025-01-01'),
 				output: '{"$date":"2025-01-01T00:00:00.000Z"}',
@@ -47,7 +67,7 @@ describe('JSON', () => {
 		}
 	})
 
-	it('extendable', () => {
+	describe('extendable', () => {
 		class Custom {
 			readonly value
 
@@ -56,17 +76,23 @@ describe('JSON', () => {
 			}
 		}
 
-		const $custom: Serializable<Custom> = {
+		const $custom: Serializable<Custom, string> = {
 			is: v => v instanceof Custom,
 			parse: v => new Custom(v),
 			stringify: v => v.value,
 		}
 
-		const value = new Custom('hello world')
-		const json = stringify(value, { $custom })
-		expect(json).toBe(`{"$custom":"hello world"}`)
+		const value = new Custom('HELLO')
 
-		const result = parse(json, { $custom })
-		expect(result).toStrictEqual(value)
+		it('stringify', () => {
+			const result = stringify(value, { $custom })
+			expect(result).toBe('{"$custom":"HELLO"}')
+		})
+
+		it('parse', () => {
+			const json = stringify(value, { $custom })
+			const result = parse(json, { $custom })
+			expect(result).toStrictEqual(value)
+		})
 	})
 })
