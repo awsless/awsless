@@ -22,8 +22,12 @@ var src_exports = {};
 __export(src_exports, {
   createReplacer: () => createReplacer,
   createReviver: () => createReviver,
+  createSafeNumberReplacer: () => createSafeNumberReplacer,
+  createSafeNumberReviver: () => createSafeNumberReviver,
   parse: () => parse,
   patch: () => patch,
+  safeNumberParse: () => safeNumberParse,
+  safeNumberStringify: () => safeNumberStringify,
   stringify: () => stringify,
   unpatch: () => unpatch
 });
@@ -136,12 +140,47 @@ var patch = (value, types = {}) => {
 var unpatch = (value, types = {}) => {
   return JSON.parse(stringify(value, types));
 };
+
+// src/safe-number/parse.ts
+var safeNumberParse = (json, props) => {
+  return JSON.parse(
+    json,
+    // @ts-ignore
+    createSafeNumberReviver(props)
+  );
+};
+var createSafeNumberReviver = (props) => {
+  return function(_, value, context) {
+    if (typeof value === "number") {
+      return props.parse(context.source);
+    }
+    return value;
+  };
+};
+
+// src/safe-number/stringify.ts
+var safeNumberStringify = (value, props) => {
+  return JSON.stringify(value, createSafeNumberReplacer(props));
+};
+var createSafeNumberReplacer = (props) => {
+  return function(key, value) {
+    const original = this[key];
+    if (props.is(original)) {
+      return JSON.rawJSON(props.stringify(original));
+    }
+    return value;
+  };
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   createReplacer,
   createReviver,
+  createSafeNumberReplacer,
+  createSafeNumberReviver,
   parse,
   patch,
+  safeNumberParse,
+  safeNumberStringify,
   stringify,
   unpatch
 });

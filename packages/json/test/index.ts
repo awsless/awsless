@@ -1,4 +1,4 @@
-import { BigFloat } from '@awsless/big-float'
+import { BigFloat, mul } from '@awsless/big-float'
 import { parse, patch, Serializable, stringify, unpatch } from '../src'
 
 describe('JSON', () => {
@@ -49,7 +49,7 @@ describe('JSON', () => {
 			set: new Set([1n, 2n, 3n]),
 			date: new Date('2025-01-01'),
 			bigint: BigInt(Number.MAX_SAFE_INTEGER) * 9999n,
-			bigfloat: new BigFloat(100),
+			bigfloat: mul(Number.MAX_SAFE_INTEGER, 9999.9999),
 
 			// Sadly this line will not work
 			// undefined: undefined,

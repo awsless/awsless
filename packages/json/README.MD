@@ -3,6 +3,13 @@
 
 The `@awsless/json` package adds support for more JavaScript native types to JSON.
 
+Features:
+ - Lightweight / Using the JS native JSON parser.
+ - JSON backwards compatible.
+ - No precision loss.
+ - Includes support basic JS types.
+ - Extendable.
+
 ## The Problem
 
 JSON doesn't have support for types like:
@@ -14,6 +21,8 @@ JSON doesn't have support for types like:
 - `BigFloat` - npm package @awsless/bit-float
 
 Having to decode & encode these type of values can get quite annoying. We try to solve this problem by encoding these types using valid JSON syntax.
+
+Also `JSON.parse/stringify` don't solve the potential loss of precision problem.
 
 ## Basic Usage
 
@@ -70,6 +79,29 @@ const json = stringify(new Custom('example'), { $custom })
 
 // Parse the json with your custom type.
 const value = parse(json, { $custom })
+```
+
+## Precision Loss
+
+When using the native JSON.parse/stringify functions you could lose precision when parsing native numbers. And you don't always have the ability to extend JSON with your own custom types. For example when you’re communicating with a third-party API. For this reason, we have 2 utility functions that will parse the native JSON number type to your own precision-safe alternative.
+
+```ts
+import { safeNumberParse, safeNumberStringify } from '@awsless/json';
+import { BigFloat } from '@awsless/big-float';
+
+const value = new BigFloat(1)
+const json = safeNumberStringify(ONE, {
+	is: v => v instanceof BigFloat,
+	stringify: v => v.toString(),
+})
+
+console.log(json) // '1'
+
+const result = safeNumberParse('1', {
+	parse: v => new BigFloat(v),
+})
+
+console.log(eq(value, result)) // true
 ```
 
 ## Known Issue's
