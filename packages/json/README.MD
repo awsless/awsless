@@ -109,7 +109,7 @@ console.log(eq(value, result)) // true
 
 ## Known Issue's
 
-### Don't use the $ character inside your JSON.
+### Don't use the `$` character inside your JSON.
 
 We use the `$` character to encode our special types inside JSON. In order to prevent parsing errors we recommend to avoid using the `$` character inside your object property names.
 
