@@ -10,7 +10,7 @@ export const optional = <
 	schema: Schema<any, I, O, P, OP>
 ) => {
 	return new Schema<Types, I | undefined, O | undefined, P, OP, true>(
-		undefined,
+		schema.type,
 		value => {
 			value
 			if (typeof value === 'undefined') {

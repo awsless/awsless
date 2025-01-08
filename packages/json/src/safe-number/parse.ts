@@ -21,7 +21,7 @@ type Reviver = (
 ) => any
 
 export const createSafeNumberReviver = (props: Props): Reviver => {
-	return function (_, value, context) {
+	return (_, value, context) => {
 		if (typeof value === 'number') {
 			return props.parse(context.source)
 		}

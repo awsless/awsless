@@ -20,9 +20,9 @@ JSON doesn't have support for types like:
 - `BigInt`
 - `BigFloat` - npm package @awsless/bit-float
 
-Having to decode & encode these type of values can get quite annoying. We try to solve this problem by encoding these types using valid JSON syntax.
+Having to encode & decode these type of values can get quite annoying. We try to solve this problem by encoding these types using valid JSON syntax.
 
-Also the native `JSON.parse/stringify` doesn't solve the potential loss of precision problem.
+Additionally, the native `JSON.parse/stringify` functions do not address the potential loss of precision problem.
 
 ## Basic Usage
 
@@ -38,7 +38,7 @@ const value = parse(json)
 
 ## Patching incorrectly parsed JSON that was parsed with a different JSON parser
 
-In some cases you might not have control over the JSON parser that is being used. In these cases your JSON will still be able to parse, but the output will be incorrect. We can patch the incorrect output by using the `patch` function.
+In some situations, you may not have control over the JSON parser being used. In these instances, your JSON can still be parsed, but the output may be incorrect. We can correct the inaccurate output by using the `patch` function.
 
 ```ts
 import { stringify, patch } from '@awsless/json';
@@ -90,7 +90,7 @@ When using the native `JSON.parse/stringify` functions you could lose precision 
 
 ```ts
 import { safeNumberParse, safeNumberStringify } from '@awsless/json';
-import { BigFloat } from '@awsless/big-float';
+import { BigFloat, eq } from '@awsless/big-float';
 
 const value = new BigFloat(1)
 const json = safeNumberStringify(ONE, {

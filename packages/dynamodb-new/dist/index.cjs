@@ -619,7 +619,7 @@ var Schema = class {
 // src/schema/optional.ts
 var optional = (schema) => {
   return new Schema(
-    void 0,
+    schema.type,
     (value) => {
       value;
       if (typeof value === "undefined") {
