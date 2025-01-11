@@ -1,0 +1,206 @@
+{
+  "name": "iot",
+  "stacks": {
+    "urn:App:{iot}:Stack:{iot}": {
+      "name": "iot",
+      "dependencies": [],
+      "resources": {
+        "urn:App:{iot}:Stack:{iot}:AWS::IoT::DomainConfiguration:{domain}": {
+          "id": "test-formation",
+          "type": "AWS::IoT::DomainConfiguration",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "DomainConfigurationName": "test-formation",
+            "DomainConfigurationStatus": "ENABLED",
+            "ServiceType": "DATA",
+            "ApplicationProtocol": "DEFAULT",
+            "AuthenticationType": "DEFAULT",
+            "AuthorizerConfig": {
+              "DefaultAuthorizerName": "iot-formation",
+              "AllowAuthorizerOverride": false
+            },
+            "Tags": []
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{iot}:Stack:{iot}:AWS::IoT::Authorizer:{authorizer}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "ApplicationProtocol": "DEFAULT",
+            "DomainType": "AWS_MANAGED",
+            "DomainConfigurationName": "test-formation",
+            "DomainName": "d08661823jjztqpa40ob9-ats.iot.eu-west-1.amazonaws.com",
+            "ServiceType": "DATA",
+            "DomainConfigurationStatus": "ENABLED",
+            "ServerCertificates": [],
+            "TlsConfig": {
+              "SecurityPolicy": "IoTSecurityPolicy_TLS13_1_2_2022_10"
+            },
+            "AuthorizerConfig": {
+              "DefaultAuthorizerName": "iot-formation",
+              "AllowAuthorizerOverride": false
+            },
+            "Arn": "arn:aws:iot:eu-west-1:468004125411:domainconfiguration/test-formation/izava",
+            "Tags": [],
+            "AuthenticationType": "DEFAULT"
+          }
+        },
+        "urn:App:{iot}:Stack:{iot}:AWS::IAM::Role:{role}": {
+          "id": "ZlADppoRhZAHebbYdz1iT63dT-EVf5P5KTvBC3",
+          "type": "AWS::IAM::Role",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "ManagedPolicyArns": [],
+            "Policies": [],
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": [
+                    "sts:AssumeRole"
+                  ],
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "assets": {},
+          "dependencies": [],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "Path": "/",
+            "MaxSessionDuration": 3600,
+            "RoleName": "ZlADppoRhZAHebbYdz1iT63dT-EVf5P5KTvBC3",
+            "Description": "",
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": "sts:AssumeRole",
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "lambda.amazonaws.com"
+                  }
+                }
+              ]
+            },
+            "Arn": "arn:aws:iam::468004125411:role/ZlADppoRhZAHebbYdz1iT63dT-EVf5P5KTvBC3",
+            "RoleId": "AROAWZ5ZYHLRR7HRMLCDS"
+          }
+        },
+        "urn:App:{iot}:Stack:{iot}:AWS::Lambda::Function:{lambda}": {
+          "id": "iot-formation-lambda",
+          "type": "AWS::Lambda::Function",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "FunctionName": "iot-formation-lambda",
+            "MemorySize": 128,
+            "Timeout": 10,
+            "Architectures": [
+              "arm64"
+            ],
+            "Role": "arn:aws:iam::468004125411:role/ZlADppoRhZAHebbYdz1iT63dT-EVf5P5KTvBC3",
+            "Runtime": "nodejs18.x",
+            "Handler": "index.default",
+            "Code": {
+              "ZipFile": "module.exports.default = async (event) => {\n\tconsole.log(event, \"event\");\n\treturn {\n\t\tisAuthenticated: true,\n\t\tprincipalId: 'jack',\n\t\tdisconnectAfterInSeconds: 86400,\n\t\trefreshAfterInSeconds: 86400,\n\t\tpolicyDocuments: [\n\t\t\t{\n\t\t\t\tVersion: '2012-10-17',\n\t\t\t\tStatement: [\n\t\t\t\t\t{ Action: 'iot:Connect', Effect: 'Allow', Resource: '*' },\n\t\t\t\t\t{\n\t\t\t\t\t\tAction: 'iot:Publish',\n\t\t\t\t\t\tEffect: 'Allow',\n\t\t\t\t\t\tResource: [\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topic/jacksclub/pubsub/test'\n\t\t\t\t\t\t]\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\tAction: 'iot:Subscribe',\n\t\t\t\t\t\tEffect: 'Allow',\n\t\t\t\t\t\tResource: [\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',\n\t\t\t\t\t\t]\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\tAction: 'iot:Receive',\n\t\t\t\t\t\tEffect: 'Allow',\n\t\t\t\t\t\tResource: [\n\t\t\t\t\t\t\t'arn:aws:iot:eu-west-1:468004125411:topic/jacksclub/pubsub/test'\n\t\t\t\t\t\t]\n\t\t\t\t\t}\n\t\t\t\t]\n\t\t\t}\n\t\t]\n\t}\n}"
+            },
+            "EphemeralStorage": {
+              "Size": 512
+            },
+            "Environment": {
+              "Variables": {}
+            }
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{iot}:Stack:{iot}:AWS::IAM::Role:{role}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "MemorySize": 128,
+            "Description": "",
+            "TracingConfig": {
+              "Mode": "PassThrough"
+            },
+            "Timeout": 10,
+            "RuntimeManagementConfig": {
+              "UpdateRuntimeOn": "Auto"
+            },
+            "Handler": "index.default",
+            "SnapStartResponse": {
+              "OptimizationStatus": "Off",
+              "ApplyOn": "None"
+            },
+            "Role": "arn:aws:iam::468004125411:role/ZlADppoRhZAHebbYdz1iT63dT-EVf5P5KTvBC3",
+            "FileSystemConfigs": [],
+            "FunctionName": "iot-formation-lambda",
+            "Runtime": "nodejs18.x",
+            "PackageType": "Zip",
+            "LoggingConfig": {
+              "LogFormat": "Text",
+              "LogGroup": "/aws/lambda/iot-formation-lambda"
+            },
+            "RecursiveLoop": "Terminate",
+            "Environment": {
+              "Variables": {}
+            },
+            "Arn": "arn:aws:lambda:eu-west-1:468004125411:function:iot-formation-lambda",
+            "EphemeralStorage": {
+              "Size": 512
+            },
+            "Architectures": [
+              "arm64"
+            ]
+          }
+        },
+        "urn:App:{iot}:Stack:{iot}:AWS::IoT::Authorizer:{authorizer}": {
+          "id": "iot-formation",
+          "type": "AWS::IoT::Authorizer",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "AuthorizerName": "iot-formation",
+            "AuthorizerFunctionArn": "arn:aws:lambda:eu-west-1:468004125411:function:iot-formation-lambda",
+            "Status": "ACTIVE",
+            "SigningDisabled": true,
+            "EnableCachingForHttp": false,
+            "Tags": []
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{iot}:Stack:{iot}:AWS::Lambda::Function:{lambda}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "Status": "ACTIVE",
+            "EnableCachingForHttp": false,
+            "AuthorizerName": "iot-formation",
+            "TokenSigningPublicKeys": {},
+            "Arn": "arn:aws:iot:eu-west-1:468004125411:authorizer/iot-formation",
+            "SigningDisabled": true,
+            "Tags": [],
+            "AuthorizerFunctionArn": "arn:aws:lambda:eu-west-1:468004125411:function:iot-formation-lambda"
+          }
+        }
+      }
+    }
+  }
+}

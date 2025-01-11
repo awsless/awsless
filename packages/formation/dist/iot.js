@@ -168,39 +168,37 @@ var ResourceError = class _ResourceError extends Error {
   }
 };
 var AppError = class extends Error {
-  constructor(app, issues, message) {
+  constructor(app2, issues, message) {
     super(message);
-    this.app = app;
+    this.app = app2;
     this.issues = issues;
   }
 };
 var StackError = class extends Error {
-  constructor(stack, issues, message) {
+  constructor(stack2, issues, message) {
     super(message);
-    this.stack = stack;
+    this.stack = stack2;
     this.issues = issues;
   }
 };
 var ResourceNotFound = class extends Error {
 };
-var ResourceAlreadyExists = class extends Error {
-};
 
 // src/core/stack.ts
 var Stack = class extends Node {
-  constructor(app, name) {
-    super(app, "Stack", name);
-    this.app = app;
+  constructor(app2, name) {
+    super(app2, "Stack", name);
+    this.app = app2;
     this.name = name;
   }
   exported = {};
   dependencies = /* @__PURE__ */ new Set();
   dependsOn(...stacks) {
-    for (const stack of stacks) {
-      if (stack.app !== this.app) {
+    for (const stack2 of stacks) {
+      if (stack2.app !== this.app) {
         throw new Error(`Stacks that belong to different apps can't be dependent on each other`);
       }
-      this.dependencies.add(stack);
+      this.dependencies.add(stack2);
     }
     return this;
   }
@@ -444,12 +442,12 @@ var compareDocuments = (left, right) => {
 };
 
 // src/core/workspace/lock.ts
-var lockApp = async (lockProvider, app, fn) => {
+var lockApp = async (lockProvider, app2, fn) => {
   let release;
   try {
-    release = await lockProvider.lock(app.urn);
+    release = await lockProvider.lock(app2.urn);
   } catch (error) {
-    throw new Error(`Already in progress: ${app.urn}`);
+    throw new Error(`Already in progress: ${app2.urn}`);
   }
   const cleanupAndExit = async () => {
     await release();
@@ -517,13 +515,13 @@ var WorkSpace = class {
   // 	}
   // 	return data
   // }
-  runGraph(stack, graph) {
+  runGraph(stack2, graph) {
     try {
       const promises = run(graph);
       return Promise.allSettled(Object.values(promises));
     } catch (error) {
       if (error instanceof Error) {
-        throw new StackError(stack, [], error.message);
+        throw new StackError(stack2, [], error.message);
       }
       throw error;
     }
@@ -538,30 +536,30 @@ var WorkSpace = class {
   // async deployStack(stack: Stack, app: App) {
   // 	return lockApp(this.props.lockProvider, app, async () => {})
   // }
-  async deployApp(app, opt = {}) {
-    return lockApp(this.props.lockProvider, app, async () => {
-      const appState = await this.props.stateProvider.get(app.urn) ?? {
-        name: app.name,
+  async deployApp(app2, opt = {}) {
+    return lockApp(this.props.lockProvider, app2, async () => {
+      const appState = await this.props.stateProvider.get(app2.urn) ?? {
+        name: app2.name,
         stacks: {}
       };
       if (opt.token || !appState.token) {
         appState.token = opt.token ?? randomUUID();
-        await this.props.stateProvider.update(app.urn, appState);
+        await this.props.stateProvider.update(app2.urn, appState);
       }
-      let stacks = app.stacks;
+      let stacks = app2.stacks;
       let filteredOutStacks = [];
       if (opt.filters && opt.filters.length > 0) {
-        stacks = app.stacks.filter((stack) => opt.filters.includes(stack.name));
-        filteredOutStacks = app.stacks.filter((stack) => !opt.filters.includes(stack.name));
+        stacks = app2.stacks.filter((stack2) => opt.filters.includes(stack2.name));
+        filteredOutStacks = app2.stacks.filter((stack2) => !opt.filters.includes(stack2.name));
       }
       const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
-      for (const stack of filteredOutStacks) {
-        graph[stack.urn] = [
+      for (const stack2 of filteredOutStacks) {
+        graph[stack2.urn] = [
           async () => {
-            const stackState = appState.stacks[stack.urn];
+            const stackState = appState.stacks[stack2.urn];
             if (stackState) {
-              for (const resource of stack.resources) {
+              for (const resource of stack2.resources) {
                 const resourceState = stackState.resources[resource.urn];
                 if (resourceState) {
                   resource.setRemoteDocument(resourceState.remote);
@@ -571,13 +569,13 @@ var WorkSpace = class {
           }
         ];
       }
-      for (const stack of stacks) {
-        graph[stack.urn] = [
-          ...[...stack.dependencies].map((dep) => dep.urn),
+      for (const stack2 of stacks) {
+        graph[stack2.urn] = [
+          ...[...stack2.dependencies].map((dep) => dep.urn),
           async () => {
-            const resources = stack.resources;
-            const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-              name: stack.name,
+            const resources = stack2.resources;
+            const stackState = appState.stacks[stack2.urn] = appState.stacks[stack2.urn] ?? {
+              name: stack2.name,
               // exports: {},
               dependencies: [],
               resources: {}
@@ -597,27 +595,27 @@ var WorkSpace = class {
               }
             }
             if (Object.keys(deleteResourcesBefore).length > 0) {
-              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesBefore, limit);
+              await this.deleteStackResources(app2.urn, appState, stackState, deleteResourcesBefore, limit);
             }
-            await this.deployStackResources(app.urn, appState, stackState, resources, limit);
+            await this.deployStackResources(app2.urn, appState, stackState, resources, limit);
             if (Object.keys(deleteResourcesAfter).length > 0) {
-              await this.deleteStackResources(app.urn, appState, stackState, deleteResourcesAfter, limit);
+              await this.deleteStackResources(app2.urn, appState, stackState, deleteResourcesAfter, limit);
             }
-            stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
+            stackState.dependencies = [...stack2.dependencies].map((d) => d.urn);
           }
         ];
       }
       for (const [_urn, stackState] of Object.entries(appState.stacks)) {
         const urn = _urn;
-        const found = app.stacks.find((stack) => {
-          return stack.urn === urn;
+        const found = app2.stacks.find((stack2) => {
+          return stack2.urn === urn;
         });
         const filtered = opt.filters ? opt.filters.find((filter) => filter === stackState.name) : true;
         if (!found && filtered) {
           graph[urn] = [
             ...this.dependentsOn(appState.stacks, urn),
             async () => {
-              await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit);
+              await this.deleteStackResources(app2.urn, appState, stackState, stackState.resources, limit);
               delete appState.stacks[urn];
             }
           ];
@@ -625,27 +623,27 @@ var WorkSpace = class {
       }
       const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
-      await this.props.stateProvider.update(app.urn, appState);
+      await this.props.stateProvider.update(app2.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
+        throw new AppError(app2.name, [...new Set(errors)], "Deploying app failed.");
       }
       return appState;
     });
   }
-  async deleteApp(app, opt = {}) {
-    return lockApp(this.props.lockProvider, app, async () => {
-      const appState = await this.props.stateProvider.get(app.urn);
+  async deleteApp(app2, opt = {}) {
+    return lockApp(this.props.lockProvider, app2, async () => {
+      const appState = await this.props.stateProvider.get(app2.urn);
       if (!appState) {
-        throw new AppError(app.name, [], `App already deleted: ${app.name}`);
+        throw new AppError(app2.name, [], `App already deleted: ${app2.name}`);
       }
       if (opt.token || !appState.token) {
         appState.token = opt.token ?? randomUUID();
-        await this.props.stateProvider.update(app.urn, appState);
+        await this.props.stateProvider.update(app2.urn, appState);
       }
       let stacks = Object.entries(appState.stacks);
       if (opt.filters && opt.filters.length > 0) {
-        stacks = stacks.filter(([_, stack]) => opt.filters.includes(stack.name));
+        stacks = stacks.filter(([_, stack2]) => opt.filters.includes(stack2.name));
       }
       const limit = promiseLimit(this.props.concurrency ?? 10);
       const graph = {};
@@ -654,30 +652,30 @@ var WorkSpace = class {
         graph[urn] = [
           ...this.dependentsOn(appState.stacks, urn),
           async () => {
-            await this.deleteStackResources(app.urn, appState, stackState, stackState.resources, limit);
+            await this.deleteStackResources(app2.urn, appState, stackState, stackState.resources, limit);
             delete appState.stacks[urn];
           }
         ];
       }
       const results = await Promise.allSettled(Object.values(run(graph)));
       delete appState.token;
-      await this.props.stateProvider.update(app.urn, appState);
+      await this.props.stateProvider.update(app2.urn, appState);
       const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
       if (errors.length > 0) {
-        throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
+        throw new AppError(app2.name, [...new Set(errors)], "Deleting app failed.");
       }
       if (Object.keys(appState.stacks).length === 0) {
-        await this.props.stateProvider.delete(app.urn);
+        await this.props.stateProvider.delete(app2.urn);
       }
     });
   }
-  async hydrate(app) {
-    const appState = await this.props.stateProvider.get(app.urn);
+  async hydrate(app2) {
+    const appState = await this.props.stateProvider.get(app2.urn);
     if (appState) {
-      for (const stack of app.stacks) {
-        const stackState = appState.stacks[stack.urn];
+      for (const stack2 of app2.stacks) {
+        const stackState = appState.stacks[stack2.urn];
         if (stackState) {
-          for (const resource of stack.resources) {
+          for (const resource of stack2.resources) {
             const resourceState = stackState.resources[resource.urn];
             if (resourceState) {
               resource.setRemoteDocument(resourceState.remote);
@@ -3823,16 +3821,14 @@ var DomainConfiguration = class extends CloudControlApiResource {
         ServiceType: constantCase3(unwrap(this.props.type, "data")),
         ApplicationProtocol: constantCase3(unwrap(this.props.protocol, "default")),
         AuthenticationType: constantCase3(unwrap(this.props.authenticationType, "default")),
-        // ...(this.props.domainName
-        // 	? {
-        // 			...this.attr('DomainName', this.props.domainName),
-        // 			...this.attr('ValidationCertificateArn', this.props.validationCertificate),
-        // 			...this.attr('ServerCertificateArns', this.props.certificates),
-        // 			ServerCertificateConfig: {
-        // 				EnableOCSPCheck: unwrap(this.props.enableOCSP, false),
-        // 			},
-        // 		}
-        // 	: {}),
+        ...this.props.domainName ? {
+          ...this.attr("DomainName", this.props.domainName),
+          ...this.attr("ValidationCertificateArn", this.props.validationCertificate),
+          ...this.attr("ServerCertificateArns", this.props.certificates),
+          ServerCertificateConfig: {
+            EnableOCSPCheck: unwrap(this.props.enableOCSP, false)
+          }
+        } : {},
         ...this.props.authorizer ? {
           AuthorizerConfig: {
             DefaultAuthorizerName: unwrap(this.props.authorizer).name,
@@ -5629,11 +5625,11 @@ var fromAwsManagedPolicyName = (name) => {
 
 // src/provider/aws/iam/role-policy.ts
 import { capitalCase } from "change-case";
-var formatPolicyDocument = (policy) => ({
-  PolicyName: policy.name,
+var formatPolicyDocument = (policy2) => ({
+  PolicyName: policy2.name,
   PolicyDocument: {
-    Version: unwrap(policy.version, "2012-10-17"),
-    Statement: unwrap(policy.statements, []).map((v) => unwrap(v)).map(formatStatement)
+    Version: unwrap(policy2.version, "2012-10-17"),
+    Statement: unwrap(policy2.statements, []).map((v) => unwrap(v)).map(formatStatement)
   }
 });
 var formatStatement = (statement) => ({
@@ -5702,8 +5698,8 @@ var Role = class extends CloudControlApiResource {
   }
   addInlinePolicy(...policies) {
     this.registerDependency(policies);
-    for (const policy of policies) {
-      this.inlinePolicies.push(policy);
+    for (const policy2 of policies) {
+      this.inlinePolicies.push(policy2);
     }
     return this;
   }
@@ -5720,7 +5716,7 @@ var Role = class extends CloudControlApiResource {
         ...this.attr("Path", this.props.path),
         ManagedPolicyArns: [...this.managedPolicies],
         Policies: [...unwrap(this.props.policies, []), ...this.inlinePolicies].map(
-          (policy) => formatPolicyDocument(policy)
+          (policy2) => formatPolicyDocument(policy2)
         ),
         ...this.props.assumedBy ? {
           AssumeRolePolicyDocument: {
@@ -6722,26 +6718,151 @@ var StateProvider3 = class {
     this.states.delete(urn);
   }
 };
-export {
-  App,
-  AppError,
-  Asset,
-  FileAsset,
-  Node,
-  Output,
-  RemoteAsset,
-  Resource,
-  ResourceAlreadyExists,
-  ResourceError,
-  ResourceNotFound,
-  Stack,
-  StackError,
-  StringAsset,
-  WorkSpace,
-  aws_exports as aws,
-  combine,
-  findResources,
-  flatten,
-  local_exports as local,
-  unwrap
+
+// examples/resources/_util.ts
+import { fromIni } from "@aws-sdk/credential-providers";
+import { minutes as minutes4 } from "@awsless/duration";
+var createWorkspace = (profile, region = "eu-west-1", timeout = 15) => {
+  const credentials = fromIni({ profile });
+  const workspace2 = new WorkSpace({
+    cloudProviders: aws_exports.createCloudProviders({
+      region,
+      credentials,
+      timeout: minutes4(timeout),
+      accountId: "468004125411"
+    }),
+    stateProvider: new local_exports.file.StateProvider({
+      dir: "./examples/resources/state"
+    }),
+    lockProvider: new local_exports.file.LockProvider({
+      dir: "./examples/resources/state"
+    })
+    // lockProvider: new aws.dynamodb.LockProvider({
+    // 	region,
+    // 	credentials,
+    // 	tableName: 'awsless-lock',
+    // }),
+    // stateProvider: new aws.s3.StateProvider({
+    // 	region,
+    // 	credentials,
+    // 	bucket: 'awsless-state',
+    // }),
+  });
+  return workspace2;
 };
+
+// examples/resources/iot.ts
+var workspace = createWorkspace("jacksclub");
+var app = new App("iot");
+var stack = new Stack(app, "iot");
+var role = new aws_exports.iam.Role(stack, "role", {
+  assumedBy: "lambda.amazonaws.com"
+});
+var policy = new aws_exports.iam.RolePolicy(stack, "policy", {
+  role: role.name,
+  name: "lambda-policy",
+  version: "2012-10-17"
+});
+var lambda = new aws_exports.lambda.Function(stack, "lambda", {
+  name: "iot-formation-lambda",
+  code: {
+    zipFile: `module.exports.default = async (event) => {
+	console.log(event, "event");
+	return {
+		isAuthenticated: true,
+		principalId: 'jack',
+		disconnectAfterInSeconds: 86400,
+		refreshAfterInSeconds: 86400,
+		policyDocuments: [
+			{
+				Version: '2012-10-17',
+				Statement: [
+					{ Action: 'iot:Connect', Effect: 'Allow', Resource: '*' },
+					{
+						Action: 'iot:Publish',
+						Effect: 'Allow',
+						Resource: [
+							'arn:aws:iot:eu-west-1:468004125411:topic/jacksclub/pubsub/test'
+						]
+					},
+					{
+						Action: 'iot:Subscribe',
+						Effect: 'Allow',
+						Resource: [
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+							'arn:aws:iot:eu-west-1:468004125411:topicfilter/jacksclub/pubsub/test',
+						]
+					},
+					{
+						Action: 'iot:Receive',
+						Effect: 'Allow',
+						Resource: [
+							'arn:aws:iot:eu-west-1:468004125411:topic/jacksclub/pubsub/test'
+						]
+					}
+				]
+			}
+		]
+	}
+}`
+  },
+  role: role.arn
+});
+var logGroup = new aws_exports.cloudWatch.LogGroup(stack, "iot-log", {
+  name: lambda.name.apply((name) => `/aws/lambda/${name}`)
+});
+policy.addStatement(
+  {
+    actions: ["logs:CreateLogStream"],
+    resources: [logGroup.arn]
+  },
+  {
+    actions: ["logs:PutLogEvents"],
+    resources: [logGroup.arn.apply((arn) => `${arn}:*`)]
+  }
+);
+var authorizer = new aws_exports.iot.Authorizer(stack, "authorizer", {
+  name: "iot-formation",
+  functionArn: lambda.arn
+  // enableSigning: false,
+});
+new aws_exports.lambda.Permission(stack, "permission", {
+  functionArn: lambda.arn,
+  principal: "iot.amazonaws.com",
+  sourceArn: authorizer.arn,
+  action: "lambda:InvokeFunction"
+});
+var domain = new aws_exports.iot.DomainConfiguration(stack, "domain", {
+  name: "test-formation",
+  authorizer: {
+    name: "iot-formation"
+  }
+});
+domain.dependsOn(authorizer);
+console.log("START");
+try {
+  await workspace.deleteApp(app);
+} catch (error) {
+  if (error instanceof AppError) {
+    for (const issue of error.issues) {
+      console.error(issue);
+    }
+  }
+  throw error;
+}
+console.log("END");

@@ -79,15 +79,41 @@ export const pubsubAuthorizerResponse = (props: PubsubAuthorizerResponse): IoTCu
 				Resource: props.subscribe.map(topic => {
 					return `${prefix}:topicfilter/${getPubSubTopic(topic)}`
 				}),
-			},
-			{
-				Action: 'iot:Receive',
-				Effect: 'Allow',
-				Resource: props.subscribe.map(topic => {
-					return `${prefix}:topic/${getPubSubTopic(topic)}`
-				}),
 			}
+			// {
+			// 	Action: 'iot:Receive',
+			// 	Effect: 'Allow',
+			// 	Resource: props.subscribe.map(topic => {
+			// 		return `${prefix}:topic/${getPubSubTopic(topic)}`
+			// 	}),
+			// }
 		)
+	}
+
+	const policyDocuments = [
+		{
+			Version: '2012-10-17',
+			Statement: [
+				{
+					Action: 'iot:Connect',
+					Effect: 'Allow',
+					Resource: '*',
+					// Resource: `${prefix}:client/\${iot:ClientId}`,
+				},
+				{
+					Action: 'iot:Receive',
+					Effect: 'Allow',
+					Resource: '*',
+					// Resource: `${prefix}:client/\${iot:ClientId}`,
+				},
+				...statements,
+			],
+		},
+	]
+
+	const documentSize = JSON.stringify(policyDocuments).length
+	if (documentSize > 2048) {
+		throw new Error(`IoT Policy is too large (using ${documentSize}/2048 characters)`)
 	}
 
 	return {
@@ -95,19 +121,6 @@ export const pubsubAuthorizerResponse = (props: PubsubAuthorizerResponse): IoTCu
 		principalId: props.principalId ?? Date.now().toString(),
 		disconnectAfterInSeconds: Number(toSeconds(props.disconnectAfter ?? hours(1))),
 		refreshAfterInSeconds: Number(toSeconds(props.disconnectAfter ?? hours(1))),
-		policyDocuments: [
-			{
-				Version: '2012-10-17',
-				Statement: [
-					{
-						Action: 'iot:Connect',
-						Effect: 'Allow',
-						Resource: '*',
-						// Resource: `${prefix}:client/\${iot:ClientId}`,
-					},
-					...statements,
-				],
-			},
-		],
+		policyDocuments,
 	}
 }

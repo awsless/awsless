@@ -2417,7 +2417,9 @@ declare class Authorizer extends CloudControlApiResource {
 
 type DomainConfigurationProps = {
     name: Input<string>;
-    domainName: Input<string>;
+    protocol?: Input<'default' | 'secure_mqtt' | 'mqtt_wss' | 'https'>;
+    authenticationType?: Input<'default' | 'aws_x509' | 'custom_auth' | 'aws_sigv4' | 'custom_auth_x509'>;
+    domainName?: Input<string>;
     enabled?: Input<boolean>;
     type?: Input<'data' | 'credential-provider' | 'jobs'>;
     certificates?: Input<Input<ARN>[]>;
@@ -2444,13 +2446,11 @@ declare class DomainConfiguration extends CloudControlApiResource {
                 DefaultAuthorizerName: Input<string>;
                 AllowAuthorizerOverride: boolean;
             } | undefined;
-            ServerCertificateConfig: {
-                EnableOCSPCheck: boolean;
-            };
             DomainConfigurationName: Input<string>;
             DomainConfigurationStatus: string;
-            DomainName: Input<string>;
             ServiceType: string;
+            ApplicationProtocol: string;
+            AuthenticationType: string;
         };
     };
 }

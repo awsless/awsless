@@ -3809,13 +3809,19 @@ var DomainConfiguration = class extends CloudControlApiResource {
       document: {
         DomainConfigurationName: this.props.name,
         DomainConfigurationStatus: unwrap(this.props.enabled, true) ? "ENABLED" : "DISABLED",
-        DomainName: this.props.domainName,
         ServiceType: (0, import_change_case4.constantCase)(unwrap(this.props.type, "data")),
-        ...this.attr("ValidationCertificateArn", this.props.validationCertificate),
-        ...this.attr("ServerCertificateArns", this.props.certificates),
-        ServerCertificateConfig: {
-          EnableOCSPCheck: unwrap(this.props.enableOCSP, false)
-        },
+        ApplicationProtocol: (0, import_change_case4.constantCase)(unwrap(this.props.protocol, "default")),
+        AuthenticationType: (0, import_change_case4.constantCase)(unwrap(this.props.authenticationType, "default")),
+        // ...(this.props.domainName
+        // 	? {
+        // 			...this.attr('DomainName', this.props.domainName),
+        // 			...this.attr('ValidationCertificateArn', this.props.validationCertificate),
+        // 			...this.attr('ServerCertificateArns', this.props.certificates),
+        // 			ServerCertificateConfig: {
+        // 				EnableOCSPCheck: unwrap(this.props.enableOCSP, false),
+        // 			},
+        // 		}
+        // 	: {}),
         ...this.props.authorizer ? {
           AuthorizerConfig: {
             DefaultAuthorizerName: unwrap(this.props.authorizer).name,

@@ -44,7 +44,7 @@ export const pubsubFeature = defineFeature({
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-				new aws.iot.DomainConfiguration(group, 'domain', {
+				const domain = new aws.iot.DomainConfiguration(group, 'domain', {
 					name,
 					domainName,
 					certificates: [ctx.shared.get(`local-certificate-${props.domain}-arn`)],
@@ -53,6 +53,8 @@ export const pubsubFeature = defineFeature({
 					},
 					// validationCertificate: ctx.shared.get(`global-certificate-${props.domain}-arn`),
 				})
+
+				domain.dependsOn(authorizer)
 
 				new aws.route53.RecordSet(group, 'record', {
 					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),

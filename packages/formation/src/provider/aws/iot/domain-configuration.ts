@@ -6,7 +6,9 @@ import { ARN } from '../types'
 
 export type DomainConfigurationProps = {
 	name: Input<string>
-	domainName: Input<string>
+	protocol?: Input<'default' | 'secure_mqtt' | 'mqtt_wss' | 'https'>
+	authenticationType?: Input<'default' | 'aws_x509' | 'custom_auth' | 'aws_sigv4' | 'custom_auth_x509'>
+	domainName?: Input<string>
 	enabled?: Input<boolean>
 	type?: Input<'data' | 'credential-provider' | 'jobs'>
 	certificates?: Input<Input<ARN>[]>
@@ -38,13 +40,20 @@ export class DomainConfiguration extends CloudControlApiResource {
 			document: {
 				DomainConfigurationName: this.props.name,
 				DomainConfigurationStatus: unwrap(this.props.enabled, true) ? 'ENABLED' : 'DISABLED',
-				DomainName: this.props.domainName,
 				ServiceType: constantCase(unwrap(this.props.type, 'data')),
-				...this.attr('ValidationCertificateArn', this.props.validationCertificate),
-				...this.attr('ServerCertificateArns', this.props.certificates),
-				ServerCertificateConfig: {
-					EnableOCSPCheck: unwrap(this.props.enableOCSP, false),
-				},
+				ApplicationProtocol: constantCase(unwrap(this.props.protocol, 'default')),
+				AuthenticationType: constantCase(unwrap(this.props.authenticationType, 'default')),
+
+				...(this.props.domainName
+					? {
+							...this.attr('DomainName', this.props.domainName),
+							...this.attr('ValidationCertificateArn', this.props.validationCertificate),
+							...this.attr('ServerCertificateArns', this.props.certificates),
+							ServerCertificateConfig: {
+								EnableOCSPCheck: unwrap(this.props.enableOCSP, false),
+							},
+						}
+					: {}),
 
 				...(this.props.authorizer
 					? {
