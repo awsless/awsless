@@ -1,3 +1,4 @@
+import { parse, stringify } from '@awsless/json'
 import { createClient, QoS } from '@awsless/mqtt'
 
 type MessageCallback = (payload: any) => void
@@ -38,11 +39,11 @@ export const createPubSubClient = (app: string, props: ClientProps | ClientProps
 			return mqtt.topics.map(fromPubSubTopic)
 		},
 		publish(topic: string, event: string, payload: unknown, qos: QoS) {
-			return mqtt.publish(getPubSubTopic(topic), JSON.stringify([event, payload]), qos)
+			return mqtt.publish(getPubSubTopic(topic), stringify([event, payload]), qos)
 		},
 		subscribe(topic: string, event: string, callback: MessageCallback) {
 			return mqtt.subscribe(getPubSubTopic(topic), message => {
-				const [eventName, payload] = JSON.parse(message.toString('utf8'))
+				const [eventName, payload] = parse(message.toString('utf8'))
 
 				if (event === eventName) {
 					callback(payload)

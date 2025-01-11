@@ -1,6 +1,5 @@
 import { number, transform } from '@awsless/validate'
 import { ValidationError, lambda } from '../src'
-// import { seconds } from '../../duration/dist/index'
 
 describe('Validation', () => {
 	it('should validate input', async () => {
@@ -18,8 +17,10 @@ describe('Validation', () => {
 		expectTypeOf(result).toEqualTypeOf<string>()
 		expect(result).toBe('1')
 
-		// @ts-ignore
-		await expect(handle()).rejects.toThrow(ValidationError)
+		await expect(
+			// @ts-ignore
+			handle()
+		).rejects.toThrow(ValidationError)
 	})
 
 	// it('should validate input', async () => {

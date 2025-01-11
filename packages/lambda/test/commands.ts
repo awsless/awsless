@@ -1,4 +1,4 @@
-import { string } from '@awsless/validate'
+import { bigint, date, object } from '@awsless/validate'
 import { invoke, lambda, listFunctions, mockLambda } from '../src'
 
 describe('Lambda', () => {
@@ -43,17 +43,28 @@ describe('Lambda', () => {
 
 	it('should play well with payload type validation', async () => {
 		const echo = lambda({
-			schema: string(),
+			schema: object({
+				bigint: bigint(),
+				date: date(),
+			}),
 			handle: input => input,
 		})
 
+		const payload = {
+			bigint: 1n,
+			date: new Date(),
+		}
+
 		const result = await invoke<typeof echo>({
 			name: 'echo',
-			payload: 'hi',
+			payload,
 		})
 
-		expectTypeOf(result).toEqualTypeOf<string>()
-		expect(result).toBe('hi')
+		expect(result).toStrictEqual(payload)
+		expectTypeOf(result).toEqualTypeOf<{
+			bigint: bigint
+			date: Date
+		}>()
 	})
 
 	it('should infer the payload correctly', async () => {
@@ -61,15 +72,18 @@ describe('Lambda', () => {
 		const f2 = lambda({ handle: input => input })
 		const f3 = lambda({ handle: () => 1 })
 		const f4 = lambda({ handle: () => (true ? 1 : undefined) })
+		const f5 = lambda({ handle: () => new Date() })
 
 		const i1 = await invoke<typeof f1>({ name: 'noop' })
 		const i2 = await invoke<typeof f2>({ name: 'noop' })
 		const i3 = await invoke<typeof f3>({ name: 'noop' })
 		const i4 = await invoke<typeof f4>({ name: 'noop' })
+		const i5 = await invoke<typeof f5>({ name: 'noop' })
 
 		expectTypeOf(i1).toEqualTypeOf<void>()
 		expectTypeOf(i2).toEqualTypeOf<unknown>()
 		expectTypeOf(i3).toEqualTypeOf<number>()
 		expectTypeOf(i4).toEqualTypeOf<1 | undefined>()
+		expectTypeOf(i5).toEqualTypeOf<Date>()
 	})
 })

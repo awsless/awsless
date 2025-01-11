@@ -6,6 +6,7 @@ import {
 	ListFunctionsCommandOutput,
 } from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
+import { parse, stringify } from '@awsless/json'
 import { mockObjectValues, nextTick } from '@awsless/utils'
 import { mockClient } from 'aws-sdk-client-mock'
 // @ts-ignore
@@ -45,7 +46,7 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 		.callsFake(async (input: InvokeCommandInput) => {
 			const name = input.FunctionName ?? ''
 			const type = input.InvocationType ?? 'RequestResponse'
-			const payload: unknown = input.Payload ? JSON.parse(toUtf8(input.Payload)) : undefined
+			const payload: unknown = input.Payload ? parse(toUtf8(input.Payload)) : undefined
 			const callback = globalList[name]
 
 			if (!callback) {
@@ -56,7 +57,7 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 
 			if (type === 'RequestResponse' && result) {
 				return {
-					Payload: fromUtf8(JSON.stringify(result)),
+					Payload: fromUtf8(stringify(result)),
 				}
 			}
 

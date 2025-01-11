@@ -1,6 +1,7 @@
+import { unpatch } from '@awsless/json'
 import { parse } from '@awsless/validate'
 import { Context } from 'aws-lambda'
-import { Jsonify } from 'type-fest'
+// import { Jsonify } from 'type-fest'
 import { createTimeoutWrap } from './errors/timeout.js'
 import { transformValidationErrors } from './errors/validation.js'
 import { toViewableErrorResponse, ViewableError } from './errors/viewable.js'
@@ -27,23 +28,25 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
 export type LambdaFactory = {
 	<H extends Handler>(
 		options: Options<H, undefined>
-	): (event?: unknown, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
+	): (event?: unknown, context?: Context) => Promise<Awaited<ReturnType<H>>>
 	<H extends Handler<S>, S extends Schema>(
 		options: Options<H, S>
-	): (event: Input<S>, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
+	): (event: Input<S>, context?: Context) => Promise<Awaited<ReturnType<H>>>
 }
 
-type Response<T> = unknown extends T
-	? unknown
-	: void extends T
-		? void
-		: T extends undefined
-			? Jsonify<T> | undefined
-			: Jsonify<T>
+// type Response<T> = Promise<Awaited<ReturnType<T>>>
+
+// type Response<T> = unknown extends T
+// 	? unknown
+// 	: void extends T
+// 		? void
+// 		: T extends undefined
+// 			? Jsonify<T> | undefined
+// 			: Jsonify<T>
 
 export type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S extends undefined
-	? (event?: unknown, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
-	: (event: Input<S>, context?: Context) => Promise<Response<Awaited<ReturnType<H>>>>
+	? (event?: unknown, context?: Context) => Promise<Awaited<ReturnType<H>>>
+	: (event: Input<S>, context?: Context) => Promise<Awaited<ReturnType<H>>>
 
 /** Create a lambda handle function. */
 export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = undefined>(
@@ -83,11 +86,17 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 				})
 			})
 
-			if (result && isTestEnv) {
-				return JSON.parse(JSON.stringify(result))
+			// if (result && isTestEnv) {
+			// 	return JSON.parse(JSON.stringify(result))
+			// }
+
+			// return result as Awaited<ReturnType<H>>
+
+			if (isTestEnv) {
+				return result
 			}
 
-			return result as Awaited<ReturnType<H>>
+			return unpatch(result)
 		} catch (error) {
 			if (!(error instanceof ViewableError) || options.logViewableErrors) {
 				await log(error)

@@ -49,6 +49,7 @@
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^"
 	},
@@ -72,6 +73,7 @@
 		"@awsless/graphql": "workspace:^",
 		"@awsless/size": "workspace:^",
 		"@awsless/ts-file-cache": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@clack/prompts": "^0.7.0",
 		"@graphql-tools/merge": "^9.0.0",

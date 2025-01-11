@@ -1,5 +1,6 @@
 import { Duration, hours, toSeconds } from '@awsless/duration'
 import { publish, QoS } from '@awsless/iot'
+import { stringify } from '@awsless/json'
 import { IoTCustomAuthorizerResult } from 'aws-lambda'
 import { APP } from './util.js'
 
@@ -17,7 +18,7 @@ export const PubSub = {
 	async publish(topic: string, event: string, payload: unknown, opts: PublishOptions = {}) {
 		await publish({
 			topic: getPubSubTopic(topic),
-			payload: Buffer.from(JSON.stringify([event, payload])),
+			payload: Buffer.from(stringify([event, payload])),
 			...opts,
 		})
 	},

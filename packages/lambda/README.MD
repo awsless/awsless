@@ -1,6 +1,6 @@
 # TODO
 - Rename ViewableError to ExpectedError
-- Think of ways to type errors
+- Think of ways to type errors (TypeScript might need to figure this out first.)
 
 # Basic usage
 
@@ -75,8 +75,8 @@ it('your test', async () => {
     name: 'echo',
     payload: 'Hi'
   })
+
   expect(result).toBe('Hi')
   expect(lambdas.echo).toBeCalled()
 })
-
 ```

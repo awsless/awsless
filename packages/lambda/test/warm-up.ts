@@ -36,8 +36,11 @@ describe('Warm up support', () => {
 			handle: () => 'normal',
 		})
 
-		// @ts-ignore
-		const result = await fn({ warmer: true })
+		const result = await fn(
+			// @ts-ignore
+			{ warmer: true }
+		)
+
 		expect(result).toBeUndefined()
 	})
 })

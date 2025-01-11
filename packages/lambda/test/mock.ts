@@ -39,8 +39,7 @@ describe('Lambda Mock', () => {
 			})
 		)
 
-		// @ts-ignore
-		expect(JSON.parse(toUtf8(result.Payload))).toBe('Hello')
+		expect(JSON.parse(toUtf8(result.Payload!))).toBe('Hello')
 		expect(lambda.echo).toBeCalledTimes(1)
 	})
 

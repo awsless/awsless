@@ -4,6 +4,7 @@ import { LambdaClient as LambdaClient3 } from "@aws-sdk/client-lambda";
 // src/commands/invoke.ts
 import { InvokeCommand } from "@aws-sdk/client-lambda";
 import { fromUtf8, toUtf8 } from "@aws-sdk/util-utf8-node";
+import { parse, stringify } from "@awsless/json";
 
 // src/errors/viewable.ts
 var ViewableError = class extends Error {
@@ -49,7 +50,7 @@ var invoke = async ({
   const command = new InvokeCommand({
     InvocationType: type,
     FunctionName: name,
-    Payload: payload ? fromUtf8(JSON.stringify(payload)) : void 0,
+    Payload: payload ? fromUtf8(stringify(payload)) : void 0,
     Qualifier: qualifier
   });
   const result = await client.send(command);
@@ -60,7 +61,7 @@ var invoke = async ({
   if (!json) {
     return void 0;
   }
-  const response = JSON.parse(json);
+  const response = parse(json);
   if (isViewableErrorResponse(response)) {
     const e = response.__error__;
     const error = reflectViewableErrors ? new ViewableError(e.type, e.message, e.data) : new Error(e.message);
@@ -152,6 +153,7 @@ import {
   ListFunctionsCommand as ListFunctionsCommand2
 } from "@aws-sdk/client-lambda";
 import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
+import { parse as parse2, stringify as stringify2 } from "@awsless/json";
 import { mockObjectValues, nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";
 var globalList = {};
@@ -175,7 +177,7 @@ var mockLambda = (lambdas) => {
   }).on(InvokeCommand2).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
-    const payload = input.Payload ? JSON.parse(toUtf82(input.Payload)) : void 0;
+    const payload = input.Payload ? parse2(toUtf82(input.Payload)) : void 0;
     const callback = globalList[name];
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
@@ -183,7 +185,7 @@ var mockLambda = (lambdas) => {
     const result = await nextTick(callback, payload);
     if (type === "RequestResponse" && result) {
       return {
-        Payload: fromUtf82(JSON.stringify(result))
+        Payload: fromUtf82(stringify2(result))
       };
     }
     return {
@@ -199,7 +201,8 @@ var mockLambda = (lambdas) => {
 };
 
 // src/lambda.ts
-import { parse } from "@awsless/validate";
+import { unpatch } from "@awsless/json";
+import { parse as parse3 } from "@awsless/validate";
 
 // src/helpers/error.ts
 var normalizeError = (maybeError) => {
@@ -298,15 +301,15 @@ var lambda = (options) => {
       }
       const result = await createTimeoutWrap(context, log, () => {
         return transformValidationErrors(() => {
-          const input = options.schema ? parse(options.schema, event) : event;
+          const input = options.schema ? parse3(options.schema, event) : event;
           const extendedContext = { ...context ?? {}, event, log };
           return options.handle(input, extendedContext);
         });
       });
-      if (result && isTestEnv) {
-        return JSON.parse(JSON.stringify(result));
+      if (isTestEnv) {
+        return result;
       }
-      return result;
+      return unpatch(result);
     } catch (error) {
       if (!(error instanceof ViewableError) || options.logViewableErrors) {
         await log(error);
