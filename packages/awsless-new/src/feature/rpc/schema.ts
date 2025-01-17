@@ -1,7 +1,7 @@
 import { z } from 'zod'
 // import { DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { FunctionSchema, LogSchema } from '../function/schema.js'
 
 // const AuthorizerTtl = DurationSchema.describe(
 // 	`The duration a response should be cached for. The maximum value is one hour. The Lambda function can override this by returning a ttl key in its response.`
@@ -14,6 +14,7 @@ export const RpcDefaultSchema = z
 			domain: ResourceIdSchema.describe('The domain id to link your RPC API with.').optional(),
 			subDomain: z.string().optional(),
 			auth: FunctionSchema.optional(),
+			log: LogSchema.optional(),
 		})
 	)
 	.describe(`Define the global RPC API's.`)

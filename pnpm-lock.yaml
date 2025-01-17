@@ -694,6 +694,9 @@ importers:
       '@awsless/dynamodb-server':
         specifier: workspace:^
         version: link:../dynamodb-server
+      '@awsless/json':
+        specifier: workspace:^
+        version: link:../json
       '@awsless/utils':
         specifier: workspace:^
         version: link:../utils

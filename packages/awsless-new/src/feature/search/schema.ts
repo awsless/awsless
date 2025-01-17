@@ -92,7 +92,7 @@ export const SearchsSchema = z
 			count: z.number().int().min(1).default(1),
 			version: VersionSchema.default('2.13'),
 			storage: StorageSizeSchema.default('10 GB'),
-			vpc: z.boolean().default(false),
+			// vpc: z.boolean().default(false),
 		})
 	)
 	.optional()

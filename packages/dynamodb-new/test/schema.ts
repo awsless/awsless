@@ -12,6 +12,7 @@ import {
 	date,
 	define,
 	getItem,
+	json,
 	mockDynamoDB,
 	number,
 	numberEnum,
@@ -28,9 +29,7 @@ import {
 	updateItem,
 	uuid,
 } from '../src'
-// import { any } from '../src/structs/any'
-// import { AttributeTypes } from '../src/structs/struct'
-// import { CATCH_ALL } from '../src/structs/object'
+
 enum StringEnum {
 	one = '1',
 	two = '2',
@@ -70,6 +69,9 @@ describe('Schema', () => {
 			optional: optional(string()),
 			unknown: unknown(),
 			unknown2: unknown(),
+			json: json<{
+				n: bigint
+			}>(),
 			array: array(
 				object({
 					key: string(),
@@ -116,6 +118,7 @@ describe('Schema', () => {
 		optional: '1',
 		unknown: { random: 1 },
 		unknown2: undefined,
+		json: { n: 1n },
 		array: [{ key: '1' }],
 		array2: ['hello'],
 		record: {
@@ -157,6 +160,7 @@ describe('Schema', () => {
 					ttl: Date
 					unknown: unknown
 					unknown2: unknown
+					json: { n: bigint }
 					optional?: string
 					array: { key: string }[]
 					array2: string[]
@@ -226,6 +230,8 @@ describe('Schema', () => {
 						.set({ random: 2 })
 						.update('unknown2')
 						.set(undefined)
+						.update('json')
+						.set({ n: 2n })
 						.update('array', 0)
 						.set({ key: '2' })
 						.update('record', 'key1')
@@ -263,6 +269,7 @@ describe('Schema', () => {
 			ttl: new Date(Math.floor(date.getTime() / 1000) * 1000),
 			unknown: { random: 2 },
 			// unknown2: undefined,
+			json: { n: 2n },
 			array: [{ key: '2' }],
 			array2: ['hello'],
 			record: {

@@ -44,8 +44,7 @@
 		"@heat/request-port": "^0.0.1",
 		"@smithy/node-http-handler": "^3.0.0",
 		"aws-sdk-client-mock": "4.0.0",
-		"chunk": "^0.0.3",
-		"ts-toolbelt": "^9.6.0"
+		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
 		"@awsless/big-float": "workspace:^",

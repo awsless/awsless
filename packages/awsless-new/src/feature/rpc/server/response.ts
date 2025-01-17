@@ -1,3 +1,4 @@
+import { stringify } from '@awsless/json'
 import { APIGatewayProxyResultV2 } from 'aws-lambda'
 
 export type GlobalError = {
@@ -27,6 +28,6 @@ export const response = (statusCode: number, results: GlobalError | FunctionResu
 			'content-type': 'application/json',
 		},
 		statusCode,
-		body: JSON.stringify(results),
+		body: stringify(results),
 	}
 }

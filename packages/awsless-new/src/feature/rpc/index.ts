@@ -1,11 +1,11 @@
 import { camelCase, constantCase, paramCase } from 'change-case'
-import { Asset, aws, Node, Output } from '@awsless/formation'
+import { Asset, aws, Node } from '@awsless/formation'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
-import { formatGlobalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { mebibytes } from '@awsless/size'
@@ -80,30 +80,33 @@ export const rpcFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const { lambda, code } = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
+			const { lambda, policy, code } = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
 				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
 				memorySize: mebibytes(256),
 				warm: 3,
+				log: props.log,
 			})
 
-			const schema = {}
-			lambda.addEnvironment(
-				'SCHEMA',
-				new Output<string>([], resolve => {
-					ctx.onReady(() => {
-						resolve(JSON.stringify(schema))
-					})
-				})
-			)
+			const table = new aws.dynamodb.Table(group, 'schema', {
+				name,
+				hash: 'query',
+			})
 
-			ctx.shared.set(`rpc-${id}-schema`, schema)
+			lambda.addEnvironment('SCHEMA_TABLE', table.name)
+
+			policy.addStatement({
+				effect: 'allow',
+				actions: ['dynamodb:GetItem'],
+				resources: [table.arn],
+			})
+
+			ctx.shared.set(`rpc-${id}-schema-table`, table)
 
 			if (props.auth) {
 				const authGroup = new Node(group, 'auth', 'authorizer')
 				const auth = createLambdaFunction(authGroup, ctx, 'rpc', `${id}-auth`, props.auth)
 				lambda.addEnvironment('AUTH', auth.lambda.name)
-				// lambda.addEnvironment('AUTH_HASH', auth)
 
 				new aws.lambda.SourceCodeUpdate(group, 'update', {
 					functionName: lambda.name,
@@ -199,19 +202,30 @@ export const rpcFeature = defineFeature({
 				throw new FileError(ctx.stackConfig.file, `RPC definition is not defined on app level for "${id}"`)
 			}
 
-			const schema = ctx.shared.get<Record<string, string>>(`rpc-${id}-schema`)
+			const table = ctx.shared.get<aws.dynamodb.Table>(`rpc-${id}-schema-table`)
 			const group = new Node(ctx.stack, 'rpc', id)
 
 			for (const [name, props] of Object.entries(queries ?? {})) {
 				const queryGroup = new Node(group, 'query', name)
 				const entryId = paramCase(`${id}-${shortId(name)}`)
 
-				const lambda = createLambdaFunction(queryGroup, ctx, `rpc`, entryId, {
+				createLambdaFunction(queryGroup, ctx, `rpc`, entryId, {
 					...props,
 					description: `${id} ${name}`,
 				})
 
-				schema[name] = lambda.name
+				new aws.dynamodb.TableItem(queryGroup, 'query', {
+					table,
+					item: Asset.fromJSON({
+						query: name,
+						function: formatLocalResourceName({
+							appName: ctx.app.name,
+							stackName: ctx.stack.name,
+							resourceType: 'rpc',
+							resourceName: entryId,
+						}),
+					}),
+				})
 			}
 		}
 	},

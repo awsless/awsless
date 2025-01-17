@@ -331,8 +331,9 @@ var lambda = (options) => {
       }
       const result = await createTimeoutWrap(context, log, () => {
         return transformValidationErrors(() => {
-          const input = options.schema ? (0, import_validate2.parse)(options.schema, event) : event;
-          const extendedContext = { ...context ?? {}, event, log };
+          const fixed = typeof event === "undefined" || isTestEnv ? event : (0, import_json3.patch)(event);
+          const input = options.schema ? (0, import_validate2.parse)(options.schema, fixed) : fixed;
+          const extendedContext = { ...context ?? {}, event: fixed, log };
           return options.handle(input, extendedContext);
         });
       });

@@ -47,7 +47,7 @@ declare class Schema<Type extends Types, Input, Output, Paths extends Array<stri
     filterOut(value: Input | undefined): boolean;
 }
 
-type Properties = Record<string | symbol, AnySchema>;
+type Properties = Record<string, AnySchema>;
 type KeyOf<S> = Extract<keyof S, string>;
 type FilterOptional<S extends Properties> = {
     [K in KeyOf<S> as S[K]['OPTIONAL'] extends true ? K : never]?: S[K];
@@ -314,6 +314,8 @@ declare const array: <S extends RequiredSchema>(schema: S) => Schema<"L", S["INP
 
 declare const date: () => Schema<"N", Date, Date, [], [], false>;
 
+declare const json: <T = unknown>() => Schema<"S", T, T, [], [], false>;
+
 declare const ttl: () => Schema<"N", Date, Date, [], [], false>;
 
 type Options = {
@@ -552,4 +554,4 @@ type PaginateScanResponse<T extends AnyTable, P extends ProjectionExpression<T> 
 };
 declare const paginateScan: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
-export { type AnyTable, type CursorKey, type HashKey, type Input, type Output, type PrimaryKey, type SortKey, Table, type TransactConditionCheck, type TransactDelete, type TransactPut, type TransactUpdate, type Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, migrate, mockDynamoDB, number, numberEnum, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, streamTable, string, stringEnum, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { type AnyTable, type CursorKey, type HashKey, type Input, type Output, type PrimaryKey, type SortKey, Table, type TransactConditionCheck, type TransactDelete, type TransactPut, type TransactUpdate, type Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, json, migrate, mockDynamoDB, number, numberEnum, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, streamTable, string, stringEnum, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };

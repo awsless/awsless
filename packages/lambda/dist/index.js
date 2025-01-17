@@ -201,7 +201,7 @@ var mockLambda = (lambdas) => {
 };
 
 // src/lambda.ts
-import { unpatch } from "@awsless/json";
+import { patch, unpatch } from "@awsless/json";
 import { parse as parse3 } from "@awsless/validate";
 
 // src/helpers/error.ts
@@ -301,8 +301,9 @@ var lambda = (options) => {
       }
       const result = await createTimeoutWrap(context, log, () => {
         return transformValidationErrors(() => {
-          const input = options.schema ? parse3(options.schema, event) : event;
-          const extendedContext = { ...context ?? {}, event, log };
+          const fixed = typeof event === "undefined" || isTestEnv ? event : patch(event);
+          const input = options.schema ? parse3(options.schema, fixed) : fixed;
+          const extendedContext = { ...context ?? {}, event: fixed, log };
           return options.handle(input, extendedContext);
         });
       });

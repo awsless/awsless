@@ -19,6 +19,13 @@ describe('Lambda', () => {
 		expect(result).toBeUndefined()
 	})
 
+	// it('should patch wrongly parsed JSON', async () => {
+	// 	const echo = lambda({ handle: (value: bigint) => value })
+	// 	const result = await echo({ $bigint: '1' })
+
+	// 	expect(result).toBe(1n)
+	// })
+
 	it('should throw correctly', async () => {
 		const error = new Error()
 		const handle = lambda({

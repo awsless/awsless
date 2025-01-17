@@ -59,15 +59,15 @@ export const searchFeature = defineFeature({
 				},
 			})
 
-			if (props.vpc) {
-				openSearch.setVpc({
-					securityGroupIds: [ctx.shared.get<string>(`vpc-security-group-id`)],
-					subnetIds: [
-						ctx.shared.get<string>('vpc-private-subnet-id-1'),
-						ctx.shared.get<string>('vpc-private-subnet-id-2'),
-					],
-				})
-			}
+			// if (props.vpc) {
+			// 	openSearch.setVpc({
+			// 		securityGroupIds: [ctx.shared.get<string>(`vpc-security-group-id`)],
+			// 		subnetIds: [
+			// 			ctx.shared.get<string>('vpc-private-subnet-id-1'),
+			// 			ctx.shared.get<string>('vpc-private-subnet-id-2'),
+			// 		],
+			// 	})
+			// }
 
 			ctx.addEnv(`SEARCH_${constantCase(ctx.stack.name)}_${constantCase(id)}_DOMAIN`, openSearch.domainEndpoint)
 

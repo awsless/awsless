@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -30,7 +30,7 @@
 	},
 	"vitest": {
 		"hookTimeout": 30000,
-		"maxConcurrency": 3,
+		"maxConcurrency": 2,
 		"singleThread": true,
 		"exclude": [
 			"test/aws/*"
@@ -41,12 +41,12 @@
 		"@aws-sdk/lib-dynamodb": "3.363.0",
 		"@aws-sdk/util-dynamodb": "3.363.0",
 		"@awsless/dynamodb-server": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"@heat/request-port": "^0.0.1",
 		"@smithy/node-http-handler": "^3.0.0",
 		"aws-sdk-client-mock": "4.0.0",
-		"chunk": "^0.0.3",
-		"ts-toolbelt": "^9.6.0"
+		"chunk": "^0.0.3"
 	},
 	"devDependencies": {
 		"@awsless/big-float": "workspace:^",
@@ -54,6 +54,7 @@
 		"@types/chunk": "^0.0.0"
 	},
 	"peerDependencies": {
-		"@awsless/big-float": "workspace:^"
+		"@awsless/big-float": "workspace:^",
+		"@awsless/json": "workspace:^"
 	}
 }

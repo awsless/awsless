@@ -14,6 +14,11 @@ export const UNAUTHORIZED = (reason?: string): GlobalError => ({
 	message: reason ?? 'Unauthorized',
 })
 
+export const INTERNAL_SERVER_ERROR: GlobalError = {
+	type: 'internal-server-error',
+	message: 'Internal Server Error',
+}
+
 // export const UNAUTHORIZED: GlobalError = {
 // 	type: 'unauthorized',
 // 	message: 'Unauthorized',
