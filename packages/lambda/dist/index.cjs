@@ -38,6 +38,7 @@ var import_client_lambda5 = require("@aws-sdk/client-lambda");
 // src/commands/invoke.ts
 var import_client_lambda2 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node = require("@aws-sdk/util-utf8-node");
+var import_json = require("@awsless/json");
 
 // src/errors/viewable.ts
 var ViewableError = class extends Error {
@@ -83,7 +84,7 @@ var invoke = async ({
   const command = new import_client_lambda2.InvokeCommand({
     InvocationType: type,
     FunctionName: name,
-    Payload: payload ? (0, import_util_utf8_node.fromUtf8)(JSON.stringify(payload)) : void 0,
+    Payload: payload ? (0, import_util_utf8_node.fromUtf8)((0, import_json.stringify)(payload)) : void 0,
     Qualifier: qualifier
   });
   const result = await client.send(command);
@@ -94,7 +95,7 @@ var invoke = async ({
   if (!json) {
     return void 0;
   }
-  const response = JSON.parse(json);
+  const response = (0, import_json.parse)(json);
   if (isViewableErrorResponse(response)) {
     const e = response.__error__;
     const error = reflectViewableErrors ? new ViewableError(e.type, e.message, e.data) : new Error(e.message);
@@ -182,6 +183,7 @@ var transformValidationErrors = async (callback) => {
 // src/helpers/mock.ts
 var import_client_lambda4 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
+var import_json2 = require("@awsless/json");
 var import_utils2 = require("@awsless/utils");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var globalList = {};
@@ -205,7 +207,7 @@ var mockLambda = (lambdas) => {
   }).on(import_client_lambda4.InvokeCommand).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
-    const payload = input.Payload ? JSON.parse((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
+    const payload = input.Payload ? (0, import_json2.parse)((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
     const callback = globalList[name];
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
@@ -213,7 +215,7 @@ var mockLambda = (lambdas) => {
     const result = await (0, import_utils2.nextTick)(callback, payload);
     if (type === "RequestResponse" && result) {
       return {
-        Payload: (0, import_util_utf8_node2.fromUtf8)(JSON.stringify(result))
+        Payload: (0, import_util_utf8_node2.fromUtf8)((0, import_json2.stringify)(result))
       };
     }
     return {
@@ -229,6 +231,7 @@ var mockLambda = (lambdas) => {
 };
 
 // src/lambda.ts
+var import_json3 = require("@awsless/json");
 var import_validate2 = require("@awsless/validate");
 
 // src/helpers/error.ts
@@ -328,15 +331,16 @@ var lambda = (options) => {
       }
       const result = await createTimeoutWrap(context, log, () => {
         return transformValidationErrors(() => {
-          const input = options.schema ? (0, import_validate2.parse)(options.schema, event) : event;
-          const extendedContext = { ...context ?? {}, event, log };
+          const fixed = typeof event === "undefined" || isTestEnv ? event : (0, import_json3.patch)(event);
+          const input = options.schema ? (0, import_validate2.parse)(options.schema, fixed) : fixed;
+          const extendedContext = { ...context ?? {}, event: fixed, log };
           return options.handle(input, extendedContext);
         });
       });
-      if (result && isTestEnv) {
-        return JSON.parse(JSON.stringify(result));
+      if (isTestEnv) {
+        return result;
       }
-      return result;
+      return (0, import_json3.unpatch)(result);
     } catch (error) {
       if (!(error instanceof ViewableError) || options.logViewableErrors) {
         await log(error);

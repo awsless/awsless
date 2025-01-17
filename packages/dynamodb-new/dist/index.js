@@ -520,7 +520,7 @@ var Schema = class {
 // src/schema/optional.ts
 var optional = (schema) => {
   return new Schema(
-    void 0,
+    schema.type,
     (value) => {
       value;
       if (typeof value === "undefined") {
@@ -670,6 +670,14 @@ var date = () => new Schema(
   "N",
   (value) => ({ N: String(value.getTime()) }),
   (value) => new Date(Number(value.N))
+);
+
+// src/schema/json.ts
+import { parse, stringify } from "@awsless/json";
+var json = () => new Schema(
+  "S",
+  (value) => ({ S: stringify(value) }),
+  (value) => parse(value.S)
 );
 
 // src/schema/ttl.ts
@@ -1552,8 +1560,8 @@ var fromCursorString = (table, cursorStringValue) => {
   }
   try {
     const buffer = Buffer.from(cursorStringValue, "base64");
-    const json = buffer.toString("utf-8");
-    const cursor2 = JSON.parse(json);
+    const json2 = buffer.toString("utf-8");
+    const cursor2 = JSON.parse(json2);
     return table.unmarshall(cursor2);
   } catch (error) {
     return;
@@ -1564,8 +1572,8 @@ var toCursorString = (table, cursor2) => {
     return;
   }
   const marshalled = table.marshall(cursor2);
-  const json = JSON.stringify(marshalled);
-  const buffer = Buffer.from(json, "utf-8");
+  const json2 = JSON.stringify(marshalled);
+  const buffer = Buffer.from(json2, "utf-8");
   return buffer.toString("base64");
 };
 
@@ -1647,6 +1655,7 @@ export {
   dynamoDBDocumentClient,
   getIndexedItem,
   getItem,
+  json,
   migrate,
   mockDynamoDB,
   number,

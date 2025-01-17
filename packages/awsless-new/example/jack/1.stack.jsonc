@@ -2,7 +2,7 @@
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
 	"depends": ["stack-2"],
-	"tests": "./test",
+	// "tests": "./test",
 	// "configs": ["test"],
 	// "commands": {
 	// 	"test": {

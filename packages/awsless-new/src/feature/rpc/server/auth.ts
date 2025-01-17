@@ -53,7 +53,7 @@ export const authenticate = async (token?: string) => {
 
 	try {
 		response = await invoke({
-			name: AUTH!,
+			name: AUTH,
 			payload: { token },
 		})
 	} catch (error) {

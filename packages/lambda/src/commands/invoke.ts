@@ -1,5 +1,6 @@
 import { InvokeCommand } from '@aws-sdk/client-lambda'
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
+import { parse, stringify } from '@awsless/json'
 import { isViewableErrorResponse, ViewableError } from '../errors/viewable'
 import { lambdaClient } from '../helpers/client'
 import { ErrorResponse, Invoke, LambdaError, UnknownInvokeOptions } from './type'
@@ -24,7 +25,7 @@ export const invoke: Invoke = async ({
 	const command = new InvokeCommand({
 		InvocationType: type,
 		FunctionName: name,
-		Payload: payload ? fromUtf8(JSON.stringify(payload)) : undefined,
+		Payload: payload ? fromUtf8(stringify(payload)) : undefined,
 		Qualifier: qualifier,
 	})
 
@@ -38,7 +39,7 @@ export const invoke: Invoke = async ({
 		return undefined
 	}
 
-	const response = JSON.parse(json) as unknown
+	const response = parse(json)
 
 	if (isViewableErrorResponse(response)) {
 		const e = response.__error__

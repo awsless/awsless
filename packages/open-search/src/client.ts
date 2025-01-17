@@ -1,6 +1,6 @@
+import { fromEnv } from '@aws-sdk/credential-providers'
 import { Client, ClientOptions } from '@opensearch-project/opensearch'
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws'
-import { fromEnv } from '@aws-sdk/credential-providers'
 // import { defaultProvider } from '@aws-sdk/credential-provider-node'
 
 let mock: Client

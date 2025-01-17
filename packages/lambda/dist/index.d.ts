@@ -3,7 +3,7 @@ import { LambdaClient, ListFunctionsCommandInput } from '@aws-sdk/client-lambda'
 export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
-import { AsyncReturnType, Jsonify } from 'type-fest';
+import { AsyncReturnType } from 'type-fest';
 import { SchemaIssues, Input as Input$1, BaseSchema, Output as Output$1 } from '@awsless/validate';
 import { Mock } from 'vitest';
 
@@ -97,11 +97,10 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
     logViewableErrors?: boolean;
 }
 type LambdaFactory = {
-    <H extends Handler>(options: Options<H, undefined>): (event?: unknown, context?: Context$1) => Promise<Response<Awaited<ReturnType<H>>>>;
-    <H extends Handler<S>, S extends Schema>(options: Options<H, S>): (event: Input<S>, context?: Context$1) => Promise<Response<Awaited<ReturnType<H>>>>;
+    <H extends Handler>(options: Options<H, undefined>): (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
+    <H extends Handler<S>, S extends Schema>(options: Options<H, S>): (event: Input<S>, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
 };
-type Response<T> = unknown extends T ? unknown : void extends T ? void : T extends undefined ? Jsonify<T> | undefined : Jsonify<T>;
-type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S extends undefined ? (event?: unknown, context?: Context$1) => Promise<Response<Awaited<ReturnType<H>>>> : (event: Input<S>, context?: Context$1) => Promise<Response<Awaited<ReturnType<H>>>>;
+type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S extends undefined ? (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>> : (event: Input<S>, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 

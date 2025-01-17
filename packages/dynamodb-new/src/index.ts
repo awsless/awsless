@@ -26,6 +26,7 @@ export { object } from './schema/object.js'
 export { record } from './schema/record.js'
 export { array } from './schema/array.js'
 export { date } from './schema/date.js'
+export { json } from './schema/json.js'
 export { ttl } from './schema/ttl.js'
 export { unknown } from './schema/unknown.js'
 

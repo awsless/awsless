@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/lambda",
-	"version": "0.0.27",
+	"version": "0.0.30",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -29,7 +29,8 @@
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"peerDependencies": {
-		"@awsless/validate": "workspace:^"
+		"@awsless/validate": "workspace:^",
+		"@awsless/json": "workspace:^"
 	},
 	"devDependencies": {
 		"@awsless/validate": "workspace:^"
@@ -38,6 +39,7 @@
 		"@aws-sdk/client-lambda": "3.329.0",
 		"@aws-sdk/util-utf8-node": "^3.208.0",
 		"@awsless/utils": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@types/aws-lambda": "^8.10.126",
 		"aws-lambda": "^1.0.7",
 		"aws-sdk-client-mock": "^2.1.1",

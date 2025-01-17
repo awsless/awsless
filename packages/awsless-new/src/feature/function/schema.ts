@@ -124,7 +124,7 @@ const LogSubscriptionSchema = z
 		'Log Subscription allow you to subscribe to a real-time stream of log events and have them delivered to a specific destination'
 	)
 
-const LogSchema = z
+export const LogSchema = z
 	.union([
 		z.boolean().transform(enabled => ({ retention: enabled ? days(7) : days(0) })),
 		LogRetentionSchema.transform(retention => ({ retention })),

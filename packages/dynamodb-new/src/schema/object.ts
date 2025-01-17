@@ -1,6 +1,6 @@
 import { AnySchema, Schema } from './schema'
 
-type Properties = Record<string | symbol, AnySchema>
+type Properties = Record<string, AnySchema>
 
 type KeyOf<S> = Extract<keyof S, string>
 

@@ -287,6 +287,9 @@ importers:
       '@awsless/iot':
         specifier: workspace:^
         version: link:../iot
+      '@awsless/json':
+        specifier: workspace:^
+        version: link:../json
       '@awsless/lambda':
         specifier: workspace:^
         version: link:../lambda
@@ -294,8 +297,8 @@ importers:
         specifier: workspace:^
         version: link:../mqtt
       '@awsless/open-search':
-        specifier: 0.0.15
-        version: 0.0.15(@aws-sdk/client-sso-oidc@3.654.0(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0)))(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0))
+        specifier: workspace:^
+        version: link:../open-search
       '@awsless/redis':
         specifier: workspace:^
         version: link:../redis
@@ -667,9 +670,6 @@ importers:
       chunk:
         specifier: ^0.0.3
         version: 0.0.3
-      ts-toolbelt:
-        specifier: ^9.6.0
-        version: 9.6.0
     devDependencies:
       '@awsless/big-float':
         specifier: workspace:^
@@ -695,6 +695,9 @@ importers:
       '@awsless/dynamodb-server':
         specifier: workspace:^
         version: link:../dynamodb-server
+      '@awsless/json':
+        specifier: workspace:^
+        version: link:../json
       '@awsless/utils':
         specifier: workspace:^
         version: link:../utils
@@ -710,9 +713,6 @@ importers:
       chunk:
         specifier: ^0.0.3
         version: 0.0.3
-      ts-toolbelt:
-        specifier: ^9.6.0
-        version: 9.6.0
     devDependencies:
       '@awsless/big-float':
         specifier: workspace:^
@@ -930,6 +930,9 @@ importers:
       '@aws-sdk/util-utf8-node':
         specifier: ^3.208.0
         version: 3.259.0
+      '@awsless/json':
+        specifier: workspace:^
+        version: link:../json
       '@awsless/utils':
         specifier: workspace:^
         version: link:../utils
@@ -2895,12 +2898,6 @@ packages:
   '@aws-sdk/xml-builder@3.535.0':
     resolution: {integrity: sha512-VXAq/Jz8KIrU84+HqsOJhIKZqG0PNTdi6n6PFQ4xJf44ZQHD/5C7ouH4qCFX5XgZXcgbRIcMVVYGC6Jye0dRng==}
     engines: {node: '>=14.0.0'}
-
-  '@awsless/big-float@0.0.4':
-    resolution: {integrity: sha512-9lGMIft/V72Hctg2Q1rLda79IdUgEs43dkrGN+IgTV9P7qttYNRaRUxICMFkEfYFZU046VI0WKYfhNxrorGCGQ==}
-
-  '@awsless/open-search@0.0.15':
-    resolution: {integrity: sha512-H0v6QIA0L/j8FU60VUeOYG8ssGm5MrXU0uooVn9y5Af9MNRyzhw47o16owuYatEiKIe9fv0KemKa7CsVK7dCXA==}
 
   '@babel/code-frame@7.18.6':
     resolution: {integrity: sha512-TDCmlK5eOvH+eH7cdAFlNXeVJqWIQ7gW9tY1GJIpUtFb6CmjVyq2VM3u71bOyR8CRihcCgMUYoDNyLXao3+70Q==}
@@ -9163,9 +9160,6 @@ packages:
       esbuild:
         optional: true
 
-  ts-toolbelt@9.6.0:
-    resolution: {integrity: sha512-nsZd8ZeNUzukXPlJmTBwUAuABDe/9qtVDelJeT/qW0ow3ZS3BsQJtNkan1802aM9Uf68/Y8ljw86Hu0h5IUW3w==}
-
   tsconfig-loader@1.1.0:
     resolution: {integrity: sha512-KrFF45RYo/JHpoAp1Lf68NupYNyRmh7BwSh1AmAQ3fdCMl8laOyZSLO5iByQR2VTkVdt454HS3c5kfVeYWq7iQ==}
 
@@ -9871,8 +9865,8 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.569.0(@aws-sdk/client-sts@3.569.0)
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sso-oidc': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/core': 3.567.0
       '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)
       '@aws-sdk/middleware-host-header': 3.567.0
@@ -11313,11 +11307,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-sso-oidc@3.569.0(@aws-sdk/client-sts@3.569.0)':
+  '@aws-sdk/client-sso-oidc@3.569.0':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/core': 3.567.0
       '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)
       '@aws-sdk/middleware-host-header': 3.567.0
@@ -11356,7 +11350,6 @@ snapshots:
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
-      - '@aws-sdk/client-sts'
       - aws-crt
 
   '@aws-sdk/client-sso-oidc@3.582.0':
@@ -12509,11 +12502,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-sts@3.569.0':
+  '@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0)':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.569.0(@aws-sdk/client-sts@3.569.0)
+      '@aws-sdk/client-sso-oidc': 3.569.0
       '@aws-sdk/core': 3.567.0
       '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)
       '@aws-sdk/middleware-host-header': 3.567.0
@@ -12552,6 +12545,7 @@ snapshots:
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
   '@aws-sdk/client-sts@3.582.0(@aws-sdk/client-sso-oidc@3.582.0)':
@@ -13083,7 +13077,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-ini@3.568.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/credential-provider-env': 3.568.0
       '@aws-sdk/credential-provider-process': 3.568.0
       '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.569.0)
@@ -13740,7 +13734,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-web-identity@3.568.0(@aws-sdk/client-sts@3.569.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/types': 3.0.0
@@ -15008,7 +15002,7 @@ snapshots:
 
   '@aws-sdk/token-providers@3.568.0(@aws-sdk/client-sso-oidc@3.569.0)':
     dependencies:
-      '@aws-sdk/client-sso-oidc': 3.569.0(@aws-sdk/client-sts@3.569.0)
+      '@aws-sdk/client-sso-oidc': 3.569.0
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/shared-ini-file-loader': 2.4.0
@@ -15510,28 +15504,6 @@ snapshots:
     dependencies:
       '@smithy/types': 3.0.0
       tslib: 2.8.1
-
-  '@awsless/big-float@0.0.4':
-    dependencies:
-      bigfloat-esnext: 3.0.1
-
-  '@awsless/open-search@0.0.15(@aws-sdk/client-sso-oidc@3.654.0(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0)))(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0))':
-    dependencies:
-      '@aws-sdk/credential-provider-node': 3.654.0(@aws-sdk/client-sso-oidc@3.654.0(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0)))(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0))
-      '@aws-sdk/credential-providers': 3.654.0(@aws-sdk/client-sso-oidc@3.654.0(@aws-sdk/client-sts@3.540.0(@aws-sdk/credential-provider-node@3.535.0)))
-      '@awsless/big-float': 0.0.4
-      '@heat/request-port': 0.0.1
-      '@opensearch-project/opensearch': 2.10.0
-      '@types/decompress': 4.2.4
-      '@types/find-cache-dir': 3.2.1
-      decompress: 4.2.1
-      find-cache-dir: 4.0.0
-      sleep-await: 1.0.2
-    transitivePeerDependencies:
-      - '@aws-sdk/client-sso-oidc'
-      - '@aws-sdk/client-sts'
-      - aws-crt
-      - supports-color
 
   '@babel/code-frame@7.18.6':
     dependencies:
@@ -22585,8 +22557,6 @@ snapshots:
       '@jest/types': 29.4.2
       babel-jest: 29.4.2(@babel/core@7.20.12)
       esbuild: 0.23.1
-
-  ts-toolbelt@9.6.0: {}
 
   tsconfig-loader@1.1.0:
     dependencies:

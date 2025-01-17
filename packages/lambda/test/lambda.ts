@@ -19,6 +19,13 @@ describe('Lambda', () => {
 		expect(result).toBeUndefined()
 	})
 
+	// it('should patch wrongly parsed JSON', async () => {
+	// 	const echo = lambda({ handle: (value: bigint) => value })
+	// 	const result = await echo({ $bigint: '1' })
+
+	// 	expect(result).toBe(1n)
+	// })
+
 	it('should throw correctly', async () => {
 		const error = new Error()
 		const handle = lambda({
@@ -98,8 +105,8 @@ describe('Lambda', () => {
 		type e3 = (event: string, context?: Context | undefined) => Promise<void>
 		type e4 = (event: string, context?: Context | undefined) => Promise<string>
 		type e5 = (event?: unknown, context?: Context | undefined) => Promise<'1' | undefined>
-		type e6 = (event?: unknown, context?: Context | undefined) => Promise<string>
-		type e7 = (event?: unknown, context?: Context | undefined) => Promise<Array<number | null>>
+		type e6 = (event?: unknown, context?: Context | undefined) => Promise<Date>
+		type e7 = (event?: unknown, context?: Context | undefined) => Promise<Array<number | undefined>>
 
 		expectTypeOf(f1).toEqualTypeOf<e1>()
 		expectTypeOf(f2).toEqualTypeOf<e2>()

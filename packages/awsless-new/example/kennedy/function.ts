@@ -1,41 +1,64 @@
-export default () => {
-	console.error(Object.keys(process.env))
-	const keys: string[] = []
-	for (const key of Object.keys(process.env)) {
-		if (key.startsWith('CONFIG_')) {
-			keys.push(process.env[key]!)
-		}
-	}
-	console.error(keys)
-	// if (keys.length > 0) {
-	// 	const paths: Record<string, string> = {}
+import { date, define, indexItem, migrate, number, object, search, searchClient, string } from '@awsless/open-search'
+import { randomUUID } from 'crypto'
 
-	// 	for (const key of keys) {
-	// 		paths[key] = key
-	// 	}
+export default async () => {
+	console.error(`https://${process.env['SEARCH_STACK_KENNEDY_1_TEST_DOMAIN']}`)
+	const playerTable = define(
+		'players',
+		object({
+			id: string(),
+			email: string(),
+			name: string(),
+			level: number(),
+			createdAt: date(),
+		}),
+		() => {
+			return searchClient(
+				{
+					node: `https://${process.env['SEARCH_STACK_KENNEDY_1_TEST_DOMAIN']}`,
+				},
+				'es'
+			)
+		}
+	)
+
+	// const id = randomUUID()
+
+	// await migrate(playerTable
+	// await indexItem(playerTable, id, {
+	// 	id,
+	// 	email: 'test@test.com',
+	// 	name: 'test',
+	// 	level: 1,
+	// 	createdAt: new Date(),
+	// })
+
+	const bool: {
+		must: any[]
+		filter?: any
+	} = { must: [] }
+
+	const result = await search(playerTable, {
+		query: { bool },
+		limit: 10,
+	})
+
+	return result
 }
 
-// import { date, define, migrate, number, object, searchClient, string } from '@awsless/open-search'
-
 // export default () => {
-// 	const playerTable = define(
-// 		'players',
-// 		object({
-// 			id: string(),
-// 			email: string(),
-// 			name: string(),
-// 			level: number(),
-// 			createdAt: date(),
-// 		}),
-// 		() => {
-// 			return searchClient(
-// 				{
-// 					node: `https://${process.env['SEARCH_STACK_KENNEDY_1_TEST_DOMAIN']}`,
-// 				},
-// 				'es'
-// 			)
+// 	console.error(Object.keys(process.env))
+// 	const keys: string[] = []
+// 	for (const key of Object.keys(process.env)) {
+// 		if (key.startsWith('CONFIG_')) {
+// 			keys.push(process.env[key]!)
 // 		}
-// 	)
+// 	}
+// 	console.error(keys)
+// 	// if (keys.length > 0) {
+// 	// 	const paths: Record<string, string> = {}
 
-// 	return migrate(playerTable)
+// 	// 	for (const key of keys) {
+// 	// 		paths[key] = key
+// 	// 	}
 // }
