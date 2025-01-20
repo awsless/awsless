@@ -1,5 +1,4 @@
 import { aws, Node } from '@awsless/formation'
-import { isEmail } from '../../config/schema/email.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -117,30 +116,20 @@ export const topicFeature = defineFeature({
 
 			const topicArn = ctx.shared.get<aws.ARN>(`topic-${id}-arn`)
 
-			if (typeof props === 'string' && isEmail(props)) {
-				// Check we need to subscribe to an email.
-				new aws.sns.Subscription(group, id, {
-					topicArn,
-					protocol: 'email',
-					endpoint: props,
-				})
-			} else if (typeof props === 'object') {
-				// Else it's a lambda...
-				const { lambda } = createAsyncLambdaFunction(group, ctx, `topic`, id, props)
+			const { lambda } = createAsyncLambdaFunction(group, ctx, `topic`, id, props)
 
-				new aws.sns.Subscription(group, id, {
-					topicArn,
-					protocol: 'lambda',
-					endpoint: lambda.arn,
-				})
+			new aws.sns.Subscription(group, id, {
+				topicArn,
+				protocol: 'lambda',
+				endpoint: lambda.arn,
+			})
 
-				new aws.lambda.Permission(group, id, {
-					action: 'lambda:InvokeFunction',
-					principal: 'sns.amazonaws.com',
-					functionArn: lambda.arn,
-					sourceArn: topicArn,
-				})
-			}
+			new aws.lambda.Permission(group, id, {
+				action: 'lambda:InvokeFunction',
+				principal: 'sns.amazonaws.com',
+				functionArn: lambda.arn,
+				sourceArn: topicArn,
+			})
 		}
 	},
 })

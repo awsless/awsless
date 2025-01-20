@@ -8,6 +8,7 @@ describe('SNS', () => {
 	it('should send a notification', async () => {
 		await publish({
 			topic: 'test',
+			payload: 'Hello World',
 		})
 
 		expect(mock.test).toBeCalledTimes(1)

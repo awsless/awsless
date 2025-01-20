@@ -1,3 +1,4 @@
+import { stringify } from '@awsless/json'
 import { publish, PublishOptions } from '@awsless/sns'
 import { createProxy } from '../proxy.js'
 import { bindGlobalResourceName } from './util.js'
@@ -14,7 +15,7 @@ export const Topic: TopicResources = /*@__PURE__*/ createProxy(name => {
 			await publish({
 				...options,
 				topic,
-				payload,
+				payload: stringify(payload),
 			})
 		},
 	}

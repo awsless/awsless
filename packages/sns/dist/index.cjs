@@ -59,7 +59,7 @@ var publish = async ({
   const command = new import_client_sns2.PublishCommand({
     TopicArn: `arn:aws:sns:${region}:${accountId}:${topic}`,
     Subject: subject,
-    Message: payload ? JSON.stringify(payload) : void 0,
+    Message: payload,
     MessageAttributes: formatAttributes({
       topic,
       ...attributes
@@ -71,13 +71,13 @@ var publish = async ({
 // src/mock.ts
 var import_client_sns3 = require("@aws-sdk/client-sns");
 var import_utils2 = require("@awsless/utils");
-var import_crypto = require("crypto");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_crypto = require("crypto");
 var mockSNS = (topics) => {
   const list = (0, import_utils2.mockObjectValues)(topics);
   (0, import_aws_sdk_client_mock.mockClient)(import_client_sns3.SNSClient).on(import_client_sns3.PublishCommand).callsFake(async (input) => {
-    const parts = input.TopicArn?.split(":") || "";
-    const topic = parts[parts.length - 1];
+    const parts = input.TopicArn?.split(":") ?? "";
+    const topic = parts[parts.length - 1] ?? "";
     const callback = list[topic];
     if (!callback) {
       throw new TypeError(`Sns mock function not defined for: ${topic}`);

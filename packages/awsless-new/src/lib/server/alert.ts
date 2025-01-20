@@ -1,5 +1,6 @@
 import { PublishOptions, publish } from '@awsless/sns'
-import { bindGlobalResourceName, createProxy } from './util.js'
+import { createProxy } from '../proxy.js'
+import { bindGlobalResourceName } from './util.js'
 
 export const getAlertName = bindGlobalResourceName('alert')
 
@@ -11,7 +12,7 @@ export const Alert: AlertResources = /*@__PURE__*/ createProxy(name => {
 	const ctx: Record<string, any> = {
 		[topic]: async (
 			subject: string,
-			payload?: unknown,
+			payload?: string,
 			options: Omit<PublishOptions, 'subject' | 'topic' | 'payload'> = {}
 		) => {
 			await publish({

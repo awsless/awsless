@@ -23,6 +23,7 @@ import { taskFeature } from './task/index.js'
 import { testFeature } from './test/index.js'
 import { topicFeature } from './topic/index.js'
 import { vpcFeature } from './vpc/index.js'
+import { alertFeature } from './alert/index.js'
 
 export const features = [
 	// 1
@@ -45,6 +46,7 @@ export const features = [
 	streamFeature,
 	tableFeature,
 	topicFeature,
+	alertFeature,
 	queueFeature,
 	storeFeature,
 	cacheFeature,

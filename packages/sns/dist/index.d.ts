@@ -4,11 +4,11 @@ import { Mock } from 'vitest';
 type Attributes = {
     [key: string]: string;
 };
-interface PublishOptions<Payload = unknown> {
+interface PublishOptions {
     client?: SNSClient;
     topic: string;
     subject?: string;
-    payload?: Payload;
+    payload?: string;
     attributes?: Attributes;
     region?: string;
     accountId?: string;
@@ -26,4 +26,4 @@ declare const snsClient: {
     set(client: SNSClient): void;
 };
 
-export { PublishOptions, mockSNS, publish, snsClient };
+export { type PublishOptions, mockSNS, publish, snsClient };

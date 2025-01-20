@@ -7,7 +7,7 @@ const formatAttributes = (attributes: Attributes) => {
 	for (let key in attributes) {
 		list[key] = {
 			DataType: 'String',
-			StringValue: attributes[key],
+			StringValue: attributes[key]!,
 		}
 	}
 
@@ -26,7 +26,7 @@ export const publish = async ({
 	const command = new PublishCommand({
 		TopicArn: `arn:aws:sns:${region}:${accountId}:${topic}`,
 		Subject: subject,
-		Message: payload ? JSON.stringify(payload) : undefined,
+		Message: payload,
 		MessageAttributes: formatAttributes({
 			topic,
 			...attributes,

@@ -15,6 +15,7 @@ export * from './lib/mock/task.js'
 export * from './lib/mock/topic.js'
 
 // Server
+export * from './lib/server/alert.js'
 export * from './lib/server/auth.js'
 export * from './lib/server/cache.js'
 export * from './lib/server/config.js'

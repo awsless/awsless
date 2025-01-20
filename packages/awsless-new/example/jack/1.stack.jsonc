@@ -35,6 +35,7 @@
 	// },
 	"rpc": {
 		"api": {
+			"alert": "./alert.ts",
 			"test": "./echo.ts",
 			"add": "./rpc-add.ts"
 		}
