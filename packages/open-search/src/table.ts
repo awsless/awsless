@@ -1,15 +1,15 @@
 import { Client } from '@opensearch-project/opensearch/.'
-import { AnyStruct } from './structs/struct'
+import { AnySchema } from './schema/schema'
 
-export type Table<I extends string, S extends AnyStruct> = {
+export type Table<I extends string, S extends AnySchema> = {
 	index: I
 	schema: S
 	client: () => Client
 }
 
-export type AnyTable = Table<string, AnyStruct>
+export type AnyTable = Table<string, AnySchema>
 
-export const define = <I extends string, S extends AnyStruct>(
+export const define = <I extends string, S extends AnySchema>(
 	index: I,
 	schema: S,
 	client: () => Client

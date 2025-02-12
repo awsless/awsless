@@ -1,3 +1,4 @@
+export { S3Client, StorageClass } from '@aws-sdk/client-s3'
 export { s3Client } from './client'
 export {
 	copyObject,
@@ -16,4 +17,4 @@ export {
 	PutObjectProps,
 } from './commands'
 export { mockS3 } from './mock'
-export { Body, BodyStream, S3Client, StorageClass } from './types'
+export { Body, BodyStream } from './types'

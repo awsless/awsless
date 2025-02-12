@@ -1,26 +1,26 @@
+import { BigFloat } from '@awsless/big-float'
 import { randomUUID } from 'crypto'
 import {
 	array,
 	bigfloat,
 	bigint,
 	boolean,
+	createIndex,
 	date,
 	define,
+	deleteIndex,
 	deleteItem,
-	enums,
 	indexItem,
-	migrate,
 	mockOpenSearch,
 	number,
 	object,
 	search,
+	searchClient,
 	set,
 	string,
-	uuid,
 	updateItem,
-	searchClient,
+	uuid,
 } from '../src'
-import { BigFloat } from '@awsless/big-float'
 
 describe('Open Search Mock', () => {
 	mockOpenSearch()
@@ -32,8 +32,15 @@ describe('Open Search Mock', () => {
 		'users',
 		object({
 			id: uuid(),
-			name: string(),
-			type: enums<'foo' | 'bar'>(),
+			name: string({
+				type: 'text',
+				fields: {
+					sort: {
+						type: 'keyword',
+					},
+				},
+			}),
+			type: string<'foo' | 'bar'>(),
 			enabled: boolean(),
 			likes: bigint(),
 			balance: bigfloat(),
@@ -47,8 +54,8 @@ describe('Open Search Mock', () => {
 		searchClient
 	)
 
-	it('should migrate', async () => {
-		await migrate(users)
+	it('should create index', async () => {
+		await createIndex(users)
 	})
 
 	it('should index item', async () => {
@@ -167,5 +174,9 @@ describe('Open Search Mock', () => {
 			count: 0,
 			items: [],
 		})
+	})
+
+	it('should delete index', async () => {
+		await deleteIndex(users)
 	})
 })

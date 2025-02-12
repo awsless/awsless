@@ -20,6 +20,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  S3Client: () => import_client_s34.S3Client,
+  StorageClass: () => import_client_s34.StorageClass,
   copyObject: () => copyObject,
   createSignedDownloadUrl: () => createSignedDownloadUrl,
   createSignedUploadUrl: () => createSignedUploadUrl,
@@ -31,6 +33,7 @@ __export(src_exports, {
   s3Client: () => s3Client
 });
 module.exports = __toCommonJS(src_exports);
+var import_client_s34 = require("@aws-sdk/client-s3");
 
 // src/client.ts
 var import_client_s3 = require("@aws-sdk/client-s3");
@@ -307,6 +310,8 @@ var mockS3 = () => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  S3Client,
+  StorageClass,
   copyObject,
   createSignedDownloadUrl,
   createSignedUploadUrl,

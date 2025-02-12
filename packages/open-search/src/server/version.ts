@@ -1,17 +1,16 @@
-
-import { Settings } from "./launch"
+import { Settings } from './launch'
 
 export type Version = `${string}.${string}.${string}`
 
 export type VersionArgs = {
-	version: Version,
-	settings: (opts: { port: number, host: string, cache: string }) => Settings
-	started: (line:string) => boolean
+	version: Version
+	settings: (opts: { port: number; host: string; cache: string }) => Settings
+	started: (line: string) => boolean
 }
 
-export const VERSION_2_8_0:VersionArgs = {
+export const VERSION_2_8_0: VersionArgs = {
 	version: '2.8.0',
-	started: (line) => line.includes('started'),
+	started: line => line.includes('started'),
 	settings: ({ port, host, cache }) => ({
 		'discovery.type': 'single-node',
 
@@ -22,5 +21,5 @@ export const VERSION_2_8_0:VersionArgs = {
 		'path.logs': `${cache}/logs`,
 
 		'plugins.security.disabled': true,
-	})
+	}),
 }

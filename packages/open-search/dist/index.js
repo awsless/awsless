@@ -29,16 +29,16 @@ var mockClient = (host, port) => {
 import { requestPort } from "@heat/request-port";
 
 // src/server/download.ts
-import { stat, mkdir } from "fs/promises";
-import { resolve, join } from "path";
-import findCacheDir from "find-cache-dir";
 import decompress from "decompress";
-var getArchiveName = (version2) => {
+import findCacheDir from "find-cache-dir";
+import { mkdir, stat } from "fs/promises";
+import { join, resolve } from "path";
+var getArchiveName = (version) => {
   switch (process.platform) {
     case "win32":
-      return `opensearch-${version2}-windows-arm64.zip`;
+      return `opensearch-${version}-windows-arm64.zip`;
     default:
-      return `opensearch-${version2}-linux-x64.tar.gz`;
+      return `opensearch-${version}-linux-x64.tar.gz`;
   }
 };
 var getDownloadPath = () => {
@@ -57,15 +57,15 @@ var exists = async (path) => {
   }
   return true;
 };
-var download = async (version2) => {
+var download = async (version) => {
   const path = getDownloadPath();
-  const name = `opensearch-${version2}`;
+  const name = `opensearch-${version}`;
   const file = join(path, name);
   if (await exists(file)) {
     return file;
   }
-  console.log(`Downloading OpenSearch ${version2}`);
-  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version2}/${getArchiveName(version2)}`;
+  console.log(`Downloading OpenSearch ${version}`);
+  const url = `https://artifacts.opensearch.org/releases/bundle/opensearch/${version}/${getArchiveName(version)}`;
   const response = await fetch(url, { method: "GET" });
   const data = await response.arrayBuffer();
   const buffer = Buffer.from(data);
@@ -91,7 +91,7 @@ var parseSettings = (settings) => {
     return ["-E", `${key}=${value}`];
   }).flat();
 };
-var launch = ({ path, host, port, version: version2, debug }) => {
+var launch = ({ path, host, port, version, debug }) => {
   return new Promise(async (resolve2, reject) => {
     const cache = join2(path, "cache", String(port));
     const cleanUp = async () => {
@@ -103,14 +103,23 @@ var launch = ({ path, host, port, version: version2, debug }) => {
     };
     await cleanUp();
     const binary = join2(path, "opensearch-tar-install.sh");
-    const child = spawn(binary, parseSettings(version2.settings({ host, port, cache })));
+    const child = spawn(
+      // `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
+      binary,
+      parseSettings(version.settings({ host, port, cache }))
+      // {
+      // 	env: {
+      // 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
+      // 	},
+      // }
+    );
     const onError = (error) => fail(error);
     const onMessage = (message) => {
       const line = message.toString("utf8").toLowerCase();
       if (debug) {
         console.log(line);
       }
-      if (version2.started(line)) {
+      if (version.started(line)) {
         done();
       }
     };
@@ -150,6 +159,20 @@ var launch = ({ path, host, port, version: version2, debug }) => {
   });
 };
 
+// src/server/version.ts
+var VERSION_2_8_0 = {
+  version: "2.8.0",
+  started: (line) => line.includes("started"),
+  settings: ({ port, host, cache }) => ({
+    "discovery.type": "single-node",
+    "http.host": host,
+    "http.port": port,
+    "path.data": `${cache}/data`,
+    "path.logs": `${cache}/logs`,
+    "plugins.security.disabled": true
+  })
+};
+
 // src/server/wait.ts
 import { sleepAwait } from "sleep-await";
 var ping = async () => {
@@ -171,31 +194,17 @@ var wait = async (times = 10) => {
   throw new Error("ElasticSearch server is unavailable");
 };
 
-// src/server/version.ts
-var VERSION_2_8_0 = {
-  version: "2.8.0",
-  started: (line) => line.includes("started"),
-  settings: ({ port, host, cache }) => ({
-    "discovery.type": "single-node",
-    "http.host": host,
-    "http.port": port,
-    "path.data": `${cache}/data`,
-    "path.logs": `${cache}/logs`,
-    "plugins.security.disabled": true
-  })
-};
-
 // src/mock.ts
-var mockOpenSearch = ({ version: version2 = VERSION_2_8_0, debug = false } = {}) => {
+var mockOpenSearch = ({ version = VERSION_2_8_0, debug = false } = {}) => {
   beforeAll && beforeAll(async () => {
     const [port, release] = await requestPort();
     const host = "localhost";
-    const path = await download(version2.version);
+    const path = await download(version.version);
     const kill = await launch({
       path,
       port,
       host,
-      version: version2,
+      version,
       debug
     });
     mockClient(host, port);
@@ -214,57 +223,6 @@ var define = (index, schema, client) => {
     schema,
     client
   };
-};
-
-// src/ops/index-item.ts
-var indexItem = async (table, id, item, { refresh = true } = {}) => {
-  await table.client().index({
-    index: table.index,
-    id,
-    refresh,
-    body: table.schema.encode(item)
-  });
-};
-
-// src/ops/delete-item.ts
-var deleteItem = async (table, id, { refresh = true } = {}) => {
-  await table.client().delete({
-    index: table.index,
-    id,
-    refresh
-  });
-};
-
-// src/ops/update-item.ts
-var updateItem = async (table, id, item, { refresh = true } = {}) => {
-  await table.client().update({
-    index: table.index,
-    id,
-    body: {
-      doc: table.schema.encode(item),
-      doc_as_upsert: true
-    },
-    refresh
-  });
-};
-
-// src/ops/migrate.ts
-var migrate = async (table) => {
-  const result = await table.client().cat.indices({ format: "json" });
-  const found = result.body.find((item) => {
-    return item.index === table.index;
-  });
-  if (!found) {
-    await table.client().indices.create({
-      index: table.index
-    });
-  }
-  await table.client().indices.putMapping({
-    index: table.index,
-    body: {
-      ...table.schema.props
-    }
-  });
 };
 
 // src/ops/search.ts
@@ -309,78 +267,133 @@ var search = async (table, { query, aggs, limit = 10, cursor, sort }) => {
   };
 };
 
-// src/structs/struct.ts
-var Struct = class {
-  constructor(encode, decode, props) {
-    this.encode = encode;
-    this.decode = decode;
-    this.props = props;
+// src/ops/index-item.ts
+var indexItem = async (table, id, item, { refresh = true } = {}) => {
+  await table.client().index({
+    index: table.index,
+    id,
+    refresh,
+    body: table.schema.encode(item)
+  });
+};
+
+// src/ops/delete-item.ts
+var deleteItem = async (table, id, { refresh = true } = {}) => {
+  await table.client().delete({
+    index: table.index,
+    id,
+    refresh
+  });
+};
+
+// src/ops/update-item.ts
+var updateItem = async (table, id, item, { refresh = true } = {}) => {
+  await table.client().update({
+    index: table.index,
+    id,
+    body: {
+      doc: table.schema.encode(item),
+      doc_as_upsert: true
+    },
+    refresh
+  });
+};
+
+// src/ops/create-index.ts
+var createIndex = async (table) => {
+  const result = await table.client().cat.indices({ format: "json" });
+  const found = result.body.find((item) => {
+    return item.index === table.index;
+  });
+  if (!found) {
+    await table.client().indices.create({
+      index: table.index
+    });
+  }
+  await table.client().indices.putMapping({
+    index: table.index,
+    body: table.schema.mapping
+  });
+};
+
+// src/ops/delete-index.ts
+var deleteIndex = async (table) => {
+  const result = await table.client().cat.indices({ format: "json" });
+  const found = result.body.find((item) => {
+    return item.index === table.index;
+  });
+  if (found) {
+    await table.client().indices.delete({
+      index: table.index
+    });
   }
 };
 
-// src/structs/array.ts
+// src/schema/schema.ts
+var Schema = class {
+  constructor(encode, decode, mapping) {
+    this.encode = encode;
+    this.decode = decode;
+    this.mapping = mapping;
+  }
+};
+
+// src/schema/array.ts
 var array = (struct) => {
-  return new Struct(
+  return new Schema(
     (input) => input.map((item) => struct.encode(item)),
     (encoded) => encoded.map((item) => struct.decode(item)),
-    struct.props
+    struct.mapping
   );
 };
 
-// src/structs/bigfloat.ts
+// src/schema/bigfloat.ts
 import { BigFloat } from "@awsless/big-float";
-var bigfloat = () => new Struct(
+var bigfloat = (props = {}) => new Schema(
   (value) => new BigFloat(value).toString(),
   (value) => new BigFloat(value),
-  { type: "double" }
+  { type: "double", ...props }
 );
 
-// src/structs/bigint.ts
-var bigint = () => new Struct(
+// src/schema/bigint.ts
+var bigint = (props = {}) => new Schema(
   (value) => value.toString(),
   (value) => BigInt(value),
-  { type: "long" }
+  { type: "long", ...props }
 );
 
-// src/structs/boolean.ts
-var boolean = () => new Struct(
+// src/schema/boolean.ts
+var boolean = (props = {}) => new Schema(
   (value) => value,
   (value) => value,
-  { type: "boolean" }
+  { type: "boolean", ...props }
 );
 
-// src/structs/date.ts
-var date = () => new Struct(
+// src/schema/date.ts
+var date = (props = {}) => new Schema(
   (value) => value.toISOString(),
   (value) => new Date(value),
-  { type: "date" }
+  { type: "date", ...props }
 );
 
-// src/structs/enums.ts
-var enums = () => new Struct(
-  (value) => value,
-  (value) => value,
-  { type: "text" }
-);
-
-// src/structs/number.ts
-var number = () => new Struct(
+// src/schema/number.ts
+var number = (props = {}) => new Schema(
   (value) => value.toString(),
   (value) => Number(value),
-  { type: "double" }
+  { type: "double", ...props }
 );
 
-// src/structs/object.ts
-var object = (schema) => {
+// src/schema/object.ts
+var object = (entries) => {
   const properties = {};
-  for (const key in schema) {
-    properties[key] = schema[key].props;
+  for (const key in entries) {
+    properties[key] = entries[key].mapping;
   }
-  return new Struct(
+  return new Schema(
     (input) => {
       const encoded = {};
       for (const key in input) {
-        const field = schema[key];
+        const field = entries[key];
         if (typeof field === "undefined") {
           throw new TypeError(`No '${key}' property present on schema.`);
         }
@@ -391,7 +404,7 @@ var object = (schema) => {
     (encoded) => {
       const output = {};
       for (const key in encoded) {
-        const field = schema[key];
+        const field = entries[key];
         if (typeof field === "undefined") {
           throw new TypeError(`No '${key}' property present on schema.`);
         }
@@ -403,42 +416,39 @@ var object = (schema) => {
   );
 };
 
-// src/structs/set.ts
+// src/schema/set.ts
 var set = (struct) => {
-  return new Struct(
+  return new Schema(
     (input) => [...input].map((item) => struct.encode(item)),
     (encoded) => new Set(encoded.map((item) => struct.decode(item))),
-    struct.props
+    struct.mapping
   );
 };
 
-// src/structs/string.ts
-var string = () => new Struct(
+// src/schema/string.ts
+var string = (props = {}) => new Schema(
   (value) => value,
   (value) => value,
-  { type: "keyword" }
+  { type: "keyword", ...props }
 );
 
-// src/structs/uuid.ts
-var uuid = () => new Struct(
+// src/schema/uuid.ts
+var uuid = (props = {}) => new Schema(
   (value) => value,
   (value) => value,
-  { type: "keyword" }
+  { type: "keyword", ...props }
 );
-
-// src/index.ts
-var version = "2";
 export {
   array,
   bigfloat,
   bigint,
   boolean,
+  createIndex,
   date,
   define,
+  deleteIndex,
   deleteItem,
-  enums,
   indexItem,
-  migrate,
   mockOpenSearch,
   number,
   object,
@@ -447,6 +457,5 @@ export {
   set,
   string,
   updateItem,
-  uuid,
-  version
+  uuid
 };

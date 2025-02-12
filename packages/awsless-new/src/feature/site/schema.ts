@@ -50,8 +50,19 @@ export const SitesSchema = z
 			// 	})
 			// 	.optional(),
 
-			static: LocalDirectorySchema.optional().describe('Specifies the path to the static files directory.'),
+			static: z
+				.union([LocalDirectorySchema, z.boolean()])
+				.optional()
+				.describe(
+					"Specifies the path to the static files directory. Additionally you can also pass `true` when you don't have local static files, but still want to make an S3 bucket."
+				),
+
 			ssr: FunctionSchema.optional().describe('Specifies the ssr file.'),
+
+			origin: z
+				.enum(['ssr-first', 'static-first'])
+				.default('static-first')
+				.describe('Specifies the origin fallback ordering.'),
 
 			// bind: z.object({
 			// 	auth:

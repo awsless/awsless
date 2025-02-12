@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/s3",
-	"version": "0.0.18",
+	"version": "0.0.20",
 	"license": "MIT",
 	"type": "module",
 	"repository": {

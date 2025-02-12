@@ -47,7 +47,10 @@ const RetryAttemptsSchema = z
 		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
 	)
 
-const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x']).describe("The identifier of the function's runtime.")
+const NodeRuntimeSchema = z
+	.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x'])
+	.describe("The identifier of the function's runtime.")
+
 const ContainerRuntimeSchema = z.literal('container').describe("The identifier of the function's runtime.")
 const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema)
 
@@ -153,8 +156,9 @@ export const LogSchema = z
 	])
 	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
-const LayersSchema = ArnSchema.array().describe(
-	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
+const LayersSchema = ResourceIdSchema.array().describe(
+	`A list of function layers to add to the function's execution environment.`
+	// `A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
 )
 
 const BuildSchema = z

@@ -1,4 +1,5 @@
 import { SQSClient } from '@aws-sdk/client-sqs';
+export { SQSClient } from '@aws-sdk/client-sqs';
 import { Mock } from 'vitest';
 
 declare const sqsClient: {
@@ -36,4 +37,4 @@ type Queues = {
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
-export { BatchItem, SendMessageBatchOptions, SendMessageOptions, mockSQS, sendMessage, sendMessageBatch, sqsClient };
+export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, mockSQS, sendMessage, sendMessageBatch, sqsClient };

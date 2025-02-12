@@ -397,15 +397,25 @@ var Update = class extends Chain {
       { v: { N: String(value) } }
     );
   }
+  isDeletableValue(value) {
+    return (
+      // undefined value's should be deleted.
+      typeof value === "undefined" || // empty set's should be deleted.
+      value instanceof Set && value.size === 0
+    );
+  }
   /** Set a value */
   set(value) {
-    if (typeof value === "undefined") {
+    if (this.isDeletableValue(value)) {
       return this.del();
     }
     return this.u("set", { p: this.path }, "=", { v: value, p: this.path });
   }
   /** Set a value if the attribute doesn't already exists */
   setIfNotExists(value) {
+    if (this.isDeletableValue(value)) {
+      return this.del();
+    }
     return this.u(
       "set",
       { p: this.path },

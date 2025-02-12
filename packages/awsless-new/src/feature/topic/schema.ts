@@ -1,6 +1,5 @@
 import { paramCase } from 'change-case'
 import { z } from 'zod'
-import { EmailSchema } from '../../config/schema/email.js'
 import { FunctionSchema } from '../function/schema.js'
 
 export const TopicNameSchema = z
@@ -20,6 +19,6 @@ export const TopicsSchema = z
 	.describe('Define the event topics to publish too in your stack.')
 
 export const SubscribersSchema = z
-	.record(TopicNameSchema, z.union([EmailSchema, FunctionSchema]))
+	.record(TopicNameSchema, FunctionSchema)
 	.optional()
 	.describe('Define the event topics to subscribe too in your stack.')

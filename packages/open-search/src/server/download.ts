@@ -1,7 +1,7 @@
-import { stat, mkdir } from 'fs/promises'
-import { resolve, join } from 'path'
-import findCacheDir from 'find-cache-dir'
 import decompress from 'decompress'
+import findCacheDir from 'find-cache-dir'
+import { mkdir, stat } from 'fs/promises'
+import { join, resolve } from 'path'
 // import { exec } from 'child_process';
 // import { promisify } from 'util';
 

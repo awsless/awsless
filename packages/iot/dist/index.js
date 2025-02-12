@@ -1,3 +1,6 @@
+// src/index.ts
+import { IoTDataPlaneClient as IoTDataPlaneClient4 } from "@aws-sdk/client-iot-data-plane";
+
 // src/commands.ts
 import { PublishCommand } from "@aws-sdk/client-iot-data-plane";
 
@@ -38,6 +41,7 @@ var mockIoT = () => {
   return fn;
 };
 export {
+  IoTDataPlaneClient4 as IoTDataPlaneClient,
   QoS,
   iotClient,
   mockIoT,

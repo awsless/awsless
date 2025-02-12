@@ -1,3 +1,6 @@
+// src/index.ts
+import { SNSClient as SNSClient3 } from "@aws-sdk/client-sns";
+
 // src/commands.ts
 import { PublishCommand } from "@aws-sdk/client-sns";
 
@@ -31,7 +34,7 @@ var publish = async ({
   const command = new PublishCommand({
     TopicArn: `arn:aws:sns:${region}:${accountId}:${topic}`,
     Subject: subject,
-    Message: payload ? JSON.stringify(payload) : void 0,
+    Message: payload,
     MessageAttributes: formatAttributes({
       topic,
       ...attributes
@@ -43,14 +46,20 @@ var publish = async ({
 // src/mock.ts
 import { PublishCommand as PublishCommand2, SNSClient as SNSClient2 } from "@aws-sdk/client-sns";
 import { mockObjectValues, nextTick } from "@awsless/utils";
-import { randomUUID } from "crypto";
 import { mockClient } from "aws-sdk-client-mock";
+import { randomUUID } from "crypto";
+var globalList = {};
 var mockSNS = (topics) => {
+  const alreadyMocked = Object.keys(globalList).length > 0;
   const list = mockObjectValues(topics);
+  Object.assign(globalList, list);
+  if (alreadyMocked) {
+    return list;
+  }
   mockClient(SNSClient2).on(PublishCommand2).callsFake(async (input) => {
-    const parts = input.TopicArn?.split(":") || "";
-    const topic = parts[parts.length - 1];
-    const callback = list[topic];
+    const parts = input.TopicArn?.split(":") ?? "";
+    const topic = parts[parts.length - 1] ?? "";
+    const callback = globalList[topic];
     if (!callback) {
       throw new TypeError(`Sns mock function not defined for: ${topic}`);
     }
@@ -75,6 +84,7 @@ var mockSNS = (topics) => {
   return list;
 };
 export {
+  SNSClient3 as SNSClient,
   mockSNS,
   publish,
   snsClient

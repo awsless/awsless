@@ -1,15 +1,15 @@
 import {
-	SQSClient,
-	SendMessageCommand,
 	GetQueueUrlCommand,
-	SendMessageBatchCommand,
 	MessageAttributeValue,
-	SendMessageCommandInput,
+	SQSClient,
+	SendMessageBatchCommand,
 	SendMessageBatchCommandInput,
+	SendMessageCommand,
+	SendMessageCommandInput,
 } from '@aws-sdk/client-sqs'
 import { mockObjectValues, nextTick } from '@awsless/utils'
-import { randomUUID } from 'crypto'
 import { mockClient } from 'aws-sdk-client-mock'
+import { randomUUID } from 'crypto'
 // @ts-ignore
 import { Mock } from 'vitest'
 
@@ -19,10 +19,11 @@ type Queues = {
 
 const formatAttributes = (attributes: Record<string, MessageAttributeValue> | undefined) => {
 	const list: Record<string, { dataType: string; stringValue: string }> = {}
-	for (let key in attributes) {
+
+	for (const [key, attr] of Object.entries(attributes ?? {})) {
 		list[key] = {
-			dataType: attributes[key].DataType!,
-			stringValue: attributes[key].StringValue!,
+			dataType: attr.DataType!,
+			stringValue: attr.StringValue!,
 		}
 	}
 

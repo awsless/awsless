@@ -108,22 +108,24 @@ export const siteFeature = defineFeature({
 
 				accessControl.deletionPolicy = 'after-deployment'
 
-				const files = glob.sync('**', {
-					cwd: props.static,
-					nodir: true,
-				})
-
-				for (const file of files) {
-					const object = new aws.s3.BucketObject(group, file, {
-						bucket: bucket.name,
-						key: file,
-						body: Asset.fromFile(join(props.static, file)),
-						cacheControl: getCacheControl(file),
-						contentType: getContentType(file),
+				if (typeof props.static === 'string') {
+					const files = glob.sync('**', {
+						cwd: props.static,
+						nodir: true,
 					})
 
-					versions.push(object.key)
-					versions.push(object.etag)
+					for (const file of files) {
+						const object = new aws.s3.BucketObject(group, file, {
+							bucket: bucket.name,
+							key: file,
+							body: Asset.fromFile(join(props.static, file)),
+							cacheControl: getCacheControl(file),
+							contentType: getContentType(file),
+						})
+
+						versions.push(object.key)
+						versions.push(object.etag)
+					}
 				}
 
 				origins.push({
@@ -136,7 +138,7 @@ export const siteFeature = defineFeature({
 			if (props.ssr && props.static) {
 				originGroups.push({
 					id: 'group',
-					members: ['ssr', 'static'],
+					members: props.origin === 'ssr-first' ? ['ssr', 'static'] : ['static', 'ssr'],
 					statusCodes: [403, 404],
 				})
 			}

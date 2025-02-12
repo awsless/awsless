@@ -2,8 +2,8 @@ import { requestPort } from '@heat/request-port'
 import { mockClient } from './client'
 import { download } from './server/download'
 import { launch } from './server/launch'
-import { wait } from './server/wait'
 import { VERSION_2_8_0, VersionArgs } from './server/version'
+import { wait } from './server/wait'
 
 type Options = {
 	version?: VersionArgs

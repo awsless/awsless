@@ -46,8 +46,19 @@ export const launch = ({ path, host, port, version, debug }: Options): Promise<(
 
 		await cleanUp()
 
+		// console.log(join(path, 'jdk'))
+
 		const binary = join(path, 'opensearch-tar-install.sh')
-		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })))
+		const child = spawn(
+			// `export OPENSEARCH_JAVA_HOME=${join(path, 'jdk')}; ${binary}`,
+			binary,
+			parseSettings(version.settings({ host, port, cache }))
+			// {
+			// 	env: {
+			// 		OPENSEARCH_JAVA_HOME: join(path, 'jdk'),
+			// 	},
+			// }
+		)
 		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
 
 		const onError = (error: string) => fail(error)

@@ -1,5 +1,7 @@
+import { stringify } from '@awsless/json'
 import { PublishOptions, publish } from '@awsless/sns'
-import { bindGlobalResourceName, createProxy } from './util.js'
+import { createProxy } from '../proxy.js'
+import { bindGlobalResourceName } from './util.js'
 
 export const getAlertName = bindGlobalResourceName('alert')
 
@@ -18,7 +20,7 @@ export const Alert: AlertResources = /*@__PURE__*/ createProxy(name => {
 				...options,
 				topic,
 				subject,
-				payload,
+				payload: typeof payload === 'string' || typeof payload === 'undefined' ? payload : stringify(payload),
 			})
 		},
 	}

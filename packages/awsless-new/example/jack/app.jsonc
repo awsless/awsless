@@ -4,6 +4,9 @@
 	"region": "eu-west-1",
 	"profile": "jacksclub",
 	"defaults": {
+		"alerts": {
+			"debug": "info@jacksclub.io"
+		},
 		// "domains": {
 		// 	"main": {
 		// 		"domain": "getblockalert.com"

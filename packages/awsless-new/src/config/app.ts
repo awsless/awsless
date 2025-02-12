@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AlertsDefaultSchema } from '../feature/alert/schema.js'
 import { AuthDefaultSchema } from '../feature/auth/schema.js'
 import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 import { FunctionDefaultSchema } from '../feature/function/schema.js'
@@ -48,6 +49,7 @@ export const AppSchema = z.object({
 			pubsub: PubSubDefaultSchema,
 			table: TableDefaultSchema,
 			store: StoreDefaultSchema,
+			alerts: AlertsDefaultSchema,
 			// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
 		})
 		.default({})
