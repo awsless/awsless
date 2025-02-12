@@ -1,7 +1,7 @@
-import { spawn } from 'child_process';
-import { rm, stat } from 'fs/promises';
-import { join } from 'path';
-import { VersionArgs } from './version';
+import { spawn } from 'child_process'
+import { rm, stat } from 'fs/promises'
+import { join } from 'path'
+import { VersionArgs } from './version'
 // import findCacheDir from 'find-cache-dir';
 
 const exists = async (path: string) => {
@@ -25,21 +25,21 @@ const parseSettings = (settings: Settings) => {
 }
 
 type Options = {
-	path: string,
-	host: string,
-	port: number,
-	debug?: boolean,
+	path: string
+	host: string
+	port: number
+	debug?: boolean
 	version: VersionArgs
 }
 
-export const launch = ({ path, host, port, version, debug }:Options): Promise<() => Promise<void>> => {
+export const launch = ({ path, host, port, version, debug }: Options): Promise<() => Promise<void>> => {
 	return new Promise(async (resolve, reject) => {
 		const cache = join(path, 'cache', String(port))
 
 		const cleanUp = async () => {
-			if(await exists(cache)) {
+			if (await exists(cache)) {
 				await rm(cache, {
-					recursive: true
+					recursive: true,
 				})
 			}
 		}
@@ -50,11 +50,11 @@ export const launch = ({ path, host, port, version, debug }:Options): Promise<()
 		const child = spawn(binary, parseSettings(version.settings({ host, port, cache })))
 		// const child = spawn('opensearch', parseSettings(version.settings({ host, port, cache })))
 
-		const onError = (error:string) => fail(error)
+		const onError = (error: string) => fail(error)
 		const onMessage = (message: Buffer) => {
 			const line = message.toString('utf8').toLowerCase()
 
-			if(debug) {
+			if (debug) {
 				console.log(line)
 			}
 

@@ -54,9 +54,9 @@ __export(src_exports, {
 module.exports = __toCommonJS(src_exports);
 
 // src/client.ts
+var import_credential_providers = require("@aws-sdk/credential-providers");
 var import_opensearch = require("@opensearch-project/opensearch");
 var import_aws = require("@opensearch-project/opensearch/aws");
-var import_credential_providers = require("@aws-sdk/credential-providers");
 var mock;
 var searchClient = (options = {}, service = "es") => {
   if (mock) {
@@ -328,8 +328,7 @@ var encodeCursor = (cursor) => {
   return Buffer.from(json, "utf8").toString("base64");
 };
 var decodeCursor = (cursor) => {
-  if (!cursor)
-    return;
+  if (!cursor) return;
   try {
     const json = Buffer.from(cursor, "base64").toString("utf8");
     return JSON.parse(json);

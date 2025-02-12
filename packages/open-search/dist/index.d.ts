@@ -26,7 +26,7 @@ declare class Struct<Encoded, Input, Output> {
     constructor(encode: (value: Input) => Encoded, decode: (value: Encoded) => Output, props: Props);
 }
 
-declare const searchClient: (options?: ClientOptions, service?: 'es' | 'aoss') => Client;
+declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") => Client;
 
 type Settings = Record<string, string | number | boolean>;
 
@@ -121,4 +121,4 @@ declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${stri
 
 declare const version = "2";
 
-export { AnyStruct, AnyTable, Props, Struct, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid, version };
+export { type AnyStruct, type AnyTable, type Props, Struct, type Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid, version };

@@ -1,7 +1,7 @@
 // src/client.ts
+import { fromEnv } from "@aws-sdk/credential-providers";
 import { Client } from "@opensearch-project/opensearch";
 import { AwsSigv4Signer } from "@opensearch-project/opensearch/aws";
-import { fromEnv } from "@aws-sdk/credential-providers";
 var mock;
 var searchClient = (options = {}, service = "es") => {
   if (mock) {
@@ -273,8 +273,7 @@ var encodeCursor = (cursor) => {
   return Buffer.from(json, "utf8").toString("base64");
 };
 var decodeCursor = (cursor) => {
-  if (!cursor)
-    return;
+  if (!cursor) return;
   try {
     const json = Buffer.from(cursor, "base64").toString("utf8");
     return JSON.parse(json);
