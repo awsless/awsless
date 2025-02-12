@@ -2446,6 +2446,9 @@ declare class DomainConfiguration extends CloudControlApiResource {
                 DefaultAuthorizerName: Input<string>;
                 AllowAuthorizerOverride: boolean;
             } | undefined;
+            ServerCertificateConfig?: {
+                EnableOCSPCheck: boolean;
+            } | undefined;
             DomainConfigurationName: Input<string>;
             DomainConfigurationStatus: string;
             ServiceType: string;
@@ -2656,7 +2659,7 @@ type FunctionProps = {
     code: Input<Code>;
     role: Input<ARN>;
     description?: Input<string>;
-    runtime?: Input<'nodejs18.x' | 'nodejs20.x'>;
+    runtime?: Input<'nodejs18.x' | 'nodejs20.x' | 'nodejs22.x'>;
     handler?: Input<string>;
     architecture?: Input<'arm64' | 'x86_64'>;
     memorySize?: Input<Size>;
@@ -2775,7 +2778,7 @@ declare class Function extends CloudControlApiResource {
                 Size: bigint;
             };
             Layers: Input<Input<`arn:${string}`>[]> | undefined;
-            Runtime: "nodejs18.x" | "nodejs20.x";
+            Runtime: "nodejs18.x" | "nodejs20.x" | "nodejs22.x";
             Handler: string;
             FunctionName: Input<string>;
             Description: Input<string> | undefined;

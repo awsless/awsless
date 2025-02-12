@@ -1,12 +1,20 @@
+import { DynamoDBClient, dynamoDBClient } from '@awsless/dynamodb'
+import { iotClient, IoTDataPlaneClient } from '@awsless/iot'
+import { LambdaClient, lambdaClient } from '@awsless/lambda'
+import { S3Client, s3Client } from '@awsless/s3'
+import { SNSClient, snsClient } from '@awsless/sns'
+import { SQSClient, sqsClient } from '@awsless/sqs'
 import { isCancel, select } from '@clack/prompts'
 import { Command as CliCommand } from 'commander'
-import { tsImport } from 'tsx/esm/api'
 import { createApp } from '../../app.js'
 import { Command, CommandHandler, CommandOptions } from '../../command.js'
 import { Cancelled, ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { task } from '../ui/util.js'
+
+// @ts-ignore
+import { tsImport } from 'tsx/esm/api'
 
 export const run = (program: CliCommand) => {
 	program
@@ -58,9 +66,11 @@ export const run = (program: CliCommand) => {
 				// Set env vars
 
 				process.env.APP = appConfig.name
+				process.env.AWS_REGION = region
+				process.env.AWS_ACCOUNT_ID = accountId
 
 				// ---------------------------------------------------
-				// Run command
+				// Import the command
 
 				const module = await tsImport(command.file, {
 					parentURL: import.meta.url,
@@ -71,6 +81,19 @@ export const run = (program: CliCommand) => {
 				if (!handler) {
 					throw new ExpectedError(`No "${command.handler}" handler found.`)
 				}
+
+				// ---------------------------------------------------
+				// Setup AWS clients with the correct credentials
+
+				dynamoDBClient.set(new DynamoDBClient({ region, credentials }))
+				lambdaClient.set(new LambdaClient({ region, credentials }))
+				snsClient.set(new SNSClient({ region, credentials }))
+				iotClient.set(new IoTDataPlaneClient({ region, credentials }))
+				sqsClient.set(new SQSClient({ region, credentials }))
+				s3Client.set(new S3Client({ region, credentials }))
+
+				// ---------------------------------------------------
+				// Run command
 
 				const result = await task('Running', update => {
 					const options = new CommandOptions(program.args)

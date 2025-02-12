@@ -1,7 +1,7 @@
 import { Client } from '@opensearch-project/opensearch'
+import { download } from '../src/server/download'
 import { launch } from '../src/server/launch'
 import { VERSION_2_8_0 } from '../src/server/version'
-import { download } from '../src/server/download'
 
 describe('Download & Launch', () => {
 	let kill: () => void

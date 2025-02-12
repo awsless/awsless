@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.412",
+	"version": "0.0.422",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -40,7 +40,9 @@
 		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; pnpm build-prebuild; else exit; fi"
 	},
 	"peerDependencies": {
+		"@awsless/dynamodb": "workspace:^",
 		"@awsless/iot": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/lambda": "workspace:^",
 		"@awsless/mqtt": "workspace:^",
 		"@awsless/open-search": "workspace:^",
@@ -49,7 +51,6 @@
 		"@awsless/sns": "workspace:^",
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
-		"@awsless/json": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@awsless/weak-cache": "workspace:^"
 	},
@@ -71,9 +72,9 @@
 		"@awsless/duration": "workspace:^",
 		"@awsless/formation": "workspace:^",
 		"@awsless/graphql": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/size": "workspace:^",
 		"@awsless/ts-file-cache": "workspace:^",
-		"@awsless/json": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@clack/prompts": "^0.7.0",
 		"@graphql-tools/merge": "^9.0.0",
@@ -91,6 +92,7 @@
 		"@types/promise-dag": "^1.0.4",
 		"@types/rollup-plugin-natives": "^0.7.5",
 		"@types/uuid": "^9.0.0",
+		"@types/wildstring": "^1.0.3",
 		"@vitest/runner": "^1.6.0",
 		"aws-cron-expression-validator": "^1.0.5",
 		"aws-lambda": "^1.0.7",
@@ -129,6 +131,7 @@
 		"uuid": "^9.0.0",
 		"vite": "^5.0.0",
 		"vitest": "^1.6.0",
+		"wildstring": "^1.0.9",
 		"wrap-ansi": "^8.1.0",
 		"zip-a-folder": "^3.1.6",
 		"zod": "^3.21.4",

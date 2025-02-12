@@ -20,11 +20,13 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  SNSClient: () => import_client_sns4.SNSClient,
   mockSNS: () => mockSNS,
   publish: () => publish,
   snsClient: () => snsClient
 });
 module.exports = __toCommonJS(src_exports);
+var import_client_sns4 = require("@aws-sdk/client-sns");
 
 // src/commands.ts
 var import_client_sns2 = require("@aws-sdk/client-sns");
@@ -73,12 +75,18 @@ var import_client_sns3 = require("@aws-sdk/client-sns");
 var import_utils2 = require("@awsless/utils");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_crypto = require("crypto");
+var globalList = {};
 var mockSNS = (topics) => {
+  const alreadyMocked = Object.keys(globalList).length > 0;
   const list = (0, import_utils2.mockObjectValues)(topics);
+  Object.assign(globalList, list);
+  if (alreadyMocked) {
+    return list;
+  }
   (0, import_aws_sdk_client_mock.mockClient)(import_client_sns3.SNSClient).on(import_client_sns3.PublishCommand).callsFake(async (input) => {
     const parts = input.TopicArn?.split(":") ?? "";
     const topic = parts[parts.length - 1] ?? "";
-    const callback = list[topic];
+    const callback = globalList[topic];
     if (!callback) {
       throw new TypeError(`Sns mock function not defined for: ${topic}`);
     }
@@ -104,6 +112,7 @@ var mockSNS = (topics) => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  SNSClient,
   mockSNS,
   publish,
   snsClient

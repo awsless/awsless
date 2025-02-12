@@ -75,9 +75,18 @@ class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T> {
 		)
 	}
 
+	private isDeletableValue(value: any) {
+		return (
+			// undefined value's should be deleted.
+			typeof value === 'undefined' ||
+			// empty set's should be deleted.
+			(value instanceof Set && value.size === 0)
+		)
+	}
+
 	/** Set a value */
 	set(value: InferValue<T, P>) {
-		if (typeof value === 'undefined') {
+		if (this.isDeletableValue(value)) {
 			return this.del()
 		}
 
@@ -86,6 +95,10 @@ class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T> {
 
 	/** Set a value if the attribute doesn't already exists */
 	setIfNotExists(value: InferValue<T, P>) {
+		if (this.isDeletableValue(value)) {
+			return this.del()
+		}
+
 		return this.u(
 			'set',
 			{ p: this.path },

@@ -40,13 +40,14 @@ module.exports = __toCommonJS(src_exports);
 __reExport(src_exports, require("valibot"), module.exports);
 
 // src/schema/json.ts
+var import_json = require("@awsless/json");
 var import_valibot = require("valibot");
 var json = (schema) => {
   return (0, import_valibot.transform)(
     (0, import_valibot.string)(),
     (value) => {
       try {
-        return JSON.parse(value);
+        return (0, import_json.parse)(value);
       } catch (error) {
         return null;
       }

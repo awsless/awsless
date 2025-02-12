@@ -2,6 +2,7 @@ import { Stack, URN } from '@awsless/formation'
 import { log } from '@clack/prompts'
 import chalk from 'chalk'
 import { Command } from 'commander'
+import wildstring from 'wildstring'
 import { createApp } from '../../../app.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { layout } from '../../ui/complex/layout.js'
@@ -33,8 +34,12 @@ export const list = (program: Command) => {
 				}
 
 				for (const stack of app.stacks) {
-					if (filters.length > 0 && !filters.includes(stack.name)) {
-						continue
+					if (filters.length > 0) {
+						const found = filters.find(f => wildstring.match(f, stack.name))
+
+						if (!found) {
+							continue
+						}
 					}
 
 					log.step(chalk.magenta(stack.name))

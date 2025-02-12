@@ -198,6 +198,7 @@ declare class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T
     constructor(query: ChainData<T>, path: P);
     private u;
     private i;
+    private isDeletableValue;
     /** Set a value */
     set(value: InferValue$1<T, P>): UpdateExpression<T>;
     /** Set a value if the attribute doesn't already exists */

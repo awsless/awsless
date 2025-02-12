@@ -8,7 +8,6 @@ import { FileError } from '../../error.js'
 
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
-import type { Mock } from 'vitest'
 
 type Publish<Name extends string> = {
 	readonly name: Name

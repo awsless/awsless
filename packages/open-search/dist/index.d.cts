@@ -5,28 +5,29 @@ import { Client as Client$1 } from '@opensearch-project/opensearch/.';
 import { Numeric, BigFloat } from '@awsless/big-float';
 
 type Type = 'keyword' | 'text' | 'double' | 'long' | 'boolean' | 'date';
-type AnyStruct = Struct<any, any, any>;
-type Props = {
+type AnySchema = Schema<any, any, any>;
+type Fields = Record<string, Mapping>;
+type Mapping = {
     type: Type;
-    fields?: {
-        sort: {
-            type: 'keyword';
-        };
-    };
+    fields?: Fields;
 } | {
-    properties: Record<string, Props>;
+    properties: Record<string, Mapping>;
 };
-declare class Struct<Encoded, Input, Output> {
+type SchemaProps = {
+    type?: Type;
+    fields?: Fields;
+};
+declare class Schema<Encoded, Input, Output> {
     readonly encode: (value: Input) => Encoded;
     readonly decode: (value: Encoded) => Output;
-    readonly props: Props;
+    readonly mapping: Mapping;
     readonly ENCODED: Encoded;
     readonly INPUT: Input;
     readonly OUTPUT: Output;
-    constructor(encode: (value: Input) => Encoded, decode: (value: Encoded) => Output, props: Props);
+    constructor(encode: (value: Input) => Encoded, decode: (value: Encoded) => Output, mapping: Mapping);
 }
 
-declare const searchClient: (options?: ClientOptions, service?: 'es' | 'aoss') => Client;
+declare const searchClient: (options?: ClientOptions, service?: "es" | "aoss") => Client;
 
 type Settings = Record<string, string | number | boolean>;
 
@@ -47,32 +48,15 @@ type Options$4 = {
 };
 declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
 
-type Table<I extends string, S extends AnyStruct> = {
+type Table<I extends string, S extends AnySchema> = {
     index: I;
     schema: S;
     client: () => Client$1;
 };
-type AnyTable = Table<string, AnyStruct>;
-declare const define: <I extends string, S extends AnyStruct>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
+type AnyTable = Table<string, AnySchema>;
+declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
 
 type Options$3 = {
-    refresh?: boolean;
-};
-declare const indexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"], { refresh }?: Options$3) => Promise<void>;
-
-type Options$2 = {
-    refresh?: boolean;
-};
-declare const deleteItem: <T extends AnyTable>(table: T, id: string, { refresh }?: Options$2) => Promise<void>;
-
-type Options$1 = {
-    refresh?: boolean;
-};
-declare const updateItem: <T extends AnyTable>(table: T, id: string, item: Partial<T["schema"]["INPUT"]>, { refresh }?: Options$1) => Promise<void>;
-
-declare const migrate: (table: AnyTable) => Promise<void>;
-
-type Options = {
     query?: unknown;
     aggs?: unknown;
     limit?: number;
@@ -85,40 +69,55 @@ type Response<T extends AnyTable> = {
     count: number;
     items: T['schema']['OUTPUT'][];
 };
-declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort }: Options) => Promise<Response<T>>;
+declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort }: Options$3) => Promise<Response<T>>;
 
-declare const array: <S extends AnyStruct>(struct: S) => Struct<S["ENCODED"][], S["INPUT"][], S["OUTPUT"][]>;
+type Options$2 = {
+    refresh?: boolean;
+};
+declare const indexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"], { refresh }?: Options$2) => Promise<void>;
 
-declare const bigfloat: () => Struct<string, Numeric, BigFloat>;
+type Options$1 = {
+    refresh?: boolean;
+};
+declare const deleteItem: <T extends AnyTable>(table: T, id: string, { refresh }?: Options$1) => Promise<void>;
 
-declare const bigint: () => Struct<string, bigint, bigint>;
+type Options = {
+    refresh?: boolean;
+};
+declare const updateItem: <T extends AnyTable>(table: T, id: string, item: Partial<T["schema"]["INPUT"]>, { refresh }?: Options) => Promise<void>;
 
-declare const boolean: () => Struct<boolean, boolean, boolean>;
+declare const createIndex: (table: AnyTable) => Promise<void>;
 
-declare const date: () => Struct<string, Date, Date>;
+declare const deleteIndex: (table: AnyTable) => Promise<void>;
 
-declare const enums: <T extends string>() => Struct<string, T, T>;
+declare const array: <S extends AnySchema>(struct: S) => Schema<S["ENCODED"][], S["INPUT"][], S["OUTPUT"][]>;
 
-declare const number: () => Struct<string, number, number>;
+declare const bigfloat: (props?: SchemaProps) => Schema<string, Numeric, BigFloat>;
 
-type Schema = Record<string, AnyStruct>;
-type InferInput<S extends Schema> = {
+declare const bigint: (props?: SchemaProps) => Schema<string, bigint, bigint>;
+
+declare const boolean: (props?: SchemaProps) => Schema<boolean, boolean, boolean>;
+
+declare const date: (props?: SchemaProps) => Schema<string, Date, Date>;
+
+declare const number: (props?: SchemaProps) => Schema<string, number, number>;
+
+type Entries = Record<string, AnySchema>;
+type InferInput<S extends Entries> = {
     [K in keyof S]: S[K]['INPUT'];
 };
-type InferOutput<S extends Schema> = {
+type InferOutput<S extends Entries> = {
     [K in keyof S]: S[K]['OUTPUT'];
 };
-type InferEncoded<S extends Schema> = {
+type InferEncoded<S extends Entries> = {
     [K in keyof S]: S[K]['ENCODED'];
 };
-declare const object: <S extends Schema>(schema: S) => Struct<InferEncoded<S>, InferInput<S>, InferOutput<S>>;
+declare const object: <T extends Entries>(entries: T) => Schema<InferEncoded<T>, InferInput<T>, InferOutput<T>>;
 
-declare const set: <S extends AnyStruct>(struct: S) => Struct<S["ENCODED"][], Set<S["INPUT"]>, Set<S["OUTPUT"]>>;
+declare const set: <S extends AnySchema>(struct: S) => Schema<S["ENCODED"][], Set<S["INPUT"]>, Set<S["OUTPUT"]>>;
 
-declare const string: () => Struct<string, string, string>;
+declare const string: <T extends string>(props?: SchemaProps) => Schema<string, T, T>;
 
-declare const uuid: () => Struct<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
+declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-declare const version = "2";
-
-export { AnyStruct, AnyTable, Props, Struct, Table, array, bigfloat, bigint, boolean, date, define, deleteItem, enums, indexItem, migrate, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid, version };
+export { type AnySchema, type AnyTable, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };

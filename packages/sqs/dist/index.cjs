@@ -30,12 +30,14 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  SQSClient: () => import_client_sqs4.SQSClient,
   mockSQS: () => mockSQS,
   sendMessage: () => sendMessage,
   sendMessageBatch: () => sendMessageBatch,
   sqsClient: () => sqsClient
 });
 module.exports = __toCommonJS(src_exports);
+var import_client_sqs4 = require("@aws-sdk/client-sqs");
 
 // src/client.ts
 var import_client_sqs = require("@aws-sdk/client-sqs");
@@ -109,11 +111,11 @@ var sendMessageBatch = async ({ client = sqsClient(), queue, items }) => {
 // src/mock.ts
 var import_client_sqs3 = require("@aws-sdk/client-sqs");
 var import_utils2 = require("@awsless/utils");
-var import_crypto = require("crypto");
 var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_crypto = require("crypto");
 var formatAttributes2 = (attributes) => {
   const list = {};
-  for (let key in attributes) {
+  for (const key in attributes) {
     list[key] = {
       dataType: attributes[key].DataType,
       stringValue: attributes[key].StringValue
@@ -161,6 +163,7 @@ var mockSQS = (queues) => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  SQSClient,
   mockSQS,
   sendMessage,
   sendMessageBatch,

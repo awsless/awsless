@@ -67,7 +67,10 @@ export type BindEnv = {
 
 export const createApp = (props: CreateAppProps) => {
 	const app = new App(props.appConfig.name)
+	app.setTag('app', app.name)
+
 	const base = new Stack(app, 'base')
+	base.setTag('stack', base.name)
 
 	const shared = new SharedData()
 	const appId = generateGlobalAppId({
@@ -181,6 +184,7 @@ export const createApp = (props: CreateAppProps) => {
 		// checkDepsExists(stackConfig, props.stackConfigs)
 
 		const stack = new Stack(app, stackConfig.name)
+		stack.setTag('stack', stack.name)
 
 		const stackPolicyListeners: OnPolicyListener[] = []
 		const stackPolicies: aws.iam.RolePolicy[] = []

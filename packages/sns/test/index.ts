@@ -5,6 +5,10 @@ describe('SNS', () => {
 		test: () => {},
 	})
 
+	const mock2 = mockSNS({
+		extend: () => {},
+	})
+
 	it('should send a notification', async () => {
 		await publish({
 			topic: 'test',
@@ -12,5 +16,14 @@ describe('SNS', () => {
 		})
 
 		expect(mock.test).toBeCalledTimes(1)
+	})
+
+	it('should allow the extension', async () => {
+		await publish({
+			topic: 'extend',
+			payload: 'Hello World',
+		})
+
+		expect(mock2.extend).toBeCalledTimes(1)
 	})
 })

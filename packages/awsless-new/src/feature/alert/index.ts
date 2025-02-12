@@ -7,10 +7,13 @@ import { formatGlobalResourceName } from '../../util/name.js'
 const typeGenCode = `
 import type { PublishOptions } from '@awsless/sns'
 
-type Publish<Name extends string> = {
+type Alert<Name extends string> = {
 	readonly name: Name
-	(payload: string, options?: Omit<PublishOptions, 'topic' | 'payload'>): Promise<void>
+	(subject: string, payload?: unknown, options?: Omit<PublishOptions, 'subject' | 'topic' | 'payload'>): Promise<void>
 }
+
+type MockHandle = (payload: unknown) => void
+type MockBuilder = (handle?: MockHandle) => void
 `
 
 export const alertFeature = defineFeature({
@@ -18,6 +21,8 @@ export const alertFeature = defineFeature({
 	async onTypeGen(ctx) {
 		const gen = new TypeFile('@awsless/awsless')
 		const resources = new TypeObject(1)
+		const mocks = new TypeObject(1)
+		const mockResponses = new TypeObject(1)
 
 		for (const alert of Object.keys(ctx.appConfig.defaults.alerts ?? {})) {
 			const name = formatGlobalResourceName({
@@ -26,17 +31,21 @@ export const alertFeature = defineFeature({
 				resourceName: alert,
 			})
 
-			resources.addType(alert, `Publish<'${name}'>`)
+			resources.addType(alert, `Alert<'${name}'>`)
+			mockResponses.addType(alert, 'Mock')
+			mocks.addType(alert, `MockBuilder`)
 		}
 
 		gen.addCode(typeGenCode)
 		gen.addInterface('AlertResources', resources)
+		gen.addInterface('AlertMock', mocks)
+		gen.addInterface('AlertMockResponse', mockResponses)
 
 		await ctx.write('alert.d.ts', gen, true)
 	},
 	onApp(ctx) {
 		for (const [id, emails] of Object.entries(ctx.appConfig.defaults.alerts ?? {})) {
-			const group = new Node(ctx.base, 'topic', id)
+			const group = new Node(ctx.base, 'alert', id)
 			const name = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
 				resourceType: 'alert',

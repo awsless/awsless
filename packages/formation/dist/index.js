@@ -3823,16 +3823,14 @@ var DomainConfiguration = class extends CloudControlApiResource {
         ServiceType: constantCase3(unwrap(this.props.type, "data")),
         ApplicationProtocol: constantCase3(unwrap(this.props.protocol, "default")),
         AuthenticationType: constantCase3(unwrap(this.props.authenticationType, "default")),
-        // ...(this.props.domainName
-        // 	? {
-        // 			...this.attr('DomainName', this.props.domainName),
-        // 			...this.attr('ValidationCertificateArn', this.props.validationCertificate),
-        // 			...this.attr('ServerCertificateArns', this.props.certificates),
-        // 			ServerCertificateConfig: {
-        // 				EnableOCSPCheck: unwrap(this.props.enableOCSP, false),
-        // 			},
-        // 		}
-        // 	: {}),
+        ...this.props.domainName ? {
+          ...this.attr("DomainName", this.props.domainName),
+          ...this.attr("ValidationCertificateArn", this.props.validationCertificate),
+          ...this.attr("ServerCertificateArns", this.props.certificates),
+          ServerCertificateConfig: {
+            EnableOCSPCheck: unwrap(this.props.enableOCSP, false)
+          }
+        } : {},
         ...this.props.authorizer ? {
           AuthorizerConfig: {
             DefaultAuthorizerName: unwrap(this.props.authorizer).name,
@@ -4114,7 +4112,7 @@ var Function = class extends CloudControlApiResource {
     }
     const code = unwrap(this.props.code);
     const nativeProps = {
-      Runtime: unwrap(this.props.runtime, "nodejs18.x"),
+      Runtime: unwrap(this.props.runtime, "nodejs22.x"),
       Handler: unwrap(this.props.handler, "index.default")
     };
     const containerProps = {

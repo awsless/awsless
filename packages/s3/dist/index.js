@@ -1,3 +1,6 @@
+// src/index.ts
+import { S3Client as S3Client4, StorageClass as StorageClass2 } from "@aws-sdk/client-s3";
+
 // src/client.ts
 import { S3Client } from "@aws-sdk/client-s3";
 import { globalClient } from "@awsless/utils";
@@ -287,6 +290,8 @@ var mockS3 = () => {
   return fn;
 };
 export {
+  S3Client4 as S3Client,
+  StorageClass2 as StorageClass,
   copyObject,
   createSignedDownloadUrl,
   createSignedUploadUrl,

@@ -15,7 +15,7 @@ export type FunctionProps = {
 	code: Input<Code>
 	role: Input<ARN>
 	description?: Input<string>
-	runtime?: Input<'nodejs18.x' | 'nodejs20.x'>
+	runtime?: Input<'nodejs18.x' | 'nodejs20.x' | 'nodejs22.x'>
 	handler?: Input<string>
 	architecture?: Input<'arm64' | 'x86_64'>
 	memorySize?: Input<Size>
@@ -121,7 +121,7 @@ export class Function extends CloudControlApiResource {
 		const code = unwrap(this.props.code)
 
 		const nativeProps = {
-			Runtime: unwrap(this.props.runtime, 'nodejs18.x'),
+			Runtime: unwrap(this.props.runtime, 'nodejs22.x'),
 			Handler: unwrap(this.props.handler, 'index.default'),
 		}
 

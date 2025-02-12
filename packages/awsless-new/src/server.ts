@@ -8,6 +8,7 @@ export { CommandContext, CommandHandler, CommandOptions } from './command.js'
 // export { topic, TopicProps } from './lib/handle/topic.js'
 
 // Mocks
+export * from './lib/mock/alert.js'
 export * from './lib/mock/function.js'
 export * from './lib/mock/pubsub.js'
 export * from './lib/mock/queue.js'

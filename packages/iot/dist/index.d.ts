@@ -1,4 +1,5 @@
 import { IoTDataPlaneClient } from '@aws-sdk/client-iot-data-plane';
+export { IoTDataPlaneClient } from '@aws-sdk/client-iot-data-plane';
 import { Mock } from 'vitest';
 
 declare enum QoS {
@@ -23,4 +24,4 @@ declare const iotClient: {
     set(client: IoTDataPlaneClient): void;
 };
 
-export { PublishProps, QoS, iotClient, mockIoT, publish };
+export { type PublishProps, QoS, iotClient, mockIoT, publish };

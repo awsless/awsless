@@ -20,12 +20,14 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var src_exports = {};
 __export(src_exports, {
+  IoTDataPlaneClient: () => import_client_iot_data_plane4.IoTDataPlaneClient,
   QoS: () => QoS,
   iotClient: () => iotClient,
   mockIoT: () => mockIoT,
   publish: () => publish
 });
 module.exports = __toCommonJS(src_exports);
+var import_client_iot_data_plane4 = require("@aws-sdk/client-iot-data-plane");
 
 // src/commands.ts
 var import_client_iot_data_plane2 = require("@aws-sdk/client-iot-data-plane");
@@ -68,6 +70,7 @@ var mockIoT = () => {
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  IoTDataPlaneClient,
   QoS,
   iotClient,
   mockIoT,

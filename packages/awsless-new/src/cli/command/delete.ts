@@ -1,5 +1,6 @@
 import { confirm, isCancel } from '@clack/prompts'
 import { Command } from 'commander'
+import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
@@ -25,7 +26,13 @@ export const del = (program: Command) => {
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 
 				// const deletingLine = deploymentLine.reverse()
-				const stackNames = app.stacks.filter(stack => filters.includes(stack.name)).map(s => s.name)
+				// const stackNames = app.stacks.filter(stack => filters.includes(stack.name)).map(s => s.name)
+				const stackNames = app.stacks
+					.filter(stack => {
+						return !!filters.find(f => wildstring.match(f, stack.name))
+					})
+					.map(s => s.name)
+
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
 
 				debug('Stacks to delete', formattedFilter)

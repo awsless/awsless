@@ -2,6 +2,7 @@ import { log } from '@clack/prompts'
 import chalk from 'chalk'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
+import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
 import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
 import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
@@ -173,7 +174,9 @@ export const runTest = async (stack: string, dir: string, filters: string[]) => 
 export const runTests = async (tests: TestCase[], stackFilters: string[] = [], testFilters: string[] = []) => {
 	for (const test of tests) {
 		if (stackFilters && stackFilters.length > 0) {
-			if (!stackFilters.includes(test.stackName)) {
+			const found = stackFilters.find(f => wildstring.match(f, test.stackName))
+
+			if (!found) {
 				continue
 			}
 		}

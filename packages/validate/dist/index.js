@@ -2,13 +2,14 @@
 export * from "valibot";
 
 // src/schema/json.ts
+import { parse } from "@awsless/json";
 import { string, transform } from "valibot";
 var json = (schema) => {
   return transform(
     string(),
     (value) => {
       try {
-        return JSON.parse(value);
+        return parse(value);
       } catch (error) {
         return null;
       }
@@ -98,14 +99,14 @@ var uuid = (error) => {
 
 // src/schema/duration.ts
 import { defaultArgs as defaultArgs4, regex as regex2, string as string6, transform as transform6 } from "valibot";
-import { parse } from "@awsless/duration";
+import { parse as parse2 } from "@awsless/duration";
 function duration(arg1, arg2) {
   const [msg, pipe] = defaultArgs4(arg1, arg2);
   const error = msg ?? "Invalid duration";
   return transform6(
     string6(error, [regex2(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
     (value) => {
-      return parse(value);
+      return parse2(value);
     },
     pipe
   );

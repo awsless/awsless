@@ -1,3 +1,6 @@
+// src/index.ts
+import { SQSClient as SQSClient4 } from "@aws-sdk/client-sqs";
+
 // src/client.ts
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { globalClient } from "@awsless/utils";
@@ -73,17 +76,17 @@ var sendMessageBatch = async ({ client = sqsClient(), queue, items }) => {
 
 // src/mock.ts
 import {
-  SQSClient as SQSClient3,
-  SendMessageCommand as SendMessageCommand2,
   GetQueueUrlCommand as GetQueueUrlCommand2,
-  SendMessageBatchCommand as SendMessageBatchCommand2
+  SQSClient as SQSClient3,
+  SendMessageBatchCommand as SendMessageBatchCommand2,
+  SendMessageCommand as SendMessageCommand2
 } from "@aws-sdk/client-sqs";
 import { mockObjectValues, nextTick } from "@awsless/utils";
-import { randomUUID } from "crypto";
 import { mockClient } from "aws-sdk-client-mock";
+import { randomUUID } from "crypto";
 var formatAttributes2 = (attributes) => {
   const list = {};
-  for (let key in attributes) {
+  for (const key in attributes) {
     list[key] = {
       dataType: attributes[key].DataType,
       stringValue: attributes[key].StringValue
@@ -130,6 +133,7 @@ var mockSQS = (queues) => {
   return list;
 };
 export {
+  SQSClient4 as SQSClient,
   mockSQS,
   sendMessage,
   sendMessageBatch,

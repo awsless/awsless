@@ -240,8 +240,10 @@ describe('Schema', () => {
 						.set({ key: '2' })
 						.update('any')
 						.set({ id: 2 })
+						// .update('sets', 'empty')
+						// .append(new Set(['foo']))
 						.update('sets', 'empty')
-						.append(new Set(['foo']))
+						.set(new Set())
 						.update('sets', 'string')
 						.set(new Set(['2']))
 						.update('sets', 'number')
@@ -278,7 +280,7 @@ describe('Schema', () => {
 			},
 			any: { id: 2 },
 			sets: {
-				empty: new Set(['foo']),
+				empty: new Set(),
 				string: new Set(['2']),
 				number: new Set([2]),
 				bigint: new Set([2n]),

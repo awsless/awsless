@@ -1,4 +1,5 @@
 import { SNSClient } from '@aws-sdk/client-sns';
+export { SNSClient } from '@aws-sdk/client-sns';
 import { Mock } from 'vitest';
 
 type Attributes = {

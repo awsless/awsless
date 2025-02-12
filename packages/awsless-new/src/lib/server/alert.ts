@@ -1,3 +1,4 @@
+import { stringify } from '@awsless/json'
 import { PublishOptions, publish } from '@awsless/sns'
 import { createProxy } from '../proxy.js'
 import { bindGlobalResourceName } from './util.js'
@@ -12,14 +13,14 @@ export const Alert: AlertResources = /*@__PURE__*/ createProxy(name => {
 	const ctx: Record<string, any> = {
 		[topic]: async (
 			subject: string,
-			payload?: string,
+			payload?: unknown,
 			options: Omit<PublishOptions, 'subject' | 'topic' | 'payload'> = {}
 		) => {
 			await publish({
 				...options,
 				topic,
 				subject,
-				payload,
+				payload: typeof payload === 'string' || typeof payload === 'undefined' ? payload : stringify(payload),
 			})
 		},
 	}

@@ -1,6 +1,6 @@
 import type * as Types from '@opensearch-project/opensearch/api/types'
 export type { Types }
-export type { AnyStruct, Struct, Props } from './structs/struct'
+export type { AnySchema, Schema, SchemaProps, Mapping } from './schema/schema'
 
 export { searchClient } from './client'
 
@@ -11,23 +11,22 @@ export { mockOpenSearch } from './mock'
 export { define, Table, AnyTable } from './table'
 
 // ops
+export { search } from './ops/search'
 export { indexItem } from './ops/index-item'
 export { deleteItem } from './ops/delete-item'
 export { updateItem } from './ops/update-item'
-export { migrate } from './ops/migrate'
-export { search } from './ops/search'
+export { createIndex } from './ops/create-index'
+export { deleteIndex } from './ops/delete-index'
 
 // types
-export { array } from './structs/array'
-export { bigfloat } from './structs/bigfloat'
-export { bigint } from './structs/bigint'
-export { boolean } from './structs/boolean'
-export { date } from './structs/date'
-export { enums } from './structs/enums'
-export { number } from './structs/number'
-export { object } from './structs/object'
-export { set } from './structs/set'
-export { string } from './structs/string'
-export { uuid } from './structs/uuid'
-
-export const version = '2'
+export { array } from './schema/array'
+export { bigfloat } from './schema/bigfloat'
+export { bigint } from './schema/bigint'
+export { boolean } from './schema/boolean'
+export { date } from './schema/date'
+// export { enums } from './structs/__enums'
+export { number } from './schema/number'
+export { object } from './schema/object'
+export { set } from './schema/set'
+export { string } from './schema/string'
+export { uuid } from './schema/uuid'
