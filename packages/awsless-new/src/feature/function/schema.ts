@@ -156,9 +156,9 @@ export const LogSchema = z
 	])
 	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
-const LayersSchema = ResourceIdSchema.array().describe(
-	`A list of function layers to add to the function's execution environment.`
-	// `A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
+const LayersSchema = z.string().array().describe(
+	// `A list of function layers to add to the function's execution environment..`
+	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
 )
 
 const BuildSchema = z

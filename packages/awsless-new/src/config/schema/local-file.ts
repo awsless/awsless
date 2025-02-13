@@ -1,7 +1,7 @@
 import { stat } from 'fs/promises'
+import { join } from 'path'
 import { z } from 'zod'
 import { directories } from '../../util/path.js'
-import { join } from 'path'
 
 let basePath: string | undefined
 

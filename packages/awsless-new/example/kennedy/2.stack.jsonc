@@ -1,11 +1,11 @@
 {
-	"$schema": "../../dist/stack.json",
+	"$schema": "https://unpkg.com/@awsless/awsless/dist/stack.json",
 	"name": "stack-kennedy-2",
 	"depends": ["stack-kennedy-1"],
-	"configs": ["config-2"],
-	"functions": {
-		"test": "./function.ts"
-	}
+	"configs": ["config-2"]
+	// "functions": {
+	// 	"test": "./function.ts"
+	// }
 	// "rpc": {
 	// 	"test": {
 	// 		"test": "./function.ts"

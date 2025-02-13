@@ -1,7 +1,14 @@
 {
-	"$schema": "../../dist/stack.json",
+	"$schema": "https://unpkg.com/@awsless/awsless/dist/stack.json",
 	"name": "stack-kennedy-1",
 	"configs": ["config-1"],
+	"functions": {
+		"test": {
+			"file": "./function.ts"
+			// "layers": ["sharp"]
+		}
+	}
+
 	// "rpc": {
 	// 	"test": {
 	// 		"test": "./function.ts"
@@ -26,11 +33,11 @@
 	// 		}
 	// 	}
 	// }
-	"searchs": {
-		"test": {
-			"type": "t3.small",
-			"count": 1
-			// "vpc": true
-		}
-	}
+	// "searchs": {
+	// 	"test": {
+	// 		"type": "t3.small",
+	// 		"count": 1
+	// 		// "vpc": true
+	// 	}
+	// }
 }

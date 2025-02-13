@@ -6,6 +6,7 @@ import { FunctionDefaultSchema } from '../feature/function/schema.js'
 import { GraphQLDefaultSchema } from '../feature/graphql/schema.js'
 import { HttpDefaultSchema } from '../feature/http/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
+import { LayerSchema } from '../feature/layer/schema.js'
 import { OnFailureDefaultSchema } from '../feature/on-failure/schema.js'
 import { OnLogDefaultSchema } from '../feature/on-log/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
@@ -50,6 +51,7 @@ export const AppSchema = z.object({
 			table: TableDefaultSchema,
 			store: StoreDefaultSchema,
 			alerts: AlertsDefaultSchema,
+			layers: LayerSchema,
 			// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
 		})
 		.default({})
