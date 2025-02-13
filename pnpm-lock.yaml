@@ -605,7 +605,7 @@ importers:
         version: 4.9.5
       vite:
         specifier: ^4.1.4
-        version: 4.1.4(@types/node@18.13.0)(stylus@0.59.0)(terser@5.16.3)
+        version: 4.1.4(@types/node@20.4.1)(stylus@0.59.0)(terser@5.16.3)
       vitest:
         specifier: ^0.30.1
         version: 0.30.1(stylus@0.59.0)(terser@5.16.3)
@@ -621,13 +621,13 @@ importers:
         version: 9.0.0
       jest:
         specifier: ^29.4.2
-        version: 29.4.2(@types/node@18.13.0)
+        version: 29.4.2(@types/node@20.4.1)
       preact:
         specifier: ^10.12.1
         version: 10.12.1
       ts-jest:
         specifier: ^29.0.3
-        version: 29.0.5(@babel/core@7.20.12)(@jest/types@29.4.2)(babel-jest@29.4.2(@babel/core@7.20.12))(esbuild@0.23.1)(jest@29.4.2(@types/node@18.13.0))(typescript@4.9.5)
+        version: 29.0.5(@babel/core@7.20.12)(@jest/types@29.4.2)(babel-jest@29.4.2(@babel/core@7.20.12))(esbuild@0.23.1)(jest@29.4.2(@types/node@20.4.1))(typescript@4.9.5)
       uuid:
         specifier: ^9.0.0
         version: 9.0.0
@@ -9883,8 +9883,8 @@ snapshots:
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.569.0(@aws-sdk/client-sts@3.569.0)
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sso-oidc': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/core': 3.567.0
       '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)
       '@aws-sdk/middleware-host-header': 3.567.0
@@ -11325,11 +11325,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-sso-oidc@3.569.0(@aws-sdk/client-sts@3.569.0)':
+  '@aws-sdk/client-sso-oidc@3.569.0':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/core': 3.567.0
       '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)
       '@aws-sdk/middleware-host-header': 3.567.0
@@ -11368,7 +11368,6 @@ snapshots:
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
-      - '@aws-sdk/client-sts'
       - aws-crt
 
   '@aws-sdk/client-sso-oidc@3.582.0':
@@ -12521,11 +12520,11 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
-  '@aws-sdk/client-sts@3.569.0':
+  '@aws-sdk/client-sts@3.569.0(@aws-sdk/client-sso-oidc@3.569.0)':
     dependencies:
       '@aws-crypto/sha256-browser': 3.0.0
       '@aws-crypto/sha256-js': 3.0.0
-      '@aws-sdk/client-sso-oidc': 3.569.0(@aws-sdk/client-sts@3.569.0)
+      '@aws-sdk/client-sso-oidc': 3.569.0
       '@aws-sdk/core': 3.567.0
       '@aws-sdk/credential-provider-node': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)
       '@aws-sdk/middleware-host-header': 3.567.0
@@ -12564,6 +12563,7 @@ snapshots:
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
+      - '@aws-sdk/client-sso-oidc'
       - aws-crt
 
   '@aws-sdk/client-sts@3.582.0(@aws-sdk/client-sso-oidc@3.582.0)':
@@ -13095,7 +13095,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-ini@3.568.0(@aws-sdk/client-sso-oidc@3.569.0)(@aws-sdk/client-sts@3.569.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/credential-provider-env': 3.568.0
       '@aws-sdk/credential-provider-process': 3.568.0
       '@aws-sdk/credential-provider-sso': 3.568.0(@aws-sdk/client-sso-oidc@3.569.0)
@@ -13752,7 +13752,7 @@ snapshots:
 
   '@aws-sdk/credential-provider-web-identity@3.568.0(@aws-sdk/client-sts@3.569.0)':
     dependencies:
-      '@aws-sdk/client-sts': 3.569.0
+      '@aws-sdk/client-sts': 3.569.0(@aws-sdk/client-sso-oidc@3.569.0)
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/types': 3.0.0
@@ -15020,7 +15020,7 @@ snapshots:
 
   '@aws-sdk/token-providers@3.568.0(@aws-sdk/client-sso-oidc@3.569.0)':
     dependencies:
-      '@aws-sdk/client-sso-oidc': 3.569.0(@aws-sdk/client-sts@3.569.0)
+      '@aws-sdk/client-sso-oidc': 3.569.0
       '@aws-sdk/types': 3.567.0
       '@smithy/property-provider': 2.2.0
       '@smithy/shared-ini-file-loader': 2.4.0
@@ -20854,7 +20854,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  jest-cli@29.4.2(@types/node@18.13.0):
+  jest-cli@29.4.2(@types/node@20.4.1):
     dependencies:
       '@jest/core': 29.4.2
       '@jest/test-result': 29.4.2
@@ -20863,7 +20863,7 @@ snapshots:
       exit: 0.1.2
       graceful-fs: 4.2.10
       import-local: 3.1.0
-      jest-config: 29.4.2(@types/node@18.13.0)
+      jest-config: 29.4.2(@types/node@20.4.1)
       jest-util: 29.4.2
       jest-validate: 29.4.2
       prompts: 2.4.2
@@ -20872,35 +20872,6 @@ snapshots:
       - '@types/node'
       - supports-color
       - ts-node
-
-  jest-config@29.4.2(@types/node@18.13.0):
-    dependencies:
-      '@babel/core': 7.20.12
-      '@jest/test-sequencer': 29.4.2
-      '@jest/types': 29.4.2
-      babel-jest: 29.4.2(@babel/core@7.20.12)
-      chalk: 4.1.2
-      ci-info: 3.7.1
-      deepmerge: 4.3.1
-      glob: 7.1.6
-      graceful-fs: 4.2.10
-      jest-circus: 29.4.2
-      jest-environment-node: 29.4.2
-      jest-get-type: 29.4.2
-      jest-regex-util: 29.4.2
-      jest-resolve: 29.4.2
-      jest-runner: 29.4.2
-      jest-util: 29.4.2
-      jest-validate: 29.4.2
-      micromatch: 4.0.5
-      parse-json: 5.2.0
-      pretty-format: 29.7.0
-      slash: 3.0.0
-      strip-json-comments: 3.1.1
-    optionalDependencies:
-      '@types/node': 18.13.0
-    transitivePeerDependencies:
-      - supports-color
 
   jest-config@29.4.2(@types/node@20.4.1):
     dependencies:
@@ -21151,12 +21122,12 @@ snapshots:
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
-  jest@29.4.2(@types/node@18.13.0):
+  jest@29.4.2(@types/node@20.4.1):
     dependencies:
       '@jest/core': 29.4.2
       '@jest/types': 29.4.2
       import-local: 3.1.0
-      jest-cli: 29.4.2(@types/node@18.13.0)
+      jest-cli: 29.4.2(@types/node@20.4.1)
     transitivePeerDependencies:
       - '@types/node'
       - supports-color
@@ -22372,7 +22343,7 @@ snapshots:
   stylus@0.59.0:
     dependencies:
       '@adobe/css-tools': 4.1.0
-      debug: 4.3.4
+      debug: 4.3.6
       glob: 7.1.6
       sax: 1.2.4
       source-map: 0.7.4
@@ -22491,7 +22462,7 @@ snapshots:
   terser@5.16.3:
     dependencies:
       '@jridgewell/source-map': 0.3.2
-      acorn: 8.8.2
+      acorn: 8.11.3
       commander: 2.20.3
       source-map-support: 0.5.21
 
@@ -22560,11 +22531,11 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  ts-jest@29.0.5(@babel/core@7.20.12)(@jest/types@29.4.2)(babel-jest@29.4.2(@babel/core@7.20.12))(esbuild@0.23.1)(jest@29.4.2(@types/node@18.13.0))(typescript@4.9.5):
+  ts-jest@29.0.5(@babel/core@7.20.12)(@jest/types@29.4.2)(babel-jest@29.4.2(@babel/core@7.20.12))(esbuild@0.23.1)(jest@29.4.2(@types/node@20.4.1))(typescript@4.9.5):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
-      jest: 29.4.2(@types/node@18.13.0)
+      jest: 29.4.2(@types/node@20.4.1)
       jest-util: 29.4.2
       json5: 2.2.3
       lodash.memoize: 4.1.2
@@ -22803,14 +22774,14 @@ snapshots:
       - supports-color
       - terser
 
-  vite@4.1.4(@types/node@18.13.0)(stylus@0.59.0)(terser@5.16.3):
+  vite@4.1.4(@types/node@20.4.1)(stylus@0.59.0)(terser@5.16.3):
     dependencies:
       esbuild: 0.16.17
       postcss: 8.4.23
       resolve: 1.22.1
       rollup: 3.22.0
     optionalDependencies:
-      '@types/node': 18.13.0
+      '@types/node': 20.4.1
       fsevents: 2.3.3
       stylus: 0.59.0
       terser: 5.16.3

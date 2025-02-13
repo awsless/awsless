@@ -93,7 +93,10 @@ export const createLambdaFunction = (
 
 				const bundle = await bundleTypeScript({
 					file: local.file,
-					external: props.build.external,
+					external: [
+						...(props.build.external ?? []),
+						...(props.layers ?? []).flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
+					],
 					minify: props.build.minify,
 					nativeDir: temp.path,
 				})
@@ -167,6 +170,7 @@ export const createLambdaFunction = (
 		role: role.arn,
 		code,
 		runtime: props.runtime === 'container' ? undefined : props.runtime,
+		layers: (props.layers ?? []).map(id => ctx.shared.get(`layer-${id}-arn`)),
 
 		// Remove conflicting props.
 		vpc: undefined,

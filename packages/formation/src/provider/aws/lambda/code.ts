@@ -14,12 +14,14 @@ import { Input } from '../../../core/output'
 // 			zipFile: Input<string>
 // 	  }
 
+export type S3Code = {
+	bucket: Input<string>
+	key: Input<string>
+	version?: Input<string | undefined>
+}
+
 export type Code =
-	| {
-			bucket: Input<string>
-			key: Input<string>
-			version?: Input<string | undefined>
-	  }
+	| S3Code
 	| {
 			imageUri: Input<string>
 	  }

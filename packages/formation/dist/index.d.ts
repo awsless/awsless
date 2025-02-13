@@ -2557,11 +2557,12 @@ declare namespace index$l {
   };
 }
 
-type Code = {
+type S3Code = {
     bucket: Input<string>;
     key: Input<string>;
     version?: Input<string | undefined>;
-} | {
+};
+type Code = S3Code | {
     imageUri: Input<string>;
 } | {
     zipFile: Input<string>;
@@ -2790,6 +2791,47 @@ declare class Function extends CloudControlApiResource {
     };
 }
 
+type LayerProps = {
+    name: Input<string>;
+    code: Input<S3Code>;
+    description?: Input<string>;
+    architectures?: Input<'arm64' | 'x86_64'>[];
+    runtimes?: Input<'nodejs18.x' | 'nodejs20.x' | 'nodejs22.x'>[];
+};
+declare class Layer extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: LayerProps);
+    get arn(): Output<`arn:${string}`>;
+    toState(): {
+        document: {
+            LayerName: Input<string>;
+            Description: Input<string> | undefined;
+            Content: {
+                S3Bucket: Input<string>;
+                S3Key: Input<string>;
+                S3ObjectVersion: Input<string | undefined>;
+                ImageUri?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ImageUri: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ZipFile?: undefined;
+            } | {
+                ZipFile: Input<string>;
+                S3Bucket?: undefined;
+                S3Key?: undefined;
+                S3ObjectVersion?: undefined;
+                ImageUri?: undefined;
+            };
+            CompatibleArchitectures: Input<"arm64" | "x86_64">[] | undefined;
+            CompatibleRuntimes: Input<"nodejs18.x" | "nodejs20.x" | "nodejs22.x">[] | undefined;
+        };
+    };
+}
+
 type PermissionProps = {
     functionArn: Input<ARN>;
     action?: Input<string>;
@@ -2928,9 +2970,13 @@ type index$k_EventSourceMappingProps = EventSourceMappingProps;
 type index$k_Function = Function;
 declare const index$k_Function: typeof Function;
 type index$k_FunctionProps = FunctionProps;
+type index$k_Layer = Layer;
+declare const index$k_Layer: typeof Layer;
+type index$k_LayerProps = LayerProps;
 type index$k_Permission = Permission;
 declare const index$k_Permission: typeof Permission;
 type index$k_PermissionProps = PermissionProps;
+type index$k_S3Code = S3Code;
 type index$k_SourceCodeUpdate = SourceCodeUpdate;
 declare const index$k_SourceCodeUpdate: typeof SourceCodeUpdate;
 type index$k_SourceCodeUpdateProps = SourceCodeUpdateProps;
@@ -2950,8 +2996,11 @@ declare namespace index$k {
     index$k_EventSourceMappingProps as EventSourceMappingProps,
     index$k_Function as Function,
     index$k_FunctionProps as FunctionProps,
+    index$k_Layer as Layer,
+    index$k_LayerProps as LayerProps,
     index$k_Permission as Permission,
     index$k_PermissionProps as PermissionProps,
+    index$k_S3Code as S3Code,
     index$k_SourceCodeUpdate as SourceCodeUpdate,
     index$k_SourceCodeUpdateProps as SourceCodeUpdateProps,
     index$k_SourceCodeUpdateProvider as SourceCodeUpdateProvider,

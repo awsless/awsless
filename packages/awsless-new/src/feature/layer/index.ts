@@ -1,22 +1,19 @@
-// import { camelCase } from 'change-case'
-// import { relative } from 'path'
-// import { FunctionSchema } from './schema.js'
-import { aws, Node } from '@awsless/formation'
+import { Asset, aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { days } from '@awsless/duration'
+import { LayerProps } from './schema.js'
 
 export const layerFeature = defineFeature({
 	name: 'layer',
 	onBefore(ctx) {
-		const group = new Node(ctx.base, 'function', 'asset')
+		const group = new Node(ctx.base, 'layer', 'asset')
 
 		// ------------------------------------------------------
 
 		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
-				resourceType: 'function',
+				resourceType: 'layer',
 				resourceName: 'assets',
 				postfix: ctx.appId,
 			}),
@@ -24,44 +21,43 @@ export const layerFeature = defineFeature({
 			forceDelete: true,
 		})
 
-		ctx.shared.set('function-bucket-name', bucket.name)
-
-		// ------------------------------------------------------
-
-		const repository = new aws.ecr.Repository(group, 'repository', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'function',
-				resourceName: 'repository',
-				seperator: '-',
-			}),
-			imageTagMutability: true,
-		})
-
-		repository.addLifecycleRule({
-			description: 'Remove untagged images older then 1 day',
-			tagStatus: 'untagged',
-			maxImageAge: days(1),
-		})
-
-		ctx.shared.set('function-repository-name', repository.name)
-		ctx.shared.set('function-repository-uri', repository.uri)
+		ctx.shared.set('layer-bucket-name', bucket.name)
 	},
 	onApp(ctx) {
-		// ------------------------------------------------------
-		// Give lambda access to all policies inside your app.
+		const layers = Object.entries(ctx.appConfig.defaults.layers ?? {})
 
-		ctx.onGlobalPolicy(policy => {
-			policy.addStatement({
-				actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
-				resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
+		if (layers.length === 0) {
+			return
+		}
+
+		for (const [id, _props] of layers) {
+			const props = _props as LayerProps
+			const group = new Node(ctx.base, 'lambda-layer', id)
+
+			const item = new aws.s3.BucketObject(group, 'code', {
+				bucket: ctx.shared.get('layer-bucket-name'),
+				key: `/layer/${id}.zip`,
+				body: Asset.fromFile(props.file),
+				contentType: 'application/zip',
 			})
-		})
-	},
-	onStack(ctx) {
-		for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {
-			const group = new Node(ctx.stack, 'function', id)
-			createLambdaFunction(group, ctx, 'function', id, props)
+
+			const layer = new aws.lambda.Layer(group, 'layer', {
+				name: formatGlobalResourceName({
+					appName: ctx.appConfig.name,
+					resourceType: 'layer',
+					resourceName: id,
+				}),
+				description: props.description,
+				architectures: props.architectures,
+				runtimes: props.runtimes,
+				code: {
+					bucket: item.bucket,
+					key: item.key,
+				},
+			}).dependsOn(item)
+
+			ctx.shared.set(`layer-${id}-arn`, layer.arn)
+			ctx.shared.set(`layer-${id}-packages`, props.packages ?? [id])
 		}
 	},
 })

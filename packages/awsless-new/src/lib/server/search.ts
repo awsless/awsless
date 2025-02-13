@@ -1,4 +1,4 @@
-import { AnyStruct, define, searchClient } from '@awsless/open-search'
+import { AnySchema, define, searchClient } from '@awsless/open-search'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName, STACK } from './util.js'
@@ -19,7 +19,7 @@ export const Search: SearchResources = /*@__PURE__*/ createProxy(stack => {
 		let client: any
 		return {
 			domain,
-			defineTable(tableName: string, schema: AnyStruct) {
+			defineTable(tableName: string, schema: AnySchema) {
 				return define(tableName, schema, () => {
 					if (!client) client = searchClient({ node: `https://${domain}` }, 'es')
 					return client

@@ -3939,6 +3939,7 @@ __export(lambda_exports, {
   EventInvokeConfig: () => EventInvokeConfig,
   EventSourceMapping: () => EventSourceMapping,
   Function: () => Function,
+  Layer: () => Layer,
   Permission: () => Permission,
   SourceCodeUpdate: () => SourceCodeUpdate,
   SourceCodeUpdateProvider: () => SourceCodeUpdateProvider,
@@ -4158,6 +4159,32 @@ var Function = class extends CloudControlApiResource {
             // ),
           }
         }
+      }
+    };
+  }
+};
+
+// src/provider/aws/lambda/layer.ts
+var Layer = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::Lambda::LayerVersion", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.LayerVersionArn);
+  }
+  toState() {
+    if (unwrap(this.props.name).length > 140) {
+      throw new TypeError(`Layer function name length can't be greater then 140. ${unwrap(this.props.name)}`);
+    }
+    return {
+      document: {
+        LayerName: this.props.name,
+        Description: this.props.description,
+        Content: formatCode(unwrap(this.props.code)),
+        CompatibleArchitectures: unwrap(this.props.architectures),
+        CompatibleRuntimes: unwrap(this.props.runtimes)
       }
     };
   }
