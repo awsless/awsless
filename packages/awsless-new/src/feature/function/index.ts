@@ -63,17 +63,20 @@ export const functionFeature = defineFeature({
 					resourceType: 'function',
 					resourceName: name,
 				})
-				const relFile = relative(directories.types, props.file)
 
-				if (props.runtime === 'container') {
-					resource.addType(name, `Invoke<'${funcName}', Func>`)
-					mock.addType(name, `MockBuilder<Func>`)
-					mockResponse.addType(name, `MockObject<Func>`)
-				} else {
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				if ('file' in local.code) {
+					const relFile = relative(directories.types, local.code.file)
+
+					if (props.runtime === 'container') {
+						resource.addType(name, `Invoke<'${funcName}', Func>`)
+						mock.addType(name, `MockBuilder<Func>`)
+						mockResponse.addType(name, `MockObject<Func>`)
+					} else {
+						types.addImport(varName, relFile)
+						resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+						mock.addType(name, `MockBuilder<typeof ${varName}>`)
+						mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					}
 				}
 			}
 

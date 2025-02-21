@@ -90,7 +90,9 @@ const HandlerSchema = z
 	.string()
 	.describe('The name of the exported method within your code that Lambda calls to run your function.')
 
-const FileSchema = LocalFileSchema.describe('The file path of the function code.')
+// const FileSchema = z
+// 	.union([LocalFileSchema, LocalDirectorySchema])
+// 	.describe('The file path of the function code or a directory that needs to be bundled.')
 
 const DescriptionSchema = z.string().describe('A description of the function.')
 
@@ -160,9 +162,19 @@ const LayersSchema = z.string().array().describe(
 	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
 )
 
-const SimpleBuildSchema = z.object({
-	type: z.literal('simple').describe('Specify how to build the function.'),
-	minify: MinifySchema.default(true),
+// const FileBuildSchema = z.object({
+// 	// type: z.literal('simple').describe('Specify how to build the function.'),
+// 	minify: MinifySchema.default(true),
+// 	external: z
+// 		.string()
+// 		.array()
+// 		.optional()
+// 		.describe(`A list of external packages that won't be included in the bundle.`),
+// })
+
+const FileCodeSchema = z.object({
+	file: LocalFileSchema.describe('The file path of the function code.'),
+	minify: MinifySchema.optional().default(true),
 	external: z
 		.string()
 		.array()
@@ -170,28 +182,44 @@ const SimpleBuildSchema = z.object({
 		.describe(`A list of external packages that won't be included in the bundle.`),
 })
 
-export type SimpleBuildType = z.infer<typeof SimpleBuildSchema>
+export type FileCode = z.infer<typeof FileCodeSchema>
 
-const CustomBuildSchema = z.object({
-	type: z.literal('custom').describe('Specify how to build the function.'),
-	cwd: LocalDirectorySchema.default('.').describe('Specify the current working directory for the build command.'),
-	command: z.string().describe('Specify the build command.'),
-	bundle: LocalDirectorySchema.describe('Specify directory that will be bundled.'),
-	cacheKey: z
-		.union([LocalFileSchema, LocalDirectorySchema])
-		.array()
-		.describe('Specify the source files, and or directories that will be used to generate a cache key.'),
+const BundleCodeSchema = z.object({
+	bundle: LocalDirectorySchema.describe('The directory that needs to be bundled.'),
 })
 
-export type CustomBuildType = z.infer<typeof CustomBuildSchema>
-
-const BuildSchema = z
-	.discriminatedUnion('type', [
-		//
-		SimpleBuildSchema,
-		CustomBuildSchema,
+const CodeSchema = z
+	.union([
+		LocalFileSchema.transform(file => ({
+			file,
+		})),
+		FileCodeSchema,
+		BundleCodeSchema,
 	])
-	.describe(`Options for the function bundler`)
+	.describe('Specify the code of your function.')
+
+// export type SimpleBuildType = z.infer<typeof SimpleBuildSchema>
+
+// const CustomBuildSchema = z.object({
+// 	type: z.literal('custom').describe('Specify how to build the function.'),
+// 	cwd: LocalDirectorySchema.default('.').describe('Specify the current working directory for the build command.'),
+// 	command: z.string().describe('Specify the build command.'),
+// 	// bundle: LocalDirectorySchema.describe('Specify directory that will be bundled.'),
+// 	cacheKey: z
+// 		.union([LocalFileSchema, LocalDirectorySchema])
+// 		.array()
+// 		.describe('Specify the source files, and or directories that will be used to generate a cache key.'),
+// })
+
+// export type CustomBuildType = z.infer<typeof CustomBuildSchema>
+
+// const BuildSchema = z
+// 	.discriminatedUnion('type', [
+// 		//
+// 		SimpleBuildSchema,
+// 		CustomBuildSchema,
+// 	])
+// 	.describe(`Options for the function bundler`)
 
 // export const FunctionSchema = z.union([
 // 	LocalFileSchema.transform(file => ({
@@ -220,11 +248,11 @@ const BuildSchema = z
 // ])
 
 const FnSchema = z.object({
-	file: FileSchema,
+	code: CodeSchema,
 
 	// node
 	handler: HandlerSchema.optional(),
-	build: BuildSchema.optional(),
+	// build: BuildSchema.optional(),
 	// bundle: BundleSchema.optional(),
 
 	// container
@@ -250,7 +278,9 @@ export type FunctionProps = z.output<typeof FnSchema>
 
 export const FunctionSchema = z.union([
 	LocalFileSchema.transform(file => ({
-		file,
+		code: {
+			file,
+		},
 	})),
 	FnSchema,
 ])
@@ -266,10 +296,10 @@ export const FunctionDefaultSchema = z
 
 		// node
 		handler: HandlerSchema.default('index.default'),
-		build: BuildSchema.default({
-			type: 'simple',
-			minify: true,
-		}),
+		// build: BuildSchema.default({
+		// 	type: 'simple',
+		// 	minify: true,
+		// }),
 
 		// container
 

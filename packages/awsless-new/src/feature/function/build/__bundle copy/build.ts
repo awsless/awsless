@@ -17,7 +17,5 @@ type BuildProps = {
 }
 
 export const customBuild = async ({ cwd, command }: BuildProps) => {
-	console.log(cwd, command)
-
 	await exec(command, { cwd })
 }

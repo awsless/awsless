@@ -10,16 +10,15 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
-import { CustomBuildType, FunctionProps, FunctionSchema, SimpleBuildType } from './schema.js'
+import { FileCode, FunctionProps, FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 import { hashElement } from 'folder-hash'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
+import { zipBundle } from './build/bundle/bundle.js'
+import { bundleCacheKey } from './build/bundle/cache.js'
 import { buildDockerImage } from './build/container/build.js'
-import { customBuild } from './build/custom/build.js'
-import { customBundle } from './build/custom/bundle.js'
-import { customCacheKey } from './build/custom/cache.js'
 
 type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
@@ -55,7 +54,10 @@ export const createLambdaFunction = (
 
 	if (props.runtime === 'container') {
 		ctx.registerBuild('function', name, async build => {
-			const cwd = dirname(local.file)
+			if (!('file' in local.code)) {
+				throw new Error('code.file needs to be set for functions with the "container" runtime')
+			}
+			const cwd = dirname(local.code.file)
 			const version = await hashElement(cwd, {
 				files: {
 					exclude: ['stack.json'],
@@ -87,21 +89,21 @@ export const createLambdaFunction = (
 		code = {
 			imageUri: image.uri,
 		}
-	} else if (props.build.type === 'simple') {
+	} else if ('file' in local.code) {
+		const fileCode = local.code as FileCode
 		ctx.registerBuild('function', name, async (build, { workspace }) => {
-			const version = await generateFileHash(workspace, local.file)
-			const buildProps = props.build as SimpleBuildType
+			const version = await generateFileHash(workspace, fileCode.file)
 
 			return build(version, async write => {
 				const temp = await createTempFolder(`function--${name}`)
 
 				const bundle = await bundleTypeScript({
-					file: local.file,
+					file: fileCode.file,
 					external: [
-						...(buildProps.external ?? []),
+						...(fileCode.external ?? []),
 						...(props.layers ?? []).flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
 					],
-					minify: buildProps.minify,
+					minify: fileCode.minify,
 					nativeDir: temp.path,
 				})
 
@@ -135,16 +137,16 @@ export const createLambdaFunction = (
 			body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
 		})
 	} else {
+		const bundleCode = local.code
 		ctx.registerBuild('function', name, async build => {
-			const buildProps = props.build as CustomBuildType
-			const version = await customCacheKey({ entries: buildProps.cacheKey })
-
-			console.log('Version', version)
+			const version = await bundleCacheKey({
+				directory: bundleCode.bundle,
+			})
 
 			return build(version, async write => {
-				await customBuild(buildProps)
-				const bundle = await customBundle({
-					directory: buildProps.bundle,
+				// await customBuild(buildProps)
+				const bundle = await zipBundle({
+					directory: bundleCode.bundle,
 				})
 
 				await write('HASH', version)

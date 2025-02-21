@@ -4,14 +4,12 @@ import { lstat, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 type CacheKeyProps = {
-	entries: string[]
+	directory: string
 }
 
-export const customCacheKey = async (props: CacheKeyProps) => {
-	const files = await listAllFiles(props.entries)
+export const bundleCacheKey = async (props: CacheKeyProps) => {
+	const files = await listAllFiles([props.directory])
 	const hashes: Record<string, string> = {}
-
-	console.log(files)
 
 	for (const file of files) {
 		hashes[file] = await createHashFromFile(file)

@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { createReadStream } from 'node:fs'
-import { lstat, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readdir } from 'node:fs/promises'
+import { join, relative } from 'node:path'
 
 type BundleProps = {
 	directory: string
@@ -9,16 +9,17 @@ type BundleProps = {
 
 export const customBundle = async ({ directory }: BundleProps) => {
 	const zip = new JSZip()
-	const list = await readdir(directory)
+	const list = await readdir(directory, {
+		recursive: true,
+		withFileTypes: true,
+	})
 
 	for (const file of list) {
-		console.log(file)
+		if (file.isFile()) {
+			const path = join(file.path, file.name)
+			const rel = relative(directory, path)
 
-		const path = join(directory, file)
-		const stat = await lstat(path)
-
-		if (stat.isFile()) {
-			zip.file(file, createReadStream(path))
+			zip.file(rel, createReadStream(path))
 		}
 	}
 

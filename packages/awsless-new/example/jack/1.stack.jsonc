@@ -44,13 +44,14 @@
 		// "echo": "./function.ts"
 		// "native": "./native.ts"
 		"custom-build": {
-			"file": "./custom-build/src/index.js",
-			"build": {
-				"type": "custom",
-				"command": "node ./custom-build/build.js",
-				"bundle": "./custom-build/src",
-				"cacheKey": ["./custom-build"]
+			"code": {
+				"bundle": "./custom-build/src"
 			}
+			// "build": {
+			// 	"type": "custom",
+			// 	"command": "node ./custom-build/build.js",
+			// 	"cacheKey": ["./custom-build"]
+			// }
 		}
 	}
 	// "tables": {
