@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/json",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"license": "MIT",
 	"type": "module",
 	"keywords": [
@@ -12,7 +12,13 @@
 		"Map",
 		"Set",
 		"Date",
-		"undefined"
+		"NaN",
+		"Infinity",
+		"RegExp",
+		"Uint8Array",
+		"Binary",
+		"undefined",
+		"extendable"
 	],
 	"repository": {
 		"type": "git",

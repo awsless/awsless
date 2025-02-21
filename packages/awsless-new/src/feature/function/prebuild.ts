@@ -79,6 +79,7 @@ export const createPrebuildLambdaFunction = (
 		role: role.arn,
 		code,
 		runtime: props.runtime === 'container' ? undefined : props.runtime,
+		layers: (props.layers ?? []).map(id => ctx.shared.get(`layer-${id}-arn`)),
 
 		// Remove conflicting props.
 		vpc: undefined,

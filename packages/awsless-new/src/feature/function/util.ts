@@ -10,11 +10,13 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
-import { FunctionProps, FunctionSchema } from './schema.js'
+import { FileCode, FunctionProps, FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { hashElement } from 'folder-hash'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
+import { zipBundle } from './build/bundle/bundle.js'
+import { bundleCacheKey } from './build/bundle/cache.js'
 import { buildDockerImage } from './build/container/build.js'
 
 type Function = aws.lambda.Function
@@ -51,7 +53,10 @@ export const createLambdaFunction = (
 
 	if (props.runtime === 'container') {
 		ctx.registerBuild('function', name, async build => {
-			const cwd = dirname(local.file)
+			if (!('file' in local.code)) {
+				throw new Error('code.file needs to be set for functions with the "container" runtime')
+			}
+			const cwd = dirname(local.code.file)
 			const version = await hashElement(cwd, {
 				files: {
 					exclude: ['stack.json'],
@@ -83,22 +88,21 @@ export const createLambdaFunction = (
 		code = {
 			imageUri: image.uri,
 		}
-	} else {
+	} else if ('file' in local.code) {
+		const fileCode = local.code as FileCode
 		ctx.registerBuild('function', name, async (build, { workspace }) => {
-			const version = await generateFileHash(workspace, local.file)
+			const version = await generateFileHash(workspace, fileCode.file)
 
 			return build(version, async write => {
 				const temp = await createTempFolder(`function--${name}`)
 
 				const bundle = await bundleTypeScript({
-					file: local.file,
+					file: fileCode.file,
 					external: [
-						...(props.build.external ?? []),
-						...props.layers
-							?.flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`))
-							.filter(v => !!v),
+						...(fileCode.external ?? []),
+						...props.layers?.flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
 					],
-					minify: props.build.minify,
+					minify: fileCode.minify,
 					nativeDir: temp.path,
 				})
 
@@ -122,6 +126,33 @@ export const createLambdaFunction = (
 
 				return {
 					size: formatByteSize(archive.byteLength),
+				}
+			})
+		})
+
+		code = new aws.s3.BucketObject(group, 'code', {
+			bucket: ctx.shared.get('function-bucket-name'),
+			key: `/lambda/${name}.zip`,
+			body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
+		})
+	} else {
+		const bundleCode = local.code
+		ctx.registerBuild('function', name, async build => {
+			const version = await bundleCacheKey({
+				directory: bundleCode.bundle,
+			})
+
+			return build(version, async write => {
+				// await customBuild(buildProps)
+				const bundle = await zipBundle({
+					directory: bundleCode.bundle,
+				})
+
+				await write('HASH', version)
+				await write('bundle.zip', bundle)
+
+				return {
+					size: formatByteSize(bundle.byteLength),
 				}
 			})
 		})
@@ -370,7 +401,7 @@ export const createAsyncLambdaFunction = (
 	local: z.infer<typeof FunctionSchema>
 ) => {
 	const result = createLambdaFunction(group, ctx, ns, id, local)
-	const props = deepmerge(ctx.appConfig.defaults.function, local)
+	const props = deepmerge(ctx.appConfig.defaults.function, local as FunctionProps)
 
 	// ------------------------------------------------------------
 	// Make sure we always log errors inside async functions

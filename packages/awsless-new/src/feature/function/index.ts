@@ -12,6 +12,7 @@ import { directories } from '../../util/path.js'
 import { createLambdaFunction } from './util.js'
 import deepmerge from 'deepmerge'
 import { days } from '@awsless/duration'
+import { FunctionProps } from './schema.js'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
@@ -55,7 +56,7 @@ export const functionFeature = defineFeature({
 			const mockResponse = new TypeObject(2)
 
 			for (const [name, local] of Object.entries(stack.functions || {})) {
-				const props = deepmerge(ctx.appConfig.defaults.function, local)
+				const props = deepmerge(ctx.appConfig.defaults.function, local as FunctionProps)
 				const varName = camelCase(`${stack.name}-${name}`)
 				const funcName = formatLocalResourceName({
 					appName: ctx.appConfig.name,
@@ -63,17 +64,20 @@ export const functionFeature = defineFeature({
 					resourceType: 'function',
 					resourceName: name,
 				})
-				const relFile = relative(directories.types, props.file)
 
-				if (props.runtime === 'container') {
-					resource.addType(name, `Invoke<'${funcName}', Func>`)
-					mock.addType(name, `MockBuilder<Func>`)
-					mockResponse.addType(name, `MockObject<Func>`)
-				} else {
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				if ('file' in local.code) {
+					const relFile = relative(directories.types, local.code.file)
+
+					if (props.runtime === 'container') {
+						resource.addType(name, `Invoke<'${funcName}', Func>`)
+						mock.addType(name, `MockBuilder<Func>`)
+						mockResponse.addType(name, `MockObject<Func>`)
+					} else {
+						types.addImport(varName, relFile)
+						resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+						mock.addType(name, `MockBuilder<typeof ${varName}>`)
+						mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					}
 				}
 			}
 
