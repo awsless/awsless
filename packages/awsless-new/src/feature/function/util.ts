@@ -10,13 +10,16 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
-import { FunctionProps, FunctionSchema } from './schema.js'
+import { CustomBuildType, FunctionProps, FunctionSchema, SimpleBuildType } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 
 import { hashElement } from 'folder-hash'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { buildDockerImage } from './build/container/build.js'
+import { customBuild } from './build/custom/build.js'
+import { customBundle } from './build/custom/bundle.js'
+import { customCacheKey } from './build/custom/cache.js'
 
 type Function = aws.lambda.Function
 type Policy = aws.iam.RolePolicy
@@ -84,9 +87,10 @@ export const createLambdaFunction = (
 		code = {
 			imageUri: image.uri,
 		}
-	} else {
+	} else if (props.build.type === 'simple') {
 		ctx.registerBuild('function', name, async (build, { workspace }) => {
 			const version = await generateFileHash(workspace, local.file)
+			const buildProps = props.build as SimpleBuildType
 
 			return build(version, async write => {
 				const temp = await createTempFolder(`function--${name}`)
@@ -94,10 +98,10 @@ export const createLambdaFunction = (
 				const bundle = await bundleTypeScript({
 					file: local.file,
 					external: [
-						...(props.build.external ?? []),
+						...(buildProps.external ?? []),
 						...(props.layers ?? []).flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
 					],
-					minify: props.build.minify,
+					minify: buildProps.minify,
 					nativeDir: temp.path,
 				})
 
@@ -121,6 +125,33 @@ export const createLambdaFunction = (
 
 				return {
 					size: formatByteSize(archive.byteLength),
+				}
+			})
+		})
+
+		code = new aws.s3.BucketObject(group, 'code', {
+			bucket: ctx.shared.get('function-bucket-name'),
+			key: `/lambda/${name}.zip`,
+			body: Asset.fromFile(getBuildPath('function', name, 'bundle.zip')),
+		})
+	} else {
+		ctx.registerBuild('function', name, async build => {
+			const buildProps = props.build as CustomBuildType
+			const version = await customCacheKey({ entries: buildProps.cacheKey })
+
+			console.log('Version', version)
+
+			return build(version, async write => {
+				await customBuild(buildProps)
+				const bundle = await customBundle({
+					directory: buildProps.bundle,
+				})
+
+				await write('HASH', version)
+				await write('bundle.zip', bundle)
+
+				return {
+					size: formatByteSize(bundle.byteLength),
 				}
 			})
 		})

@@ -1,5 +1,5 @@
 type Serializable<I, O> = {
-    is: (value: unknown) => value is I;
+    is: (value: unknown) => boolean;
     parse: (value: O) => I;
     stringify: (value: I) => O;
 };

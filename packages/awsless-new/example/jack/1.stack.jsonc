@@ -43,7 +43,15 @@
 	"functions": {
 		// "echo": "./function.ts"
 		// "native": "./native.ts"
-		"error": "./error.ts"
+		"custom-build": {
+			"file": "./custom-build/src/index.js",
+			"build": {
+				"type": "custom",
+				"command": "node ./custom-build/build.js",
+				"bundle": "./custom-build/src",
+				"cacheKey": ["./custom-build"]
+			}
+		}
 	}
 	// "tables": {
 	// 	"logs": {

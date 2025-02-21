@@ -18,7 +18,7 @@ export const bind = (program: Command) => {
 		.option('--config <string...>', 'List of config values that will be accessable', v => v.split(','))
 		.description(`Bind your site environment variables to a command`)
 
-		.action(async (commands: string[] = [], opts: { config: string[] }) => {
+		.action(async (commands: string[] = [], opts: { config?: string[] }) => {
 			await layout('bind', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)
@@ -45,13 +45,14 @@ export const bind = (program: Command) => {
 					log.warning('No bindings available.')
 				}
 
+				const configList = opts.config ?? []
 				const configs: Record<string, string> = {}
-				for (const name of opts.config) {
+				for (const name of configList) {
 					configs[`CONFIG_${constantCase(name)}`] = name
 				}
 
-				if (opts.config.length > 0) {
-					note(wrap(opts.config.map(v => color.label(constantCase(v)))), 'Bind Config')
+				if (configList.length ?? 0 > 0) {
+					note(wrap(configList.map(v => color.label(constantCase(v)))), 'Bind Config')
 				}
 
 				if (commands.length === 0) {

@@ -20,11 +20,34 @@ var $date = {
   stringify: (v) => v.toISOString()
 };
 
+// src/type/infinity.ts
+var P = Infinity;
+var N = -Infinity;
+var $infinity = {
+  is: (v) => v === P || v === N,
+  parse: (v) => v === 1 ? P : N,
+  stringify: (v) => v > 0 ? 1 : 0
+};
+
 // src/type/map.ts
 var $map = {
   is: (v) => v instanceof Map,
   parse: (v) => new Map(v),
   stringify: (v) => Array.from(v)
+};
+
+// src/type/nan.ts
+var $nan = {
+  is: (v) => typeof v === "number" && isNaN(v),
+  parse: (_) => NaN,
+  stringify: (_) => 0
+};
+
+// src/type/regexp.ts
+var $regexp = {
+  is: (v) => v instanceof RegExp,
+  parse: (v) => new RegExp(v[0], v[1]),
+  stringify: (v) => [v.source, v.flags]
 };
 
 // src/type/set.ts
@@ -34,6 +57,13 @@ var $set = {
   stringify: (v) => Array.from(v)
 };
 
+// src/type/binary.ts
+var $binary = {
+  is: (v) => v instanceof Uint8Array,
+  parse: (v) => Uint8Array.from(atob(v), (c) => c.charCodeAt(0)),
+  stringify: (v) => btoa(String.fromCharCode(...v))
+};
+
 // src/type/undefined.ts
 var $undefined = {
   is: (v) => typeof v === "undefined",
@@ -41,14 +71,26 @@ var $undefined = {
   stringify: (_) => 0
 };
 
+// src/type/url.ts
+var $url = {
+  is: (v) => v instanceof URL,
+  parse: (v) => new URL(v),
+  stringify: (v) => v.toString()
+};
+
 // src/type/index.ts
 var baseTypes = {
   $undefined,
+  $infinity,
   $bigfloat,
   $bigint,
+  $regexp,
+  $binary,
   $date,
   $set,
-  $map
+  $map,
+  $nan,
+  $url
 };
 
 // src/parse.ts
@@ -115,7 +157,7 @@ var safeNumberParse = (json, props) => {
   );
 };
 var createSafeNumberReviver = (props) => {
-  return function(_, value, context) {
+  return (_, value, context) => {
     if (typeof value === "number") {
       return props.parse(context.source);
     }

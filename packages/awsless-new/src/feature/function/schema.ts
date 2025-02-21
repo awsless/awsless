@@ -3,6 +3,7 @@ import { aws } from '@awsless/formation'
 import { gibibytes, mebibytes } from '@awsless/size'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
+import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
@@ -47,12 +48,9 @@ const RetryAttemptsSchema = z
 		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
 	)
 
-const NodeRuntimeSchema = z
-	.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x'])
-	.describe("The identifier of the function's runtime.")
-
-const ContainerRuntimeSchema = z.literal('container').describe("The identifier of the function's runtime.")
-const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema)
+const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x'])
+const ContainerRuntimeSchema = z.literal('container')
+const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema).describe("The identifier of the function's runtime.")
 
 const ActionSchema = z.string()
 const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])
@@ -61,6 +59,7 @@ const ArnSchema = z
 	.string()
 	.startsWith('arn:')
 	.transform(v => v as aws.ARN)
+
 const WildcardSchema = z.literal('*')
 
 const ResourceSchema = z.union([ArnSchema, WildcardSchema])
@@ -161,15 +160,37 @@ const LayersSchema = z.string().array().describe(
 	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
 )
 
+const SimpleBuildSchema = z.object({
+	type: z.literal('simple').describe('Specify how to build the function.'),
+	minify: MinifySchema.default(true),
+	external: z
+		.string()
+		.array()
+		.optional()
+		.describe(`A list of external packages that won't be included in the bundle.`),
+})
+
+export type SimpleBuildType = z.infer<typeof SimpleBuildSchema>
+
+const CustomBuildSchema = z.object({
+	type: z.literal('custom').describe('Specify how to build the function.'),
+	cwd: LocalDirectorySchema.default('.').describe('Specify the current working directory for the build command.'),
+	command: z.string().describe('Specify the build command.'),
+	bundle: LocalDirectorySchema.describe('Specify directory that will be bundled.'),
+	cacheKey: z
+		.union([LocalFileSchema, LocalDirectorySchema])
+		.array()
+		.describe('Specify the source files, and or directories that will be used to generate a cache key.'),
+})
+
+export type CustomBuildType = z.infer<typeof CustomBuildSchema>
+
 const BuildSchema = z
-	.object({
-		minify: MinifySchema.default(true),
-		external: z
-			.string()
-			.array()
-			.optional()
-			.describe(`A list of external packages that won't be included in the bundle.`),
-	})
+	.discriminatedUnion('type', [
+		//
+		SimpleBuildSchema,
+		CustomBuildSchema,
+	])
 	.describe(`Options for the function bundler`)
 
 // export const FunctionSchema = z.union([
@@ -204,6 +225,7 @@ const FnSchema = z.object({
 	// node
 	handler: HandlerSchema.optional(),
 	build: BuildSchema.optional(),
+	// bundle: BundleSchema.optional(),
 
 	// container
 	// ...
@@ -245,6 +267,7 @@ export const FunctionDefaultSchema = z
 		// node
 		handler: HandlerSchema.default('index.default'),
 		build: BuildSchema.default({
+			type: 'simple',
 			minify: true,
 		}),
 

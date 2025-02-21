@@ -2,7 +2,6 @@ import { Asset, aws, Node } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { LayerProps } from './schema.js'
-import path from 'path'
 import { shortId } from '../../util/id.js'
 
 export const layerFeature = defineFeature({

@@ -14,8 +14,13 @@ Features:
 
 JSON doesn't have support for types like:
 - `undefined`
+- `NaN`
+- `Infinity`
+- `Uint8Array`
+- `RegExp`
 - `Set`
 - `Map`
+- `URL`
 - `Date`
 - `BigInt`
 - `BigFloat` - npm package @awsless/bit-float

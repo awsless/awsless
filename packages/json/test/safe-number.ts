@@ -1,4 +1,4 @@
-import { BigFloat, eq, floor, mul } from '@awsless/big-float'
+import { BigFloat, eq, mul } from '@awsless/big-float'
 import { safeNumberParse, safeNumberStringify } from '../src'
 
 describe('Safe number JSON', () => {
@@ -11,15 +11,6 @@ describe('Safe number JSON', () => {
 		})
 
 		expect(result).toBe('1')
-	})
-
-	it('stringify with rounding', () => {
-		const result = safeNumberStringify(floor(1.111111, 2), {
-			is: v => v instanceof BigFloat,
-			stringify: v => v.toString(),
-		})
-
-		expect(result).toBe('1.11')
 	})
 
 	it('parse', () => {

@@ -35,7 +35,7 @@ describe('JSON', () => {
 			number: 1,
 			boolean: true,
 			array: [1, 2, 3],
-			object: {},
+			object: { foo: 'bar ' },
 			null: null,
 
 			// -----------------------------
@@ -50,6 +50,12 @@ describe('JSON', () => {
 			date: new Date('2025-01-01'),
 			bigint: BigInt(Number.MAX_SAFE_INTEGER) * 9999n,
 			bigfloat: mul(Number.MAX_SAFE_INTEGER, 9999.9999),
+			regexp: /[0-9]/m,
+			infinity: Infinity,
+			negInfinity: -Infinity,
+			nan: NaN,
+			url: new URL('https://domain.com/path?query#hash'),
+			binary: new Uint8Array([1]),
 
 			// Sadly this line will not work
 			// undefined: undefined,
@@ -106,6 +112,10 @@ describe('JSON', () => {
 				input: new Date('2025-01-01'),
 				output: '{"$date":"2025-01-01T00:00:00.000Z"}',
 			},
+			regexp: {
+				input: /[0-9]/m,
+				output: '{"$regexp":["[0-9]","m"]}',
+			},
 			bigint: {
 				input: 1n,
 				output: '{"$bigint":"1"}',
@@ -121,6 +131,26 @@ describe('JSON', () => {
 			null: {
 				input: null,
 				output: 'null',
+			},
+			nan: {
+				input: NaN,
+				output: '{"$nan":0}',
+			},
+			infinity: {
+				input: Infinity,
+				output: '{"$infinity":1}',
+			},
+			'negative-infinity': {
+				input: -Infinity,
+				output: '{"$infinity":0}',
+			},
+			url: {
+				input: new URL('https://domain.com/path?query#hash'),
+				output: '{"$url":"https://domain.com/path?query#hash"}',
+			},
+			binary: {
+				input: new Uint8Array([1, 2, 3, 4, 5]),
+				output: '{"$binary":"AQIDBAU="}',
 			},
 		}
 
