@@ -402,7 +402,7 @@ export const createAsyncLambdaFunction = (
 	local: z.infer<typeof FunctionSchema>
 ) => {
 	const result = createLambdaFunction(group, ctx, ns, id, local)
-	const props = deepmerge(ctx.appConfig.defaults.function, local)
+	const props = deepmerge(ctx.appConfig.defaults.function, local as FunctionProps)
 
 	// ------------------------------------------------------------
 	// Make sure we always log errors inside async functions
