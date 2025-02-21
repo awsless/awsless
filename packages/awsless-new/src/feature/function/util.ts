@@ -12,7 +12,6 @@ import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
 import { FunctionProps, FunctionSchema } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
-
 import { hashElement } from 'folder-hash'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
@@ -95,7 +94,9 @@ export const createLambdaFunction = (
 					file: local.file,
 					external: [
 						...(props.build.external ?? []),
-						...(props.layers ?? []).flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
+						...props.layers
+							?.flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`))
+							.filter(v => !!v),
 					],
 					minify: props.build.minify,
 					nativeDir: temp.path,
@@ -170,7 +171,7 @@ export const createLambdaFunction = (
 		role: role.arn,
 		code,
 		runtime: props.runtime === 'container' ? undefined : props.runtime,
-		layers: (props.layers ?? []).map(id => ctx.shared.get(`layer-${id}-arn`)),
+		layers: props.layers?.map(id => ctx.shared.get<`arn:${string}`>(`layer-${id}-arn`)).filter(v => !!v),
 
 		// Remove conflicting props.
 		vpc: undefined,

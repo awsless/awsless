@@ -5,8 +5,8 @@
 	"profile": "jacksclub",
 	"defaults": {
 		"layers": {
-			"sharp": "./sharp.zip",
-			"puppeteer": "./sharp.zip"
+			"sharp": "./sharp.zip"
+			// "puppeteer": "./sharp.zip"
 		}
 		// "rpc": {
 		// 	"test": {}

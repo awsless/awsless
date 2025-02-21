@@ -3,9 +3,9 @@
 	"name": "stack-kennedy-1",
 	"configs": ["config-1"],
 	"functions": {
-		"test": {
-			"file": "./function.ts"
-			// "layers": ["sharp"]
+		"test2": {
+			"file": "./function.ts",
+			"layers": ["sharp"]
 		}
 	}
 
