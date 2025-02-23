@@ -1,7 +1,6 @@
 import { Asset, aws, Node } from '@awsless/formation'
 import deepmerge from 'deepmerge'
 import { basename, dirname } from 'path'
-import { z } from 'zod'
 import { generateFileHash } from '../../../../ts-file-cache/dist/index.js'
 import { getBuildPath } from '../../build/index.js'
 import { AppContext, StackContext } from '../../feature.js'
@@ -10,7 +9,7 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
-import { FileCode, FunctionProps, FunctionSchema } from './schema.js'
+import { FunctionProps } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { hashElement } from 'folder-hash'
 import { createTempFolder } from '../../util/temp.js'
@@ -89,7 +88,7 @@ export const createLambdaFunction = (
 			imageUri: image.uri,
 		}
 	} else if ('file' in local.code) {
-		const fileCode = local.code as FileCode
+		const fileCode = local.code
 		ctx.registerBuild('function', name, async (build, { workspace }) => {
 			const version = await generateFileHash(workspace, fileCode.file)
 
@@ -398,10 +397,10 @@ export const createAsyncLambdaFunction = (
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: z.infer<typeof FunctionSchema>
+	local: FunctionProps
 ) => {
 	const result = createLambdaFunction(group, ctx, ns, id, local)
-	const props = deepmerge(ctx.appConfig.defaults.function, local as FunctionProps)
+	const props = deepmerge(ctx.appConfig.defaults.function, local)
 
 	// ------------------------------------------------------------
 	// Make sure we always log errors inside async functions

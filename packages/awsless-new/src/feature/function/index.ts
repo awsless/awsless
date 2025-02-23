@@ -12,7 +12,6 @@ import { directories } from '../../util/path.js'
 import { createLambdaFunction } from './util.js'
 import deepmerge from 'deepmerge'
 import { days } from '@awsless/duration'
-import { FunctionProps } from './schema.js'
 
 const typeGenCode = `
 import { InvokeOptions, InvokeResponse } from '@awsless/lambda'
@@ -56,7 +55,7 @@ export const functionFeature = defineFeature({
 			const mockResponse = new TypeObject(2)
 
 			for (const [name, local] of Object.entries(stack.functions || {})) {
-				const props = deepmerge(ctx.appConfig.defaults.function, local as FunctionProps)
+				const props = deepmerge(ctx.appConfig.defaults.function, local)
 				const varName = camelCase(`${stack.name}-${name}`)
 				const funcName = formatLocalResourceName({
 					appName: ctx.appConfig.name,
@@ -147,7 +146,7 @@ export const functionFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
-		for (const [id, props] of Object.entries(ctx.stackConfig.functions || {})) {
+		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
 			const group = new Node(ctx.stack, 'function', id)
 			createLambdaFunction(group, ctx, 'function', id, props)
 		}

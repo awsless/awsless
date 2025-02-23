@@ -53,12 +53,14 @@ export const taskFeature = defineFeature({
 					resourceName: name,
 				})
 
-				const relFile = relative(directories.types, props.consumer.file)
+				if ('file' in props.consumer.code) {
+					const relFile = relative(directories.types, props.consumer.code.file)
 
-				types.addImport(varName, relFile)
-				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				mock.addType(name, `MockBuilder<typeof ${varName}>`)
-				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					types.addImport(varName, relFile)
+					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+					mock.addType(name, `MockBuilder<typeof ${varName}>`)
+					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				}
 			}
 
 			mocks.addType(stack.name, mock)

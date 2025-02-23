@@ -182,17 +182,19 @@ const FileCodeSchema = z.object({
 		.describe(`A list of external packages that won't be included in the bundle.`),
 })
 
-export type FileCode = z.infer<typeof FileCodeSchema>
+// export type FileCode = z.infer<typeof FileCodeSchema>
 
 const BundleCodeSchema = z.object({
 	bundle: LocalDirectorySchema.describe('The directory that needs to be bundled.'),
 })
 
+// export type BundleCode = z.infer<typeof BundleCodeSchema>
+
 const CodeSchema = z
 	.union([
 		LocalFileSchema.transform(file => ({
 			file,
-		})),
+		})).pipe(FileCodeSchema),
 		FileCodeSchema,
 		BundleCodeSchema,
 	])
@@ -277,11 +279,9 @@ const FnSchema = z.object({
 export type FunctionProps = z.output<typeof FnSchema>
 
 export const FunctionSchema = z.union([
-	LocalFileSchema.transform(file => ({
-		code: {
-			file,
-		},
-	})),
+	LocalFileSchema.transform(code => ({
+		code,
+	})).pipe(FnSchema),
 	FnSchema,
 ])
 

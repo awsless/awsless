@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
-import { LocalFileSchema } from '../../config/schema/local-file.js'
 
 const RetryAttemptsSchema = z
 	.number()
@@ -14,7 +14,13 @@ const RetryAttemptsSchema = z
 
 const TaskSchema = z.union([
 	LocalFileSchema.transform(file => ({
-		consumer: { file },
+		consumer: {
+			code: {
+				file,
+				minify: true,
+				external: [],
+			},
+		},
 		retryAttempts: undefined,
 	})),
 	z.object({
@@ -23,7 +29,4 @@ const TaskSchema = z.union([
 	}),
 ])
 
-export const TasksSchema = z
-	.record(ResourceIdSchema, TaskSchema)
-	.optional()
-	.describe('Define the tasks in your stack.')
+export const TasksSchema = z.record(ResourceIdSchema, TaskSchema).optional().describe('Define the tasks in your stack.')

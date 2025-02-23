@@ -45,13 +45,14 @@ export const httpFeature = defineFeature({
 
 				for (const [route, props] of Object.entries(routes)) {
 					const { path, method } = parseRoute(route as Route)
-					const file = typeof props === 'string' ? props : props!.file
 
-					if (!(method in api[id]!)) {
-						api[id]![method] = {}
+					if (props && 'file' in props.code) {
+						if (!(method in api[id]!)) {
+							api[id]![method] = {}
+						}
+
+						api[id]![method]![path] = props.code.file
 					}
-
-					api[id]![method]![path] = file
 				}
 			}
 		}

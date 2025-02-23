@@ -41,7 +41,7 @@ export const queueFeature = defineFeature({
 			const mock = new TypeObject(2)
 			const mockResponse = new TypeObject(2)
 
-			for (const [name, fileOrProps] of Object.entries(stack.queues || {})) {
+			for (const [name, props] of Object.entries(stack.queues || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
 				const queueName = formatLocalResourceName({
 					appName: ctx.appConfig.name,
@@ -50,19 +50,15 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})
 
-				const file =
-					typeof fileOrProps === 'string'
-						? fileOrProps
-						: typeof fileOrProps.consumer === 'string'
-							? fileOrProps.consumer
-							: fileOrProps.consumer.file
-				const relFile = relative(directories.types, file)
+				if ('file' in props.consumer.code) {
+					const relFile = relative(directories.types, props.consumer.code.file)
 
-				gen.addImport(varName, relFile)
+					gen.addImport(varName, relFile)
 
-				mock.addType(name, `MockBuilder<typeof ${varName}>`)
-				resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
-				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+					mock.addType(name, `MockBuilder<typeof ${varName}>`)
+					resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
+					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
+				}
 			}
 
 			mocks.addType(stack.name, mock)

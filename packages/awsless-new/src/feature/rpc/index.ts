@@ -35,11 +35,13 @@ export const rpcFeature = defineFeature({
 
 			for (const stack of ctx.stackConfigs) {
 				for (const [name, props] of Object.entries(stack.rpc?.[id] ?? {})) {
-					const relFile = relative(directories.types, props.file)
-					const varName = camelCase(`${stack.name}-${name}`)
+					if ('file' in props.code) {
+						const relFile = relative(directories.types, props.code.file)
+						const varName = camelCase(`${stack.name}-${name}`)
 
-					types.addImport(varName, relFile)
-					schema.addType(name, `Handle<typeof ${varName}>`)
+						types.addImport(varName, relFile)
+						schema.addType(name, `Handle<typeof ${varName}>`)
+					}
 				}
 			}
 
