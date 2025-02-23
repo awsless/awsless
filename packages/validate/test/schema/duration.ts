@@ -1,9 +1,10 @@
+import { Duration, DurationFormat, hours } from '@awsless/duration'
+import { duration, Input, Output, parse } from '../../src'
 import { testSchema } from '../_util'
-import { duration, parse, Input, Output, transform, string, regex } from '../../src'
-import { Duration, DurationFormat } from '@awsless/duration'
 
 testSchema('duration', {
 	valid: [
+		hours(1),
 		'1 millisecond',
 		'1 milliseconds',
 		'1 second',
@@ -14,6 +15,8 @@ testSchema('duration', {
 		'1 hours',
 		'1 day',
 		'1 days',
+		'1 week',
+		'1 weeks',
 		'999 days',
 	],
 	invalid: ['day', 'a day', '1 secon', undefined, null, '0'],
@@ -26,7 +29,7 @@ testSchema('duration', {
 it('duration types', () => {
 	const schema = duration()
 	expectTypeOf<Output<typeof schema>>().toEqualTypeOf<Duration>()
-	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<DurationFormat>()
+	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<Duration | DurationFormat>()
 })
 
 // it('duration types', () => {

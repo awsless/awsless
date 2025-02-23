@@ -31,7 +31,9 @@ __export(src_exports, {
   toHours: () => toHours,
   toMilliSeconds: () => toMilliSeconds,
   toMinutes: () => toMinutes,
-  toSeconds: () => toSeconds
+  toSeconds: () => toSeconds,
+  toWeeks: () => toWeeks,
+  weeks: () => weeks
 });
 module.exports = __toCommonJS(src_exports);
 
@@ -40,10 +42,14 @@ var SECONDS = 1000n;
 var MINUTES = SECONDS * 60n;
 var HOURS = MINUTES * 60n;
 var DAYS = HOURS * 24n;
+var WEEKS = DAYS * 7n;
 var Duration = class {
   constructor(value) {
     this.value = value;
   }
+};
+var weeks = (value) => {
+  return new Duration(BigInt(value) * WEEKS);
 };
 var days = (value) => {
   return new Duration(BigInt(value) * DAYS);
@@ -59,6 +65,9 @@ var seconds = (value) => {
 };
 var milliSeconds = (value) => {
   return new Duration(BigInt(value));
+};
+var toWeeks = (duration) => {
+  return duration.value / WEEKS;
 };
 var toDays = (duration) => {
   return duration.value / DAYS;
@@ -79,17 +88,21 @@ var toMilliSeconds = (duration) => {
 // src/parse.ts
 var parse = (value) => {
   const [count, unit] = value.split(/\s+/);
-  const number = BigInt(count);
-  if (unit.startsWith("millisecond")) {
-    return milliSeconds(number);
-  } else if (unit.startsWith("second")) {
-    return seconds(number);
-  } else if (unit.startsWith("minute")) {
-    return minutes(number);
-  } else if (unit.startsWith("hour")) {
-    return hours(number);
-  } else if (unit.startsWith("day")) {
-    return days(number);
+  if (typeof count === "string" && typeof unit === "string") {
+    const number = BigInt(count);
+    if (unit.startsWith("millisecond")) {
+      return milliSeconds(number);
+    } else if (unit.startsWith("second")) {
+      return seconds(number);
+    } else if (unit.startsWith("minute")) {
+      return minutes(number);
+    } else if (unit.startsWith("hour")) {
+      return hours(number);
+    } else if (unit.startsWith("day")) {
+      return days(number);
+    } else if (unit.startsWith("week")) {
+      return weeks(number);
+    }
   }
   throw new SyntaxError(`Invalid duration: ${value}`);
 };
@@ -106,5 +119,7 @@ var parse = (value) => {
   toHours,
   toMilliSeconds,
   toMinutes,
-  toSeconds
+  toSeconds,
+  toWeeks,
+  weeks
 });

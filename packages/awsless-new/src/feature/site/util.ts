@@ -1,4 +1,4 @@
-import { lookup, contentType } from 'mime-types'
+import { contentType, lookup } from 'mime-types'
 import { extname } from 'path'
 
 export const getCacheControl = (file: string) => {

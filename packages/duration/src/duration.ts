@@ -2,9 +2,14 @@ const SECONDS = 1000n
 const MINUTES = SECONDS * 60n
 const HOURS = MINUTES * 60n
 const DAYS = HOURS * 24n
+const WEEKS = DAYS * 7n
 
 export class Duration {
 	constructor(readonly value: bigint) {}
+}
+
+export const weeks = (value: number | bigint) => {
+	return new Duration(BigInt(value) * WEEKS)
 }
 
 export const days = (value: number | bigint) => {
@@ -25,6 +30,10 @@ export const seconds = (value: number | bigint) => {
 
 export const milliSeconds = (value: number | bigint) => {
 	return new Duration(BigInt(value))
+}
+
+export const toWeeks = (duration: Duration) => {
+	return duration.value / WEEKS
 }
 
 export const toDays = (duration: Duration) => {

@@ -1,6 +1,6 @@
 import { UUID } from 'crypto'
-import { testSchema } from '../_util'
 import { Input, Output, parse, uuid } from '../../src'
+import { testSchema } from '../_util'
 
 const schema = uuid()
 
@@ -37,6 +37,6 @@ testSchema('uuid', {
 })
 
 it('uuid types', () => {
-	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<string>()
+	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<UUID>()
 	expectTypeOf<Output<typeof schema>>().toEqualTypeOf<UUID>()
 })

@@ -1,8 +1,8 @@
 import { UUID } from 'crypto'
-import { string, uuid as base, transform, StringSchema, SchemaWithTransform, ErrorMessage } from 'valibot'
+import { uuid as base, BaseSchema, ErrorMessage, string } from 'valibot'
 
-export type UuidSchema = SchemaWithTransform<StringSchema, UUID>
+export type UuidSchema = BaseSchema<UUID, UUID>
 
 export const uuid = (error?: ErrorMessage): UuidSchema => {
-	return transform(string(error ?? 'Invalid UUID', [base()]), v => v as UUID)
+	return string(error ?? 'Invalid UUID', [base()]) as UuidSchema
 }

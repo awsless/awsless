@@ -1,4 +1,4 @@
-import { days, hours, milliSeconds, minutes, seconds } from './duration'
+import { days, hours, milliSeconds, minutes, seconds, weeks } from './duration'
 
 export type DurationUnit =
 	| 'millisecond'
@@ -11,6 +11,8 @@ export type DurationUnit =
 	| 'hours'
 	| 'day'
 	| 'days'
+	| 'week'
+	| 'weeks'
 
 export type DurationFormat = `${number} ${DurationUnit}`
 
@@ -30,6 +32,8 @@ export const parse = (value: DurationFormat) => {
 			return hours(number)
 		} else if (unit.startsWith('day')) {
 			return days(number)
+		} else if (unit.startsWith('week')) {
+			return weeks(number)
 		}
 	}
 

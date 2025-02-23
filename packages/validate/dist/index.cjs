@@ -122,22 +122,25 @@ function date(arg1, arg2) {
 // src/schema/uuid.ts
 var import_valibot5 = require("valibot");
 var uuid = (error) => {
-  return (0, import_valibot5.transform)((0, import_valibot5.string)(error ?? "Invalid UUID", [(0, import_valibot5.uuid)()]), (v) => v);
+  return (0, import_valibot5.string)(error ?? "Invalid UUID", [(0, import_valibot5.uuid)()]);
 };
 
 // src/schema/duration.ts
-var import_valibot6 = require("valibot");
 var import_duration = require("@awsless/duration");
+var import_valibot6 = require("valibot");
 function duration(arg1, arg2) {
   const [msg, pipe] = (0, import_valibot6.defaultArgs)(arg1, arg2);
   const error = msg ?? "Invalid duration";
-  return (0, import_valibot6.transform)(
-    (0, import_valibot6.string)(error, [(0, import_valibot6.regex)(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
-    (value) => {
-      return (0, import_duration.parse)(value);
-    },
-    pipe
-  );
+  return (0, import_valibot6.union)([
+    (0, import_valibot6.instance)(import_duration.Duration, pipe),
+    (0, import_valibot6.transform)(
+      (0, import_valibot6.string)(error, [(0, import_valibot6.regex)(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?|weeks?)/, error)]),
+      (value) => {
+        return (0, import_duration.parse)(value);
+      },
+      pipe
+    )
+  ]);
 }
 
 // src/schema/aws/sqs-queue.ts

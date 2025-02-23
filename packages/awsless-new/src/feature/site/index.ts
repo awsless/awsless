@@ -272,6 +272,10 @@ export const siteFeature = defineFeature({
 				})
 			}
 
+			// if(props.forwardHost) {
+			// 	new aws.cloudFront.Function()
+			// }
+
 			if (domainName) {
 				new aws.route53.RecordSet(group, `record`, {
 					hostedZoneId: ctx.shared.get(`hosted-zone-${props.domain}-id`),

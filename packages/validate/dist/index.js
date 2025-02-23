@@ -22,14 +22,14 @@ var json = (schema) => {
 import { BigFloat } from "@awsless/big-float";
 import {
   bigint,
+  custom,
   defaultArgs,
   instance,
   number,
   object,
   string as string2,
   transform as transform2,
-  union,
-  custom
+  union
 } from "valibot";
 var make = (value) => new BigFloat(value);
 function bigfloat(arg1, arg2) {
@@ -92,35 +92,38 @@ function date(arg1, arg2) {
 }
 
 // src/schema/uuid.ts
-import { string as string5, uuid as base3, transform as transform5 } from "valibot";
+import { uuid as base3, string as string5 } from "valibot";
 var uuid = (error) => {
-  return transform5(string5(error ?? "Invalid UUID", [base3()]), (v) => v);
+  return string5(error ?? "Invalid UUID", [base3()]);
 };
 
 // src/schema/duration.ts
-import { defaultArgs as defaultArgs4, regex as regex2, string as string6, transform as transform6 } from "valibot";
-import { parse as parse2 } from "@awsless/duration";
+import { Duration, parse as parse2 } from "@awsless/duration";
+import { defaultArgs as defaultArgs4, instance as instance2, regex as regex2, string as string6, transform as transform5, union as union4 } from "valibot";
 function duration(arg1, arg2) {
   const [msg, pipe] = defaultArgs4(arg1, arg2);
   const error = msg ?? "Invalid duration";
-  return transform6(
-    string6(error, [regex2(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?)/, error)]),
-    (value) => {
-      return parse2(value);
-    },
-    pipe
-  );
+  return union4([
+    instance2(Duration, pipe),
+    transform5(
+      string6(error, [regex2(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?|weeks?)/, error)]),
+      (value) => {
+        return parse2(value);
+      },
+      pipe
+    )
+  ]);
 }
 
 // src/schema/aws/sqs-queue.ts
-import { array, object as object2, transform as transform7, union as union4, unknown } from "valibot";
+import { array, object as object2, transform as transform6, union as union5, unknown } from "valibot";
 var sqsQueue = (body) => {
   const schema = body ?? unknown();
-  return union4(
+  return union5(
     [
-      transform7(schema, (input) => [input]),
+      transform6(schema, (input) => [input]),
       array(schema),
-      transform7(
+      transform6(
         object2({
           Records: array(
             object2({
@@ -138,14 +141,14 @@ var sqsQueue = (body) => {
 };
 
 // src/schema/aws/sns-topic.ts
-import { array as array2, object as object3, transform as transform8, union as union5, unknown as unknown2 } from "valibot";
+import { array as array2, object as object3, transform as transform7, union as union6, unknown as unknown2 } from "valibot";
 var snsTopic = (body) => {
   const schema = body ?? unknown2();
-  return union5(
+  return union6(
     [
-      transform8(schema, (input) => [input]),
+      transform7(schema, (input) => [input]),
       array2(schema),
-      transform8(
+      transform7(
         object3({
           Records: array2(
             object3({
@@ -165,17 +168,17 @@ var snsTopic = (body) => {
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, literal, object as object4, optional, transform as transform9, union as union6, unknown as unknown3 } from "valibot";
+import { array as array3, literal, object as object4, optional, transform as transform8, union as union7, unknown as unknown3 } from "valibot";
 var dynamoDbStream = (table) => {
-  const marshall = () => transform9(unknown3(), (value) => table.unmarshall(value));
-  return transform9(
+  const marshall = () => transform8(unknown3(), (value) => table.unmarshall(value));
+  return transform8(
     object4(
       {
         Records: array3(
           object4({
             // For some reason picklist fails to build.
             // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
-            eventName: union6([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
+            eventName: union7([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
             dynamodb: object4({
               Keys: marshall(),
               OldImage: optional(marshall()),

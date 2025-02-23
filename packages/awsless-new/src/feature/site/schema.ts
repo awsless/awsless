@@ -78,6 +78,13 @@ export const SitesSchema = z
 			// 	}),
 			// ]),
 
+			forwardHost: z
+				.boolean()
+				.default(false)
+				.describe(
+					'Specify if the host header will be forwarded to the SSR function. Keep in mind that this requires an extra CloudFront Function.'
+				),
+
 			errors: z
 				.object({
 					400: ErrorResponseSchema.describe('Customize a `400 Bad Request` response.'),

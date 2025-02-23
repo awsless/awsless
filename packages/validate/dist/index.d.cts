@@ -24,10 +24,10 @@ type DateSchema = BaseSchema<string | Date, Date>;
 declare function date(pipe?: Pipe<Date>): DateSchema;
 declare function date(error?: ErrorMessage, pipe?: Pipe<Date>): DateSchema;
 
-type UuidSchema = SchemaWithTransform<StringSchema, UUID>;
+type UuidSchema = BaseSchema<UUID, UUID>;
 declare const uuid: (error?: ErrorMessage) => UuidSchema;
 
-type DurationSchema = BaseSchema<DurationFormat, Duration>;
+type DurationSchema = BaseSchema<DurationFormat | Duration, Duration>;
 declare function duration(pipe?: Pipe<Duration>): DurationSchema;
 declare function duration(error?: ErrorMessage, pipe?: Pipe<Duration>): DurationSchema;
 
