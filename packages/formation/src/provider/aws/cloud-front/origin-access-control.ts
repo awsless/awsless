@@ -8,7 +8,8 @@ export class OriginAccessControl extends CloudControlApiResource {
 		id: string,
 		private props: {
 			name: Input<string>
-			type: Input<'mediastore' | 's3'>
+			description?: Input<string>
+			type: Input<'mediastore' | 's3' | 'lambda' | 'mediapackagev2'>
 			behavior?: Input<'always' | 'never' | 'no-override'>
 			protocol?: Input<'sigv4'>
 		}
@@ -25,6 +26,7 @@ export class OriginAccessControl extends CloudControlApiResource {
 			document: {
 				OriginAccessControlConfig: {
 					Name: this.props.name,
+					Description: this.props.description,
 					OriginAccessControlOriginType: this.props.type,
 					SigningBehavior: unwrap(this.props.behavior, 'always'),
 					SigningProtocol: unwrap(this.props.protocol, 'sigv4'),

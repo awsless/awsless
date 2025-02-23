@@ -1,0 +1,418 @@
+{
+  "name": "cloudfront",
+  "stacks": {
+    "urn:App:{cloudfront}:Stack:{cloudfront}": {
+      "name": "cloudfront",
+      "dependencies": [],
+      "resources": {
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::CloudFront::OriginAccessControl:{oac}": {
+          "id": "E1HU0RT1A4L6XZ",
+          "type": "AWS::CloudFront::OriginAccessControl",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "OriginAccessControlConfig": {
+              "Name": "formation-test",
+              "OriginAccessControlOriginType": "lambda",
+              "SigningBehavior": "always",
+              "SigningProtocol": "sigv4"
+            }
+          },
+          "assets": {},
+          "dependencies": [],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "OriginAccessControlConfig": {
+              "SigningBehavior": "always",
+              "Description": "",
+              "OriginAccessControlOriginType": "lambda",
+              "SigningProtocol": "sigv4",
+              "Name": "formation-test"
+            },
+            "Id": "E1HU0RT1A4L6XZ"
+          }
+        },
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::CloudFront::CachePolicy:{cache}": {
+          "id": "84388320-da30-4670-8dbe-bfbce74a199d",
+          "type": "AWS::CloudFront::CachePolicy",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "CachePolicyConfig": {
+              "Name": "formation-test",
+              "MinTTL": 1,
+              "MaxTTL": 31536000,
+              "DefaultTTL": 86400,
+              "ParametersInCacheKeyAndForwardedToOrigin": {
+                "EnableAcceptEncodingGzip": false,
+                "EnableAcceptEncodingBrotli": false,
+                "CookiesConfig": {
+                  "CookieBehavior": "none"
+                },
+                "HeadersConfig": {
+                  "HeaderBehavior": "none"
+                },
+                "QueryStringsConfig": {
+                  "QueryStringBehavior": "none"
+                }
+              }
+            }
+          },
+          "assets": {},
+          "dependencies": [],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "CachePolicyConfig": {
+              "MinTTL": 1,
+              "MaxTTL": 31536000,
+              "ParametersInCacheKeyAndForwardedToOrigin": {
+                "EnableAcceptEncodingBrotli": false,
+                "HeadersConfig": {
+                  "HeaderBehavior": "none"
+                },
+                "CookiesConfig": {
+                  "CookieBehavior": "none"
+                },
+                "EnableAcceptEncodingGzip": false,
+                "QueryStringsConfig": {
+                  "QueryStringBehavior": "none"
+                }
+              },
+              "DefaultTTL": 86400,
+              "Name": "formation-test"
+            },
+            "LastModifiedTime": "2025-02-23T13:33:59.837Z",
+            "Id": "84388320-da30-4670-8dbe-bfbce74a199d"
+          }
+        },
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::IAM::Role:{role}": {
+          "id": "ICbUtbZY6q5YUhdGu3ZTuDxe6-xBgbQQQWjbs5",
+          "type": "AWS::IAM::Role",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "ManagedPolicyArns": [],
+            "Policies": [],
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": [
+                    "sts:AssumeRole"
+                  ],
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": [
+                      "lambda.amazonaws.com"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "assets": {},
+          "dependencies": [],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "Path": "/",
+            "MaxSessionDuration": 3600,
+            "RoleName": "ICbUtbZY6q5YUhdGu3ZTuDxe6-xBgbQQQWjbs5",
+            "Description": "",
+            "AssumeRolePolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Action": "sts:AssumeRole",
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Service": "lambda.amazonaws.com"
+                  }
+                }
+              ]
+            },
+            "Arn": "arn:aws:iam::468004125411:role/ICbUtbZY6q5YUhdGu3ZTuDxe6-xBgbQQQWjbs5",
+            "RoleId": "AROAWZ5ZYHLR4FYW53CHS"
+          }
+        },
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::Lambda::Function:{lambda}": {
+          "id": "awsless-formation-cloudfront-fn",
+          "type": "AWS::Lambda::Function",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "FunctionName": "awsless-formation-cloudfront-fn",
+            "MemorySize": 128,
+            "Timeout": 10,
+            "Architectures": [
+              "arm64"
+            ],
+            "Role": "arn:aws:iam::468004125411:role/ICbUtbZY6q5YUhdGu3ZTuDxe6-xBgbQQQWjbs5",
+            "Runtime": "nodejs22.x",
+            "Handler": "index.default",
+            "Code": {
+              "ZipFile": "module.exports.default = async () => ({ statusCode: 200, body: \"Hello World\" })"
+            },
+            "EphemeralStorage": {
+              "Size": 512
+            },
+            "Environment": {
+              "Variables": {}
+            }
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::IAM::Role:{role}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "MemorySize": 128,
+            "Description": "",
+            "TracingConfig": {
+              "Mode": "PassThrough"
+            },
+            "Timeout": 10,
+            "RuntimeManagementConfig": {
+              "UpdateRuntimeOn": "Auto"
+            },
+            "Handler": "index.default",
+            "SnapStartResponse": {
+              "OptimizationStatus": "Off",
+              "ApplyOn": "None"
+            },
+            "Role": "arn:aws:iam::468004125411:role/ICbUtbZY6q5YUhdGu3ZTuDxe6-xBgbQQQWjbs5",
+            "FileSystemConfigs": [],
+            "FunctionName": "awsless-formation-cloudfront-fn",
+            "Runtime": "nodejs22.x",
+            "PackageType": "Zip",
+            "LoggingConfig": {
+              "LogFormat": "Text",
+              "LogGroup": "/aws/lambda/awsless-formation-cloudfront-fn"
+            },
+            "RecursiveLoop": "Terminate",
+            "Environment": {
+              "Variables": {}
+            },
+            "Arn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn",
+            "EphemeralStorage": {
+              "Size": 512
+            },
+            "Architectures": [
+              "arm64"
+            ]
+          }
+        },
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::Lambda::Url:{url}": {
+          "id": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn",
+          "type": "AWS::Lambda::Url",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "AuthType": "AWS_IAM",
+            "InvokeMode": "BUFFERED",
+            "TargetFunctionArn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn",
+            "Cors": {}
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::Lambda::Function:{lambda}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "FunctionArn": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn",
+            "FunctionUrl": "https://7uqww5jdfujmgzuyg2bxfzmnbe0yrqgf.lambda-url.eu-west-1.on.aws/",
+            "Qualifier": "",
+            "InvokeMode": "BUFFERED",
+            "AuthType": "AWS_IAM",
+            "TargetFunctionArn": "awsless-formation-cloudfront-fn"
+          }
+        },
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::CloudFront::Distribution:{distribution}": {
+          "id": "E2BOP5M7LX3FAL",
+          "type": "AWS::CloudFront::Distribution",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "DistributionConfig": {
+              "Enabled": true,
+              "Aliases": [],
+              "PriceClass": "PriceClass_All",
+              "HttpVersion": "http2and3",
+              "ViewerCertificate": {
+                "CloudFrontDefaultCertificate": true
+              },
+              "Origins": [
+                {
+                  "Id": "ssr",
+                  "DomainName": "7uqww5jdfujmgzuyg2bxfzmnbe0yrqgf.lambda-url.eu-west-1.on.aws",
+                  "OriginCustomHeaders": [],
+                  "CustomOriginConfig": {
+                    "OriginProtocolPolicy": "https-only"
+                  },
+                  "OriginAccessControlId": "E1HU0RT1A4L6XZ"
+                }
+              ],
+              "OriginGroups": {
+                "Quantity": 0,
+                "Items": []
+              },
+              "CustomErrorResponses": [],
+              "DefaultCacheBehavior": {
+                "TargetOriginId": "ssr",
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "AllowedMethods": [
+                  "GET",
+                  "HEAD",
+                  "OPTIONS"
+                ],
+                "Compress": true,
+                "FunctionAssociations": [],
+                "LambdaFunctionAssociations": [],
+                "CachePolicyId": "84388320-da30-4670-8dbe-bfbce74a199d"
+              }
+            },
+            "Tags": [
+              {
+                "Key": "Name",
+                "Value": "formation-test"
+              }
+            ]
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::Lambda::Url:{url}",
+            "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::CloudFront::OriginAccessControl:{oac}",
+            "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::CloudFront::CachePolicy:{cache}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "DistributionConfig": {
+              "Logging": {
+                "IncludeCookies": false,
+                "Bucket": "",
+                "Prefix": ""
+              },
+              "Comment": "",
+              "DefaultRootObject": "",
+              "Origins": [
+                {
+                  "ConnectionTimeout": 10,
+                  "OriginAccessControlId": "E1HU0RT1A4L6XZ",
+                  "ConnectionAttempts": 3,
+                  "OriginCustomHeaders": [],
+                  "DomainName": "7uqww5jdfujmgzuyg2bxfzmnbe0yrqgf.lambda-url.eu-west-1.on.aws",
+                  "OriginShield": {
+                    "Enabled": false
+                  },
+                  "OriginPath": "",
+                  "Id": "ssr",
+                  "CustomOriginConfig": {
+                    "OriginReadTimeout": 30,
+                    "HTTPSPort": 443,
+                    "OriginKeepaliveTimeout": 5,
+                    "OriginSSLProtocols": [
+                      "SSLv3",
+                      "TLSv1"
+                    ],
+                    "HTTPPort": 80,
+                    "OriginProtocolPolicy": "https-only"
+                  }
+                }
+              ],
+              "ViewerCertificate": {
+                "SslSupportMethod": "vip",
+                "MinimumProtocolVersion": "TLSv1",
+                "CloudFrontDefaultCertificate": true
+              },
+              "PriceClass": "PriceClass_All",
+              "DefaultCacheBehavior": {
+                "Compress": true,
+                "FunctionAssociations": [],
+                "LambdaFunctionAssociations": [],
+                "TargetOriginId": "ssr",
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "GrpcConfig": {
+                  "Enabled": false
+                },
+                "TrustedSigners": [],
+                "FieldLevelEncryptionId": "",
+                "TrustedKeyGroups": [],
+                "AllowedMethods": [
+                  "HEAD",
+                  "GET",
+                  "OPTIONS"
+                ],
+                "CachedMethods": [
+                  "HEAD",
+                  "GET"
+                ],
+                "SmoothStreaming": false,
+                "CachePolicyId": "84388320-da30-4670-8dbe-bfbce74a199d"
+              },
+              "Staging": false,
+              "CustomErrorResponses": [],
+              "ContinuousDeploymentPolicyId": "",
+              "OriginGroups": {
+                "Quantity": 0,
+                "Items": []
+              },
+              "Enabled": true,
+              "Aliases": [],
+              "IPV6Enabled": true,
+              "WebACLId": "",
+              "HttpVersion": "http2and3",
+              "Restrictions": {
+                "GeoRestriction": {
+                  "Locations": [],
+                  "RestrictionType": "none"
+                }
+              },
+              "CacheBehaviors": []
+            },
+            "DomainName": "d3ezcg5zgfx525.cloudfront.net",
+            "Id": "E2BOP5M7LX3FAL"
+          }
+        },
+        "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::Lambda::Permission:{permission}": {
+          "id": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn|Kv5kr6emD8r9qX7Vi1k58Ogqf-ZGAoAsxk336B",
+          "type": "AWS::Lambda::Permission",
+          "provider": "aws-cloud-control-api",
+          "local": {
+            "FunctionName": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn",
+            "Action": "lambda:InvokeFunctionUrl",
+            "Principal": "cloudfront.amazonaws.com",
+            "SourceArn": "arn:aws:cloudfront::468004125411:distribution/E2BOP5M7LX3FAL",
+            "FunctionUrlAuthType": "AWS_IAM"
+          },
+          "assets": {},
+          "dependencies": [
+            "urn:App:{cloudfront}:Stack:{cloudfront}:AWS::Lambda::Function:{lambda}"
+          ],
+          "extra": {},
+          "policies": {
+            "deletion": "before-deployment"
+          },
+          "remote": {
+            "FunctionName": "arn:aws:lambda:eu-west-1:468004125411:function:awsless-formation-cloudfront-fn",
+            "Action": "lambda:InvokeFunctionUrl",
+            "FunctionUrlAuthType": "AWS_IAM",
+            "SourceArn": "arn:aws:cloudfront::468004125411:distribution/E2BOP5M7LX3FAL",
+            "Id": "Kv5kr6emD8r9qX7Vi1k58Ogqf-ZGAoAsxk336B",
+            "Principal": "cloudfront.amazonaws.com"
+          }
+        }
+      }
+    }
+  }
+}

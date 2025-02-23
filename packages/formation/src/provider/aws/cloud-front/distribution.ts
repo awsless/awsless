@@ -118,8 +118,9 @@ export class Distribution extends CloudControlApiResource {
 					ViewerCertificate: this.props.certificateArn
 						? {
 								SslSupportMethod: 'sni-only',
-								MinimumProtocolVersion: 'TLSv1',
+								MinimumProtocolVersion: 'SSLv3',
 								AcmCertificateArn: this.props.certificateArn,
+								CloudFrontDefaultCertificate: false,
 							}
 						: {
 								CloudFrontDefaultCertificate: true,
@@ -158,9 +159,9 @@ export class Distribution extends CloudControlApiResource {
 							...(origin.originAccessControlId
 								? {
 										OriginAccessControlId: origin.originAccessControlId,
-										S3OriginConfig: {
-											OriginAccessIdentity: '',
-										},
+										// S3OriginConfig: {
+										// 	OriginAccessIdentity: '',
+										// },
 									}
 								: {}),
 						})),
