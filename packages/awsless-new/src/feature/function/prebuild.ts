@@ -29,7 +29,7 @@ export const createPrebuildLambdaFunction = (
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: Omit<FunctionProps, 'file'> & {
+	local: Omit<FunctionProps, 'code'> & {
 		bundleFile: string
 		bundleHash: string
 	}
@@ -52,7 +52,7 @@ export const createPrebuildLambdaFunction = (
 
 	const props = {
 		architecture: 'arm64',
-		runtime: 'nodejs20.x',
+		runtime: 'nodejs22.x',
 		...local,
 	} as const
 

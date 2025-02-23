@@ -51,8 +51,17 @@
 		// "instance": {
 		// 	// "connect": true
 		// },
+		// "onLog": {
+		// 	"consumer": "./on-log.ts",
+		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
+		// },
 		"onLog": {
 			"consumer": "./on-log.ts",
+			// "consumer": {
+			// 	"code": {
+			// 		"file": "./on-log.ts"
+			// 	}
+			// },
 			"filter": ["info", "debug", "trace", "error", "fatal"]
 		},
 		"rpc": {

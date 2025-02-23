@@ -1,7 +1,7 @@
-import { ConfigError } from '../../../error.js'
 import * as p from '@clack/prompts'
-import { wrap } from '../util.js'
+import { ConfigError } from '../../../error.js'
 import { color, icon } from '../style.js'
+import { wrap } from '../util.js'
 
 const codeLine = (value: string, level = 0) => {
 	return [
@@ -40,7 +40,14 @@ const format = (value: unknown): string => {
 	return ''
 }
 
+const endType = (value: unknown) => {
+	return typeof value !== 'object'
+}
+
 export const logConfigError = (error: ConfigError) => {
+	// console.log(error.error.errors)
+	// console.log(error.data)
+
 	for (const issue of error.error.errors) {
 		const message = [color.error(issue.message), color.dim(error.file), '\n{']
 		let context = error.data
@@ -51,21 +58,30 @@ export const logConfigError = (error: ConfigError) => {
 
 		issue.path.forEach((path, i) => {
 			const index = i + 1
-			context = context[path]
+			const entry = context[path]
+
+			// console.log(path)
+			// console.log(entry)
+
+			if (typeof entry !== 'undefined') {
+				context = entry
+			} else {
+				return
+			}
 
 			if (typeof path === 'string') {
 				const key = path + `: `
-				if (index === length) {
+				if (index === length || endType(entry)) {
 					const space = ' '.repeat(key.length)
-					const value = format(context)
+					const value = format(entry)
 					const error = icon.arrow.top.repeat(value.length)
 
 					message.push(codeLine(key + color.warning(value), index))
 					message.push(codeLine(space + color.error(error), index))
-				} else if (Array.isArray(context)) {
+				} else if (Array.isArray(entry)) {
 					message.push(codeLine(key + '[', index))
 					end.unshift(codeLine(']', index))
-				} else if (typeof context === 'object') {
+				} else if (typeof entry === 'object') {
 					if (inStack && index === 3) {
 						const name = error.data.stacks[issue.path[1]!].name
 						message.push(codeLine('name: ' + color.info(`"${name}"`) + ',', index))
@@ -73,13 +89,13 @@ export const logConfigError = (error: ConfigError) => {
 					message.push(codeLine(key + '{', index))
 					end.unshift(codeLine('}', index))
 				}
-			} else if (typeof context === 'object') {
+			} else if (typeof entry === 'object') {
 				message.push(codeLine('{', index))
 				end.unshift(codeLine('}', index))
-			} else if (typeof context === 'string') {
-				message.push(codeLine(color.warning(`"${context}"`), index))
+			} else if (typeof entry === 'string') {
+				message.push(codeLine(color.warning(`"${entry}"`), index))
 
-				const error = icon.arrow.top.repeat(context.length + 2)
+				const error = icon.arrow.top.repeat(entry.length + 2)
 				message.push(codeLine(color.error(error), index))
 			}
 		})

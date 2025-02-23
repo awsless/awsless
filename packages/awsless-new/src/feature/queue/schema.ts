@@ -83,26 +83,26 @@ export const QueueDefaultSchema = z
 	})
 	.default({})
 
+const QueueSchema = z.object({
+	consumer: FunctionSchema.describe('The consuming lambda function properties.'),
+	retentionPeriod: RetentionPeriodSchema.optional(),
+	visibilityTimeout: VisibilityTimeoutSchema.optional(),
+	deliveryDelay: DeliveryDelaySchema.optional(),
+	receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
+	maxMessageSize: MaxMessageSizeSchema.optional(),
+	batchSize: BatchSizeSchema.optional(),
+	maxConcurrency: MaxConcurrencySchema.optional(),
+	maxBatchingWindow: MaxBatchingWindow.optional(),
+})
+
 export const QueuesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.union([
-			LocalFileSchema.transform(file => ({
-				consumer: {
-					file,
-				},
-			})),
-			z.object({
-				consumer: FunctionSchema.describe('The consuming lambda function properties.'),
-				retentionPeriod: RetentionPeriodSchema.optional(),
-				visibilityTimeout: VisibilityTimeoutSchema.optional(),
-				deliveryDelay: DeliveryDelaySchema.optional(),
-				receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
-				maxMessageSize: MaxMessageSizeSchema.optional(),
-				batchSize: BatchSizeSchema.optional(),
-				maxConcurrency: MaxConcurrencySchema.optional(),
-				maxBatchingWindow: MaxBatchingWindow.optional(),
-			}),
+			LocalFileSchema.transform(consumer => ({
+				consumer,
+			})).pipe(QueueSchema),
+			QueueSchema,
 		])
 	)
 	.optional()

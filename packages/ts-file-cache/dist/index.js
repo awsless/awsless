@@ -16,30 +16,38 @@ var findImports = async (file, code) => {
     syntax: "typescript"
   });
   const importing = /* @__PURE__ */ new Set();
-  simple(ast, {
-    ImportDeclaration(node) {
-      importing.add(node.source.value);
-    },
-    ExportAllDeclaration(node) {
-      importing.add(node.source.value);
-    },
-    ExportNamedDeclaration(node) {
-      if (node.source) {
+  try {
+    simple(ast, {
+      ImportDeclaration(node) {
         importing.add(node.source.value);
-      }
-    },
-    CallExpression(node) {
-      if (node.callee.type === "Import") {
-        const first = node.arguments.at(0);
-        if (first && first.expression.type === "StringLiteral") {
-          importing.add(first.expression.value);
+      },
+      ExportAllDeclaration(node) {
+        importing.add(node.source.value);
+      },
+      ExportNamedDeclaration(node) {
+        if (node.source) {
+          importing.add(node.source.value);
+        }
+      },
+      CallExpression(node) {
+        if (node.callee.type === "Import") {
+          const first = node.arguments.at(0);
+          if (first && first.expression.type === "StringLiteral") {
+            importing.add(first.expression.value);
+          }
         }
       }
-    }
-  });
+    });
+  } catch (_) {
+    return [];
+  }
   return [...importing].map((importee) => {
     if (importee.startsWith(".")) {
       return resolve(dirname(file), importee);
+    }
+    const parts = importee.split("/");
+    if (parts.length > 2) {
+      return parts.slice(0, 2).join("/");
     }
     return importee;
   });
