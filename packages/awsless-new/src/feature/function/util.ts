@@ -99,7 +99,7 @@ export const createLambdaFunction = (
 					file: fileCode.file,
 					external: [
 						...(fileCode.external ?? []),
-						...props.layers?.flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
+						...(props.layers ?? []).flatMap(id => ctx.shared.get<string[]>(`layer-${id}-packages`)),
 					],
 					minify: fileCode.minify,
 					nativeDir: temp.path,

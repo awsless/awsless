@@ -1,5 +1,12 @@
+import {
+	CloudControlClient,
+	GetResourceRequestStatusCommand,
+	UpdateResourceCommand,
+} from '@aws-sdk/client-cloudcontrol'
+import { fromIni } from '@aws-sdk/credential-providers'
 import { days, seconds } from '@awsless/duration'
-import { App, AppError, aws, Stack } from '../../src'
+import { createPatch } from 'rfc6902'
+import { App, AppError, aws, Output, Stack } from '../../src'
 import { createWorkspace } from './_util'
 
 const workspace = createWorkspace('jacksclub')
@@ -45,7 +52,7 @@ const distribution = new aws.cloudFront.Distribution(stack, 'distribution', {
 		{
 			id: 'ssr',
 			domainName: url.url.apply<string>(url => url.split('/')[2]!),
-			protocol: 'https-only',
+			protocol: 'http-only',
 			originAccessControlId: accessControl.id,
 		},
 	],
@@ -58,15 +65,62 @@ new aws.lambda.Permission(stack, 'permission', {
 	action: 'lambda:InvokeFunctionUrl',
 	functionArn: lambda.arn,
 	urlAuthType: 'aws-iam',
-	sourceArn: 'arn:aws:cloudfront::468004125411:distribution/E2BOP5M7LX3FAL',
-	// sourceArn: `arn:aws:cloudfront::468004125411:distribution/${distribution.id.apply<string>(id => id)}`,
+	sourceArn: distribution.id.apply<aws.ARN>(id => `arn:aws:cloudfront::468004125411:distribution/${id}`),
 })
+
+// const client = new CloudControlClient({
+// 	region: 'eu-west-1',
+// 	credentials: fromIni({ profile: 'jacksclub' }),
+// })
+
+// const operations = createPatch(
+// 	{
+// 		DistributionConfig: {
+// 			Origins: [
+// 				{
+// 					CustomOriginConfig: {
+// 						OriginProtocolPolicy: 'https-only',
+// 					},
+// 				},
+// 			],
+// 		},
+// 	},
+// 	{
+// 		DistributionConfig: {
+// 			ViewerCertificate: {
+// 				CloudFrontDefaultCertificate: true,
+// 			},
+// 			Origins: [
+// 				{
+// 					CustomOriginConfig: {
+// 						OriginProtocolPolicy: 'http-only',
+// 					},
+// 				},
+// 			],
+// 		},
+// 	}
+// )
 
 console.log('START')
 
 try {
-	await workspace.deployApp(app)
-	// await workspace.deleteApp(app)
+	// const response = await client.send(
+	// 	new UpdateResourceCommand({
+	// 		TypeName: 'AWS::CloudFront::Distribution',
+	// 		Identifier: 'E37OQ8BHIYOL36',
+	// 		PatchDocument: JSON.stringify(operations),
+	// 	})
+	// )
+	// console.log(response)
+	// await new Promise(resolve => setTimeout(resolve, 5000))
+	// const status = await client.send(
+	// 	new GetResourceRequestStatusCommand({
+	// 		RequestToken: response.ProgressEvent?.RequestToken,
+	// 	})
+	// )
+	// console.log(status.ProgressEvent)
+	// await workspace.deployApp(app)
+	await workspace.deleteApp(app)
 } catch (error) {
 	if (error instanceof AppError) {
 		for (const issue of error.issues) {

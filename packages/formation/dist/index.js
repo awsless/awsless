@@ -412,6 +412,8 @@ var resolveDocumentAssets = (document, assets) => {
     for (const [key, value] of Object.entries(document)) {
       if (value !== null && typeof value === "object" && "__ASSET__" in value && typeof value.__ASSET__ === "string") {
         document[key] = assets[value.__ASSET__]?.data.toString("utf8");
+      } else if (value === null) {
+        delete document[key];
       } else {
         resolveDocumentAssets(value, assets);
       }
@@ -811,6 +813,12 @@ var WorkSpace = class {
             const token = createIdempotantToken(appState.token, resource.urn, "update");
             let id;
             try {
+              if (resource.identifier === "distribution") {
+                console.log(resource);
+                console.log("resourceState", resourceState);
+                console.log("DistributionConfig", resourceState.local.DistributionConfig);
+                console.log("newDocument", resolveDocumentAssets(cloneObject(document), assets));
+              }
               id = await provider.update({
                 urn: resource.urn,
                 id: resourceState.id,
@@ -2366,10 +2374,15 @@ var Distribution = class extends CloudControlApiResource {
           HttpVersion: unwrap(this.props.httpVersion, "http2and3"),
           ViewerCertificate: this.props.certificateArn ? {
             SslSupportMethod: "sni-only",
-            MinimumProtocolVersion: "TLSv1",
-            AcmCertificateArn: this.props.certificateArn
+            MinimumProtocolVersion: "SSLv3",
+            AcmCertificateArn: this.props.certificateArn,
+            CloudFrontDefaultCertificate: false
           } : {
-            CloudFrontDefaultCertificate: true
+            CloudFrontDefaultCertificate: true,
+            // SslSupportMethod: 'sni-only',
+            // MinimumProtocolVersion: 'SSLv3',
+            SslSupportMethod: null,
+            MinimumProtocolVersion: null
           },
           Origins: unwrap(this.props.origins, []).map((v) => unwrap(v)).map((origin) => ({
             Id: origin.id,
@@ -2394,10 +2407,10 @@ var Distribution = class extends CloudControlApiResource {
               }
             } : {},
             ...origin.originAccessControlId ? {
-              OriginAccessControlId: origin.originAccessControlId,
-              S3OriginConfig: {
-                OriginAccessIdentity: ""
-              }
+              OriginAccessControlId: origin.originAccessControlId
+              // S3OriginConfig: {
+              // 	OriginAccessIdentity: '',
+              // },
             } : {}
           })),
           OriginGroups: {
@@ -2523,6 +2536,7 @@ var OriginAccessControl = class extends CloudControlApiResource {
       document: {
         OriginAccessControlConfig: {
           Name: this.props.name,
+          Description: this.props.description,
           OriginAccessControlOriginType: this.props.type,
           SigningBehavior: unwrap(this.props.behavior, "always"),
           SigningProtocol: unwrap(this.props.protocol, "sigv4")

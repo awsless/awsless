@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.441",
+	"version": "0.0.442",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -134,8 +134,8 @@
 		"wildstring": "^1.0.9",
 		"wrap-ansi": "^8.1.0",
 		"zip-a-folder": "^3.1.6",
-		"zod": "^3.21.4",
-		"zod-to-json-schema": "^3.22.3"
+		"zod": "^3.24.2",
+		"zod-to-json-schema": "^3.24.3"
 	},
 	"devDependencies": {
 		"@node-rs/bcrypt": "^1.10.5"

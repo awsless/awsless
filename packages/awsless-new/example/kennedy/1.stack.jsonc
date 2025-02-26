@@ -1,11 +1,13 @@
 {
-	"$schema": "https://unpkg.com/@awsless/awsless/dist/stack.json",
+	// "$schema": "https://unpkg.com/@awsless/awsless/dist/stack.json",
+	"$schema": "../../dist/stack.json",
 	"name": "stack-kennedy-1",
 	"configs": ["config-1"],
-	"functions": {
-		"test2": {
-			"file": "./function.ts",
-			"layers": ["sharp"]
+	"sites": {
+		"test": {
+			"origin": "static-first",
+			"static": true
+			// "ssr": "./function.ts"
 		}
 	}
 

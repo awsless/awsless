@@ -36,6 +36,8 @@ export const buildAssets = async (builders: BuildTask[], stackFilters: string[],
 				})
 				results.push({ ...builder, result })
 			} catch (error) {
+				console.log(error)
+
 				logError(new Error(`Build failed for: ${builder.type} ${builder.name}`))
 				throw error
 			}

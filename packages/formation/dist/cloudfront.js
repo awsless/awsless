@@ -6821,7 +6821,7 @@ var distribution = new aws_exports.cloudFront.Distribution(stack, "distribution"
     {
       id: "ssr",
       domainName: url.url.apply((url2) => url2.split("/")[2]),
-      protocol: "https-only",
+      protocol: "http-only",
       originAccessControlId: accessControl.id
     }
   ],
@@ -6833,12 +6833,11 @@ new aws_exports.lambda.Permission(stack, "permission", {
   action: "lambda:InvokeFunctionUrl",
   functionArn: lambda.arn,
   urlAuthType: "aws-iam",
-  sourceArn: "arn:aws:cloudfront::468004125411:distribution/E2BOP5M7LX3FAL"
-  // sourceArn: `arn:aws:cloudfront::468004125411:distribution/${distribution.id.apply<string>(id => id)}`,
+  sourceArn: distribution.id.apply((id) => `arn:aws:cloudfront::468004125411:distribution/${id}`)
 });
 console.log("START");
 try {
-  await workspace.deployApp(app);
+  await workspace.deleteApp(app);
 } catch (error) {
   if (error instanceof AppError) {
     for (const issue of error.issues) {

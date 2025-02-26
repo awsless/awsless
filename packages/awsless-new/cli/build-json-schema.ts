@@ -1,9 +1,9 @@
-import { zodToJsonSchema } from 'zod-to-json-schema'
-import { StackSchema } from '../src/config/stack.js'
-import { AppSchema } from '../src/config/app.js'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ZodSchema } from 'zod'
+import { zodToJsonSchema } from 'zod-to-json-schema'
+import { AppSchema } from '../src/config/app.js'
+import { StackSchema } from '../src/config/stack.js'
 
 type GenerateProps = {
 	schema: ZodSchema
@@ -17,6 +17,7 @@ const generateJsonSchema = (props: GenerateProps) => {
 		name: props.name,
 		// errorMessages: true,
 		markdownDescription: true,
+		pipeStrategy: 'input',
 		$refStrategy: 'none',
 	}) as {
 		title?: string

@@ -1,5 +1,5 @@
 export default async () => {
-	return 'hoi'
+	return { statusCode: 200, body: 'Hello World' }
 }
 
 // import { date, define, indexItem, migrate, number, object, search, searchClient, string } from '@awsless/open-search'

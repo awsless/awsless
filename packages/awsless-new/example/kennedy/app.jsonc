@@ -1,13 +1,14 @@
 {
-	"$schema": "https://unpkg.com/@awsless/awsless/dist/app.json",
+	// "$schema": "https://unpkg.com/@awsless/awsless/dist/app.json",
+	"$schema": "../../dist/app.json",
 	"name": "app-kennedy",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
 	"defaults": {
-		"layers": {
-			"sharp": "./sharp.zip"
-			// "puppeteer": "./sharp.zip"
-		}
+		// "layers": {
+		// 	"sharp": "./sharp.zip"
+		// 	// "puppeteer": "./sharp.zip"
+		// }
 		// "rpc": {
 		// 	"test": {}
 		// }

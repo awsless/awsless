@@ -1275,11 +1275,11 @@ declare class Distribution extends CloudControlApiResource {
                     SslSupportMethod: string;
                     MinimumProtocolVersion: string;
                     AcmCertificateArn: Input<`arn:${string}`>;
-                    CloudFrontDefaultCertificate?: undefined;
+                    CloudFrontDefaultCertificate: boolean;
                 } | {
                     CloudFrontDefaultCertificate: boolean;
-                    SslSupportMethod?: undefined;
-                    MinimumProtocolVersion?: undefined;
+                    SslSupportMethod: null;
+                    MinimumProtocolVersion: null;
                     AcmCertificateArn?: undefined;
                 };
                 Origins: {
@@ -1386,7 +1386,8 @@ declare class OriginAccessControl extends CloudControlApiResource {
     private props;
     constructor(parent: Node, id: string, props: {
         name: Input<string>;
-        type: Input<'mediastore' | 's3'>;
+        description?: Input<string>;
+        type: Input<'mediastore' | 's3' | 'lambda' | 'mediapackagev2'>;
         behavior?: Input<'always' | 'never' | 'no-override'>;
         protocol?: Input<'sigv4'>;
     });
@@ -1395,7 +1396,8 @@ declare class OriginAccessControl extends CloudControlApiResource {
         document: {
             OriginAccessControlConfig: {
                 Name: Input<string>;
-                OriginAccessControlOriginType: Input<"mediastore" | "s3">;
+                Description: Input<string> | undefined;
+                OriginAccessControlOriginType: Input<"lambda" | "mediastore" | "s3" | "mediapackagev2">;
                 SigningBehavior: "always" | "never" | "no-override";
                 SigningProtocol: "sigv4";
             };

@@ -46,26 +46,33 @@ export const siteFeature = defineFeature({
 				// lambda = result.lambda
 				// code = result.code
 
-				new aws.lambda.Permission(group, 'permission', {
-					principal: '*',
-					// principal: 'cloudfront.amazonaws.com',
+				new aws.lambda.Permission(group, 'ssr-permission', {
+					principal: 'cloudfront.amazonaws.com',
 					action: 'lambda:InvokeFunctionUrl',
 					functionArn: lambda.arn,
-					urlAuthType: 'none',
-					// urlAuthType: 'aws-iam',
-					// sourceArn: distribution.arn,
+					urlAuthType: 'aws-iam',
+					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 				})
 
 				const url = new aws.lambda.Url(group, 'url', {
 					targetArn: lambda.arn,
-					authType: 'none',
-					// authType: 'aws-iam',
+					authType: 'aws-iam',
 				})
+
+				const ssrAccessControl = new aws.cloudFront.OriginAccessControl(group, 'ssr-access', {
+					name: `${name}-ssr`,
+					type: 'lambda',
+					behavior: 'always',
+					protocol: 'sigv4',
+				})
+
+				ssrAccessControl.deletionPolicy = 'after-deployment'
 
 				origins.push({
 					id: 'ssr',
 					domainName: url.url.apply<string>(url => url.split('/')[2]!),
 					protocol: 'https-only',
+					originAccessControlId: ssrAccessControl.id,
 				})
 			}
 
@@ -132,6 +139,7 @@ export const siteFeature = defineFeature({
 					id: 'static',
 					domainName: bucket.regionalDomainName,
 					originAccessControlId: accessControl.id,
+					originAccessIdentityId: '', // is required to have an value for s3 origins when using origin access control
 				})
 			}
 

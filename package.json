@@ -22,6 +22,9 @@
 	"pnpm": {
 		"overrides": {
 			"@smithy/types": "3.0.0"
-		}
+		},
+		"onlyBuiltDependencies": [
+			"@swc/core"
+		]
 	}
 }
