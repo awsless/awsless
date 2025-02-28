@@ -5,9 +5,10 @@
 	"configs": ["config-1"],
 	"sites": {
 		"test": {
+			"domain": "test",
 			"origin": "static-first",
-			"static": true
-			// "ssr": "./function.ts"
+			"static": true,
+			"ssr": "./function.ts"
 		}
 	}
 

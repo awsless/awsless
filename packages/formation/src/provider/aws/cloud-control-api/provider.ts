@@ -18,6 +18,7 @@ import { CloudProvider, CreateProps, DeleteProps, GetProps, ResourceDocument, Up
 
 import { Duration, minutes, toMilliSeconds } from '@awsless/duration'
 import { backOff } from 'exponential-backoff'
+import objectPath from 'object-path'
 import { createPatch } from 'rfc6902'
 import { ResourceNotFound } from '../../../core/error'
 import { sleep } from '../../../core/hash'
@@ -144,14 +145,40 @@ export class CloudControlApiProvider implements CloudProvider {
 		}
 	}
 
-	private updateOperations(remoteDocument: any, oldDocument: ResourceDocument, newDocument: ResourceDocument) {
+	private updateOperations(
+		remoteDocument: ResourceDocument,
+		oldDocument: ResourceDocument,
+		newDocument: ResourceDocument,
+		requiredFields: string[] = []
+	) {
 		// Remove write-only props from the old document so we add write-only props again.
 		// https://github.com/pulumi/pulumi-aws-native/pull/678
-		for (const key in oldDocument) {
-			if (typeof remoteDocument[key] === 'undefined') {
-				delete oldDocument[key]
+		const removeWriteOnlyProps = (
+			remote: ResourceDocument | Record<string, any> | undefined,
+			old: ResourceDocument | Record<string, any>
+		) => {
+			for (const key in old) {
+				// If remote is undefined or doesn't have this key, delete it from old
+				if (!remote || typeof remote[key] === 'undefined') {
+					delete old[key]
+					continue
+				}
+
+				// Process recursively if value is a non-null object
+				if (old[key] && typeof old[key] === 'object') {
+					removeWriteOnlyProps(remote[key], old[key])
+				}
 			}
 		}
+		removeWriteOnlyProps(remoteDocument, oldDocument)
+
+		// Some resources require certain fields to be present in the patch document.
+		// So we have to remove them from the old document.
+		for (const field of requiredFields) {
+			objectPath.del(oldDocument, field)
+		}
+
+		// Create patch operations
 
 		const operations = createPatch(oldDocument, newDocument)
 
@@ -185,14 +212,24 @@ export class CloudControlApiProvider implements CloudProvider {
 		return this.progressStatus(result.ProgressEvent!)
 	}
 
-	async update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps) {
+	async update({
+		token,
+		type,
+		id,
+		oldDocument,
+		newDocument,
+		remoteDocument,
+		requiredDocumentFields = [],
+	}: UpdateProps) {
 		let result
 		try {
 			result = await this.send(
 				new UpdateResourceCommand({
 					TypeName: type,
 					Identifier: id,
-					PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+					PatchDocument: JSON.stringify(
+						this.updateOperations(remoteDocument, oldDocument, newDocument, requiredDocumentFields)
+					),
 					ClientToken: token,
 				})
 			)

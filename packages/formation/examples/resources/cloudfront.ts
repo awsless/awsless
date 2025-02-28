@@ -52,7 +52,7 @@ const distribution = new aws.cloudFront.Distribution(stack, 'distribution', {
 		{
 			id: 'ssr',
 			domainName: url.url.apply<string>(url => url.split('/')[2]!),
-			protocol: 'http-only',
+			protocol: 'https-only',
 			originAccessControlId: accessControl.id,
 		},
 	],
@@ -74,7 +74,35 @@ new aws.lambda.Permission(stack, 'permission', {
 // })
 
 // const operations = createPatch(
-// 	{
+// {
+// 	DistributionConfig: {
+// 		Origins: [
+// 			{
+// 				CustomOriginConfig: {
+// 					OriginProtocolPolicy: 'https-only',
+// 				},
+// 			},
+// 		],
+// 	},
+// },
+// {
+// 	DistributionConfig: {
+// 		ViewerCertificate: {
+// 			CloudFrontDefaultCertificate: true,
+// 		},
+// 		Origins: [
+// 			{
+// 				CustomOriginConfig: {
+// 					OriginProtocolPolicy: 'http-only',
+// 				},
+// 			},
+// 		],
+// 	},
+// }
+// )
+
+// console.log(
+// 	JSON.stringify({
 // 		DistributionConfig: {
 // 			Origins: [
 // 				{
@@ -84,8 +112,9 @@ new aws.lambda.Permission(stack, 'permission', {
 // 				},
 // 			],
 // 		},
-// 	},
-// 	{
+// 	}),
+// 	'-------',
+// 	JSON.stringify({
 // 		DistributionConfig: {
 // 			ViewerCertificate: {
 // 				CloudFrontDefaultCertificate: true,
@@ -98,7 +127,7 @@ new aws.lambda.Permission(stack, 'permission', {
 // 				},
 // 			],
 // 		},
-// 	}
+// 	})
 // )
 
 console.log('START')

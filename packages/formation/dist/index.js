@@ -221,11 +221,12 @@ var Stack = class extends Node {
 
 // src/core/resource.ts
 var Resource = class extends Node {
-  constructor(parent, type, identifier, inputs) {
+  constructor(parent, type, identifier, inputs, requiredDocumentFields = []) {
     super(parent, type, identifier);
     this.parent = parent;
     this.type = type;
     this.identifier = identifier;
+    this.requiredDocumentFields = requiredDocumentFields;
     if (inputs) {
       this.registerDependency(inputs);
     }
@@ -412,8 +413,6 @@ var resolveDocumentAssets = (document, assets) => {
     for (const [key, value] of Object.entries(document)) {
       if (value !== null && typeof value === "object" && "__ASSET__" in value && typeof value.__ASSET__ === "string") {
         document[key] = assets[value.__ASSET__]?.data.toString("utf8");
-      } else if (value === null) {
-        delete document[key];
       } else {
         resolveDocumentAssets(value, assets);
       }
@@ -813,12 +812,6 @@ var WorkSpace = class {
             const token = createIdempotantToken(appState.token, resource.urn, "update");
             let id;
             try {
-              if (resource.identifier === "distribution") {
-                console.log(resource);
-                console.log("resourceState", resourceState);
-                console.log("DistributionConfig", resourceState.local.DistributionConfig);
-                console.log("newDocument", resolveDocumentAssets(cloneObject(document), assets));
-              }
               id = await provider.update({
                 urn: resource.urn,
                 id: resourceState.id,
@@ -826,6 +819,7 @@ var WorkSpace = class {
                 remoteDocument: resolveDocumentAssets(cloneObject(resourceState.remote), assets),
                 oldDocument: resolveDocumentAssets(cloneObject(resourceState.local), {}),
                 newDocument: resolveDocumentAssets(cloneObject(document), assets),
+                requiredDocumentFields: resource.requiredDocumentFields,
                 oldAssets: resourceState.assets,
                 newAssets: assets,
                 extra,
@@ -1348,6 +1342,7 @@ import {
 } from "@aws-sdk/client-cloudcontrol";
 import { minutes, toMilliSeconds } from "@awsless/duration";
 import { backOff } from "exponential-backoff";
+import objectPath from "object-path";
 import { createPatch } from "rfc6902";
 var CloudControlApiProvider = class {
   constructor(props) {
@@ -1424,11 +1419,21 @@ var CloudControlApiProvider = class {
       event = status.ProgressEvent;
     }
   }
-  updateOperations(remoteDocument, oldDocument, newDocument) {
-    for (const key in oldDocument) {
-      if (typeof remoteDocument[key] === "undefined") {
-        delete oldDocument[key];
+  updateOperations(remoteDocument, oldDocument, newDocument, requiredFields = []) {
+    const removeWriteOnlyProps = (remote, old) => {
+      for (const key in old) {
+        if (!remote || typeof remote[key] === "undefined") {
+          delete old[key];
+          continue;
+        }
+        if (old[key] && typeof old[key] === "object") {
+          removeWriteOnlyProps(remote[key], old[key]);
+        }
       }
+    };
+    removeWriteOnlyProps(remoteDocument, oldDocument);
+    for (const field of requiredFields) {
+      objectPath.del(oldDocument, field);
     }
     const operations = createPatch(oldDocument, newDocument);
     return operations;
@@ -1455,14 +1460,24 @@ var CloudControlApiProvider = class {
     );
     return this.progressStatus(result.ProgressEvent);
   }
-  async update({ token, type, id, oldDocument, newDocument, remoteDocument }) {
+  async update({
+    token,
+    type,
+    id,
+    oldDocument,
+    newDocument,
+    remoteDocument,
+    requiredDocumentFields = []
+  }) {
     let result;
     try {
       result = await this.send(
         new UpdateResourceCommand({
           TypeName: type,
           Identifier: id,
-          PatchDocument: JSON.stringify(this.updateOperations(remoteDocument, oldDocument, newDocument)),
+          PatchDocument: JSON.stringify(
+            this.updateOperations(remoteDocument, oldDocument, newDocument, requiredDocumentFields)
+          ),
           ClientToken: token
         })
       );
@@ -2339,7 +2354,7 @@ var CachePolicy = class extends CloudControlApiResource {
 import { toSeconds as toSeconds5 } from "@awsless/duration";
 var Distribution = class extends CloudControlApiResource {
   constructor(parent, id, props) {
-    super(parent, "AWS::CloudFront::Distribution", id, props);
+    super(parent, "AWS::CloudFront::Distribution", id, props, ["DistributionConfig.ViewerCertificate"]);
     this.parent = parent;
     this.props = props;
   }
@@ -2374,15 +2389,10 @@ var Distribution = class extends CloudControlApiResource {
           HttpVersion: unwrap(this.props.httpVersion, "http2and3"),
           ViewerCertificate: this.props.certificateArn ? {
             SslSupportMethod: "sni-only",
-            MinimumProtocolVersion: "SSLv3",
-            AcmCertificateArn: this.props.certificateArn,
-            CloudFrontDefaultCertificate: false
+            MinimumProtocolVersion: "TLSv1.2_2021",
+            AcmCertificateArn: this.props.certificateArn
           } : {
-            CloudFrontDefaultCertificate: true,
-            // SslSupportMethod: 'sni-only',
-            // MinimumProtocolVersion: 'SSLv3',
-            SslSupportMethod: null,
-            MinimumProtocolVersion: null
+            CloudFrontDefaultCertificate: true
           },
           Origins: unwrap(this.props.origins, []).map((v) => unwrap(v)).map((origin) => ({
             Id: origin.id,
@@ -2399,18 +2409,13 @@ var Distribution = class extends CloudControlApiResource {
                 OriginProtocolPolicy: origin.protocol
               }
             } : {},
-            ...origin.originAccessIdentityId ? {
+            ...typeof origin.originAccessIdentityId !== "undefined" ? {
               S3OriginConfig: {
-                OriginAccessIdentity: `origin-access-identity/cloudfront/${unwrap(
-                  origin.originAccessIdentityId
-                )}`
+                OriginAccessIdentity: origin.originAccessIdentityId
               }
             } : {},
             ...origin.originAccessControlId ? {
               OriginAccessControlId: origin.originAccessControlId
-              // S3OriginConfig: {
-              // 	OriginAccessIdentity: '',
-              // },
             } : {}
           })),
           OriginGroups: {

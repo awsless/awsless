@@ -33,7 +33,8 @@ export abstract class Resource extends Node {
 		readonly parent: Node,
 		readonly type: string,
 		readonly identifier: string,
-		inputs?: unknown
+		inputs?: unknown,
+		readonly requiredDocumentFields: string[] = []
 		// private resourcePolicies: ResourcePolicies = {}
 	) {
 		super(parent, type, identifier)

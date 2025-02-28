@@ -78,7 +78,7 @@ export class Distribution extends CloudControlApiResource {
 			// }
 		}
 	) {
-		super(parent, 'AWS::CloudFront::Distribution', id, props)
+		super(parent, 'AWS::CloudFront::Distribution', id, props, ['DistributionConfig.ViewerCertificate'])
 	}
 
 	// get arn() {
@@ -118,9 +118,8 @@ export class Distribution extends CloudControlApiResource {
 					ViewerCertificate: this.props.certificateArn
 						? {
 								SslSupportMethod: 'sni-only',
-								MinimumProtocolVersion: 'SSLv3',
+								MinimumProtocolVersion: 'TLSv1.2_2021',
 								AcmCertificateArn: this.props.certificateArn,
-								CloudFrontDefaultCertificate: false,
 							}
 						: {
 								CloudFrontDefaultCertificate: true,
@@ -147,21 +146,16 @@ export class Distribution extends CloudControlApiResource {
 										},
 									}
 								: {}),
-							...(origin.originAccessIdentityId
+							...(typeof origin.originAccessIdentityId !== 'undefined'
 								? {
 										S3OriginConfig: {
-											OriginAccessIdentity: `origin-access-identity/cloudfront/${unwrap(
-												origin.originAccessIdentityId
-											)}`,
+											OriginAccessIdentity: origin.originAccessIdentityId,
 										},
 									}
 								: {}),
 							...(origin.originAccessControlId
 								? {
 										OriginAccessControlId: origin.originAccessControlId,
-										// S3OriginConfig: {
-										// 	OriginAccessIdentity: '',
-										// },
 									}
 								: {}),
 						})),

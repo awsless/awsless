@@ -69,6 +69,7 @@ type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
     oldDocument: D;
     newDocument: D;
     remoteDocument: any;
+    requiredDocumentFields: string[];
     extra: E;
     oldAssets: Record<string, string>;
     newAssets: Record<string, ResolvedAsset>;
@@ -117,10 +118,11 @@ declare abstract class Resource extends Node {
     readonly parent: Node;
     readonly type: string;
     readonly identifier: string;
+    readonly requiredDocumentFields: string[];
     private remoteDocument;
     private listeners;
     readonly dependencies: Set<Resource>;
-    constructor(parent: Node, type: string, identifier: string, inputs?: unknown);
+    constructor(parent: Node, type: string, identifier: string, inputs?: unknown, requiredDocumentFields?: string[]);
     abstract cloudProviderId: string;
     deletionPolicy: ResourceDeletionPolicy;
     abstract toState(): {
@@ -524,7 +526,7 @@ declare class CloudControlApiProvider implements CloudProvider {
     private updateOperations;
     get({ id, type }: GetProps): Promise<any>;
     create({ token, type, document }: CreateProps): Promise<string>;
-    update({ token, type, id, oldDocument, newDocument, remoteDocument }: UpdateProps): Promise<string>;
+    update({ token, type, id, oldDocument, newDocument, remoteDocument, requiredDocumentFields, }: UpdateProps): Promise<string>;
     delete({ token, type, id }: DeleteProps): Promise<void>;
 }
 
@@ -1275,17 +1277,17 @@ declare class Distribution extends CloudControlApiResource {
                     SslSupportMethod: string;
                     MinimumProtocolVersion: string;
                     AcmCertificateArn: Input<`arn:${string}`>;
-                    CloudFrontDefaultCertificate: boolean;
+                    CloudFrontDefaultCertificate?: undefined;
                 } | {
                     CloudFrontDefaultCertificate: boolean;
-                    SslSupportMethod: null;
-                    MinimumProtocolVersion: null;
+                    SslSupportMethod?: undefined;
+                    MinimumProtocolVersion?: undefined;
                     AcmCertificateArn?: undefined;
                 };
                 Origins: {
                     OriginAccessControlId?: Input<string> | undefined;
                     S3OriginConfig?: {
-                        OriginAccessIdentity: string;
+                        OriginAccessIdentity: Input<string>;
                     } | undefined;
                     CustomOriginConfig?: {
                         OriginProtocolPolicy: Input<"http-only" | "https-only" | "match-viewer">;

@@ -20,6 +20,7 @@ export type UpdateProps<D = ResourceDocument, E = ResourceExtra> = {
 	oldDocument: D
 	newDocument: D
 	remoteDocument: any
+	requiredDocumentFields: string[]
 	extra: E
 	oldAssets: Record<string, string>
 	newAssets: Record<string, ResolvedAsset>

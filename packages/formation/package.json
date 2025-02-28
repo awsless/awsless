@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/formation",
-	"version": "0.0.60",
+	"version": "0.0.62",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -51,12 +51,14 @@
 		"@awsless/duration": "workspace:^",
 		"@awsless/size": "workspace:^",
 		"@grpc/grpc-js": "^1.11.3",
+		"@types/object-path": "^0.11.4",
 		"@types/promise-dag": "^1.0.4",
 		"@types/proper-lockfile": "^4.1.4",
 		"@types/semver": "^7.5.8",
 		"@types/uuid": "^9.0.0",
 		"change-case": "^4.1.2",
 		"exponential-backoff": "^3.1.1",
+		"object-path": "^0.11.8",
 		"p-limit": "^5.0.0",
 		"promise-dag": "^1.0.0",
 		"promisify-child-process": "^4.1.2",
