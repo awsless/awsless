@@ -1,6 +1,6 @@
 import { join } from 'path'
 import { z } from 'zod'
-import { directories } from '../../util/path.js'
+// import { directories } from '../../util/path.js'
 
 let basePath: string | undefined
 
