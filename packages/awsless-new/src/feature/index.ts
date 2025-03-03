@@ -31,9 +31,11 @@ export const features = [
 	vpcFeature,
 	domainFeature,
 	commandFeature,
+	layerFeature,
+
+	// 1.5
 	onFailureFeature,
 	onLogFeature,
-	layerFeature,
 
 	// 2
 	authFeature,

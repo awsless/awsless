@@ -3,29 +3,29 @@ import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { LayerProps } from './schema.js'
 import { shortId } from '../../util/id.js'
-import { FileError } from '../../error.js'
-import { StackConfig } from '../../config/stack.js'
+// import { FileError } from '../../error.js'
+// import { StackConfig } from '../../config/stack.js'
 
-const stackSearch = <T>(stack: StackConfig, key: string) => {
-	let found: T[] = []
+// const stackSearch = <T>(stack: StackConfig, key: string) => {
+// 	let found: T[] = []
 
-	function search(obj: Record<string, unknown>) {
-		if (typeof obj !== 'object' || obj === null) return
+// 	function search(obj: Record<string, unknown>) {
+// 		if (typeof obj !== 'object' || obj === null) return
 
-		if (obj[key]) {
-			found.push(obj[key] as T)
-		}
+// 		if (obj[key]) {
+// 			found.push(obj[key] as T)
+// 		}
 
-		for (let k in obj) {
-			if (typeof obj[k] === 'object') {
-				search(obj[k] as Record<string, unknown>)
-			}
-		}
-	}
+// 		for (let k in obj) {
+// 			if (typeof obj[k] === 'object') {
+// 				search(obj[k] as Record<string, unknown>)
+// 			}
+// 		}
+// 	}
 
-	search(stack)
-	return found
-}
+// 	search(stack)
+// 	return found
+// }
 
 export const layerFeature = defineFeature({
 	name: 'layer',
@@ -53,18 +53,18 @@ export const layerFeature = defineFeature({
 
 		ctx.shared.set('layer-bucket-name', bucket.name)
 	},
-	onValidate(ctx) {
-		const layers = Object.keys(ctx.appConfig.defaults.layers ?? [])
+	// onValidate(ctx) {
+	// 	const layers = Object.keys(ctx.appConfig.defaults.layers ?? [])
 
-		for (const stack of ctx.stackConfigs) {
-			const stackLayers = stackSearch<string[]>(stack, 'layers').flat()
-			for (const layer of stackLayers) {
-				if (!layers.includes(layer)) {
-					throw new FileError(stack.file, `Layer "${layer}" is not defined in app.json`)
-				}
-			}
-		}
-	},
+	// 	for (const stack of ctx.stackConfigs) {
+	// 		const stackLayers = stackSearch<string[]>(stack, 'layers').flat()
+	// 		for (const layer of stackLayers) {
+	// 			if (!layers.includes(layer)) {
+	// 				throw new FileError(stack.file, `Layer "${layer}" is not defined in app.json`)
+	// 			}
+	// 		}
+	// 	}
+	// },
 	onApp(ctx) {
 		const layers = Object.entries(ctx.appConfig.defaults.layers ?? {})
 

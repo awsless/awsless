@@ -174,6 +174,7 @@ export class CloudControlApiProvider implements CloudProvider {
 
 		// Some resources require certain fields to be present in the patch document.
 		// So we have to remove them from the old document.
+
 		for (const field of requiredFields) {
 			objectPath.del(oldDocument, field)
 		}

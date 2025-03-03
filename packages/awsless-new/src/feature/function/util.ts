@@ -12,6 +12,7 @@ import { zipFiles } from './build/zip.js'
 import { FunctionProps } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { hashElement } from 'folder-hash'
+import { FileError } from '../../error.js'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { zipBundle } from './build/bundle/bundle.js'
@@ -32,7 +33,9 @@ export const createLambdaFunction = (
 	local: FunctionProps
 ): { lambda: Function; policy: Policy; code: Code; name: string } => {
 	let name: string
+
 	if ('stack' in ctx) {
+		ctx.stackConfig.file
 		name = formatLocalResourceName({
 			appName: ctx.app.name,
 			stackName: ctx.stack.name,
@@ -49,6 +52,22 @@ export const createLambdaFunction = (
 
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
 	let code: aws.lambda.Code
+
+	// ------------------------------------------------------------
+	// Check if layer has been defined on the app level
+
+	const layers = props.layers ?? []
+	if (layers.length) {
+		if (!ctx.shared.get<string[]>(`layer-${id}-arn`)) {
+			if ('stack' in ctx) {
+				throw new FileError(ctx.stackConfig.file, `Layer "${id}" is not defined in app.json`)
+			} else {
+				throw new FileError('app.json', `Layer "${id}" is not defined in app.json`)
+			}
+		}
+	}
+
+	// ------------------------------------------------------------
 
 	if (props.runtime === 'container') {
 		ctx.registerBuild('function', name, async build => {
