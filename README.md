@@ -22,8 +22,14 @@
     - [Stack Updates](#stack-updates)
     - [Smart Helpers: Call Your Infra Like Functions](#smart-helpers-call-your-infra-like-functions)
   - [Testing Stacks](#testing-stacks)
-  - [Resources](#resources)
+  - [Core Resources](#core-resources)
     - [Function - AWS Lambda](#function---aws-lambda)
+    - [Task](#task)
+    - [Table](#table)
+    - [Queue](#queue)
+    - [Topic](#topics)
+    - [Cron](#crons)
+    - [RPC API](#rpc)
   - [License](#license)
 
 ## Features
@@ -227,10 +233,10 @@ Whenever you run `pnpm awsless deploy`, AWSless will automatically:
 
 * Block the deployment if any tests fail
 
-## Resources
+## Core Resources
 
 ### Function - AWS Lambda
-Basic usage
+#### Basic usage
 ```json
 {
   "functions": {
@@ -239,7 +245,7 @@ Basic usage
 }
 ```
 
-Advanced usage
+#### Advanced usage
 
 You can also customize your Lambda function with additional parameters like memory size, timeout, environment variables, and more:
 ```json
@@ -251,6 +257,123 @@ You can also customize your Lambda function with additional parameters like memo
 	},
 ```
 
-## License
+### Task
+A Task in AWSless is an asynchronous Lambda function designed for background processing. You can trigger a task and immediately move on — AWSless handles the execution in the background, including retries and logging on failure.
 
-[MIT](LICENSE)
+
+#### Basic usage
+```json
+{
+  "tasks": {
+    "FUNCTION_NAME": "/path/to/function"
+  }
+}
+```
+
+#### Advanced usage
+
+You can also customize your Lambda function with additional parameters like memory size, timeout, environment variables, and more:
+```json
+	"tasks": {
+		"test": {
+			"code": "/path/to/function",
+			"memorySize": 512
+		}
+	},
+```
+
+### Table
+The tables feature in AWSless allows you to define fully managed, serverless DynamoDB tables directly in your stack configuration.
+
+
+#### Usage
+```json
+{
+  "tables": {
+    "TABLE_NAME": {
+      "hash": "id",
+      "sort": "user",
+      	"indexes": {
+				"list": {
+					"hash": "createdAt",
+					"sort": "id"
+				}
+		},
+    }
+  }
+}
+```
+
+🔑 Key Fields:
+* `hash` - Primary key
+* `sort` - Sort key
+* `indexes` - Define secondary index here
+
+
+### Queue
+This allows you to define a queue along with the consumer lambda.
+
+#### Usage
+```json
+{
+	"queues": {
+		"sendMail": {
+			"consumer": "/path/to/lambda/file",
+			"maxConcurrency": 2,
+			"batchSize": 5,
+		}
+	},
+}
+```
+
+
+### Topics
+This allows you to define a topic along with the subscriber lambda.
+
+#### Usage
+```json
+{
+	{
+  "topics": [ "TOPIC_NAME" ],
+  "subscribers": {
+    "TOPIC_NAME": "topic-consumer.ts",
+  }
+}
+}
+```
+
+### Crons
+AWSless uses AWS EventBridge to provide fully managed, serverless cron jobs — perfect for running scheduled tasks like cleanups, reports, or recurring syncs.
+
+#### Usage
+```json
+{
+  "crons": {
+    "CRON_NAME": {
+      "schedule": "1 day",
+      "consumer": "cron-consumer.ts",
+    }
+  }
+}
+```
+
+🔑 Key Options:
+* `schedule`: The interval or cron expression to define when the job should run (e.g., "1 day" or "cron(0 12 * * ? *)").
+
+* `consumer`: Path to the Lambda function that should be triggered on schedule.
+
+
+#### RPC
+AWSless allows you to easily expose any Lambda function as a type-safe RPC (Remote Procedure Call) endpoint for your frontend.
+
+The request and response types are automatically inferred from your Lambda function's payload and return value, giving you end-to-end type safety.
+
+```json
+{
+  "rpc": {
+    "base": { // base resource defined in app.json
+      "SendFriendRequest": "/path/to/lambda"
+    }
+  }
+}
+```
