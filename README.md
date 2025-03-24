@@ -30,6 +30,13 @@
     - [Topic](#topics)
     - [Cron](#crons)
     - [RPC API](#rpc)
+  - [Calling Infra From Code](#smart-helpers-call-your-infra-like-functions)
+    - [Examples](#examples)
+      - [Lambda](#lambda-function)
+      - [Task](#task-1)
+      - [Queue](#queue-1)
+      - [Topic](#topic)
+      - [Config](#config)
 
 ## Features
 
@@ -375,4 +382,69 @@ The request and response types are automatically inferred from your Lambda funct
     }
   }
 }
+```
+
+## Smart Functions - Call your infra from code
+With awsless, you can interact with your infrastructure directly from your code. awsless generates all necessary types for you, allowing seamless access to your resources.
+
+To set up, define your stacks and run:
+
+```bash
+$ pnpm awsless dev
+```
+
+This command will generate the required types and mappings, enabling you to access infrastructure components in your code effortlessly.
+
+Resources are accessible via their stack name and resource name.
+For instance, if a Lambda function exists within a stack named player, you can access its resources using:
+
+`player.{resourceName}`
+
+
+### Examples
+
+#### Lambda Function
+
+Calling a function named `limit` inside the `rate` stack:
+
+```typescript
+import { Fn } from '@awsless/awsless'
+
+await Fn.rate.limit({userId: "test"})
+```
+
+
+#### Task
+
+```typescript
+import { Task } from '@awsless/awsless'
+
+await Task.mail.send({msg: "hi", userId: "test"})
+```
+
+#### Queue
+Sending a message to a queue
+```typescript
+import { Queue } from '@awsless/awsless'
+
+await Queue.mail.send({msg: "hi", userId: "test"})
+```
+
+
+#### Topic
+Publish a message to SNS topic
+
+```typescript
+import { Topic } from '@awsless/awsless'
+
+await Topic.transaction.credit({amount: 10, userId: "test"})
+```
+
+#### Config
+Reading a secret configuration value:
+
+```typescript
+import { Config } from '@awsless/awsless'
+
+const key = await Config.API_KEY
 ```
