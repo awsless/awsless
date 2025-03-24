@@ -20,6 +20,7 @@
     - [Modular stacks](#modular-stacks)
     - [Deployment](#deploying)
     - [Stack Updates](#stack-updates)
+    - [Smart Helpers: Call Your Infra Like Functions](#smart-helpers-call-your-infra-like-functions)
   - [Testing Stacks](#testing-stacks)
   - [Resources](#resources)
     - [Function - AWS Lambda](#function---aws-lambda)
@@ -163,6 +164,28 @@ When you modify a stack file and run a deployment again, AWSless will:
 
 * This ensures your infrastructure always reflects the current state of your stack configuration — no manual cleanup required.
 
+### Smart Helpers: Call Your Infra Like Functions
+Once your stacks are defined, AWSless provides built-in helpers like Fn, Queue, and Task to let you interact with your infrastructure directly from your application code — no wiring or manual setup needed.
+
+To enable full type support for these resources, run:
+```bash
+$ pnpm run dev
+```
+This will watch your project and automatically generate type definitions for all the resources you've created.
+
+You can then use them seamlessly inside your Lambda functions:
+
+Now from one lambda function we can all any infra like
+```typescript
+// Call a Lambda function from another stack
+await Fn.rate.limit()
+
+// Push a message to a queue
+await Queue.notifications.send({ userId: 123 })
+```
+💡 These helpers are fully typed and auto-wired, making your code clean, safe, and easy to maintain.
+
+
 
 ## Testing Stacks
 AWSless supports built-in testing for your stacks to ensure everything works as expected before deployment.
@@ -177,7 +200,7 @@ You can define test folder in each stack
 
 exmaple test case
 `rate/test/utils.ts`
-```node
+```typescript
 describe('test', () => {
 	it('hello world', async () => {
 		expect(1 + 2).toStrictEqual(3)
