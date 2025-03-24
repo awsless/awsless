@@ -30,7 +30,6 @@
     - [Topic](#topics)
     - [Cron](#crons)
     - [RPC API](#rpc)
-  - [License](#license)
 
 ## Features
 
