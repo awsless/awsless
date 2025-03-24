@@ -177,6 +177,9 @@ You can then use them seamlessly inside your Lambda functions:
 
 Now from one lambda function we can all any infra like
 ```typescript
+
+import { Queue, Fn } from '@awsless/awsless'
+
 // Call a Lambda function from another stack
 await Fn.rate.limit()
 
