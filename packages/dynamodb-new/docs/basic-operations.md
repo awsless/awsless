@@ -22,7 +22,7 @@ const item = await getItem<TableType, ProjectionType>(
 - `key`: The primary key of the item to retrieve. This must include the hash key and, if defined, the sort key.
 - `options` (optional): An object with additional options:
   - `consistentRead`: Boolean indicating whether to use strongly consistent reads.
-  - `projection`: An array of attribute names to retrieve.
+  - `projection`: An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
 
 ### Return Value
 
@@ -53,7 +53,7 @@ const user = await getItem(users, { id: 'user123' }, {
 
 // Get only specific attributes
 const user = await getItem(users, { id: 'user123' }, {
-  projection: ['name', 'email']
+  "projection": ["name", "email"]
 });
 ```
 
@@ -113,7 +113,7 @@ await putItem(users, {
   email: 'john@example.com',
   age: 30
 }, {
-  condition: exp => exp.where('id').not.exists()
+  condition: exp => exp.where('id').not.exists
 });
 
 // Replace a user and return the old values
@@ -278,7 +278,7 @@ const item = await getIndexedItem<TableType, IndexType, ProjectionType>(
 - `key`: The index key of the item to retrieve. This must include the hash key and, if defined, the sort key of the index.
 - `options` (optional): An object with additional options:
   - `consistentRead`: Boolean indicating whether to use strongly consistent reads (only available for local secondary indexes).
-  - `projection`: An array of attribute names to retrieve.
+  - `projection`: An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
 
 ### Return Value
 
@@ -316,7 +316,7 @@ const user = await getIndexedItem(users, 'byEmail', {
 const user = await getIndexedItem(users, 'byUsername', {
   username: 'johndoe'
 }, {
-  projection: ['id', 'email']
+  "projection": ["id", "email"]
 });
 ```
 
@@ -340,7 +340,7 @@ try {
     email: 'john@example.com',
     age: 30
   }, {
-    condition: exp => exp.where('id').not.exists()
+    condition: exp => exp.where('id').not.exists
   });
 } catch (error) {
   if (error instanceof ConditionalCheckFailedException) {

@@ -20,7 +20,7 @@ const result = await query<TableType, ProjectionType, IndexType>(
 - `table`: The table definition created with the `define` function.
 - `options`: An object with query options:
   - `keyCondition`: A function that defines the key condition expression.
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `index` (optional): The name of a secondary index to query.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads (not available for global secondary indexes).
   - `forward` (optional): Boolean indicating whether to scan forward (true) or backward (false). Default is true.
@@ -87,7 +87,7 @@ const result = await query(posts, {
 // Query with projection
 const result = await query(posts, {
   keyCondition: exp => exp.where('userId').eq('user123'),
-  projection: ['postId', 'title']
+  "projection": ["postId", "title"]
 });
 
 // Pagination example
@@ -129,7 +129,7 @@ for await (const items of queryAll<TableType, ProjectionType, IndexType>(
 - `table`: The table definition created with the `define` function.
 - `options`: An object with query options:
   - `keyCondition`: A function that defines the key condition expression.
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `index` (optional): The name of a secondary index to query.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads.
   - `forward` (optional): Boolean indicating whether to scan forward (true) or backward (false). Default is true.
@@ -199,7 +199,7 @@ const result = await paginateQuery<TableType, ProjectionType, IndexType>(
 - `table`: The table definition created with the `define` function.
 - `options`: An object with query options:
   - `keyCondition`: A function that defines the key condition expression.
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `index` (optional): The name of a secondary index to query.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads.
   - `forward` (optional): Boolean indicating whether to scan forward (true) or backward (false). Default is true.

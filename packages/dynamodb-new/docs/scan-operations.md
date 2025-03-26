@@ -19,7 +19,7 @@ const result = await scan<TableType, ProjectionType, IndexType>(
 
 - `table`: The table definition created with the `define` function.
 - `options` (optional): An object with scan options:
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `index` (optional): The name of a secondary index to scan.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads (not available for global secondary indexes).
   - `limit` (optional): The maximum number of items to evaluate. Default is 10.
@@ -57,7 +57,7 @@ const result = await scan(users, {
 
 // Scan with projection
 const result = await scan(users, {
-  projection: ['id', 'name']
+  "projection": ["id", "name"]
 });
 
 // Scan a secondary index
@@ -118,7 +118,7 @@ for await (const items of scanAll<TableType, ProjectionType, IndexType>(
 
 - `table`: The table definition created with the `define` function.
 - `options` (optional): An object with scan options:
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `index` (optional): The name of a secondary index to scan.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads.
   - `batch` (optional): The number of items to retrieve in each batch. Default is 100.
@@ -182,7 +182,7 @@ const result = await paginateScan<TableType, ProjectionType, IndexType>(
 
 - `table`: The table definition created with the `define` function.
 - `options` (optional): An object with scan options:
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `index` (optional): The name of a secondary index to scan.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads.
   - `limit` (optional): The maximum number of items to evaluate. Default is 10.

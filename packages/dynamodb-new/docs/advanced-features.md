@@ -28,7 +28,7 @@ try {
     id: 'user123',
     name: 'John Doe',
   }, {
-    condition: exp => exp.where('id').not.exists()
+    condition: exp => exp.where('id').not.exists
   });
 } catch (error) {
   if (error instanceof ConditionalCheckFailedException) {
@@ -87,104 +87,7 @@ try {
 }
 ```
 
-#### ResourceNotFoundException
 
-Thrown when the requested resource (table, index, etc.) does not exist.
-
-```typescript
-import { getItem, ResourceNotFoundException, define, object, string } from '@awsless/dynamodb';
-
-const users = define('users', {
-  hash: 'id',
-  schema: object({
-    id: string(),
-    name: string(),
-  })
-});
-
-try {
-  await getItem(users, { id: 'user123' });
-} catch (error) {
-  if (error instanceof ResourceNotFoundException) {
-    console.log('Table does not exist');
-    // Create the table or handle the error
-  } else {
-    console.error('Unexpected error:', error);
-  }
-}
-```
-
-#### ProvisionedThroughputExceededException
-
-Thrown when the request rate is too high for the table's provisioned throughput.
-
-```typescript
-import { putItem, ProvisionedThroughputExceededException, define, object, string } from '@awsless/dynamodb';
-
-const users = define('users', {
-  hash: 'id',
-  schema: object({
-    id: string(),
-    name: string(),
-  })
-});
-
-try {
-  await putItem(users, {
-    id: 'user123',
-    name: 'John Doe',
-  });
-} catch (error) {
-  if (error instanceof ProvisionedThroughputExceededException) {
-    console.log('Rate limit exceeded, implementing backoff strategy');
-    // Implement exponential backoff and retry
-  } else {
-    console.error('Unexpected error:', error);
-  }
-}
-```
-
-### Implementing Retry Logic
-
-For operations that might fail due to throttling or temporary issues, you can implement retry logic:
-
-```typescript
-import { putItem, ProvisionedThroughputExceededException, define, object, string } from '@awsless/dynamodb';
-
-const users = define('users', {
-  hash: 'id',
-  schema: object({
-    id: string(),
-    name: string(),
-  })
-});
-
-async function putItemWithRetry(item, maxRetries = 3, baseDelay = 100) {
-  let retries = 0;
-
-  while (true) {
-    try {
-      return await putItem(users, item);
-    } catch (error) {
-      if (error instanceof ProvisionedThroughputExceededException && retries < maxRetries) {
-        retries++;
-        // Exponential backoff with jitter
-        const delay = baseDelay * Math.pow(2, retries) * (0.5 + Math.random() * 0.5);
-        console.log(`Retry ${retries} after ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
-    }
-  }
-}
-
-// Usage
-await putItemWithRetry({
-  id: 'user123',
-  name: 'John Doe',
-});
-```
 
 ## Debugging
 
@@ -213,33 +116,6 @@ const user = await getItem(users, { id: 'user123' }, {
 
 This will log the DynamoDB command and its parameters to the console, which can be helpful for debugging.
 
-### Custom Debug Function
-
-You can also provide a custom debug function:
-
-```typescript
-import { getItem, define, object, string } from '@awsless/dynamodb';
-
-const users = define('users', {
-  hash: 'id',
-  schema: object({
-    id: string(),
-    name: string(),
-  })
-});
-
-// Custom debug function
-const customDebug = (command) => {
-  console.log('DynamoDB Command:', command.constructor.name);
-  console.log('Parameters:', JSON.stringify(command.input, null, 2));
-  // You could also log to a file, send to a monitoring service, etc.
-};
-
-// Use custom debug function
-const user = await getItem(users, { id: 'user123' }, {
-  debug: customDebug
-});
-```
 
 ### Debugging Expressions
 
@@ -327,13 +203,13 @@ const users = define('users', {
 
 // Get only the attributes you need
 const user = await getItem(users, { id: 'user123' }, {
-  projection: exp => [exp.attr('name'), exp.attr('email')]
+  projection: ["email"]
 });
 
 // Query with projection
 const result = await query(users, {
   keyCondition: exp => exp.where('id').eq('user123'),
-  projection: exp => [exp.attr('id'), exp.attr('name')]
+  projection: ["email"]
 });
 ```
 

@@ -21,7 +21,7 @@ const items = await batchGetItem<TableType, ProjectionType, FilterOption>(
 - `table`: The table definition created with the `define` function.
 - `keys`: An array of primary keys for the items to retrieve. Each key must include the hash key and, if defined, the sort key.
 - `options` (optional): An object with additional options:
-  - `projection` (optional): An array of attribute names to retrieve.
+  - `projection` (optional): An array of attribute names to retrieve, specified as `{ "projection": ["attribute1", "attribute2"] }`.
   - `consistentRead` (optional): Boolean indicating whether to use strongly consistent reads.
   - `filterNonExistentItems` (optional): Boolean indicating whether to filter out non-existent items from the result. Default is false.
 
@@ -50,7 +50,7 @@ const users = await batchGetItem(users, userIds.map(id => ({ id })));
 
 // Get multiple users with projection
 const users = await batchGetItem(users, userIds.map(id => ({ id })), {
-  projection: ['id', 'name']
+  "projection": ["id", "name"]
 });
 
 // Get multiple users and filter out non-existent ones
