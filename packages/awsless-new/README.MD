@@ -1,210 +1,357 @@
+<p align="center">Awsless - Infrastructure as a code</p>
+
+<div align="center">
+
+[![npm version](https://img.shields.io/npm/v/@awsless/awsless.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/awsless)
 
 
-# TODO:
-- add fargate container stuff for long lived services
-- add check for existing graphql resolver field in schema
-- add check for conflicting types inside graphql (Like duplicate type names)
-  - Types should probably only allowed to defined once. And should be extended after that.
+[![npm downloads](https://img.shields.io/npm/dm/@awsless/awsless.svg?style=flat-square)](https://npm-stat.com/charts.html?package=@awsless/awsless)
 
 
-# BUGS
-- Container Lambda's don't update the lambda correctly when ever the container code updates.
-- GraphQL resolver code doesn't update correctly.
-- S3 bucket doesn't delete propertly when files are inside.
-- Cleanup unused network interfaces on VPC delete.
-- ECR Repo doesn't delete propertly when images are inside.
+</div>
 
----
----
----
+## Table of Contents
 
-# Features
+  - [Features](#features)
+  - [Installing](#installing)
+    - [Package manager](#package-manager)
+  - [Getting Started](#getting-started)
+    - [Base Configuration](#base-configuration)
+    - [Modular stacks](#modular-stacks)
+    - [Deployment](#deploying)
+    - [Stack Updates](#stack-updates)
+    - [Smart Helpers: Call Your Infra Like Functions](#smart-helpers-call-your-infra-like-functions)
+  - [Testing Stacks](#testing-stacks)
+  - [Core Resources](#core-resources)
+    - [Function - AWS Lambda](#function---aws-lambda)
+    - [Task](#task)
+    - [Table](#table)
+    - [Queue](#queue)
+    - [Topic](#topics)
+    - [Cron](#crons)
+    - [RPC API](#rpc)
+  - [Calling Infra From Code](#smart-helpers-call-your-infra-like-functions)
+    - [Examples](#examples)
+      - [Lambda](#lambda-function)
+      - [Task](#task-1)
+      - [Queue](#queue-1)
+      - [Topic](#topic)
+      - [Config](#config)
 
-- VPC
-- Tests
-- Commands
-- Auth
-- Config
-- Domains
-- Sites
-- Functions
-- Tasks
-- Instances
-- Database
-  - Tables
-  - Stores
-  - Caches
-  - Searchs
-- Queues
-- Topics
-- Realtime
-- Crons
-- API
-  - HTTP
-  - GraphQL
-- Process Failure Capture
+## Features
 
-## Domains
+🪶 AWS development using JSON config with best practices baked in
 
-We use AWS Route53 to provide domain management.
+⚡ Deploy APIs, functions, databases, queues, and more — all in one place
 
-```json
+🔒 Secure by default with IAM-based permissions and least privilege
+
+🌍 First-class support for AWS Lambda, DynamoDB, SQS, EventBridge, and more
+
+🧪 Built-in local development and testing utilities
+
+🔄 Automatic function bundling with support for ES modules and TypeScript
+
+🔄 Types generatation for all resources that can be acessed anywhere in the code
+
+
+## Installing
+
+### Package manager
+
+Using npm:
+
+```bash
+$ npm i @awsless/awsless
+```
+
+
+Using pnpm:
+
+```bash
+$ pnpm i @awsless/awsless
+```
+
+
+## Getting Started
+In an AWSless project, your infrastructure is organized into modular stack files, each with its own purpose, and a shared base configuration. Before you begin, make sure you have the AWS CLI installed.
+
+
+### Base Configuration
+This is your shared app configuration, which acts as the base stack for the entire project. This should exist in the root of your project.
+`app.json`
+```
 {
-  "domains": {
-    "main": {
-      "domain": "example.com",
-      "dns": [{
-        "name": "sub",
-        "type": "A",
-        "records": [ ... ],
-      }]
-    },
+  "name": "hello-world",
+  "region": "eu-west-1",
+  "profile": "test",
+  "defaults": {
+    "alerts": {
+      "debug": "hello@gmail.com"
+    }
   }
 }
 ```
+🔑 Key Fields
+* name: Name of your application.
 
-## Functions
+* region: AWS region where you want to deploy your infrastructure.
 
-We use AWS Lambda to provide serverless functions.
+* profile: Your AWS CLI profile to use for deployment.
 
+
+
+### Modular Stacks
+Each feature/module of your application can be defined as a separate stack file. These live in their own folders and are completely independent.
+
+Example - `auth/stack.json`
+```
+{
+	"name": "auth",
+	"functions": {
+		"verify": "./src/lambda.ts" // AWS Lambda
+	},
+
+}
+```
+
+Example - `rate/stack.json`
+```
+{
+	"name": "rate",
+	"functions": {
+		"limit": "./src/lambda.ts" // AWS Lambda
+	},
+
+}
+```
+
+You can create as many stack files as needed, each targeting different parts of your application.
+
+### Deploying
+
+
+Deploy all stacks
+```bash
+$ pnpm awsless deploy
+```
+
+Deploy individual stack
+```bash
+$ pnpm awsless deploy rate
+```
+
+Deploy multiple stacks
+```bash
+$ pnpm awsless deploy rate auth
+```
+
+Deploy base stack
+```bash
+$ pnpm awsless deploy base
+```
+
+### Stack Updates
+AWSless makes it simple to remove infrastructure when it's no longer needed.
+
+🧼 Delete a Specific Stack
+```bash
+$ pnpm awsless delete rate
+```
+
+💣 Delete All Stacks
+```bash
+pnpm awsless delete
+```
+⚠️ This will remove all deployed resources associated with your stacks. Use with caution!
+
+♻️ Updating or Replacing Resources
+When you modify a stack file and run a deployment again, AWSless will:
+
+* Update existing resources if changes are detected.
+
+* Delete resources that are removed from the stack file.
+
+* Create new resources as needed.
+
+* This ensures your infrastructure always reflects the current state of your stack configuration — no manual cleanup required.
+
+### Smart Helpers: Call Your Infra Like Functions
+Once your stacks are defined, AWSless provides built-in helpers like Fn, Queue, and Task to let you interact with your infrastructure directly from your application code — no wiring or manual setup needed.
+
+To enable full type support for these resources, run:
+```bash
+$ pnpm run dev
+```
+This will watch your project and automatically generate type definitions for all the resources you've created.
+
+You can then use them seamlessly inside your Lambda functions:
+
+Now from one lambda function we can all any infra like
+```typescript
+
+import { Queue, Fn } from '@awsless/awsless'
+
+// Call a Lambda function from another stack
+await Fn.rate.limit()
+
+// Push a message to a queue
+await Queue.notifications.send({ userId: 123 })
+```
+💡 These helpers are fully typed and auto-wired, making your code clean, safe, and easy to maintain.
+
+
+
+## Testing Stacks
+AWSless supports built-in testing for your stacks to ensure everything works as expected before deployment.
+
+You can define test folder in each stack
+```json
+{
+    "name": "rate",
+    "test": "./path/to/test/folder"
+}
+```
+
+exmaple test case
+`rate/test/utils.ts`
+```typescript
+describe('test', () => {
+	it('hello world', async () => {
+		expect(1 + 2).toStrictEqual(3)
+	})
+})
+```
+
+🔍 Run Tests Manually
+```bash
+$ pnpm awsless test rate
+```
+
+This will look for a defined test folder inside the rate stack directory and run any defined tests inside here.
+
+🛡️ Tests Run Automatically Before Deploy
+Whenever you run `pnpm awsless deploy`, AWSless will automatically:
+
+* Check if a test/ folder exists for each stack
+
+* Run the tests for that stack
+
+* Block the deployment if any tests fail
+
+## Core Resources
+
+### Function - AWS Lambda
+#### Basic usage
 ```json
 {
   "functions": {
-  	"FUNCTION_NAME": "function.ts"
+    "FUNCTION_NAME": "/path/to/function"
   }
 }
 ```
 
-## Tasks
+#### Advanced usage
 
-We use AWS Async Lambda to provide serverless async tasks.
-Tasks are an lower cost alternative to queues.
+You can also customize your Lambda function with additional parameters like memory size, timeout, environment variables, and more:
+```json
+	"functions": {
+		"test": {
+			"code": "/path/to/function",
+			"memorySize": 512
+		}
+	},
+```
 
+### Task
+A Task in AWSless is an asynchronous Lambda function designed for background processing. You can trigger a task and immediately move on — AWSless handles the execution in the background, including retries and logging on failure.
+
+
+#### Basic usage
 ```json
 {
   "tasks": {
-  	"TASK_NAME": "task.ts"
+    "FUNCTION_NAME": "/path/to/function"
   }
 }
 ```
 
-## Instances
+#### Advanced usage
 
-We use AWS EC2 Instances to provide low level server instances.
-Tasks are an lower cost alternative to queues.
-
+You can also customize your Lambda function with additional parameters like memory size, timeout, environment variables, and more:
 ```json
-{
-  "instances": {
-  	"INSTANCE_NAME": {
-	  "type": "t4g.nano",
-	  "image": "ami-000000",
-	  "code": "./src",
-	  "command": "sh ./startup.sh",
-	}
-  }
-}
+	"tasks": {
+		"test": {
+			"code": "/path/to/function",
+			"memorySize": 512
+		}
+	},
 ```
 
-## Tables
+### Table
+The tables feature in AWSless allows you to define fully managed, serverless DynamoDB tables directly in your stack configuration.
 
-We use AWS DynamoDB to provide serverless tables.
 
+#### Usage
 ```json
 {
   "tables": {
     "TABLE_NAME": {
       "hash": "id",
-      "fields": {
-        "id": "number",
-      }
+      "sort": "user",
+      	"indexes": {
+				"list": {
+					"hash": "createdAt",
+					"sort": "id"
+				}
+		},
     }
   }
 }
 ```
 
-## Stores
+🔑 Key Fields:
+* `hash` - Primary key
+* `sort` - Sort key
+* `indexes` - Define secondary index here
 
-We use AWS S3 to provide serverless key-value storage.
 
+### Queue
+This allows you to define a queue along with the consumer lambda.
+
+#### Usage
 ```json
 {
-  "stores": [ "STORE_NAME" ]
+	"queues": {
+		"sendMail": {
+			"consumer": "/path/to/lambda/file",
+			"maxConcurrency": 2,
+			"batchSize": 5,
+		}
+	},
 }
 ```
 
-## Caches
 
-We use AWS MemoryDB to provide a __redis compatible__ in-memory storage.
+### Topics
+This allows you to define a topic along with the subscriber lambda.
 
+#### Usage
 ```json
 {
-  "caches": {
-    "CACHE_NAME": {
-      "type": "t4g.small"
-    }
-  }
-}
-```
-
-## Searchs
-
-We use AWS Open Search to provide a serverless search api.
-
-```json
-{
-  "searchs": {
-    "SEARCH_NAME": {
-      "type": "t3.small"
-    }
-  }
-}
-```
-
-## Queues
-
-We use AWS SQS to provide serverless queues.
-
-```json
-{
-  "queues": {
-    "QUEUE_NAME": "queue-consumer.ts"
-  }
-}
-```
-
-## Topics
-
-We use AWS SNS to provide serverless pubsub topics.
-
-```json
-{
+	{
   "topics": [ "TOPIC_NAME" ],
   "subscribers": {
     "TOPIC_NAME": "topic-consumer.ts",
   }
 }
-```
-
-## Pubsub
-
-We use AWS IoT to provide a serverless mqtt pubsub channel.
-
-```json
-{
-  "pubsub": {
-    "PUBSUB_NAME": {
-      "sql": "SELECT * FROM '$aws/events/presence/connected/+'",
-      "consumer": "pubsub-consumer.ts",
-    }
-  }
 }
 ```
 
-## Crons
+### Crons
+AWSless uses AWS EventBridge to provide fully managed, serverless cron jobs — perfect for running scheduled tasks like cleanups, reports, or recurring syncs.
 
-We use AWS Event Bridge to provide serverless cron jobs.
-
+#### Usage
 ```json
 {
   "crons": {
@@ -216,83 +363,88 @@ We use AWS Event Bridge to provide serverless cron jobs.
 }
 ```
 
-## HTTP
+🔑 Key Options:
+* `schedule`: The interval or cron expression to define when the job should run (e.g., "1 day" or "cron(0 12 * * ? *)").
 
-We use AWS ELB to provide a HTTP API.
+* `consumer`: Path to the Lambda function that should be triggered on schedule.
+
+
+#### RPC
+AWSless allows you to easily expose any Lambda function as a type-safe RPC (Remote Procedure Call) endpoint for your frontend.
+
+The request and response types are automatically inferred from your Lambda function's payload and return value, giving you end-to-end type safety.
 
 ```json
 {
-  "http": {
-    "HTTP_API_NAME": {
-      "GET /posts": "list-posts.ts",
-      "POST /posts": "create-post.ts",
+  "rpc": {
+    "base": { // base resource defined in app.json
+      "SendFriendRequest": "/path/to/lambda"
     }
   }
 }
 ```
 
-## REST
+## Smart Functions - Call your infra from code
+With awsless, you can interact with your infrastructure directly from your code. awsless generates all necessary types for you, allowing seamless access to your resources.
 
-We use AWS ApiGatewayV2 to provide a serverless REST API.
+To set up, define your stacks and run:
 
-```json
-{
-  "rest": {
-    "REST_API_NAME": {
-      "GET /posts/{id}": "get-posts.ts",
-      "DELETE /posts/{id}": "delete-post.ts",
-    }
-  }
-}
+```bash
+$ pnpm awsless dev
 ```
 
-## GraphQL
+This command will generate the required types and mappings, enabling you to access infrastructure components in your code effortlessly.
 
-We use AWS AppSync to provide a serverless GraphQL API.
+Resources are accessible via their stack name and resource name.
+For instance, if a Lambda function exists within a stack named player, you can access its resources using:
 
-```json
-{
-  "graphql": {
-    "GRAPHQL_API_NAME": {
-      "schema": "schema.gql",
-      "resolvers": {
-        "Query": {
-          "posts": "list-posts.ts",
-        },
-        "Mutation": {
-          "createPost": "create-post.ts",
-        }
-      }
-    }
-  }
-}
+`player.{resourceName}`
+
+
+### Examples
+
+#### Lambda Function
+
+Calling a function named `limit` inside the `rate` stack:
+
+```typescript
+import { Fn } from '@awsless/awsless'
+
+await Fn.rate.limit({userId: "test"})
 ```
 
-## Auth
 
-We use AWS Cognito to provide a serverless Authentication API.
+#### Task
 
-```json
-{
-  "auth": {
-    "AUTH_USER_POOL_NAME": {
-   	  "allowUserRegistration": false,
-   	  "password": {
-   	    "minLength": 24
-   	  }
-    }
-  }
-}
+```typescript
+import { Task } from '@awsless/awsless'
+
+await Task.mail.send({msg: "hi", userId: "test"})
 ```
 
-## Commands
+#### Queue
+Sending a message to a queue
+```typescript
+import { Queue } from '@awsless/awsless'
 
-You can define custom cli commands that you can run from the awsless cli tool.
+await Queue.mail.send({msg: "hi", userId: "test"})
+```
 
-```json
-{
-  "commands": {
-    "COMMAND_NAME": "./cli/your-command.ts"
-  }
-}
+
+#### Topic
+Publish a message to SNS topic
+
+```typescript
+import { Topic } from '@awsless/awsless'
+
+await Topic.transaction.credit({amount: 10, userId: "test"})
+```
+
+#### Config
+Reading a secret configuration value:
+
+```typescript
+import { Config } from '@awsless/awsless'
+
+const key = await Config.API_KEY
 ```
