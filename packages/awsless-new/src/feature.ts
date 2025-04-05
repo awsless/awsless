@@ -62,6 +62,7 @@ export type BeforeContext = {
 
 	app: App
 	base: Stack
+	zones: Stack
 	shared: SharedData
 }
 

@@ -1,0 +1,288 @@
+{
+  "name": "app",
+  "stacks": {
+    "urn:App:{app}:Stack:{stack}": {
+      "name": "stack",
+      "dependencies": [],
+      "resources": {
+        "urn:App:{app}:Stack:{stack}:aws_iam_role:{role}": {
+          "version": 0,
+          "type": "aws_iam_role",
+          "provider": "terraform:aws:default",
+          "input": {
+            "name": "role",
+            "assumeRolePolicy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"sts:AssumeRole\",\n      \"Principal\": {\n        \"Service\": \"lambda.amazonaws.com\"\n      }\n    }\n  ]\n}"
+          },
+          "output": {
+            "arn": "arn:aws:iam::468004125411:role/role",
+            "assumeRolePolicy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+            "createDate": "2025-04-05T16:25:09Z",
+            "description": "",
+            "forceDetachPolicies": false,
+            "id": "role",
+            "managedPolicyArns": [],
+            "maxSessionDuration": 3600,
+            "name": "role",
+            "namePrefix": "",
+            "path": "/",
+            "permissionsBoundary": "",
+            "tagsAll": {},
+            "uniqueId": "AROAWZ5ZYHLR7YCLIXGDB",
+            "inlinePolicy": []
+          },
+          "dependencies": [
+            "urn:data:aws_iam_policy_document:17ec8eb5-2e64-4932-ba47-9b5b6cb24c3d"
+          ],
+          "lifecycle": {}
+        },
+        "urn:App:{app}:Stack:{stack}:aws_s3_bucket:{assets}": {
+          "version": 0,
+          "type": "aws_s3_bucket",
+          "provider": "terraform:aws:default",
+          "input": {
+            "bucket": "assets-super-random-1"
+          },
+          "output": {
+            "accelerationStatus": "",
+            "arn": "arn:aws:s3:::assets-super-random-1",
+            "bucket": "assets-super-random-1",
+            "bucketDomainName": "assets-super-random-1.s3.amazonaws.com",
+            "bucketPrefix": "",
+            "bucketRegionalDomainName": "assets-super-random-1.s3.us-east-1.amazonaws.com",
+            "forceDestroy": false,
+            "hostedZoneId": "Z3AQBSTGFYJSTF",
+            "id": "assets-super-random-1",
+            "objectLockEnabled": false,
+            "policy": "",
+            "region": "us-east-1",
+            "requestPayer": "BucketOwner",
+            "tagsAll": {},
+            "corsRule": [],
+            "grant": [
+              {
+                "id": "d100cf0a28bdd4f9884a5c0de665555f2a62eacbddb9c6081d11f3bfb02fefa8",
+                "permissions": [
+                  "FULL_CONTROL"
+                ],
+                "type": "CanonicalUser",
+                "uri": ""
+              }
+            ],
+            "lifecycleRule": [],
+            "logging": [],
+            "objectLockConfiguration": [],
+            "replicationConfiguration": [],
+            "serverSideEncryptionConfiguration": [
+              {
+                "rule": [
+                  {
+                    "bucketKeyEnabled": false,
+                    "applyServerSideEncryptionByDefault": [
+                      {
+                        "kmsMasterKeyId": "",
+                        "sseAlgorithm": "AES256"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "versioning": [
+              {
+                "enabled": false,
+                "mfaDelete": false
+              }
+            ],
+            "website": []
+          },
+          "dependencies": [],
+          "lifecycle": {}
+        },
+        "urn:App:{app}:Stack:{stack}:aws_s3_bucket_object:{code}": {
+          "version": 0,
+          "type": "aws_s3_bucket_object",
+          "provider": "terraform:aws:default",
+          "input": {
+            "bucket": "assets-super-random-1",
+            "key": "code.zip",
+            "source": "/Users/ivandasilveira/Sites/@awsless/packages/formation-new/demo/asset/code.zip",
+            "sourceHash": "8d65a72a469ef655f5b0898fc858ef815cf4ab943aff79261bdabd475de9f0e9"
+          },
+          "output": {
+            "acl": "private",
+            "arn": "arn:aws:s3:::assets-super-random-1/code.zip",
+            "bucket": "assets-super-random-1",
+            "bucketKeyEnabled": false,
+            "cacheControl": "",
+            "contentDisposition": "",
+            "contentEncoding": "",
+            "contentLanguage": "",
+            "contentType": "application/octet-stream",
+            "etag": "f40dff693dd73b6d4d3a6f36d9c5d7d1",
+            "forceDestroy": false,
+            "id": "code.zip",
+            "key": "code.zip",
+            "objectLockLegalHoldStatus": "",
+            "objectLockMode": "",
+            "objectLockRetainUntilDate": "",
+            "serverSideEncryption": "AES256",
+            "source": "/Users/ivandasilveira/Sites/@awsless/packages/formation-new/demo/asset/code.zip",
+            "sourceHash": "8d65a72a469ef655f5b0898fc858ef815cf4ab943aff79261bdabd475de9f0e9",
+            "storageClass": "STANDARD",
+            "tagsAll": {},
+            "versionId": "",
+            "websiteRedirect": ""
+          },
+          "dependencies": [
+            "urn:App:{app}:Stack:{stack}:aws_s3_bucket:{assets}"
+          ],
+          "lifecycle": {}
+        },
+        "urn:App:{app}:Stack:{stack}:aws_lambda_function:{function}": {
+          "version": 0,
+          "type": "aws_lambda_function",
+          "provider": "terraform:aws:default",
+          "input": {
+            "functionName": "function",
+            "description": "Test function",
+            "role": "arn:aws:iam::468004125411:role/role",
+            "architectures": [
+              "arm64"
+            ],
+            "runtime": "nodejs22.x",
+            "handler": "index.default",
+            "memorySize": 128,
+            "s3Bucket": "assets-super-random-1",
+            "s3Key": "code.zip",
+            "s3ObjectVersion": "",
+            "sourceCodeHash": "8d65a72a469ef655f5b0898fc858ef815cf4ab943aff79261bdabd475de9f0e9",
+            "environment": [
+              {
+                "variables": {
+                  "ACCOUNT_ID": "468004125411"
+                }
+              }
+            ]
+          },
+          "output": {
+            "architectures": [
+              "arm64"
+            ],
+            "arn": "arn:aws:lambda:us-east-1:468004125411:function:function",
+            "codeSha256": "t44ywGT1GlJlU0PPH19qzQeCCn2C8dFKmfyttXF/FV4=",
+            "codeSigningConfigArn": "",
+            "description": "Test function",
+            "functionName": "function",
+            "handler": "index.default",
+            "id": "function",
+            "imageUri": "",
+            "invokeArn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:468004125411:function:function/invocations",
+            "kmsKeyArn": "",
+            "lastModified": "2025-04-05T16:25:17.903+0000",
+            "memorySize": 128,
+            "packageType": "Zip",
+            "publish": false,
+            "qualifiedArn": "arn:aws:lambda:us-east-1:468004125411:function:function:$LATEST",
+            "qualifiedInvokeArn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:468004125411:function:function:$LATEST/invocations",
+            "reservedConcurrentExecutions": -1,
+            "role": "arn:aws:iam::468004125411:role/role",
+            "runtime": "nodejs22.x",
+            "s3Bucket": "assets-super-random-1",
+            "s3Key": "code.zip",
+            "s3ObjectVersion": "",
+            "signingJobArn": "",
+            "signingProfileVersionArn": "",
+            "skipDestroy": false,
+            "sourceCodeHash": "8d65a72a469ef655f5b0898fc858ef815cf4ab943aff79261bdabd475de9f0e9",
+            "sourceCodeSize": 257,
+            "tagsAll": {},
+            "timeout": 3,
+            "version": "$LATEST",
+            "deadLetterConfig": [],
+            "environment": [
+              {
+                "variables": {
+                  "ACCOUNT_ID": "468004125411"
+                }
+              }
+            ],
+            "ephemeralStorage": [
+              {
+                "size": 512
+              }
+            ],
+            "fileSystemConfig": [],
+            "imageConfig": [],
+            "loggingConfig": [
+              {
+                "applicationLogLevel": "",
+                "logFormat": "Text",
+                "logGroup": "/aws/lambda/function",
+                "systemLogLevel": ""
+              }
+            ],
+            "snapStart": [],
+            "tracingConfig": [
+              {
+                "mode": "PassThrough"
+              }
+            ],
+            "vpcConfig": []
+          },
+          "dependencies": [
+            "urn:App:{app}:Stack:{stack}:aws_iam_role:{role}",
+            "urn:App:{app}:Stack:{stack}:aws_s3_bucket_object:{code}",
+            "urn:data:aws_caller_identity:d54a3015-951c-4f67-8705-00e57bb6c1a3"
+          ],
+          "lifecycle": {}
+        },
+        "urn:App:{app}:Stack:{stack}:aws_cloudwatch_log_group:{logs}": {
+          "version": 0,
+          "type": "aws_cloudwatch_log_group",
+          "provider": "terraform:aws:default",
+          "input": {
+            "name": "function",
+            "namePrefix": "/aws/lambda/"
+          },
+          "output": {
+            "arn": "arn:aws:logs:us-east-1:468004125411:log-group:function",
+            "id": "function",
+            "kmsKeyId": "",
+            "logGroupClass": "STANDARD",
+            "name": "function",
+            "namePrefix": "",
+            "retentionInDays": 0,
+            "skipDestroy": false,
+            "tagsAll": {}
+          },
+          "dependencies": [
+            "urn:App:{app}:Stack:{stack}:aws_lambda_function:{function}"
+          ],
+          "lifecycle": {}
+        },
+        "urn:App:{app}:Stack:{stack}:aws_iam_role_policy:{policy}": {
+          "version": 0,
+          "type": "aws_iam_role_policy",
+          "provider": "terraform:aws:default",
+          "input": {
+            "name": "policy",
+            "role": "role",
+            "policy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:CreateLogStream\",\n      \"Resource\": \"arn:aws:logs:us-east-1:468004125411:log-group:function\"\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:PutLogEvents\",\n      \"Resource\": \"arn:aws:logs:us-east-1:468004125411:log-group:function:*\"\n    }\n  ]\n}"
+          },
+          "output": {
+            "id": "role:policy",
+            "name": "policy",
+            "namePrefix": "",
+            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"logs:CreateLogStream\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:us-east-1:468004125411:log-group:function\"},{\"Action\":\"logs:PutLogEvents\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:us-east-1:468004125411:log-group:function:*\"}]}",
+            "role": "role"
+          },
+          "dependencies": [
+            "urn:App:{app}:Stack:{stack}:aws_iam_role:{role}",
+            "urn:data:aws_iam_policy_document:44bcab88-2d50-4245-a58d-27c46557e505"
+          ],
+          "lifecycle": {}
+        }
+      }
+    }
+  }
+}

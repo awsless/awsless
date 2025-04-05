@@ -1,5 +1,6 @@
 export * from './cache-policy'
 export * from './distribution'
+export * from './function'
 export * from './invalidate-cache-provider'
 export * from './invalidate-cache'
 export * from './origin-access-control'

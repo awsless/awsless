@@ -1345,6 +1345,30 @@ declare class Distribution extends CloudControlApiResource {
     };
 }
 
+declare class Function$1 extends CloudControlApiResource {
+    readonly parent: Node;
+    private props;
+    constructor(parent: Node, id: string, props: {
+        name: Input<string>;
+        comment: Input<string>;
+        runtime?: Input<'1.0' | '2.0'>;
+        code: Input<string>;
+        autoPublish?: Input<boolean>;
+    });
+    get arn(): Output<`arn:${string}`>;
+    toState(): {
+        document: {
+            Name: Input<string>;
+            AutoPublish: boolean;
+            FunctionCode: Input<string>;
+            FunctionConfig: {
+                Runtime: string;
+                Comment: Input<string>;
+            };
+        };
+    };
+}
+
 type ProviderProps$c = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
@@ -1569,6 +1593,7 @@ declare namespace index$o {
     index$o_AssociationType as AssociationType,
     index$o_CachePolicy as CachePolicy,
     index$o_Distribution as Distribution,
+    Function$1 as Function,
     index$o_InvalidateCache as InvalidateCache,
     index$o_InvalidateCacheProvider as InvalidateCacheProvider,
     index$o_Origin as Origin,

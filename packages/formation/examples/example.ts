@@ -41,17 +41,41 @@ const stack = new Stack(app, 'test')
 stack.setTag('stack', 'test')
 
 // const queue = new aws.sqs.Queue(stack, 'test', {
+// 	name: 'test-queue-1',
+// })
+
+// const zone = new aws.route53.HostedZone(stack, 'test', {
+// 	name: 'example-123.com',
+// })
+
+// zone.addRecord('test', {
+// 	name: 'lol.example-123.com',
+// 	type: 'TXT',
+// 	ttl: minutes(5),
+// 	records: ['"test"'],
+// })
+
+// const queue = new aws.sqs.Queue(stack, 'test', {
 // 	name: 'test-queue',
 // })
-;(async () => {
-	const provider = await TerraformRegistryProvider.load('hashicorp', 'aws')
 
-	// console.log(provider.versions)
-	console.log(provider.latestVersion)
-	console.log(provider.latestVersion?.supported)
-	// console.log(await provider.latestVersion?.getDownloadUrl())
-	// console.log(provider.latestVersion)
-})()
+// ;(async () => {
+// 	const provider = await TerraformRegistryProvider.load('hashicorp', 'aws')
+
+// 	// console.log(provider.versions)
+// 	console.log(provider.latestVersion)
+// 	console.log(provider.latestVersion?.supported)
+// 	// console.log(await provider.latestVersion?.getDownloadUrl())
+// 	// console.log(provider.latestVersion)
+// })()
+
+// const func = new aws.cloudFront.Function(stack, 'test', {
+// 	name: 'test-fn',
+// 	comment: 'test-fn',
+// 	code: 'function handler(event) { return event.request }',
+// })
+
+// func.arn.apply(v => console.log(v))
 
 // const zone = new aws.route53.HostedZone(stack, 'test', {
 // 	name: 'my-domain.com',
@@ -201,6 +225,7 @@ const main = async () => {
 	// console.log(diff1)
 
 	console.log('START')
+	console.time('deploy')
 
 	try {
 		await workspace.deployApp(app)
@@ -218,6 +243,7 @@ const main = async () => {
 	}
 
 	console.log('END')
+	console.timeEnd('deploy')
 
 	// await workspace.deleteStack(stack)
 	// await workspace.deployStack(stack)

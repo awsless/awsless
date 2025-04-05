@@ -338,7 +338,7 @@ var lambda = (options) => {
         });
       });
       if (isTestEnv) {
-        return result;
+        return (0, import_json3.parse)((0, import_json3.stringify)(result));
       }
       return (0, import_json3.unpatch)(result);
     } catch (error) {

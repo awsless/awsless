@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"outDir": "bin",
+		"target": "es2022",
+		"module": "es2022",
+		"esModuleInterop": true,
+		"strictNullChecks": true,
+		"noUncheckedIndexedAccess": true,
+		"allowImportingTsExtensions": true,
+		"moduleResolution": "node",
+		"declaration": true,
+		"sourceMap": true
+	}
+}

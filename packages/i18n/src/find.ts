@@ -27,6 +27,7 @@ export const findTranslatable = async (cwd: string) => {
 				found.push(...findSvelteTranslatable(code))
 			}
 		}
+
 		if (code.includes('get(t)`')) {
 			found.push(...(await findTypescriptTranslatable(code)))
 		}

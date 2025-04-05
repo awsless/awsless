@@ -1,5 +1,6 @@
 import { BigFloat, mul } from '@awsless/big-float'
 import { parse, patch, Serializable, stringify, unpatch } from '../src'
+import { days } from '@awsless/duration'
 
 describe('JSON', () => {
 	describe('basic', () => {
@@ -56,6 +57,7 @@ describe('JSON', () => {
 			nan: NaN,
 			url: new URL('https://domain.com/path?query#hash'),
 			binary: new Uint8Array([1]),
+			duration: days(1),
 
 			// Sadly this line will not work
 			// undefined: undefined,
@@ -151,6 +153,10 @@ describe('JSON', () => {
 			binary: {
 				input: new Uint8Array([1, 2, 3, 4, 5]),
 				output: '{"$binary":"AQIDBAU="}',
+			},
+			duration: {
+				input: days(1),
+				output: '{"$duration":"86400000"}',
 			},
 		}
 

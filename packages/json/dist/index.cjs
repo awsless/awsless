@@ -113,9 +113,18 @@ var $url = {
   stringify: (v) => v.toString()
 };
 
+// src/type/duration.ts
+var import_duration = require("@awsless/duration");
+var $duration = {
+  is: (v) => v instanceof import_duration.Duration,
+  parse: (v) => new import_duration.Duration(BigInt(v)),
+  stringify: (v) => v.value.toString()
+};
+
 // src/type/index.ts
 var baseTypes = {
   $undefined,
+  $duration,
   $infinity,
   $bigfloat,
   $bigint,

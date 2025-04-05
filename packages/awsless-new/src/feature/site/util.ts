@@ -19,3 +19,17 @@ export const getCacheControl = (file: string) => {
 export const getContentType = (file: string) => {
 	return contentType(extname(file)) || 'text/html; charset=utf-8'
 }
+
+export const getForwardHostFunctionCode = () => {
+	return [
+		'function handler(event) {',
+
+		'const request = event.request',
+		'const headers = request.headers',
+		'const host = request.headers.host.value',
+		'headers["x-forwarded-host"] = { value: host }',
+		'return request',
+
+		'}',
+	].join('\n')
+}

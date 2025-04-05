@@ -1,5 +1,5 @@
-import { patch, unpatch } from '@awsless/json'
-import { parse } from '@awsless/validate'
+import { parse, patch, stringify, unpatch } from '@awsless/json'
+import { parse as valiParse } from '@awsless/validate'
 import { Context } from 'aws-lambda'
 // import { Jsonify } from 'type-fest'
 import { createTimeoutWrap } from './errors/timeout.js'
@@ -80,7 +80,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			const result = await createTimeoutWrap(context, log, () => {
 				return transformValidationErrors(() => {
 					const fixed = typeof event === 'undefined' || isTestEnv ? event : patch(event)
-					const input = options.schema ? parse(options.schema, fixed) : fixed
+					const input = options.schema ? valiParse(options.schema, fixed) : fixed
 					const extendedContext = { ...(context ?? {}), event: fixed, log } as ExtendedContext
 
 					return options.handle(input as Output<S>, extendedContext)
@@ -94,7 +94,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			// return result as Awaited<ReturnType<H>>
 
 			if (isTestEnv) {
-				return result
+				return parse(stringify(result))
 			}
 
 			return unpatch(result)

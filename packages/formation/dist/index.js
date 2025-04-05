@@ -2302,6 +2302,7 @@ var cloud_front_exports = {};
 __export(cloud_front_exports, {
   CachePolicy: () => CachePolicy,
   Distribution: () => Distribution,
+  Function: () => Function,
   InvalidateCache: () => InvalidateCache,
   InvalidateCacheProvider: () => InvalidateCacheProvider,
   OriginAccessControl: () => OriginAccessControl,
@@ -2463,6 +2464,32 @@ var Distribution = class extends CloudControlApiResource {
           }
         },
         Tags: [{ Key: "Name", Value: this.props.name }]
+      }
+    };
+  }
+};
+
+// src/provider/aws/cloud-front/function.ts
+var Function = class extends CloudControlApiResource {
+  constructor(parent, id, props) {
+    super(parent, "AWS::CloudFront::Function", id, props);
+    this.parent = parent;
+    this.props = props;
+  }
+  get arn() {
+    return this.output((v) => v.FunctionARN);
+  }
+  toState() {
+    return {
+      document: {
+        Name: this.props.name,
+        AutoPublish: unwrap(this.props.autoPublish, true),
+        FunctionCode: this.props.code,
+        FunctionConfig: {
+          Runtime: `cloudfront-js-${unwrap(this.props.runtime, "2.0")}`,
+          Comment: this.props.comment
+        }
+        // FunctionMetadata: FunctionMetadata,
       }
     };
   }
@@ -3957,7 +3984,7 @@ var lambda_exports = {};
 __export(lambda_exports, {
   EventInvokeConfig: () => EventInvokeConfig,
   EventSourceMapping: () => EventSourceMapping,
-  Function: () => Function,
+  Function: () => Function2,
   Layer: () => Layer,
   Permission: () => Permission,
   SourceCodeUpdate: () => SourceCodeUpdate,
@@ -4076,7 +4103,7 @@ var EventSourceMapping = class extends CloudControlApiResource {
 import { seconds, toSeconds as toSeconds9 } from "@awsless/duration";
 import { mebibytes, toMebibytes } from "@awsless/size";
 import { constantCase as constantCase5 } from "change-case";
-var Function = class extends CloudControlApiResource {
+var Function2 = class extends CloudControlApiResource {
   constructor(parent, id, props) {
     super(parent, "AWS::Lambda::Function", id, props);
     this.parent = parent;

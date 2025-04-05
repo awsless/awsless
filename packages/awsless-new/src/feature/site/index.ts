@@ -6,7 +6,7 @@ import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
-import { getCacheControl, getContentType } from './util.js'
+import { getCacheControl, getContentType, getForwardHostFunctionCode } from './util.js'
 import { constantCase } from 'change-case'
 
 export const siteFeature = defineFeature({
@@ -191,6 +191,29 @@ export const siteFeature = defineFeature({
 				? ctx.shared.get<aws.ARN>(`global-certificate-${props.domain}-arn`)
 				: undefined
 
+			const associations: {
+				type: aws.cloudFront.AssociationType
+				functionArn: Input<aws.ARN>
+			}[] = []
+
+			if (props.forwardHost) {
+				const viewerRequest = new aws.cloudFront.Function(group, 'forward-host', {
+					name: formatLocalResourceName({
+						appName: ctx.app.name,
+						stackName: ctx.stack.name,
+						resourceType: 'site',
+						resourceName: 'forward-host',
+					}),
+					comment: 'Forward the host header to the origin',
+					code: getForwardHostFunctionCode(),
+				})
+
+				associations.push({
+					type: 'viewer-request',
+					functionArn: viewerRequest.arn,
+				})
+			}
+
 			const distribution = new aws.cloudFront.Distribution(group, 'distribution', {
 				name,
 				compress: true,
@@ -198,6 +221,7 @@ export const siteFeature = defineFeature({
 				aliases: domainName ? [domainName] : undefined,
 				origins,
 				originGroups,
+				associations,
 				// defaultRootObject: 'index.html',
 				targetOriginId: props.ssr && props.static ? 'group' : props.ssr ? 'ssr' : 'static',
 				originRequestPolicyId: originRequest.id,
@@ -271,10 +295,6 @@ export const siteFeature = defineFeature({
 					],
 				})
 			}
-
-			// if(props.forwardHost) {
-			// 	new aws.cloudFront.Function()
-			// }
 
 			if (domainName) {
 				new aws.route53.RecordSet(group, `record`, {

@@ -79,6 +79,8 @@ export const deploy = (program: Command) => {
 					region,
 				})
 
+				workspace.deployApp(app, { filters: ['zones'] })
+
 				await task('Deploying the stacks to AWS', async update => {
 					await workspace.deployApp(app, {
 						filters,

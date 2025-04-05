@@ -25,7 +25,7 @@ import { ResourceIdSchema } from './schema/resource-id.js'
 
 const DependsSchema = ResourceIdSchema.array().optional().describe('Define the stacks that this stack is depended on.')
 
-const NameSchema = ResourceIdSchema.refine(name => !['base'].includes(name), {
+const NameSchema = ResourceIdSchema.refine(name => !['base', 'hostedzones'].includes(name), {
 	message: `Stack name can't be a reserved name.`,
 }).describe('Stack name.')
 

@@ -9,6 +9,7 @@ import { $set } from './set'
 import { $binary } from './binary'
 import { $undefined } from './undefined'
 import { $url } from './url'
+import { $duration } from './duration'
 
 export type Serializable<I, O> = {
 	is: (value: unknown) => boolean
@@ -20,6 +21,7 @@ export type SerializableTypes = Record<string, Serializable<any, any>>
 
 export const baseTypes: SerializableTypes = {
 	$undefined,
+	$duration,
 	$infinity,
 	$bigfloat,
 	$bigint,

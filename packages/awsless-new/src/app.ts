@@ -69,6 +69,9 @@ export const createApp = (props: CreateAppProps) => {
 	const app = new App(props.appConfig.name)
 	app.setTag('app', app.name)
 
+	const zones = new Stack(app, 'hostedzones')
+	zones.setTag('stack', zones.name)
+
 	const base = new Stack(app, 'base')
 	base.setTag('stack', base.name)
 
@@ -118,6 +121,7 @@ export const createApp = (props: CreateAppProps) => {
 			app,
 			appId,
 			base,
+			zones,
 			shared,
 		})
 	}
@@ -130,6 +134,7 @@ export const createApp = (props: CreateAppProps) => {
 			app,
 			appId,
 			base,
+			zones,
 			shared,
 			onGlobalPolicy(callback) {
 				globalPoliciesListeners.push(callback)
@@ -205,6 +210,7 @@ export const createApp = (props: CreateAppProps) => {
 				app,
 				appId,
 				base,
+				zones,
 				stack,
 				shared,
 				onGlobalPolicy(callback) {
@@ -398,6 +404,7 @@ export const createApp = (props: CreateAppProps) => {
 	return {
 		app,
 		base,
+		zones,
 		tests,
 		binds,
 		shared,

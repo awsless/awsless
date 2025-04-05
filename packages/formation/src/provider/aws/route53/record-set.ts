@@ -58,7 +58,7 @@ export const formatRecordSet = (record: Record) => {
 		// ...(record.ttl ? {} : {}),
 		...('records' in record
 			? {
-					TTL: toSeconds(unwrap(record.ttl, minutes(5))),
+					TTL: Number(toSeconds(unwrap(record.ttl, minutes(5)))),
 					ResourceRecords: record.records,
 				}
 			: {}),
