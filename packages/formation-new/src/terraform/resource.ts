@@ -4,8 +4,11 @@ import { Group } from '../formation/group.ts'
 import { createResourceMeta, Resource, ResourceConfig, State } from '../formation/resource.ts'
 
 declare global {
-	interface TerraformResources {}
+	export namespace $terraform {}
 }
+
+type Global = typeof globalThis
+type GlobalType<T> = T extends keyof Global ? Global[T] : any
 
 const createNamespaceProxy = (cb: (key: string) => unknown, target = {}) => {
 	const cache = new Map<string, unknown>()
@@ -82,7 +85,13 @@ const createRecursiveProxy = ({
 	return createProxy([])
 }
 
-export const tf = createRecursiveProxy({
+export namespace $ {}
+
+// export type $ = $terraform
+
+// export declare namespace $ = $terraform
+
+export const $ = createRecursiveProxy({
 	resource: (ns: string[], parent: Group, id: string, input: State, config?: ResourceConfig) => {
 		const type = snakeCase(ns.join('_'))
 		const provider = `terraform:${ns[0]}:${config?.provider ?? 'default'}`
@@ -143,4 +152,4 @@ export const tf = createRecursiveProxy({
 
 		return dataSource
 	},
-}) as TerraformResources
+}) as GlobalType<'$terraform'>

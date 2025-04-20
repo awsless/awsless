@@ -4,6 +4,7 @@ import { Output } from './output.ts'
 import { ResourceMeta, State } from './resource.ts'
 
 export type Input<T = unknown> = T | Output<T> | Future<T> | Promise<T>
+export type OptionalInput<T = unknown> = Input<T> | Input<T | undefined> | Input<undefined>
 
 export type UnwrapInputArray<T extends Input[]> = {
 	[K in keyof T]: UnwrapInput<T[K]>
@@ -66,7 +67,16 @@ export const resolveInputs = async (inputs: State): Promise<State> => {
 
 	find(inputs, {}, 'root')
 
-	const responses = await Promise.all(unresolved.map(([obj, key]) => obj[key]))
+	const responses = (await Promise.race([
+		Promise.all(unresolved.map(([obj, key]) => obj[key])),
+		new Promise((_, reject) =>
+			setTimeout(() => {
+				reject(new Error('Resolving inputs took too long.'))
+			}, 5000)
+		),
+	])) as any[]
+
+	// const responses = await Promise.all(unresolved.map(([obj, key]) => obj[key]))
 
 	unresolved.forEach(([props, key], i) => {
 		props[key] = responses[i]

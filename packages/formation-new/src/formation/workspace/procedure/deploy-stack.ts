@@ -1,4 +1,5 @@
 import { UUID } from 'node:crypto'
+import { createDebugger } from '../../debug.ts'
 import { resolveInputs } from '../../input.ts'
 import { Resource, URN } from '../../resource.ts'
 import { ConcurrencyQueue } from '../concurrency.ts'
@@ -10,6 +11,8 @@ import { createResource } from './create-resource.ts'
 import { getDataSource } from './get-data-source.ts'
 import { importResource } from './import-resource.ts'
 import { updateResource } from './update-resource.ts'
+
+const debug = createDebugger('Deploy Stack')
 
 export const deployStackResources = async (
 	stackState: StackState,
@@ -27,6 +30,10 @@ export const deployStackResources = async (
 	// This seems to be a problem with the way a terraform provider works.
 
 	// await this.healFromUnknownRemoteState(stackState);
+
+	// -------------------------------------------------------------------
+
+	debug(stackState.name, 'start')
 
 	const graph = new DependencyGraph()
 
@@ -77,13 +84,13 @@ export const deployStackResources = async (
 		const dependencies: URN[] = [
 			...resource.$.dependencies,
 			...[...resource.$.dataSourceMetas].map(d => d.urn),
-			...(resource.$.config?.dependsOn?.map(r => r.$.urn) ?? []),
+			// ...(resource.$.config?.dependsOn?.map(r => r.$.urn) ?? []),
 		]
 
 		const partialNewResourceState = {
 			dependencies,
 			lifecycle: {
-				deleteBeforeCreate: resource.$.config?.deleteBeforeCreate,
+				deleteAfterCreate: resource.$.config?.deleteAfterCreate,
 				retainOnDelete: resource.$.config?.retainOnDelete,
 			},
 		}
@@ -92,7 +99,18 @@ export const deployStackResources = async (
 			return queue(async () => {
 				let resourceState = stackState.resources[resource.$.urn]
 
-				const input = await resolveInputs(resource.$.input)
+				let input
+				try {
+					input = await resolveInputs(resource.$.input)
+				} catch (error) {
+					throw ResourceError.wrap(
+						//
+						resource.$.urn,
+						resource.$.type,
+						'resolve',
+						error
+					)
+				}
 
 				// --------------------------------------------------
 				// New resource
@@ -158,11 +176,9 @@ export const deployStackResources = async (
 		})
 	}
 
-	const results = await graph.run()
+	const errors = await graph.run()
 
-	const errors: ResourceError[] = results
-		.filter(r => r.status === 'rejected')
-		.map(r => (r as PromiseRejectedResult).reason)
+	debug(stackState.name, 'done')
 
 	if (errors.length > 0) {
 		throw new StackError(stackState.name, [...new Set(errors)], 'Deploying resources failed.')

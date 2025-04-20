@@ -18,8 +18,8 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   Duration: () => Duration,
   days: () => days,
   hours: () => hours,
@@ -31,11 +31,17 @@ __export(src_exports, {
   toHours: () => toHours,
   toMilliSeconds: () => toMilliSeconds,
   toMinutes: () => toMinutes,
+  toSafeDays: () => toSafeDays,
+  toSafeHours: () => toSafeHours,
+  toSafeMilliSeconds: () => toSafeMilliSeconds,
+  toSafeMinutes: () => toSafeMinutes,
+  toSafeSeconds: () => toSafeSeconds,
+  toSafeWeeks: () => toSafeWeeks,
   toSeconds: () => toSeconds,
   toWeeks: () => toWeeks,
   weeks: () => weeks
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/duration.ts
 var SECONDS = 1000n;
@@ -67,21 +73,39 @@ var milliSeconds = (value) => {
   return new Duration(BigInt(value));
 };
 var toWeeks = (duration) => {
-  return duration.value / WEEKS;
+  return Number(toSafeWeeks(duration));
 };
 var toDays = (duration) => {
-  return duration.value / DAYS;
+  return Number(toSafeDays(duration));
 };
 var toHours = (duration) => {
-  return duration.value / HOURS;
+  return Number(toSafeHours(duration));
 };
 var toMinutes = (duration) => {
-  return duration.value / MINUTES;
+  return Number(toSafeMinutes(duration));
 };
 var toSeconds = (duration) => {
-  return duration.value / SECONDS;
+  return Number(toSafeSeconds(duration));
 };
 var toMilliSeconds = (duration) => {
+  return Number(toSafeMilliSeconds(duration));
+};
+var toSafeWeeks = (duration) => {
+  return duration.value / WEEKS;
+};
+var toSafeDays = (duration) => {
+  return duration.value / DAYS;
+};
+var toSafeHours = (duration) => {
+  return duration.value / HOURS;
+};
+var toSafeMinutes = (duration) => {
+  return duration.value / MINUTES;
+};
+var toSafeSeconds = (duration) => {
+  return duration.value / SECONDS;
+};
+var toSafeMilliSeconds = (duration) => {
   return duration.value;
 };
 
@@ -119,6 +143,12 @@ var parse = (value) => {
   toHours,
   toMilliSeconds,
   toMinutes,
+  toSafeDays,
+  toSafeHours,
+  toSafeMilliSeconds,
+  toSafeMinutes,
+  toSafeSeconds,
+  toSafeWeeks,
   toSeconds,
   toWeeks,
   weeks

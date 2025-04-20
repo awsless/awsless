@@ -19,6 +19,7 @@ export const createResource = async (
 	const idempotantToken = createIdempotantToken(appToken, resource.$.urn, 'create')
 
 	debug(resource.$.type)
+	debug(input)
 
 	let result
 
@@ -29,6 +30,17 @@ export const createResource = async (
 			idempotantToken,
 		})
 	} catch (error) {
+		// We always need to check if the resource already exists.
+		// And restore the state.
+
+		// result = await provider.getResource({
+		// 	type: resource.$.type,
+		// 	state: input,
+		// })
+
+		// if (!result) {
+		// }
+
 		throw ResourceError.wrap(resource.$.urn, resource.$.type, 'create', error)
 	}
 

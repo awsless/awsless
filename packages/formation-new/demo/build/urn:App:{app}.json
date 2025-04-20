@@ -1,41 +1,11 @@
 {
   "name": "app",
   "stacks": {
-    "urn:App:{app}:Stack:{stack}": {
-      "name": "stack",
+    "urn:app:{app}:stack:{base}": {
+      "name": "base",
       "dependencies": [],
       "resources": {
-        "urn:App:{app}:Stack:{stack}:aws_iam_role:{role}": {
-          "version": 0,
-          "type": "aws_iam_role",
-          "provider": "terraform:aws:default",
-          "input": {
-            "name": "role",
-            "assumeRolePolicy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"sts:AssumeRole\",\n      \"Principal\": {\n        \"Service\": \"lambda.amazonaws.com\"\n      }\n    }\n  ]\n}"
-          },
-          "output": {
-            "arn": "arn:aws:iam::468004125411:role/role",
-            "assumeRolePolicy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
-            "createDate": "2025-04-05T16:25:09Z",
-            "description": "",
-            "forceDetachPolicies": false,
-            "id": "role",
-            "managedPolicyArns": [],
-            "maxSessionDuration": 3600,
-            "name": "role",
-            "namePrefix": "",
-            "path": "/",
-            "permissionsBoundary": "",
-            "tagsAll": {},
-            "uniqueId": "AROAWZ5ZYHLR7YCLIXGDB",
-            "inlinePolicy": []
-          },
-          "dependencies": [
-            "urn:data:aws_iam_policy_document:17ec8eb5-2e64-4932-ba47-9b5b6cb24c3d"
-          ],
-          "lifecycle": {}
-        },
-        "urn:App:{app}:Stack:{stack}:aws_s3_bucket:{assets}": {
+        "urn:app:{app}:stack:{base}:aws_s3_bucket:{assets}": {
           "version": 0,
           "type": "aws_s3_bucket",
           "provider": "terraform:aws:default",
@@ -69,36 +39,32 @@
               }
             ],
             "lifecycleRule": [],
-            "logging": [],
-            "objectLockConfiguration": [],
-            "replicationConfiguration": [],
-            "serverSideEncryptionConfiguration": [
-              {
-                "rule": [
-                  {
-                    "bucketKeyEnabled": false,
-                    "applyServerSideEncryptionByDefault": [
-                      {
-                        "kmsMasterKeyId": "",
-                        "sseAlgorithm": "AES256"
-                      }
-                    ]
-                  }
-                ]
+            "serverSideEncryptionConfiguration": {
+              "rule": {
+                "bucketKeyEnabled": false,
+                "applyServerSideEncryptionByDefault": {
+                  "kmsMasterKeyId": "",
+                  "sseAlgorithm": "AES256"
+                }
               }
-            ],
-            "versioning": [
-              {
-                "enabled": false,
-                "mfaDelete": false
-              }
-            ],
-            "website": []
+            },
+            "versioning": {
+              "enabled": false,
+              "mfaDelete": false
+            }
           },
           "dependencies": [],
           "lifecycle": {}
-        },
-        "urn:App:{app}:Stack:{stack}:aws_s3_bucket_object:{code}": {
+        }
+      }
+    },
+    "urn:app:{app}:stack:{stack}": {
+      "name": "stack",
+      "dependencies": [
+        "urn:app:{app}:stack:{base}"
+      ],
+      "resources": {
+        "urn:app:{app}:stack:{stack}:aws_s3_bucket_object:{code}": {
           "version": 0,
           "type": "aws_s3_bucket_object",
           "provider": "terraform:aws:default",
@@ -133,12 +99,40 @@
             "versionId": "",
             "websiteRedirect": ""
           },
+          "dependencies": [],
+          "lifecycle": {}
+        },
+        "urn:app:{app}:stack:{stack}:aws_iam_role:{role}": {
+          "version": 0,
+          "type": "aws_iam_role",
+          "provider": "terraform:aws:default",
+          "input": {
+            "name": "role",
+            "assumeRolePolicy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"sts:AssumeRole\",\n      \"Principal\": {\n        \"Service\": \"lambda.amazonaws.com\"\n      }\n    }\n  ]\n}"
+          },
+          "output": {
+            "arn": "arn:aws:iam::468004125411:role/role",
+            "assumeRolePolicy": "{\"Statement\":[{\"Action\":\"sts:AssumeRole\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"}}],\"Version\":\"2012-10-17\"}",
+            "createDate": "2025-04-19T23:32:52Z",
+            "description": "",
+            "forceDetachPolicies": false,
+            "id": "role",
+            "managedPolicyArns": [],
+            "maxSessionDuration": 3600,
+            "name": "role",
+            "namePrefix": "",
+            "path": "/",
+            "permissionsBoundary": "",
+            "tagsAll": {},
+            "uniqueId": "AROAWZ5ZYHLRXEQJGTBLP",
+            "inlinePolicy": []
+          },
           "dependencies": [
-            "urn:App:{app}:Stack:{stack}:aws_s3_bucket:{assets}"
+            "urn:data:aws_iam_policy_document:94ede6cb-1b2d-4688-8b58-ce5e9d2bf074"
           ],
           "lifecycle": {}
         },
-        "urn:App:{app}:Stack:{stack}:aws_lambda_function:{function}": {
+        "urn:app:{app}:stack:{stack}:aws_lambda_function:{function}": {
           "version": 0,
           "type": "aws_lambda_function",
           "provider": "terraform:aws:default",
@@ -156,13 +150,9 @@
             "s3Key": "code.zip",
             "s3ObjectVersion": "",
             "sourceCodeHash": "8d65a72a469ef655f5b0898fc858ef815cf4ab943aff79261bdabd475de9f0e9",
-            "environment": [
-              {
-                "variables": {
-                  "ACCOUNT_ID": "468004125411"
-                }
-              }
-            ]
+            "environment": {
+              "variables": {}
+            }
           },
           "output": {
             "architectures": [
@@ -178,7 +168,7 @@
             "imageUri": "",
             "invokeArn": "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:468004125411:function:function/invocations",
             "kmsKeyArn": "",
-            "lastModified": "2025-04-05T16:25:17.903+0000",
+            "lastModified": "2025-04-19T23:33:02.149+0000",
             "memorySize": 128,
             "packageType": "Zip",
             "publish": false,
@@ -198,45 +188,26 @@
             "tagsAll": {},
             "timeout": 3,
             "version": "$LATEST",
-            "deadLetterConfig": [],
-            "environment": [
-              {
-                "variables": {
-                  "ACCOUNT_ID": "468004125411"
-                }
-              }
-            ],
-            "ephemeralStorage": [
-              {
-                "size": 512
-              }
-            ],
-            "fileSystemConfig": [],
-            "imageConfig": [],
-            "loggingConfig": [
-              {
-                "applicationLogLevel": "",
-                "logFormat": "Text",
-                "logGroup": "/aws/lambda/function",
-                "systemLogLevel": ""
-              }
-            ],
-            "snapStart": [],
-            "tracingConfig": [
-              {
-                "mode": "PassThrough"
-              }
-            ],
-            "vpcConfig": []
+            "ephemeralStorage": {
+              "size": 512
+            },
+            "loggingConfig": {
+              "applicationLogLevel": "",
+              "logFormat": "Text",
+              "logGroup": "/aws/lambda/function",
+              "systemLogLevel": ""
+            },
+            "tracingConfig": {
+              "mode": "PassThrough"
+            }
           },
           "dependencies": [
-            "urn:App:{app}:Stack:{stack}:aws_iam_role:{role}",
-            "urn:App:{app}:Stack:{stack}:aws_s3_bucket_object:{code}",
-            "urn:data:aws_caller_identity:d54a3015-951c-4f67-8705-00e57bb6c1a3"
+            "urn:app:{app}:stack:{stack}:aws_iam_role:{role}",
+            "urn:app:{app}:stack:{stack}:aws_s3_bucket_object:{code}"
           ],
           "lifecycle": {}
         },
-        "urn:App:{app}:Stack:{stack}:aws_cloudwatch_log_group:{logs}": {
+        "urn:app:{app}:stack:{stack}:aws_cloudwatch_log_group:{logs}": {
           "version": 0,
           "type": "aws_cloudwatch_log_group",
           "provider": "terraform:aws:default",
@@ -256,29 +227,29 @@
             "tagsAll": {}
           },
           "dependencies": [
-            "urn:App:{app}:Stack:{stack}:aws_lambda_function:{function}"
+            "urn:app:{app}:stack:{stack}:aws_lambda_function:{function}"
           ],
           "lifecycle": {}
         },
-        "urn:App:{app}:Stack:{stack}:aws_iam_role_policy:{policy}": {
+        "urn:app:{app}:stack:{stack}:aws_iam_role_policy:{policy}": {
           "version": 0,
           "type": "aws_iam_role_policy",
           "provider": "terraform:aws:default",
           "input": {
             "name": "policy",
             "role": "role",
-            "policy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:CreateLogStream\",\n      \"Resource\": \"arn:aws:logs:us-east-1:468004125411:log-group:function\"\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:PutLogEvents\",\n      \"Resource\": \"arn:aws:logs:us-east-1:468004125411:log-group:function:*\"\n    }\n  ]\n}"
+            "policy": "{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:CreateLogStream\",\n      \"Resource\": \"arn:aws:logs:us-east-1:468004125411:log-group:function\"\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:PutLogEvents\",\n      \"Resource\": \"arn:aws:logs:us-east-1:468004125411:log-group:function:*\"\n    },\n    {\n      \"Effect\": \"Allow\",\n      \"Action\": \"logs:*\",\n      \"Resource\": \"*\"\n    }\n  ]\n}"
           },
           "output": {
             "id": "role:policy",
             "name": "policy",
             "namePrefix": "",
-            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"logs:CreateLogStream\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:us-east-1:468004125411:log-group:function\"},{\"Action\":\"logs:PutLogEvents\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:us-east-1:468004125411:log-group:function:*\"}]}",
+            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"logs:CreateLogStream\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:us-east-1:468004125411:log-group:function\"},{\"Action\":\"logs:PutLogEvents\",\"Effect\":\"Allow\",\"Resource\":\"arn:aws:logs:us-east-1:468004125411:log-group:function:*\"},{\"Action\":\"logs:*\",\"Effect\":\"Allow\",\"Resource\":\"*\"}]}",
             "role": "role"
           },
           "dependencies": [
-            "urn:App:{app}:Stack:{stack}:aws_iam_role:{role}",
-            "urn:data:aws_iam_policy_document:44bcab88-2d50-4245-a58d-27c46557e505"
+            "urn:app:{app}:stack:{stack}:aws_iam_role:{role}",
+            "urn:data:aws_iam_policy_document:2d88d8dc-6c35-4f41-8770-1a1bebf1b78a"
           ],
           "lifecycle": {}
         }

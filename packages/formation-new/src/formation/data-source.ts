@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
+// import { findInputDeps } from './input.ts'
 import { findInputDeps } from './input.ts'
 import { Output } from './output.ts'
 import { State, URN } from './resource.ts'
 
-export type DataSourceMeta<I extends State = State, T extends string = string> = {
+export type DataSourceMeta<I extends State = State> = {
 	readonly tag: 'data-source'
 	readonly urn: URN
-	readonly type: T
+	readonly type: string
 	readonly input: I
 	readonly provider: string
 	readonly dependencies: Set<URN>
@@ -15,8 +16,8 @@ export type DataSourceMeta<I extends State = State, T extends string = string> =
 	readonly output: <O>(cb: (data: State) => O) => Output<O>
 }
 
-export type DataSource<I extends State = State, O extends State = State, T extends string = string> = O & {
-	readonly $: DataSourceMeta<I, T>
+export type DataSource<I extends State = State, O extends State = State> = O & {
+	readonly $: DataSourceMeta<I>
 }
 
 export type DataSourceConfig = {
@@ -24,13 +25,19 @@ export type DataSourceConfig = {
 	provider?: string
 }
 
-export const createDataSourceMeta = <I extends State = State, T extends string = string>(
+export type DataSourceFunction<I extends State = State, O extends State = State> = (
+	input: I,
+	config?: DataSourceConfig
+) => DataSource<I, O>
+
+export const createDataSourceMeta = <I extends State = State>(
 	provider: string,
-	type: T,
+	type: string,
 	input: I
-): DataSourceMeta<I, T> => {
+): DataSourceMeta<I> => {
 	let output: State | undefined
 
+	// const dependencies = new Set<URN>()
 	const dependencies = new Set(findInputDeps(input).map(dep => dep.urn))
 
 	return {

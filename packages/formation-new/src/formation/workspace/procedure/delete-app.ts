@@ -43,7 +43,7 @@ export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 		})
 	}
 
-	const results = await graph.run()
+	const errors = await graph.run()
 
 	// -------------------------------------------------------
 	// Remove the idempotent token
@@ -57,7 +57,7 @@ export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 
 	// -------------------------------------------------------
 
-	const errors = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason)
+	// const errors = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason)
 
 	if (errors.length > 0) {
 		throw new AppError(app.name, [...new Set(errors)], 'Deleting app failed.')

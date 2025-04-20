@@ -3,7 +3,7 @@ import { Stack } from './stack.ts'
 
 export class App extends Group {
 	constructor(readonly name: string) {
-		super(undefined, 'App', name)
+		super(undefined, 'app', name)
 	}
 
 	get stacks(): Stack[] {

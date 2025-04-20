@@ -95,14 +95,14 @@ await workspace.deploy(app, {
 
 ## Production
 
-For production, we recommend you use a state & lock provider that stores your data in the cloud.
+For production, we recommend you use a state & lock backend that stores your data in the cloud.
 An AWS DynamoDB table is perfect for storing locks.
 While AWS S3 is perfect for storing your state files.
 
 ```ts
 const workspace = new WorkSpace({
 	providers: [...],
-	lockProvider: new aws.dynamodb.LockProvider({
+	lockProvider: new DynamoLockBackend({
 		region,
 		credentials,
 		tableName: 'awsless-locks',

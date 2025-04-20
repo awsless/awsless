@@ -18,52 +18,16 @@ declare class Future<T = unknown> {
     then(resolve: (data: T) => void, reject?: (error: unknown) => void): void;
 }
 
-declare class Stack extends Group {
-    readonly app: App;
-    readonly dependencies: Set<Stack>;
-    constructor(app: App, name: string);
-    dependsOn(...stacks: Stack[]): this;
-}
-
-type URN = `urn:${string}`;
-type State$1 = Record<string, any>;
-type ResourceConfig = {
-    /** Specify additional explicit dependencies in addition to the ones in the dependency graph. */
-    dependsOn?: Resource[];
-    /** Import an existing resource instead of creating a new resource. */
-    import?: string;
-    /** If true the resource will be retained in the backing cloud provider during a Pulumi delete operation. */
-    retainOnDelete?: boolean;
-    /** Override the default create-before-delete behavior when replacing a resource. */
-    deleteBeforeCreate?: boolean;
-};
-type ResourceMeta<I extends State$1 = State$1, O extends State$1 = State$1, T extends string = string> = {
-    readonly tag: "resource";
-    readonly urn: URN;
-    readonly type: T;
-    readonly stack: Stack;
-    readonly provider: string;
-    readonly input: I;
-    readonly config?: ResourceConfig;
-    readonly dependencies: Set<URN>;
-    readonly resolve: (data: O) => void;
-    readonly output: <O>(cb: (data: State$1) => O) => Output<O>;
-};
-type Resource<I extends State$1 = State$1, O extends State$1 = State$1, T extends string = string> = O & {
-    readonly $: ResourceMeta<I, O, T>;
-};
-type ResourceClass<I extends State$1 = State$1, O extends State$1 = State$1, T extends string = string> = {
-    new (parent: Group, id: string, props: I, config?: ResourceConfig): Resource<I, O, T>;
-    get(parent: Group, id: string, physicalId: string): DataSource<O, T>;
-};
-declare const createResourceMeta: <I extends State$1 = State$1, O extends State$1 = State$1, T extends string = string>(provider: string, parent: Group, type: T, id: string, input: I, config?: ResourceConfig) => ResourceMeta<I, O, T>;
-
 type Input<T = unknown> = T | Output<T> | Future<T> | Promise<T>;
+type OptionalInput<T = unknown> = Input<T> | Input<T | undefined> | Input<undefined>;
 type UnwrapInputArray<T extends Input[]> = {
     [K in keyof T]: UnwrapInput<T[K]>;
 };
 type UnwrapInput<T> = T extends Input<infer V> ? V : T;
+declare const findInputDeps: (props: unknown) => (DataSourceMeta | ResourceMeta)[];
+declare const resolveInputs: (inputs: State$1) => Promise<State$1>;
 
+type OptionalOutput<T = unknown> = Output<T | undefined>;
 declare class Output<T = unknown> extends Future<T> {
     readonly dependencies: Set<ResourceMeta | DataSourceMeta>;
     constructor(dependencies: Set<ResourceMeta | DataSourceMeta>, callback: (resolve: (data: T) => void, reject: (error: unknown) => void) => void);
@@ -75,31 +39,81 @@ declare const combine: <T extends Input[], R = UnwrapInputArray<T>>(...inputs: T
 declare const resolve: <T extends [Input, ...Input[]], R>(inputs: T, transformer: (...inputs: UnwrapInputArray<T>) => R) => Output<Awaited<R>>;
 declare const interpolate: (literals: TemplateStringsArray, ...placeholders: Input<any>[]) => Output<string>;
 
-type DataSourceMeta<O extends State$1 = State$1, T extends string = string> = {
+type DataSourceMeta<I extends State$1 = State$1> = {
     readonly tag: 'data-source';
     readonly urn: URN;
-    readonly id: string;
-    readonly physicalId: string;
-    readonly stack: Stack;
-    readonly type: T;
+    readonly type: string;
+    readonly input: I;
     readonly provider: string;
+    readonly dependencies: Set<URN>;
+    readonly resolve: (data: State$1) => void;
+    readonly output: <O>(cb: (data: State$1) => O) => Output<O>;
+};
+type DataSource<I extends State$1 = State$1, O extends State$1 = State$1> = O & {
+    readonly $: DataSourceMeta<I>;
+};
+type DataSourceConfig = {
+    /** Pass an ID of an explicitly configured provider, instead of using the default provider. */
+    provider?: string;
+};
+type DataSourceFunction<I extends State$1 = State$1, O extends State$1 = State$1> = (input: I, config?: DataSourceConfig) => DataSource<I, O>;
+declare const createDataSourceMeta: <I extends State$1 = State$1>(provider: string, type: string, input: I) => DataSourceMeta<I>;
+
+declare class Stack extends Group {
+    readonly app: App;
+    readonly dependencies: Set<Stack>;
+    constructor(app: App, name: string);
+    dependsOn(...stacks: Stack[]): this;
+}
+
+type URN = `urn:${string}`;
+type State$1 = Record<string, any>;
+type ResourceConfig = {
+    /** Specify additional explicit dependencies in addition to the ones in the dependency graph. */
+    dependsOn?: Resource<any, any>[];
+    /** Import an existing resource instead of creating a new resource. */
+    import?: string;
+    /** If true the resource will be retained in the backing cloud provider during a Pulumi delete operation. */
+    retainOnDelete?: boolean;
+    /** Override the default create-after-delete behavior when replacing a resource. */
+    deleteAfterCreate?: boolean;
+    /** Pass an ID of an explicitly configured provider, instead of using the default provider. */
+    provider?: string;
+};
+type ResourceMeta<I extends State$1 = State$1, O extends State$1 = State$1> = {
+    readonly tag: 'resource';
+    readonly urn: URN;
+    readonly logicalId: string;
+    readonly type: string;
+    readonly stack: Stack;
+    readonly provider: string;
+    readonly input: I;
+    readonly config?: ResourceConfig;
+    readonly dependencies: Set<URN>;
+    readonly dataSourceMetas: Set<DataSourceMeta>;
+    readonly attachDependencies: (props: State$1) => void;
     readonly resolve: (data: O) => void;
     readonly output: <O>(cb: (data: State$1) => O) => Output<O>;
 };
-type DataSource<O extends State$1 = State$1, T extends string = string> = O & {
-    readonly $: DataSourceMeta<O, T>;
+type Resource<I extends State$1 = State$1, O extends State$1 = State$1> = O & {
+    readonly $: ResourceMeta<I, O>;
 };
+type ResourceClass<I extends State$1 = State$1, O extends State$1 = State$1> = {
+    new (parent: Group, id: string, props: I, config?: ResourceConfig): Resource<I, O>;
+    get(parent: Group, id: string, physicalId: string): DataSource<I, O>;
+};
+declare const createResourceMeta: <I extends State$1 = State$1, O extends State$1 = State$1>(provider: string, parent: Group, type: string, logicalId: string, input: I, config?: ResourceConfig) => ResourceMeta<I, O>;
 
 declare class Group {
     readonly parent: Group | undefined;
     readonly type: string;
     readonly name: string;
-    protected children: Array<Group | Resource | DataSource>;
+    protected children: Array<Group | Resource>;
     constructor(parent: Group | undefined, type: string, name: string);
     get urn(): URN;
-    add(...children: Array<Group | Resource | DataSource>): void;
+    protected addChild(child: Group | Resource): void;
+    add(...children: Array<Group | Resource>): void;
     get resources(): Resource[];
-    get dataSources(): DataSource[];
 }
 
 declare class App extends Group {
@@ -136,7 +150,7 @@ type ResourceState = {
     dependencies: URN[];
     lifecycle?: {
         retainOnDelete?: boolean;
-        deleteBeforeCreate?: boolean;
+        deleteAfterCreate?: boolean;
     };
 };
 
@@ -212,7 +226,7 @@ declare class WorkSpace {
     protected destroyProviders(): Promise<void>;
 }
 
-type ResourceOperation = "create" | "update" | "delete" | "import" | "get";
+type ResourceOperation = 'create' | 'update' | 'delete' | 'import' | 'resolve' | 'get';
 
 declare class ResourceError extends Error {
     readonly urn: URN;
@@ -274,7 +288,7 @@ declare class FileLockBackend implements LockBackend {
     lock(urn: URN): Promise<() => Promise<void>>;
 }
 
-type ProviderProps$1 = {
+type Props$1 = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
     bucket: string;
@@ -282,21 +296,21 @@ type ProviderProps$1 = {
 declare class S3StateBackend implements StateBackend {
     private props;
     protected client: S3Client;
-    constructor(props: ProviderProps$1);
+    constructor(props: Props$1);
     get(urn: URN): Promise<any>;
     update(urn: URN, state: AppState): Promise<void>;
     delete(urn: URN): Promise<void>;
 }
 
-type ProviderProps = {
+type Props = {
     credentials: AwsCredentialIdentity | AwsCredentialIdentityProvider;
     region: string;
     tableName: string;
 };
-declare class DynamoLockProvider implements LockBackend {
+declare class DynamoLockBackend implements LockBackend {
     private props;
     protected client: DynamoDB;
-    constructor(props: ProviderProps);
+    constructor(props: Props);
     insecureReleaseLock(urn: URN): Promise<void>;
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
@@ -329,7 +343,7 @@ type Property = {
     type: 'array' | 'record';
     item: Property;
 } | {
-    type: 'object';
+    type: 'object' | 'array-object';
     properties: Record<string, Property>;
 } | {
     type: 'unknown';
@@ -350,61 +364,58 @@ type Plugin = Readonly<{
     applyResourceChange: (type: string, priorState: State | null, proposedNewState: State | null) => Promise<State>;
 }>;
 
-declare global {
-    interface TerraformProviders {
-    }
-}
 declare class TerraformProvider implements Provider {
+    private type;
     private id;
     private createPlugin;
     private config;
     private configured?;
     private plugin?;
-    constructor(id: string, createPlugin: () => Promise<Plugin>, config: State$1);
+    constructor(type: string, id: string, createPlugin: () => Promise<Plugin>, config: State$1);
     private configure;
     private prepare;
     destroy(): Promise<void>;
     ownResource(id: string): boolean;
     getResource({ type, state }: GetProps): Promise<{
         version: number;
-        state: {
-            [x: string]: unknown;
-        };
+        state: State;
     }>;
     createResource({ type, state }: CreateProps): Promise<{
         version: number;
-        state: {
-            [x: string]: unknown;
-        };
+        state: State;
     }>;
     updateResource({ type, priorState, proposedState }: UpdateProps): Promise<{
         version: number;
-        state: {
-            [x: string]: unknown;
-        };
+        state: State;
     }>;
     deleteResource({ type, state }: DeleteProps): Promise<void>;
     getData({ type, state }: GetDataProps): Promise<{
-        state: {
-            [x: string]: unknown;
-        };
+        state: State;
     }>;
     generateTypes(dir: string): Promise<void>;
 }
 
-type ProviderConfig<T extends string> = T extends keyof TerraformProviders ? TerraformProviders[T] : Record<string, unknown>;
+type Global$1 = typeof globalThis;
+type GlobalType$1<T> = T extends keyof Global$1 ? Global$1[T] : any;
+type ProviderInput<T extends string, TT extends 'Provider'> = T extends keyof GlobalType$1<'$terraform'> ? TT extends keyof GlobalType$1<'$terraform'>[T] ? GlobalType$1<'$terraform'>[T][TT] : Record<string, unknown> : Record<string, unknown>;
+type ProviderConfig = {
+    id?: string;
+    debug?: boolean;
+};
 declare class Terraform {
     private props;
     constructor(props: {
         providerLocation: string;
     });
-    install<T extends string>(org: string, type: T, version?: Version): Promise<(config: ProviderConfig<T>) => TerraformProvider>;
+    install<T extends string>(org: string, type: T, version?: Version): Promise<(input: ProviderInput<T, "Provider">, config?: ProviderConfig) => TerraformProvider>;
 }
 
 declare global {
-    interface TerraformResources {
-    }
+    export namespace $terraform { }
 }
-declare const tf: TerraformResources;
+type Global = typeof globalThis;
+type GlobalType<T> = T extends keyof Global ? Global[T] : any;
+declare namespace $ { }
+declare const $: GlobalType<"$terraform">;
 
-export { App, AppError, type CreateProps, type DeleteProps, DynamoLockProvider, FileLockBackend, FileStateBackend, Future, type GetDataProps, type GetProps, Group, type Input, type LockBackend, MemoryLockBackend, MemoryStateBackend, Output, type ProcedureOptions, type Provider, type Resource, ResourceAlreadyExists, type ResourceClass, type ResourceConfig, ResourceError, ResourceNotFound, S3StateBackend, Stack, StackError, type State$1 as State, type StateBackend, Terraform, type URN, type UpdateProps, WorkSpace, type WorkSpaceOptions, createDebugger, createResourceMeta, deferredOutput, enableDebug, output, tf };
+export { $, App, AppError, type CreateProps, type DataSource, type DataSourceConfig, type DataSourceFunction, type DataSourceMeta, type DeleteProps, DynamoLockBackend, FileLockBackend, FileStateBackend, Future, type GetDataProps, type GetProps, Group, type Input, type LockBackend, MemoryLockBackend, MemoryStateBackend, type OptionalInput, type OptionalOutput, Output, type ProcedureOptions, type Provider, type Resource, ResourceAlreadyExists, type ResourceClass, type ResourceConfig, ResourceError, type ResourceMeta, ResourceNotFound, S3StateBackend, Stack, StackError, type State$1 as State, type StateBackend, Terraform, type URN, type UpdateProps, WorkSpace, type WorkSpaceOptions, createDataSourceMeta, createDebugger, createResourceMeta, deferredOutput, enableDebug, findInputDeps, output, resolveInputs };

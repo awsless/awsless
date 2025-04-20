@@ -1,21 +1,33 @@
 import { join } from 'node:path'
-import { App, enableDebug, FileLockBackend, FileStateBackend, Stack, Terraform, tf, WorkSpace } from '../src/index.ts'
+import {
+	App,
+	enableDebug,
+	FileLockBackend,
+	FileStateBackend,
+	Stack,
+	Terraform,
+	$,
+	WorkSpace,
+	Resource,
+	State,
+} from '../src/index.ts'
 import { marshall } from '@aws-sdk/util-dynamodb'
+import { homedir } from 'node:os'
 
 enableDebug()
 
 const terraform = new Terraform({
-	providerLocation: join(import.meta.dirname, 'provider'),
+	providerLocation: join(homedir(), `.awsless/providers`),
 })
 
 // const cloudFlare = await terraform.install("cloudflare", "cloudflare");
-const aws = await terraform.install('hashicorp', 'aws')
+const aws = await terraform.install('hashicorp', 'aws', '5.94.1')
 const dir = join(import.meta.dirname, 'build')
 
 // console.log((await aws({}).prepare()).schema());
 
 // await cloudFlare({}).generateTypes(dir);
-// await aws({}).generateTypes(dir)
+await aws({}).generateTypes(join(homedir(), `.awsless/types`))
 
 // const p = aws({
 //   profile: "jacksclub",
@@ -50,10 +62,24 @@ const workspace = new WorkSpace({
 const app = new App('app-2')
 const stack = new Stack(app, 'stack')
 
-const table = new tf.aws.dynamodb.Table(stack, 'test', {
+// type ITest = {
+// 	id: string
+// }
+
+// declare class Test  ITest {
+
+// }
+
+// const test: Test = []
+// test.
+
+// const tables: $.aws.dynamodb.Table[] = []
+
+const table = new $.aws.dynamodb.Table(stack, 'test', {
 	name: 'test-2',
 	billingMode: 'PAY_PER_REQUEST',
 	hashKey: 'key',
+
 	attribute: [
 		{
 			name: 'key',
@@ -64,6 +90,10 @@ const table = new tf.aws.dynamodb.Table(stack, 'test', {
 		test: 'TEST',
 	},
 })
+
+const entry = {} as Resource<{}, { id: string }>
+const other = (t: Resource<{}, State>) => {}
+other(entry)
 
 // const item = new tf.aws.dynamodb.TableItem(
 // 	stack,
@@ -95,11 +125,11 @@ const table = new tf.aws.dynamodb.Table(stack, 'test', {
 // 	}
 // )
 
-// await workspace.deploy(app)
+await workspace.delete(app)
 
-try {
-	await workspace.delete(app)
-} catch (error) {
-	console.log(error)
-	// throw error;
-}
+// try {
+// 	await workspace.delete(app)
+// } catch (error) {
+// 	console.log(error)
+// 	// throw error;
+// }

@@ -1,0 +1,26 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		// "module": "Node16",
+		// "moduleResolution": "Classic",
+		// "module": "ESNext",
+		// "module": "CommonJS",
+		// "removeComments": false,
+		"strictNullChecks": true,
+		"noUncheckedIndexedAccess": true,
+		// "declaration": false,
+		"rootDir": ".",
+		// "preserveSymlinks": true,
+		// "types": [ "node" ],
+		// "declaration": true,
+		// "removeComments": false,
+		// "esModuleInterop": true,
+		// "allowImportingTsExtensions": true,
+		"allowSyntheticDefaultImports": true,
+		"jsx": "react-jsx"
+	}
+	// "ts-node": {
+	//     "esm": true,
+	// 	"experimentalSpecifierResolution": "node",
+	// }
+}

@@ -1,0 +1,66 @@
+{
+	"$schema": "../../dist/app.json",
+	"name": "app-jack-next",
+	"region": "us-east-1",
+	"profile": "jacksclub",
+	// "protect": true,
+
+	"defaults": {
+		"alerts": {
+			"debug": "info@jacksclub.io"
+		},
+
+		"domains": {
+			"main": {
+				"domain": "getblockalert.com"
+			}
+		},
+
+		"auth": {
+			"users": {}
+		},
+
+		"pubsub": {
+			"admin": {
+				// "domain": "main",
+				// "subDomain": "realtime",
+				"auth": "./pubsub-auth.ts"
+				// "policy": {
+				// 	"publish": ["user", "game/*"],
+				// 	"subscribe": ["user", "game/*"]
+				// }
+			}
+		},
+
+		// "instance": {
+		// 	// "connect": true
+		// },
+
+		"onLog": {
+			"consumer": "./on-log.ts",
+			"filter": ["info", "debug", "trace", "error", "fatal"]
+		},
+
+		"rpc": {
+			"api": {
+				"domain": "main",
+				"subDomain": "api",
+				"auth": "./rpc-auth.ts"
+			}
+		},
+
+		"rest": {
+			"public": {
+				"domain": "main",
+				"subDomain": "rest"
+			}
+		},
+
+		"function": {
+			"log": {
+				"retention": "1 days",
+				"level": "info"
+			}
+		}
+	}
+}

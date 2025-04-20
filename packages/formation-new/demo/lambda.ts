@@ -1,21 +1,32 @@
+import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { App, enableDebug, FileLockBackend, FileStateBackend, Stack, Terraform, tf, WorkSpace } from '../src/index.ts'
+import {
+	$,
+	App,
+	enableDebug,
+	FileLockBackend,
+	FileStateBackend,
+	Input,
+	Stack,
+	Terraform,
+	WorkSpace,
+} from '../src/index.ts'
 
-enableDebug()
+// enableDebug()
 
 const terraform = new Terraform({
-	providerLocation: join(import.meta.dirname, 'provider'),
+	providerLocation: join(homedir(), `.awsless/providers`),
 })
 
 // const cloudFlare = await terraform.install("cloudflare", "cloudflare");
 // const archive = await terraform.install('hashicorp', 'archive')
-const aws = await terraform.install('hashicorp', 'aws', '5.93.0')
+const aws = await terraform.install('hashicorp', 'aws', '5.94.1')
 const dir = join(import.meta.dirname, 'build')
 
 // console.log((await aws({}).prepare()).schema());
 
 // await cloudFlare({}).generateTypes(dir);
-// await aws({}).generateTypes(dir)
+// await aws({}).generateTypes(join(homedir(), `.awsless/types`))
 // await archive({}).generateTypes(dir)
 
 // const p = aws({
@@ -43,27 +54,21 @@ const workspace = new WorkSpace({
 // ----------------------------------------
 
 const app = new App('app')
-const stack = new Stack(app, 'stack')
-const assets = new tf.aws.s3.Bucket(stack, 'assets', {
+const base = new Stack(app, 'base')
+const assets = new $.aws.s3.Bucket(base, 'assets', {
 	bucket: 'assets-super-random-1',
 })
 
 const file = join(import.meta.dirname, 'asset/code.zip')
-
-// const zip = new tf.archive.File(stack, 'zip', {
-// 	type: 'zip',
-// 	source_file: file
-// 	output_path: join(import.meta.dirname, 'asset/echo.zip'),
-// })
-
-const code = new tf.aws.s3.BucketObject(stack, 'code', {
+const stack = new Stack(app, 'stack')
+const code = new $.aws.s3.BucketObject(stack, 'code', {
 	bucket: assets.bucket,
 	key: 'code.zip',
 	source: file,
 	sourceHash: $hash(file),
 })
 
-const assumeRole = tf.aws.iam.getPolicyDocument({
+const assumeRole = $.aws.iam.getPolicyDocument({
 	version: '2012-10-17',
 	statement: [
 		{
@@ -79,10 +84,14 @@ const assumeRole = tf.aws.iam.getPolicyDocument({
 	],
 })
 
-const role = new tf.aws.iam.Role(stack, 'role', {
+// $.aws.s3.getBucketObject({
+// 	'bucket':
+// })
+
+const role = new $.aws.iam.Role(stack, 'role', {
 	name: 'role',
 	assumeRolePolicy: assumeRole.json,
-	// assume_role_policy: JSON.stringify({
+	// assumeRolePolicy: JSON.stringify({
 	// 	Version: '2012-10-17',
 	// 	Statement: [
 	// 		{
@@ -96,9 +105,11 @@ const role = new tf.aws.iam.Role(stack, 'role', {
 	// }),
 })
 
-const caller = tf.aws.caller.getIdentity({})
+// const caller = $.aws.caller.getIdentity({})
 
-const lambda = new tf.aws.lambda.Function(stack, 'function', {
+const variables: Record<string, Input<string>> = {}
+
+const lambda = new $.aws.lambda.Function(stack, 'function', {
 	functionName: 'function',
 	description: 'Test function',
 	role: role.arn,
@@ -111,28 +122,26 @@ const lambda = new tf.aws.lambda.Function(stack, 'function', {
 	s3Key: code.key,
 	s3ObjectVersion: code.versionId,
 
-	// vpc_config: [{
-	// 	''
-	// }],
-
 	sourceCodeHash: $hash(file),
-	environment: [
-		{
-			variables: {
-				ACCOUNT_ID: caller.accountId,
-			},
-		},
-	],
+
+	environment: {
+		variables,
+	},
 })
 
-const logs = new tf.aws.cloudwatch.LogGroup(stack, 'logs', {
+const logs = new $.aws.cloudwatch.LogGroup(stack, 'logs', {
 	// name: lambda.function_name.pipe(name => `/aws/lambda/${name}`),
 	name: lambda.functionName,
 	namePrefix: '/aws/lambda/',
 	// retention: props.log.retention,
 })
 
-const policy = tf.aws.iam.getPolicyDocument({
+const policy = $.aws.iam.getPolicyDocument({
+	// statement: {
+	// 	effect: 'Allow',
+	// 	actions: ['logs:CreateLogStream'],
+	// 	resources: [logs.arn],
+	// },
 	statement: [
 		{
 			effect: 'Allow',
@@ -144,10 +153,15 @@ const policy = tf.aws.iam.getPolicyDocument({
 			actions: ['logs:PutLogEvents'],
 			resources: [logs.arn.pipe(arn => `${arn}:*`)],
 		},
+		{
+			effect: 'Allow',
+			actions: ['logs:*'],
+			resources: ['*'],
+		},
 	],
 })
 
-const rolePolicy = new tf.aws.iam.RolePolicy(stack, 'policy', {
+const rolePolicy = new $.aws.iam.RolePolicy(stack, 'policy', {
 	name: 'policy',
 	role: role.name,
 	policy: policy.json,
@@ -170,7 +184,10 @@ const rolePolicy = new tf.aws.iam.RolePolicy(stack, 'policy', {
 	// ),
 })
 
-// const invocation = tf.aws.getLambdaInvocation({
+// variables.$.attachDepenencies(caller.accounts)
+// variables.TEST = caller.accountId
+
+// const invocation = $.aws.getLambdaInvocation({
 // 	function_name: lambda.function_name,
 // 	input: JSON.stringify({
 // 		test: 'Hello',
@@ -178,11 +195,14 @@ const rolePolicy = new tf.aws.iam.RolePolicy(stack, 'policy', {
 // })
 
 try {
-	await workspace.deploy(app)
+	// await workspace.deploy(app)
+	await workspace.deploy(app, { filters: ['stack'] })
 } catch (error) {
 	console.log(error)
 	// throw error;
 }
+
+// await lambda.environment.pipe(v => console.log(v))
 
 // console.log(await invocation.result)
 

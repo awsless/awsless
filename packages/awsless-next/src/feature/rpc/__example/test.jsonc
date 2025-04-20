@@ -1,0 +1,37 @@
+{
+	"app": {
+		"rpc": {
+			"casino": {
+				"auth": ["players"],
+			},
+		},
+	},
+
+	"stack": {
+		"rpc": {
+			"casino": {
+				"deleteUser": "./lambda/user/delete.ts",
+				// "createUser": {
+				// 	"auth": ["players"],
+				// 	"consumer": "./lambda/user/create.ts",
+				// },
+			},
+		},
+	},
+
+	// {
+	// 	"http": {
+	// 		"casino": {
+	// 			"GET user/create": "./lambda/user/create.ts"
+	// 		}
+	// 	}
+	// }
+
+	// {
+	// 	"rest": {
+	// 		"casino": {
+	// 			"GET user/create": "./lambda/user/create.ts"
+	// 		}
+	// 	}
+	// }
+}

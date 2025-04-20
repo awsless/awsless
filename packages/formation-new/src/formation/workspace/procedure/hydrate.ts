@@ -10,7 +10,7 @@ export const hydrate = async (app: App, opt: WorkSpaceOptions) => {
 
 			if (stackState) {
 				for (const resource of stack.resources) {
-					const resourceState = stackState.resources[resource.urn]
+					const resourceState = stackState.resources[resource.$.urn]
 
 					if (resourceState && resourceState.output) {
 						resource.$.resolve(resourceState.output)

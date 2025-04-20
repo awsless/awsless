@@ -13,9 +13,9 @@ const debug = createDebugger('Server')
 
 export const createPluginServer = (props: { file: string; debug?: boolean }) => {
 	return new Promise<PluginServer>((resolve, reject) => {
-		const process = spawn(`${props.file}`, ['-debug'])
-
 		debug('init')
+
+		const process = spawn(`${props.file}`, ['-debug'])
 
 		process.stderr.on('data', (data: Buffer) => {
 			// For some reason we need to listen to stderr data logs...

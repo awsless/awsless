@@ -9,6 +9,12 @@ import {
 	toHours,
 	toMilliSeconds,
 	toMinutes,
+	toSafeDays,
+	toSafeHours,
+	toSafeMilliSeconds,
+	toSafeMinutes,
+	toSafeSeconds,
+	toSafeWeeks,
 	toSeconds,
 	toWeeks,
 	weeks,
@@ -58,31 +64,65 @@ describe('Duration', () => {
 
 		it('milliseconds', () => {
 			const result = toMilliSeconds(value)
-			expect(result).toBe(1000n * 60n * 60n * 24n * 7n)
+			expect(result).toBe(1000 * 60 * 60 * 24 * 7)
 		})
 
 		it('seconds', () => {
 			const result = toSeconds(value)
-			expect(result).toBe(60n * 60n * 24n * 7n)
+			expect(result).toBe(60 * 60 * 24 * 7)
 		})
 
 		it('minutes', () => {
 			const result = toMinutes(value)
-			expect(result).toBe(60n * 24n * 7n)
+			expect(result).toBe(60 * 24 * 7)
 		})
 
 		it('hours', () => {
 			const result = toHours(value)
-			expect(result).toBe(24n * 7n)
+			expect(result).toBe(24 * 7)
 		})
 
 		it('days', () => {
 			const result = toDays(value)
-			expect(result).toBe(7n)
+			expect(result).toBe(7)
 		})
 
 		it('weeks', () => {
 			const result = toWeeks(value)
+			expect(result).toBe(1)
+		})
+	})
+
+	describe('safe transform', () => {
+		const value = weeks(1)
+
+		it('milliseconds', () => {
+			const result = toSafeMilliSeconds(value)
+			expect(result).toBe(1000n * 60n * 60n * 24n * 7n)
+		})
+
+		it('seconds', () => {
+			const result = toSafeSeconds(value)
+			expect(result).toBe(60n * 60n * 24n * 7n)
+		})
+
+		it('minutes', () => {
+			const result = toSafeMinutes(value)
+			expect(result).toBe(60n * 24n * 7n)
+		})
+
+		it('hours', () => {
+			const result = toSafeHours(value)
+			expect(result).toBe(24n * 7n)
+		})
+
+		it('days', () => {
+			const result = toSafeDays(value)
+			expect(result).toBe(7n)
+		})
+
+		it('weeks', () => {
+			const result = toSafeWeeks(value)
 			expect(result).toBe(1n)
 		})
 	})

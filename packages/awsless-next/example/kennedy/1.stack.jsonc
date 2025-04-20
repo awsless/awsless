@@ -1,0 +1,46 @@
+{
+	// "$schema": "https://unpkg.com/@awsless/awsless/dist/stack.json",
+	"$schema": "../../dist/stack.json",
+	"name": "stack-kennedy-1",
+	"configs": ["config-1"],
+	"sites": {
+		"test": {
+			"domain": "test",
+			"origin": "static-first",
+			"static": true,
+			"ssr": "./function.ts"
+		}
+	}
+
+	// "rpc": {
+	// 	"test": {
+	// 		"test": "./function.ts"
+	// 	}
+	// }
+	// "topics": ["test-topic"]
+	// "tables": {
+	// 	"users": {
+	// 		"hash": "id",
+	// 		"fields": {
+	// 			"createdAt": "number"
+	// 		},
+	// 		"indexes": {
+	// 			"list": {
+	// 				"hash": "tenantId",
+	// 				"sort": "createdAt"
+	// 			},
+	// 			"listGlobal": {
+	// 				"hash": "key",
+	// 				"sort": "createdAt"
+	// 			}
+	// 		}
+	// 	}
+	// }
+	// "searchs": {
+	// 	"test": {
+	// 		"type": "t3.small",
+	// 		"count": 1
+	// 		// "vpc": true
+	// 	}
+	// }
+}

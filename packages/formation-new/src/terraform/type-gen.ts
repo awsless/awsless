@@ -1,90 +1,142 @@
 import { camelCase, pascalCase } from 'change-case'
 import type { Property } from './plugin/schema.ts'
 
+const tab = (indent: number) => {
+	return '\t'.repeat(indent)
+}
+
 export const generateTypes = (
 	providers: Record<string, Property>,
 	resources: Record<string, Property>,
 	dataSources: Record<string, Property>
 ) => {
-	const code: string[] = [`import { Input, OptionalInput, Output, ResourceClass, DataSource } from './base.ts'`]
+	return [
+		generateImport('@awsless/formation'),
+		'type _Record<T> = Record<string, T>',
+		generateNamespace(providers, (name, prop, indent) => {
+			return `${tab(indent)}export const ${name}: ${generatePropertyInputConst(prop, indent)}`
+		}),
+		generateNamespace(resources, (name, prop, indent) => {
+			const typeName = pascalCase(name)
 
-	code.push(declareGlobalInterface({ ...resources, ...dataSources }))
+			return [
+				// `${tab(indent)}export type ${typeName}Input = ${generatePropertyInputType(prop, indent)}`,
+				// `${tab(indent)}export type ${typeName}Output = ${generatePropertyOutputType(prop, indent)}`,
+				// `${tab(indent)}export declare const ${typeName}: ResourceClass<${typeName}Input, ${typeName}Output>`,
 
-	code.push(
-		generateInterfaces(
-			dataSources,
-			(propName, typeName) => `get${propName}: DataSource<${typeName}Props, ${typeName}>`
-		)
-	)
-	code.push(
-		generateInterfaces(
-			resources,
-			(propName, typeName, type) => `${propName}: ResourceClass<${typeName}Props, ${typeName}, "${type}">`
-		)
-	)
+				`${tab(indent)}export type ${typeName}Input = ${generatePropertyInputType(prop, indent)}`,
+				`${tab(indent)}export type ${typeName}Output = ${generatePropertyOutputType(prop, indent)}`,
+				`${tab(indent)}export class ${typeName} {`,
+				`${tab(indent + 1)}constructor(parent: f.Group, id: string, props: ${typeName}Input, config?:f.ResourceConfig)`,
+				`${tab(indent + 1)}readonly $: f.ResourceMeta<${typeName}Input, ${typeName}Output>`,
+				generateClassProperties(prop, indent + 1),
+				`${tab(indent)}}`,
+			].join('\n\n')
+		}),
+		generateNamespace(dataSources, (name, prop, indent) => {
+			const typeName = pascalCase(name)
 
-	for (const [type, props] of Object.entries(resources)) {
-		const input = generateResourceInputTypes(type, props)
-		const output = generateResourceOutputTypes(type, props)
-
-		code.push(input)
-		code.push(output)
-	}
-
-	for (const [type, props] of Object.entries(dataSources)) {
-		const input = generateResourceInputTypes(type, props)
-		const output = generateResourceOutputTypes(type, props)
-
-		code.push(input)
-		code.push(output)
-	}
-
-	code.push(generateProviderInterface(providers))
-
-	return code.join('\n\n')
+			return [
+				`${tab(indent)}export type Get${typeName}Input = ${generatePropertyInputType(prop, indent)}`,
+				`${tab(indent)}export type Get${typeName}Output = ${generatePropertyOutputType(prop, indent)}`,
+				`${tab(indent)}export const get${typeName}:f.DataSourceFunction<Get${typeName}Input, Get${typeName}Output>`,
+			].join('\n\n')
+		}),
+	].join('\n\n')
 }
 
-const declareGlobalInterface = (ns: Record<string, unknown>) => {
-	const code: string[] = [`declare global {`, `\tinterface TerraformResources {`]
-	const unique = new Set<string>([])
-	for (const type of Object.keys(ns)) {
-		const parts = type.split('_')
-		if (parts.length > 0) {
-			unique.add(parts[0]!)
-		}
-	}
-
-	for (const type of unique) {
-		const typeName = pascalCase(type)
-		code.push(`\t\t${type}: ${typeName}`)
-	}
-
-	code.push(`\t}`, `}`)
-	return code.join('\n')
+const generateImport = (from: string) => {
+	// return `import { ${imports.join(', ')} } from '${from}'`
+	return `import * as f from '${from}'`
 }
 
-const generateProviderInterface = (providers: Record<string, Property>) => {
-	const code: string[] = [`declare global {\n`, `\tinterface TerraformProviders {\n`]
+const generatePropertyInputConst = (prop: Property, indent: number) => {
+	return generateValue(prop, {
+		depth: 0,
+		indent: indent + 1,
+		wrap: (v, _, ctx) => {
+			return `${v}${ctx.depth === 1 ? ',' : ''}`
+		},
+		filter: () => true,
+		optional: p => p.optional ?? false,
+	})
+}
 
-	for (const [ns, props] of Object.entries(providers)) {
-		code.push(`\t\t${ns}: `)
-		code.push(
-			generateValue(props, {
-				depth: 0,
-				indent: 3,
-				wrap: v => v,
-				filter: () => true,
-				optional: p => p.optional ?? false,
-			})
-		)
+const generatePropertyInputType = (prop: Property, indent: number) => {
+	return generateValue(prop, {
+		depth: 0,
+		indent: indent + 1,
+		wrap: (v, p, ctx) => {
+			return ctx.depth > 0 ? (p.optional ? `f.OptionalInput<${v}>` : `f.Input<${v}>`) : v
+		},
+		filter: prop =>
+			!(prop.computed && typeof prop.optional === 'undefined' && typeof prop.required === 'undefined'),
+		optional: p => p.optional ?? false,
+	})
+}
 
-		// code.push("}\n");
+const generatePropertyOutputType = (prop: Property, indent: number) => {
+	return generateValue(prop, {
+		indent: indent + 1,
+		depth: 0,
+		wrap: (v, p, ctx) =>
+			ctx.depth === 1 ? (p.optional && !p.computed ? `f.OptionalOutput<${v}>` : `f.Output<${v}>`) : v,
+		filter: () => true,
+		readonly: true,
+		// required: true,
+		optional: (p, ctx) => (ctx.depth > 1 && p.optional && !p.computed) || false,
+	})
+}
+
+const generateClassProperties = (prop: Property, indent: number) => {
+	// return generateValue(prop, {
+	// 	indent: indent + 1,
+	// 	depth: 0,
+	// 	wrap: (v, p, ctx) => (ctx.depth === 1 ? `Output<${p.optional && !p.computed ? `${v} | undefined` : v}>` : v),
+	// 	filter: () => true,
+	// 	readonly: true,
+	// 	// required: true,
+	// 	optional: (p, ctx) => (ctx.depth > 1 && p.optional && !p.computed) || false,
+	// }).substring(1)
+
+	if (prop.type !== 'object') {
+		return ''
 	}
 
-	code.push('\t}\n')
-	code.push('}\n')
+	return Object.entries(prop.properties)
+		.map(([name, prop]) => {
+			// const
+			return [
+				prop.description
+					? [`\n`, `\t`.repeat(indent), `/** `, prop.description.trim(), ' */', '\n'].join('')
+					: '',
+				`\t`.repeat(indent),
+				'readonly ',
+				camelCase(name),
+				// ctx.optional(prop, ctx) ? '?' : '',
+				': ',
+				generateValue(prop, {
+					readonly: true,
+					filter: () => true,
+					optional: (p, ctx) => (ctx.depth > 1 && p.optional && !p.computed) || false,
+					wrap: (v, p, ctx) => {
+						return ctx.depth === 1
+							? p.optional && !p.computed
+								? `f.OptionalOutput<${v}>`
+								: `f.Output<${v}>`
+							: v
+					},
+					// ctx.depth === 1 ? `f.Output<${p.optional && !p.computed ? `${v} | undefined` : v}>` : v,
+					indent: indent + 1,
+					depth: 1,
+				}),
+			].join('')
+		})
+		.join('\n')
+}
 
-	return code.join('')
+type NamespaceGroup = {
+	[key: string]: NamespaceGroup | string
 }
 
 const groupByNamespace = (resources: Record<string, Property>, minLevel: number, maxLevel: number) => {
@@ -116,141 +168,44 @@ const groupByNamespace = (resources: Record<string, Property>, minLevel: number,
 	return grouped
 }
 
-// const generateDataInterface = (dataSources: Record<string, Property>) => {
-// 	const grouped = groupByNamespace(dataSources, 1, 2)
-
-// 	const code: string[] = []
-
-// 	const renderRoot = (name: string, group: NamespaceGroup, indent: number) => {
-// 		code.push(`interface ${pascalCase(name)} {\n`)
-// 		for (const [ns, entry] of Object.entries(group)) {
-// 			if (typeof entry === 'string') {
-// 				renderResource(ns, entry, indent + 1)
-// 			} else {
-// 				renderNamespace(ns, entry, indent + 1)
-// 			}
-// 		}
-// 		code.push(`}\n`)
-// 	}
-
-// 	const renderNamespace = (name: string, group: NamespaceGroup, indent: number) => {
-// 		const tabs = `\t`.repeat(indent)
-// 		code.push(`${tabs}${name}: {\n`)
-// 		for (const [ns, entry] of Object.entries(group)) {
-// 			if (typeof entry === 'string') {
-// 				renderResource(ns, entry, indent + 1)
-// 			} else {
-// 				renderNamespace(ns, entry, indent + 1)
-// 			}
-// 		}
-// 		code.push(`${tabs}}\n`)
-// 	}
-
-// 	const renderResource = (name: string, type: string, indent: number) => {
-// 		const tabs = `\t`.repeat(indent)
-// 		const propName = pascalCase(name)
-// 		const className = pascalCase(type)
-// 		code.push(
-// 			`${tabs}get${propName}: DataSource<${className}Props, ${className}>\n`
-// 			// `${tabs}get${propName}: string\n`
-// 		)
-// 	}
-
-// 	for (const [ns, entry] of Object.entries(grouped)) {
-// 		renderRoot(ns, entry as {}, 0)
-// 	}
-
-// 	// code.push('\t}\n')
-// 	// code.push('}\n')
-
-// 	return code.join('')
-// }
-
-type NamespaceGroup = {
-	[key: string]: string | NamespaceGroup
-}
-
-const generateInterfaces = (
+const generateNamespace = (
 	resources: Record<string, Property>,
-	render: (attrName: string, typeName: string, type: string) => string
+	render: (name: string, prop: Property, indent: number) => string
 ) => {
 	const grouped = groupByNamespace(resources, 1, 2)
 
-	const renderInterface = (parents: string[], name: string, group: NamespaceGroup) => {
-		const typeName = pascalCase([...parents, name].join('-'))
-		code.push(`interface ${typeName} {\n`)
-		for (const [ns, entry] of Object.entries(group)) {
-			if (typeof entry === 'string') {
-				renderResource(ns, entry)
-			} else {
-				renderNamespace([...parents, name], ns)
-			}
+	// console.log(grouped, Object.keys(resources))
+	// console.log(resources['aws'])
+
+	const renderNamespace = (name: string, group: NamespaceGroup | string, indent: number): string => {
+		if (name === 'default') {
+			name = '$default'
 		}
-		code.push(`}\n\n`)
 
-		for (const [ns, entry] of Object.entries(group)) {
-			if (typeof entry !== 'string') {
-				renderInterface([...parents, name], ns, entry)
-			}
-		}
+		// console.log(name)
+
+		return [
+			`${tab(indent)}export namespace ${name.toLowerCase()} {`,
+			Object.entries(group)
+				.map(([name, entry]) => {
+					if (typeof entry !== 'string') {
+						return renderNamespace(name, entry, indent + 1)
+					} else {
+						return render(name, resources[entry]!, indent + 1)
+					}
+				})
+				.join('\n'),
+			`${tab(indent)}}`,
+		].join('\n')
 	}
 
-	const renderNamespace = (parents: string[], name: string) => {
-		// const attrName = pascalCase(name)
-		const typeName = pascalCase([...parents, name].join('-'))
-		code.push(`\t${name}: ${typeName}\n`)
-	}
+	const code: string[] = [`declare module '@awsless/formation' {`]
 
-	const renderResource = (name: string, type: string) => {
-		const attrName = pascalCase(name)
-		const className = pascalCase(type)
-		code.push(`\t${render(attrName, className, type)}\n`)
-	}
+	code.push(renderNamespace('$', grouped, 1))
 
-	const code: string[] = []
+	code.push(`}`)
 
-	for (const [ns, entry] of Object.entries(grouped)) {
-		renderInterface([], ns, entry as {})
-	}
-
-	return code.join('')
-}
-
-const generateResourceInputTypes = (type: string, prop: Property) => {
-	const code: string[] = [
-		`type ${pascalCase(type)}Props = `,
-		generateValue(prop, {
-			depth: 0,
-			indent: 1,
-			// wrap: (v, p, ctx) => (ctx.depth > 1 ? `Input<${p.optional ? `${v} | undefined` : v}>` : v),
-			wrap: (v, p, ctx) => {
-				return ctx.depth > 1 ? (p.optional ? `OptionalInput<${v}>` : `Input<${v}>`) : v
-			},
-			filter: prop =>
-				!(prop.computed && typeof prop.optional === 'undefined' && typeof prop.required === 'undefined'),
-			optional: p => p.optional ?? false,
-		}),
-	].flat()
-
-	return code.join('')
-}
-
-const generateResourceOutputTypes = (type: string, prop: Property) => {
-	const code: string[] = [
-		`type ${pascalCase(type)} = `,
-		generateValue(prop, {
-			indent: 1,
-			depth: 0,
-			wrap: (v, p, ctx) =>
-				ctx.depth === 2 ? `Output<${p.optional && !p.computed ? `${v} | undefined` : v}>` : v,
-			filter: () => true,
-			readonly: true,
-			// required: true,
-			optional: (p, ctx) => (ctx.depth > 2 && p.optional && !p.computed) || false,
-		}),
-	].flat()
-
-	return code.join('')
+	return code.join('\n')
 }
 
 type Context = {
@@ -263,29 +218,23 @@ type Context = {
 }
 
 const generateValue = (prop: Property, ctx: Context): string => {
-	ctx.depth++
-
-	// if (prop.optional && prop.required) {
-	//   console.log(prop);
-	// }
-
 	if (['string', 'number', 'boolean', 'unknown'].includes(prop.type)) {
 		return ctx.wrap(prop.type, prop, ctx)
 	}
 
 	if (prop.type === 'array') {
-		const type = generateValue(prop.item, ctx)
+		const type = generateValue(prop.item, { ...ctx, depth: ctx.depth + 1 })
 		const array = ctx.readonly ? `ReadonlyArray<${type}>` : `Array<${type}>`
 		return ctx.wrap(array, prop, ctx)
 	}
 
 	if (prop.type === 'record') {
-		const type = generateValue(prop.item, ctx)
-		const record = ctx.readonly ? `Readonly<Record<string, ${type}>>` : `Record<string, ${type}>`
+		const type = generateValue(prop.item, { ...ctx, depth: ctx.depth + 1 })
+		const record = ctx.readonly ? `Readonly<_Record<${type}>>` : `_Record<${type}>`
 		return ctx.wrap(record, prop, ctx)
 	}
 
-	if (prop.type === 'object') {
+	if (prop.type === 'object' || prop.type === 'array-object') {
 		const type = [
 			'{',
 			Object.entries(prop.properties)
@@ -300,7 +249,7 @@ const generateValue = (prop: Property, ctx: Context): string => {
 						camelCase(name),
 						ctx.optional(prop, ctx) ? '?' : '',
 						': ',
-						generateValue(prop, { ...ctx, indent: ctx.indent + 1 }),
+						generateValue(prop, { ...ctx, indent: ctx.indent + 1, depth: ctx.depth + 1 }),
 					].join('')
 				)
 				.join('\n'),

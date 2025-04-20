@@ -3,6 +3,8 @@ import { Future } from './future.ts'
 import { Input, UnwrapInputArray } from './input.ts'
 import { ResourceMeta } from './resource.ts'
 
+export type OptionalOutput<T = unknown> = Output<T | undefined>
+
 export class Output<T = unknown> extends Future<T> {
 	constructor(
 		readonly dependencies: Set<ResourceMeta | DataSourceMeta>,

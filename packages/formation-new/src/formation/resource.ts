@@ -1,6 +1,8 @@
 import { DataSource, DataSourceMeta } from './data-source.ts'
 import { Group } from './group.ts'
 import { findInputDeps } from './input.ts'
+import { isResource } from './meta.ts'
+// import { findInputDeps } from './input.ts'
 import { Output } from './output.ts'
 import { findParentStack, Stack } from './stack.ts'
 
@@ -9,7 +11,7 @@ export type State = Record<string, any>
 
 export type ResourceConfig = {
 	/** Specify additional explicit dependencies in addition to the ones in the dependency graph. */
-	dependsOn?: Resource[]
+	dependsOn?: Resource<any, any>[]
 
 	/** Import an existing resource instead of creating a new resource. */
 	import?: string
@@ -17,8 +19,8 @@ export type ResourceConfig = {
 	/** If true the resource will be retained in the backing cloud provider during a Pulumi delete operation. */
 	retainOnDelete?: boolean
 
-	/** Override the default create-before-delete behavior when replacing a resource. */
-	deleteBeforeCreate?: boolean
+	/** Override the default create-after-delete behavior when replacing a resource. */
+	deleteAfterCreate?: boolean
 
 	/** Pass an ID of an explicitly configured provider, instead of using the default provider. */
 	provider?: string
@@ -33,11 +35,11 @@ export type ResourceConfig = {
 	// ignoreChanges?: string[];
 }
 
-export type ResourceMeta<I extends State = State, O extends State = State, T extends string = string> = {
+export type ResourceMeta<I extends State = State, O extends State = State> = {
 	readonly tag: 'resource'
 	readonly urn: URN
 	readonly logicalId: string
-	readonly type: T
+	readonly type: string
 	readonly stack: Stack
 	readonly provider: string
 	readonly input: I
@@ -46,54 +48,67 @@ export type ResourceMeta<I extends State = State, O extends State = State, T ext
 	readonly dataSourceMetas: Set<DataSourceMeta>
 
 	// readonly attach: (resource: Resource<I, O, T>) => void
+	readonly attachDependencies: (props: State) => void
 	readonly resolve: (data: O) => void
 	readonly output: <O>(cb: (data: State) => O) => Output<O>
 }
 
-export type Resource<I extends State = State, O extends State = State, T extends string = string> = O & {
-	readonly $: ResourceMeta<I, O, T>
+export type Resource<I extends State = State, O extends State = State> = O & {
+	readonly $: ResourceMeta<I, O>
 }
 
-export type ResourceClass<I extends State = State, O extends State = State, T extends string = string> = {
-	new (parent: Group, id: string, props: I, config?: ResourceConfig): Resource<I, O, T>
-	get(parent: Group, id: string, physicalId: string): DataSource<I, O, T>
+export type ResourceClass<I extends State = State, O extends State = State> = {
+	new (parent: Group, id: string, props: I, config?: ResourceConfig): Resource<I, O>
+	get(parent: Group, id: string, physicalId: string): DataSource<I, O>
 }
 
 export const createUrn = (type: string, name: string, parentUrn?: URN): URN => {
 	return `${parentUrn ? parentUrn : 'urn'}:${type}:{${name}}`
 }
 
-export const createResourceMeta = <I extends State = State, O extends State = State, T extends string = string>(
+export const createResourceMeta = <I extends State = State, O extends State = State>(
 	provider: string,
 	parent: Group,
-	type: T,
+	type: string,
 	logicalId: string,
 	input: I,
 	config?: ResourceConfig
-): ResourceMeta<I, O, T> => {
+): ResourceMeta<I, O> => {
 	const urn = createUrn(type, logicalId, parent.urn)
 	const stack = findParentStack(parent)
 	const dependencies = new Set<URN>()
-	const dependencyResources = new Set(findInputDeps(input))
 	const dataSourceMetas = new Set<DataSourceMeta>()
 
 	let output: O | undefined
-	// let resource: Resource<I, O, T> | undefined
 
 	// ------------------------------------------------------------------------------
 	// Link the input dependencies to our resource if they are in the same stack.
 	// If the resource is coming from a different stack we will let our stack depend
 	// ------------------------------------------------------------------------------
 
-	for (const dep of dependencyResources) {
+	for (const dep of findInputDeps(input)) {
 		if (dep.tag === 'resource') {
 			if (dep.stack.urn === stack.urn) {
+				if (dep.urn === urn) {
+					throw new Error("You can't depend on yourself")
+				}
+
 				dependencies.add(dep.urn)
 			} else {
 				stack.dependsOn(dep.stack)
 			}
 		} else {
 			dataSourceMetas.add(dep)
+		}
+	}
+
+	for (const dep of config?.dependsOn ?? []) {
+		if (isResource(dep)) {
+			if (dep.$.stack.urn === stack.urn) {
+				dependencies.add(dep.$.urn)
+			} else {
+				stack.dependsOn(dep.$.stack)
+			}
 		}
 	}
 
@@ -111,6 +126,23 @@ export const createResourceMeta = <I extends State = State, O extends State = St
 		// attach(value) {
 		// 	resource = value
 		// },
+		// dependOn(...resources: Resource[]) {},
+		attachDependencies(props) {
+			for (const dep of findInputDeps(props)) {
+				if (dep.tag === 'resource') {
+					if (dep.stack.urn === stack.urn) {
+						if (dep.urn === urn) {
+							throw new Error("You can't depend on yourself")
+						}
+						dependencies.add(dep.urn)
+					} else {
+						stack.dependsOn(dep.stack)
+					}
+				} else {
+					dataSourceMetas.add(dep)
+				}
+			}
+		},
 		resolve(data) {
 			output = data
 		},

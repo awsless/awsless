@@ -1,14 +1,18 @@
 import { App } from '../../app.ts'
+import { createDebugger } from '../../debug.ts'
 import { URN } from '../../resource.ts'
 import { Stack } from '../../stack.ts'
 import { concurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
 import { AppError } from '../error.ts'
+import { onExit } from '../exit.ts'
 import { AppState, ResourceState, StackState } from '../state.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
 import { deleteStackResources } from './delete-stack.ts'
 import { deployStackResources } from './deploy-stack.ts'
+
+const debug = createDebugger('Deploy App')
 
 export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptions) => {
 	const appState =
@@ -17,6 +21,15 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 			name: app.name,
 			stacks: {},
 		} satisfies AppState)
+
+	debug(app.name, 'start')
+
+	// -------------------------------------------------------
+	// Save state on process graseful exit
+
+	const releaseOnExit = onExit(async () => {
+		await opt.backend.state.update(app.urn, appState)
+	})
 
 	// -------------------------------------------------------
 	// Set the idempotent token when no token exists.
@@ -53,8 +66,9 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 
 			if (stackState) {
 				for (const resource of stack.resources) {
-					const resourceState = stackState.resources[resource.urn]
+					const resourceState = stackState.resources[resource.$.urn]
 					if (resourceState && resourceState.output) {
+						debug('hydrate', resource.$.urn)
 						resource.$.resolve(resourceState.output)
 					}
 				}
@@ -92,10 +106,10 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 					const resource = resources.find(r => r.$.urn === urn)
 
 					if (!resource) {
-						if (state.lifecycle?.deleteBeforeCreate) {
-							deleteResourcesBefore[urn] = state
-						} else {
+						if (state.lifecycle?.deleteAfterCreate) {
 							deleteResourcesAfter[urn] = state
+						} else {
+							deleteResourcesBefore[urn] = state
 						}
 					}
 				}
@@ -155,7 +169,7 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 
 	// -------------------------------------------------------------------
 
-	const results = await graph.run()
+	const errors = await graph.run()
 
 	// -------------------------------------------------------------------
 	// Delete the idempotant token when the deployment reaches the end.
@@ -168,8 +182,13 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 	await opt.backend.state.update(app.urn, appState)
 
 	// -------------------------------------------------------------------
+	// Release the onExit
 
-	const errors = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason)
+	releaseOnExit()
+
+	debug(app.name, 'done')
+
+	// -------------------------------------------------------------------
 
 	if (errors.length > 0) {
 		throw new AppError(app.name, [...new Set(errors)], 'Deploying app failed.')

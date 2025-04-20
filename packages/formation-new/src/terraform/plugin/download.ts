@@ -1,5 +1,5 @@
 import jszip from 'jszip'
-import { stat, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createDebugger } from '../../formation/debug.ts'
 import { getProviderDownloadUrl, getProviderVersions, type Version } from './registry.ts'
@@ -43,6 +43,7 @@ export const downloadPlugin = async (location: string, org: string, type: string
 
 		debug(type, 'done')
 
+		await mkdir(location, { recursive: true })
 		await writeFile(file, binary, {
 			mode: 0o775,
 		})

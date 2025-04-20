@@ -15,6 +15,7 @@ export const importResource = async (
 	const provider = findProvider(opt.providers, resource.$.provider)
 
 	debug(resource.$.type)
+	debug(input)
 
 	let result
 

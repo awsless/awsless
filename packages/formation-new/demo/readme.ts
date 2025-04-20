@@ -1,10 +1,11 @@
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { App, enableDebug, FileLockBackend, FileStateBackend, Stack, Terraform, tf, WorkSpace } from '../src/index.ts'
 
 enableDebug()
 
 const terraform = new Terraform({
-	providerLocation: join(import.meta.dirname, 'provider'),
+	providerLocation: join(homedir(), `.awsless/providers`),
 })
 
 // const cloudFlare = await terraform.install("cloudflare", "cloudflare");

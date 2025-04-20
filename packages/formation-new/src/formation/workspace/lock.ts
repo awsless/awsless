@@ -1,42 +1,36 @@
-import { App } from "../app.ts";
-import { LockBackend } from "../backend/lock.ts";
+import { App } from '../app.ts'
+import { LockBackend } from '../backend/lock.ts'
+import { onExit } from './exit.ts'
 
-export const lockApp = async <T>(
-  lockBackend: LockBackend,
-  app: App,
-  fn: () => T
-): Promise<Awaited<T>> => {
-  let release;
-  try {
-    release = await lockBackend.lock(app.urn);
-  } catch (error) {
-    throw new Error(`Already in progress: ${app.urn}`);
-  }
+export const lockApp = async <T>(lockBackend: LockBackend, app: App, fn: () => T): Promise<Awaited<T>> => {
+	let releaseLock
+	try {
+		releaseLock = await lockBackend.lock(app.urn)
+	} catch (error) {
+		throw new Error(`Already in progress: ${app.urn}`)
+	}
 
-  // --------------------------------------------------
-  // Release the lock if we get a TERM signal from
-  // the user
+	// --------------------------------------------------
+	// Release the lock if we get a TERM signal from
+	// the user
 
-  const cleanupAndExit = async () => {
-    await release();
-    process.exit(0);
-  };
+	const releaseExit = onExit(async () => {
+		await releaseLock()
+	})
 
-  process.on("SIGTERM", cleanupAndExit);
-  process.on("SIGINT", cleanupAndExit);
+	// --------------------------------------------------
+	// Run the callback
 
-  // --------------------------------------------------
-  // Run the callback
+	let result: Awaited<T>
 
-  let result: Awaited<T>;
+	try {
+		result = await fn()
+	} catch (error) {
+		throw error
+	} finally {
+		await releaseLock()
+		releaseExit()
+	}
 
-  try {
-    result = await fn();
-  } catch (error) {
-    throw error;
-  } finally {
-    await release();
-  }
-
-  return result!;
-};
+	return result!
+}

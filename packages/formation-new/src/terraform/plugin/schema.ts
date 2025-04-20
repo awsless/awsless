@@ -38,10 +38,10 @@ type NestedBlock = {
 	nesting: number
 
 	/** @deprecated */
-	minItems?: number
+	minItems?: Long
 
 	/** @deprecated */
-	maxItems?: number
+	maxItems?: Long
 }
 
 type Schema = {
@@ -98,7 +98,7 @@ export type Property = {
 			item: Property
 	  }
 	| {
-			type: 'object'
+			type: 'object' | 'array-object'
 			properties: Record<string, Property>
 	  }
 	| {
@@ -161,7 +161,7 @@ export const parseBlock = (block: Block): RootProperty => {
 }
 
 export const parseNestedBlock = (block: NestedBlock): Property => {
-	const type = parseNestedBlockType(block.nesting)
+	const type = parseNestedBlockType(block)
 	const item = parseBlock(block.block)
 	const prop = {
 		optional: true,
@@ -177,34 +177,46 @@ export const parseNestedBlock = (block: NestedBlock): Property => {
 		}
 	}
 
+	if (type === 'array-object') {
+		return {
+			...prop,
+			...item,
+			type,
+		}
+	}
+
 	return {
 		...prop,
 		...item,
 	}
 }
 
-export const parseNestedBlockType = (mode: number) => {
-	if (mode === NestingMode.SET) {
+export const parseNestedBlockType = (block: NestedBlock) => {
+	if (block.nesting === NestingMode.SET) {
 		return 'array'
 	}
 
-	if (mode === NestingMode.LIST) {
+	if (block.nesting === NestingMode.LIST) {
+		if (block.maxItems?.eq(1)) {
+			return 'array-object'
+		}
+
 		return 'array'
 	}
 
-	if (mode === NestingMode.MAP) {
+	if (block.nesting === NestingMode.MAP) {
 		return 'record'
 	}
 
-	if (mode === NestingMode.GROUP) {
+	if (block.nesting === NestingMode.GROUP) {
 		return 'object'
 	}
 
-	if (mode === NestingMode.SINGLE) {
+	if (block.nesting === NestingMode.SINGLE) {
 		return 'object'
 	}
 
-	throw new Error(`Invalid nested block type ${mode}`)
+	throw new Error(`Invalid nested block type ${block.nesting}`)
 }
 
 export const parseAttribute = (attr: Attribute): Property => {

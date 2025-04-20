@@ -1,0 +1,17 @@
+$schema: ../../dist/stack.json
+
+name: app
+depends:
+  - auth
+
+http:
+  api:
+    GET /posts: ./file.ts
+    POST /posts: ./file.ts
+
+functions:
+  dice: ./file.ts
+
+tables:
+  users:
+    hash: id

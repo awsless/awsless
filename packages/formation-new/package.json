@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/formation",
-	"version": "0.0.63",
+	"version": "0.0.68",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -37,7 +37,10 @@
 		"@types/promise-dag": "^1.0.4",
 		"@types/proper-lockfile": "^4.1.4",
 		"@types/semver": "^7.7.0",
+		"async-on-exit": "^0.1.0",
 		"change-case": "^5.4.4",
+		"graphology": "^0.26.0",
+		"graphology-dag": "^0.4.1",
 		"jszip": "^3.10.1",
 		"msgpackr": "^1.11.0",
 		"p-limit": "^6.2.0",

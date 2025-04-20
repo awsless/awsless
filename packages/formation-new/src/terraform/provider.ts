@@ -1,13 +1,13 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { CreateProps, DeleteProps, GetDataProps, GetProps, Provider, UpdateProps } from '../formation/provider.ts'
 import { State } from '../formation/resource.ts'
 import { Plugin } from './plugin/version/type.ts'
 import { generateTypes } from './type-gen.ts'
 
-declare global {
-	interface TerraformProviders {}
-}
+// declare global {
+// 	interface TerraformProviders {}
+// }
 
 export class TerraformProvider implements Provider {
 	private configured?: Promise<void>
@@ -57,8 +57,6 @@ export class TerraformProvider implements Provider {
 	async getResource({ type, state }: GetProps) {
 		const plugin = await this.configure()
 		const newState = await plugin.readResource(type, state)
-
-		console.log('STATE', newState)
 
 		if (!newState) {
 			throw new Error(`Resource not found ${type}`)
@@ -113,13 +111,14 @@ export class TerraformProvider implements Provider {
 		const schema = plugin.schema()
 		const types = generateTypes(
 			{
-				[this.type]: schema.provider,
+				[`${this.type}_provider`]: schema.provider,
 			},
 			schema.resources,
 			schema.dataSources
 		)
 
-		await writeFile(join(dir, `${this.type}.types.d.ts`), types)
+		await mkdir(dir, { recursive: true })
+		await writeFile(join(dir, `${this.type}.d.ts`), types)
 		await this.destroy()
 	}
 }

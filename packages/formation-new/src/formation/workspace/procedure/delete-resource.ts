@@ -11,6 +11,7 @@ const debug = createDebugger('Delete')
 
 export const deleteResource = async (appToken: UUID, urn: URN, state: ResourceState, opt: WorkSpaceOptions) => {
 	debug(state.type)
+	debug(state)
 
 	if (state.lifecycle?.retainOnDelete) {
 		debug('retain', state.type)

@@ -1,15 +1,17 @@
-let enabled = false;
+let enabled = false
 
 export const enableDebug = () => {
-  enabled = true;
-};
+	enabled = true
+}
 
 export const createDebugger = (group: string) => {
-  return (...args: unknown[]) => {
-    if (!enabled) {
-      return;
-    }
+	return (...args: unknown[]) => {
+		if (!enabled) {
+			return
+		}
 
-    console.log(`${group}:`, ...args);
-  };
-};
+		console.log()
+		console.log(`${group}:`, ...args)
+		console.log()
+	}
+}

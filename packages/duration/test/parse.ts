@@ -3,7 +3,7 @@ import { Duration, DurationFormat, parse, toDays, toHours, toMilliSeconds, toMin
 describe('Duration Parser', () => {
 	it('parse', () => {
 		const result = parse('1 millisecond')
-		expect(toMilliSeconds(result)).toBe(1n)
+		expect(toMilliSeconds(result)).toBe(1)
 		expectTypeOf(result).toEqualTypeOf<Duration>()
 	})
 
@@ -28,21 +28,21 @@ describe('Duration Parser', () => {
 	})
 
 	describe('types', () => {
-		const list: [DurationFormat, (value: Duration) => bigint, bigint][] = [
-			['1 milliseconds', toMilliSeconds, 1n],
-			['1 millisecond', toMilliSeconds, 1n],
-			['1 seconds', toSeconds, 1n],
-			['1 second', toSeconds, 1n],
-			['1 minutes', toMinutes, 1n],
-			['1 minute', toMinutes, 1n],
-			['1 hours', toHours, 1n],
-			['1 hour', toHours, 1n],
-			['1 days', toDays, 1n],
-			['1 day', toDays, 1n],
-			['1 weeks', toWeeks, 1n],
-			['1 week', toWeeks, 1n],
+		const list: [DurationFormat, (value: Duration) => number, number][] = [
+			['1 milliseconds', toMilliSeconds, 1],
+			['1 millisecond', toMilliSeconds, 1],
+			['1 seconds', toSeconds, 1],
+			['1 second', toSeconds, 1],
+			['1 minutes', toMinutes, 1],
+			['1 minute', toMinutes, 1],
+			['1 hours', toHours, 1],
+			['1 hour', toHours, 1],
+			['1 days', toDays, 1],
+			['1 day', toDays, 1],
+			['1 weeks', toWeeks, 1],
+			['1 week', toWeeks, 1],
 
-			['999 day', toDays, 999n],
+			['999 day', toDays, 999],
 		]
 
 		for (const [string, transform, expectation] of list) {

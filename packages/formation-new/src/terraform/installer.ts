@@ -8,9 +8,23 @@ import { createPlugin6 } from './plugin/version/6.ts'
 import type { Plugin } from './plugin/version/type.ts'
 import { TerraformProvider } from './provider.ts'
 
-type ProviderConfig<T extends string> = T extends keyof TerraformProviders
-	? TerraformProviders[T]
+// declare global {
+// 	export namespace $terraform {}
+// }
+
+type Global = typeof globalThis
+type GlobalType<T> = T extends keyof Global ? Global[T] : any
+
+type ProviderInput<T extends string, TT extends 'Provider'> = T extends keyof GlobalType<'$terraform'>
+	? TT extends keyof GlobalType<'$terraform'>[T]
+		? GlobalType<'$terraform'>[T][TT]
+		: Record<string, unknown>
 	: Record<string, unknown>
+
+type ProviderConfig = {
+	id?: string
+	debug?: boolean
+}
 
 const debug = createDebugger('Plugin')
 
@@ -24,9 +38,9 @@ export class Terraform {
 	async install<T extends string>(org: string, type: T, version: Version = 'latest') {
 		const { file, version: realVersion } = await downloadPlugin(this.props.providerLocation, org, type, version)
 
-		return (config: ProviderConfig<T>, id: string = 'default') => {
+		return (input: ProviderInput<T, 'Provider'>, config?: ProviderConfig) => {
 			const createLazyPlugin = async () => {
-				const server = await createPluginServer({ file, debug: false })
+				const server = await createPluginServer({ file, debug: config?.debug })
 				const client = await createPluginClient(server)
 				const plugins: Record<number, () => Promise<Plugin>> = {
 					5: () => createPlugin5({ server, client }),
@@ -44,7 +58,7 @@ export class Terraform {
 				return plugin
 			}
 
-			return new TerraformProvider(type, id, createLazyPlugin, config)
+			return new TerraformProvider(type, config?.id ?? 'default', createLazyPlugin, input)
 		}
 	}
 }

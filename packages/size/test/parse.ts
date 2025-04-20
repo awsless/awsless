@@ -13,7 +13,7 @@ import {
 describe('Size Parser', () => {
 	it('parse', () => {
 		const result = parse('1 B')
-		expect(toBytes(result)).toBe(1n)
+		expect(toBytes(result)).toBe(1)
 		expectTypeOf(result).toEqualTypeOf<Size>()
 	})
 
@@ -38,14 +38,14 @@ describe('Size Parser', () => {
 	})
 
 	describe('types', () => {
-		const list: [SizeFormat, (value: Size) => bigint, bigint][] = [
-			['1 B', toBytes, 1n],
-			['1 KB', toKibibytes, 1n],
-			['1 MB', toMebibytes, 1n],
-			['1 GB', toGibibytes, 1n],
-			['1 TB', toTebibytes, 1n],
-			['1 PB', toPebibytes, 1n],
-			['999 PB', toPebibytes, 999n],
+		const list: [SizeFormat, (value: Size) => number, number][] = [
+			['1 B', toBytes, 1],
+			['1 KB', toKibibytes, 1],
+			['1 MB', toMebibytes, 1],
+			['1 GB', toGibibytes, 1],
+			['1 TB', toTebibytes, 1],
+			['1 PB', toPebibytes, 1],
+			['999 PB', toPebibytes, 999],
 		]
 
 		for (const [string, transform, expectation] of list) {

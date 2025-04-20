@@ -28,21 +28,39 @@ var milliSeconds = (value) => {
   return new Duration(BigInt(value));
 };
 var toWeeks = (duration) => {
-  return duration.value / WEEKS;
+  return Number(toSafeWeeks(duration));
 };
 var toDays = (duration) => {
-  return duration.value / DAYS;
+  return Number(toSafeDays(duration));
 };
 var toHours = (duration) => {
-  return duration.value / HOURS;
+  return Number(toSafeHours(duration));
 };
 var toMinutes = (duration) => {
-  return duration.value / MINUTES;
+  return Number(toSafeMinutes(duration));
 };
 var toSeconds = (duration) => {
-  return duration.value / SECONDS;
+  return Number(toSafeSeconds(duration));
 };
 var toMilliSeconds = (duration) => {
+  return Number(toSafeMilliSeconds(duration));
+};
+var toSafeWeeks = (duration) => {
+  return duration.value / WEEKS;
+};
+var toSafeDays = (duration) => {
+  return duration.value / DAYS;
+};
+var toSafeHours = (duration) => {
+  return duration.value / HOURS;
+};
+var toSafeMinutes = (duration) => {
+  return duration.value / MINUTES;
+};
+var toSafeSeconds = (duration) => {
+  return duration.value / SECONDS;
+};
+var toSafeMilliSeconds = (duration) => {
   return duration.value;
 };
 
@@ -79,6 +97,12 @@ export {
   toHours,
   toMilliSeconds,
   toMinutes,
+  toSafeDays,
+  toSafeHours,
+  toSafeMilliSeconds,
+  toSafeMinutes,
+  toSafeSeconds,
+  toSafeWeeks,
   toSeconds,
   toWeeks,
   weeks

@@ -5,9 +5,6 @@ var hasMeta = (obj) => {
 var isResource = (obj) => {
   return hasMeta(obj) && obj.$.tag === "resource";
 };
-var isDataSource = (obj) => {
-  return hasMeta(obj) && obj.$.tag === "data-source";
-};
 
 // src/formation/group.ts
 var Group = class _Group {
@@ -22,8 +19,25 @@ var Group = class _Group {
     const urn = this.parent ? this.parent.urn : "urn";
     return `${urn}:${this.type}:{${this.name}}`;
   }
+  addChild(child) {
+    if (isResource(child)) {
+      const duplicate = this.children.filter((c) => isResource(c)).find((c) => c.$.type === child.$.type && c.$.logicalId === child.$.logicalId);
+      if (duplicate) {
+        throw new Error(`Duplicate resource found: ${child.$.type}:${child.$.logicalId}`);
+      }
+    }
+    if (child instanceof _Group) {
+      const duplicate = this.children.filter((c) => c instanceof _Group).find((c) => c.type === child.type && c.name === child.name);
+      if (duplicate) {
+        throw new Error(`Duplicate group found: ${child.type}:${child.name}`);
+      }
+    }
+    this.children.push(child);
+  }
   add(...children) {
-    this.children.push(...children);
+    for (const child of children) {
+      this.addChild(child);
+    }
   }
   get resources() {
     return this.children.map((child) => {
@@ -36,32 +50,33 @@ var Group = class _Group {
       return;
     }).flat().filter((child) => !!child);
   }
-  get dataSources() {
-    return this.children.map((child) => {
-      if (child instanceof _Group) {
-        return child.dataSources;
-      }
-      if (isDataSource(child)) {
-        return child;
-      }
-      return;
-    }).flat().filter((child) => !!child);
-  }
+  // get dataSources(): DataSource[] {
+  // 	return this.children
+  // 		.map(child => {
+  // 			if (child instanceof Group) {
+  // 				return child.dataSources
+  // 			}
+  // 			if (isDataSource(child)) {
+  // 				return child
+  // 			}
+  // 			return
+  // 		})
+  // 		.flat()
+  // 		.filter(child => !!child)
+  // }
 };
 
 // src/formation/stack.ts
 var Stack = class extends Group {
   constructor(app, name) {
-    super(app, "Stack", name);
+    super(app, "stack", name);
     this.app = app;
   }
   dependencies = /* @__PURE__ */ new Set();
   dependsOn(...stacks) {
     for (const stack of stacks) {
       if (stack.app !== this.app) {
-        throw new Error(
-          `Stacks that belong to different apps can't be dependent on each other`
-        );
+        throw new Error(`Stacks that belong to different apps can't be dependent on each other`);
       }
       this.dependencies.add(stack);
     }
@@ -81,7 +96,7 @@ var findParentStack = (group) => {
 // src/formation/app.ts
 var App = class extends Group {
   constructor(name) {
-    super(void 0, "App", name);
+    super(void 0, "app", name);
     this.name = name;
   }
   get stacks() {
@@ -178,9 +193,7 @@ var output = (value) => {
   return deferredOutput((resolve2) => resolve2(value));
 };
 var combine = (...inputs) => {
-  const deps = new Set(
-    ...inputs.filter((o) => o instanceof Output).map((o) => o.dependencies)
-  );
+  const deps = new Set(...inputs.filter((o) => o instanceof Output).map((o) => o.dependencies));
   return new Output(deps, (resolve2, reject) => {
     Promise.all(inputs).then((result) => {
       resolve2(result);
@@ -230,7 +243,14 @@ var resolveInputs = async (inputs) => {
     }
   };
   find(inputs, {}, "root");
-  const responses = await Promise.all(unresolved.map(([obj, key]) => obj[key]));
+  const responses = await Promise.race([
+    Promise.all(unresolved.map(([obj, key]) => obj[key])),
+    new Promise(
+      (_, reject) => setTimeout(() => {
+        reject(new Error("Resolving inputs took too long."));
+      }, 5e3)
+    )
+  ]);
   unresolved.forEach(([props, key], i) => {
     props[key] = responses[i];
   });
@@ -241,28 +261,66 @@ var resolveInputs = async (inputs) => {
 var createUrn = (type, name, parentUrn) => {
   return `${parentUrn ? parentUrn : "urn"}:${type}:{${name}}`;
 };
-var createResourceMeta = (provider, parent, type, id, input, config) => {
-  const urn = createUrn(type, id, parent.urn);
+var createResourceMeta = (provider, parent, type, logicalId, input, config) => {
+  const urn = createUrn(type, logicalId, parent.urn);
   const stack = findParentStack(parent);
   const dependencies = /* @__PURE__ */ new Set();
-  const dependencyResources = /* @__PURE__ */ new Set([...findInputDeps(input)]);
+  const dataSourceMetas = /* @__PURE__ */ new Set();
   let output2;
-  for (const dep of dependencyResources) {
-    if (dep.stack.urn === stack.urn) {
-      dependencies.add(dep.urn);
+  for (const dep of findInputDeps(input)) {
+    if (dep.tag === "resource") {
+      if (dep.stack.urn === stack.urn) {
+        if (dep.urn === urn) {
+          throw new Error("You can't depend on yourself");
+        }
+        dependencies.add(dep.urn);
+      } else {
+        stack.dependsOn(dep.stack);
+      }
     } else {
-      stack.dependsOn(dep.stack);
+      dataSourceMetas.add(dep);
+    }
+  }
+  for (const dep of config?.dependsOn ?? []) {
+    if (isResource(dep)) {
+      if (dep.$.stack.urn === stack.urn) {
+        dependencies.add(dep.$.urn);
+      } else {
+        stack.dependsOn(dep.$.stack);
+      }
     }
   }
   return {
     tag: "resource",
     urn,
+    logicalId,
     type,
     stack,
     provider,
     input,
     config,
     dependencies,
+    dataSourceMetas,
+    // attach(value) {
+    // 	resource = value
+    // },
+    // dependOn(...resources: Resource[]) {},
+    attachDependencies(props) {
+      for (const dep of findInputDeps(props)) {
+        if (dep.tag === "resource") {
+          if (dep.stack.urn === stack.urn) {
+            if (dep.urn === urn) {
+              throw new Error("You can't depend on yourself");
+            }
+            dependencies.add(dep.urn);
+          } else {
+            stack.dependsOn(dep.stack);
+          }
+        } else {
+          dataSourceMetas.add(dep);
+        }
+      }
+    },
     resolve(data) {
       output2 = data;
     },
@@ -272,6 +330,33 @@ var createResourceMeta = (provider, parent, type, id, input, config) => {
           throw new Error(`Unresolved output for resource: ${urn}`);
         }
         resolve2(cb(output2));
+      });
+    }
+  };
+};
+
+// src/formation/data-source.ts
+import { randomUUID } from "crypto";
+var createDataSourceMeta = (provider, type, input) => {
+  let output2;
+  const dependencies = new Set(findInputDeps(input).map((dep) => dep.urn));
+  return {
+    tag: "data-source",
+    urn: `urn:data:${type}:${randomUUID()}`,
+    type,
+    input,
+    provider,
+    dependencies,
+    resolve(v) {
+      output2 = v;
+    },
+    output(cb) {
+      return new Output(/* @__PURE__ */ new Set([this]), (resolve2, reject) => {
+        if (!output2) {
+          reject(new Error(`Unresolved output for data-source: ${type}`));
+        } else {
+          resolve2(cb(output2));
+        }
       });
     }
   };
@@ -287,31 +372,52 @@ var createDebugger = (group) => {
     if (!enabled) {
       return;
     }
+    console.log();
     console.log(`${group}:`, ...args);
+    console.log();
+  };
+};
+
+// src/formation/workspace/exit.ts
+import asyncOnExit from "async-on-exit";
+var listeners = /* @__PURE__ */ new Set();
+var listening = false;
+var onExit = (cb) => {
+  listeners.add(cb);
+  if (!listening) {
+    listening = true;
+    asyncOnExit(async () => {
+      await Promise.allSettled([...listeners].map((cb2) => cb2()));
+    }, true);
+  }
+  return () => {
+    listeners.delete(cb);
+    if (listeners.size === 0) {
+      listening = false;
+      asyncOnExit.dispose();
+    }
   };
 };
 
 // src/formation/workspace/lock.ts
 var lockApp = async (lockBackend, app, fn) => {
-  let release;
+  let releaseLock;
   try {
-    release = await lockBackend.lock(app.urn);
+    releaseLock = await lockBackend.lock(app.urn);
   } catch (error) {
     throw new Error(`Already in progress: ${app.urn}`);
   }
-  const cleanupAndExit = async () => {
-    await release();
-    process.exit(0);
-  };
-  process.on("SIGTERM", cleanupAndExit);
-  process.on("SIGINT", cleanupAndExit);
+  const releaseExit = onExit(async () => {
+    await releaseLock();
+  });
   let result;
   try {
     result = await fn();
   } catch (error) {
     throw error;
   } finally {
-    await release();
+    await releaseLock();
+    releaseExit();
   }
   return result;
 };
@@ -326,7 +432,8 @@ var concurrencyQueue = (concurrency) => {
 };
 
 // src/formation/workspace/dependency.ts
-import { run } from "promise-dag";
+import { DirectedGraph } from "graphology";
+import { topologicalGenerations, willCreateCycle } from "graphology-dag";
 
 // src/formation/workspace/entries.ts
 var entries = (object) => {
@@ -335,12 +442,56 @@ var entries = (object) => {
 
 // src/formation/workspace/dependency.ts
 var DependencyGraph = class {
-  graph = {};
+  graph = new DirectedGraph();
+  callbacks = /* @__PURE__ */ new Map();
   add(urn, deps, callback) {
-    this.graph[urn] = [...deps, callback];
+    this.callbacks.set(urn, callback);
+    this.graph.mergeNode(urn);
+    for (const dep of deps) {
+      if (willCreateCycle(this.graph, dep, urn)) {
+        throw new Error(`There is a circular dependency between ${urn} -> ${dep}`);
+      }
+      this.graph.mergeEdge(dep, urn);
+    }
   }
-  run() {
-    return Promise.allSettled(Object.values(run(this.graph)));
+  validate() {
+    const nodes = this.graph.nodes();
+    for (const urn of nodes) {
+      if (!this.callbacks.has(urn)) {
+        const deps = this.graph.filterNodes((node) => {
+          return this.graph.areNeighbors(node, urn);
+        });
+        throw new Error(`The following resources ${deps.join(", ")} have a missing dependency: ${urn}`);
+      }
+    }
+  }
+  async run() {
+    const graph = topologicalGenerations(this.graph);
+    const errors = [];
+    for (const list of graph) {
+      const result = await Promise.allSettled(
+        list.map((urn) => {
+          const callback = this.callbacks.get(urn);
+          if (!callback) {
+            return;
+          }
+          return callback();
+        })
+      );
+      for (const entry of result) {
+        if (entry.status === "rejected") {
+          if (entry.reason instanceof Error) {
+            errors.push(entry.reason);
+          } else {
+            errors.push(new Error(`Unknown error: ${entry.reason}`));
+          }
+        }
+      }
+      if (errors.length > 0) {
+        break;
+      }
+    }
+    return errors;
   }
 };
 var dependentsOn = (resources, dependency) => {
@@ -407,6 +558,7 @@ var createIdempotantToken = (appToken, urn, operation) => {
 var debug = createDebugger("Delete");
 var deleteResource = async (appToken, urn, state, opt) => {
   debug(state.type);
+  debug(state);
   if (state.lifecycle?.retainOnDelete) {
     debug("retain", state.type);
     return;
@@ -429,7 +581,9 @@ var deleteResource = async (appToken, urn, state, opt) => {
 };
 
 // src/formation/workspace/procedure/delete-stack.ts
+var debug2 = createDebugger("Delete Stack");
 var deleteStackResources = async (stackState, resourceStates, appToken, queue, options) => {
+  debug2(stackState.name, "start");
   const graph = new DependencyGraph();
   for (const [urn, state] of entries(resourceStates)) {
     graph.add(urn, dependentsOn(stackState.resources, urn), async () => {
@@ -437,8 +591,8 @@ var deleteStackResources = async (stackState, resourceStates, appToken, queue, o
       delete stackState.resources[urn];
     });
   }
-  const results = await graph.run();
-  const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+  const errors = await graph.run();
+  debug2(stackState.name, "done");
   if (errors.length > 0) {
     throw new StackError(stackState.name, [...new Set(errors)], "Deleting resources failed.");
   }
@@ -466,10 +620,9 @@ var deleteApp = async (app, opt) => {
       delete appState.stacks[urn];
     });
   }
-  const results = await graph.run();
+  const errors = await graph.run();
   delete appState.idempotentToken;
   await opt.backend.state.update(app.urn, appState);
-  const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
   if (errors.length > 0) {
     throw new AppError(app.name, [...new Set(errors)], "Deleting app failed.");
   }
@@ -495,11 +648,12 @@ var compareState = (left, right) => {
 };
 
 // src/formation/workspace/procedure/create-resource.ts
-var debug2 = createDebugger("Create");
+var debug3 = createDebugger("Create");
 var createResource = async (resource, appToken, input, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
   const idempotantToken = createIdempotantToken(appToken, resource.$.urn, "create");
-  debug2(resource.$.type);
+  debug3(resource.$.type);
+  debug3(input);
   let result;
   try {
     result = await provider.createResource({
@@ -520,29 +674,31 @@ var createResource = async (resource, appToken, input, opt) => {
 };
 
 // src/formation/workspace/procedure/get-data-source.ts
-var debug3 = createDebugger("Data Source");
-var getDataSource = async (dataSource, opt) => {
-  const provider = findProvider(opt.providers, dataSource.$.provider);
-  debug3(dataSource.$.type);
+var debug4 = createDebugger("Data Source");
+var getDataSource = async (dataSource, input, opt) => {
+  const provider = findProvider(opt.providers, dataSource.provider);
+  debug4(dataSource.type);
+  if (!provider.getData) {
+    throw new Error(`Provider doesn't support data sources`);
+  }
   let result;
   try {
-    result = await provider.getResource({
-      type: dataSource.$.type,
-      state: {
-        id: dataSource.$.physicalId
-      }
+    result = await provider.getData({
+      type: dataSource.type,
+      state: input
     });
   } catch (error) {
-    throw ResourceError.wrap(dataSource.$.urn, dataSource.$.type, "get", error);
+    throw ResourceError.wrap(dataSource.urn, dataSource.type, "get", error);
   }
   return result.state;
 };
 
 // src/formation/workspace/procedure/import-resource.ts
-var debug4 = createDebugger("Import");
+var debug5 = createDebugger("Import");
 var importResource = async (resource, input, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
-  debug4(resource.$.type);
+  debug5(resource.$.type);
+  debug5(input);
   let result;
   try {
     result = await provider.getResource({
@@ -565,12 +721,13 @@ var importResource = async (resource, input, opt) => {
 };
 
 // src/formation/workspace/procedure/update-resource.ts
-var debug5 = createDebugger("Update");
+var debug6 = createDebugger("Update");
 var updateResource = async (resource, appToken, priorState, proposedState, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
   const idempotantToken = createIdempotantToken(appToken, resource.$.urn, "update");
   let result;
-  debug5(resource.$.type);
+  debug6(resource.$.type);
+  debug6(proposedState);
   try {
     result = await provider.updateResource({
       type: resource.$.type,
@@ -579,7 +736,7 @@ var updateResource = async (resource, appToken, priorState, proposedState, opt) 
       idempotantToken
     });
   } catch (error) {
-    throw ResourceError.wrap(resource.urn, resource.type, "update", error);
+    throw ResourceError.wrap(resource.$.urn, resource.$.type, "update", error);
   }
   return {
     version: result.version,
@@ -588,32 +745,49 @@ var updateResource = async (resource, appToken, priorState, proposedState, opt) 
 };
 
 // src/formation/workspace/procedure/deploy-stack.ts
-var deployStackResources = async (stackState, resources, dataSources, appToken, queue, opt) => {
+var debug7 = createDebugger("Deploy Stack");
+var deployStackResources = async (stackState, resources, appToken, queue, opt) => {
+  debug7(stackState.name, "start");
   const graph = new DependencyGraph();
-  for (const dataSource of dataSources) {
-    graph.add(dataSource.$.urn, [], () => {
-      return queue(async () => {
-        const output2 = await getDataSource(dataSource, opt);
-        dataSource.$.resolve(output2);
+  for (const resource of resources) {
+    for (const dataSource of resource.$.dataSourceMetas) {
+      graph.add(dataSource.urn, [...dataSource.dependencies], () => {
+        return queue(async () => {
+          const input = await resolveInputs(dataSource.input);
+          const output2 = await getDataSource(dataSource, input, opt);
+          dataSource.resolve(output2);
+        });
       });
-    });
+    }
   }
   for (const resource of resources) {
     const dependencies = [
       ...resource.$.dependencies,
-      ...resource.$.config?.dependsOn?.map((r) => r.$.urn) ?? []
+      ...[...resource.$.dataSourceMetas].map((d) => d.urn)
+      // ...(resource.$.config?.dependsOn?.map(r => r.$.urn) ?? []),
     ];
     const partialNewResourceState = {
       dependencies,
       lifecycle: {
-        deleteBeforeCreate: resource.$.config?.deleteBeforeCreate,
+        deleteAfterCreate: resource.$.config?.deleteAfterCreate,
         retainOnDelete: resource.$.config?.retainOnDelete
       }
     };
     graph.add(resource.$.urn, dependencies, () => {
       return queue(async () => {
         let resourceState = stackState.resources[resource.$.urn];
-        const input = await resolveInputs(resource.$.input);
+        let input;
+        try {
+          input = await resolveInputs(resource.$.input);
+        } catch (error) {
+          throw ResourceError.wrap(
+            //
+            resource.$.urn,
+            resource.$.type,
+            "resolve",
+            error
+          );
+        }
         if (!resourceState) {
           if (resource.$.config?.import) {
             const importedState = await importResource(resource, input, opt);
@@ -656,19 +830,24 @@ var deployStackResources = async (stackState, resources, dataSources, appToken, 
       });
     });
   }
-  const results = await graph.run();
-  const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+  const errors = await graph.run();
+  debug7(stackState.name, "done");
   if (errors.length > 0) {
     throw new StackError(stackState.name, [...new Set(errors)], "Deploying resources failed.");
   }
 };
 
 // src/formation/workspace/procedure/deploy-app.ts
+var debug8 = createDebugger("Deploy App");
 var deployApp = async (app, opt) => {
   const appState = await opt.backend.state.get(app.urn) ?? {
     name: app.name,
     stacks: {}
   };
+  debug8(app.name, "start");
+  const releaseOnExit = onExit(async () => {
+    await opt.backend.state.update(app.urn, appState);
+  });
   if (opt.idempotentToken || !appState.idempotentToken) {
     appState.idempotentToken = opt.idempotentToken ?? crypto.randomUUID();
     await opt.backend.state.update(app.urn, appState);
@@ -686,8 +865,9 @@ var deployApp = async (app, opt) => {
       const stackState = appState.stacks[stack.urn];
       if (stackState) {
         for (const resource of stack.resources) {
-          const resourceState = stackState.resources[resource.urn];
+          const resourceState = stackState.resources[resource.$.urn];
           if (resourceState && resourceState.output) {
+            debug8("hydrate", resource.$.urn);
             resource.$.resolve(resourceState.output);
           }
         }
@@ -710,10 +890,10 @@ var deployApp = async (app, opt) => {
         for (const [urn, state] of entries(stackState.resources)) {
           const resource = resources.find((r) => r.$.urn === urn);
           if (!resource) {
-            if (state.lifecycle?.deleteBeforeCreate) {
-              deleteResourcesBefore[urn] = state;
-            } else {
+            if (state.lifecycle?.deleteAfterCreate) {
               deleteResourcesAfter[urn] = state;
+            } else {
+              deleteResourcesBefore[urn] = state;
             }
           }
         }
@@ -723,7 +903,7 @@ var deployApp = async (app, opt) => {
         await deployStackResources(
           stackState,
           resources,
-          stack.dataSources,
+          // stack.dataSources,
           appState.idempotentToken,
           queue,
           opt
@@ -747,10 +927,11 @@ var deployApp = async (app, opt) => {
       });
     }
   }
-  const results = await graph.run();
+  const errors = await graph.run();
   delete appState.idempotentToken;
   await opt.backend.state.update(app.urn, appState);
-  const errors = results.filter((r) => r.status === "rejected").map((r) => r.reason);
+  releaseOnExit();
+  debug8(app.name, "done");
   if (errors.length > 0) {
     throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
   }
@@ -765,7 +946,7 @@ var hydrate = async (app, opt) => {
       const stackState = appState.stacks[stack.urn];
       if (stackState) {
         for (const resource of stack.resources) {
-          const resourceState = stackState.resources[resource.urn];
+          const resourceState = stackState.resources[resource.$.urn];
           if (resourceState && resourceState.output) {
             resource.$.resolve(resourceState.output);
           }
@@ -801,6 +982,26 @@ var WorkSpace = class {
   hydrate(app) {
     return hydrate(app, this.props);
   }
+  // protected resolveDeps(app: App) {
+  // 	// ------------------------------------------------------------------------------
+  // 	// Link the input dependencies to our resource if they are in the same stack.
+  // 	// If the resource is coming from a different stack we will let our stack depend
+  // 	// ------------------------------------------------------------------------------
+  // 	for (const resource of app.resources) {
+  // 		const deps = findInputDeps(resource.$.input)
+  // 		for (const dep of deps) {
+  // 			if (dep.tag === 'resource') {
+  // 				if (dep.stack.urn === resource.$.stack.urn) {
+  // 					resource.$.dependencies.add(dep.urn)
+  // 				} else {
+  // 					resource.$.stack.dependsOn(dep.stack)
+  // 				}
+  // 			} else {
+  // 				resource.$.dataSourceMetas.add(dep)
+  // 			}
+  // 		}
+  // 	}
+  // }
   //   refresh(app: App) {
   //     return lockApp(this.props.backend.lock, app, async () => {
   //       try {
@@ -859,7 +1060,7 @@ var MemoryLockBackend = class {
 // src/formation/backend/file/state.ts
 import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
-var debug6 = createDebugger("State");
+var debug9 = createDebugger("State");
 var FileStateBackend = class {
   constructor(props) {
     this.props = props;
@@ -873,7 +1074,7 @@ var FileStateBackend = class {
     });
   }
   async get(urn) {
-    debug6("get");
+    debug9("get");
     let json;
     try {
       json = await readFile(join(this.stateFile(urn)), "utf8");
@@ -883,12 +1084,12 @@ var FileStateBackend = class {
     return JSON.parse(json);
   }
   async update(urn, state) {
-    debug6("update");
+    debug9("update");
     await this.mkdir();
     await writeFile(this.stateFile(urn), JSON.stringify(state, void 0, 2));
   }
   async delete(urn) {
-    debug6("delete");
+    debug9("delete");
     await this.mkdir();
     await rm(this.stateFile(urn));
   }
@@ -985,7 +1186,7 @@ var S3StateBackend = class {
 // src/formation/backend/aws/dynamodb-lock.ts
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
-var DynamoLockProvider = class {
+var DynamoLockBackend = class {
   constructor(props) {
     this.props = props;
     this.client = new DynamoDB(props);
@@ -1736,7 +1937,7 @@ var tfplugin6_default = {
 };
 
 // src/terraform/plugin/client.ts
-var debug7 = createDebugger("Client");
+var debug10 = createDebugger("Client");
 var protocols = {
   tfplugin5: tfplugin5_default,
   tfplugin6: tfplugin6_default
@@ -1756,7 +1957,7 @@ var createPluginClient = async (props) => {
       "grpc.max_send_message_length": 100 * 1024 * 1024
     }
   );
-  debug7("init", props.protocol);
+  debug10("init", props.protocol);
   await new Promise((resolve2, reject) => {
     const deadline = /* @__PURE__ */ new Date();
     deadline.setSeconds(deadline.getSeconds() + 10);
@@ -1768,22 +1969,22 @@ var createPluginClient = async (props) => {
       }
     });
   });
-  debug7("connected");
+  debug10("connected");
   return {
     call(method, payload) {
       return new Promise((resolve2, reject) => {
         const fn = client[method];
-        debug7("call", method);
+        debug10("call", method);
         if (!fn) {
           reject(new Error(`Unknown method call: ${method}`));
           return;
         }
         fn.call(client, payload, (error, response) => {
           if (error) {
-            debug7("failed", error);
+            debug10("failed", error);
             reject(error);
           } else if (response.diagnostics) {
-            debug7("failed", response);
+            debug10("failed", response.diagnostics);
             reject(throwDiagnosticError(response));
           } else {
             resolve2(response);
@@ -1796,7 +1997,7 @@ var createPluginClient = async (props) => {
 
 // src/terraform/plugin/download.ts
 import jszip from "jszip";
-import { stat as stat2, writeFile as writeFile2 } from "fs/promises";
+import { mkdir as mkdir3, stat as stat2, writeFile as writeFile2 } from "fs/promises";
 import { join as join3 } from "path";
 
 // src/terraform/plugin/registry.ts
@@ -1845,7 +2046,7 @@ var exists = async (file2) => {
   }
   return true;
 };
-var debug8 = createDebugger("Downloader");
+var debug11 = createDebugger("Downloader");
 var downloadPlugin = async (location, org, type, version) => {
   if (version === "latest") {
     const { latest } = await getProviderVersions(org, type);
@@ -1854,7 +2055,7 @@ var downloadPlugin = async (location, org, type, version) => {
   const file2 = join3(location, `${org}-${type}-${version}`);
   const exist = await exists(file2);
   if (!exist) {
-    debug8(type, "downloading...");
+    debug11(type, "downloading...");
     const info = await getProviderDownloadUrl(org, type, version);
     const res = await fetch(info.url);
     const buf = await res.bytes();
@@ -1864,12 +2065,13 @@ var downloadPlugin = async (location, org, type, version) => {
       throw new Error(`Can't find the provider inside the downloaded zip file.`);
     }
     const binary = await zipped.async("nodebuffer");
-    debug8(type, "done");
+    debug11(type, "done");
+    await mkdir3(location, { recursive: true });
     await writeFile2(file2, binary, {
       mode: 509
     });
   } else {
-    debug8(type, "already downloaded");
+    debug11(type, "already downloaded");
   }
   return {
     file: file2,
@@ -1879,18 +2081,18 @@ var downloadPlugin = async (location, org, type, version) => {
 
 // src/terraform/plugin/server.ts
 import { spawn } from "child_process";
-var debug9 = createDebugger("Server");
+var debug12 = createDebugger("Server");
 var createPluginServer = (props) => {
   return new Promise((resolve2, reject) => {
-    const process2 = spawn(`${props.file}`, ["-debug"]);
-    debug9("init");
-    process2.stderr.on("data", (data) => {
+    debug12("init");
+    const process = spawn(`${props.file}`, ["-debug"]);
+    process.stderr.on("data", (data) => {
       if (props.debug) {
         const message = data.toString("utf8");
         console.log(message);
       }
     });
-    process2.stdout.once("data", (data) => {
+    process.stdout.once("data", (data) => {
       try {
         const message = data.toString("utf8");
         const matches = message.match(/TF_REATTACH_PROVIDERS\=\'(.*)\'/);
@@ -1903,10 +2105,10 @@ var createPluginServer = (props) => {
             const entry = entries2[0];
             const version = entry.ProtocolVersion;
             const endpoint = entry.Addr.String;
-            debug9("started", endpoint);
+            debug12("started", endpoint);
             resolve2({
               kill() {
-                process2.kill();
+                process.kill();
               },
               protocol: "tfplugin" + version.toFixed(1),
               version,
@@ -1974,7 +2176,7 @@ var parseBlock = (block) => {
   };
 };
 var parseNestedBlock = (block) => {
-  const type = parseNestedBlockType(block.nesting);
+  const type = parseNestedBlockType(block);
   const item = parseBlock(block.block);
   const prop = {
     optional: true,
@@ -1988,25 +2190,38 @@ var parseNestedBlock = (block) => {
       item
     };
   }
+  if (type === "array-object") {
+    return {
+      ...prop,
+      ...item,
+      type
+    };
+  }
   return {
     ...prop,
     ...item
   };
 };
-var parseNestedBlockType = (mode) => {
-  if (mode === NestingMode.LIST || mode === NestingMode.SET) {
+var parseNestedBlockType = (block) => {
+  if (block.nesting === NestingMode.SET) {
     return "array";
   }
-  if (mode === NestingMode.MAP) {
+  if (block.nesting === NestingMode.LIST) {
+    if (block.maxItems?.eq(1)) {
+      return "array-object";
+    }
+    return "array";
+  }
+  if (block.nesting === NestingMode.MAP) {
     return "record";
   }
-  if (mode === NestingMode.GROUP) {
+  if (block.nesting === NestingMode.GROUP) {
     return "object";
   }
-  if (mode === NestingMode.SINGLE) {
+  if (block.nesting === NestingMode.SINGLE) {
     return "object";
   }
-  throw new Error(`Invalid nested block type ${mode}`);
+  throw new Error(`Invalid nested block type ${block.nesting}`);
 };
 var parseAttribute = (attr) => {
   const prop = {
@@ -2093,6 +2308,7 @@ var parseType = (type) => {
 };
 
 // src/terraform/plugin/version/util.ts
+import { camelCase, snakeCase } from "change-case";
 import { pack, unpack } from "msgpackr";
 var encodeDynamicValue = (value) => {
   return {
@@ -2103,15 +2319,134 @@ var encodeDynamicValue = (value) => {
 var decodeDynamicValue = (value) => {
   return unpack(value.msgpack);
 };
-var prepareEmptyState = (prop) => {
-  if (prop.type !== "object") {
-    return {};
+var getResourceSchema = (resources, type) => {
+  const resource = resources[type];
+  if (!resource) {
+    throw new Error(`Unknown resource type: ${type}`);
   }
-  const empty = {};
-  for (const name of Object.keys(prop.properties)) {
-    empty[name] = null;
+  return resource;
+};
+var IncorrectType = class extends TypeError {
+  constructor(type, path) {
+    super(`${path.join(".")} should be a ${type}`);
   }
-  return empty;
+};
+var formatInputState = (schema, state, includeSchemaFields = true, path = []) => {
+  if (state === null) {
+    return null;
+  }
+  if (typeof state === "undefined") {
+    return null;
+  }
+  if (schema.type === "unknown") {
+    return state;
+  }
+  if (schema.type === "string") {
+    if (typeof state === "string") {
+      return state;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "number") {
+    if (typeof state === "number") {
+      return state;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "boolean") {
+    if (typeof state === "boolean") {
+      return state;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "array") {
+    if (Array.isArray(state)) {
+      return state.map((item, i) => formatInputState(schema.item, item, includeSchemaFields, [...path, i]));
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "record") {
+    if (typeof state === "object" && state !== null) {
+      const record = {};
+      for (const [key, value] of Object.entries(state)) {
+        record[key] = formatInputState(schema.item, value, includeSchemaFields, [...path, key]);
+      }
+      return record;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "object" || schema.type === "array-object") {
+    if (typeof state === "object" && state !== null) {
+      const object = {};
+      if (includeSchemaFields) {
+        for (const [key, prop] of Object.entries(schema.properties)) {
+          const value = state[camelCase(key)];
+          object[key] = formatInputState(prop, value, true, [...path, key]);
+        }
+      } else {
+        for (const [key, value] of Object.entries(state)) {
+          const prop = schema.properties[snakeCase(key)];
+          if (prop) {
+            object[key] = formatInputState(prop, value, false, [...path, key]);
+          }
+        }
+      }
+      if (schema.type === "array-object") {
+        return [object];
+      }
+      return object;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  throw new Error(`Unknown schema type: ${schema.type}`);
+};
+var formatOutputState = (schema, state, path = []) => {
+  if (state === null) {
+    return void 0;
+  }
+  if (schema.type === "array") {
+    if (Array.isArray(state)) {
+      return state.map((item, i) => formatOutputState(schema.item, item, [...path, i]));
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "record") {
+    if (typeof state === "object" && state !== null) {
+      const record = {};
+      for (const [key, value] of Object.entries(state)) {
+        record[key] = formatOutputState(schema.item, value, [...path, key]);
+      }
+      return record;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "object") {
+    if (typeof state === "object" && state !== null) {
+      const object = {};
+      for (const [key, prop] of Object.entries(schema.properties)) {
+        const value = state[key];
+        object[camelCase(key)] = formatOutputState(prop, value, [...path, key]);
+      }
+      return object;
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  if (schema.type === "array-object") {
+    if (Array.isArray(state)) {
+      if (state.length === 1) {
+        const object = {};
+        for (const [key, prop] of Object.entries(schema.properties)) {
+          const value = state[0][key];
+          object[camelCase(key)] = formatOutputState(prop, value, [...path, key]);
+        }
+        return object;
+      } else {
+        return void 0;
+      }
+    }
+    throw new IncorrectType(schema.type, path);
+  }
+  return state;
 };
 
 // src/terraform/plugin/version/5.ts
@@ -2123,20 +2458,6 @@ var createPlugin5 = async ({
   const provider = parseProviderSchema(schema.provider);
   const resources = parseResourceSchema(schema.resourceSchemas);
   const dataSources = parseResourceSchema(schema.dataSourceSchemas);
-  const prepareResourceEmpty = (type) => {
-    const resource = resources[type];
-    if (!resource) {
-      throw new Error(`Unknown resource type: ${type}`);
-    }
-    return prepareEmptyState(resource);
-  };
-  const prepareDataSourceEmpty = (type) => {
-    const dataSource = dataSources[type];
-    if (!dataSource) {
-      throw new Error(`Unknown data source type: ${type}`);
-    }
-    return prepareEmptyState(dataSource);
-  };
   return {
     schema() {
       return {
@@ -2151,59 +2472,53 @@ var createPlugin5 = async ({
     },
     async configure(config) {
       const prepared = await client.call("PrepareProviderConfig", {
-        config: encodeDynamicValue({
-          ...prepareEmptyState(provider),
-          ...config
-        })
+        config: encodeDynamicValue(formatInputState(provider, config))
       });
       await client.call("Configure", {
         config: prepared.preparedConfig
-        // config: encodeDynamicValue(unpack(prepared.preparedConfig.msgpack)),
       });
     },
     async readResource(type, state) {
+      const schema2 = getResourceSchema(resources, type);
       const read = await client.call("ReadResource", {
         typeName: type,
-        currentState: encodeDynamicValue({
-          ...prepareResourceEmpty(type),
-          ...state
-        })
+        currentState: encodeDynamicValue(formatInputState(schema2, state))
       });
-      return decodeDynamicValue(read.newState);
+      return formatOutputState(schema2, decodeDynamicValue(read.newState));
     },
     async readDataSource(type, state) {
+      const schema2 = getResourceSchema(dataSources, type);
       const read = await client.call("ReadDataSource", {
         typeName: type,
-        config: encodeDynamicValue({
-          ...prepareDataSourceEmpty(type),
-          ...state
-        })
+        config: encodeDynamicValue(formatInputState(schema2, state))
       });
-      return decodeDynamicValue(read.state);
+      return formatOutputState(schema2, decodeDynamicValue(read.state));
     },
     async validateResource(type, state) {
-      const empty = prepareResourceEmpty(type);
+      const schema2 = getResourceSchema(resources, type);
       await client.call("ValidateResourceTypeConfig", {
         typeName: type,
-        config: encodeDynamicValue({ ...empty, ...state })
+        config: encodeDynamicValue(formatInputState(schema2, state))
       });
     },
-    async applyResourceChange(type, priorState, proposedNewState) {
-      const empty = prepareResourceEmpty(type);
+    async applyResourceChange(type, priorState, proposedState) {
+      const schema2 = getResourceSchema(resources, type);
+      const preparedPriorState = formatInputState(schema2, priorState);
+      const preparedProposedState = formatInputState(schema2, proposedState);
       const plan = await client.call("PlanResourceChange", {
         typeName: type,
-        priorState: encodeDynamicValue(priorState && { ...empty, ...priorState }),
-        proposedNewState: encodeDynamicValue(proposedNewState && { ...empty, ...proposedNewState }),
-        config: encodeDynamicValue({ ...empty, ...proposedNewState })
+        priorState: encodeDynamicValue(preparedPriorState),
+        proposedNewState: encodeDynamicValue(preparedProposedState),
+        config: encodeDynamicValue(preparedProposedState)
       });
       const plannedState = decodeDynamicValue(plan.plannedState);
       const apply = await client.call("ApplyResourceChange", {
         typeName: type,
-        priorState: encodeDynamicValue(priorState && { ...empty, ...priorState }),
-        plannedState: encodeDynamicValue(plannedState && { ...empty, ...plannedState }),
-        config: encodeDynamicValue(plannedState && { ...empty, ...plannedState })
+        priorState: encodeDynamicValue(preparedPriorState),
+        plannedState: encodeDynamicValue(plannedState),
+        config: encodeDynamicValue(plannedState)
       });
-      return decodeDynamicValue(apply.newState);
+      return formatOutputState(schema2, decodeDynamicValue(apply.newState));
     }
   };
 };
@@ -2217,20 +2532,6 @@ var createPlugin6 = async ({
   const provider = parseProviderSchema(schema.provider);
   const resources = parseResourceSchema(schema.resourceSchemas);
   const dataSources = parseResourceSchema(schema.dataSourceSchemas);
-  const prepareResourceEmpty = (type) => {
-    const resource = resources[type];
-    if (!resource) {
-      throw new Error(`Unknown resource type: ${type}`);
-    }
-    return prepareEmptyState(resource);
-  };
-  const prepareDataSourceEmpty = (type) => {
-    const dataSource = dataSources[type];
-    if (!dataSource) {
-      throw new Error(`Unknown data source type: ${type}`);
-    }
-    return prepareEmptyState(dataSource);
-  };
   return {
     schema() {
       return {
@@ -2245,110 +2546,165 @@ var createPlugin6 = async ({
     },
     async configure(config) {
       const prepared = await client.call("ValidateProviderConfig", {
-        config: encodeDynamicValue({
-          ...prepareEmptyState(provider),
-          ...config
-        })
+        config: encodeDynamicValue(formatInputState(provider, config))
       });
       await client.call("ConfigureProvider", {
         config: prepared.preparedConfig
-        // config: encodeDynamicValue(unpack(prepared.preparedConfig.msgpack)),
       });
     },
     async readResource(type, state) {
+      const schema2 = getResourceSchema(resources, type);
       const read = await client.call("ReadResource", {
         typeName: type,
-        currentState: encodeDynamicValue({
-          ...prepareResourceEmpty(type),
-          ...state
-        })
+        currentState: encodeDynamicValue(formatInputState(schema2, state))
       });
-      return decodeDynamicValue(read.newState);
+      return formatOutputState(schema2, decodeDynamicValue(read.newState));
     },
     async readDataSource(type, state) {
+      const schema2 = getResourceSchema(dataSources, type);
       const read = await client.call("ReadDataSource", {
         typeName: type,
-        config: encodeDynamicValue({
-          ...prepareDataSourceEmpty(type),
-          ...state
-        })
+        config: encodeDynamicValue(formatInputState(schema2, state))
       });
-      return decodeDynamicValue(read.state);
+      return formatOutputState(schema2, decodeDynamicValue(read.state));
     },
     async validateResource(type, state) {
-      const empty = prepareResourceEmpty(type);
+      const schema2 = getResourceSchema(resources, type);
       await client.call("ValidateResourceConfig", {
         typeName: type,
-        config: encodeDynamicValue({ ...empty, ...state })
+        config: encodeDynamicValue(formatInputState(schema2, state))
       });
     },
     async applyResourceChange(type, priorState, proposedState) {
-      const empty = prepareResourceEmpty(type);
+      const schema2 = getResourceSchema(resources, type);
+      const preparedPriorState = formatInputState(schema2, priorState);
+      const preparedProposedState = formatInputState(schema2, proposedState);
       const plan = await client.call("PlanResourceChange", {
         typeName: type,
-        priorState: encodeDynamicValue(priorState && { ...empty, ...priorState }),
-        proposedNewState: encodeDynamicValue(proposedState && { ...empty, ...proposedState }),
-        config: encodeDynamicValue(proposedState && { ...empty, ...proposedState })
+        priorState: encodeDynamicValue(preparedPriorState),
+        proposedNewState: encodeDynamicValue(preparedProposedState),
+        config: encodeDynamicValue(preparedProposedState)
       });
       const plannedState = decodeDynamicValue(plan.plannedState);
       const apply = await client.call("ApplyResourceChange", {
         typeName: type,
-        priorState: encodeDynamicValue(priorState && { ...empty, ...priorState }),
-        plannedState: encodeDynamicValue(plannedState && { ...empty, ...plannedState }),
-        config: encodeDynamicValue(plannedState && { ...empty, ...plannedState })
+        priorState: encodeDynamicValue(preparedPriorState),
+        plannedState: encodeDynamicValue(plannedState),
+        config: encodeDynamicValue(plannedState)
       });
-      return decodeDynamicValue(apply.newState);
+      return formatOutputState(schema2, decodeDynamicValue(apply.newState));
     }
   };
 };
 
 // src/terraform/provider.ts
-import { writeFile as writeFile3 } from "fs/promises";
+import { mkdir as mkdir4, writeFile as writeFile3 } from "fs/promises";
 import { join as join4 } from "path";
 
 // src/terraform/type-gen.ts
-import { camelCase, pascalCase } from "change-case";
-var generateTypes = (providers, resouces, dataSources) => {
-  const code = [`import { Input, Output, ResourceClass, DataSource } from './base.ts'`];
-  for (const [type, props] of Object.entries(resouces)) {
-    const input = generateResourceInputTypes(type, props);
-    const output2 = generateResourceOutputTypes(type, props);
-    code.push(input);
-    code.push(output2);
-  }
-  for (const [type, props] of Object.entries(dataSources)) {
-    const input = generateResourceInputTypes(type, props);
-    const output2 = generateResourceOutputTypes(type, props);
-    code.push(input);
-    code.push(output2);
-  }
-  code.push(generateResourceInterface(resouces));
-  code.push(generateProviderInterface(providers));
-  return code.join("\n\n");
+import { camelCase as camelCase2, pascalCase } from "change-case";
+var tab = (indent) => {
+  return "	".repeat(indent);
 };
-var generateProviderInterface = (providers) => {
-  const code = [`declare global {
-`, `	interface TerraformProviders {
-`];
-  for (const [ns, props] of Object.entries(providers)) {
-    code.push(`		${ns}: `);
-    code.push(
-      generateValue(props, {
-        depth: 0,
-        indent: 3,
-        wrap: (v) => v,
-        filter: () => true,
-        optional: (p) => p.optional ?? false
-      })
-    );
+var generateTypes = (providers, resources, dataSources) => {
+  return [
+    generateImport("@awsless/formation"),
+    "type _Record<T> = Record<string, T>",
+    generateNamespace(providers, (name, prop, indent) => {
+      return `${tab(indent)}export const ${name}: ${generatePropertyInputConst(prop, indent)}`;
+    }),
+    generateNamespace(resources, (name, prop, indent) => {
+      const typeName = pascalCase(name);
+      return [
+        // `${tab(indent)}export type ${typeName}Input = ${generatePropertyInputType(prop, indent)}`,
+        // `${tab(indent)}export type ${typeName}Output = ${generatePropertyOutputType(prop, indent)}`,
+        // `${tab(indent)}export declare const ${typeName}: ResourceClass<${typeName}Input, ${typeName}Output>`,
+        `${tab(indent)}export type ${typeName}Input = ${generatePropertyInputType(prop, indent)}`,
+        `${tab(indent)}export type ${typeName}Output = ${generatePropertyOutputType(prop, indent)}`,
+        `${tab(indent)}export class ${typeName} {`,
+        `${tab(indent + 1)}constructor(parent: f.Group, id: string, props: ${typeName}Input, config?:f.ResourceConfig)`,
+        `${tab(indent + 1)}readonly $: f.ResourceMeta<${typeName}Input, ${typeName}Output>`,
+        generateClassProperties(prop, indent + 1),
+        `${tab(indent)}}`
+      ].join("\n\n");
+    }),
+    generateNamespace(dataSources, (name, prop, indent) => {
+      const typeName = pascalCase(name);
+      return [
+        `${tab(indent)}export type Get${typeName}Input = ${generatePropertyInputType(prop, indent)}`,
+        `${tab(indent)}export type Get${typeName}Output = ${generatePropertyOutputType(prop, indent)}`,
+        `${tab(indent)}export const get${typeName}:f.DataSourceFunction<Get${typeName}Input, Get${typeName}Output>`
+      ].join("\n\n");
+    })
+  ].join("\n\n");
+};
+var generateImport = (from) => {
+  return `import * as f from '${from}'`;
+};
+var generatePropertyInputConst = (prop, indent) => {
+  return generateValue(prop, {
+    depth: 0,
+    indent: indent + 1,
+    wrap: (v, _, ctx) => {
+      return `${v}${ctx.depth === 1 ? "," : ""}`;
+    },
+    filter: () => true,
+    optional: (p) => p.optional ?? false
+  });
+};
+var generatePropertyInputType = (prop, indent) => {
+  return generateValue(prop, {
+    depth: 0,
+    indent: indent + 1,
+    wrap: (v, p, ctx) => {
+      return ctx.depth > 0 ? p.optional ? `f.OptionalInput<${v}>` : `f.Input<${v}>` : v;
+    },
+    filter: (prop2) => !(prop2.computed && typeof prop2.optional === "undefined" && typeof prop2.required === "undefined"),
+    optional: (p) => p.optional ?? false
+  });
+};
+var generatePropertyOutputType = (prop, indent) => {
+  return generateValue(prop, {
+    indent: indent + 1,
+    depth: 0,
+    wrap: (v, p, ctx) => ctx.depth === 1 ? p.optional && !p.computed ? `f.OptionalOutput<${v}>` : `f.Output<${v}>` : v,
+    filter: () => true,
+    readonly: true,
+    // required: true,
+    optional: (p, ctx) => ctx.depth > 1 && p.optional && !p.computed || false
+  });
+};
+var generateClassProperties = (prop, indent) => {
+  if (prop.type !== "object") {
+    return "";
   }
-  code.push("	}\n");
-  code.push("}\n");
-  return code.join("");
+  return Object.entries(prop.properties).map(([name, prop2]) => {
+    return [
+      prop2.description ? [`
+`, `	`.repeat(indent), `/** `, prop2.description.trim(), " */", "\n"].join("") : "",
+      `	`.repeat(indent),
+      "readonly ",
+      camelCase2(name),
+      // ctx.optional(prop, ctx) ? '?' : '',
+      ": ",
+      generateValue(prop2, {
+        readonly: true,
+        filter: () => true,
+        optional: (p, ctx) => ctx.depth > 1 && p.optional && !p.computed || false,
+        wrap: (v, p, ctx) => {
+          return ctx.depth === 1 ? p.optional && !p.computed ? `f.OptionalOutput<${v}>` : `f.Output<${v}>` : v;
+        },
+        // ctx.depth === 1 ? `f.Output<${p.optional && !p.computed ? `${v} | undefined` : v}>` : v,
+        indent: indent + 1,
+        depth: 1
+      })
+    ].join("");
+  }).join("\n");
 };
 var groupByNamespace = (resources, minLevel, maxLevel) => {
   const grouped = {};
-  for (const type of Object.keys(resources)) {
+  const types = Object.keys(resources).sort();
+  for (const type of types) {
     const names = type.split("_");
     if (names.length < minLevel) {
       throw new Error(`Resource not properly namespaced: ${type}`);
@@ -2356,7 +2712,7 @@ var groupByNamespace = (resources, minLevel, maxLevel) => {
     let current = grouped;
     let count = Math.min(maxLevel, names.length - 1);
     while (count--) {
-      const ns = camelCase(names.shift());
+      const ns = camelCase2(names.shift());
       if (!current[ns]) {
         current[ns] = {};
       }
@@ -2367,83 +2723,44 @@ var groupByNamespace = (resources, minLevel, maxLevel) => {
   }
   return grouped;
 };
-var generateResourceInterface = (resources) => {
+var generateNamespace = (resources, render) => {
   const grouped = groupByNamespace(resources, 1, 2);
-  const code = [`declare global {
-`, `	interface TerraformResources {
-`];
   const renderNamespace = (name, group, indent) => {
-    const tabs = `	`.repeat(indent);
-    code.push(`${tabs}${name}: {
-`);
-    for (const [ns, entry] of Object.entries(group)) {
-      if (typeof entry === "string") {
-        renderResource(ns, entry, indent + 1);
-      } else {
-        renderNamespace(ns, entry, indent + 1);
-      }
+    if (name === "default") {
+      name = "$default";
     }
-    code.push(`${tabs}}
-`);
+    return [
+      `${tab(indent)}export namespace ${name.toLowerCase()} {`,
+      Object.entries(group).map(([name2, entry]) => {
+        if (typeof entry !== "string") {
+          return renderNamespace(name2, entry, indent + 1);
+        } else {
+          return render(name2, resources[entry], indent + 1);
+        }
+      }).join("\n"),
+      `${tab(indent)}}`
+    ].join("\n");
   };
-  const renderResource = (name, type, indent) => {
-    const tabs = `	`.repeat(indent);
-    const propName = pascalCase(name);
-    const className = pascalCase(type);
-    code.push(`${tabs}${propName}: ResourceClass<${className}Props, ${className}, "${type}">
-`);
-  };
-  for (const [ns, entry] of Object.entries(grouped)) {
-    renderNamespace(ns, entry, 2);
-  }
-  code.push("	}\n");
-  code.push("}\n");
-  return code.join("");
-};
-var generateResourceInputTypes = (type, prop) => {
-  const code = [
-    `type ${pascalCase(type)}Props = `,
-    generateValue(prop, {
-      depth: 0,
-      indent: 1,
-      wrap: (v, p, ctx) => ctx.depth > 1 ? `Input<${p.optional ? `${v} | undefined` : v}>` : v,
-      filter: (prop2) => !(prop2.computed && typeof prop2.optional === "undefined" && typeof prop2.required === "undefined"),
-      optional: (p) => p.optional ?? false
-    })
-  ].flat();
-  return code.join("");
-};
-var generateResourceOutputTypes = (type, prop) => {
-  const code = [
-    `type ${pascalCase(type)} = `,
-    generateValue(prop, {
-      indent: 1,
-      depth: 0,
-      wrap: (v, p, ctx) => ctx.depth === 2 ? `Output<${p.optional && !p.computed ? `${v} | undefined` : v}>` : v,
-      filter: () => true,
-      readonly: true,
-      // required: true,
-      optional: (p, ctx) => ctx.depth > 2 && p.optional && !p.computed || false
-    })
-  ].flat();
-  return code.join("");
+  const code = [`declare module '@awsless/formation' {`];
+  code.push(renderNamespace("$", grouped, 1));
+  code.push(`}`);
+  return code.join("\n");
 };
 var generateValue = (prop, ctx) => {
-  ctx.depth++;
   if (["string", "number", "boolean", "unknown"].includes(prop.type)) {
     return ctx.wrap(prop.type, prop, ctx);
   }
   if (prop.type === "array") {
-    const type = generateValue(prop.item, ctx);
+    const type = generateValue(prop.item, { ...ctx, depth: ctx.depth + 1 });
     const array = ctx.readonly ? `ReadonlyArray<${type}>` : `Array<${type}>`;
     return ctx.wrap(array, prop, ctx);
   }
   if (prop.type === "record") {
-    const type = generateValue(prop.item, ctx);
-    const record = ctx.readonly ? `Readonly<Record<string, ${type}>>` : `Record<string, ${type}>`;
+    const type = generateValue(prop.item, { ...ctx, depth: ctx.depth + 1 });
+    const record = ctx.readonly ? `Readonly<_Record<${type}>>` : `_Record<${type}>`;
     return ctx.wrap(record, prop, ctx);
   }
-  if (prop.type === "object") {
+  if (prop.type === "object" || prop.type === "array-object") {
     const type = [
       "{",
       Object.entries(prop.properties).filter(([_, p]) => ctx.filter(p)).map(
@@ -2452,10 +2769,10 @@ var generateValue = (prop, ctx) => {
 `, `	`.repeat(ctx.indent), `/** `, prop2.description.trim(), " */", "\n"].join("") : "",
           `	`.repeat(ctx.indent),
           // ctx.readonly ? "readonly " : "",
-          name,
+          camelCase2(name),
           ctx.optional(prop2, ctx) ? "?" : "",
           ": ",
-          generateValue(prop2, { ...ctx, indent: ctx.indent + 1 })
+          generateValue(prop2, { ...ctx, indent: ctx.indent + 1, depth: ctx.depth + 1 })
         ].join("")
       ).join("\n"),
       `${`	`.repeat(ctx.indent - 1)}}`
@@ -2468,7 +2785,8 @@ var generateValue = (prop, ctx) => {
 
 // src/terraform/provider.ts
 var TerraformProvider = class {
-  constructor(id, createPlugin, config) {
+  constructor(type, id, createPlugin, config) {
+    this.type = type;
     this.id = id;
     this.createPlugin = createPlugin;
     this.config = config;
@@ -2498,12 +2816,11 @@ var TerraformProvider = class {
     }
   }
   ownResource(id) {
-    return `terraform:${this.id}` === id;
+    return `terraform:${this.type}:${this.id}` === id;
   }
   async getResource({ type, state }) {
     const plugin = await this.configure();
     const newState = await plugin.readResource(type, state);
-    console.log("STATE", newState);
     if (!newState) {
       throw new Error(`Resource not found ${type}`);
     }
@@ -2547,75 +2864,47 @@ var TerraformProvider = class {
     const schema = plugin.schema();
     const types = generateTypes(
       {
-        [this.id]: schema.provider
+        [`${this.type}_provider`]: schema.provider
       },
       schema.resources,
       schema.dataSources
     );
-    await writeFile3(join4(dir, `${this.id}.types.d.ts`), types);
+    await mkdir4(dir, { recursive: true });
+    await writeFile3(join4(dir, `${this.type}.d.ts`), types);
     await this.destroy();
   }
 };
 
 // src/terraform/installer.ts
-var debug10 = createDebugger("Plugin");
+var debug13 = createDebugger("Plugin");
 var Terraform = class {
   constructor(props) {
     this.props = props;
   }
   async install(org, type, version = "latest") {
     const { file: file2, version: realVersion } = await downloadPlugin(this.props.providerLocation, org, type, version);
-    return (config) => {
+    return (input, config) => {
       const createLazyPlugin = async () => {
-        const server = await createPluginServer({ file: file2, debug: false });
+        const server = await createPluginServer({ file: file2, debug: config?.debug });
         const client = await createPluginClient(server);
         const plugins = {
           5: () => createPlugin5({ server, client }),
           6: () => createPlugin6({ server, client })
         };
         const plugin = await plugins[server.version]?.();
-        debug10(org, type, realVersion);
+        debug13(org, type, realVersion);
         if (!plugin) {
           throw new Error(`No plugin client available for protocol version ${server.version}`);
         }
         return plugin;
       };
-      return new TerraformProvider(type, createLazyPlugin, config);
+      return new TerraformProvider(type, config?.id ?? "default", createLazyPlugin, input);
     };
   }
 };
 
 // src/terraform/resource.ts
-import { snakeCase } from "change-case";
-
-// src/formation/data-source.ts
-var createDataSourceMeta = (provider, parent, type, id, physicalId) => {
-  const urn = createUrn(type, id, parent.urn);
-  const stack = findParentStack(parent);
-  let output2;
-  return {
-    tag: "data-source",
-    urn,
-    id,
-    physicalId,
-    type,
-    stack,
-    provider,
-    resolve(data) {
-      output2 = data;
-    },
-    output(cb) {
-      return new Output(/* @__PURE__ */ new Set([this]), (resolve2) => {
-        if (!output2) {
-          throw new Error(`Unresolved output for data-source: ${type} ${id}`);
-        }
-        resolve2(cb(output2));
-      });
-    }
-  };
-};
-
-// src/terraform/resource.ts
+import { snakeCase as snakeCase2 } from "change-case";
 var createNamespaceProxy = (cb, target = {}) => {
   const cache = /* @__PURE__ */ new Map();
   return new Proxy(target, {
@@ -2646,18 +2935,26 @@ var createClassProxy = (construct, get) => {
     }
   });
 };
-var createRecursiveProxy = (construct, get) => {
+var createRecursiveProxy = ({
+  resource,
+  dataSource
+}) => {
   const createProxy = (names) => {
     return createNamespaceProxy((name) => {
+      const ns = [...names, name];
       if (name === name.toLowerCase()) {
-        return createProxy([...names, name]);
+        return createProxy(ns);
+      } else if (name.startsWith("get")) {
+        return (args) => {
+          return dataSource([...names, name.substring(3)], args);
+        };
       } else {
         return createClassProxy(
           (...args) => {
-            return construct([...names, name], ...args);
+            return resource(ns, ...args);
           },
           (...args) => {
-            return get([...names, name], ...args);
+            return dataSource(ns, ...args);
           }
         );
       }
@@ -2665,44 +2962,60 @@ var createRecursiveProxy = (construct, get) => {
   };
   return createProxy([]);
 };
-var tf = createRecursiveProxy(
-  (names, parent, id, input, config) => {
-    const type = snakeCase(names.join("_"));
-    const provider = `terraform:${names[0]}`;
-    const $ = createResourceMeta(provider, parent, type, id, input, config);
+var $ = createRecursiveProxy({
+  resource: (ns, parent, id, input, config) => {
+    const type = snakeCase2(ns.join("_"));
+    const provider = `terraform:${ns[0]}:${config?.provider ?? "default"}`;
+    const $2 = createResourceMeta(provider, parent, type, id, input, config);
     const resource = createNamespaceProxy(
       (key) => {
         if (key === "$") {
-          return $;
+          return $2;
         }
-        return $.output((data) => data[key]);
+        return $2.output((data) => data[key]);
       },
-      { $ }
+      { $: $2 }
     );
     parent.add(resource);
     return resource;
   },
-  (names, parent, id, physicalId) => {
-    const type = snakeCase(names.join("_"));
-    const provider = `terraform:${names[0]}`;
-    const $ = createDataSourceMeta(provider, parent, type, id, physicalId);
+  // external: (ns: string[], id: string, input: State, config?: ResourceConfig) => {
+  // 	const type = snakeCase(ns.join('_'))
+  // 	const provider = `terraform:${ns[0]}:${config?.provider ?? 'default'}`
+  // 	const $ = createResourceMeta(provider, type, id, input, config)
+  // 	const resource = createNamespaceProxy(
+  // 		key => {
+  // 			if (key === '$') {
+  // 				return $
+  // 			}
+  // 			return $.output(data => data[key])
+  // 		},
+  // 		{ $ }
+  // 	) as Resource
+  // 	parent.add(resource)
+  // 	return resource
+  // },
+  dataSource: (ns, input, config) => {
+    const type = snakeCase2(ns.join("_"));
+    const provider = `terraform:${ns[0]}:${config?.provider ?? "default"}`;
+    const $2 = createDataSourceMeta(provider, type, input);
     const dataSource = createNamespaceProxy(
       (key) => {
         if (key === "$") {
-          return $;
+          return $2;
         }
-        return $.output((data) => data[key]);
+        return $2.output((data) => data[key]);
       },
-      { $ }
+      { $: $2 }
     );
-    parent.add(dataSource);
     return dataSource;
   }
-);
+});
 export {
+  $,
   App,
   AppError,
-  DynamoLockProvider,
+  DynamoLockBackend,
   FileLockBackend,
   FileStateBackend,
   Future,
@@ -2718,10 +3031,12 @@ export {
   StackError,
   Terraform,
   WorkSpace,
+  createDataSourceMeta,
   createDebugger,
   createResourceMeta,
   deferredOutput,
   enableDebug,
+  findInputDeps,
   output,
-  tf
+  resolveInputs
 };

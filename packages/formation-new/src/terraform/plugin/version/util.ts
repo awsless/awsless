@@ -1,4 +1,4 @@
-import { camelCase } from 'change-case'
+import { camelCase, snakeCase } from 'change-case'
 import { pack, unpack } from 'msgpackr'
 import { Property, RootProperty } from '../schema.ts'
 
@@ -43,7 +43,12 @@ class IncorrectType extends TypeError {
 	}
 }
 
-export const formatInputState = (schema: Property, state: unknown, path: Array<string | number> = []): unknown => {
+export const formatInputState = (
+	schema: Property,
+	state: unknown,
+	includeSchemaFields: boolean = true,
+	path: Array<string | number> = []
+): unknown => {
 	// console.log(path, state, schema)
 
 	if (state === null) {
@@ -73,8 +78,6 @@ export const formatInputState = (schema: Property, state: unknown, path: Array<s
 			return state
 		}
 
-		console.log(schema, path, state)
-
 		throw new IncorrectType(schema.type, path)
 	}
 
@@ -96,7 +99,7 @@ export const formatInputState = (schema: Property, state: unknown, path: Array<s
 
 	if (schema.type === 'array') {
 		if (Array.isArray(state)) {
-			return state.map((item, i) => formatInputState(schema.item, item, [...path, i]))
+			return state.map((item, i) => formatInputState(schema.item, item, includeSchemaFields, [...path, i]))
 		}
 
 		throw new IncorrectType(schema.type, path)
@@ -107,7 +110,7 @@ export const formatInputState = (schema: Property, state: unknown, path: Array<s
 			const record: Record<string, unknown> = {}
 
 			for (const [key, value] of Object.entries(state)) {
-				record[key] = formatInputState(schema.item, value, [...path, key])
+				record[key] = formatInputState(schema.item, value, includeSchemaFields, [...path, key])
 			}
 
 			return record
@@ -116,13 +119,26 @@ export const formatInputState = (schema: Property, state: unknown, path: Array<s
 		throw new IncorrectType(schema.type, path)
 	}
 
-	if (schema.type === 'object') {
+	if (schema.type === 'object' || schema.type === 'array-object') {
 		if (typeof state === 'object' && state !== null) {
 			const object: Record<string, unknown> = {}
 
-			for (const [key, prop] of Object.entries(schema.properties)) {
-				const value = state[camelCase(key) as keyof typeof state]
-				object[key] = formatInputState(prop, value, [...path, key])
+			if (includeSchemaFields) {
+				for (const [key, prop] of Object.entries(schema.properties)) {
+					const value = state[camelCase(key) as keyof typeof state]
+					object[key] = formatInputState(prop, value, true, [...path, key])
+				}
+			} else {
+				for (const [key, value] of Object.entries(state)) {
+					const prop = schema.properties[snakeCase(key)]
+					if (prop) {
+						object[key] = formatInputState(prop, value, false, [...path, key])
+					}
+				}
+			}
+
+			if (schema.type === 'array-object') {
+				return [object]
 			}
 
 			return object
@@ -130,6 +146,21 @@ export const formatInputState = (schema: Property, state: unknown, path: Array<s
 
 		throw new IncorrectType(schema.type, path)
 	}
+
+	// if (schema.type === 'array-object') {
+	// 	if (typeof state === 'object' && state !== null) {
+	// 		const object: Record<string, unknown> = {}
+
+	// 		for (const [key, prop] of Object.entries(schema.properties)) {
+	// 			const value = state[camelCase(key) as keyof typeof state]
+	// 			object[key] = formatInputState(prop, value, [...path, key])
+	// 		}
+
+	// 		return [object]
+	// 	}
+
+	// 	throw new IncorrectType(schema.type, path)
+	// }
 
 	throw new Error(`Unknown schema type: ${schema.type}`)
 }
@@ -171,6 +202,25 @@ export const formatOutputState = (schema: Property, state: unknown, path: Array<
 			}
 
 			return object
+		}
+
+		throw new IncorrectType(schema.type, path)
+	}
+
+	if (schema.type === 'array-object') {
+		if (Array.isArray(state)) {
+			if (state.length === 1) {
+				const object: Record<string, unknown> = {}
+
+				for (const [key, prop] of Object.entries(schema.properties)) {
+					const value = state[0][key as keyof typeof state]
+					object[camelCase(key)] = formatOutputState(prop, value, [...path, key])
+				}
+
+				return object
+			} else {
+				return undefined
+			}
 		}
 
 		throw new IncorrectType(schema.type, path)

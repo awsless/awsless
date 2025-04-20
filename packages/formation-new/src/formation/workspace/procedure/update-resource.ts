@@ -24,6 +24,7 @@ export const updateResource = async (
 	let result
 
 	debug(resource.$.type)
+	debug(proposedState)
 
 	try {
 		result = await provider.updateResource({
@@ -33,7 +34,7 @@ export const updateResource = async (
 			idempotantToken,
 		})
 	} catch (error) {
-		throw ResourceError.wrap(resource.urn, resource.type, 'update', error)
+		throw ResourceError.wrap(resource.$.urn, resource.$.type, 'update', error)
 
 		// If the resource wasn't found for some reason we try to create it.
 		// if (error instanceof ResourceNotFound) {

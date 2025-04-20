@@ -8,7 +8,7 @@ export class Stack extends Group {
 		readonly app: App,
 		name: string
 	) {
-		super(app, 'Stack', name)
+		super(app, 'stack', name)
 	}
 
 	dependsOn(...stacks: Stack[]) {

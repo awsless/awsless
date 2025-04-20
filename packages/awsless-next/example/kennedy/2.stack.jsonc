@@ -1,0 +1,62 @@
+{
+	// "$schema": "https://unpkg.com/@awsless/awsless/dist/stack.json",
+	"$schema": "../../dist/stack.json",
+	"name": "stack-kennedy-2",
+	"depends": ["stack-kennedy-1"],
+	"configs": ["config-2"]
+	// "functions": {
+	// 	"test": "./function.ts"
+	// }
+	// "rpc": {
+	// 	"test": {
+	// 		"test": "./function.ts"
+	// 	}
+	// }
+	// "tables": {
+	// 	"campaigns": {
+	// 		"hash": "code",
+	// 		"sort": "tenantId",
+	// 		"indexes": {
+	// 			"list": {
+	// 				"hash": "playerId",
+	// 				"sort": "id"
+	// 			}
+	// 		},
+	// 		"pointInTimeRecovery": true
+	// 	}
+	// }
+	// "stores": ["test"]
+	// "stores": {
+	// 	"test": {
+	// 		"events": {
+	// 			"created:*": "./function.ts",
+	// 			"removed:*": "./function.ts"
+	// 		}
+	// 	}
+	// }
+	// "crons": {
+	// 	"cron": {
+	// 		"schedule": "60 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// }
+	// "searchs": {
+	// 	"test": {
+	// 		"type": "t3.small",
+	// 		"count": 1
+	// 		// "vpc": true
+	// 	}
+	// }
+	// "auth": {
+	// 	"admin": {
+	// 		"triggers": {
+	// 			"beforeLogin": "./function.ts",
+	// 		}
+	// 	}
+	// },
+	// "caches": {
+	// 	"test": {
+	// 		"type": "t4g.small"
+	// 	}
+	// }
+}

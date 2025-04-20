@@ -11,6 +11,12 @@ import {
 	toKibibytes,
 	toMebibytes,
 	toPebibytes,
+	toSafeBytes,
+	toSafeGibibytes,
+	toSafeKibibytes,
+	toSafeMebibytes,
+	toSafePebibytes,
+	toSafeTebibytes,
 	toTebibytes,
 } from '../src'
 
@@ -58,31 +64,65 @@ describe('Size', () => {
 
 		it('bytes', () => {
 			const result = toBytes(value)
-			expect(result).toBe(1024n * 1024n * 1024n * 1024n * 1024n)
+			expect(result).toBe(1024 * 1024 * 1024 * 1024 * 1024)
 		})
 
 		it('kibibytes', () => {
 			const result = toKibibytes(value)
-			expect(result).toBe(1024n * 1024n * 1024n * 1024n)
+			expect(result).toBe(1024 * 1024 * 1024 * 1024)
 		})
 
 		it('mebibytes', () => {
 			const result = toMebibytes(value)
-			expect(result).toBe(1024n * 1024n * 1024n)
+			expect(result).toBe(1024 * 1024 * 1024)
 		})
 
 		it('gibibytes', () => {
 			const result = toGibibytes(value)
-			expect(result).toBe(1024n * 1024n)
+			expect(result).toBe(1024 * 1024)
 		})
 
 		it('tebibytes', () => {
 			const result = toTebibytes(value)
-			expect(result).toBe(1024n)
+			expect(result).toBe(1024)
 		})
 
 		it('pebibytes', () => {
 			const result = toPebibytes(value)
+			expect(result).toBe(1)
+		})
+	})
+
+	describe('safe transform', () => {
+		const value = pebibytes(1)
+
+		it('bytes', () => {
+			const result = toSafeBytes(value)
+			expect(result).toBe(1024n * 1024n * 1024n * 1024n * 1024n)
+		})
+
+		it('kibibytes', () => {
+			const result = toSafeKibibytes(value)
+			expect(result).toBe(1024n * 1024n * 1024n * 1024n)
+		})
+
+		it('mebibytes', () => {
+			const result = toSafeMebibytes(value)
+			expect(result).toBe(1024n * 1024n * 1024n)
+		})
+
+		it('gibibytes', () => {
+			const result = toSafeGibibytes(value)
+			expect(result).toBe(1024n * 1024n)
+		})
+
+		it('tebibytes', () => {
+			const result = toSafeTebibytes(value)
+			expect(result).toBe(1024n)
+		})
+
+		it('pebibytes', () => {
+			const result = toSafePebibytes(value)
 			expect(result).toBe(1n)
 		})
 	})
