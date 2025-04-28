@@ -29,12 +29,12 @@ const dir = join(import.meta.dirname, 'build')
 // await cloudFlare({}).generateTypes(dir);
 await aws({}).generateTypes(join(homedir(), `.awsless/types`))
 
-// const p = aws({
-//   profile: "jacksclub",
-//   region: "us-east-1",
-// });
+const p = aws({
+	profile: 'jacksclub',
+	region: 'us-east-1',
+})
 
-// await p.generateTypes(dir);
+// await p.generateTypes(dir)
 
 const workspace = new WorkSpace({
 	providers: [
@@ -60,22 +60,10 @@ const workspace = new WorkSpace({
 // ----------------------------------------
 
 const app = new App('app-2')
-const stack = new Stack(app, 'stack')
+const stack1 = new Stack(app, 'stack-1')
+const stack2 = new Stack(app, 'stack-2')
 
-// type ITest = {
-// 	id: string
-// }
-
-// declare class Test  ITest {
-
-// }
-
-// const test: Test = []
-// test.
-
-// const tables: $.aws.dynamodb.Table[] = []
-
-const table = new $.aws.dynamodb.Table(stack, 'test', {
+const table = new $.aws.dynamodb.Table(stack1, 'test', {
 	name: 'test-2',
 	billingMode: 'PAY_PER_REQUEST',
 	hashKey: 'key',
@@ -91,9 +79,24 @@ const table = new $.aws.dynamodb.Table(stack, 'test', {
 	},
 })
 
-const entry = {} as Resource<{}, { id: string }>
-const other = (t: Resource<{}, State>) => {}
-other(entry)
+// const iot = $.aws.iot.getEndpoint(stack2, 'test', {
+// 	endpointType: 'iot:Data-ATS',
+// })
+
+const item = new $.aws.dynamodb.TableItem(stack2, 'test', {
+	tableName: table.name,
+	hashKey: table.hashKey,
+	rangeKey: table.rangeKey,
+	item: JSON.stringify({
+		key: { S: 'address' },
+	}),
+	// item: iot.endpointAddress.pipe(address =>
+	// 	JSON.stringify({
+	// 		key: { S: 'address' },
+	// 		address: { S: address },
+	// 	})
+	// ),
+})
 
 // const item = new tf.aws.dynamodb.TableItem(
 // 	stack,
@@ -125,7 +128,11 @@ other(entry)
 // 	}
 // )
 
-await workspace.delete(app)
+await workspace.delete(app, {
+	// 'filters': ['']
+})
+
+// console.log(await iot.endpointAddress)
 
 // try {
 // 	await workspace.delete(app)

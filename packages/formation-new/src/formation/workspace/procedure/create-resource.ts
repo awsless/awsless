@@ -1,9 +1,10 @@
 import { UUID } from 'node:crypto'
 import { createDebugger } from '../../debug.ts'
+import { State } from '../../meta.ts'
 import { findProvider } from '../../provider.ts'
-import { Resource, State } from '../../resource.ts'
+import { Resource } from '../../resource.ts'
 import { ResourceError } from '../error.ts'
-import { ResourceState } from '../state.ts'
+import { NodeState } from '../state.ts'
 import { createIdempotantToken } from '../token.ts'
 import { WorkSpaceOptions } from '../workspace.ts'
 
@@ -14,7 +15,7 @@ export const createResource = async (
 	appToken: UUID,
 	input: State,
 	opt: WorkSpaceOptions
-): Promise<Omit<ResourceState, 'dependencies' | 'lifecycle'>> => {
+): Promise<Omit<NodeState, 'dependencies' | 'lifecycle'>> => {
 	const provider = findProvider(opt.providers, resource.$.provider)
 	const idempotantToken = createIdempotantToken(appToken, resource.$.urn, 'create')
 
@@ -45,6 +46,7 @@ export const createResource = async (
 	}
 
 	return {
+		tag: 'resource',
 		version: result.version,
 		type: resource.$.type,
 		provider: resource.$.provider,

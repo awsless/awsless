@@ -1,4 +1,4 @@
-import { URN } from '../resource.ts'
+import { URN } from '../urn.ts'
 
 export interface LockBackend {
 	insecureReleaseLock(urn: URN): Promise<void>

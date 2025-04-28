@@ -102,15 +102,17 @@ While AWS S3 is perfect for storing your state files.
 ```ts
 const workspace = new WorkSpace({
 	providers: [...],
-	lockProvider: new DynamoLockBackend({
-		region,
-		credentials,
-		tableName: 'awsless-locks',
-	}),
-	stateProvider: new S3StateBackend({
-		region,
-		credentials,
-		bucket: 'awsless-state-UNIQUE_ID',
-	}),
+	backend: {
+		lock: new DynamoLockBackend({
+  			region,
+  			credentials,
+  			tableName: 'awsless-locks',
+  		}),
+		state: new S3StateBackend({
+			region,
+			credentials,
+			bucket: 'awsless-state-UNIQUE_ID',
+		}),
+	}
 })
 ```

@@ -393,12 +393,12 @@ export const createApp = (props: CreateAppProps) => {
 
 	for (const stackConfig of props.stackConfigs) {
 		// const functions = allLocalFunctions[stackConfig.name]!
-		const permissions = allStackPermissions[stackConfig.name]!
 		const envListeners = allLocalEnvListeners[stackConfig.name]!
+		const permissionCallbacks = allStackPermissionCallbacks[stackConfig.name]!
 
 		for (const dependency of stackConfig.depends ?? []) {
 			// const functionListeners = allLocalFunctionListeners[dependency]!
-			const permissionCallbacks = allStackPermissionCallbacks[dependency]!
+			const permissions = allStackPermissions[dependency]!
 			const env = allLocalEnv[dependency]!
 
 			// for (const fn of functions) {

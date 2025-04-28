@@ -1,7 +1,7 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb'
 import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb'
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { LockBackend } from '../lock.ts'
 
 type Props = {

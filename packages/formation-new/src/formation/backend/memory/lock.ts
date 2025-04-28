@@ -1,4 +1,4 @@
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { LockBackend } from '../lock.ts'
 
 export class MemoryLockBackend implements LockBackend {

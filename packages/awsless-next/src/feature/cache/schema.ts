@@ -1,39 +1,38 @@
+import { gibibytes } from '@awsless/size'
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
 
-const TypeSchema = z.enum([
-	't4g.small',
-	't4g.medium',
+const StorageSchema = SizeSchema.refine(sizeMin(gibibytes(1)), 'Minimum storage size is 1 GB').refine(
+	sizeMax(gibibytes(5000)),
+	'Maximum storage size is 5000 GB'
+)
 
-	'r6g.large',
-	'r6g.xlarge',
-	'r6g.2xlarge',
-	'r6g.4xlarge',
-	'r6g.8xlarge',
-	'r6g.12xlarge',
-	'r6g.16xlarge',
+const MinimumStorageSchema = StorageSchema.describe(
+	'The lower limit for data storage the cache is set to use. You can specify a size value from 1 GB to 5000 GB.'
+)
+const MaximumStorageSchema = StorageSchema.describe(
+	'The upper limit for data storage the cache is set to use. You can specify a size value from 1 GB to 5000 GB.'
+)
 
-	'r6gd.xlarge',
-	'r6gd.2xlarge',
-	'r6gd.4xlarge',
-	'r6gd.8xlarge',
-])
-
-const PortSchema = z.number().int().min(1).max(50000)
-const ShardsSchema = z.number().int().min(0).max(100)
-const ReplicasPerShardSchema = z.number().int().min(0).max(5)
-const EngineSchema = z.enum(['7.0', '6.2'])
+const EcpuSchema = z.number().int().min(1000).max(15_000_000)
+const MinimumEcpuSchema = EcpuSchema.describe(
+	'The minimum number of ECPUs the cache can consume per second. You can specify a integer from 1,000 to 15,000,000.'
+)
+const MaximumEcpuSchema = EcpuSchema.describe(
+	'The maximum number of ECPUs the cache can consume per second. You can specify a integer from 1,000 to 15,000,000.'
+)
 
 export const CachesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			type: TypeSchema.default('t4g.small'),
-			port: PortSchema.default(6379),
-			shards: ShardsSchema.default(1),
-			replicasPerShard: ReplicasPerShardSchema.default(1),
-			engine: EngineSchema.default('7.0'),
-			dataTiering: z.boolean().default(false),
+			minStorage: MinimumStorageSchema.optional(),
+			maxStorage: MaximumStorageSchema.optional(),
+			minECPU: MinimumEcpuSchema.optional(),
+			maxECPU: MaximumEcpuSchema.optional(),
+
+			snapshotRetentionLimit: z.number().int().positive().default(1),
 		})
 	)
 	.optional()

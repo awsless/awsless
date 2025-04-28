@@ -1,28 +1,34 @@
 import { App } from '../../app.ts'
 import { createDebugger } from '../../debug.ts'
-import { URN } from '../../resource.ts'
 import { Stack } from '../../stack.ts'
+import { URN } from '../../urn.ts'
 import { concurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
 import { AppError } from '../error.ts'
 import { onExit } from '../exit.ts'
-import { AppState, ResourceState, StackState } from '../state.ts'
+import { NodeState, StackState } from '../state.ts'
+import { migrateAppState } from '../state/migrate.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
-import { deleteStackResources } from './delete-stack.ts'
-import { deployStackResources } from './deploy-stack.ts'
+import { deleteStackNodes } from './delete-stack.ts'
+import { deployStackNodes } from './deploy-stack.ts'
 
 const debug = createDebugger('Deploy App')
 
 export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptions) => {
-	const appState =
-		(await opt.backend.state.get(app.urn)) ??
-		({
+	debug(app.name, 'start')
+
+	const latestState = await opt.backend.state.get(app.urn)
+
+	// -------------------------------------------------------
+	// Migrate the state file to the latest version
+
+	const appState = migrateAppState(
+		latestState ?? {
 			name: app.name,
 			stacks: {},
-		} satisfies AppState)
-
-	debug(app.name, 'start')
+		}
+	)
 
 	// -------------------------------------------------------
 	// Save state on process graseful exit
@@ -65,11 +71,11 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 			const stackState = appState.stacks[stack.urn]
 
 			if (stackState) {
-				for (const resource of stack.resources) {
-					const resourceState = stackState.resources[resource.$.urn]
-					if (resourceState && resourceState.output) {
-						debug('hydrate', resource.$.urn)
-						resource.$.resolve(resourceState.output)
+				for (const node of stack.nodes) {
+					const nodeState = stackState.nodes[node.$.urn]
+					if (nodeState && nodeState.output) {
+						debug('hydrate', node.$.urn)
+						node.$.resolve(nodeState.output)
 					}
 				}
 			}
@@ -84,7 +90,7 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 			stack.urn,
 			[...stack.dependencies].map(dep => dep.urn),
 			async () => {
-				const resources = stack.resources
+				const nodes = stack.nodes
 
 				// -------------------------------------------------------------------
 
@@ -93,17 +99,17 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 					({
 						name: stack.name,
 						dependencies: [],
-						resources: {},
+						nodes: {},
 					} satisfies StackState))
 
 				// -------------------------------------------------------------------
 				// Find resources that need to be deleted...
 
-				const deleteResourcesBefore: Record<URN, ResourceState> = {}
-				const deleteResourcesAfter: Record<URN, ResourceState> = {}
+				const deleteResourcesBefore: Record<URN, NodeState> = {}
+				const deleteResourcesAfter: Record<URN, NodeState> = {}
 
-				for (const [urn, state] of entries(stackState.resources)) {
-					const resource = resources.find(r => r.$.urn === urn)
+				for (const [urn, state] of entries(stackState.nodes)) {
+					const resource = nodes.find(r => r.$.urn === urn)
 
 					if (!resource) {
 						if (state.lifecycle?.deleteAfterCreate) {
@@ -118,15 +124,15 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 				// Delete resources before deployment...
 
 				if (Object.keys(deleteResourcesBefore).length > 0) {
-					await deleteStackResources(stackState, deleteResourcesBefore, appState.idempotentToken!, queue, opt)
+					await deleteStackNodes(stackState, deleteResourcesBefore, appState.idempotentToken!, queue, opt)
 				}
 
 				// -------------------------------------------------------------------
 				// Deploy resources...
 
-				await deployStackResources(
+				await deployStackNodes(
 					stackState,
-					resources,
+					nodes,
 					// stack.dataSources,
 					appState.idempotentToken!,
 					queue,
@@ -137,7 +143,7 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 				// Delete resources after deployment...
 
 				if (Object.keys(deleteResourcesAfter).length > 0) {
-					await deleteStackResources(stackState, deleteResourcesAfter, appState.idempotentToken!, queue, opt)
+					await deleteStackNodes(stackState, deleteResourcesAfter, appState.idempotentToken!, queue, opt)
 				}
 
 				// -------------------------------------------------------------------
@@ -160,7 +166,7 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 
 		if (!found && filtered) {
 			graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-				await deleteStackResources(stackState, stackState.resources, appState.idempotentToken!, queue, opt)
+				await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken!, queue, opt)
 
 				delete appState.stacks[urn]
 			})

@@ -4,6 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
+import { toGibibytes } from '@awsless/size'
 
 const typeGenCode = `
 import { Cluster, CommandOptions } from '@awsless/redis'
@@ -49,82 +50,115 @@ export const cacheFeature = defineFeature({
 				seperator: '-',
 			})
 
+			// ---------------------------------------------------------------
 			// Trying to retain the cache will result in the whole VPC
 			// not being able to be deleted.
 
 			// const retain = ctx.appConfig.removal === 'retain'
+			// ---------------------------------------------------------------
 
-			const subnetGroup = new $.aws.memorydb.SubnetGroup(
-				group,
-				'subnets',
-				{
-					name,
-					subnetIds: ctx.shared.get('vpc', 'private-subnets'),
-				},
-				{
-					// retainOnDelete: retain,
-					// import: ctx.import ? name : undefined,
-				}
-			)
+			const securityGroup = new $.aws.security.Group(group, 'security', {
+				name,
+				vpcId: ctx.shared.get('vpc', 'id'),
+				description: name,
+			})
 
-			const securityGroup = new $.aws.security.Group(
-				group,
-				'security',
-				{
-					name,
-					vpcId: ctx.shared.get('vpc', 'id'),
-					description: name,
-				},
-				{
-					// retainOnDelete: retain,
-					// import: ctx.import ? name : undefined,
-				}
-			)
+			const cache = new $.aws.elasticache.ServerlessCache(group, 'cache', {
+				name,
+				engine: 'valkey',
+				dailySnapshotTime: '02:00',
+				majorEngineVersion: '8',
+				snapshotRetentionLimit: props.snapshotRetentionLimit,
+				securityGroupIds: [securityGroup.id],
+				subnetIds: ctx.shared.get('vpc', 'private-subnets'),
+				cacheUsageLimits: [
+					{
+						dataStorage:
+							props.minStorage || props.maxStorage
+								? [
+										{
+											minimum: props.minStorage && toGibibytes(props.minStorage),
+											maximum: props.maxStorage && toGibibytes(props.maxStorage),
+											unit: 'GB',
+										},
+									]
+								: [],
+						ecpuPerSecond:
+							props.minECPU || props.maxECPU
+								? [
+										{
+											minimum: props.minECPU,
+											maximum: props.maxECPU,
+										},
+									]
+								: [],
+					},
+				],
+			})
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'rule-ip-v4', {
+			// ---------------------------------------------------------------
+			// Open up the SecurityGroup for ipv4 & ipv6 for the master node
+
+			const masterHost = cache.endpoint.pipe(v => v.at(0)!.address)
+			const masterPort = cache.endpoint.pipe(v => v.at(0)!.port)
+
+			new $.aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v4', {
 				securityGroupId: securityGroup.id,
-				description: `Allow ipv4 on port: ${props.port}`,
+				description: masterPort.pipe(port => `Allow ipv4 on port: ${port}`),
 				ipProtocol: 'tcp',
 				cidrIpv4: '0.0.0.0/0',
-				fromPort: props.port,
-				toPort: props.port,
+				fromPort: masterPort,
+				toPort: masterPort,
 			})
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'rule-ip-v6', {
+			new $.aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v6', {
 				securityGroupId: securityGroup.id,
-				description: `Allow ipv6 on port: ${props.port}`,
+				description: masterPort.pipe(port => `Allow ipv6 on port: ${port}`),
 				ipProtocol: 'tcp',
 				cidrIpv6: '::/0',
-				fromPort: props.port,
-				toPort: props.port,
+				fromPort: masterPort,
+				toPort: masterPort,
 			})
 
-			const cluster = new $.aws.memorydb.Cluster(
-				group,
-				'cluster',
-				{
-					name,
-					aclName: 'open-access',
-					nodeType: `db.${props.type}`,
-					engine: 'redis',
-					engineVersion: '7.0',
-					port: props.port,
-					securityGroupIds: [securityGroup.id],
-					subnetGroupName: subnetGroup.name,
-					dataTiering: props.dataTiering,
-					numReplicasPerShard: props.replicasPerShard,
-					numShards: props.shards,
-				},
-				{
-					// retainOnDelete: retain,
-					// import: ctx.import ? name : undefined,
-				}
-			)
+			// ---------------------------------------------------------------
+			// Open up the SecurityGroup for ipv4 & ipv6 for the slave reader
+
+			const slaveHost = cache.readerEndpoint.pipe(v => v.at(0)!.address)
+			const slavePort = cache.readerEndpoint.pipe(v => v.at(0)!.port)
+
+			new $.aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v4', {
+				securityGroupId: securityGroup.id,
+				description: slavePort.pipe(port => `Allow ipv4 on port: ${port}`),
+				ipProtocol: 'tcp',
+				cidrIpv4: '0.0.0.0/0',
+				fromPort: slavePort,
+				toPort: slavePort,
+			})
+
+			new $.aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v6', {
+				securityGroupId: securityGroup.id,
+				description: slavePort.pipe(port => `Allow ipv6 on port: ${port}`),
+				ipProtocol: 'tcp',
+				cidrIpv6: '::/0',
+				fromPort: slavePort,
+				toPort: slavePort,
+			})
+
+			// ---------------------------------------------------------------
 
 			const prefix = `CACHE_${constantCase(ctx.stack.name)}_${constantCase(id)}`
-			const host = cluster.clusterEndpoint.pipe(v => v[0]!.address)
-			ctx.addEnv(`${prefix}_HOST`, host)
-			ctx.addEnv(`${prefix}_PORT`, props.port.toString())
+
+			ctx.addEnv(`${prefix}_HOST`, masterHost)
+			ctx.addEnv(
+				`${prefix}_PORT`,
+				masterPort.pipe(p => p.toString())
+			)
+
+			ctx.addEnv(`${prefix}_SLAVE_HOST`, slaveHost)
+			ctx.addEnv(
+				`${prefix}_SLAVE_PORT`,
+				slavePort.pipe(p => p.toString())
+			)
 		}
 	},
 })

@@ -1,19 +1,19 @@
 import type { UUID } from 'node:crypto'
 import { createDebugger } from '../../debug.ts'
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { ConcurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
-import { ResourceError, StackError } from '../error.ts'
-import { ResourceState, StackState } from '../state.ts'
+import { StackError } from '../error.ts'
+import { NodeState, StackState } from '../state.ts'
 import { WorkSpaceOptions } from '../workspace.ts'
 import { deleteResource } from './delete-resource.ts'
 
 const debug = createDebugger('Delete Stack')
 
-export const deleteStackResources = async (
+export const deleteStackNodes = async (
 	stackState: StackState,
-	resourceStates: Record<URN, ResourceState>,
+	nodeStates: Record<URN, NodeState>,
 	appToken: UUID,
 	queue: ConcurrencyQueue,
 	options: WorkSpaceOptions
@@ -25,14 +25,16 @@ export const deleteStackResources = async (
 
 	const graph = new DependencyGraph()
 
-	for (const [urn, state] of entries(resourceStates)) {
-		graph.add(urn, dependentsOn(stackState.resources, urn), async () => {
-			await queue(() => deleteResource(appToken, urn, state, options))
+	for (const [urn, state] of entries(nodeStates)) {
+		graph.add(urn, dependentsOn(stackState.nodes, urn), async () => {
+			if (state.tag === 'resource') {
+				await queue(() => deleteResource(appToken, urn, state, options))
+			}
 
 			// -------------------------------------------------------------------
 			// Delete the resource from the stack state
 
-			delete stackState.resources[urn]
+			delete stackState.nodes[urn]
 		})
 	}
 

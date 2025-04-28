@@ -1,7 +1,7 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"depends": ["stack-2"],
+	// "depends": ["stack-2"],
 
 	// "tests": "./test",
 	// "configs": ["test"],
@@ -13,72 +13,83 @@
 	// 	}
 	// },
 
-	"topics": ["login", "register"],
-	"subscribers": {
-		"login": "./function.ts"
+	"functions": {
+		"echo": "./function.ts",
+		"echo-4": "./function.ts"
+		// "echo-3": "./function.ts"
 	},
 
-	"tables": {
-		"test": {
-			"hash": "id"
-		}
-	},
-
-	"stores": {
+	"caches": {
 		"test": {}
 	},
 
-	"rpc": {
-		"api": {
-			"test": "./echo.ts"
-		}
-	},
+	// "topics": ["login", "register"],
+	// "subscribers": {
+	// 	"login": "./function.ts"
+	// },
 
-	"crons": {
+	"tables": {
 		"test": {
-			"schedule": "1 day",
-			"consumer": "./function.ts"
-		}
-	},
-
-	"queues": {
-		"queue": "./function.ts"
-	},
-
-	"tasks": {
-		"echo": "./function.ts"
-	},
-
-	"functions": {
-		"echo": "./function.ts"
-	},
-
-	"pubsub": {
-		"test": {
-			"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
-			"consumer": "./function.ts"
-		}
-	},
-
-	"rest": {
-		"public": {
-			"GET /": "./function.ts"
-		}
-	},
-
-	"sites": {
-		"website": {
-			"domain": "main",
-			"static": "./site",
-			"ssr": "./ssr.ts"
+			"hash": "id",
+			"stream": {
+				"type": "new-and-old-images",
+				"consumer": "./function.ts"
+			}
 		}
 	}
+
+	// "stores": {
+	// 	"test": {}
+	// },
+
+	// "rpc": {
+	// 	"api": {
+	// 		"test": "./echo.ts"
+	// 	}
+	// },
+
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "1 day",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
+
+	// "queues": {
+	// 	"queue": "./function.ts"
+	// },
+
+	// "tasks": {
+	// 	"echo": "./function.ts"
+	// },
+
+	// "pubsub": {
+	// 	"test": {
+	// 		"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
+
+	// "rest": {
+	// 	"public": {
+	// 		"GET /": "./function.ts"
+	// 	}
+	// },
+
+	// "sites": {
+	// 	"website": {
+	// 		"domain": "main",
+	// 		"static": "./site",
+	// 		"ssr": "./ssr.ts"
+	// 	}
+	// }
 
 	// "streams": {
 	// 	"arena": {
 	// 		"type": "basic"
 	// 	}
 	// },
+
 	// "instances": {
 	// 	"stream": {
 	// 		"type": "t4g.nano",
@@ -91,15 +102,4 @@
 	// 		}
 	// 	}
 	// }
-
-	// "graphql": {
-	// 	"api": {
-	// 		"schema": "./graphql/schema.gql",
-	// 		"resolvers": {
-	// 			"Mutation": {
-	// 				"test": "./graphql.ts"
-	// 			}
-	// 		}
-	// 	}
-	// },
 }

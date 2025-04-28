@@ -153,14 +153,20 @@ export const rpcFeature = defineFeature({
 					cors: {
 						allowOrigins: ['*'],
 						allowMethods: ['*'],
-						allowHeaders: ['Authentication', 'Content-Type'],
+						allowHeaders: [
+							//
+							'authentication',
+							'content-type',
+							'x-amz-content-sha256',
+						],
 					},
 				},
 				{ dependsOn: [permission] }
 			)
 
-			const accessControl = new $.aws.cloudfront.OriginAccessControl(group, 'ssr-access', {
-				name: `${name}-ssr`,
+			const accessControl = new $.aws.cloudfront.OriginAccessControl(group, 'access', {
+				name,
+				description: 'Policy for RPC Lambda Function URL',
 				originAccessControlOriginType: 'lambda',
 				signingBehavior: 'always',
 				signingProtocol: 'sigv4',
@@ -200,6 +206,7 @@ export const rpcFeature = defineFeature({
 			const cdn = new $.aws.cloudfront.Distribution(group, 'cdn', {
 				tags: {
 					Name: name,
+					// Feature: ''
 				},
 
 				enabled: true,

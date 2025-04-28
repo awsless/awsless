@@ -1,9 +1,12 @@
-// src/formation/meta.ts
-var hasMeta = (obj) => {
+// src/formation/node.ts
+var isNode = (obj) => {
   return "$" in obj && typeof obj.$ === "object" && obj.$ !== null && "tag" in obj.$ && typeof obj.$.tag === "string";
 };
 var isResource = (obj) => {
-  return hasMeta(obj) && obj.$.tag === "resource";
+  return isNode(obj) && obj.$.tag === "resource";
+};
+var isDataSource = (obj) => {
+  return isNode(obj) && obj.$.tag === "data";
 };
 
 // src/formation/group.ts
@@ -20,10 +23,10 @@ var Group = class _Group {
     return `${urn}:${this.type}:{${this.name}}`;
   }
   addChild(child) {
-    if (isResource(child)) {
+    if (isNode(child)) {
       const duplicate = this.children.filter((c) => isResource(c)).find((c) => c.$.type === child.$.type && c.$.logicalId === child.$.logicalId);
       if (duplicate) {
-        throw new Error(`Duplicate resource found: ${child.$.type}:${child.$.logicalId}`);
+        throw new Error(`Duplicate node found: ${child.$.type}:${child.$.logicalId}`);
       }
     }
     if (child instanceof _Group) {
@@ -39,31 +42,23 @@ var Group = class _Group {
       this.addChild(child);
     }
   }
-  get resources() {
+  get nodes() {
     return this.children.map((child) => {
       if (child instanceof _Group) {
-        return child.resources;
+        return child.nodes;
       }
-      if (isResource(child)) {
+      if (isNode(child)) {
         return child;
       }
       return;
     }).flat().filter((child) => !!child);
   }
-  // get dataSources(): DataSource[] {
-  // 	return this.children
-  // 		.map(child => {
-  // 			if (child instanceof Group) {
-  // 				return child.dataSources
-  // 			}
-  // 			if (isDataSource(child)) {
-  // 				return child
-  // 			}
-  // 			return
-  // 		})
-  // 		.flat()
-  // 		.filter(child => !!child)
-  // }
+  get resources() {
+    return this.nodes.filter((node) => isResource(node));
+  }
+  get dataSources() {
+    return this.nodes.filter((node) => isDataSource(node));
+  }
 };
 
 // src/formation/stack.ts
@@ -243,123 +238,36 @@ var resolveInputs = async (inputs) => {
     }
   };
   find(inputs, {}, "root");
-  const responses = await Promise.race([
-    Promise.all(unresolved.map(([obj, key]) => obj[key])),
-    new Promise(
-      (_, reject) => setTimeout(() => {
-        reject(new Error("Resolving inputs took too long."));
-      }, 5e3)
-    )
-  ]);
+  const responses = await Promise.all(
+    unresolved.map(async ([obj, key]) => {
+      const promise = obj[key];
+      let timeout;
+      const response = await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => {
+            if (promise instanceof Output) {
+              reject(
+                new Error(
+                  `Resolving Output<${[...promise.dependencies].map((d) => d.urn).join(", ")}> took too long.`
+                )
+              );
+            } else if (promise instanceof Future) {
+              reject(new Error("Resolving Future took too long."));
+            } else {
+              reject(new Error("Resolving Promise took too long."));
+            }
+          }, 3e3);
+        })
+      ]);
+      clearTimeout(timeout);
+      return response;
+    })
+  );
   unresolved.forEach(([props, key], i) => {
     props[key] = responses[i];
   });
   return inputs;
-};
-
-// src/formation/resource.ts
-var createUrn = (type, name, parentUrn) => {
-  return `${parentUrn ? parentUrn : "urn"}:${type}:{${name}}`;
-};
-var createResourceMeta = (provider, parent, type, logicalId, input, config) => {
-  const urn = createUrn(type, logicalId, parent.urn);
-  const stack = findParentStack(parent);
-  const dependencies = /* @__PURE__ */ new Set();
-  const dataSourceMetas = /* @__PURE__ */ new Set();
-  let output2;
-  for (const dep of findInputDeps(input)) {
-    if (dep.tag === "resource") {
-      if (dep.stack.urn === stack.urn) {
-        if (dep.urn === urn) {
-          throw new Error("You can't depend on yourself");
-        }
-        dependencies.add(dep.urn);
-      } else {
-        stack.dependsOn(dep.stack);
-      }
-    } else {
-      dataSourceMetas.add(dep);
-    }
-  }
-  for (const dep of config?.dependsOn ?? []) {
-    if (isResource(dep)) {
-      if (dep.$.stack.urn === stack.urn) {
-        dependencies.add(dep.$.urn);
-      } else {
-        stack.dependsOn(dep.$.stack);
-      }
-    }
-  }
-  return {
-    tag: "resource",
-    urn,
-    logicalId,
-    type,
-    stack,
-    provider,
-    input,
-    config,
-    dependencies,
-    dataSourceMetas,
-    // attach(value) {
-    // 	resource = value
-    // },
-    // dependOn(...resources: Resource[]) {},
-    attachDependencies(props) {
-      for (const dep of findInputDeps(props)) {
-        if (dep.tag === "resource") {
-          if (dep.stack.urn === stack.urn) {
-            if (dep.urn === urn) {
-              throw new Error("You can't depend on yourself");
-            }
-            dependencies.add(dep.urn);
-          } else {
-            stack.dependsOn(dep.stack);
-          }
-        } else {
-          dataSourceMetas.add(dep);
-        }
-      }
-    },
-    resolve(data) {
-      output2 = data;
-    },
-    output(cb) {
-      return new Output(/* @__PURE__ */ new Set([this]), (resolve2) => {
-        if (!output2) {
-          throw new Error(`Unresolved output for resource: ${urn}`);
-        }
-        resolve2(cb(output2));
-      });
-    }
-  };
-};
-
-// src/formation/data-source.ts
-import { randomUUID } from "crypto";
-var createDataSourceMeta = (provider, type, input) => {
-  let output2;
-  const dependencies = new Set(findInputDeps(input).map((dep) => dep.urn));
-  return {
-    tag: "data-source",
-    urn: `urn:data:${type}:${randomUUID()}`,
-    type,
-    input,
-    provider,
-    dependencies,
-    resolve(v) {
-      output2 = v;
-    },
-    output(cb) {
-      return new Output(/* @__PURE__ */ new Set([this]), (resolve2, reject) => {
-        if (!output2) {
-          reject(new Error(`Unresolved output for data-source: ${type}`));
-        } else {
-          resolve2(cb(output2));
-        }
-      });
-    }
-  };
 };
 
 // src/formation/debug.ts
@@ -538,6 +446,42 @@ var ResourceNotFound = class extends Error {
 var ResourceAlreadyExists = class extends Error {
 };
 
+// src/formation/workspace/state/v1.ts
+var v1 = (oldAppState) => {
+  const stacks = {};
+  for (const [urn, stack] of entries(oldAppState.stacks)) {
+    const nodes = {};
+    for (const [urn2, resource] of entries(stack.resources)) {
+      nodes[urn2] = {
+        ...resource,
+        tag: "resource"
+      };
+    }
+    stacks[urn] = {
+      name: stack.name,
+      dependencies: stack.dependencies,
+      nodes
+    };
+  }
+  return {
+    ...oldAppState,
+    stacks,
+    version: 1
+  };
+};
+
+// src/formation/workspace/state/migrate.ts
+var versions = [[1, v1]];
+var migrateAppState = (oldState) => {
+  let version = "version" in oldState && oldState.version || 0;
+  for (const [v, migrate] of versions) {
+    if (v > version) {
+      oldState = migrate(oldState);
+    }
+  }
+  return oldState;
+};
+
 // src/formation/provider.ts
 var findProvider = (providers, id) => {
   for (const provider of providers) {
@@ -582,13 +526,15 @@ var deleteResource = async (appToken, urn, state, opt) => {
 
 // src/formation/workspace/procedure/delete-stack.ts
 var debug2 = createDebugger("Delete Stack");
-var deleteStackResources = async (stackState, resourceStates, appToken, queue, options) => {
+var deleteStackNodes = async (stackState, nodeStates, appToken, queue, options) => {
   debug2(stackState.name, "start");
   const graph = new DependencyGraph();
-  for (const [urn, state] of entries(resourceStates)) {
-    graph.add(urn, dependentsOn(stackState.resources, urn), async () => {
-      await queue(() => deleteResource(appToken, urn, state, options));
-      delete stackState.resources[urn];
+  for (const [urn, state] of entries(nodeStates)) {
+    graph.add(urn, dependentsOn(stackState.nodes, urn), async () => {
+      if (state.tag === "resource") {
+        await queue(() => deleteResource(appToken, urn, state, options));
+      }
+      delete stackState.nodes[urn];
     });
   }
   const errors = await graph.run();
@@ -600,10 +546,11 @@ var deleteStackResources = async (stackState, resourceStates, appToken, queue, o
 
 // src/formation/workspace/procedure/delete-app.ts
 var deleteApp = async (app, opt) => {
-  const appState = await opt.backend.state.get(app.urn);
-  if (!appState) {
+  const latestState = await opt.backend.state.get(app.urn);
+  if (!latestState) {
     throw new AppError(app.name, [], `App already deleted: ${app.name}`);
   }
+  const appState = migrateAppState(latestState);
   if (opt.idempotentToken || !appState.idempotentToken) {
     appState.idempotentToken = opt.idempotentToken ?? crypto.randomUUID();
     await opt.backend.state.update(app.urn, appState);
@@ -616,7 +563,7 @@ var deleteApp = async (app, opt) => {
   const graph = new DependencyGraph();
   for (const [urn, stackState] of stacks) {
     graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-      await deleteStackResources(stackState, stackState.resources, appState.idempotentToken, queue, opt);
+      await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken, queue, opt);
       delete appState.stacks[urn];
     });
   }
@@ -665,6 +612,7 @@ var createResource = async (resource, appToken, input, opt) => {
     throw ResourceError.wrap(resource.$.urn, resource.$.type, "create", error);
   }
   return {
+    tag: "resource",
     version: result.version,
     type: resource.$.type,
     provider: resource.$.provider,
@@ -690,7 +638,13 @@ var getDataSource = async (dataSource, input, opt) => {
   } catch (error) {
     throw ResourceError.wrap(dataSource.urn, dataSource.type, "get", error);
   }
-  return result.state;
+  return {
+    tag: "data",
+    type: dataSource.type,
+    provider: dataSource.provider,
+    input,
+    output: result.state
+  };
 };
 
 // src/formation/workspace/procedure/import-resource.ts
@@ -712,6 +666,7 @@ var importResource = async (resource, input, opt) => {
     throw ResourceError.wrap(resource.$.urn, resource.$.type, "import", error);
   }
   return {
+    tag: "resource",
     version: result.version,
     type: resource.$.type,
     provider: resource.$.provider,
@@ -746,86 +701,90 @@ var updateResource = async (resource, appToken, priorState, proposedState, opt) 
 
 // src/formation/workspace/procedure/deploy-stack.ts
 var debug7 = createDebugger("Deploy Stack");
-var deployStackResources = async (stackState, resources, appToken, queue, opt) => {
+var deployStackNodes = async (stackState, nodes, appToken, queue, opt) => {
   debug7(stackState.name, "start");
   const graph = new DependencyGraph();
-  for (const resource of resources) {
-    for (const dataSource of resource.$.dataSourceMetas) {
-      graph.add(dataSource.urn, [...dataSource.dependencies], () => {
-        return queue(async () => {
-          const input = await resolveInputs(dataSource.input);
-          const output2 = await getDataSource(dataSource, input, opt);
-          dataSource.resolve(output2);
-        });
-      });
-    }
-  }
-  for (const resource of resources) {
-    const dependencies = [
-      ...resource.$.dependencies,
-      ...[...resource.$.dataSourceMetas].map((d) => d.urn)
-      // ...(resource.$.config?.dependsOn?.map(r => r.$.urn) ?? []),
-    ];
+  for (const node of nodes) {
+    const dependencies = [...node.$.dependencies];
     const partialNewResourceState = {
       dependencies,
-      lifecycle: {
-        deleteAfterCreate: resource.$.config?.deleteAfterCreate,
-        retainOnDelete: resource.$.config?.retainOnDelete
-      }
+      lifecycle: isResource(node) ? {
+        deleteAfterCreate: node.$.config?.deleteAfterCreate,
+        retainOnDelete: node.$.config?.retainOnDelete
+      } : void 0
     };
-    graph.add(resource.$.urn, dependencies, () => {
+    graph.add(node.$.urn, dependencies, () => {
       return queue(async () => {
-        let resourceState = stackState.resources[resource.$.urn];
+        let nodeState = stackState.nodes[node.$.urn];
         let input;
         try {
-          input = await resolveInputs(resource.$.input);
+          input = await resolveInputs(node.$.input);
         } catch (error) {
           throw ResourceError.wrap(
             //
-            resource.$.urn,
-            resource.$.type,
+            node.$.urn,
+            node.$.type,
             "resolve",
             error
           );
         }
-        if (!resourceState) {
-          if (resource.$.config?.import) {
-            const importedState = await importResource(resource, input, opt);
-            const newResourceState = await updateResource(
-              resource,
-              appToken,
-              importedState.output,
-              input,
-              opt
-            );
-            resourceState = stackState.resources[resource.$.urn] = {
-              ...importedState,
-              ...newResourceState,
+        if (isDataSource(node)) {
+          if (!nodeState) {
+            const dataSourceState = await getDataSource(node.$, input, opt);
+            nodeState = stackState.nodes[node.$.urn] = {
+              ...dataSourceState,
               ...partialNewResourceState
             };
+          } else if (!compareState(nodeState.input, input)) {
+            const dataSourceState = await getDataSource(node.$, input, opt);
+            Object.assign(nodeState, {
+              ...dataSourceState,
+              ...partialNewResourceState
+            });
           } else {
-            const newResourceState = await createResource(resource, appToken, input, opt);
-            resourceState = stackState.resources[resource.$.urn] = {
+            Object.assign(nodeState, partialNewResourceState);
+          }
+        }
+        if (isResource(node)) {
+          if (!nodeState) {
+            if (node.$.config?.import) {
+              const importedState = await importResource(node, input, opt);
+              const newResourceState = await updateResource(
+                node,
+                appToken,
+                importedState.output,
+                input,
+                opt
+              );
+              nodeState = stackState.nodes[node.$.urn] = {
+                ...importedState,
+                ...newResourceState,
+                ...partialNewResourceState
+              };
+            } else {
+              const newResourceState = await createResource(node, appToken, input, opt);
+              nodeState = stackState.nodes[node.$.urn] = {
+                ...newResourceState,
+                ...partialNewResourceState
+              };
+            }
+          } else if (
+            // --------------------------------------------------
+            // Check if any state has changed
+            !compareState(nodeState.input, input)
+          ) {
+            const newResourceState = await updateResource(node, appToken, nodeState.output, input, opt);
+            Object.assign(nodeState, {
+              input,
               ...newResourceState,
               ...partialNewResourceState
-            };
+            });
+          } else {
+            Object.assign(nodeState, partialNewResourceState);
           }
-        } else if (
-          // --------------------------------------------------
-          // Check if any state has changed
-          !compareState(resourceState.input, input)
-        ) {
-          const newResourceState = await updateResource(resource, appToken, resourceState.output, input, opt);
-          Object.assign(resourceState, {
-            input,
-            ...newResourceState,
-            ...partialNewResourceState
-          });
-        } else {
-          Object.assign(resourceState, partialNewResourceState);
         }
-        if (resourceState.output) {
-          resource.$.resolve(resourceState.output);
+        if (nodeState?.output) {
+          node.$.resolve(nodeState.output);
         }
       });
     });
@@ -840,11 +799,14 @@ var deployStackResources = async (stackState, resources, appToken, queue, opt) =
 // src/formation/workspace/procedure/deploy-app.ts
 var debug8 = createDebugger("Deploy App");
 var deployApp = async (app, opt) => {
-  const appState = await opt.backend.state.get(app.urn) ?? {
-    name: app.name,
-    stacks: {}
-  };
   debug8(app.name, "start");
+  const latestState = await opt.backend.state.get(app.urn);
+  const appState = migrateAppState(
+    latestState ?? {
+      name: app.name,
+      stacks: {}
+    }
+  );
   const releaseOnExit = onExit(async () => {
     await opt.backend.state.update(app.urn, appState);
   });
@@ -864,11 +826,11 @@ var deployApp = async (app, opt) => {
     graph.add(stack.urn, [], async () => {
       const stackState = appState.stacks[stack.urn];
       if (stackState) {
-        for (const resource of stack.resources) {
-          const resourceState = stackState.resources[resource.$.urn];
-          if (resourceState && resourceState.output) {
-            debug8("hydrate", resource.$.urn);
-            resource.$.resolve(resourceState.output);
+        for (const node of stack.nodes) {
+          const nodeState = stackState.nodes[node.$.urn];
+          if (nodeState && nodeState.output) {
+            debug8("hydrate", node.$.urn);
+            node.$.resolve(nodeState.output);
           }
         }
       }
@@ -879,16 +841,16 @@ var deployApp = async (app, opt) => {
       stack.urn,
       [...stack.dependencies].map((dep) => dep.urn),
       async () => {
-        const resources = stack.resources;
+        const nodes = stack.nodes;
         const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
           name: stack.name,
           dependencies: [],
-          resources: {}
+          nodes: {}
         };
         const deleteResourcesBefore = {};
         const deleteResourcesAfter = {};
-        for (const [urn, state] of entries(stackState.resources)) {
-          const resource = resources.find((r) => r.$.urn === urn);
+        for (const [urn, state] of entries(stackState.nodes)) {
+          const resource = nodes.find((r) => r.$.urn === urn);
           if (!resource) {
             if (state.lifecycle?.deleteAfterCreate) {
               deleteResourcesAfter[urn] = state;
@@ -898,18 +860,18 @@ var deployApp = async (app, opt) => {
           }
         }
         if (Object.keys(deleteResourcesBefore).length > 0) {
-          await deleteStackResources(stackState, deleteResourcesBefore, appState.idempotentToken, queue, opt);
+          await deleteStackNodes(stackState, deleteResourcesBefore, appState.idempotentToken, queue, opt);
         }
-        await deployStackResources(
+        await deployStackNodes(
           stackState,
-          resources,
+          nodes,
           // stack.dataSources,
           appState.idempotentToken,
           queue,
           opt
         );
         if (Object.keys(deleteResourcesAfter).length > 0) {
-          await deleteStackResources(stackState, deleteResourcesAfter, appState.idempotentToken, queue, opt);
+          await deleteStackNodes(stackState, deleteResourcesAfter, appState.idempotentToken, queue, opt);
         }
         stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
       }
@@ -922,7 +884,7 @@ var deployApp = async (app, opt) => {
     const filtered = opt.filters ? opt.filters.find((filter) => filter === stackState.name) : true;
     if (!found && filtered) {
       graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-        await deleteStackResources(stackState, stackState.resources, appState.idempotentToken, queue, opt);
+        await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken, queue, opt);
         delete appState.stacks[urn];
       });
     }
@@ -945,10 +907,10 @@ var hydrate = async (app, opt) => {
     for (const stack of app.stacks) {
       const stackState = appState.stacks[stack.urn];
       if (stackState) {
-        for (const resource of stack.resources) {
-          const resourceState = stackState.resources[resource.$.urn];
+        for (const node of stack.nodes) {
+          const resourceState = stackState.nodes[node.$.urn];
           if (resourceState && resourceState.output) {
-            resource.$.resolve(resourceState.output);
+            node.$.resolve(resourceState.output);
           }
         }
       }
@@ -2007,10 +1969,10 @@ var baseUrl = "https://registry.terraform.io/v1/providers";
 var getProviderVersions = async (org, type) => {
   const resp = await fetch(`${baseUrl}/${org}/${type}/versions`);
   const data = await resp.json();
-  const versions = data.versions;
+  const versions2 = data.versions;
   const os = platform();
   const ar = arch();
-  const supported = versions.filter((v) => {
+  const supported = versions2.filter((v) => {
     return !!v.platforms.find((p) => p.os === os && p.arch === ar);
   });
   const sorted = supported.sort((a, b) => compare(a.version, b.version));
@@ -2019,7 +1981,7 @@ var getProviderVersions = async (org, type) => {
     throw new Error("Version is unsupported for your platform.");
   }
   return {
-    versions,
+    versions: versions2,
     supported,
     latest: latest.version
   };
@@ -2905,6 +2867,72 @@ var Terraform = class {
 
 // src/terraform/resource.ts
 import { snakeCase as snakeCase2 } from "change-case";
+
+// src/formation/urn.ts
+var createUrn = (tag, type, name, parentUrn) => {
+  return `${parentUrn ? parentUrn : "urn"}:${tag}:${type}:{${name}}`;
+};
+
+// src/formation/meta.ts
+var createMeta = (tag, provider, parent, type, logicalId, input, config) => {
+  const urn = createUrn(tag, type, logicalId, parent.urn);
+  const stack = findParentStack(parent);
+  const dependencies = /* @__PURE__ */ new Set();
+  let output2;
+  const linkMetaDep = (dep) => {
+    if (dep.stack.urn === stack.urn) {
+      if (dep.urn === urn) {
+        throw new Error("You can't depend on yourself");
+      }
+      dependencies.add(dep.urn);
+    } else {
+      stack.dependsOn(dep.stack);
+    }
+  };
+  for (const dep of findInputDeps(input)) {
+    linkMetaDep(dep);
+  }
+  for (const dep of config?.dependsOn ?? []) {
+    if (dep.$.stack.urn === stack.urn) {
+      dependencies.add(dep.$.urn);
+    } else {
+      stack.dependsOn(dep.$.stack);
+    }
+  }
+  return {
+    tag,
+    urn,
+    logicalId,
+    type,
+    stack,
+    provider,
+    input,
+    config,
+    dependencies,
+    // attach(value) {
+    // 	resource = value
+    // },
+    // dependOn(...resources: Resource[]) {},
+    attachDependencies(props) {
+      for (const dep of findInputDeps(props)) {
+        linkMetaDep(dep);
+      }
+    },
+    resolve(data) {
+      output2 = data;
+    },
+    output(cb) {
+      return new Output(/* @__PURE__ */ new Set([this]), (resolve2) => {
+        if (!output2) {
+          throw new Error(`Unresolved output for ${tag}: ${urn}`);
+        }
+        resolve2(cb(output2));
+      });
+    }
+  };
+};
+
+// src/terraform/resource.ts
 var createNamespaceProxy = (cb, target = {}) => {
   const cache = /* @__PURE__ */ new Map();
   return new Proxy(target, {
@@ -2966,7 +2994,7 @@ var $ = createRecursiveProxy({
   resource: (ns, parent, id, input, config) => {
     const type = snakeCase2(ns.join("_"));
     const provider = `terraform:${ns[0]}:${config?.provider ?? "default"}`;
-    const $2 = createResourceMeta(provider, parent, type, id, input, config);
+    const $2 = createMeta("resource", provider, parent, type, id, input, config);
     const resource = createNamespaceProxy(
       (key) => {
         if (key === "$") {
@@ -2995,10 +3023,11 @@ var $ = createRecursiveProxy({
   // 	parent.add(resource)
   // 	return resource
   // },
-  dataSource: (ns, input, config) => {
+  // (ns: string[], parent: Group, id: string, input: State, config?: ResourceConfig)
+  dataSource: (ns, parent, id, input, config) => {
     const type = snakeCase2(ns.join("_"));
     const provider = `terraform:${ns[0]}:${config?.provider ?? "default"}`;
-    const $2 = createDataSourceMeta(provider, type, input);
+    const $2 = createMeta("data", provider, parent, type, id, input, config);
     const dataSource = createNamespaceProxy(
       (key) => {
         if (key === "$") {
@@ -3008,6 +3037,7 @@ var $ = createRecursiveProxy({
       },
       { $: $2 }
     );
+    parent.add(dataSource);
     return dataSource;
   }
 });
@@ -3031,9 +3061,7 @@ export {
   StackError,
   Terraform,
   WorkSpace,
-  createDataSourceMeta,
   createDebugger,
-  createResourceMeta,
   deferredOutput,
   enableDebug,
   findInputDeps,

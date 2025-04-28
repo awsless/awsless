@@ -195,8 +195,9 @@ const rolePolicy = new $.aws.iam.RolePolicy(stack, 'policy', {
 // })
 
 try {
-	// await workspace.deploy(app)
-	await workspace.deploy(app, { filters: ['stack'] })
+	await workspace.deploy(app)
+	// await workspace.deploy(app, { filters: ['stack'] })
+	// await workspace.delete(app)
 } catch (error) {
 	console.log(error)
 	// throw error;

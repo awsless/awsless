@@ -1,5 +1,7 @@
-import { isResource } from './meta.ts'
-import { type Resource, type URN } from './resource.ts'
+import { DataSource } from './data-source.ts'
+import { isDataSource, isNode, isResource, type Node } from './node.ts'
+import { Resource } from './resource.ts'
+import { URN } from './urn.ts'
 
 // const getChildUrn = (child: Group | Resource | DataSource): URN => {
 // 	if (child instanceof Group) {
@@ -10,7 +12,7 @@ import { type Resource, type URN } from './resource.ts'
 // }
 
 export class Group {
-	protected children: Array<Group | Resource> = []
+	protected children: Array<Group | Node> = []
 
 	constructor(
 		readonly parent: Group | undefined,
@@ -25,14 +27,14 @@ export class Group {
 		return `${urn}:${this.type}:{${this.name}}`
 	}
 
-	protected addChild(child: Group | Resource) {
-		if (isResource(child)) {
+	protected addChild(child: Group | Node) {
+		if (isNode(child)) {
 			const duplicate = this.children
 				.filter(c => isResource(c))
 				.find(c => c.$.type === child.$.type && c.$.logicalId === child.$.logicalId)
 
 			if (duplicate) {
-				throw new Error(`Duplicate resource found: ${child.$.type}:${child.$.logicalId}`)
+				throw new Error(`Duplicate node found: ${child.$.type}:${child.$.logicalId}`)
 			}
 		}
 
@@ -49,20 +51,20 @@ export class Group {
 		this.children.push(child)
 	}
 
-	add(...children: Array<Group | Resource>) {
+	add(...children: Array<Group | Node>) {
 		for (const child of children) {
 			this.addChild(child)
 		}
 	}
 
-	get resources(): Resource[] {
+	get nodes(): Node[] {
 		return this.children
 			.map(child => {
 				if (child instanceof Group) {
-					return child.resources
+					return child.nodes
 				}
 
-				if (isResource(child)) {
+				if (isNode(child)) {
 					return child
 				}
 
@@ -72,20 +74,11 @@ export class Group {
 			.filter(child => !!child)
 	}
 
-	// get dataSources(): DataSource[] {
-	// 	return this.children
-	// 		.map(child => {
-	// 			if (child instanceof Group) {
-	// 				return child.dataSources
-	// 			}
+	get resources(): Resource[] {
+		return this.nodes.filter(node => isResource(node))
+	}
 
-	// 			if (isDataSource(child)) {
-	// 				return child
-	// 			}
-
-	// 			return
-	// 		})
-	// 		.flat()
-	// 		.filter(child => !!child)
-	// }
+	get dataSources(): DataSource[] {
+		return this.nodes.filter(node => isDataSource(node))
+	}
 }

@@ -6,20 +6,17 @@
 	// "protect": true,
 
 	"defaults": {
-		"alerts": {
-			"debug": "info@jacksclub.io"
-		},
-
-		"domains": {
-			"main": {
-				"domain": "getblockalert.com"
-			}
-		},
-
+		// "alerts": {
+		// 	"debug": "info@jacksclub.io"
+		// },
+		// "domains": {
+		// 	"main": {
+		// 		"domain": "getblockalert.com"
+		// 	}
+		// },
 		"auth": {
 			"users": {}
 		},
-
 		"pubsub": {
 			"admin": {
 				// "domain": "main",
@@ -31,36 +28,32 @@
 				// }
 			}
 		},
-
-		// "instance": {
-		// 	// "connect": true
-		// },
-
+		// // "instance": {
+		// // 	// "connect": true
+		// // },
+		"onFailure": "./on-log.ts",
 		"onLog": {
 			"consumer": "./on-log.ts",
 			"filter": ["info", "debug", "trace", "error", "fatal"]
-		},
-
-		"rpc": {
-			"api": {
-				"domain": "main",
-				"subDomain": "api",
-				"auth": "./rpc-auth.ts"
-			}
-		},
-
-		"rest": {
-			"public": {
-				"domain": "main",
-				"subDomain": "rest"
-			}
-		},
-
-		"function": {
-			"log": {
-				"retention": "1 days",
-				"level": "info"
-			}
 		}
+		// "rpc": {
+		// 	"api": {
+		// 		"domain": "main",
+		// 		"subDomain": "api",
+		// 		"auth": "./rpc-auth.ts"
+		// 	}
+		// },
+		// "rest": {
+		// 	"public": {
+		// 		"domain": "main",
+		// 		"subDomain": "rest"
+		// 	}
+		// },
+		// "function": {
+		// 	"log": {
+		// 		"retention": "1 days",
+		// 		"level": "info"
+		// 	}
+		// }
 	}
 }

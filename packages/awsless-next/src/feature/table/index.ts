@@ -156,7 +156,7 @@ export const tableFeature = defineFeature({
 						// maximumRetryAttempts: props.stream.
 						// retryAttempts: props.stream.consumer.retryAttempts ?? -1,
 						parallelizationFactor: 1,
-						startingPosition: 'latest',
+						startingPosition: 'LATEST',
 						destinationConfig: {
 							onFailure: onFailure ? { destinationArn: onFailure } : undefined,
 						},

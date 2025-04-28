@@ -1,13 +1,14 @@
-import { DataSourceMeta } from './data-source.ts'
+// import { DataSourceMeta } from './data-source.ts'
 import { Future } from './future.ts'
 import { Input, UnwrapInputArray } from './input.ts'
-import { ResourceMeta } from './resource.ts'
+import { Meta } from './meta.ts'
+// import { ResourceMeta } from './resource.ts'
 
 export type OptionalOutput<T = unknown> = Output<T | undefined>
 
 export class Output<T = unknown> extends Future<T> {
 	constructor(
-		readonly dependencies: Set<ResourceMeta | DataSourceMeta>,
+		readonly dependencies: Set<Meta>,
 		callback: (resolve: (data: T) => void, reject: (error: unknown) => void) => void
 	) {
 		super(callback)

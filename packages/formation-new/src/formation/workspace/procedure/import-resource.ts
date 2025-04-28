@@ -1,8 +1,9 @@
 import { createDebugger } from '../../debug.ts'
+import { State } from '../../meta.ts'
 import { findProvider } from '../../provider.ts'
-import { Resource, State } from '../../resource.ts'
+import { Resource } from '../../resource.ts'
 import { ResourceError } from '../error.ts'
-import { ResourceState } from '../state.ts'
+import { NodeState } from '../state.ts'
 import { WorkSpaceOptions } from '../workspace.ts'
 
 const debug = createDebugger('Import')
@@ -11,7 +12,7 @@ export const importResource = async (
 	resource: Resource,
 	input: State,
 	opt: WorkSpaceOptions
-): Promise<Omit<ResourceState, 'dependencies' | 'lifecycle'>> => {
+): Promise<Omit<NodeState, 'dependencies' | 'lifecycle'>> => {
 	const provider = findProvider(opt.providers, resource.$.provider)
 
 	debug(resource.$.type)
@@ -32,6 +33,7 @@ export const importResource = async (
 	}
 
 	return {
+		tag: 'resource',
 		version: result.version,
 		type: resource.$.type,
 		provider: resource.$.provider,

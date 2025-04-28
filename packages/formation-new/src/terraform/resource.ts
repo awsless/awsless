@@ -1,7 +1,9 @@
 import { snakeCase } from 'change-case'
-import { createDataSourceMeta, DataSource, DataSourceConfig } from '../formation/data-source.ts'
+// import { DataSource } from '../formation/data-source.ts'
 import { Group } from '../formation/group.ts'
-import { createResourceMeta, Resource, ResourceConfig, State } from '../formation/resource.ts'
+import { Config, createMeta, State } from '../formation/meta.ts'
+import { Node } from '../formation/node.ts'
+import { Resource, ResourceConfig } from '../formation/resource.ts'
 
 declare global {
 	export namespace $terraform {}
@@ -95,7 +97,7 @@ export const $ = createRecursiveProxy({
 	resource: (ns: string[], parent: Group, id: string, input: State, config?: ResourceConfig) => {
 		const type = snakeCase(ns.join('_'))
 		const provider = `terraform:${ns[0]}:${config?.provider ?? 'default'}`
-		const $ = createResourceMeta(provider, parent, type, id, input, config)
+		const $ = createMeta('resource', provider, parent, type, id, input, config)
 		const resource = createNamespaceProxy(
 			key => {
 				if (key === '$') {
@@ -132,11 +134,12 @@ export const $ = createRecursiveProxy({
 
 	// 	return resource
 	// },
-	dataSource: (ns: string[], input: State, config?: DataSourceConfig) => {
+	// (ns: string[], parent: Group, id: string, input: State, config?: ResourceConfig)
+	dataSource: (ns: string[], parent: Group, id: string, input: State, config?: Config) => {
 		const type = snakeCase(ns.join('_'))
 		const provider = `terraform:${ns[0]}:${config?.provider ?? 'default'}`
 
-		const $ = createDataSourceMeta(provider, type, input)
+		const $ = createMeta('data', provider, parent, type, id, input, config)
 		const dataSource = createNamespaceProxy(
 			key => {
 				if (key === '$') {
@@ -146,9 +149,9 @@ export const $ = createRecursiveProxy({
 				return $.output(data => data[key])
 			},
 			{ $ }
-		) as DataSource
+		) as Node
 
-		// $.attach(dataSource)
+		parent.add(dataSource)
 
 		return dataSource
 	},

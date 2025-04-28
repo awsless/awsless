@@ -4,6 +4,7 @@ import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { playSuccessSound } from '../../util/sound.js'
 import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
 import { debug } from '../debug.js'
 import { layout } from '../ui/complex/layout.js'
@@ -73,13 +74,15 @@ export const del = (program: Command) => {
 
 				await task('Deleting the stacks to AWS', async update => {
 					await workspace.delete(app, {
-						filters,
+						filters: stackNames,
 					})
 
 					await pullRemoteState(app, state)
 
 					update('Done deleting the stacks to AWS.')
 				})
+
+				playSuccessSound()
 
 				return 'Your app has been deleted!'
 			})

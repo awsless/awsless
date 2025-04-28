@@ -1,7 +1,7 @@
 import { mkdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { lock } from 'proper-lockfile'
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { LockBackend } from '../lock.ts'
 
 export class FileLockBackend implements LockBackend {

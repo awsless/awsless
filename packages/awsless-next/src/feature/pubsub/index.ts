@@ -38,7 +38,7 @@ export const pubsubFeature = defineFeature({
 
 			ctx.bind(`PUBSUB_${constantCase(id)}_AUTHORIZER`, name)
 
-			const endpoint = $.aws.iot.getEndpoint({
+			const endpoint = $.aws.iot.getEndpoint(group, 'endpoint', {
 				endpointType: 'iot:Data-ATS',
 			})
 

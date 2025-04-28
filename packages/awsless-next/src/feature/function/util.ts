@@ -16,6 +16,7 @@ import { toMebibytes } from '@awsless/size'
 import { pascalCase } from 'change-case'
 // import { hashElement } from 'folder-hash'
 // import { FileError } from '../../error.js'
+import { shortId } from '../../util/id.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
@@ -57,8 +58,7 @@ export const createLambdaFunction = (
 			appName: ctx.app.name,
 			stackName: ctx.stack.name,
 			resourceType: ns,
-			resourceName: id,
-			postfix: ctx.appId,
+			resourceName: shortId(`${id}:${ctx.appId}`),
 		})
 	} else {
 		name = formatGlobalResourceName({
@@ -70,8 +70,7 @@ export const createLambdaFunction = (
 		roleName = formatGlobalResourceName({
 			appName: ctx.app.name,
 			resourceType: ns,
-			resourceName: id,
-			postfix: ctx.appId,
+			resourceName: shortId(`${id}:${ctx.appId}`),
 		})
 	}
 
@@ -212,6 +211,7 @@ export const createLambdaFunction = (
 
 	const role = new $.aws.iam.Role(group, 'role', {
 		name: roleName,
+		description: name,
 		assumeRolePolicy: JSON.stringify({
 			Version: '2012-10-17',
 			Statement: [
@@ -249,7 +249,7 @@ export const createLambdaFunction = (
 		role: role.name,
 		name: 'lambda-policy',
 		policy: new Future(async resolve => {
-			const list = (await resolveInputs(statements)) as Permission[]
+			const list = await resolveInputs(statements)
 
 			resolve(
 				JSON.stringify({

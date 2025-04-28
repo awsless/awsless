@@ -108,7 +108,7 @@ export const createPrebuildLambdaFunction = (
 		role: role.name,
 		name: 'lambda-policy',
 		policy: new Future(async resolve => {
-			const list = (await resolveInputs(statements)) as Permission[]
+			const list = await resolveInputs(statements)
 
 			resolve(
 				JSON.stringify({

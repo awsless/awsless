@@ -1,9 +1,7 @@
 // Formation Core
 export { App } from './formation/app.ts'
-export { Stack } from './formation/stack.ts'
 export { Group } from './formation/group.ts'
-export { createResourceMeta } from './formation/resource.ts'
-export { createDataSourceMeta } from './formation/data-source.ts'
+export { Stack } from './formation/stack.ts'
 export { Output, output, deferredOutput } from './formation/output.ts'
 export { findInputDeps, resolveInputs } from './formation/input.ts'
 export { Future } from './formation/future.ts'
@@ -20,8 +18,9 @@ export * from './formation/backend/aws/s3-state.ts'
 export * from './formation/backend/aws/dynamodb-lock.ts'
 
 // types
-export type { URN, State, Resource, ResourceMeta, ResourceClass, ResourceConfig } from './formation/resource.ts'
-export type { DataSource, DataSourceMeta, DataSourceFunction, DataSourceConfig } from './formation/data-source.ts'
+export type { URN } from './formation/urn.ts'
+export type { Resource, ResourceMeta, ResourceClass, ResourceConfig } from './formation/resource.ts'
+export type { DataSource, DataSourceMeta, DataSourceFunction } from './formation/data-source.ts'
 export type { Provider, CreateProps, UpdateProps, DeleteProps, GetDataProps, GetProps } from './formation/provider.ts'
 export type { Input, OptionalInput } from './formation/input.ts'
 export type { OptionalOutput } from './formation/output.ts'

@@ -4,6 +4,7 @@ import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { playSuccessSound } from '../../util/sound.js'
 import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
 import { debug } from '../debug.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
@@ -103,13 +104,15 @@ export const deploy = (program: Command) => {
 
 				await task('Deploying the stacks to AWS', async update => {
 					await workspace.deploy(app, {
-						filters,
+						filters: stackNames,
 					})
 
 					await pullRemoteState(app, state)
 
 					update('Done deploying the stacks to AWS.')
 				})
+
+				playSuccessSound()
 
 				return 'Your app is ready!'
 			})

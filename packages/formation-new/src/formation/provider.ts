@@ -1,73 +1,73 @@
-import { State } from "./resource.ts";
+import { State } from './meta.ts'
 
 export type CreateProps<T = State> = {
-  type: string;
-  state: T;
+	type: string
+	state: T
 
-  idempotantToken?: string;
-};
+	idempotantToken?: string
+}
 
 export type UpdateProps<T = State> = {
-  // id?: string;
-  type: string;
-  priorState: T;
-  proposedState: T;
+	// id?: string;
+	type: string
+	priorState: T
+	proposedState: T
 
-  idempotantToken?: string;
-};
+	idempotantToken?: string
+}
 
 export type DeleteProps<T = State> = {
-  // id?: string;
-  type: string;
-  state: T;
+	// id?: string;
+	type: string
+	state: T
 
-  idempotantToken?: string;
-};
+	idempotantToken?: string
+}
 
 export type GetProps<T = State> = {
-  // id?: string;
-  type: string;
-  state: T;
-};
+	// id?: string;
+	type: string
+	state: T
+}
 
 export type GetDataProps<T = State> = {
-  type: string;
-  state: T;
-};
+	type: string
+	state: T
+}
 
 export interface Provider {
-  ownResource(id: string): boolean;
+	ownResource(id: string): boolean
 
-  getResource(props: GetProps): Promise<{
-    version: number;
-    state: State;
-  }>;
+	getResource(props: GetProps): Promise<{
+		version: number
+		state: State
+	}>
 
-  createResource(props: CreateProps): Promise<{
-    version: number;
-    state: State;
-  }>;
+	createResource(props: CreateProps): Promise<{
+		version: number
+		state: State
+	}>
 
-  updateResource(props: UpdateProps): Promise<{
-    version: number;
-    state: State;
-  }>;
+	updateResource(props: UpdateProps): Promise<{
+		version: number
+		state: State
+	}>
 
-  deleteResource(props: DeleteProps): Promise<void>;
+	deleteResource(props: DeleteProps): Promise<void>
 
-  getData?(props: GetDataProps): Promise<{
-    state: State;
-  }>;
+	getData?(props: GetDataProps): Promise<{
+		state: State
+	}>
 
-  destroy?(): Promise<void>;
+	destroy?(): Promise<void>
 }
 
 export const findProvider = (providers: Provider[], id: string) => {
-  for (const provider of providers) {
-    if (provider.ownResource(id)) {
-      return provider;
-    }
-  }
+	for (const provider of providers) {
+		if (provider.ownResource(id)) {
+			return provider
+		}
+	}
 
-  throw new TypeError(`Can't find the "${id}" provider.`);
-};
+	throw new TypeError(`Can't find the "${id}" provider.`)
+}

@@ -1,4 +1,4 @@
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { AppState } from '../../workspace/state.ts'
 import { StateBackend } from '../state.ts'
 

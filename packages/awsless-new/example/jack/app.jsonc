@@ -21,20 +21,6 @@
 		// 		"subDomain": "elb"
 		// 	}
 		// },
-		// "graphql": {
-		// 	"api": {
-		// 		"resolver": "./graphql/resolver.ts"
-		// 		// "auth": {
-		// 		// 	"authorizer": "./auth.ts"
-		// 		// }
-		// 		// "domain": "main",
-		// 		// "subDomain": "api",
-		// 		// "auth": "users"
-		// 	}
-		// },
-		// "rest": {
-		// 	"api": {}
-		// },
 		// "pubsub": {
 		// 	"admin": {
 		// 		// "domain": "main",
@@ -51,19 +37,6 @@
 		// "instance": {
 		// 	// "connect": true
 		// },
-		// "onLog": {
-		// 	"consumer": "./on-log.ts",
-		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
-		// },
-		"onLog": {
-			"consumer": "./on-log.ts",
-			// "consumer": {
-			// 	"code": {
-			// 		"file": "./on-log.ts"
-			// 	}
-			// },
-			"filter": ["info", "debug", "trace", "error", "fatal"]
-		},
 		"rpc": {
 			"api": {
 				// "auth": "./rpc-auth.ts"
@@ -74,6 +47,16 @@
 				"retention": "1 days",
 				"level": "info"
 			}
+		},
+		"onFailure": "./on-log.ts",
+		"onLog": {
+			"consumer": "./on-log.ts",
+			// "consumer": {
+			// 	"code": {
+			// 		"file": "./on-log.ts"
+			// 	}
+			// },
+			"filter": ["info", "debug", "trace", "error", "fatal"]
 		}
 	}
 }

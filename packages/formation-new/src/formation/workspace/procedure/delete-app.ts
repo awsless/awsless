@@ -3,15 +3,21 @@ import { concurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
 import { AppError } from '../error.ts'
+import { migrateAppState } from '../state/migrate.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
-import { deleteStackResources } from './delete-stack.ts'
+import { deleteStackNodes } from './delete-stack.ts'
 
 export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptions) => {
-	const appState = await opt.backend.state.get(app.urn)
+	const latestState = await opt.backend.state.get(app.urn)
 
-	if (!appState) {
+	if (!latestState) {
 		throw new AppError(app.name, [], `App already deleted: ${app.name}`)
 	}
+
+	// -------------------------------------------------------
+	// Migrate the state file to the latest version
+
+	const appState = migrateAppState(latestState)
 
 	// -------------------------------------------------------
 	// Set the idempotent token when no token exists.
@@ -38,7 +44,7 @@ export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 
 	for (const [urn, stackState] of stacks) {
 		graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-			await deleteStackResources(stackState, stackState.resources, appState.idempotentToken!, queue, opt)
+			await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken!, queue, opt)
 			delete appState.stacks[urn]
 		})
 	}
@@ -56,9 +62,6 @@ export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 	await opt.backend.state.update(app.urn, appState)
 
 	// -------------------------------------------------------
-
-	// const errors = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason)
-
 	if (errors.length > 0) {
 		throw new AppError(app.name, [...new Set(errors)], 'Deleting app failed.')
 	}

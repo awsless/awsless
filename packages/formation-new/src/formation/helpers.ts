@@ -20,4 +20,4 @@ export const hash = (path: string, algo: string = 'sha256') => {
 	return file(path).pipe(file => createHash(algo).update(file).digest('hex'))
 }
 
-export const archive = () => {}
+// export const archive = () => {}

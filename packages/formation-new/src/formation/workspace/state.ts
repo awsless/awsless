@@ -1,9 +1,10 @@
 import { UUID } from 'node:crypto'
-import { State, URN } from '../resource.ts'
+import { State } from '../meta.ts'
+import { URN } from '../urn.ts'
 
 export type AppState = {
 	name: string
-	// version: 1;
+	version?: number
 	idempotentToken?: UUID
 	stacks: Record<URN, StackState>
 }
@@ -11,11 +12,13 @@ export type AppState = {
 export type StackState = {
 	name: string
 	dependencies: URN[]
-	resources: Record<URN, ResourceState>
+	nodes: Record<URN, NodeState>
+	// resources: Record<URN, ResourceState>
 }
 
-export type ResourceState = {
+export type NodeState = {
 	// id?: string;
+	tag: 'resource' | 'data'
 	type: string
 	version?: number
 	provider: string

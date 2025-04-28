@@ -1,7 +1,8 @@
 import { UUID } from 'node:crypto'
 import { createDebugger } from '../../debug.ts'
 import { resolveInputs } from '../../input.ts'
-import { Resource, URN } from '../../resource.ts'
+import { isDataSource, isResource, Node } from '../../node.ts'
+import { URN } from '../../urn.ts'
 import { ConcurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph } from '../dependency.ts'
 import { ResourceError, StackError } from '../error.ts'
@@ -14,9 +15,10 @@ import { updateResource } from './update-resource.ts'
 
 const debug = createDebugger('Deploy Stack')
 
-export const deployStackResources = async (
+export const deployStackNodes = async (
 	stackState: StackState,
-	resources: Resource[],
+	nodes: Node[],
+	// resources: Resource[],
 	// dataSources: DataSource[],
 	appToken: UUID,
 	queue: ConcurrencyQueue,
@@ -38,139 +40,125 @@ export const deployStackResources = async (
 	const graph = new DependencyGraph()
 
 	// -------------------------------------------------------------------
-	// Get data source...
+	// Deploy resources & data-sources...
 
-	// const dataSources = new Set<DataSourceMeta>([])
-
-	for (const resource of resources) {
-		for (const dataSource of resource.$.dataSourceMetas) {
-			// dataSources.add(dataSource)
-
-			graph.add(dataSource.urn, [...dataSource.dependencies], () => {
-				return queue(async () => {
-					const input = await resolveInputs(dataSource.input)
-					const output = await getDataSource(dataSource, input, opt)
-					dataSource.resolve(output)
-				})
-			})
-		}
-	}
-
-	// for (const dataSource of dataSources) {
-	// 	dataSource.
-	// 	graph.add(dataSource.$.urn, [], () => {
-	// 		return queue(async () => {
-	// 			const output = await getDataSource(dataSource, opt)
-
-	// 			dataSource.$.resolve(output)
-	// 		})
-	// 	})
-	// }
-
-	// for (const dataSource of dataSources) {
-	// 	graph.add(dataSource.$.urn, [], () => {
-	// 		return queue(async () => {
-	// 			const output = await getDataSource(dataSource, opt)
-
-	// 			dataSource.$.resolve(output)
-	// 		})
-	// 	})
-	// }
-
-	// -------------------------------------------------------------------
-	// Deploy resources...
-
-	for (const resource of resources) {
-		const dependencies: URN[] = [
-			...resource.$.dependencies,
-			...[...resource.$.dataSourceMetas].map(d => d.urn),
-			// ...(resource.$.config?.dependsOn?.map(r => r.$.urn) ?? []),
-		]
+	for (const node of nodes) {
+		const dependencies: URN[] = [...node.$.dependencies]
 
 		const partialNewResourceState = {
 			dependencies,
-			lifecycle: {
-				deleteAfterCreate: resource.$.config?.deleteAfterCreate,
-				retainOnDelete: resource.$.config?.retainOnDelete,
-			},
+			lifecycle: isResource(node)
+				? {
+						deleteAfterCreate: node.$.config?.deleteAfterCreate,
+						retainOnDelete: node.$.config?.retainOnDelete,
+					}
+				: undefined,
 		}
 
-		graph.add(resource.$.urn, dependencies, () => {
+		graph.add(node.$.urn, dependencies, () => {
 			return queue(async () => {
-				let resourceState = stackState.resources[resource.$.urn]
+				let nodeState = stackState.nodes[node.$.urn]
 
 				let input
 				try {
-					input = await resolveInputs(resource.$.input)
+					input = await resolveInputs(node.$.input)
 				} catch (error) {
 					throw ResourceError.wrap(
 						//
-						resource.$.urn,
-						resource.$.type,
+						node.$.urn,
+						node.$.type,
 						'resolve',
 						error
 					)
 				}
 
 				// --------------------------------------------------
-				// New resource
+				// Data Source
 				// --------------------------------------------------
 
-				if (!resourceState) {
-					// --------------------------------------------------
-					// Import resource if needed
-
-					if (resource.$.config?.import) {
-						const importedState = await importResource(resource, input, opt)
-						const newResourceState = await updateResource(
-							resource,
-							appToken,
-							importedState.output!,
-							input,
-							opt
-						)
-
-						resourceState = stackState.resources[resource.$.urn] = {
-							...importedState,
-							...newResourceState,
+				if (isDataSource(node)) {
+					if (!nodeState) {
+						// NEW
+						const dataSourceState = await getDataSource(node.$, input, opt)
+						nodeState = stackState.nodes[node.$.urn] = {
+							...dataSourceState,
 							...partialNewResourceState,
 						}
+					} else if (!compareState(nodeState.input, input)) {
+						// UPDATE
+						const dataSourceState = await getDataSource(node.$, input, opt)
+						Object.assign(nodeState, {
+							...dataSourceState,
+							...partialNewResourceState,
+						})
 					} else {
-						// --------------------------------------------------
-						// Create resource
-
-						const newResourceState = await createResource(resource, appToken, input, opt)
-
-						resourceState = stackState.resources[resource.$.urn] = {
-							...newResourceState,
-							...partialNewResourceState,
-						}
+						Object.assign(nodeState, partialNewResourceState)
 					}
-				} else if (
-					// --------------------------------------------------
-					// Check if any state has changed
-					!compareState(resourceState.input, input)
-				) {
-					// --------------------------------------------------
-					// Update resource
-					// --------------------------------------------------
-
-					const newResourceState = await updateResource(resource, appToken, resourceState.output!, input, opt)
-
-					Object.assign(resourceState, {
-						input,
-						...newResourceState,
-						...partialNewResourceState,
-					})
-				} else {
-					Object.assign(resourceState, partialNewResourceState)
 				}
 
 				// --------------------------------------------------
-				// Hydrate resource
+				// Resource
+				// --------------------------------------------------
 
-				if (resourceState.output) {
-					resource.$.resolve(resourceState.output)
+				if (isResource(node)) {
+					// --------------------------------------------------
+					// New resource
+
+					if (!nodeState) {
+						// --------------------------------------------------
+						// Import resource if needed
+
+						if (node.$.config?.import) {
+							const importedState = await importResource(node, input, opt)
+							const newResourceState = await updateResource(
+								node,
+								appToken,
+								importedState.output!,
+								input,
+								opt
+							)
+
+							nodeState = stackState.nodes[node.$.urn] = {
+								...importedState,
+								...newResourceState,
+								...partialNewResourceState,
+							}
+						} else {
+							// --------------------------------------------------
+							// Create resource
+
+							const newResourceState = await createResource(node, appToken, input, opt)
+
+							nodeState = stackState.nodes[node.$.urn] = {
+								...newResourceState,
+								...partialNewResourceState,
+							}
+						}
+					} else if (
+						// --------------------------------------------------
+						// Check if any state has changed
+						!compareState(nodeState.input, input)
+					) {
+						// --------------------------------------------------
+						// Update resource
+
+						const newResourceState = await updateResource(node, appToken, nodeState.output!, input, opt)
+
+						Object.assign(nodeState, {
+							input,
+							...newResourceState,
+							...partialNewResourceState,
+						})
+					} else {
+						Object.assign(nodeState, partialNewResourceState)
+					}
+				}
+
+				// --------------------------------------------------
+				// Hydrate node
+
+				if (nodeState?.output) {
+					node.$.resolve(nodeState.output)
 				}
 			})
 		})

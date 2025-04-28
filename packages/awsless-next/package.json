@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.451",
+	"version": "0.0.462",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -88,6 +88,7 @@
 		"@types/folder-hash": "^4.0.4",
 		"@types/mime-types": "^2.1.2",
 		"@types/minimist": "^1.2.5",
+		"@types/play-sound": "^1.1.2",
 		"@types/pretty-hrtime": "^1.0.1",
 		"@types/promise-dag": "^1.0.4",
 		"@types/rollup-plugin-natives": "^0.7.5",
@@ -118,6 +119,7 @@
 		"node-docker-api": "^1.1.22",
 		"parse-imports": "^1.1.2",
 		"parse-static-imports": "^1.1.0",
+		"play-sound": "^1.1.6",
 		"pretty-hrtime": "^1.0.3",
 		"promise-dag": "^1.0.0",
 		"promisify-child-process": "^4.1.2",

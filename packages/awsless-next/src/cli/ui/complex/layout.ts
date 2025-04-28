@@ -3,6 +3,7 @@ import { AppConfig } from '../../../config/app.js'
 import { loadAppConfig, loadStackConfigs } from '../../../config/load/load.js'
 import { StackConfig } from '../../../config/stack.js'
 import { validateFeatures } from '../../../feature/validate.js'
+import { playErrorSound } from '../../../util/sound.js'
 import { program, ProgramOptions } from '../../program.js'
 import { logApp } from '../app.js'
 import { logError } from '../error/error.js'
@@ -40,6 +41,7 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 
 		outro(result ?? undefined)
 	} catch (error) {
+		playErrorSound()
 		logError(error)
 		outro()
 

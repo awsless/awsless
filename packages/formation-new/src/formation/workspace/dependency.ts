@@ -1,7 +1,7 @@
 // import { run, Step } from 'promise-dag'
 import { DirectedGraph } from 'graphology'
 import { topologicalGenerations, willCreateCycle } from 'graphology-dag'
-import { URN } from '../resource.ts'
+import { URN } from '../urn.ts'
 import { entries } from './entries.ts'
 
 // export class DependencyGraph {

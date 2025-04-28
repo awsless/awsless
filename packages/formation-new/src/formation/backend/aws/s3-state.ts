@@ -7,7 +7,7 @@ import {
 	S3Client,
 	S3ServiceException,
 } from '@aws-sdk/client-s3'
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { AppState } from '../../workspace/state.ts'
 import { StateBackend } from '../state.ts'
 

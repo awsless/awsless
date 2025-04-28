@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { State } from '../formation/meta.ts'
 import { CreateProps, DeleteProps, GetDataProps, GetProps, Provider, UpdateProps } from '../formation/provider.ts'
-import { State } from '../formation/resource.ts'
 import { Plugin } from './plugin/version/type.ts'
 import { generateTypes } from './type-gen.ts'
 

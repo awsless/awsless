@@ -1,15 +1,15 @@
 import type { UUID } from 'node:crypto'
 import { createDebugger } from '../../debug.ts'
 import { findProvider } from '../../provider.ts'
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { ResourceError, ResourceNotFound } from '../error.ts'
-import { ResourceState } from '../state.ts'
+import { NodeState } from '../state.ts'
 import { createIdempotantToken } from '../token.ts'
 import { WorkSpaceOptions } from '../workspace.ts'
 
 const debug = createDebugger('Delete')
 
-export const deleteResource = async (appToken: UUID, urn: URN, state: ResourceState, opt: WorkSpaceOptions) => {
+export const deleteResource = async (appToken: UUID, urn: URN, state: NodeState, opt: WorkSpaceOptions) => {
 	debug(state.type)
 	debug(state)
 

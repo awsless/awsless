@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createDebugger } from '../../debug.ts'
-import { URN } from '../../resource.ts'
+import { URN } from '../../urn.ts'
 import { AppState } from '../../workspace/state.ts'
 import { StateBackend } from '../state.ts'
 

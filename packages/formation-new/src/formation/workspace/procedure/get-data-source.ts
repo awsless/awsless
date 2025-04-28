@@ -1,13 +1,18 @@
 import { DataSourceMeta } from '../../data-source.ts'
 import { createDebugger } from '../../debug.ts'
+import { State } from '../../meta.ts'
 import { findProvider } from '../../provider.ts'
-import { State } from '../../resource.ts'
 import { ResourceError } from '../error.ts'
+import { NodeState } from '../state.ts'
 import { WorkSpaceOptions } from '../workspace.ts'
 
 const debug = createDebugger('Data Source')
 
-export const getDataSource = async (dataSource: DataSourceMeta, input: State, opt: WorkSpaceOptions) => {
+export const getDataSource = async (
+	dataSource: DataSourceMeta,
+	input: State,
+	opt: WorkSpaceOptions
+): Promise<Omit<NodeState, 'dependencies' | 'lifecycle'>> => {
 	const provider = findProvider(opt.providers, dataSource.provider)
 
 	debug(dataSource.type)
@@ -27,7 +32,13 @@ export const getDataSource = async (dataSource: DataSourceMeta, input: State, op
 		throw ResourceError.wrap(dataSource.urn, dataSource.type, 'get', error)
 	}
 
-	return result.state
+	return {
+		tag: 'data',
+		type: dataSource.type,
+		provider: dataSource.provider,
+		input,
+		output: result.state,
+	}
 }
 
 // private async getRemoteResource(props: {

@@ -9,11 +9,11 @@ export const hydrate = async (app: App, opt: WorkSpaceOptions) => {
 			const stackState = appState.stacks[stack.urn]
 
 			if (stackState) {
-				for (const resource of stack.resources) {
-					const resourceState = stackState.resources[resource.$.urn]
+				for (const node of stack.nodes) {
+					const resourceState = stackState.nodes[node.$.urn]
 
 					if (resourceState && resourceState.output) {
-						resource.$.resolve(resourceState.output)
+						node.$.resolve(resourceState.output)
 					}
 				}
 			}

@@ -10,6 +10,10 @@ export const vpcFeature = defineFeature({
 		// A VPC is always a dual ipv4 and ipv6 VPC
 		// That's why we need to give it a ipv4 cidrBlock.
 
+		// const vpc = $.aws.$default.Vpc(group, 'vpc', {
+		// 	''
+		// })
+
 		const vpc = new $.aws.Vpc(group, 'vpc', {
 			tags: {
 				Name: ctx.app.name,
