@@ -108,10 +108,10 @@ const posts = define('posts', {
 mockDynamoDB({
   tables: [ posts ],
   seeds: [
-	seedTable(posts, {
+	seedTable(posts, [{
 		id: 1,
 		title: 'Hello World',
-	})
+	}])
   ]
 })
 
