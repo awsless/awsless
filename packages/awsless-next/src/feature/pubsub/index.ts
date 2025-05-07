@@ -27,6 +27,7 @@ export const pubsubFeature = defineFeature({
 				authorizerFunctionArn: lambda.arn,
 				status: 'ACTIVE',
 				signingDisabled: true,
+				enableCachingForHttp: false,
 			})
 
 			new $.aws.lambda.Permission(group, 'permission', {

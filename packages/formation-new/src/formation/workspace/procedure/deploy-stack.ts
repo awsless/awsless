@@ -113,7 +113,7 @@ export const deployStackNodes = async (
 							const newResourceState = await updateResource(
 								node,
 								appToken,
-								importedState.output!,
+								importedState.output,
 								input,
 								opt
 							)

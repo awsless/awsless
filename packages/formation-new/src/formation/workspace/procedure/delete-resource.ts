@@ -23,7 +23,7 @@ export const deleteResource = async (appToken: UUID, urn: URN, state: NodeState,
 	try {
 		await provider.deleteResource({
 			type: state.type,
-			state: state.output!,
+			state: state.output,
 			idempotantToken,
 		})
 	} catch (error) {

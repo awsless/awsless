@@ -223,10 +223,7 @@ var normalizeError = (maybeError) => {
 };
 
 // src/helpers/warm-up.ts
-import { randomUUID } from "crypto";
 var warmerKey = "warmer";
-var invocationKey = "__WARMER_INVOCATION_ID__";
-var correlationKey = "__WARMER_CORRELATION_ID__";
 var concurrencyKey = "concurrency";
 var concurrencyLimit = 10;
 var isWarmUpEvent = (event) => {
@@ -235,47 +232,24 @@ var isWarmUpEvent = (event) => {
 var getWarmUpEvent = (event) => {
   if (!isWarmUpEvent(event)) return;
   return {
-    invocation: parseInt(String(event[invocationKey]), 10) || 0,
-    concurrency: parseInt(String(event[concurrencyKey]), 10) || 3,
-    correlation: event[correlationKey]
+    concurrency: parseInt(String(event[concurrencyKey]), 10) || 3
   };
 };
 var warmUp = async (input, context) => {
-  const event = {
-    action: warmerKey,
-    functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
-    functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION
-  };
   if (input.concurrency > concurrencyLimit) {
     throw new Error(`Warm up concurrency limit can't be greater than ${concurrencyLimit}`);
   }
-  if (input.correlation) {
-    console.log({
-      ...event,
-      ...input
-    });
-  } else {
-    const correlation = context?.awsRequestId || randomUUID();
-    console.log({
-      ...event,
-      correlation,
-      invocation: 1
-    });
-    await Promise.all(
-      Array.from({ length: input.concurrency - 1 }).map((_, index) => {
-        return invoke({
-          name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
-          qualifier: "$LATEST",
-          payload: {
-            [warmerKey]: true,
-            [invocationKey]: index + 2,
-            [correlationKey]: correlation,
-            [concurrencyKey]: input.concurrency
-          }
-        });
-      })
-    );
+  if (input.concurrency <= 1) {
+    return;
   }
+  await invoke({
+    name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
+    // qualifier: '$LATEST',
+    payload: {
+      [warmerKey]: true,
+      [concurrencyKey]: input.concurrency - 1
+    }
+  });
 };
 
 // src/lambda.ts

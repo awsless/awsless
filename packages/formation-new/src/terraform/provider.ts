@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { State } from '../formation/meta.ts'
 import { CreateProps, DeleteProps, GetDataProps, GetProps, Provider, UpdateProps } from '../formation/provider.ts'
+import { ResourceNotFound } from '../formation/workspace/error.ts'
 import { Plugin } from './plugin/version/type.ts'
 import { generateTypes } from './type-gen.ts'
 
@@ -59,7 +60,7 @@ export class TerraformProvider implements Provider {
 		const newState = await plugin.readResource(type, state)
 
 		if (!newState) {
-			throw new Error(`Resource not found ${type}`)
+			throw new ResourceNotFound()
 		}
 
 		return {
@@ -90,7 +91,23 @@ export class TerraformProvider implements Provider {
 
 	async deleteResource({ type, state }: DeleteProps) {
 		const plugin = await this.configure()
-		await plugin.applyResourceChange(type, state, null)
+		try {
+			await plugin.applyResourceChange(type, state, null)
+		} catch (error) {
+			// -------------------------------------------------------
+			// Sadly terraform doesn't have a normalized error for
+			// deleting resources that no longer exist.
+			// So we need to check if the resource exists with every
+			// error and throw our own custom ResourceNotFound error.
+
+			const newState = await plugin.readResource(type, state)
+
+			if (!newState) {
+				throw new ResourceNotFound()
+			}
+
+			throw error
+		}
 	}
 
 	async getData({ type, state }: GetDataProps) {

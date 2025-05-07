@@ -908,9 +908,9 @@ var hydrate = async (app, opt) => {
       const stackState = appState.stacks[stack.urn];
       if (stackState) {
         for (const node of stack.nodes) {
-          const resourceState = stackState.nodes[node.$.urn];
-          if (resourceState && resourceState.output) {
-            node.$.resolve(resourceState.output);
+          const nodeState = stackState.nodes[node.$.urn];
+          if (nodeState && nodeState.output) {
+            node.$.resolve(nodeState.output);
           }
         }
       }
@@ -2784,7 +2784,7 @@ var TerraformProvider = class {
     const plugin = await this.configure();
     const newState = await plugin.readResource(type, state);
     if (!newState) {
-      throw new Error(`Resource not found ${type}`);
+      throw new ResourceNotFound();
     }
     return {
       version: 0,
@@ -2809,7 +2809,15 @@ var TerraformProvider = class {
   }
   async deleteResource({ type, state }) {
     const plugin = await this.configure();
-    await plugin.applyResourceChange(type, state, null);
+    try {
+      await plugin.applyResourceChange(type, state, null);
+    } catch (error) {
+      const newState = await plugin.readResource(type, state);
+      if (!newState) {
+        throw new ResourceNotFound();
+      }
+      throw error;
+    }
   }
   async getData({ type, state }) {
     const plugin = await this.configure();

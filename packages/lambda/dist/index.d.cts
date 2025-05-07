@@ -4,7 +4,7 @@ export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
 import { AsyncReturnType } from 'type-fest';
-import { SchemaIssues, Input as Input$1, BaseSchema, Output as Output$1 } from '@awsless/validate';
+import { SchemaIssues, BaseSchema, Output as Output$1, Input as Input$1 } from '@awsless/validate';
 import { Mock } from 'vitest';
 
 type InvokeOptions = {
@@ -43,9 +43,9 @@ declare class TimeoutError extends Error {
 
 declare class ViewableError extends Error {
     readonly type: string;
-    readonly data?: unknown;
+    readonly data?: unknown | undefined;
     readonly name = "ViewableError";
-    constructor(type: string, message: string, data?: unknown);
+    constructor(type: string, message: string, data?: unknown | undefined);
 }
 type ViewableErrorResponse = {
     __error__: {

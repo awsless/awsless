@@ -17,7 +17,7 @@ export type AppStateV0 = {
 					version?: number
 					provider: string
 					input: State
-					output?: State
+					output: State
 					dependencies: URN[]
 					lifecycle?: {
 						retainOnDelete?: boolean

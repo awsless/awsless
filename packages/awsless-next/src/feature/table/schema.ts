@@ -65,18 +65,24 @@ export const TablesSchema = z
 				.record(
 					z.string(),
 					z.object({
-						/** Specifies the name of the partition / hash key that makes up the primary key for the global secondary index. */
-						hash: KeySchema,
+						hash: KeySchema.describe(
+							'Specifies the name of the partition / hash key that makes up the primary key for the global secondary index.'
+						),
+						sort: KeySchema.optional().describe(
+							'Specifies the name of the range / sort key that makes up the primary key for the global secondary index.'
+						),
 
-						/** Specifies the name of the range / sort key that makes up the primary key for the global secondary index. */
-						sort: KeySchema.optional(),
-
-						/** The set of attributes that are projected into the index:
-						 * - all - All of the table attributes are projected into the index.
-						 * - keys-only - Only the index and primary keys are projected into the index.
-						 * @default 'all'
-						 */
-						projection: z.enum(['all', 'keys-only']).default('all'),
+						projection: z
+							.enum(['all', 'keys-only'])
+							.default('all')
+							.describe(
+								[
+									'The set of attributes that are projected into the index:',
+									'- all - All of the table attributes are projected into the index.',
+									'- keys-only - Only the index and primary keys are projected into the index.',
+									'@default "all"',
+								].join('\n')
+							),
 					})
 				)
 				.optional()

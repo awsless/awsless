@@ -16,6 +16,7 @@ import { toMebibytes } from '@awsless/size'
 import { pascalCase } from 'change-case'
 // import { hashElement } from 'folder-hash'
 // import { FileError } from '../../error.js'
+import { FileError } from '../../error.js'
 import { shortId } from '../../util/id.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
@@ -269,6 +270,13 @@ export const createLambdaFunction = (
 
 	let dependsOn: Resource<any, any>[] = []
 	if (props.vpc) {
+		if (props.warm > 1) {
+			throw new FileError(
+				'stackConfig' in ctx ? ctx.stackConfig.file : 'app.json',
+				`We can't warm more then 1 lambda in a VPC.`
+			)
+		}
+
 		dependsOn.push(
 			new $.aws.iam.RolePolicy(group, 'vpc-policy', {
 				role: role.name,
@@ -350,6 +358,7 @@ export const createLambdaFunction = (
 				: undefined,
 
 			loggingConfig: {
+				logGroup: `/aws/lambda/${name}`,
 				logFormat: logFormats[props.log.format!],
 				applicationLogLevel: props.log.level?.toUpperCase(),
 				systemLogLevel: props.log.system?.toUpperCase(),
@@ -398,19 +407,13 @@ export const createLambdaFunction = (
 		const logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
 			// name: lambda.functionName.pipe(name => `/aws/lambda/${name}`),
 			name: `/aws/lambda/${name}`,
-			retentionInDays: toDays(props.log.retention ?? days(7)),
+			retentionInDays: toDays(props.log.retention),
 		})
 
-		addPermission(
-			{
-				actions: ['logs:CreateLogStream'],
-				resources: [logGroup.arn],
-			},
-			{
-				actions: ['logs:PutLogEvents'],
-				resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
-			}
-		)
+		addPermission({
+			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
+			resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
+		})
 
 		// ------------------------------------------------------------
 		// Add Log subscription

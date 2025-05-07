@@ -5,7 +5,9 @@ describe('Warm up support', () => {
 	process.env.AWS_LAMBDA_FUNCTION_NAME = 'test'
 
 	const mock = mockLambda({
-		test: () => {},
+		test: payload => {
+			return fn(payload)
+		},
 	})
 
 	const fn = lambda({

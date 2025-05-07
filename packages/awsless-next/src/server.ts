@@ -9,6 +9,7 @@ export { CommandContext, CommandHandler, CommandOptions } from './command.js'
 
 // Mocks
 export * from './lib/mock/alert.js'
+export * from './lib/mock/cache.js'
 export * from './lib/mock/function.js'
 export * from './lib/mock/pubsub.js'
 export * from './lib/mock/queue.js'

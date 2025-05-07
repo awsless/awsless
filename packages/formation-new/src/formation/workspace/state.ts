@@ -23,7 +23,7 @@ export type NodeState = {
 	version?: number
 	provider: string
 	input: State
-	output?: State
+	output: State
 	dependencies: URN[]
 	lifecycle?: {
 		retainOnDelete?: boolean

@@ -144,7 +144,7 @@ type NodeState = {
     version?: number;
     provider: string;
     input: State$1;
-    output?: State$1;
+    output: State$1;
     dependencies: URN[];
     lifecycle?: {
         retainOnDelete?: boolean;
