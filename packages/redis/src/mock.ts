@@ -20,6 +20,7 @@ export const mockRedis = () => {
 				port,
 				host: 'localhost',
 				cluster: false,
+				tls: undefined,
 			})
 		}, 30 * 1000)
 

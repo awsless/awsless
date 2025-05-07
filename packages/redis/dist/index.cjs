@@ -148,7 +148,8 @@ var mockRedis = () => {
     overrideOptions({
       port,
       host: "localhost",
-      cluster: false
+      cluster: false,
+      tls: void 0
     });
   }, 30 * 1e3);
   afterAll && afterAll(async () => {
