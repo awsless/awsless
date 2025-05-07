@@ -16,7 +16,6 @@ type Options = {
 }
 
 export const layout = async (command: string, cb: (options: Options) => Promise<string | void>) => {
-	console.log()
 	intro(`${logo()} ${color.dim(command)}`)
 
 	try {

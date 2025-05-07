@@ -18,15 +18,15 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   Cluster: () => import_ioredis3.Cluster,
   Redis: () => import_ioredis3.Redis,
   command: () => command,
   mockRedis: () => mockRedis,
   redisClient: () => redisClient
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/mock.ts
 var import_request_port = require("@heat/request-port");

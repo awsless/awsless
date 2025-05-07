@@ -31,6 +31,12 @@ export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 					port,
 					db: 0,
 					cluster: true,
+					tls: {
+						checkServerIdentity: (/*host, cert*/) => {
+							// skip certificate hostname validation
+							return undefined
+						},
+					},
 					...options,
 				},
 				callback

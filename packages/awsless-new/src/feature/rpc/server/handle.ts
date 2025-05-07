@@ -88,9 +88,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			})
 		)
 	} catch (error) {
-		console.log('internal error')
-		console.error(error)
-
+		console.error('internal error', error)
 		return response(500, INTERNAL_SERVER_ERROR)
 	}
 }

@@ -360,8 +360,8 @@ export const createLambdaFunction = (
 			loggingConfig: {
 				logGroup: `/aws/lambda/${name}`,
 				logFormat: logFormats[props.log.format!],
-				applicationLogLevel: props.log.level?.toUpperCase(),
-				systemLogLevel: props.log.system?.toUpperCase(),
+				applicationLogLevel: props.log.format === 'json' ? props.log.level?.toUpperCase() : undefined,
+				systemLogLevel: props.log.format === 'json' ? props.log.system?.toUpperCase() : undefined,
 			},
 		},
 		{

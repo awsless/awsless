@@ -25,6 +25,15 @@
 		},
 		"onlyBuiltDependencies": [
 			"@swc/core"
+		],
+		"ignoredBuiltDependencies": [
+			"aws-sdk",
+			"core-js",
+			"esbuild",
+			"msgpackr-extract",
+			"protobufjs",
+			"redis-memory-server",
+			"svelte-preprocess"
 		]
 	}
 }
