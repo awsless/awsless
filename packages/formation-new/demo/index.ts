@@ -79,23 +79,23 @@ const table = new $.aws.dynamodb.Table(stack1, 'test', {
 	},
 })
 
-// const iot = $.aws.iot.getEndpoint(stack2, 'test', {
-// 	endpointType: 'iot:Data-ATS',
-// })
+const iot = $.aws.iot.getEndpoint(stack2, 'test', {
+	endpointType: 'iot:Data-ATS',
+})
 
 const item = new $.aws.dynamodb.TableItem(stack2, 'test', {
 	tableName: table.name,
 	hashKey: table.hashKey,
 	rangeKey: table.rangeKey,
-	item: JSON.stringify({
-		key: { S: 'address' },
-	}),
-	// item: iot.endpointAddress.pipe(address =>
-	// 	JSON.stringify({
-	// 		key: { S: 'address' },
-	// 		address: { S: address },
-	// 	})
-	// ),
+	// item: JSON.stringify({
+	// 	key: { S: 'address' },
+	// }),
+	item: iot.endpointAddress.pipe(address =>
+		JSON.stringify({
+			key: { S: 'address' },
+			address: { S: address },
+		})
+	),
 })
 
 // const item = new tf.aws.dynamodb.TableItem(
@@ -128,11 +128,11 @@ const item = new $.aws.dynamodb.TableItem(stack2, 'test', {
 // 	}
 // )
 
-await workspace.delete(app, {
+await workspace.deploy(app, {
 	// 'filters': ['']
 })
 
-// console.log(await iot.endpointAddress)
+console.log(await iot.endpointAddress)
 
 // try {
 // 	await workspace.delete(app)

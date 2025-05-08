@@ -1,4 +1,4 @@
-import { snsTopic, number, object, parse, ValiError, Output, Input } from '../../../src'
+import { array, Input, number, object, Output, parse, snsTopic, ValiError } from '../../../src'
 
 describe('SNS Topic', () => {
 	const schema = snsTopic(object({ id: number() }))
@@ -23,6 +23,13 @@ describe('SNS Topic', () => {
 		})
 
 		expect(result).toStrictEqual([{ id: 1 }])
+	})
+
+	it('should allow array schemas', () => {
+		const result = parse(snsTopic(array(object({ id: number() }))), [{ id: 1 }])
+
+		expect(result).toStrictEqual([[{ id: 1 }]])
+		expect(() => parse(schema, [{ id: '1' }])).toThrow(ValiError)
 	})
 
 	it('types', () => {

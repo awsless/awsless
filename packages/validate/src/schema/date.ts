@@ -1,4 +1,4 @@
-import { ErrorMessage, Pipe, defaultArgs, date as base, string, union, transform, BaseSchema } from 'valibot'
+import { BaseSchema, ErrorMessage, Pipe, date as base, defaultArgs, string, transform, union } from 'valibot'
 
 export type DateSchema = BaseSchema<string | Date, Date>
 

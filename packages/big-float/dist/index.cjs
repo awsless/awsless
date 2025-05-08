@@ -18,8 +18,8 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   BILLION: () => BILLION,
   BigFloat: () => BigFloat,
   EIGHT: () => EIGHT,
@@ -40,6 +40,7 @@ __export(src_exports, {
   abs: () => abs,
   add: () => add,
   ceil: () => ceil,
+  cmp: () => cmp,
   div: () => div,
   eq: () => eq,
   evaluate: () => import_bigfloat_esnext4.evaluate,
@@ -58,6 +59,7 @@ __export(src_exports, {
   lte: () => lte,
   max: () => max,
   min: () => min,
+  minmax: () => minmax,
   mul: () => mul,
   neg: () => neg,
   pow: () => pow,
@@ -66,7 +68,7 @@ __export(src_exports, {
   sqrt: () => sqrt,
   sub: () => sub
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/bigfloat.ts
 var import_bigfloat_esnext = require("bigfloat-esnext");
@@ -95,19 +97,25 @@ var import_bigfloat_esnext2 = require("bigfloat-esnext");
 var neg = (a) => new BigFloat((0, import_bigfloat_esnext2.neg)((0, import_bigfloat_esnext2.make)(a)));
 var abs = (a) => new BigFloat((0, import_bigfloat_esnext2.abs)((0, import_bigfloat_esnext2.make)(a)));
 var add = (a, ...other) => {
-  return new BigFloat(other.reduce((prev, current) => {
-    return (0, import_bigfloat_esnext2.add)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
-  }, a));
+  return new BigFloat(
+    other.reduce((prev, current) => {
+      return (0, import_bigfloat_esnext2.add)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+    }, a)
+  );
 };
 var sub = (a, ...other) => {
-  return new BigFloat(other.reduce((prev, current) => {
-    return (0, import_bigfloat_esnext2.sub)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
-  }, a));
+  return new BigFloat(
+    other.reduce((prev, current) => {
+      return (0, import_bigfloat_esnext2.sub)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+    }, a)
+  );
 };
 var mul = (multiplicand, ...multipliers) => {
-  return new BigFloat(multipliers.reduce((prev, current) => {
-    return (0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
-  }, multiplicand));
+  return new BigFloat(
+    multipliers.reduce((prev, current) => {
+      return (0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+    }, multiplicand)
+  );
 };
 var div = (dividend, divisor, precision) => {
   return new BigFloat((0, import_bigfloat_esnext2.div)((0, import_bigfloat_esnext2.make)(dividend), (0, import_bigfloat_esnext2.make)(divisor), precision));
@@ -146,36 +154,54 @@ var lte = (a, b) => (0, import_bigfloat_esnext3.lte)((0, import_bigfloat_esnext3
 var gt = (a, b) => (0, import_bigfloat_esnext3.gt)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
 var gte = (a, b) => (0, import_bigfloat_esnext3.gte)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
 var min = (...values) => {
-  return new BigFloat(values.reduce((prev, current) => {
-    return lt(prev, current) ? prev : current;
-  }));
+  return new BigFloat(
+    values.reduce((prev, current) => {
+      return lt(prev, current) ? prev : current;
+    })
+  );
 };
 var max = (...values) => {
-  return new BigFloat(values.reduce((prev, current) => {
-    return gt(prev, current) ? prev : current;
-  }));
+  return new BigFloat(
+    values.reduce((prev, current) => {
+      return gt(prev, current) ? prev : current;
+    })
+  );
+};
+var minmax = (number, min2, max2) => {
+  if (gt(min2, max2)) {
+    throw new TypeError(`min ${min2} bound can't be greater then the max ${max2} bound`);
+  }
+  return (0, import_bigfloat_esnext3.make)(lt(number, min2) ? min2 : gt(number, max2) ? max2 : number);
+};
+var cmp = (a, b) => {
+  if (gt(a, b)) {
+    return 1;
+  } else if (lt(a, b)) {
+    return -1;
+  }
+  return 0;
 };
 
 // src/index.ts
 var import_bigfloat_esnext4 = require("bigfloat-esnext");
 
 // src/constants.ts
-var ZERO = new BigFloat(0);
-var ONE = new BigFloat(1);
-var TWO = new BigFloat(2);
-var THREE = new BigFloat(3);
-var FOUR = new BigFloat(4);
-var FIVE = new BigFloat(5);
-var SIX = new BigFloat(6);
-var SEVEN = new BigFloat(7);
-var EIGHT = new BigFloat(8);
-var NINE = new BigFloat(9);
-var TEN = new BigFloat(10);
-var HUNDRED = new BigFloat(100);
-var THOUSAND = new BigFloat(1e3);
-var MILLION = new BigFloat(1e6);
-var BILLION = new BigFloat(1e9);
-var TRILLION = new BigFloat(1e12);
+var ZERO = /* @__PURE__ */ new BigFloat(0);
+var ONE = /* @__PURE__ */ new BigFloat(1);
+var TWO = /* @__PURE__ */ new BigFloat(2);
+var THREE = /* @__PURE__ */ new BigFloat(3);
+var FOUR = /* @__PURE__ */ new BigFloat(4);
+var FIVE = /* @__PURE__ */ new BigFloat(5);
+var SIX = /* @__PURE__ */ new BigFloat(6);
+var SEVEN = /* @__PURE__ */ new BigFloat(7);
+var EIGHT = /* @__PURE__ */ new BigFloat(8);
+var NINE = /* @__PURE__ */ new BigFloat(9);
+var TEN = /* @__PURE__ */ new BigFloat(10);
+var HUNDRED = /* @__PURE__ */ new BigFloat(100);
+var THOUSAND = /* @__PURE__ */ new BigFloat(1e3);
+var MILLION = /* @__PURE__ */ new BigFloat(1e6);
+var BILLION = /* @__PURE__ */ new BigFloat(1e9);
+var TRILLION = /* @__PURE__ */ new BigFloat(1e12);
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   BILLION,
@@ -198,6 +224,7 @@ var TRILLION = new BigFloat(1e12);
   abs,
   add,
   ceil,
+  cmp,
   div,
   eq,
   evaluate,
@@ -216,6 +243,7 @@ var TRILLION = new BigFloat(1e12);
   lte,
   max,
   min,
+  minmax,
   mul,
   neg,
   pow,

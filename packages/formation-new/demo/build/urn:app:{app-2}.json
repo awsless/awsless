@@ -1,0 +1,115 @@
+{
+  "name": "app-2",
+  "stacks": {
+    "urn:app:{app-2}:stack:{stack-1}": {
+      "name": "stack-1",
+      "dependencies": [],
+      "nodes": {
+        "urn:app:{app-2}:stack:{stack-1}:resource:aws_dynamodb_table:{test}": {
+          "tag": "resource",
+          "version": 0,
+          "type": "aws_dynamodb_table",
+          "provider": "terraform:aws:default",
+          "input": {
+            "name": "test-2",
+            "billingMode": "PAY_PER_REQUEST",
+            "hashKey": "key",
+            "attribute": [
+              {
+                "name": "key",
+                "type": "S"
+              }
+            ],
+            "tags": {
+              "test": "TEST"
+            }
+          },
+          "output": {
+            "arn": "arn:aws:dynamodb:us-east-1:468004125411:table/test-2",
+            "billingMode": "PAY_PER_REQUEST",
+            "deletionProtectionEnabled": false,
+            "hashKey": "key",
+            "id": "test-2",
+            "name": "test-2",
+            "readCapacity": 0,
+            "streamArn": "",
+            "streamEnabled": false,
+            "streamLabel": "",
+            "streamViewType": "",
+            "tableClass": "STANDARD",
+            "tags": {
+              "test": "TEST"
+            },
+            "tagsAll": {
+              "app": "app-2",
+              "test": "TEST"
+            },
+            "writeCapacity": 0,
+            "attribute": [
+              {
+                "name": "key",
+                "type": "S"
+              }
+            ],
+            "globalSecondaryIndex": [],
+            "localSecondaryIndex": [],
+            "pointInTimeRecovery": {
+              "enabled": false
+            },
+            "replica": [],
+            "ttl": {
+              "attributeName": "",
+              "enabled": false
+            }
+          },
+          "dependencies": [],
+          "lifecycle": {}
+        }
+      }
+    },
+    "urn:app:{app-2}:stack:{stack-2}": {
+      "name": "stack-2",
+      "dependencies": [
+        "urn:app:{app-2}:stack:{stack-1}"
+      ],
+      "nodes": {
+        "urn:app:{app-2}:stack:{stack-2}:resource:aws_dynamodb_table_item:{test}": {
+          "tag": "resource",
+          "version": 0,
+          "type": "aws_dynamodb_table_item",
+          "provider": "terraform:aws:default",
+          "input": {
+            "tableName": "test-2",
+            "hashKey": "key",
+            "item": "{\"key\":{\"S\":\"address\"},\"address\":{\"S\":\"an4n95zo1nz5u-ats.iot.us-east-1.amazonaws.com\"}}"
+          },
+          "output": {
+            "hashKey": "key",
+            "id": "test-2|key|address",
+            "item": "{\"key\":{\"S\":\"address\"},\"address\":{\"S\":\"an4n95zo1nz5u-ats.iot.us-east-1.amazonaws.com\"}}",
+            "tableName": "test-2"
+          },
+          "dependencies": [
+            "urn:app:{app-2}:stack:{stack-2}:data:aws_iot_endpoint:{test}"
+          ],
+          "lifecycle": {}
+        },
+        "urn:app:{app-2}:stack:{stack-2}:data:aws_iot_endpoint:{test}": {
+          "tag": "data",
+          "type": "aws_iot_endpoint",
+          "provider": "terraform:aws:default",
+          "input": {
+            "endpointType": "iot:Data-ATS"
+          },
+          "output": {
+            "endpointAddress": "an4n95zo1nz5u-ats.iot.us-east-1.amazonaws.com",
+            "endpointType": "iot:Data-ATS",
+            "id": "an4n95zo1nz5u-ats.iot.us-east-1.amazonaws.com"
+          },
+          "dependencies": []
+        }
+      }
+    }
+  },
+  "version": 1
+}

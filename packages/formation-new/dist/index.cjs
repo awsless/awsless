@@ -3035,8 +3035,8 @@ var createRecursiveProxy = ({
       if (name === name.toLowerCase()) {
         return createProxy(ns);
       } else if (name.startsWith("get")) {
-        return (args) => {
-          return dataSource([...names, name.substring(3)], args);
+        return (...args) => {
+          return dataSource([...names, name.substring(3)], ...args);
         };
       } else {
         return createClassProxy(
@@ -3089,6 +3089,7 @@ var $ = createRecursiveProxy({
   dataSource: (ns, parent, id, input, config) => {
     const type = (0, import_change_case3.snakeCase)(ns.join("_"));
     const provider = `terraform:${ns[0]}:${config?.provider ?? "default"}`;
+    console.log("INPUT", ns, parent, id, input, config);
     const $2 = createMeta("data", provider, parent, type, id, input, config);
     const dataSource = createNamespaceProxy(
       (key) => {

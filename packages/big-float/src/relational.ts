@@ -31,3 +31,13 @@ export const minmax = (number: Numeric, min: Numeric, max: Numeric) => {
 
 	return make(lt(number, min) ? min : gt(number, max) ? max : number)
 }
+
+export const cmp = (a: Numeric, b: Numeric) => {
+	if (gt(a, b)) {
+		return 1
+	} else if (lt(a, b)) {
+		return -1
+	}
+
+	return 0
+}

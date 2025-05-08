@@ -4,6 +4,7 @@ import {
 	BigFloat,
 	BILLION,
 	ceil,
+	cmp,
 	div,
 	EIGHT,
 	eq,
@@ -79,6 +80,14 @@ describe('BigFloat', () => {
 		it('minmax(20, 1, 10) = 10', () => expect(eq(minmax(20, 1, 10), 10)).toBe(true))
 		it('minmax(1, -1, 1) = 1', () => expect(eq(minmax(1, -1, 1), 1)).toBe(true))
 		it('minmax(5, 10, 0) throw TypeError', () => expect(() => eq(minmax(5, 10, 0), 10)).toThrow(TypeError))
+	})
+
+	describe('cmp', () => {
+		it('cmp(1, 1) = 0', () => expect(cmp(1, 1)).toBe(0))
+		it('cmp(1, 2) = -1', () => expect(cmp(1, 2)).toBe(-1))
+		it('cmp(2, 1) = 1', () => expect(cmp(2, 1)).toBe(1))
+		it('cmp(-1, 1) = -1', () => expect(cmp(-1, 1)).toBe(-1))
+		it('cmp(1, -1) = 1', () => expect(cmp(1, -1)).toBe(1))
 	})
 
 	describe('arithmetic', () => {
