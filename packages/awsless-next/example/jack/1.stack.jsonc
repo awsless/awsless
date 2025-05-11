@@ -14,39 +14,49 @@
 	// },
 
 	"functions": {
-		"echo": "./function.ts",
-		"echo-4": "./function.ts"
+		"echo": {
+			"code": "./function.ts",
+			"log": {
+				"level": "trace"
+			}
+		}
+		// "echo-4": "./function.ts"
 		// "echo-3": "./function.ts"
 	},
 
-	"caches": {
-		"test": {}
-	},
+	// "caches": {
+	// 	"test": {}
+	// },
 
 	// "topics": ["login", "register"],
 	// "subscribers": {
 	// 	"login": "./function.ts"
 	// },
 
-	"tables": {
-		"test": {
-			"hash": "id",
-			"stream": {
-				"type": "new-and-old-images",
-				"consumer": "./function.ts"
-			}
-		}
-	}
+	// "tables": {
+	// 	"test": {
+	// 		"hash": "id",
+	// 		"stream": {
+	// 			"type": "new-and-old-images",
+	// 			"consumer": "./function.ts"
+	// 		}
+	// 	}
+	// }
 
 	// "stores": {
 	// 	"test": {}
 	// },
 
-	// "rpc": {
-	// 	"api": {
-	// 		"test": "./echo.ts"
-	// 	}
-	// },
+	"rpc": {
+		"api": {
+			"test": {
+				"code": "./echo.ts",
+				"log": {
+					"level": "trace"
+				}
+			}
+		}
+	}
 
 	// "crons": {
 	// 	"test": {

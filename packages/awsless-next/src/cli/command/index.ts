@@ -13,6 +13,7 @@ import { state } from './state/index.js'
 import { test } from './test.js'
 import { types } from './types.js'
 import { domain } from './domain/index.js'
+import { logs } from './logs.js'
 
 export const commands = [
 	bootstrap,
@@ -25,6 +26,7 @@ export const commands = [
 
 	bind,
 	run,
+	logs,
 
 	auth,
 	domain,

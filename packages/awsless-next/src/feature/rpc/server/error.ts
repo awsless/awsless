@@ -19,6 +19,11 @@ export const INTERNAL_SERVER_ERROR: GlobalError = {
 	message: 'Internal Server Error',
 }
 
+export const TOO_MANY_REQUESTS: GlobalError = {
+	type: 'too-many-requests',
+	message: 'Only one request can be processed at a time. Please try again shortly.',
+}
+
 // export const UNAUTHORIZED: GlobalError = {
 // 	type: 'unauthorized',
 // 	message: 'Unauthorized',

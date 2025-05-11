@@ -4,6 +4,12 @@
 	"depends": ["stack"],
 	// "tests": "./test-2",
 	"functions": {
-		"echo": "./function.ts"
+		"echo": {
+			"code": "./function.ts",
+			"log": {
+				"level": "trace"
+				// "system": "debug"
+			}
+		}
 	}
 }

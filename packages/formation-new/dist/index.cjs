@@ -3089,7 +3089,6 @@ var $ = createRecursiveProxy({
   dataSource: (ns, parent, id, input, config) => {
     const type = (0, import_change_case3.snakeCase)(ns.join("_"));
     const provider = `terraform:${ns[0]}:${config?.provider ?? "default"}`;
-    console.log("INPUT", ns, parent, id, input, config);
     const $2 = createMeta("data", provider, parent, type, id, input, config);
     const dataSource = createNamespaceProxy(
       (key) => {

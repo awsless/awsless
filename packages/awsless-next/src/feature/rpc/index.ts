@@ -13,7 +13,7 @@ import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'node:url'
 import { createPrebuildLambdaFunction } from '../function/prebuild.js'
-import { days, seconds, toSeconds } from '@awsless/duration'
+import { days, minutes, seconds, toSeconds } from '@awsless/duration'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -75,6 +75,9 @@ export const rpcFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.rpc ?? {})) {
 			const group = new Group(ctx.base, 'rpc', id)
 
+			// ------------------------------------------------------
+			// Create the RPC lambda
+
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'rpc',
@@ -85,14 +88,22 @@ export const rpcFeature = defineFeature({
 				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
 				memorySize: mebibytes(256),
+				timeout: minutes(3),
 				handler: 'index.default',
 				runtime: 'nodejs22.x',
 				warm: 3,
 				log: props.log,
 			})
 
-			const table = new $.aws.dynamodb.Table(group, 'schema', {
-				name,
+			// ------------------------------------------------------
+			// Create the schema table
+
+			const schemaTable = new $.aws.dynamodb.Table(group, 'schema', {
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'rpc-schema',
+					resourceName: id,
+				}),
 				hashKey: 'query',
 				billingMode: 'PAY_PER_REQUEST',
 				attribute: [
@@ -103,15 +114,49 @@ export const rpcFeature = defineFeature({
 				],
 			})
 
-			result.setEnvironment('SCHEMA_TABLE', table.name)
+			result.setEnvironment('SCHEMA_TABLE', schemaTable.name)
 
 			result.addPermission({
 				effect: 'allow',
 				actions: ['dynamodb:GetItem'],
-				resources: [table.arn],
+				resources: [schemaTable.arn],
 			})
 
-			ctx.shared.add('rpc', `schema-table`, id, table)
+			ctx.shared.add('rpc', `schema-table`, id, schemaTable)
+
+			// ------------------------------------------------------
+			// Create the lock table
+
+			const lockTable = new $.aws.dynamodb.Table(group, 'lock', {
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'rpc-lock',
+					resourceName: id,
+				}),
+				hashKey: 'key',
+				billingMode: 'PAY_PER_REQUEST',
+				ttl: {
+					enabled: true,
+					attributeName: 'ttl',
+				},
+				attribute: [
+					{
+						name: 'key',
+						type: 'S',
+					},
+				],
+			})
+
+			result.setEnvironment('LOCK_TABLE', lockTable.name)
+
+			result.addPermission({
+				effect: 'allow',
+				actions: ['dynamodb:UpdateItem', 'dynamodb:DeleteItem'],
+				resources: [lockTable.arn],
+			})
+
+			// ------------------------------------------------------
+			// Create the auth lambda
 
 			if (props.auth) {
 				const authGroup = new Group(group, 'auth', 'authorizer')
@@ -129,12 +174,7 @@ export const rpcFeature = defineFeature({
 				// })
 			}
 
-			// const permission = new $.aws.lambda.Permission(group, 'permission', {
-			// 	principal: '*',
-			// 	action: 'lambda:InvokeFunctionUrl',
-			// 	functionName: result.lambda.functionName,
-			// 	// urlAuthType: 'none',
-			// })
+			// ------------------------------------------------------
 
 			const permission = new $.aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',

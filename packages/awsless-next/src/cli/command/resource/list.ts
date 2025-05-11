@@ -46,7 +46,7 @@ export const list = (program: Command) => {
 					line('')
 
 					for (const resource of stack.resources) {
-						line(formatResource(stack, resource.urn))
+						line(formatResource(stack, resource.$.urn))
 						// resources.push([
 						// 	chalk.magenta(stack.name),
 						// 	// resource.type,

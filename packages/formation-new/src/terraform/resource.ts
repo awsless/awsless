@@ -139,7 +139,7 @@ export const $ = createRecursiveProxy({
 		const type = snakeCase(ns.join('_'))
 		const provider = `terraform:${ns[0]}:${config?.provider ?? 'default'}`
 
-		console.log('INPUT', ns, parent, id, input, config)
+		// console.log('INPUT', ns, parent, id, input, config)
 
 		const $ = createMeta('data', provider, parent, type, id, input, config)
 

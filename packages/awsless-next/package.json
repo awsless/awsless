@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.464",
+	"version": "0.0.468",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -59,6 +59,7 @@
 		"@aws-appsync/utils": "^1.5.0",
 		"@aws-sdk/client-cloudformation": "^3.369.0",
 		"@aws-sdk/client-cloudfront": "^3.425.0",
+		"@aws-sdk/client-cloudwatch-logs": "^3.806.0",
 		"@aws-sdk/client-cognito-identity-provider": "^3.441.0",
 		"@aws-sdk/client-dynamodb": "3.363.0",
 		"@aws-sdk/client-lambda": "3.329.0",

@@ -1,9 +1,14 @@
 // import { string } from 'zod'
 
-const treeshakable = () => {
-	console.log('treeshake')
-}
+// const treeshakable = () => {
+// 	console.log('treeshake')
+// }
 
 export default async (event: unknown) => {
-	return event
+	console.log(event)
+
+	return {
+		event,
+		date: new Date(),
+	}
 }

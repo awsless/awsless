@@ -3,7 +3,7 @@
 import { randomUUID } from 'crypto'
 
 export default () => {
-	// console.log('HELLO !!!')
+	console.log(process.env.AWS_LAMBDA_FUNCTION_NAME)
 
 	// string()
 

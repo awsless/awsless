@@ -3,6 +3,7 @@ export default async (event: { token: string }) => {
 
 	return {
 		authorized: true,
+		lockKey: 'user-1',
 		context: {
 			token: event.token,
 		},

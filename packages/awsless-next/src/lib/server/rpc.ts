@@ -7,5 +7,6 @@ export type RpcAuthorizerResponse =
 	| {
 			authorized: true
 			context?: unknown
+			lockKey?: string
 			ttl: DurationFormat
 	  }

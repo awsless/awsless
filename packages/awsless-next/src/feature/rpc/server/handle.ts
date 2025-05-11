@@ -1,15 +1,18 @@
 import { invoke, ViewableError } from '@awsless/lambda'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
+import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
 import {
 	EXPECTED_ERROR,
 	INTERNAL_FUNCTION_ERROR,
 	INTERNAL_SERVER_ERROR,
 	INVALID_REQUEST,
+	TOO_MANY_REQUESTS,
 	UNAUTHORIZED,
 	UNKNOWN_ERROR,
 	UNKNOWN_FUNCTION_NAME,
 } from './error.js'
+import { lock, unlock } from './lock.js'
 import { FunctionResult, response } from './response.js'
 import { getFunctionName } from './schema.js'
 import { parseRequest } from './validate.js'
@@ -17,6 +20,11 @@ import { buildViewerPayload } from './viewer.js'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
+		// ----------------------------------------
+		// Generate a request ID
+
+		const requestId = randomUUID()
+
 		// ----------------------------------------
 		// Validate request
 
@@ -33,6 +41,19 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		if (!auth.authorized) {
 			return response(405, UNAUTHORIZED(auth.reason))
+		}
+
+		// ----------------------------------------
+		// Lock the request if needed
+
+		console.log(auth)
+
+		if (auth.lockKey) {
+			const locked = await lock(requestId, auth.lockKey)
+
+			if (!locked) {
+				return response(429, TOO_MANY_REQUESTS)
+			}
 		}
 
 		// ----------------------------------------
@@ -73,6 +94,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 				}
 			})
 		)
+
+		// ----------------------------------------
+		// Unlock the request if needed
+
+		if (auth.lockKey) {
+			await unlock(requestId, auth.lockKey)
+		}
 
 		// ----------------------------------------
 		// Format proper response

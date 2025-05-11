@@ -14,35 +14,35 @@
 		// 		"domain": "getblockalert.com"
 		// 	}
 		// },
-		"auth": {
-			"users": {}
-		},
-		"pubsub": {
-			"admin": {
-				// "domain": "main",
-				// "subDomain": "realtime",
-				"auth": "./pubsub-auth.ts"
-				// "policy": {
-				// 	"publish": ["user", "game/*"],
-				// 	"subscribe": ["user", "game/*"]
-				// }
-			}
-		},
+		// "auth": {
+		// 	"users": {}
+		// },
+		// "pubsub": {
+		// 	"admin": {
+		// 		// "domain": "main",
+		// 		// "subDomain": "realtime",
+		// 		"auth": "./pubsub-auth.ts"
+		// 		// "policy": {
+		// 		// 	"publish": ["user", "game/*"],
+		// 		// 	"subscribe": ["user", "game/*"]
+		// 		// }
+		// 	}
+		// },
 		// // "instance": {
 		// // 	// "connect": true
 		// // },
-		"onFailure": "./on-log.ts",
-		"onLog": {
-			"consumer": "./on-log.ts",
-			"filter": ["info", "debug", "trace", "error", "fatal"]
+		// "onFailure": "./on-log.ts",
+		// "onLog": {
+		// 	"consumer": "./on-log.ts",
+		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
+		// }
+		"rpc": {
+			"api": {
+				// "domain": "main",
+				// "subDomain": "api",
+				"auth": "./rpc-auth.ts"
+			}
 		}
-		// "rpc": {
-		// 	"api": {
-		// 		"domain": "main",
-		// 		"subDomain": "api",
-		// 		"auth": "./rpc-auth.ts"
-		// 	}
-		// },
 		// "rest": {
 		// 	"public": {
 		// 		"domain": "main",
