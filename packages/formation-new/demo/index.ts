@@ -9,10 +9,12 @@ import {
 	$,
 	WorkSpace,
 	Resource,
-	State,
 } from '../src/index.ts'
 import { marshall } from '@aws-sdk/util-dynamodb'
 import { homedir } from 'node:os'
+import { createCustomResourceClass } from '../src/custom/resource.ts'
+import { createCustomProvider } from '../src/custom/provider.ts'
+import { isNode } from '../src/formation/node.ts'
 
 enableDebug()
 
@@ -27,7 +29,7 @@ const dir = join(import.meta.dirname, 'build')
 // console.log((await aws({}).prepare()).schema());
 
 // await cloudFlare({}).generateTypes(dir);
-await aws({}).generateTypes(join(homedir(), `.awsless/types`))
+// await aws({}).generateTypes(join(homedir(), `.awsless/types`))
 
 const p = aws({
 	profile: 'jacksclub',
@@ -36,19 +38,43 @@ const p = aws({
 
 // await p.generateTypes(dir)
 
+// type InvalidateCacheProps = {
+// 	path: string
+// 	versions: string[]
+// }
+
+const Test = createCustomResourceClass<{ version: number }, {}>('custom', 'test')
+
+const testProvider = createCustomProvider('custom', {
+	test: {
+		async createResource(props) {
+			console.log('create custom resource', props)
+			return props.state
+		},
+		async updateResource(props) {
+			console.log('update custom resource', props)
+			return props.proposedState
+		},
+		async deleteResource(props) {
+			console.log('delete custom resource', props)
+		},
+	},
+})
+
 const workspace = new WorkSpace({
 	providers: [
-		aws({
-			profile: 'jacksclub',
-			region: 'us-east-1',
-			defaultTags: [
-				{
-					tags: {
-						app: 'app-2',
-					},
-				},
-			],
-		}),
+		testProvider,
+		// aws({
+		// 	profile: 'jacksclub',
+		// 	region: 'us-east-1',
+		// 	defaultTags: [
+		// 		{
+		// 			tags: {
+		// 				app: 'app-2',
+		// 			},
+		// 		},
+		// 	],
+		// }),
 		// cloudFlare({}),
 	],
 	backend: {
@@ -60,43 +86,51 @@ const workspace = new WorkSpace({
 // ----------------------------------------
 
 const app = new App('app-2')
-const stack1 = new Stack(app, 'stack-1')
-const stack2 = new Stack(app, 'stack-2')
+const stack = new Stack(app, 'stack')
+const test = new Test(stack, 'test', { version: 4 })
+// const test = Test.get(stack, 'test', '', {
 
-const table = new $.aws.dynamodb.Table(stack1, 'test', {
-	name: 'test-2',
-	billingMode: 'PAY_PER_REQUEST',
-	hashKey: 'key',
+// })
 
-	attribute: [
-		{
-			name: 'key',
-			type: 'S',
-		},
-	],
-	tags: {
-		test: 'TEST',
-	},
-})
+// console.log(stack.resources)
+// console.log('$' in obj, typeof obj.$ === 'object', obj.$ !== null, 'tag' in obj.$, typeof obj.$.tag === 'string')
 
-const iot = $.aws.iot.getEndpoint(stack2, 'test', {
-	endpointType: 'iot:Data-ATS',
-})
+// const stack2 = new Stack(app, 'stack-2')
 
-const item = new $.aws.dynamodb.TableItem(stack2, 'test', {
-	tableName: table.name,
-	hashKey: table.hashKey,
-	rangeKey: table.rangeKey,
-	// item: JSON.stringify({
-	// 	key: { S: 'address' },
-	// }),
-	item: iot.endpointAddress.pipe(address =>
-		JSON.stringify({
-			key: { S: 'address' },
-			address: { S: address },
-		})
-	),
-})
+// const table = new $.aws.dynamodb.Table(stack1, 'test', {
+// 	name: 'test-2',
+// 	billingMode: 'PAY_PER_REQUEST',
+// 	hashKey: 'key',
+
+// 	attribute: [
+// 		{
+// 			name: 'key',
+// 			type: 'S',
+// 		},
+// 	],
+// 	tags: {
+// 		test: 'TEST',
+// 	},
+// })
+
+// const iot = $.aws.iot.getEndpoint(stack2, 'test', {
+// 	endpointType: 'iot:Data-ATS',
+// })
+
+// const item = new $.aws.dynamodb.TableItem(stack2, 'test', {
+// 	tableName: table.name,
+// 	hashKey: table.hashKey,
+// 	rangeKey: table.rangeKey,
+// 	// item: JSON.stringify({
+// 	// 	key: { S: 'address' },
+// 	// }),
+// 	item: iot.endpointAddress.pipe(address =>
+// 		JSON.stringify({
+// 			key: { S: 'address' },
+// 			address: { S: address },
+// 		})
+// 	),
+// })
 
 // const item = new tf.aws.dynamodb.TableItem(
 // 	stack,
@@ -132,7 +166,7 @@ await workspace.deploy(app, {
 	// 'filters': ['']
 })
 
-console.log(await iot.endpointAddress)
+// console.log(await iot.endpointAddress)
 
 // try {
 // 	await workspace.delete(app)

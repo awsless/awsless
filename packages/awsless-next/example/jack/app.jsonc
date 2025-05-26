@@ -37,23 +37,25 @@
 		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
 		// }
 		"rpc": {
-			"api": {
-				// "domain": "main",
-				// "subDomain": "api",
+			"public": {},
+			"api-lock": {
+				"auth": "./rpc-auth.ts"
+			},
+			"api-unlock": {
 				"auth": "./rpc-auth.ts"
 			}
-		}
+		},
 		// "rest": {
 		// 	"public": {
 		// 		"domain": "main",
 		// 		"subDomain": "rest"
 		// 	}
 		// },
-		// "function": {
-		// 	"log": {
-		// 		"retention": "1 days",
-		// 		"level": "info"
-		// 	}
-		// }
+		"function": {
+			"log": {
+				"retention": "1 days",
+				"level": "trace"
+			}
+		}
 	}
 }

@@ -31,7 +31,9 @@ export const del = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app } = createApp({ appConfig, stackConfigs, accountId })
+				const { app, ready } = createApp({ appConfig, stackConfigs, accountId })
+
+				ready()
 
 				// const deletingLine = deploymentLine.reverse()
 				// const stackNames = app.stacks.filter(stack => filters.includes(stack.name)).map(s => s.name)

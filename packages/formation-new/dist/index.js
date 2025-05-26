@@ -3049,6 +3049,102 @@ var $ = createRecursiveProxy({
     return dataSource;
   }
 });
+
+// src/custom/resource.ts
+var createCustomResourceClass = (providerId, resourceType) => {
+  return new Proxy(class {
+  }, {
+    construct(_, [parent, id, input, config]) {
+      const $2 = createMeta("resource", `custom:${providerId}`, parent, resourceType, id, input, config);
+      const node = new Proxy(
+        { $: $2 },
+        {
+          get(_2, key) {
+            if (key === "$") {
+              return $2;
+            }
+            return $2.output((data) => data[key]);
+          }
+        }
+      );
+      parent.add(node);
+      return node;
+    }
+    // get(_, key: string) {
+    // 	if (key === 'get') {
+    // 		return (...args: any[]) => {
+    // 			return get(...args)
+    // 		}
+    // 	}
+    // 	return
+    // },
+  });
+};
+
+// src/custom/provider.ts
+var createCustomProvider = (providerId, resourceProviders) => {
+  const version = 1;
+  const getProvider = (type) => {
+    const provider = resourceProviders[type];
+    if (!provider) {
+      throw new Error(`The "${providerId}" provider doesn't support the "${type}" resource type.`);
+    }
+    return provider;
+  };
+  return {
+    ownResource(id) {
+      return id === `custom:${providerId}`;
+    },
+    async getResource({ type, ...props }) {
+      const provider = getProvider(type);
+      if (!provider.getResource) {
+        return {
+          version,
+          state: props.state
+        };
+      }
+      return {
+        version,
+        state: await provider.getResource(props)
+      };
+    },
+    async createResource({ type, ...props }) {
+      const provider = getProvider(type);
+      if (!provider.createResource) {
+        return {
+          version,
+          state: props.state
+        };
+      }
+      return {
+        version,
+        state: await provider.createResource(props)
+      };
+    },
+    async updateResource({ type, ...props }) {
+      const provider = getProvider(type);
+      if (!provider.updateResource) {
+        return {
+          version,
+          state: props.proposedState
+        };
+      }
+      return {
+        version,
+        state: await provider.updateResource(props)
+      };
+    },
+    async deleteResource({ type, ...props }) {
+      await getProvider(type).deleteResource?.(props);
+    },
+    async getData({ type, ...props }) {
+      return {
+        version,
+        state: await getProvider(type).getData?.(props) ?? {}
+      };
+    }
+  };
+};
 export {
   $,
   App,
@@ -3069,6 +3165,8 @@ export {
   StackError,
   Terraform,
   WorkSpace,
+  createCustomProvider,
+  createCustomResourceClass,
   createDebugger,
   deferredOutput,
   enableDebug,

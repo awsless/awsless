@@ -24,6 +24,11 @@ export const TOO_MANY_REQUESTS: GlobalError = {
 	message: 'Only one request can be processed at a time. Please try again shortly.',
 }
 
+export const ONE_FUNCTION_AT_A_TIME: GlobalError = {
+	type: 'one-function-at-a-time',
+	message: 'Only one function is allowed to be called at a time.',
+}
+
 // export const UNAUTHORIZED: GlobalError = {
 // 	type: 'unauthorized',
 // 	message: 'Unauthorized',

@@ -158,13 +158,6 @@ export const functionFeature = defineFeature({
 			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
 			resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
 		})
-
-		// ctx.onGlobalPolicy(policy => {
-		// 	policy.addStatement({
-		// 		actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
-		// 		resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
-		// 	})
-		// })
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {

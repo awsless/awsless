@@ -13,7 +13,8 @@ import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'node:url'
 import { createPrebuildLambdaFunction } from '../function/prebuild.js'
-import { days, minutes, seconds, toSeconds } from '@awsless/duration'
+import { days, seconds, toSeconds } from '@awsless/duration'
+import { UpdateFunctionCode } from '../../formation/lambda.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -60,12 +61,27 @@ export const rpcFeature = defineFeature({
 
 		for (const stack of ctx.stackConfigs) {
 			for (const [id, queries] of Object.entries(stack.rpc ?? {})) {
-				const list = names[id]!
-				for (const name of Object.keys(queries ?? {})) {
+				const list = names[id]
+
+				if (!list) {
+					throw new FileError(stack.file, `The RPC API for "${id}" isn't defined on app level.`)
+				}
+
+				for (const [name, props] of Object.entries(queries ?? {})) {
 					if (list.has(name)) {
 						throw new FileError(stack.file, `Duplicate RPC API function "${id}.${name}"`)
 					} else {
 						list.add(name)
+					}
+
+					const timeout = toSeconds(props.timeout ?? ctx.appConfig.defaults.function.timeout)
+					const maxTimeout = toSeconds(ctx.appConfig.defaults.rpc![id]!.timeout) * 0.8
+
+					if (timeout > maxTimeout) {
+						throw new FileError(
+							stack.file,
+							`Your RPC function "${id}.${name}" has a ${timeout} seconds timeout, the maximum is ${maxTimeout} seconds.`
+						)
 					}
 				}
 			}
@@ -88,12 +104,14 @@ export const rpcFeature = defineFeature({
 				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
 				memorySize: mebibytes(256),
-				timeout: minutes(3),
+				timeout: props.timeout,
 				handler: 'index.default',
 				runtime: 'nodejs22.x',
 				warm: 3,
 				log: props.log,
 			})
+
+			result.setEnvironment('TIMEOUT', toSeconds(props.timeout).toString())
 
 			// ------------------------------------------------------
 			// Create the schema table
@@ -166,12 +184,16 @@ export const rpcFeature = defineFeature({
 
 				// we need a new way of forcing the lambda to update after the auth changed.
 
-				// new $.aws.lambda.SourceCodeUpdate(group, 'update', {
-				// 	functionName: lambda.name,
-				// 	version: Asset.fromFile(getBuildPath('function', auth.name, 'HASH')),
-				// 	architecture: 'arm64',
-				// 	code,
-				// })
+				new UpdateFunctionCode(group, 'update', {
+					version: auth.code.sourceHash,
+
+					functionName: result.lambda.functionName,
+					architectures: result.lambda.architectures as any,
+					s3Bucket: result.lambda.s3Bucket,
+					s3Key: result.lambda.s3Key,
+					s3ObjectVersion: result.lambda.s3ObjectVersion,
+					imageUri: result.lambda.imageUri,
+				})
 			}
 
 			// ------------------------------------------------------

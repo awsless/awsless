@@ -24,6 +24,7 @@ JSON doesn't have support for types like:
 - `Date`
 - `BigInt`
 - `BigFloat` - npm package @awsless/bit-float
+- `Duration` - npm package @awsless/duration
 
 Having to encode & decode these type of values can get quite annoying. We try to solve this problem by encoding these types using valid JSON syntax.
 

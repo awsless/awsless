@@ -7,6 +7,7 @@ import { join } from 'path'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
+import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 import { zipFiles } from './build/zip.js'
 import { FunctionProps } from './schema.js'
 
@@ -214,7 +215,7 @@ export const createPrebuildLambdaFunction = (
 			isEnabled: true,
 		})
 
-		new $.aws.cloudwatch.EventTarget(group, 'target', {
+		new $.aws.cloudwatch.EventTarget(group, 'warm', {
 			rule: rule.name,
 			targetId: 'warmer',
 			arn: lambda.arn,

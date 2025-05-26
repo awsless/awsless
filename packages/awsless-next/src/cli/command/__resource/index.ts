@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 
-import { list } from './list.js'
+import { list } from '../list.js'
 
 const commands = [list]
 

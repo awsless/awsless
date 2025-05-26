@@ -416,4 +416,15 @@ type GlobalType<T> = T extends keyof Global ? Global[T] : any;
 declare namespace $ { }
 declare const $: GlobalType<"$terraform">;
 
-export { $, App, AppError, type CreateProps, type DataSource, type DataSourceFunction, type DataSourceMeta, type DeleteProps, DynamoLockBackend, FileLockBackend, FileStateBackend, Future, type GetDataProps, type GetProps, Group, type Input, type LockBackend, MemoryLockBackend, MemoryStateBackend, type OptionalInput, type OptionalOutput, Output, type ProcedureOptions, type Provider, type Resource, ResourceAlreadyExists, type ResourceClass, type ResourceConfig, ResourceError, type ResourceMeta, ResourceNotFound, S3StateBackend, Stack, StackError, type StateBackend, Terraform, type URN, type UpdateProps, WorkSpace, type WorkSpaceOptions, createDebugger, deferredOutput, enableDebug, findInputDeps, output, resolveInputs };
+declare const createCustomResourceClass: <I extends State$1, O extends State$1>(providerId: string, resourceType: string) => ResourceClass<I, O>;
+
+type CustomResourceProvider = Partial<{
+    getResource?(props: Omit<GetProps, 'type'>): Promise<State$1>;
+    updateResource?(state: Omit<UpdateProps, 'type'>): Promise<State$1>;
+    createResource?(state: Omit<CreateProps, 'type'>): Promise<State$1>;
+    deleteResource?(state: Omit<DeleteProps, 'type'>): Promise<void>;
+    getData?(state: Omit<GetDataProps, 'type'>): Promise<State$1>;
+}>;
+declare const createCustomProvider: (providerId: string, resourceProviders: Record<string, CustomResourceProvider>) => Provider;
+
+export { $, App, AppError, type CreateProps, type CustomResourceProvider, type DataSource, type DataSourceFunction, type DataSourceMeta, type DeleteProps, DynamoLockBackend, FileLockBackend, FileStateBackend, Future, type GetDataProps, type GetProps, Group, type Input, type LockBackend, MemoryLockBackend, MemoryStateBackend, type OptionalInput, type OptionalOutput, Output, type ProcedureOptions, type Provider, type Resource, ResourceAlreadyExists, type ResourceClass, type ResourceConfig, ResourceError, type ResourceMeta, ResourceNotFound, S3StateBackend, Stack, StackError, type StateBackend, Terraform, type URN, type UpdateProps, WorkSpace, type WorkSpaceOptions, createCustomProvider, createCustomResourceClass, createDebugger, deferredOutput, enableDebug, findInputDeps, output, resolveInputs };

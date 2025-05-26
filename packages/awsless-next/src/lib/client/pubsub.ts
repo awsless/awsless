@@ -11,7 +11,7 @@ type ClientProps = {
 
 type ClientPropsProvider = () => Promise<ClientProps> | ClientProps
 
-export const createPubSubClient = (app: string, props: ClientProps | ClientPropsProvider) => {
+export const createPubSubClient = (app: string | (() => string), props: ClientProps | ClientPropsProvider) => {
 	const mqtt = createClient(async () => {
 		const config = typeof props === 'function' ? await props() : props
 
@@ -22,12 +22,16 @@ export const createPubSubClient = (app: string, props: ClientProps | ClientProps
 		}
 	})
 
+	const getApp = () => {
+		return typeof app === 'string' ? app : app()
+	}
+
 	const getPubSubTopic = (name: string) => {
-		return `${app}/pubsub/${name}`
+		return `${getApp()}/pubsub/${name}`
 	}
 
 	const fromPubSubTopic = (name: string) => {
-		return name.replace(`${app}/pubsub/`, '')
+		return name.replace(`${getApp()}/pubsub/`, '')
 	}
 
 	return {

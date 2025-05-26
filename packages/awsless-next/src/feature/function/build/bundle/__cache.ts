@@ -3,12 +3,12 @@ import { createReadStream } from 'node:fs'
 import { lstat, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-type CacheKeyProps = {
-	directory: string
-}
+// type CacheKeyProps = {
+// 	directory: string
+// }
 
-export const bundleCacheKey = async (props: CacheKeyProps) => {
-	const files = await listAllFiles([props.directory])
+export const bundleCacheKey = async (directories: string[]) => {
+	const files = await listAllFiles(directories)
 	const hashes: Record<string, string> = {}
 
 	for (const file of files) {

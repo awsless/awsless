@@ -11,6 +11,8 @@ import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
 import { Region } from '../config/schema/region.js'
+import { createCloudFrontProvider } from '../formation/cloudfront.js'
+import { createLambdaProvider } from '../formation/lambda.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
 
@@ -48,6 +50,8 @@ export const createWorkSpace = async (props: {
 
 	const workspace = new WorkSpace({
 		providers: [
+			createLambdaProvider(props),
+			createCloudFrontProvider(props),
 			aws(
 				{
 					profile: props.profile,

@@ -7,6 +7,7 @@ import {
 	INTERNAL_FUNCTION_ERROR,
 	INTERNAL_SERVER_ERROR,
 	INVALID_REQUEST,
+	ONE_FUNCTION_AT_A_TIME,
 	TOO_MANY_REQUESTS,
 	UNAUTHORIZED,
 	UNKNOWN_ERROR,
@@ -44,11 +45,25 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		}
 
 		// ----------------------------------------
+		// Log Request.
+
+		console.log({
+			lockKey: auth.lockKey,
+			authContext: auth.context,
+			requestId,
+			request: request.output.body,
+			ip: request.output.requestContext.http.sourceIp,
+		})
+
+		// ----------------------------------------
 		// Lock the request if needed
 
-		console.log(auth)
-
 		if (auth.lockKey) {
+			// We should not allow batch calls for locked requests.
+			if (request.output.body.length !== 1) {
+				return response(400, ONE_FUNCTION_AT_A_TIME)
+			}
+
 			const locked = await lock(requestId, auth.lockKey)
 
 			if (!locked) {

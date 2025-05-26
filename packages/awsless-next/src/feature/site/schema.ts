@@ -1,13 +1,18 @@
 import { z } from 'zod'
 import { DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
+import { LocalEntrySchema } from '../../config/schema/local-entry.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 
 const ErrorResponsePathSchema = z
 	.string()
 	.describe(
-		"The path to the custom error page that you want to return to the viewer when your origin returns the HTTP status code specified.\n - We recommend that you store custom error pages in an Amazon S3 bucket. If you store custom error pages on an HTTP server and the server starts to return 5xx errors, CloudFront can't get the files that you want to return to viewers because the origin server is unavailable."
+		[
+			'The path to the custom error page that you want to return to the viewer when your origin returns the HTTP status code specified.',
+			'- We recommend that you store custom error pages in an Amazon S3 bucket.',
+			"If you store custom error pages on an HTTP server and the server starts to return 5xx errors, CloudFront can't get the files that you want to return to viewers because the origin server is unavailable.",
+		].join('\n')
 	)
 
 const StatusCodeSchema = z
@@ -16,7 +21,14 @@ const StatusCodeSchema = z
 	.positive()
 	.optional()
 	.describe(
-		"The HTTP status code that you want CloudFront to return to the viewer along with the custom error page. There are a variety of reasons that you might want CloudFront to return a status code different from the status code that your origin returned to CloudFront, for example:\n- Some Internet devices (some firewalls and corporate proxies, for example) intercept HTTP 4xx and 5xx and prevent the response from being returned to the viewer. If you substitute 200, the response typically won't be intercepted.\n- If you don't care about distinguishing among different client errors or server errors, you can specify 400 or 500 as the ResponseCode for all 4xx or 5xx errors.\n- You might want to return a 200 status code (OK) and static website so your customers don't know that your website is down."
+		[
+			'The HTTP status code that you want CloudFront to return to the viewer along with the custom error page.',
+			'There are a variety of reasons that you might want CloudFront to return a status code different from the status code that your origin returned to CloudFront, for example:',
+			'- Some Internet devices (some firewalls and corporate proxies, for example) intercept HTTP 4xx and 5xx and prevent the response from being returned to the viewer.',
+			"If you substitute 200, the response typically won't be intercepted.",
+			`- If you don't care about distinguishing among different client errors or server errors, you can specify 400 or 500 as the ResponseCode for all 4xx or 5xx errors.`,
+			`- You might want to return a 200 status code (OK) and static website so your customers don't know that your website is down.`,
+		].join('\n')
 	)
 
 const MinTTLSchema = DurationSchema.describe(
@@ -50,6 +62,22 @@ export const SitesSchema = z
 			// 	})
 			// 	.optional(),
 
+			build: z
+				.object({
+					command: z
+						.string()
+						.describe(
+							`Specifies the files and directories to generate the cache key for your custom build command.`
+						),
+					cacheKey: z
+						.union([LocalEntrySchema.transform(v => [v]), LocalEntrySchema.array()])
+						.describe(
+							`Specifies the files and directories to generate the cache key for your custom build command.`
+						),
+				})
+				.optional()
+				.describe(`Specifies the build process for sites that need a build step.`),
+
 			static: z
 				.union([LocalDirectorySchema, z.boolean()])
 				.optional()
@@ -57,7 +85,9 @@ export const SitesSchema = z
 					"Specifies the path to the static files directory. Additionally you can also pass `true` when you don't have local static files, but still want to make an S3 bucket."
 				),
 
-			ssr: FunctionSchema.optional().describe('Specifies the ssr file.'),
+			ssr: FunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
+
+			// envPrefix: z.string().optional().describe('Specifies a prefix for all '),
 
 			origin: z
 				.enum(['ssr-first', 'static-first'])
@@ -87,7 +117,11 @@ export const SitesSchema = z
 				.boolean()
 				.default(false)
 				.describe(
-					'Specify if the host header will be forwarded to the SSR function. Keep in mind that this requires an extra CloudFront Function.'
+					[
+						'Specify if the original `host` header should be forwarded to the SSR function.',
+						'The original `host` header will be forwarded as `x-forwarded-host`.',
+						'Keep in mind that this requires an extra CloudFront Function.',
+					].join('\n')
 				),
 
 			errors: z
@@ -121,7 +155,7 @@ export const SitesSchema = z
 						.default(['ALL']),
 				})
 				.optional()
-				.describe('Define the cors headers.'),
+				.describe('Specify the cors headers.'),
 
 			security: z
 				.object({
@@ -167,7 +201,7 @@ export const SitesSchema = z
 					// }
 				})
 				.optional()
-				.describe('Define the security policy.'),
+				.describe('Specify the security policy.'),
 
 			cache: z
 				.object({

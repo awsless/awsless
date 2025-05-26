@@ -36,4 +36,8 @@ import './formation/globals.ts'
 // Terraform Package
 export { Terraform } from './terraform/installer.ts'
 export { $ } from './terraform/resource.ts'
-// export type { $ } from './terraform/resource.ts'
+
+// Custom Package
+export { createCustomResourceClass } from './custom/resource.ts'
+export { createCustomProvider } from './custom/provider.ts'
+export type { CustomResourceProvider } from './custom/provider.ts'

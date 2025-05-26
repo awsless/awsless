@@ -50,6 +50,10 @@ export type OnPermissionCallback = (statement: Permission) => void
 // export type OnPolicy = (callback: OnPolicyListener) => void
 // export type OnPolicyListener = (policy: $.aws.iam.RolePolicy) => void
 
+// export type Event = 'after-build' | 'before-build' | 'ready'
+
+// export type OnEvent = (event: Event, callback)
+
 export type OnReady = (callback: OnReadyListener) => void
 export type OnReadyListener = () => void
 
@@ -95,6 +99,8 @@ export type AppContext = BeforeContext & {
 	onEnv: OnEnv
 
 	onReady: OnReady
+
+	// onEvent: OnEvent
 
 	// bindEnv: BindEnv
 	// setEnv:

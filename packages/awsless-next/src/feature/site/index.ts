@@ -1,13 +1,19 @@
 import { days, seconds, toSeconds } from '@awsless/duration'
 import { $, Input, Group } from '@awsless/formation'
 import { glob } from 'glob'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { getCacheControl, getContentType, getForwardHostFunctionCode } from './util.js'
 import { camelCase, constantCase } from 'change-case'
+import { generateCacheKey } from '../../util/cache.js'
+import { directories } from '../../util/path.js'
+import { execCommand } from '../../util/exec.js'
+import { Invalidation } from '../../formation/cloudfront.js'
+import { createHash } from 'crypto'
+import { Future } from '@awsless/formation'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -22,18 +28,41 @@ export const siteFeature = defineFeature({
 				resourceName: id,
 			})
 
+			if (props.build) {
+				const buildProps = props.build
+				ctx.registerBuild('site', name, async build => {
+					const fingerprint = await generateCacheKey(buildProps.cacheKey)
+
+					return build(fingerprint, async write => {
+						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
+
+						await execCommand({
+							cwd,
+							command: buildProps.command,
+						})
+
+						await write('HASH', fingerprint)
+
+						return {
+							size: 'n/a',
+						}
+					})
+				})
+			}
+
 			const origins: $.aws.cloudfront.DistributionInput['origin'] = []
 			const originGroups: $.aws.cloudfront.DistributionInput['originGroup'] = []
 
 			let bucket: $.aws.s3.Bucket
-			const versions: Array<Input<string | undefined> | Input<string>> = []
+			const versions: Array<Input<string> | Input<string | undefined>> = []
 
 			if (props.ssr) {
 				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
 
-				if ('versionId' in result.code) {
-					versions.push(result.code.versionId)
-				}
+				versions.push(result.code.sourceHash)
+
+				// if ('versionId' in result.code) {
+				// }
 
 				ctx.onBind((name, value) => {
 					result.setEnvironment(name, value)
@@ -127,26 +156,32 @@ export const siteFeature = defineFeature({
 
 				// accessControl.deletionPolicy = 'after-deployment'
 
-				if (typeof props.static === 'string') {
-					const files = glob.sync('**', {
-						cwd: props.static,
-						nodir: true,
-					})
-
-					for (const file of files) {
-						const object = new $.aws.s3.BucketObject(group, file, {
-							bucket: bucket.bucket,
-							key: file,
-							cacheControl: getCacheControl(file),
-							contentType: getContentType(file),
-							source: join(props.static, file),
-							sourceHash: $hash(join(props.static, file)),
+				ctx.onReady(() => {
+					if (typeof props.static === 'string') {
+						const files = glob.sync('**', {
+							cwd: join(directories.root, props.static),
+							nodir: true,
 						})
 
-						versions.push(object.key)
-						versions.push(object.etag)
+						// console.log(join(directories.root, props.static))
+
+						for (const file of files) {
+							const object = new $.aws.s3.BucketObject(group, file, {
+								bucket: bucket.bucket,
+								key: file,
+								cacheControl: getCacheControl(file),
+								contentType: getContentType(file),
+								source: join(directories.root, props.static, file),
+								sourceHash: $hash(join(directories.root, props.static, file)),
+							})
+
+							// console.log(file)
+
+							versions.push(object.key)
+							versions.push(object.sourceHash)
+						}
 					}
-				}
+				})
 
 				origins.push({
 					originId: 'static',
@@ -346,11 +381,22 @@ export const siteFeature = defineFeature({
 				},
 			})
 
-			// new $.aws.cloudfront.InvalidateCache(group, 'invalidate', {
-			// 	distributionId: distribution.id,
-			// 	paths: ['/*'],
-			// 	versions,
-			// })
+			new Invalidation(group, 'invalidate', {
+				distributionId: distribution.id,
+				paths: ['/*'],
+				version: new Future(resolve => {
+					$combine(...versions).then(versions => {
+						const combined = versions
+							.filter(v => !!v)
+							.sort()
+							.join(',')
+
+						const version = createHash('sha1').update(combined).digest('hex')
+
+						resolve(version)
+					})
+				}),
+			})
 
 			if (props.static) {
 				new $.aws.s3.BucketPolicy(

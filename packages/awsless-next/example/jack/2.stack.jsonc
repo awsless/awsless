@@ -4,12 +4,11 @@
 	"depends": ["stack"],
 	// "tests": "./test-2",
 	"functions": {
-		"echo": {
-			"code": "./function.ts",
-			"log": {
-				"level": "trace"
-				// "system": "debug"
-			}
-		}
+		"echo": "./function.ts"
 	}
+	// "rest": {
+	// 	"api": {
+	// 		"GET /lol": "./function.ts"
+	// 	}
+	// }
 }

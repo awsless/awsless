@@ -439,8 +439,10 @@ export const createApp = (props: CreateAppProps) => {
 	// ---------------------------------------------------------------
 	// Ready!
 
-	for (const listener of readyListeners) {
-		listener()
+	const ready = () => {
+		for (const listener of readyListeners) {
+			listener()
+		}
 	}
 
 	// ---------------------------------------------------------------
@@ -460,6 +462,7 @@ export const createApp = (props: CreateAppProps) => {
 		app,
 		base,
 		zones,
+		ready,
 		domainZones,
 		tests,
 		binds,

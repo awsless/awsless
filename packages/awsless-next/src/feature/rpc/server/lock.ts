@@ -1,40 +1,21 @@
-import {
-	ConditionalCheckFailedException,
-	DeleteItemCommand,
-	DynamoDBClient,
-	UpdateItemCommand,
-} from '@aws-sdk/client-dynamodb'
+import { ConditionalCheckFailedException, deleteItem, updateItem } from '@awsless/dynamodb'
+import { addSeconds } from 'date-fns'
 import { UUID } from 'node:crypto'
-import { LOCK_TABLE } from './config'
-
-const client = new DynamoDBClient({})
+import { lockTable } from './table'
 
 const lockRequest = async (requestId: UUID, key: string) => {
-	const now = Date.now()
-	const ttl = now + 60 * 3 * 2
+	const timeout = parseInt(process.env.TIMEOUT ?? '60', 10)
+	const now = new Date()
+	const ttl = addSeconds(now, timeout * 2)
 
 	try {
-		await client.send(
-			new UpdateItemCommand({
-				TableName: LOCK_TABLE,
-				Key: {
-					key: {
-						S: key,
-					},
-				},
-				UpdateExpression: 'SET #requestId = :requestId, #ttl = :ttl',
-				ConditionExpression: 'attribute_not_exists(#key) OR #ttl < :now',
-				ExpressionAttributeNames: {
-					'#key': 'key',
-					'#ttl': 'ttl',
-					'#requestId': 'requestId',
-				},
-				ExpressionAttributeValues: {
-					':requestId': { S: requestId },
-					':ttl': { N: ttl.toString() },
-					':now': { N: now.toString() },
-				},
-			})
+		await updateItem(
+			lockTable,
+			{ key },
+			{
+				update: exp => exp.update('requestId').set(requestId).update('ttl').set(ttl),
+				condition: exp => exp.where('key').not.exists.or.where('ttl').lt(now),
+			}
 		)
 	} catch (error) {
 		if (error instanceof ConditionalCheckFailedException) {
@@ -49,23 +30,12 @@ const lockRequest = async (requestId: UUID, key: string) => {
 
 const unlockRequest = async (requestId: UUID, key: string) => {
 	try {
-		await client.send(
-			new DeleteItemCommand({
-				TableName: LOCK_TABLE,
-				Key: {
-					key: {
-						S: key,
-					},
-				},
-				ConditionExpression: 'attribute_exists(#key) AND #requestId = :requestId',
-				ExpressionAttributeNames: {
-					'#key': 'key',
-					'#requestId': 'requestId',
-				},
-				ExpressionAttributeValues: {
-					':requestId': { S: requestId },
-				},
-			})
+		await deleteItem(
+			lockTable,
+			{ key },
+			{
+				condition: exp => exp.where('key').exists.and.where('requestId').eq(requestId),
+			}
 		)
 	} catch (error) {
 		if (error instanceof ConditionalCheckFailedException) {

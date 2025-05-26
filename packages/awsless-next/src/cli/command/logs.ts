@@ -186,14 +186,13 @@ const parseJsonLog = (
 	if (
 		'level' in json &&
 		typeof json.level === 'string' &&
-		'message' in json &&
-		typeof json.message === 'string' &&
 		'timestamp' in json &&
-		typeof json.timestamp === 'string'
+		typeof json.timestamp === 'string' &&
+		'message' in json
 	) {
 		return {
 			level: json.level,
-			message: json.message,
+			message: typeof json.message === 'string' ? json.message : JSON.stringify(json.message, undefined, 2),
 			date: new Date(json.timestamp),
 		}
 	}

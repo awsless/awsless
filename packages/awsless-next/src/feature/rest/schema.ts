@@ -15,6 +15,18 @@ export const RestDefaultSchema = z
 	.describe("Define your global REST API's.")
 
 export const RestSchema = z
-	.record(ResourceIdSchema, z.record(RouteSchema, FunctionSchema))
+	.record(
+		ResourceIdSchema,
+		z.record(
+			RouteSchema.describe(
+				[
+					'The REST API route that is comprised by the http method and http path.',
+					'The possible http methods are POST, GET,PUT, DELETE, HEAD, OPTIONS, ANY.',
+					'Example: GET /posts/{id}',
+				].join('\n')
+			),
+			FunctionSchema
+		)
+	)
 	.optional()
 	.describe('Define routes in your stack for your global REST API.')

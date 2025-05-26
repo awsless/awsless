@@ -35,7 +35,7 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, tests, builders } = createApp({
+				const { app, tests, builders, ready } = createApp({
 					appConfig,
 					stackConfigs,
 					accountId,
@@ -78,6 +78,11 @@ export const deploy = (program: Command) => {
 				}
 
 				await buildAssets(builders, filters)
+
+				// ---------------------------------------------------
+				// call ready after the builds
+
+				ready()
 
 				// ---------------------------------------------------
 

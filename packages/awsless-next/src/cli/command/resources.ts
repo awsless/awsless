@@ -3,19 +3,19 @@ import { log } from '@clack/prompts'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
-import { createApp } from '../../../app.js'
-import { getAccountId, getCredentials } from '../../../util/aws.js'
-import { layout } from '../../ui/complex/layout.js'
-import { color } from '../../ui/style.js'
-import { line } from '../../ui/util.js'
+import { createApp } from '../../app.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
+import { layout } from '../ui/complex/layout.js'
+import { color } from '../ui/style.js'
+import { line } from '../ui/util.js'
 
-export const list = (program: Command) => {
+export const resources = (program: Command) => {
 	program
-		.command('list')
+		.command('resources')
 		.argument('[stacks...]', 'Optionally filter stack resources to list')
-		.description(`List all defined resources`)
+		.description(`List all defined resources in your app`)
 		.action(async (filters: string[]) => {
-			await layout('resource list', async ({ appConfig, stackConfigs }) => {
+			await layout('resources', async ({ appConfig, stackConfigs }) => {
 				// ---------------------------------------------------
 				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)

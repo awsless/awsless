@@ -2,7 +2,6 @@ import { toSeconds } from '@awsless/duration'
 import { invoke } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { addSeconds, isFuture } from 'date-fns'
-import { AUTH } from './config'
 import { parseAuthResponse } from './validate'
 
 const cache = new WeakCache<
@@ -18,7 +17,7 @@ export const authenticate = async (token?: string) => {
 	// ------------------------------------------
 	// Ignore when no custom auth lambda is set.
 
-	if (!AUTH) {
+	if (!process.env.AUTH) {
 		return {
 			authorized: true,
 			context: {},
@@ -59,7 +58,7 @@ export const authenticate = async (token?: string) => {
 
 	try {
 		response = await invoke({
-			name: AUTH,
+			name: process.env.AUTH,
 			payload: { token },
 		})
 	} catch (error) {

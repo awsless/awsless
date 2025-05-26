@@ -14,12 +14,7 @@
 	// },
 
 	"functions": {
-		"echo": {
-			"code": "./function.ts",
-			"log": {
-				"level": "trace"
-			}
-		}
+		"echo": "./function.ts"
 		// "echo-4": "./function.ts"
 		// "echo-3": "./function.ts"
 	},
@@ -47,16 +42,17 @@
 	// 	"test": {}
 	// },
 
-	"rpc": {
-		"api": {
-			"test": {
-				"code": "./echo.ts",
-				"log": {
-					"level": "trace"
-				}
-			}
-		}
-	}
+	// "rpc": {
+	// 	"api": {
+	// 		"test": {
+	// 			"code": "./echo.ts",
+	// 			// "timeout": "5 minutes",
+	// 			"log": {
+	// 				"level": "trace"
+	// 			}
+	// 		}
+	// 	}
+	// },
 
 	// "crons": {
 	// 	"test": {
@@ -86,13 +82,19 @@
 	// 	}
 	// },
 
-	// "sites": {
-	// 	"website": {
-	// 		"domain": "main",
-	// 		"static": "./site",
-	// 		"ssr": "./ssr.ts"
-	// 	}
-	// }
+	"sites": {
+		"website": {
+			// "domain": "main",
+			"build": {
+				"command": "echo 1",
+				"cacheKey": ["./site/", "./app.jsonc"]
+			},
+			"ssr": "./ssr.ts",
+			"static": {
+				"nocheck": "./site"
+			}
+		}
+	}
 
 	// "streams": {
 	// 	"arena": {

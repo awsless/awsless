@@ -2,6 +2,7 @@ import { $, Group } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatLocalResourceName } from '../../util/name.js'
+import { shortId } from '../../util/id.js'
 
 export const cronFeature = defineFeature({
 	name: 'cron',
@@ -9,14 +10,18 @@ export const cronFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Group(ctx.stack, 'cron', id)
 
-			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, props.consumer)
+			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, {
+				...props.consumer,
+				// Never warm cronjob lambda's
+				warm: 0,
+			})
 
 			const rule = new $.aws.cloudwatch.EventRule(group, 'rule', {
 				name: formatLocalResourceName({
 					appName: ctx.app.name,
 					stackName: ctx.stack.name,
 					resourceType: 'cron',
-					resourceName: id,
+					resourceName: shortId(id),
 				}),
 				description: `Cron ${ctx.stack.name} ${id}`,
 				scheduleExpression: props.schedule,

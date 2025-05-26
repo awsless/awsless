@@ -49,7 +49,9 @@ const RetryAttemptsSchema = z
 
 const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x'])
 const ContainerRuntimeSchema = z.literal('container')
-const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema).describe("The identifier of the function's runtime.")
+const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema)
+	.or(z.string())
+	.describe("The identifier of the function's runtime.")
 
 const ActionSchema = z.string()
 const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])

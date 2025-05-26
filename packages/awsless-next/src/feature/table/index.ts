@@ -6,6 +6,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { constantCase } from 'change-case'
+import { toSeconds } from '@awsless/duration'
 
 export const tableFeature = defineFeature({
 	name: 'table',
@@ -106,8 +107,8 @@ export const tableFeature = defineFeature({
 					rangeKey: props.sort,
 					attribute: attributeDefinitions(),
 					ttl: {
-						attributeName: props.timeToLiveAttribute,
-						enabled: !!props.timeToLiveAttribute,
+						attributeName: props.ttl,
+						enabled: !!props.ttl,
 					},
 					pointInTimeRecovery: {
 						enabled: props.pointInTimeRecovery,
@@ -151,11 +152,19 @@ export const tableFeature = defineFeature({
 					{
 						functionName: result.lambda.functionName,
 						eventSourceArn: table.streamArn,
-						batchSize: 100,
-						bisectBatchOnFunctionError: true,
-						// maximumRetryAttempts: props.stream.
-						// retryAttempts: props.stream.consumer.retryAttempts ?? -1,
-						parallelizationFactor: 1,
+
+						// tumblingWindowInSeconds
+						// maximumRecordAgeInSeconds: props.stream.
+						// bisectBatchOnFunctionError: true,
+
+						batchSize: props.stream.batchSize,
+						maximumBatchingWindowInSeconds: props.stream.batchWindow
+							? toSeconds(props.stream.batchWindow)
+							: undefined,
+						maximumRetryAttempts: props.stream.retryAttempts,
+						parallelizationFactor: props.stream.concurrencyPerShard,
+						functionResponseTypes: ['ReportBatchItemFailures'],
+
 						startingPosition: 'LATEST',
 						destinationConfig: {
 							onFailure: onFailure ? { destinationArn: onFailure } : undefined,

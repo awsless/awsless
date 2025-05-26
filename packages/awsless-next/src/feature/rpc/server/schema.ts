@@ -1,7 +1,6 @@
-import { DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb'
-import { SCHEMA_TABLE } from './config'
+import { getItem } from '@awsless/dynamodb'
+import { schemaTable } from './table'
 
-const client = new DynamoDBClient({})
 const schema: Record<string, string> = {}
 
 export const getFunctionName = async (name: string) => {
@@ -9,24 +8,15 @@ export const getFunctionName = async (name: string) => {
 		return schema[name]
 	}
 
-	const entry = await client.send(
-		new GetItemCommand({
-			TableName: SCHEMA_TABLE,
-			Key: {
-				query: {
-					S: name,
-				},
-			},
-		})
-	)
+	const entry = await getItem(schemaTable, { query: name })
 
-	const fn = entry.Item?.function?.S
-
-	if (fn) {
-		schema[name] = fn
+	if (!entry) {
+		return
 	}
 
-	return fn
+	schema[name] = entry.function
+
+	return entry.function
 }
 
 export const invalidate = (name: string) => {

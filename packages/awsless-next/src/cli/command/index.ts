@@ -7,7 +7,7 @@ import { deploy } from './deploy.js'
 import { auth } from './auth/index.js'
 import { bind } from './bind.js'
 import { dev } from './dev.js'
-import { resource } from './resource/index.js'
+import { resources } from './resources.js'
 import { run } from './run.js'
 import { state } from './state/index.js'
 import { test } from './test.js'
@@ -31,7 +31,7 @@ export const commands = [
 	auth,
 	domain,
 	state,
-	resource,
+	resources,
 	config,
 	test,
 ]

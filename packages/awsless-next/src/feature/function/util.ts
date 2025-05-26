@@ -17,12 +17,14 @@ import { pascalCase } from 'change-case'
 // import { hashElement } from 'folder-hash'
 // import { FileError } from '../../error.js'
 import { FileError } from '../../error.js'
+import { generateCacheKey } from '../../util/cache.js'
 import { shortId } from '../../util/id.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { zipBundle } from './build/bundle/bundle.js'
-import { bundleCacheKey } from './build/bundle/cache.js'
+import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
+// import { bundleCacheKey } from './build/bundle/__cache.js'
 // import { buildDockerImage } from './build/container/build.js'
 
 // type Function = $.aws.lambda.Function
@@ -45,7 +47,7 @@ export const createLambdaFunction = (
 	local: FunctionProps
 ) => {
 	let name: string
-	let roleName: string
+	let shortName: string
 
 	if ('stack' in ctx) {
 		name = formatLocalResourceName({
@@ -55,7 +57,7 @@ export const createLambdaFunction = (
 			resourceName: id,
 		})
 
-		roleName = formatLocalResourceName({
+		shortName = formatLocalResourceName({
 			appName: ctx.app.name,
 			stackName: ctx.stack.name,
 			resourceType: ns,
@@ -68,7 +70,7 @@ export const createLambdaFunction = (
 			resourceName: id,
 		})
 
-		roleName = formatGlobalResourceName({
+		shortName = formatGlobalResourceName({
 			appName: ctx.app.name,
 			resourceType: ns,
 			resourceName: shortId(`${id}:${ctx.appId}`),
@@ -132,9 +134,9 @@ export const createLambdaFunction = (
 	} else if ('file' in local.code) {
 		const fileCode = local.code
 		ctx.registerBuild('function', name, async (build, { workspace }) => {
-			const version = await generateFileHash(workspace, fileCode.file)
+			const fingerprint = await generateFileHash(workspace, fileCode.file)
 
-			return build(version, async write => {
+			return build(fingerprint, async write => {
 				const temp = await createTempFolder(`function--${name}`)
 
 				const bundle = await bundleTypeScript({
@@ -181,17 +183,15 @@ export const createLambdaFunction = (
 	} else {
 		const bundleCode = local.code
 		ctx.registerBuild('function', name, async build => {
-			const version = await bundleCacheKey({
-				directory: bundleCode.bundle,
-			})
+			const fingerprint = await generateCacheKey([bundleCode.bundle])
 
-			return build(version, async write => {
+			return build(fingerprint, async write => {
 				// await customBuild(buildProps)
 				const bundle = await zipBundle({
 					directory: bundleCode.bundle,
 				})
 
-				await write('HASH', version)
+				await write('HASH', fingerprint)
 				await write('bundle.zip', bundle)
 
 				return {
@@ -211,7 +211,7 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 
 	const role = new $.aws.iam.Role(group, 'role', {
-		name: roleName,
+		name: shortName,
 		description: name,
 		assumeRolePolicy: JSON.stringify({
 			Version: '2012-10-17',
@@ -448,13 +448,13 @@ export const createLambdaFunction = (
 
 	if (props.warm) {
 		const rule = new $.aws.cloudwatch.EventRule(group, 'warm', {
-			name: `${name}--warm`,
-			description: 'Lambda Warmer',
+			name: `${shortName}--warm`,
+			description: `Lambda Warm ${id}`,
 			scheduleExpression: 'rate(5 minutes)',
 			isEnabled: true,
 		})
 
-		new $.aws.cloudwatch.EventTarget(group, 'target', {
+		new $.aws.cloudwatch.EventTarget(group, 'warm', {
 			rule: rule.name,
 			targetId: 'warmer',
 			arn: lambda.arn,
