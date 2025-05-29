@@ -1,12 +1,12 @@
+import commonjs from '@rollup/plugin-commonjs'
+import json from '@rollup/plugin-json'
+import nodeResolve from '@rollup/plugin-node-resolve'
+import { dirname, join } from 'path'
 import { swc } from 'rollup-plugin-swc3'
-import { CustomReporter } from './reporter.js'
+import { fileURLToPath } from 'url'
 import { configDefaults } from 'vitest/config'
 import { startVitest } from 'vitest/node'
-import commonjs from '@rollup/plugin-commonjs'
-import nodeResolve from '@rollup/plugin-node-resolve'
-import json from '@rollup/plugin-json'
-import { dirname, join } from 'path'
-import { fileURLToPath } from 'url'
+import { CustomReporter } from './reporter.js'
 
 export const startTest = async (props: { reporter?: CustomReporter; dir: string; filters: string[] }) => {
 	const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -24,7 +24,16 @@ export const startTest = async (props: { reporter?: CustomReporter; dir: string;
 			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 			globals: true,
 			reporters: props.reporter,
-			globalSetup: join(__dirname, 'test-global-setup.js'),
+			setupFiles: [
+				//
+				join(__dirname, 'test-global-setup.js'),
+			],
+
+			// globalSetup: [
+			// 	//
+			// 	join(__dirname, 'test-global-setup.js'),
+			// ],
+
 			// env: {
 			// 	TZ: 'UTC',
 			// },

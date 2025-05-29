@@ -1,5 +1,5 @@
 // src/bigfloat.ts
-import { make, string, set_precision } from "bigfloat-esnext";
+import { make, set_precision, string } from "bigfloat-esnext";
 set_precision(-12);
 var BigFloat = class {
   exponent;
@@ -113,7 +113,7 @@ var minmax = (number, min2, max2) => {
   if (gt(min2, max2)) {
     throw new TypeError(`min ${min2} bound can't be greater then the max ${max2} bound`);
   }
-  return make3(lt(number, min2) ? min2 : gt(number, max2) ? max2 : number);
+  return new BigFloat(lt(number, min2) ? min2 : gt(number, max2) ? max2 : number);
 };
 var cmp = (a, b) => {
   if (gt(a, b)) {
@@ -124,18 +124,33 @@ var cmp = (a, b) => {
   return 0;
 };
 
+// src/predicate.ts
+import { is_integer, is_negative, is_positive, is_zero, make as make4 } from "bigfloat-esnext";
+var isBigFloat = (number) => {
+  return number instanceof BigFloat;
+};
+var isInteger = (number) => {
+  return is_integer(make4(number));
+};
+var isNegative = (number) => {
+  return is_negative(make4(number));
+};
+var isPositive = (number) => {
+  if (isZero(number)) {
+    return false;
+  }
+  return is_positive(make4(number));
+};
+var isZero = (number) => {
+  return is_zero(make4(number));
+};
+
 // src/index.ts
 import {
   set_precision as set_precision2,
   evaluate,
   scientific,
-  fraction,
-  is_big_float,
-  is_number,
-  is_negative,
-  is_positive,
-  is_zero,
-  is_integer
+  fraction
 } from "bigfloat-esnext";
 
 // src/constants.ts
@@ -185,12 +200,11 @@ export {
   fraction,
   gt,
   gte,
-  is_big_float,
-  is_integer,
-  is_negative,
-  is_number,
-  is_positive,
-  is_zero,
+  isBigFloat,
+  isInteger,
+  isNegative,
+  isPositive,
+  isZero,
   lt,
   lte,
   max,

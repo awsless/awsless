@@ -10,7 +10,9 @@ import {
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
+// import { fileURLToPath } from 'url'
 import { Region } from '../config/schema/region.js'
+import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createCloudFrontProvider } from '../formation/cloudfront.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { Credentials } from './aws.js'
@@ -46,12 +48,18 @@ export const createWorkSpace = async (props: {
 		enableDebug()
 	}
 
-	const aws = await terraform.install('hashicorp', 'aws', '5.94.1')
+	const aws = await terraform.install('hashicorp', 'aws', '5.98.0')
+
+	// const __dirname = dirname(fileURLToPath(import.meta.url))
+	// await aws({}).generateTypes(join(__dirname, './formation.d.ts'))
+
+	// // $.aws.cloudfrontkeyvaluestore.Key
 
 	const workspace = new WorkSpace({
 		providers: [
 			createLambdaProvider(props),
 			createCloudFrontProvider(props),
+			createCloudFrontKvsProvider(props),
 			aws(
 				{
 					profile: props.profile,

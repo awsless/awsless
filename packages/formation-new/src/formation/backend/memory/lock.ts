@@ -26,4 +26,8 @@ export class MemoryLockBackend implements LockBackend {
 			}
 		}
 	}
+
+	clear() {
+		this.locks.clear()
+	}
 }

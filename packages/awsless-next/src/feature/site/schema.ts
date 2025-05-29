@@ -89,10 +89,10 @@ export const SitesSchema = z
 
 			// envPrefix: z.string().optional().describe('Specifies a prefix for all '),
 
-			origin: z
-				.enum(['ssr-first', 'static-first'])
-				.default('static-first')
-				.describe('Specifies the origin fallback ordering.'),
+			// origin: z
+			// 	.enum(['ssr-first', 'static-first'])
+			// 	.default('static-first')
+			// 	.describe('Specifies the origin fallback ordering.'),
 
 			// bind: z.object({
 			// 	auth:
@@ -113,16 +113,16 @@ export const SitesSchema = z
 				.default([])
 				.describe('Specifies a blacklist of countries that should be blocked.'),
 
-			forwardHost: z
-				.boolean()
-				.default(false)
-				.describe(
-					[
-						'Specify if the original `host` header should be forwarded to the SSR function.',
-						'The original `host` header will be forwarded as `x-forwarded-host`.',
-						'Keep in mind that this requires an extra CloudFront Function.',
-					].join('\n')
-				),
+			// forwardHost: z
+			// 	.boolean()
+			// 	.default(false)
+			// 	.describe(
+			// 		[
+			// 			'Specify if the original `host` header should be forwarded to the SSR function.',
+			// 			'The original `host` header will be forwarded as `x-forwarded-host`.',
+			// 			'Keep in mind that this requires an extra CloudFront Function.',
+			// 		].join('\n')
+			// 	),
 
 			errors: z
 				.object({

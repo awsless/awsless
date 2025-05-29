@@ -227,52 +227,6 @@ var Future = class _Future {
   }
 };
 
-// src/formation/output.ts
-var Output = class _Output extends Future {
-  constructor(dependencies, callback) {
-    super(callback);
-    this.dependencies = dependencies;
-  }
-  pipe(cb) {
-    return new _Output(this.dependencies, (resolve2, reject) => {
-      this.then((value) => {
-        Promise.resolve(cb(value)).then((value2) => {
-          resolve2(value2);
-        }).catch(reject);
-      }, reject);
-    });
-  }
-};
-var deferredOutput = (cb) => {
-  return new Output(/* @__PURE__ */ new Set(), cb);
-};
-var output = (value) => {
-  return deferredOutput((resolve2) => resolve2(value));
-};
-var combine = (...inputs) => {
-  const deps = new Set(...inputs.filter((o) => o instanceof Output).map((o) => o.dependencies));
-  return new Output(deps, (resolve2, reject) => {
-    Promise.all(inputs).then((result) => {
-      resolve2(result);
-    }, reject);
-  });
-};
-var resolve = (inputs, transformer) => {
-  return combine(...inputs).pipe((data) => {
-    return transformer(...data);
-  });
-};
-var interpolate = (literals, ...placeholders) => {
-  return combine(...placeholders).pipe((unwrapped) => {
-    const result = [];
-    for (let i = 0; i < unwrapped.length; i++) {
-      result.push(literals[i], unwrapped[i]);
-    }
-    result.push(literals.at(-1));
-    return result.join("");
-  });
-};
-
 // src/formation/input.ts
 var findInputDeps = (props) => {
   const deps = [];
@@ -330,6 +284,52 @@ var resolveInputs = async (inputs) => {
     props[key] = responses[i];
   });
   return inputs;
+};
+
+// src/formation/output.ts
+var Output = class _Output extends Future {
+  constructor(dependencies, callback) {
+    super(callback);
+    this.dependencies = dependencies;
+  }
+  pipe(cb) {
+    return new _Output(this.dependencies, (resolve2, reject) => {
+      this.then((value) => {
+        Promise.resolve(cb(value)).then((value2) => {
+          resolve2(value2);
+        }).catch(reject);
+      }, reject);
+    });
+  }
+};
+var deferredOutput = (cb) => {
+  return new Output(/* @__PURE__ */ new Set(), cb);
+};
+var output = (value) => {
+  return deferredOutput((resolve2) => resolve2(value));
+};
+var combine = (...inputs) => {
+  const deps = new Set(findInputDeps(inputs));
+  return new Output(deps, (resolve2, reject) => {
+    Promise.all(inputs).then((result) => {
+      resolve2(result);
+    }, reject);
+  });
+};
+var resolve = (inputs, transformer) => {
+  return combine(...inputs).pipe((data) => {
+    return transformer(...data);
+  });
+};
+var interpolate = (literals, ...placeholders) => {
+  return combine(...placeholders).pipe((unwrapped) => {
+    const result = [];
+    for (let i = 0; i < unwrapped.length; i++) {
+      result.push(literals[i], unwrapped[i]);
+    }
+    result.push(literals.at(-1));
+    return result.join("");
+  });
 };
 
 // src/formation/debug.ts

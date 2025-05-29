@@ -15,6 +15,11 @@ import {
 	gt,
 	gte,
 	HUNDRED,
+	isBigFloat,
+	isInteger,
+	isNegative,
+	isPositive,
+	isZero,
 	lt,
 	lte,
 	max,
@@ -42,6 +47,41 @@ import {
 describe('BigFloat', () => {
 	describe('construct', () => {
 		it('BigFloat(1) == 1', () => expect(eq(new BigFloat(1), 1)).toBe(true))
+	})
+
+	describe('predicate', () => {
+		describe('isBigFloat', () => {
+			it('isBigFloat(BigFloat)', () => expect(isBigFloat(new BigFloat(1))).toBe(true))
+			it('isBigFloat(undefined)', () => expect(isBigFloat(undefined)).toBe(false))
+			it('isBigFloat(null)', () => expect(isBigFloat(null)).toBe(false))
+			it('isBigFloat({})', () => expect(isBigFloat({})).toBe(false))
+		})
+
+		describe('isInteger', () => {
+			it('isInteger(1)', () => expect(isInteger(1)).toBe(true))
+			it('isInteger(0)', () => expect(isInteger(0)).toBe(true))
+			it('isInteger(-1)', () => expect(isInteger(-1)).toBe(true))
+			it('isInteger(0.1)', () => expect(isInteger(0.1)).toBe(false))
+			it('isInteger(-0.1)', () => expect(isInteger(-0.1)).toBe(false))
+		})
+
+		describe('isNegative', () => {
+			it('isNegative(1)', () => expect(isNegative(1)).toBe(false))
+			it('isNegative(0)', () => expect(isNegative(0)).toBe(false))
+			it('isNegative(-1)', () => expect(isNegative(-1)).toBe(true))
+		})
+
+		describe('isPositive', () => {
+			it('isPositive(1)', () => expect(isPositive(1)).toBe(true))
+			it('isPositive(0)', () => expect(isPositive(0)).toBe(false))
+			it('isPositive(-1)', () => expect(isPositive(-1)).toBe(false))
+		})
+
+		describe('isZero', () => {
+			it('isZero(1)', () => expect(isZero(1)).toBe(false))
+			it('isZero(0)', () => expect(isZero(0)).toBe(true))
+			it('isZero(-1)', () => expect(isZero(-1)).toBe(false))
+		})
 	})
 
 	describe('relational', () => {

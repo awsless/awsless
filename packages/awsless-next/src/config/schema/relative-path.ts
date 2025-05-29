@@ -13,7 +13,6 @@ export const resolvePath = (path: string) => {
 		return join(basePath, path)
 	}
 
-	// return join(directories.root, path)
 	return path
 }
 

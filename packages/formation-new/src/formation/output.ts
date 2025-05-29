@@ -1,6 +1,6 @@
 // import { DataSourceMeta } from './data-source.ts'
 import { Future } from './future.ts'
-import { Input, UnwrapInputArray } from './input.ts'
+import { findInputDeps, Input, UnwrapInputArray } from './input.ts'
 import { Meta } from './meta.ts'
 // import { ResourceMeta } from './resource.ts'
 
@@ -63,7 +63,8 @@ export const output = <T>(value: T) => {
 
 export const combine = <T extends Input[], R = UnwrapInputArray<T>>(...inputs: T): Output<R> => {
 	// const unresolved = findUnresolvedInputs(inputs);
-	const deps = new Set(...inputs.filter(o => o instanceof Output).map(o => o.dependencies))
+	// const deps = new Set(...inputs.filter(o => o instanceof Output).map(o => o.dependencies))
+	const deps = new Set(findInputDeps(inputs))
 
 	return new Output<R>(deps, (resolve, reject) => {
 		Promise.all(inputs).then(result => {

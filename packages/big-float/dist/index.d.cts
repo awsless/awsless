@@ -1,6 +1,5 @@
-import * as bigfloat_esnext from 'bigfloat-esnext';
 import { IBigFloat } from 'bigfloat-esnext';
-export { IBigFloat, evaluate, fraction, is_big_float, is_integer, is_negative, is_number, is_positive, is_zero, scientific, set_precision } from 'bigfloat-esnext';
+export { IBigFloat, evaluate, fraction, scientific, set_precision } from 'bigfloat-esnext';
 
 type Numeric = IBigFloat | number | bigint | string;
 declare class BigFloat implements IBigFloat {
@@ -30,8 +29,14 @@ declare const gt: (a: Numeric, b: Numeric) => boolean;
 declare const gte: (a: Numeric, b: Numeric) => boolean;
 declare const min: (...values: Numeric[]) => BigFloat;
 declare const max: (...values: Numeric[]) => BigFloat;
-declare const minmax: (number: Numeric, min: Numeric, max: Numeric) => bigfloat_esnext.IBigFloat;
+declare const minmax: (number: Numeric, min: Numeric, max: Numeric) => BigFloat;
 declare const cmp: (a: Numeric, b: Numeric) => 0 | 1 | -1;
+
+declare const isBigFloat: (number: unknown) => number is BigFloat;
+declare const isInteger: (number: Numeric) => boolean;
+declare const isNegative: (number: Numeric) => boolean;
+declare const isPositive: (number: Numeric) => boolean;
+declare const isZero: (number: Numeric) => boolean;
 
 declare const ZERO: BigFloat;
 declare const ONE: BigFloat;
@@ -50,4 +55,4 @@ declare const MILLION: BigFloat;
 declare const BILLION: BigFloat;
 declare const TRILLION: BigFloat;
 
-export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, type Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, cmp, div, eq, factor, floor, gt, gte, lt, lte, max, min, minmax, mul, neg, pow, sqrt, sub };
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, type Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, cmp, div, eq, factor, floor, gt, gte, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, max, min, minmax, mul, neg, pow, sqrt, sub };

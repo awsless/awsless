@@ -266,11 +266,11 @@ export const rpcFeature = defineFeature({
 			})
 
 			const cdn = new $.aws.cloudfront.Distribution(group, 'cdn', {
-				tags: {
-					Name: name,
-					// Feature: ''
-				},
-
+				// tags: {
+				// 	Name: name,
+				// 	// Feature: ''
+				// },
+				comment: name,
 				enabled: true,
 				aliases: domainName ? [domainName] : undefined,
 				priceClass: 'PriceClass_All',

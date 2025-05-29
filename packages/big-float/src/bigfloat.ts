@@ -1,5 +1,4 @@
-
-import { make, IBigFloat, string, set_precision } from 'bigfloat-esnext'
+import { IBigFloat, make, set_precision, string } from 'bigfloat-esnext'
 
 set_precision(-12)
 
@@ -20,8 +19,8 @@ export class BigFloat implements IBigFloat {
 		return this.toString()
 	}
 
-	toString(radix?:Numeric) {
-		if(typeof radix !== 'undefined') {
+	toString(radix?: Numeric) {
+		if (typeof radix !== 'undefined') {
 			radix = make(radix)
 		}
 

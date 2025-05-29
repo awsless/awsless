@@ -8,8 +8,7 @@ The `@awsless/formation` package is a TypeScript API that provides an infrastruc
 The most used IaC solutions are slow & don't effectively leverage diffing to speed up their deployments.
 
 ## Todo's
-- Make a build script to bridge terraform providers to awsless. (This will open up the ability for us to support all cloud providers currently supported by terraform.)
-- Add tags that will propagate to it's children nodes. (This will allow us to set tags on the stack and make the tag available for all resources inside the stack.)
+- When a resource is being deleted inside a deployment we need to make sure that resources that depend on our deleted resource will be updated first.
 
 ## Setup
 
@@ -35,7 +34,7 @@ In this example, we will use a local file lock & state provider.
 ```ts
 import { minutes } from '@awsless/duration'
 import { fromIni } from '@aws-sdk/credential-providers'
-import { App, FileStateBackend, FileLockBackend, tf, Terraform, Stack, WorkSpace } from '../src'
+import { App, FileStateBackend, FileLockBackend, $, Terraform, Stack, WorkSpace } from '@awsless/formation'
 
 const terraform = new Terraform({
 	providerLocation: './providers'
@@ -63,10 +62,10 @@ This example illustrates how simple it is to define multi-stack resources withou
 ```ts
 const app = new App('todo-app')
 const storage = new Stack(app, 'storage')
-const list = new tf.aws.s3.Bucket(storage, 'list', {})
+const list = new $.aws.s3.Bucket(storage, 'list', {})
 
 const items = new Stack(app, 'items')
-const todo = new tf.aws.s3.BucketObject(items, 'item', {
+const todo = new $.aws.s3.BucketObject(items, 'item', {
 	bucket: list.bucket,
 	key: 'item-1',
 	content: JSON.stringify({

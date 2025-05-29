@@ -315,18 +315,6 @@ export const createApp = (props: CreateAppProps) => {
 		// ---------------------------------------------------------------
 		// Local stack binds
 
-		// for (const listener of localFunctionListeners) {
-		// 	for (const fn of localFunctions) {
-		// 		listener(fn)
-		// 	}
-		// }
-
-		// for (const listener of stackPolicyListeners) {
-		// 	for (const policy of stackPolicies) {
-		// 		listener(policy)
-		// 	}
-		// }
-
 		for (const callback of stackPermissionCallbacks) {
 			for (const permission of stackPermissions) {
 				callback(permission)
@@ -342,24 +330,6 @@ export const createApp = (props: CreateAppProps) => {
 
 	// ---------------------------------------------------------------
 	// Global app binds
-
-	// for (const listener of allFunctionListeners) {
-	// 	for (const fn of allFunctions) {
-	// 		listener(fn)
-	// 	}
-	// }
-
-	// for (const listener of appPoliciesListeners) {
-	// 	for (const fn of appPolicies) {
-	// 		listener(fn)
-	// 	}
-	// }
-
-	// for (const listener of globalPoliciesListeners) {
-	// 	for (const fn of globalPolicies) {
-	// 		listener(fn)
-	// 	}
-	// }
 
 	for (const callback of appPermissionCallbacks) {
 		for (const permission of appPermissions) {
@@ -382,11 +352,11 @@ export const createApp = (props: CreateAppProps) => {
 	// ---------------------------------------------------------------
 	// Site env binds
 
-	// for (const lambda of siteFunctions) {
-	// 	for (const { name, value } of binds) {
-	// 		lambda.addEnvironment(name, value)
-	// 	}
-	// }
+	for (const listener of bindListeners) {
+		for (const { name, value } of binds) {
+			listener(name, value)
+		}
+	}
 
 	// ---------------------------------------------------------------
 	// Stack dependency binds

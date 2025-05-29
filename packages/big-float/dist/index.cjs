@@ -43,18 +43,17 @@ __export(index_exports, {
   cmp: () => cmp,
   div: () => div,
   eq: () => eq,
-  evaluate: () => import_bigfloat_esnext4.evaluate,
+  evaluate: () => import_bigfloat_esnext5.evaluate,
   factor: () => factor,
   floor: () => floor,
-  fraction: () => import_bigfloat_esnext4.fraction,
+  fraction: () => import_bigfloat_esnext5.fraction,
   gt: () => gt,
   gte: () => gte,
-  is_big_float: () => import_bigfloat_esnext4.is_big_float,
-  is_integer: () => import_bigfloat_esnext4.is_integer,
-  is_negative: () => import_bigfloat_esnext4.is_negative,
-  is_number: () => import_bigfloat_esnext4.is_number,
-  is_positive: () => import_bigfloat_esnext4.is_positive,
-  is_zero: () => import_bigfloat_esnext4.is_zero,
+  isBigFloat: () => isBigFloat,
+  isInteger: () => isInteger,
+  isNegative: () => isNegative,
+  isPositive: () => isPositive,
+  isZero: () => isZero,
   lt: () => lt,
   lte: () => lte,
   max: () => max,
@@ -63,8 +62,8 @@ __export(index_exports, {
   mul: () => mul,
   neg: () => neg,
   pow: () => pow,
-  scientific: () => import_bigfloat_esnext4.scientific,
-  set_precision: () => import_bigfloat_esnext4.set_precision,
+  scientific: () => import_bigfloat_esnext5.scientific,
+  set_precision: () => import_bigfloat_esnext5.set_precision,
   sqrt: () => sqrt,
   sub: () => sub
 });
@@ -171,7 +170,7 @@ var minmax = (number, min2, max2) => {
   if (gt(min2, max2)) {
     throw new TypeError(`min ${min2} bound can't be greater then the max ${max2} bound`);
   }
-  return (0, import_bigfloat_esnext3.make)(lt(number, min2) ? min2 : gt(number, max2) ? max2 : number);
+  return new BigFloat(lt(number, min2) ? min2 : gt(number, max2) ? max2 : number);
 };
 var cmp = (a, b) => {
   if (gt(a, b)) {
@@ -182,8 +181,29 @@ var cmp = (a, b) => {
   return 0;
 };
 
-// src/index.ts
+// src/predicate.ts
 var import_bigfloat_esnext4 = require("bigfloat-esnext");
+var isBigFloat = (number) => {
+  return number instanceof BigFloat;
+};
+var isInteger = (number) => {
+  return (0, import_bigfloat_esnext4.is_integer)((0, import_bigfloat_esnext4.make)(number));
+};
+var isNegative = (number) => {
+  return (0, import_bigfloat_esnext4.is_negative)((0, import_bigfloat_esnext4.make)(number));
+};
+var isPositive = (number) => {
+  if (isZero(number)) {
+    return false;
+  }
+  return (0, import_bigfloat_esnext4.is_positive)((0, import_bigfloat_esnext4.make)(number));
+};
+var isZero = (number) => {
+  return (0, import_bigfloat_esnext4.is_zero)((0, import_bigfloat_esnext4.make)(number));
+};
+
+// src/index.ts
+var import_bigfloat_esnext5 = require("bigfloat-esnext");
 
 // src/constants.ts
 var ZERO = /* @__PURE__ */ new BigFloat(0);
@@ -233,12 +253,11 @@ var TRILLION = /* @__PURE__ */ new BigFloat(1e12);
   fraction,
   gt,
   gte,
-  is_big_float,
-  is_integer,
-  is_negative,
-  is_number,
-  is_positive,
-  is_zero,
+  isBigFloat,
+  isInteger,
+  isNegative,
+  isPositive,
+  isZero,
   lt,
   lte,
   max,

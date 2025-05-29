@@ -14,7 +14,7 @@ export const LocalFileSchema = z.union([
 	}, `File doesn't exist`),
 	z
 		.object({
-			nocheck: z.string().describe('Specifies a local file without checking if the file exists.'),
+			nocheck: RelativePathSchema.describe('Specifies a local file without checking if the file exists.'),
 		})
 		.transform(v => v.nocheck),
 ])

@@ -2,7 +2,7 @@
 	"$schema": "../../dist/stack.json",
 	"name": "stack-2",
 	"depends": ["stack"],
-	// "tests": "./test-2",
+	"tests": "./test-2",
 	"functions": {
 		"echo": "./function.ts"
 	}

@@ -3,10 +3,10 @@ import { CreateProps, DeleteProps, GetDataProps, GetProps, Provider, UpdateProps
 
 export type CustomResourceProvider = Partial<{
 	getResource?(props: Omit<GetProps, 'type'>): Promise<State>
-	updateResource?(state: Omit<UpdateProps, 'type'>): Promise<State>
-	createResource?(state: Omit<CreateProps, 'type'>): Promise<State>
-	deleteResource?(state: Omit<DeleteProps, 'type'>): Promise<void>
-	getData?(state: Omit<GetDataProps, 'type'>): Promise<State>
+	updateResource?(props: Omit<UpdateProps, 'type'>): Promise<State>
+	createResource?(props: Omit<CreateProps, 'type'>): Promise<State>
+	deleteResource?(props: Omit<DeleteProps, 'type'>): Promise<void>
+	getData?(props: Omit<GetDataProps, 'type'>): Promise<State>
 }>
 
 export const createCustomProvider = (

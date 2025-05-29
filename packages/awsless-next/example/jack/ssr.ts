@@ -6,6 +6,6 @@ export default () => {
 		headers: {
 			'content-type': 'text/html',
 		},
-		body: '<h1>HELLO!</h1>',
+		body: '<h1>HELLO! SSR</h1>',
 	})
 }

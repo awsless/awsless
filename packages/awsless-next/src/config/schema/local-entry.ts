@@ -14,9 +14,9 @@ export const LocalEntrySchema = z.union([
 	}, `File or directory doesn't exist`),
 	z
 		.object({
-			nocheck: z
-				.string()
-				.describe('Specifies a local file or directory without checking if the file or directory exists.'),
+			nocheck: RelativePathSchema.describe(
+				'Specifies a local file or directory without checking if the file or directory exists.'
+			),
 		})
 		.transform(v => v.nocheck),
 ])

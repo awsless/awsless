@@ -14,7 +14,9 @@ export const LocalDirectorySchema = z.union([
 	}, `Directory doesn't exist`),
 	z
 		.object({
-			nocheck: z.string().describe('Specifies a local directory without checking if the directory exists.'),
+			nocheck: RelativePathSchema.describe(
+				'Specifies a local directory without checking if the directory exists.'
+			),
 		})
 		.transform(v => v.nocheck),
 ])

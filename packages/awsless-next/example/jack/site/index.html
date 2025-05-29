@@ -1,2 +1,58 @@
 
-<h1>SITE is working!!! 3</h1>
+<link rel="stylesheet" href="style.css">
+
+<h1>Static SITE is working!!! 3</h1>
+
+<button id="btn">Post Request</button>
+
+<button id="sign-btn">Signed Post Request</button>
+
+<script>
+	const sha256 = async (message) => {
+		const msgBuffer = new TextEncoder().encode(message);
+		const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+		const hashArray = Array.from(new Uint8Array(hashBuffer));
+		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+		return hashHex;
+	};
+
+	document.getElementById('btn').addEventListener('click', async () => {
+		const body = JSON.stringify({
+			"username":"info@jacksclub.io",
+			"password":"Doner123!"
+		})
+
+		const response = await fetch('/api', {
+			method: 'POST',
+			body,
+		})
+
+		console.log(response.status, response.statusText);
+
+		const result = await response.text()
+
+		console.log(result);
+	})
+
+	document.getElementById('sign-btn').addEventListener('click', async () => {
+		const body = JSON.stringify({
+			"username":"info@jacksclub.io",
+			"password":"Doner123!"
+		})
+
+		const response = await fetch('/api', {
+			method: 'POST',
+			headers: {
+				'x-amz-content-sha256': await sha256(body)
+			},
+			body,
+		})
+
+		console.log(response.status, response.statusText);
+
+		const result = await response.text()
+
+		console.log(result);
+	})
+</script>

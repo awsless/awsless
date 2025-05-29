@@ -29,7 +29,7 @@ export const minmax = (number: Numeric, min: Numeric, max: Numeric) => {
 		throw new TypeError(`min ${min} bound can't be greater then the max ${max} bound`)
 	}
 
-	return make(lt(number, min) ? min : gt(number, max) ? max : number)
+	return new BigFloat(lt(number, min) ? min : gt(number, max) ? max : number)
 }
 
 export const cmp = (a: Numeric, b: Numeric) => {

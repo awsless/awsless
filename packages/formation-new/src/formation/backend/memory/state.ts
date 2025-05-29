@@ -16,4 +16,8 @@ export class MemoryStateBackend implements StateBackend {
 	async delete(urn: URN) {
 		this.states.delete(urn)
 	}
+
+	clear() {
+		this.states.clear()
+	}
 }

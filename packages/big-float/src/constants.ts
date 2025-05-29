@@ -1,4 +1,4 @@
-import { BigFloat } from "./bigfloat";
+import { BigFloat } from './bigfloat'
 
 export const ZERO = /* @__PURE__ */ new BigFloat(0)
 export const ONE = /* @__PURE__ */ new BigFloat(1)
