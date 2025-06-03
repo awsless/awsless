@@ -59,13 +59,14 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		let baseImage: Buffer | undefined = undefined
 
 		if (process.env.IMAGES_ORIGIN_S3) {
-			const data = await getObject({
+			const result = await getObject({
 				bucket: process.env.IMAGES_ORIGIN_S3,
 				key: originalPath,
 			})
 
-			if (data?.body) {
-				baseImage = Buffer.from(await data.body.transformToByteArray())
+			if (result?.body) {
+				const data = await result.body.transformToByteArray()
+				baseImage = Buffer.from(data)
 			}
 		}
 
