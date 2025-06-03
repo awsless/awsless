@@ -6,18 +6,15 @@ import { parsePath } from './validate'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
-		// ----------------------------------------
-		// Parse path parameters
-
 		const request = parsePath(event.rawPath)
 
 		if (!request.success) {
 			return { statusCode: 400 }
 		}
 
-		const originalImage = request.output.originalImage!
-		const preset = request.output.preset!
-		const extension = request.output.extension!
+		const originalImage = request.output.originalImage
+		const preset = request.output.preset
+		const extension = request.output.extension
 
 		// ----------------------------------------
 		// Get the preset and extension configuration
@@ -86,8 +83,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 				return { statusCode: 500 }
 			}
 		}
-
-		console.error('Base image:', baseImage)
 
 		// ----------------------------------------
 		// Process the image with sharp

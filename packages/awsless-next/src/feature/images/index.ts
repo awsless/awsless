@@ -40,7 +40,7 @@ export const imagesFeature = defineFeature({
 			let lambdaOrigin: ReturnType<typeof createLambdaFunction> | undefined = undefined
 
 			if (props.origin.function) {
-				lambdaOrigin = createLambdaFunction(originGroup, ctx, `images-lambda-origin`, id, props.origin.function)
+				lambdaOrigin = createLambdaFunction(originGroup, ctx, `lambda-origin`, id, props.origin.function)
 			}
 
 			let s3Origin: $.aws.s3.Bucket | undefined

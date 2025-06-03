@@ -7,18 +7,21 @@ const schema = transform(
 		string(),
 		path => {
 			const cleanPath = path.startsWith('/') ? path.slice(1) : path
-			const [originalImage, transformedImage] = cleanPath.split('/')
+			const [originalImage, transformedImage] = cleanPath.split('@')
 
-			// This will fail the validation
 			if (!originalImage || !transformedImage) {
-				return {}
+				throw new Error('Invalid path format.')
 			}
 
 			const [preset, extension] = transformedImage.split('.')
 
+			if (!preset || !extension) {
+				throw new Error('Invalid path format.')
+			}
+
 			return {
-				originalImage: originalImage!,
-				preset: preset!,
+				originalImage: originalImage,
+				preset: preset,
 				extension: extension as (typeof supportedExtensions)[number],
 			}
 		},
