@@ -23,8 +23,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const configsEnv = process.env.IMAGES_CONFIG
 
 		if (!configsEnv) {
-			console.error('Image configurations not found in environment variables')
-			return { statusCode: 500 }
+			throw new Error('Image configurations not found in environment variables')
 		}
 
 		const configs: {
@@ -51,7 +50,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		const maxVersion = configs.version ?? 0
 		if (version > maxVersion) {
-			console.error(`Requested version ${version} is greater than the maximum version ${maxVersion}`)
 			return { statusCode: 404 }
 		}
 
@@ -61,18 +59,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		let baseImage: Buffer | undefined = undefined
 
 		if (process.env.IMAGES_ORIGIN_S3) {
-			try {
-				const data = await getObject({
-					bucket: process.env.IMAGES_ORIGIN_S3,
-					key: originalPath,
-				})
+			const data = await getObject({
+				bucket: process.env.IMAGES_ORIGIN_S3,
+				key: originalPath,
+			})
 
-				if (data?.body) {
-					baseImage = Buffer.from(await data.body.transformToByteArray())
-				}
-			} catch (error) {
-				console.error('Error fetching or transforming from S3 origin:', error)
-				return { statusCode: 500 }
+			if (data?.body) {
+				baseImage = Buffer.from(await data.body.transformToByteArray())
 			}
 		}
 
@@ -80,24 +73,19 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Call the orginal image fetcher
 
 		if (!baseImage && process.env.IMAGES_ORIGIN_LAMBDA) {
-			try {
-				const result = (await invoke({
-					name: process.env.IMAGES_ORIGIN_LAMBDA,
-					payload: {
-						path: originalPath,
-					},
-				})) as string
+			const result = (await invoke({
+				name: process.env.IMAGES_ORIGIN_LAMBDA,
+				payload: {
+					path: originalPath,
+				},
+			})) as string
 
-				if (typeof result === 'string') {
-					baseImage = Buffer.from(result, 'base64')
-				} else if (typeof result === undefined) {
-					return { statusCode: 404 }
-				} else {
-					throw new Error('Invalid response from image origin lambda')
-				}
-			} catch (error) {
-				console.error('Error invoking image origin lambda:', error)
-				return { statusCode: 500 }
+			if (typeof result === 'string') {
+				baseImage = Buffer.from(result, 'base64')
+			} else if (typeof result === undefined) {
+				return { statusCode: 404 }
+			} else {
+				throw new Error('Invalid response from image origin lambda')
 			}
 		}
 
@@ -105,25 +93,18 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Process the image with sharp
 
 		if (!baseImage) {
-			console.error('Base image not found')
-			return { statusCode: 500 }
+			return { statusCode: 404 }
 		}
 
-		let image: Buffer
-		try {
-			image = await sharp(baseImage)
-				.resize({
-					width: presetConfig.width,
-					height: presetConfig.height,
-					fit: presetConfig.fit,
-					position: presetConfig.position,
-				})
-				[extension]({ ...extensionConfig, quality: presetConfig.quality })
-				.toBuffer()
-		} catch (error) {
-			console.error('Error processing image with sharp:', error)
-			return { statusCode: 500 }
-		}
+		const image = await sharp(baseImage)
+			.resize({
+				width: presetConfig.width,
+				height: presetConfig.height,
+				fit: presetConfig.fit,
+				position: presetConfig.position,
+			})
+			[extension]({ ...extensionConfig, quality: presetConfig.quality })
+			.toBuffer()
 
 		// ----------------------------------------
 		// Cache the image in S3
@@ -150,7 +131,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			},
 		}
 	} catch (error) {
-		console.log('Internal error')
 		console.error(error)
 		return { statusCode: 500 }
 	}
