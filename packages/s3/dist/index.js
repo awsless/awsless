@@ -27,6 +27,8 @@ var putObject = async ({
   key,
   body,
   metadata,
+  contentType,
+  cacheControl,
   storageClass = "STANDARD"
 }) => {
   const command = new PutObjectCommand({
@@ -35,7 +37,9 @@ var putObject = async ({
     Body: body,
     Metadata: metadata,
     StorageClass: storageClass,
-    ChecksumAlgorithm: "SHA1"
+    ChecksumAlgorithm: "SHA1",
+    ContentType: contentType,
+    CacheControl: cacheControl
   });
   const result = await client.send(command);
   return {

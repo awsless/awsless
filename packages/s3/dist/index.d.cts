@@ -21,10 +21,12 @@ type PutObjectProps = {
     bucket: string;
     key: string;
     body: Body;
+    contentType?: string;
+    cacheControl?: string;
     metadata?: Record<string, string>;
     storageClass?: StorageClass;
 };
-declare const putObject: ({ client, bucket, key, body, metadata, storageClass, }: PutObjectProps) => Promise<{
+declare const putObject: ({ client, bucket, key, body, metadata, contentType, cacheControl, storageClass, }: PutObjectProps) => Promise<{
     sha1: string;
 }>;
 type GetObjectProps = {

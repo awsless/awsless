@@ -8,7 +8,7 @@ import {
 	S3Client,
 	StorageClass,
 } from '@aws-sdk/client-s3'
-import { createPresignedPost as signedPost, PresignedPost } from '@aws-sdk/s3-presigned-post'
+import { PresignedPost, createPresignedPost as signedPost } from '@aws-sdk/s3-presigned-post'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { Duration, toSeconds } from '@awsless/duration'
 import { Size, toBytes } from '@awsless/size'
@@ -20,6 +20,8 @@ export type PutObjectProps = {
 	bucket: string
 	key: string
 	body: Body
+	contentType?: string
+	cacheControl?: string
 	metadata?: Record<string, string>
 	storageClass?: StorageClass
 }
@@ -30,6 +32,8 @@ export const putObject = async ({
 	key,
 	body,
 	metadata,
+	contentType,
+	cacheControl,
 	storageClass = 'STANDARD',
 }: PutObjectProps) => {
 	const command = new PutObjectCommand({
@@ -39,6 +43,8 @@ export const putObject = async ({
 		Metadata: metadata,
 		StorageClass: storageClass,
 		ChecksumAlgorithm: 'SHA1',
+		ContentType: contentType,
+		CacheControl: cacheControl,
 	})
 
 	const result = await client.send(command)

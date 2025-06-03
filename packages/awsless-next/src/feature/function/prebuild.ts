@@ -127,6 +127,11 @@ export const createPrebuildLambdaFunction = (
 
 	const variables: Record<string, Input<string>> = {}
 
+	const logFormats = {
+		text: 'Text',
+		json: 'JSON',
+	}
+
 	const lambda = new $.aws.lambda.Function(group, `function`, {
 		functionName: name,
 		role: role.arn,
@@ -156,9 +161,16 @@ export const createPrebuildLambdaFunction = (
 		},
 
 		loggingConfig: {
-			logFormat: 'JSON',
-			applicationLogLevel: 'ERROR',
-			systemLogLevel: 'WARN',
+			logGroup: `/aws/lambda/${name}`,
+			logFormat: logFormats[(props.log && 'format' in props.log && props.log.format) || 'json'],
+			applicationLogLevel:
+				props.log && 'format' in props.log && props.log.format === 'json'
+					? props.log.level?.toUpperCase()
+					: undefined,
+			systemLogLevel:
+				props.log && 'format' in props.log && props.log.format === 'json'
+					? props.log.system?.toUpperCase()
+					: undefined,
 		},
 	})
 

@@ -40,7 +40,7 @@ import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 // export type LambdaFunctionProps = z.infer<typeof FunctionSchema>
 
 export const createLambdaFunction = (
-	group: Group,
+	parentGroup: Group,
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
@@ -48,6 +48,8 @@ export const createLambdaFunction = (
 ) => {
 	let name: string
 	let shortName: string
+
+	const group = new Group(parentGroup, 'function', ns)
 
 	if ('stack' in ctx) {
 		name = formatLocalResourceName({
@@ -57,12 +59,7 @@ export const createLambdaFunction = (
 			resourceName: id,
 		})
 
-		shortName = formatLocalResourceName({
-			appName: ctx.app.name,
-			stackName: ctx.stack.name,
-			resourceType: ns,
-			resourceName: shortId(`${id}:${ctx.appId}`),
-		})
+		shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 	} else {
 		name = formatGlobalResourceName({
 			appName: ctx.app.name,
@@ -449,7 +446,7 @@ export const createLambdaFunction = (
 	if (props.warm) {
 		const rule = new $.aws.cloudwatch.EventRule(group, 'warm', {
 			name: `${shortName}--warm`,
-			description: `Lambda Warm ${id}`,
+			description: name,
 			scheduleExpression: 'rate(5 minutes)',
 			isEnabled: true,
 		})
@@ -477,6 +474,7 @@ export const createLambdaFunction = (
 		lambda,
 		policy,
 		code,
+		group,
 		setEnvironment(name: string, value: Input<string>) {
 			variables[name] = value
 		},

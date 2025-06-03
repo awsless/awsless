@@ -18,8 +18,8 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   S3Client: () => import_client_s34.S3Client,
   StorageClass: () => import_client_s34.StorageClass,
   copyObject: () => copyObject,
@@ -32,7 +32,7 @@ __export(src_exports, {
   putObject: () => putObject,
   s3Client: () => s3Client
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 var import_client_s34 = require("@aws-sdk/client-s3");
 
 // src/client.ts
@@ -54,6 +54,8 @@ var putObject = async ({
   key,
   body,
   metadata,
+  contentType,
+  cacheControl,
   storageClass = "STANDARD"
 }) => {
   const command = new import_client_s32.PutObjectCommand({
@@ -62,7 +64,9 @@ var putObject = async ({
     Body: body,
     Metadata: metadata,
     StorageClass: storageClass,
-    ChecksumAlgorithm: "SHA1"
+    ChecksumAlgorithm: "SHA1",
+    ContentType: contentType,
+    CacheControl: cacheControl
   });
   const result = await client.send(command);
   return {

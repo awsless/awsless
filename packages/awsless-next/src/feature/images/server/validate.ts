@@ -1,47 +1,41 @@
-import { object, picklist, safeParse, string, transform } from '@awsless/validate'
+import { integer, number, object, picklist, safeParse, string, transform } from '@awsless/validate'
 
-const supportedExtensions = ['jpeg', 'jpg', 'png', 'webp'] as const
+const supportedExtensions = ['jpeg', 'png', 'webp'] as const
 
 const schema = transform(
-	transform(
-		string(),
-		path => {
-			const cleanPath = path.startsWith('/') ? path.slice(1) : path
-			const [originalImage, transformedImage] = cleanPath.split('@')
+	string(),
+	path => {
+		const cleanPath = path.startsWith('/') ? path.slice(1) : path
+		const [originalPath, options] = cleanPath.split('@')
 
-			if (!originalImage || !transformedImage) {
-				throw new Error('Invalid path format.')
-			}
+		if (!originalPath || !options) {
+			return {}
+		}
 
-			const [preset, extension] = transformedImage.split('.')
+		let [preset, version, extension] = options.split('.')
 
-			if (!preset || !extension) {
-				throw new Error('Invalid path format.')
-			}
+		if (!extension) {
+			extension = version
+			version = undefined
+		}
 
-			return {
-				originalImage: originalImage,
-				preset: preset,
-				extension: extension as (typeof supportedExtensions)[number],
-			}
-		},
-		object({
-			originalImage: string(),
-			preset: string(),
-			extension: picklist(supportedExtensions),
-		})
-	),
-	data => {
-		if (data.extension === 'jpg') {
-			data.extension = 'jpeg'
+		if (!preset || !extension) {
+			return {}
 		}
 
 		return {
-			originalImage: data.originalImage,
-			preset: data.preset,
-			extension: data.extension,
+			originalPath: originalPath,
+			preset: preset,
+			extension: extension as (typeof supportedExtensions)[number],
+			version: version ? parseInt(version, 10) : 0,
 		}
-	}
+	},
+	object({
+		originalPath: string(),
+		preset: string(),
+		extension: picklist(supportedExtensions),
+		version: number([integer()]),
+	})
 )
 
 export const parsePath = (path: string) => {
