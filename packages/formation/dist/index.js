@@ -4367,11 +4367,7 @@ var SourceCodeUpdateProvider = class {
 };
 
 // src/provider/aws/route53/record-set-provider.ts
-import {
-  ChangeResourceRecordSetsCommand,
-  ListResourceRecordSetsCommand,
-  Route53Client
-} from "@aws-sdk/client-route-53";
+import { ChangeResourceRecordSetsCommand, ListResourceRecordSetsCommand, Route53Client } from "@aws-sdk/client-route-53";
 import { randomUUID as randomUUID2 } from "crypto";
 var RecordSetProvider = class {
   client;
@@ -6134,7 +6130,7 @@ var formatRecordSet = (record) => {
     Weight: unwrap(record.weight, 0),
     // ...(record.ttl ? {} : {}),
     ..."records" in record ? {
-      TTL: toSeconds12(unwrap(record.ttl, minutes2(5))),
+      TTL: Number(toSeconds12(unwrap(record.ttl, minutes2(5)))),
       ResourceRecords: record.records
     } : {},
     ..."alias" in record && unwrap(record.alias) ? {

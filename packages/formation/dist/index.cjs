@@ -6107,7 +6107,7 @@ var formatRecordSet = (record) => {
     Weight: unwrap(record.weight, 0),
     // ...(record.ttl ? {} : {}),
     ..."records" in record ? {
-      TTL: (0, import_duration17.toSeconds)(unwrap(record.ttl, (0, import_duration17.minutes)(5))),
+      TTL: Number((0, import_duration17.toSeconds)(unwrap(record.ttl, (0, import_duration17.minutes)(5)))),
       ResourceRecords: record.records
     } : {},
     ..."alias" in record && unwrap(record.alias) ? {

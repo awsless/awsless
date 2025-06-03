@@ -7,10 +7,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const builds = {
 	rpc: '../src/feature/rpc/server/handle.ts',
+	images: '../src/feature/images/server/handle.ts',
 }
 
 for (const [name, file] of Object.entries(builds)) {
 	const output = join(__dirname, 'prebuild', name)
 	await mkdir(output, { recursive: true })
-	await prebuild(join(__dirname, file), output)
+	await prebuild(join(__dirname, file), output, ['sharp'])
 }

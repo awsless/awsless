@@ -9,15 +9,7 @@ import { shortId } from '../../util/id.js'
 export const layerFeature = defineFeature({
 	name: 'layer',
 	onBefore(ctx) {
-		const layers = Object.entries(ctx.appConfig.defaults.layers ?? {})
-
-		if (layers.length === 0) {
-			return
-		}
-
 		const group = new Group(ctx.base, 'layer', 'asset')
-
-		// ------------------------------------------------------
 
 		const bucket = new $.aws.s3.Bucket(group, 'bucket', {
 			bucket: formatGlobalResourceName({
@@ -54,7 +46,7 @@ export const layerFeature = defineFeature({
 			const props = _props as LayerProps
 			const group = new Group(ctx.base, 'layer', id)
 
-			const code = new $.aws.s3.BucketObject(group, 'code', {
+			const zip = new $.aws.s3.BucketObject(group, 'zip', {
 				bucket: ctx.shared.get('layer', 'bucket-name'),
 				key: `/layer/${id}.zip`,
 				contentType: 'application/zip',
@@ -74,9 +66,9 @@ export const layerFeature = defineFeature({
 					description: id,
 					compatibleArchitectures: props.architecture ? [props.architecture] : undefined,
 					compatibleRuntimes: props.runtimes,
-					s3Bucket: code.bucket,
-					s3ObjectVersion: code.versionId,
-					s3Key: code.key.pipe(name => {
+					s3Bucket: zip.bucket,
+					s3ObjectVersion: zip.versionId,
+					s3Key: zip.key.pipe(name => {
 						if (name.startsWith('/')) {
 							return name.substring(1)
 						}
@@ -86,7 +78,7 @@ export const layerFeature = defineFeature({
 					sourceCodeHash: $hash(props.file),
 				},
 				{
-					dependsOn: [code],
+					dependsOn: [zip],
 				}
 			)
 

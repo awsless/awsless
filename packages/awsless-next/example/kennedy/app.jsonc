@@ -1,45 +1,13 @@
 {
-	// "$schema": "https://unpkg.com/@awsless/awsless/dist/app.json",
 	"$schema": "../../dist/app.json",
 	"name": "app-kennedy",
 	"region": "eu-west-1",
 	"profile": "jacksclub",
 	"defaults": {
-		"domains": {
-			"test": {
-				"domain": "awsless.com"
-			}
-		}
-		// "layers": {
-		// 	"sharp": "./sharp.zip"
-		// 	// "puppeteer": "./sharp.zip"
-		// }
-		// "rpc": {
-		// 	"test": {}
-		// }
-		// "domains": {
-		// 	"main": {
-		// 		"domain": "awsless.com",
-		// 		"dns": []
-		// 	}
-		// }
-		// "auth": {
-		// 	"admin": {
-		// 		"username": {
-		// 			"emailAlias": true
-		// 		},
-		// 		"allowUserRegistration": true,
-		// 		"messaging": {
-		// 			"fromEmail": "noreply@awsless.com",
-		// 			"fromName": "Awsless"
-		// 		},
-		// 		// "validity": {
-		// 		// 	"accessToken": "1 hour",
-		// 		// 	"refreshToken": "24 hours"
-		// 		// },
-		// 		// "password": {
-		// 		// 	"minLength": 24
-		// 		// }
+		"layers": {}
+		// "pubsub": {
+		// 	"test": {
+		// 		"auth": "./function.ts"
 		// 	}
 		// }
 	}

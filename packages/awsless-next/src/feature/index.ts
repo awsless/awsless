@@ -25,6 +25,7 @@ import { topicFeature } from './topic/index.js'
 import { vpcFeature } from './vpc/index.js'
 import { alertFeature } from './alert/index.js'
 import { layerFeature } from './layer/index.js'
+import { imagesFeature } from './images/index.js'
 
 export const features = [
 	// 1
@@ -60,6 +61,7 @@ export const features = [
 	// httpFeature,
 	restFeature,
 	siteFeature,
+	imagesFeature,
 
 	// 4
 	rpcFeature,

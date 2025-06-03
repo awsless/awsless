@@ -18,6 +18,7 @@ import { SitesSchema } from '../feature/site/schema.js'
 import { StoresSchema } from '../feature/store/schema.js'
 // import { StreamsSchema } from '../feature/__stream/schema.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
+import { ImagesSchema } from '../feature/images/schema.js'
 import { TablesSchema } from '../feature/table/schema.js'
 import { TasksSchema } from '../feature/task/schema.js'
 import { TestsSchema } from '../feature/test/schema.js'
@@ -59,6 +60,7 @@ export const StackSchema = z.object({
 	searchs: SearchsSchema,
 	sites: SitesSchema,
 	tests: TestsSchema,
+	images: ImagesSchema,
 })
 
 // export type StackConfigInput = z.input<typeof StackSchema>

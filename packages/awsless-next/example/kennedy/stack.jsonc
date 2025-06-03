@@ -1,0 +1,25 @@
+{
+	"$schema": "../../dist/stack.json",
+	"name": "stack",
+	"images": {
+		"test": {
+			"presets": {
+				"mobile": { "width": 100 },
+				"lg": { "width": 500 }
+			},
+			"extensions": {
+				"jpeg": { "mozjpeg": true },
+				"webp": { "effort": 6 }
+			},
+			"origin": {
+				"static": "./static",
+				"function": {
+					"code": "./function.ts",
+					"log": {
+						"format": "text"
+					}
+				}
+			}
+		}
+	}
+}

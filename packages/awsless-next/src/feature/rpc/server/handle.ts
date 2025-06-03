@@ -45,7 +45,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		}
 
 		// ----------------------------------------
-		// Log Request.
+		// Log Request in cloudwatch for user monitoring purposes.
 
 		console.log({
 			lockKey: auth.lockKey,

@@ -6,6 +6,7 @@ import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { bundleTypeScript } from './build/typescript/bundle.js'
 import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 import { zipFiles } from './build/zip.js'
@@ -15,11 +16,11 @@ import { FunctionProps } from './schema.js'
 // type Policy = aws.iam.RolePolicy
 // type Code = aws.lambda.Code
 
-export const prebuild = async (file: string, output: string) => {
+export const prebuild = async (file: string, output: string, external: string[] = []) => {
 	const bundle = await bundleTypeScript({
 		file,
 		minify: true,
-		external: [],
+		external,
 	})
 
 	const archive = await zipFiles(bundle.files)
@@ -188,20 +189,30 @@ export const createPrebuildLambdaFunction = (
 
 	if (props.log?.retention && props.log?.retention?.value > 0n) {
 		const logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
-			name: lambda.functionName.pipe(name => `/aws/lambda/${name}`),
+			name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention ?? days(7)),
 		})
 
-		addPermission(
-			{
-				actions: ['logs:CreateLogStream'],
-				resources: [logGroup.arn],
-			},
-			{
-				actions: ['logs:PutLogEvents'],
-				resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
-			}
-		)
+		addPermission({
+			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
+			resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
+		})
+
+		// ------------------------------------------------------------
+		// Add Log subscription
+
+		const onLogArn = getGlobalOnLog(ctx)
+
+		if (onLogArn && ctx.appConfig.defaults.onLog) {
+			const logFilter = ctx.appConfig.defaults.onLog.filter
+
+			new $.aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
+				name: 'log-subscription',
+				destinationArn: onLogArn,
+				logGroupName: logGroup.name,
+				filterPattern: formatFilterPattern(logFilter),
+			})
+		}
 	}
 
 	// ------------------------------------------------------------

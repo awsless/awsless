@@ -27,6 +27,7 @@
 			"@swc/core"
 		],
 		"ignoredBuiltDependencies": [
+			"aws-crt",
 			"aws-sdk",
 			"core-js",
 			"esbuild",
