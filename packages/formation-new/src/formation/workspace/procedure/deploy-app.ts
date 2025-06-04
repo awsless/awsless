@@ -1,17 +1,22 @@
 import { App } from '../../app.ts'
 import { createDebugger } from '../../debug.ts'
+import { resolveInputs } from '../../input.ts'
+import { isDataSource, isResource } from '../../node.ts'
 import { Stack } from '../../stack.ts'
 import { URN } from '../../urn.ts'
 import { concurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
-import { AppError } from '../error.ts'
+import { AppError, ResourceError } from '../error.ts'
 import { onExit } from '../exit.ts'
-import { NodeState, StackState } from '../state.ts'
+import { compareState, NodeState, removeEmptyStackStates, StackState } from '../state.ts'
 import { migrateAppState } from '../state/migrate.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
-import { deleteStackNodes } from './delete-stack.ts'
-import { deployStackNodes } from './deploy-stack.ts'
+import { createResource } from './create-resource.ts'
+import { deleteResource } from './delete-resource.ts'
+import { getDataSource } from './get-data-source.ts'
+import { importResource } from './import-resource.ts'
+import { updateResource } from './update-resource.ts'
 
 const debug = createDebugger('Deploy App')
 
@@ -64,98 +69,36 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 	const graph = new DependencyGraph()
 
 	// -------------------------------------------------------
+
+	const allNodes: Record<URN, NodeState> = {}
+
+	for (const stackState of Object.values(appState.stacks)) {
+		for (const [urn, nodeState] of entries(stackState.nodes)) {
+			allNodes[urn] = nodeState
+		}
+	}
+
+	// -------------------------------------------------------
 	// First hydrate the resources that we won't deploy
 
 	for (const stack of filteredOutStacks) {
-		graph.add(stack.urn, [], async () => {
-			const stackState = appState.stacks[stack.urn]
+		const stackState = appState.stacks[stack.urn]
 
-			if (stackState) {
-				for (const node of stack.nodes) {
-					const nodeState = stackState.nodes[node.$.urn]
-					if (nodeState && nodeState.output) {
+		if (stackState) {
+			for (const node of stack.nodes) {
+				const nodeState = stackState.nodes[node.$.urn]
+				if (nodeState && nodeState.output) {
+					graph.add(node.$.urn, [], async () => {
 						debug('hydrate', node.$.urn)
 						node.$.resolve(nodeState.output)
-					}
+					})
 				}
 			}
-		})
+		}
 	}
 
 	// -------------------------------------------------------
-	// Sync the stacks that still exist
-
-	for (const stack of stacks) {
-		graph.add(
-			stack.urn,
-			[...stack.dependencies].map(dep => dep.urn),
-			async () => {
-				const nodes = stack.nodes
-
-				// -------------------------------------------------------------------
-
-				const stackState = (appState.stacks[stack.urn] =
-					appState.stacks[stack.urn] ??
-					({
-						name: stack.name,
-						dependencies: [],
-						nodes: {},
-					} satisfies StackState))
-
-				// -------------------------------------------------------------------
-				// Find resources that need to be deleted...
-
-				const deleteResourcesBefore: Record<URN, NodeState> = {}
-				const deleteResourcesAfter: Record<URN, NodeState> = {}
-
-				for (const [urn, state] of entries(stackState.nodes)) {
-					const resource = nodes.find(r => r.$.urn === urn)
-
-					if (!resource) {
-						if (state.lifecycle?.deleteAfterCreate) {
-							deleteResourcesAfter[urn] = state
-						} else {
-							deleteResourcesBefore[urn] = state
-						}
-					}
-				}
-
-				// -------------------------------------------------------------------
-				// Delete resources before deployment...
-
-				if (Object.keys(deleteResourcesBefore).length > 0) {
-					await deleteStackNodes(stackState, deleteResourcesBefore, appState.idempotentToken!, queue, opt)
-				}
-
-				// -------------------------------------------------------------------
-				// Deploy resources...
-
-				await deployStackNodes(
-					stackState,
-					nodes,
-					// stack.dataSources,
-					appState.idempotentToken!,
-					queue,
-					opt
-				)
-
-				// -------------------------------------------------------------------
-				// Delete resources after deployment...
-
-				if (Object.keys(deleteResourcesAfter).length > 0) {
-					await deleteStackNodes(stackState, deleteResourcesAfter, appState.idempotentToken!, queue, opt)
-				}
-
-				// -------------------------------------------------------------------
-				// Set the new stack dependencies
-
-				stackState.dependencies = [...stack.dependencies].map(d => d.urn)
-			}
-		)
-	}
-
-	// -------------------------------------------------------
-	// Delete the stacks that have been removed
+	// Delete the resources from stacks that have been removed
 
 	for (const [urn, stackState] of entries(appState.stacks)) {
 		const found = app.stacks.find(stack => {
@@ -165,17 +108,211 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 		const filtered = opt.filters ? opt.filters!.find(filter => filter === stackState.name) : true
 
 		if (!found && filtered) {
-			graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-				await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken!, queue, opt)
+			for (const [urn, nodeState] of entries(stackState.nodes)) {
+				graph.add(urn, dependentsOn(allNodes, urn), async () => {
+					if (nodeState.tag === 'resource') {
+						await queue(() =>
+							deleteResource(
+								//
+								appState.idempotentToken!,
+								urn,
+								nodeState,
+								opt
+							)
+						)
+					}
 
-				delete appState.stacks[urn]
+					delete stackState.nodes[urn]
+				})
+			}
+		}
+	}
+
+	// -------------------------------------------------------
+	// Sync the stacks that still exist
+
+	for (const stack of stacks) {
+		// -------------------------------------------------------------------
+		// Get or create the stack state
+
+		const stackState = (appState.stacks[stack.urn] =
+			appState.stacks[stack.urn] ??
+			({
+				name: stack.name,
+				nodes: {},
+			} satisfies StackState))
+
+		// -------------------------------------------------------------------
+		// Delete resources that no longer exist in the stack
+
+		for (const [urn, nodeState] of entries(stackState.nodes)) {
+			const resource = stack.nodes.find(r => r.$.urn === urn)
+
+			if (!resource) {
+				graph.add(urn, dependentsOn(allNodes, urn), async () => {
+					if (nodeState.tag === 'resource') {
+						await queue(() =>
+							deleteResource(
+								//
+								appState.idempotentToken!,
+								urn,
+								nodeState,
+								opt
+							)
+						)
+					}
+
+					delete stackState.nodes[urn]
+				})
+			}
+		}
+
+		// -------------------------------------------------------------------
+		// Create or update resources
+
+		for (const node of stack.nodes) {
+			const dependencies: URN[] = [...node.$.dependencies]
+
+			const partialNewResourceState = {
+				dependencies,
+				lifecycle: isResource(node)
+					? {
+							// deleteAfterCreate: node.$.config?.deleteAfterCreate,
+							retainOnDelete: node.$.config?.retainOnDelete,
+						}
+					: undefined,
+			}
+
+			graph.add(node.$.urn, dependencies, () => {
+				return queue(async () => {
+					let nodeState = stackState.nodes[node.$.urn]
+
+					let input
+					try {
+						input = await resolveInputs(node.$.input)
+					} catch (error) {
+						throw ResourceError.wrap(
+							//
+							node.$.urn,
+							node.$.type,
+							'resolve',
+							error
+						)
+					}
+
+					// --------------------------------------------------
+					// Data Source
+					// --------------------------------------------------
+
+					if (isDataSource(node)) {
+						if (!nodeState) {
+							// NEW
+							const dataSourceState = await getDataSource(node.$, input, opt)
+							nodeState = stackState.nodes[node.$.urn] = {
+								...dataSourceState,
+								...partialNewResourceState,
+							}
+						} else if (!compareState(nodeState.input, input)) {
+							// UPDATE
+							const dataSourceState = await getDataSource(node.$, input, opt)
+							Object.assign(nodeState, {
+								...dataSourceState,
+								...partialNewResourceState,
+							})
+						} else {
+							Object.assign(nodeState, partialNewResourceState)
+						}
+					}
+
+					// --------------------------------------------------
+					// Resource
+					// --------------------------------------------------
+
+					if (isResource(node)) {
+						// --------------------------------------------------
+						// New resource
+
+						if (!nodeState) {
+							// --------------------------------------------------
+							// Import resource if needed
+
+							if (node.$.config?.import) {
+								const importedState = await importResource(node, input, opt)
+								const newResourceState = await updateResource(
+									node,
+									appState.idempotentToken!,
+									importedState.output,
+									input,
+									opt
+								)
+
+								nodeState = stackState.nodes[node.$.urn] = {
+									...importedState,
+									...newResourceState,
+									...partialNewResourceState,
+								}
+							} else {
+								// --------------------------------------------------
+								// Create resource
+
+								const newResourceState = await createResource(
+									node,
+									appState.idempotentToken!,
+									input,
+									opt
+								)
+
+								nodeState = stackState.nodes[node.$.urn] = {
+									...newResourceState,
+									...partialNewResourceState,
+								}
+							}
+						} else if (
+							// --------------------------------------------------
+							// Check if any state has changed
+							!compareState(nodeState.input, input)
+						) {
+							// --------------------------------------------------
+							// Update resource
+
+							const newResourceState = await updateResource(
+								node,
+								appState.idempotentToken!,
+								nodeState.output!,
+								input,
+								opt
+							)
+
+							Object.assign(nodeState, {
+								input,
+								...newResourceState,
+								...partialNewResourceState,
+							})
+						} else {
+							Object.assign(nodeState, partialNewResourceState)
+						}
+					}
+
+					// --------------------------------------------------
+					// Hydrate node
+
+					if (nodeState?.output) {
+						node.$.resolve(nodeState.output)
+					}
+				})
 			})
 		}
 	}
 
 	// -------------------------------------------------------------------
+	// Execute deployment graph
 
 	const errors = await graph.run()
+
+	// -------------------------------------------------------------------
+	// Remove empty stacks from app state
+
+	removeEmptyStackStates(appState)
 
 	// -------------------------------------------------------------------
 	// Delete the idempotant token when the deployment reaches the end.
@@ -198,6 +335,14 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 
 	if (errors.length > 0) {
 		throw new AppError(app.name, [...new Set(errors)], 'Deploying app failed.')
+	}
+
+	// -------------------------------------------------------
+	// If no errors happened we can savely delete the app
+	// state when all the stacks have been deleted.
+
+	if (Object.keys(appState.stacks).length === 0) {
+		await opt.backend.state.delete(app.urn)
 	}
 
 	return appState

@@ -7,7 +7,14 @@ import {
 	ResourceNotFoundException,
 	ScalarAttributeType,
 } from '@aws-sdk/client-dynamodb'
-import { CreateBucketCommand, HeadBucketCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3'
+import {
+	CreateBucketCommand,
+	HeadBucketCommand,
+	PutBucketLifecycleConfigurationCommand,
+	PutBucketVersioningCommand,
+	S3Client,
+	S3ServiceException,
+} from '@aws-sdk/client-s3'
 import { confirm, isCancel, log } from '@clack/prompts'
 import { Region } from '../../../config/schema/region.js'
 import { Cancelled } from '../../../error.js'
@@ -74,10 +81,38 @@ const createLockTable = (client: DynamoDB) => {
 	)
 }
 
-const createStateBucket = (client: S3Client, region: Region, accountId: string) => {
-	return client.send(
+const createStateBucket = async (client: S3Client, region: Region, accountId: string) => {
+	const name = getStateBucketName(region, accountId)
+
+	await client.send(
 		new CreateBucketCommand({
-			Bucket: getStateBucketName(region, accountId),
+			Bucket: name,
+		})
+	)
+
+	await client.send(
+		new PutBucketVersioningCommand({
+			Bucket: name,
+			VersioningConfiguration: {
+				Status: 'Enabled',
+			},
+		})
+	)
+
+	await client.send(
+		new PutBucketLifecycleConfigurationCommand({
+			Bucket: name,
+			LifecycleConfiguration: {
+				Rules: [
+					{
+						ID: 'delete-older-versions',
+						Status: 'Enabled',
+						NoncurrentVersionExpiration: {
+							NoncurrentDays: 30,
+						},
+					},
+				],
+			},
 		})
 	)
 }

@@ -36,15 +36,15 @@
 		// 	"consumer": "./on-log.ts",
 		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
 		// }
-		"rpc": {
-			"public": {},
-			"api-lock": {
-				"auth": "./rpc-auth.ts"
-			},
-			"api-unlock": {
-				"auth": "./rpc-auth.ts"
-			}
-		},
+		// "rpc": {
+		// 	"public": {},
+		// 	"api-lock": {
+		// 		"auth": "./rpc-auth.ts"
+		// 	},
+		// 	"api-unlock": {
+		// 		"auth": "./rpc-auth.ts"
+		// 	}
+		// },
 		// "rest": {
 		// 	"public": {
 		// 		"domain": "main",

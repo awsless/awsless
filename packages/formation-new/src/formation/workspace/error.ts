@@ -24,22 +24,22 @@ export class ResourceError extends Error {
 export class AppError extends Error {
 	constructor(
 		readonly app: string,
-		readonly issues: (StackError | Error)[],
-		message: string
-	) {
-		super(message)
-	}
-}
-
-export class StackError extends Error {
-	constructor(
-		readonly stack: string,
 		readonly issues: (ResourceError | Error)[],
 		message: string
 	) {
 		super(message)
 	}
 }
+
+// export class StackError extends Error {
+// 	constructor(
+// 		readonly stack: string,
+// 		readonly issues: (ResourceError | Error)[],
+// 		message: string
+// 	) {
+// 		super(message)
+// 	}
+// }
 
 export class ResourceNotFound extends Error {}
 export class ResourceAlreadyExists extends Error {}

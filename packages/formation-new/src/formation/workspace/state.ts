@@ -1,6 +1,7 @@
 import { UUID } from 'node:crypto'
 import { State } from '../meta.ts'
 import { URN } from '../urn.ts'
+import { entries } from './entries.ts'
 
 export type AppState = {
 	name: string
@@ -11,7 +12,7 @@ export type AppState = {
 
 export type StackState = {
 	name: string
-	dependencies: URN[]
+	// dependencies: URN[]
 	nodes: Record<URN, NodeState>
 	// resources: Record<URN, ResourceState>
 }
@@ -53,4 +54,12 @@ export const compareState = (left: State, right: State) => {
 	const r = JSON.stringify(right, replacer)
 
 	return l === r
+}
+
+export const removeEmptyStackStates = (appState: AppState) => {
+	for (const [stackUrn, stackState] of entries(appState.stacks)) {
+		if (Object.keys(stackState.nodes).length === 0) {
+			delete appState.stacks[stackUrn]
+		}
+	}
 }

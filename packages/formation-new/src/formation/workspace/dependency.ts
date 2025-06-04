@@ -49,7 +49,7 @@ export class DependencyGraph {
 	}
 
 	async run() {
-		// this.validate()
+		this.validate()
 
 		const graph = topologicalGenerations(this.graph) as URN[][]
 		const errors: Error[] = []

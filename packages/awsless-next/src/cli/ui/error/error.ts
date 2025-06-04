@@ -1,4 +1,4 @@
-import { AppError, StackError } from '@awsless/formation'
+import { AppError, ResourceError } from '@awsless/formation'
 import { log } from '@clack/prompts'
 import { Cancelled, ConfigError, ExpectedError, FileError } from '../../../error.js'
 import { color, icon } from '../style.js'
@@ -6,7 +6,7 @@ import { wrap } from '../util.js'
 import { logAppError } from './app-error.js'
 import { logConfigError } from './config-error.js'
 import { logFileError } from './file-error.js'
-import { logStackError } from './stack-error.js'
+import { logResourceError } from './stack-error.js'
 
 export const logError = (error: unknown) => {
 	// console.log(error)
@@ -23,8 +23,8 @@ export const logError = (error: unknown) => {
 		})
 	} else if (error instanceof AppError) {
 		logAppError(error)
-	} else if (error instanceof StackError) {
-		logStackError(error)
+	} else if (error instanceof ResourceError) {
+		logResourceError(error)
 	} else if (error instanceof FileError) {
 		logFileError(error)
 	} else if (error instanceof Error) {

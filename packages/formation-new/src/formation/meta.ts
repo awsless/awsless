@@ -76,15 +76,21 @@ export const createMeta = <
 	// ------------------------------------------------------------------------------
 
 	const linkMetaDep = (dep: Meta) => {
-		if (dep.stack.urn === stack.urn) {
-			if (dep.urn === urn) {
-				throw new Error("You can't depend on yourself")
-			}
-
-			dependencies.add(dep.urn)
-		} else {
-			stack.dependsOn(dep.stack)
+		if (dep.urn === urn) {
+			throw new Error("You can't depend on yourself")
 		}
+
+		dependencies.add(dep.urn)
+
+		// if (dep.stack.urn === stack.urn) {
+		// 	if (dep.urn === urn) {
+		// 		throw new Error("You can't depend on yourself")
+		// 	}
+
+		// 	dependencies.add(dep.urn)
+		// } else {
+		// 	stack.dependsOn(dep.stack)
+		// }
 	}
 
 	for (const dep of findInputDeps(input)) {
@@ -92,11 +98,13 @@ export const createMeta = <
 	}
 
 	for (const dep of config?.dependsOn ?? []) {
-		if (dep.$.stack.urn === stack.urn) {
-			dependencies.add(dep.$.urn)
-		} else {
-			stack.dependsOn(dep.$.stack)
-		}
+		linkMetaDep(dep.$)
+
+		// if (dep.$.stack.urn === stack.urn) {
+		// 	dependencies.add(dep.$.urn)
+		// } else {
+		// 	stack.dependsOn(dep.$.stack)
+		// }
 	}
 
 	return {

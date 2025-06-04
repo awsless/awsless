@@ -17,7 +17,7 @@ export type ResourceConfig = Config & {
 	retainOnDelete?: boolean
 
 	/** Override the default create-after-delete behavior when replacing a resource. */
-	deleteAfterCreate?: boolean
+	// deleteAfterCreate?: boolean
 
 	/** If set, the provider’s Delete method will not be called for this resource if the specified resource is being deleted as well. */
 	// deletedWith?: Resource;

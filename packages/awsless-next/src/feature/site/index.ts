@@ -105,31 +105,7 @@ export const siteFeature = defineFeature({
 				functionUrl = new $.aws.lambda.FunctionUrl(group, 'url', {
 					functionName: result.lambda.functionName,
 					authorizationType: 'AWS_IAM',
-					// cors: {
-					// 	allowOrigins: ['*'],
-					// 	allowMethods: ['*'],
-					// 	allowHeaders: ['*'],
-					// },
 				})
-
-				// const ssrAccessControl = new $.aws.cloudfront.OriginAccessControl(group, 'ssr-access', {
-				// 	name: `${name}-ssr`,
-				// 	originAccessControlOriginType: 'lambda',
-				// 	signingBehavior: 'always',
-				// 	signingProtocol: 'sigv4',
-				// })
-
-				// origins.push({
-				// 	originId: 'ssr',
-				// 	domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
-				// 	originAccessControlId: ssrAccessControl.id,
-				// 	customOriginConfig: {
-				// 		originProtocolPolicy: 'https-only',
-				// 		httpPort: 80,
-				// 		httpsPort: 443,
-				// 		originSslProtocols: ['TLSv1.2'],
-				// 	},
-				// })
 			}
 
 			// ------------------------------------------------------------
@@ -179,26 +155,12 @@ export const siteFeature = defineFeature({
 					],
 				})
 
-				// bucket.deletionPolicy = 'after-deployment'
-
-				// const accessControl = new $.aws.cloudfront.OriginAccessControl(group, `access`, {
-				// 	name,
-				// 	originAccessControlOriginType: 's3',
-				// 	signingBehavior: 'always',
-				// 	signingProtocol: 'sigv4',
-				// })
-
-				// accessControl.deletionPolicy = 'after-deployment'
-
 				ctx.onReady(() => {
 					if (typeof props.static === 'string' && bucket) {
 						const files = glob.sync('**', {
-							// cwd: join(directories.root, props.static),
 							cwd: props.static,
 							nodir: true,
 						})
-
-						// console.log(join(directories.root, props.static))
 
 						for (const file of files) {
 							const object = new $.aws.s3.BucketObject(group, file, {
@@ -210,8 +172,6 @@ export const siteFeature = defineFeature({
 								sourceHash: $hash(join(props.static, file)),
 							})
 
-							// console.log(file)
-
 							keys.push({ key: `/${file}`, value: 's3' })
 
 							versions.push(object.key)
@@ -219,16 +179,6 @@ export const siteFeature = defineFeature({
 						}
 					}
 				})
-
-				// origins.push({
-				// 	originId: 'static',
-				// 	domainName: bucket.bucketRegionalDomainName,
-				// 	originAccessControlId: accessControl.id,
-				// 	s3OriginConfig: {
-				// 		// is required to have an value for s3 origins when using origin access control
-				// 		originAccessIdentity: '',
-				// 	},
-				// })
 			}
 
 			// ------------------------------------------------------------
@@ -337,10 +287,6 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Viewer Request CloudFront Function
 
-			// getViewerRequestFunctionCode(domainName, bucket, functionUrl).pipe(a => {
-			// 	console.log(a)
-			// })
-
 			const viewerRequest = new $.aws.cloudfront.Function(group, 'viewer-request', {
 				name: formatLocalResourceName({
 					appName: ctx.app.name,
@@ -430,8 +376,6 @@ export const siteFeature = defineFeature({
 					viewerProtocolPolicy: 'redirect-to-https',
 					allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
 					cachedMethods: ['GET', 'HEAD'],
-					// cachedMethods: ['GET', 'HEAD', 'OPTIONS'],
-					// cachedMethods: [],
 				},
 			})
 

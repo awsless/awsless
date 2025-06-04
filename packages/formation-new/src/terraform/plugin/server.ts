@@ -57,6 +57,8 @@ export const createPluginServer = (props: { file: string; debug?: boolean }) => 
 				}
 			} catch (error) {}
 
+			debug('failed')
+
 			reject(new Error('Failed to start the plugin'))
 		})
 	})

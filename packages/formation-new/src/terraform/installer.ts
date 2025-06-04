@@ -40,8 +40,8 @@ export class Terraform {
 
 		return (input: ProviderInput<T, 'Provider'>, config?: ProviderConfig) => {
 			const createLazyPlugin = async () => {
-				const server = await createPluginServer({ file, debug: config?.debug })
-				const client = await createPluginClient(server)
+				const server = await retry(3, () => createPluginServer({ file, debug: config?.debug }))
+				const client = await retry(3, () => createPluginClient(server))
 				const plugins: Record<number, () => Promise<Plugin>> = {
 					5: () => createPlugin5({ server, client }),
 					6: () => createPlugin6({ server, client }),
@@ -61,4 +61,18 @@ export class Terraform {
 			return new TerraformProvider(type, config?.id ?? 'default', createLazyPlugin, input)
 		}
 	}
+}
+
+const retry = async <T>(tries: number, cb: () => Promise<T>): Promise<T> => {
+	let latestError: unknown
+	while (--tries) {
+		try {
+			const result = await cb()
+			return result
+		} catch (error) {
+			latestError = error
+		}
+	}
+
+	throw latestError
 }

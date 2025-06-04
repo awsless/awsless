@@ -1,11 +1,14 @@
 import { App } from '../../app.ts'
+import { URN } from '../../urn.ts'
 import { concurrencyQueue } from '../concurrency.ts'
 import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
 import { AppError } from '../error.ts'
+import { NodeState, removeEmptyStackStates } from '../state.ts'
 import { migrateAppState } from '../state/migrate.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
-import { deleteStackNodes } from './delete-stack.ts'
+import { deleteStackNodes } from './__delete-stack.ts'
+import { deleteResource } from './delete-resource.ts'
 
 export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptions) => {
 	const latestState = await opt.backend.state.get(app.urn)
@@ -31,10 +34,11 @@ export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 	// -------------------------------------------------------
 	// Filter stacks
 
-	let stacks = entries(appState.stacks)
+	// let stacks = entries(appState.stacks)
+	let stackStates = Object.values(appState.stacks)
 
 	if (opt.filters && opt.filters.length > 0) {
-		stacks = stacks.filter(([_, stack]) => opt.filters!.includes(stack.name))
+		stackStates = stackStates.filter(stackState => opt.filters!.includes(stackState.name))
 	}
 
 	// -------------------------------------------------------
@@ -42,14 +46,42 @@ export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 	const queue = concurrencyQueue(opt.concurrency ?? 10)
 	const graph = new DependencyGraph()
 
-	for (const [urn, stackState] of stacks) {
-		graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-			await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken!, queue, opt)
-			delete appState.stacks[urn]
-		})
+	// -------------------------------------------------------
+
+	const allNodes: Record<URN, NodeState> = {}
+
+	for (const stackState of Object.values(appState.stacks)) {
+		for (const [urn, nodeState] of entries(stackState.nodes)) {
+			allNodes[urn] = nodeState
+		}
 	}
 
+	// -------------------------------------------------------
+
+	for (const stackState of stackStates) {
+		for (const [urn, state] of entries(stackState.nodes)) {
+			graph.add(urn, dependentsOn(allNodes, urn), async () => {
+				if (state.tag === 'resource') {
+					await queue(() => deleteResource(appState.idempotentToken!, urn, state, opt))
+				}
+
+				// -------------------------------------------------------------------
+				// Delete the resource from the stack state
+
+				delete stackState.nodes[urn]
+			})
+		}
+	}
+
+	// -------------------------------------------------------------------
+	// Execute deletion graph
+
 	const errors = await graph.run()
+
+	// -------------------------------------------------------------------
+	// Remove empty stacks from app state
+
+	removeEmptyStackStates(appState)
 
 	// -------------------------------------------------------
 	// Remove the idempotent token

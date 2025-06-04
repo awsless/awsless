@@ -1,20 +1,9 @@
 import { join } from 'node:path'
-import {
-	App,
-	enableDebug,
-	FileLockBackend,
-	FileStateBackend,
-	Stack,
-	Terraform,
-	$,
-	WorkSpace,
-	Resource,
-} from '../src/index.ts'
+import { App, enableDebug, FileLockBackend, FileStateBackend, Stack, Terraform, $, WorkSpace } from '../src/index.ts'
 import { marshall } from '@aws-sdk/util-dynamodb'
 import { homedir } from 'node:os'
 import { createCustomResourceClass } from '../src/custom/resource.ts'
 import { createCustomProvider } from '../src/custom/provider.ts'
-import { isNode } from '../src/formation/node.ts'
 
 enableDebug()
 
@@ -64,17 +53,17 @@ const testProvider = createCustomProvider('custom', {
 const workspace = new WorkSpace({
 	providers: [
 		testProvider,
-		// aws({
-		// 	profile: 'jacksclub',
-		// 	region: 'us-east-1',
-		// 	defaultTags: [
-		// 		{
-		// 			tags: {
-		// 				app: 'app-2',
-		// 			},
-		// 		},
-		// 	],
-		// }),
+		aws({
+			profile: 'jacksclub',
+			region: 'us-east-1',
+			defaultTags: [
+				{
+					tags: {
+						app: 'app-2',
+					},
+				},
+			],
+		}),
 		// cloudFlare({}),
 	],
 	backend: {
@@ -87,7 +76,9 @@ const workspace = new WorkSpace({
 
 const app = new App('app-2')
 const stack = new Stack(app, 'stack')
-const test = new Test(stack, 'test', { version: 4 })
+const stack2 = new Stack(app, 'stack-2')
+
+// const test = new Test(stack, 'test', { version: 4 })
 // const test = Test.get(stack, 'test', '', {
 
 // })
@@ -97,21 +88,22 @@ const test = new Test(stack, 'test', { version: 4 })
 
 // const stack2 = new Stack(app, 'stack-2')
 
-// const table = new $.aws.dynamodb.Table(stack1, 'test', {
-// 	name: 'test-2',
-// 	billingMode: 'PAY_PER_REQUEST',
-// 	hashKey: 'key',
+const table = new $.aws.dynamodb.Table(stack, 'test', {
+	name: 'test-2',
+	billingMode: 'PAY_PER_REQUEST',
+	hashKey: 'key',
 
-// 	attribute: [
-// 		{
-// 			name: 'key',
-// 			type: 'S',
-// 		},
-// 	],
-// 	tags: {
-// 		test: 'TEST',
-// 	},
-// })
+	attribute: [
+		{
+			name: 'key',
+			type: 'S',
+		},
+	],
+	tags: {
+		test: 'TEST',
+		test2: 'lol',
+	},
+})
 
 // const iot = $.aws.iot.getEndpoint(stack2, 'test', {
 // 	endpointType: 'iot:Data-ATS',
@@ -132,45 +124,28 @@ const test = new Test(stack, 'test', { version: 4 })
 // 	),
 // })
 
-// const item = new tf.aws.dynamodb.TableItem(
-// 	stack,
-// 	'test',
-// 	{
-// 		table_name: table.name,
-// 		hash_key: table.hash_key,
-// 		range_key: table.range_key,
-// 		item: $hash(join(import.meta.dirname, './index.ts')).pipe(hash =>
-// 			JSON.stringify(
-// 				marshall({
-// 					key: 'key',
-// 					hash,
-// 				})
-// 			)
-// 		),
-// 		// item: JSON.stringify(
-// 		// 	marshall({
-// 		// 		key: 'key',
-// 		// 		value: $hash('./index.ts'),
-// 		// 		// value: Math.random(),
-// 		// 	})
-// 		// ),
-// 	},
-// 	{
-// 		// import: 'test|key|key',
-// 		// retainOnDelete: true,
-// 		// deletesWith: [table],
-// 	}
-// )
+for (let i = 0; i < 20; i++) {
+	new $.aws.dynamodb.TableItem(stack2, `test-${i}`, {
+		tableName: table.name,
+		hashKey: table.hashKey,
+		rangeKey: table.rangeKey,
+		item: JSON.stringify(
+			marshall({
+				key: i.toString(),
+			})
+		),
+	})
+}
 
-await workspace.deploy(app, {
-	// 'filters': ['']
-})
+// await workspace.deploy(app, {
+// 	// 'filters': ['']
+// })
 
 // console.log(await iot.endpointAddress)
 
-// try {
-// 	await workspace.delete(app)
-// } catch (error) {
-// 	console.log(error)
-// 	// throw error;
-// }
+try {
+	await workspace.delete(app)
+} catch (error) {
+	console.log(error)
+	// throw error;
+}

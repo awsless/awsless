@@ -46,7 +46,6 @@ __export(src_exports, {
   ResourceNotFound: () => ResourceNotFound,
   S3StateBackend: () => S3StateBackend,
   Stack: () => Stack,
-  StackError: () => StackError,
   Terraform: () => Terraform,
   WorkSpace: () => WorkSpace,
   createCustomProvider: () => createCustomProvider,
@@ -436,6 +435,7 @@ var DependencyGraph = class {
     }
   }
   async run() {
+    this.validate();
     const graph = (0, import_graphology_dag.topologicalGenerations)(this.graph);
     const errors = [];
     for (const list of graph) {
@@ -496,16 +496,32 @@ var AppError = class extends Error {
     this.issues = issues;
   }
 };
-var StackError = class extends Error {
-  constructor(stack, issues, message) {
-    super(message);
-    this.stack = stack;
-    this.issues = issues;
-  }
-};
 var ResourceNotFound = class extends Error {
 };
 var ResourceAlreadyExists = class extends Error {
+};
+
+// src/formation/workspace/state.ts
+var compareState = (left, right) => {
+  const replacer = (_, value) => {
+    if (value !== null && value instanceof Object && !Array.isArray(value)) {
+      return Object.keys(value).sort().reduce((sorted, key) => {
+        sorted[key] = value[key];
+        return sorted;
+      }, {});
+    }
+    return value;
+  };
+  const l = JSON.stringify(left, replacer);
+  const r = JSON.stringify(right, replacer);
+  return l === r;
+};
+var removeEmptyStackStates = (appState) => {
+  for (const [stackUrn, stackState] of entries(appState.stacks)) {
+    if (Object.keys(stackState.nodes).length === 0) {
+      delete appState.stacks[stackUrn];
+    }
+  }
 };
 
 // src/formation/workspace/state/v1.ts
@@ -532,8 +548,28 @@ var v1 = (oldAppState) => {
   };
 };
 
+// src/formation/workspace/state/v2.ts
+var v2 = (oldAppState) => {
+  const stacks = {};
+  for (const [urn, stack] of entries(oldAppState.stacks)) {
+    const nodes = {};
+    stacks[urn] = {
+      name: stack.name,
+      nodes
+    };
+  }
+  return {
+    ...oldAppState,
+    stacks,
+    version: 2
+  };
+};
+
 // src/formation/workspace/state/migrate.ts
-var versions = [[1, v1]];
+var versions = [
+  [1, v1],
+  [2, v2]
+];
 var migrateAppState = (oldState) => {
   let version = "version" in oldState && oldState.version || 0;
   for (const [v, migrate] of versions) {
@@ -586,26 +622,6 @@ var deleteResource = async (appToken, urn, state, opt) => {
   }
 };
 
-// src/formation/workspace/procedure/delete-stack.ts
-var debug2 = createDebugger("Delete Stack");
-var deleteStackNodes = async (stackState, nodeStates, appToken, queue, options) => {
-  debug2(stackState.name, "start");
-  const graph = new DependencyGraph();
-  for (const [urn, state] of entries(nodeStates)) {
-    graph.add(urn, dependentsOn(stackState.nodes, urn), async () => {
-      if (state.tag === "resource") {
-        await queue(() => deleteResource(appToken, urn, state, options));
-      }
-      delete stackState.nodes[urn];
-    });
-  }
-  const errors = await graph.run();
-  debug2(stackState.name, "done");
-  if (errors.length > 0) {
-    throw new StackError(stackState.name, [...new Set(errors)], "Deleting resources failed.");
-  }
-};
-
 // src/formation/workspace/procedure/delete-app.ts
 var deleteApp = async (app, opt) => {
   const latestState = await opt.backend.state.get(app.urn);
@@ -617,19 +633,30 @@ var deleteApp = async (app, opt) => {
     appState.idempotentToken = opt.idempotentToken ?? crypto.randomUUID();
     await opt.backend.state.update(app.urn, appState);
   }
-  let stacks = entries(appState.stacks);
+  let stackStates = Object.values(appState.stacks);
   if (opt.filters && opt.filters.length > 0) {
-    stacks = stacks.filter(([_, stack]) => opt.filters.includes(stack.name));
+    stackStates = stackStates.filter((stackState) => opt.filters.includes(stackState.name));
   }
   const queue = concurrencyQueue(opt.concurrency ?? 10);
   const graph = new DependencyGraph();
-  for (const [urn, stackState] of stacks) {
-    graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-      await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken, queue, opt);
-      delete appState.stacks[urn];
-    });
+  const allNodes = {};
+  for (const stackState of Object.values(appState.stacks)) {
+    for (const [urn, nodeState] of entries(stackState.nodes)) {
+      allNodes[urn] = nodeState;
+    }
+  }
+  for (const stackState of stackStates) {
+    for (const [urn, state] of entries(stackState.nodes)) {
+      graph.add(urn, dependentsOn(allNodes, urn), async () => {
+        if (state.tag === "resource") {
+          await queue(() => deleteResource(appState.idempotentToken, urn, state, opt));
+        }
+        delete stackState.nodes[urn];
+      });
+    }
   }
   const errors = await graph.run();
+  removeEmptyStackStates(appState);
   delete appState.idempotentToken;
   await opt.backend.state.update(app.urn, appState);
   if (errors.length > 0) {
@@ -640,29 +667,13 @@ var deleteApp = async (app, opt) => {
   }
 };
 
-// src/formation/workspace/state.ts
-var compareState = (left, right) => {
-  const replacer = (_, value) => {
-    if (value !== null && value instanceof Object && !Array.isArray(value)) {
-      return Object.keys(value).sort().reduce((sorted, key) => {
-        sorted[key] = value[key];
-        return sorted;
-      }, {});
-    }
-    return value;
-  };
-  const l = JSON.stringify(left, replacer);
-  const r = JSON.stringify(right, replacer);
-  return l === r;
-};
-
 // src/formation/workspace/procedure/create-resource.ts
-var debug3 = createDebugger("Create");
+var debug2 = createDebugger("Create");
 var createResource = async (resource, appToken, input, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
   const idempotantToken = createIdempotantToken(appToken, resource.$.urn, "create");
-  debug3(resource.$.type);
-  debug3(input);
+  debug2(resource.$.type);
+  debug2(input);
   let result;
   try {
     result = await provider.createResource({
@@ -684,10 +695,10 @@ var createResource = async (resource, appToken, input, opt) => {
 };
 
 // src/formation/workspace/procedure/get-data-source.ts
-var debug4 = createDebugger("Data Source");
+var debug3 = createDebugger("Data Source");
 var getDataSource = async (dataSource, input, opt) => {
   const provider = findProvider(opt.providers, dataSource.provider);
-  debug4(dataSource.type);
+  debug3(dataSource.type);
   if (!provider.getData) {
     throw new Error(`Provider doesn't support data sources`);
   }
@@ -710,11 +721,11 @@ var getDataSource = async (dataSource, input, opt) => {
 };
 
 // src/formation/workspace/procedure/import-resource.ts
-var debug5 = createDebugger("Import");
+var debug4 = createDebugger("Import");
 var importResource = async (resource, input, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
-  debug5(resource.$.type);
-  debug5(input);
+  debug4(resource.$.type);
+  debug4(input);
   let result;
   try {
     result = await provider.getResource({
@@ -738,13 +749,13 @@ var importResource = async (resource, input, opt) => {
 };
 
 // src/formation/workspace/procedure/update-resource.ts
-var debug6 = createDebugger("Update");
+var debug5 = createDebugger("Update");
 var updateResource = async (resource, appToken, priorState, proposedState, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
   const idempotantToken = createIdempotantToken(appToken, resource.$.urn, "update");
   let result;
-  debug6(resource.$.type);
-  debug6(proposedState);
+  debug5(resource.$.type);
+  debug5(proposedState);
   try {
     result = await provider.updateResource({
       type: resource.$.type,
@@ -761,107 +772,10 @@ var updateResource = async (resource, appToken, priorState, proposedState, opt) 
   };
 };
 
-// src/formation/workspace/procedure/deploy-stack.ts
-var debug7 = createDebugger("Deploy Stack");
-var deployStackNodes = async (stackState, nodes, appToken, queue, opt) => {
-  debug7(stackState.name, "start");
-  const graph = new DependencyGraph();
-  for (const node of nodes) {
-    const dependencies = [...node.$.dependencies];
-    const partialNewResourceState = {
-      dependencies,
-      lifecycle: isResource(node) ? {
-        deleteAfterCreate: node.$.config?.deleteAfterCreate,
-        retainOnDelete: node.$.config?.retainOnDelete
-      } : void 0
-    };
-    graph.add(node.$.urn, dependencies, () => {
-      return queue(async () => {
-        let nodeState = stackState.nodes[node.$.urn];
-        let input;
-        try {
-          input = await resolveInputs(node.$.input);
-        } catch (error) {
-          throw ResourceError.wrap(
-            //
-            node.$.urn,
-            node.$.type,
-            "resolve",
-            error
-          );
-        }
-        if (isDataSource(node)) {
-          if (!nodeState) {
-            const dataSourceState = await getDataSource(node.$, input, opt);
-            nodeState = stackState.nodes[node.$.urn] = {
-              ...dataSourceState,
-              ...partialNewResourceState
-            };
-          } else if (!compareState(nodeState.input, input)) {
-            const dataSourceState = await getDataSource(node.$, input, opt);
-            Object.assign(nodeState, {
-              ...dataSourceState,
-              ...partialNewResourceState
-            });
-          } else {
-            Object.assign(nodeState, partialNewResourceState);
-          }
-        }
-        if (isResource(node)) {
-          if (!nodeState) {
-            if (node.$.config?.import) {
-              const importedState = await importResource(node, input, opt);
-              const newResourceState = await updateResource(
-                node,
-                appToken,
-                importedState.output,
-                input,
-                opt
-              );
-              nodeState = stackState.nodes[node.$.urn] = {
-                ...importedState,
-                ...newResourceState,
-                ...partialNewResourceState
-              };
-            } else {
-              const newResourceState = await createResource(node, appToken, input, opt);
-              nodeState = stackState.nodes[node.$.urn] = {
-                ...newResourceState,
-                ...partialNewResourceState
-              };
-            }
-          } else if (
-            // --------------------------------------------------
-            // Check if any state has changed
-            !compareState(nodeState.input, input)
-          ) {
-            const newResourceState = await updateResource(node, appToken, nodeState.output, input, opt);
-            Object.assign(nodeState, {
-              input,
-              ...newResourceState,
-              ...partialNewResourceState
-            });
-          } else {
-            Object.assign(nodeState, partialNewResourceState);
-          }
-        }
-        if (nodeState?.output) {
-          node.$.resolve(nodeState.output);
-        }
-      });
-    });
-  }
-  const errors = await graph.run();
-  debug7(stackState.name, "done");
-  if (errors.length > 0) {
-    throw new StackError(stackState.name, [...new Set(errors)], "Deploying resources failed.");
-  }
-};
-
 // src/formation/workspace/procedure/deploy-app.ts
-var debug8 = createDebugger("Deploy App");
+var debug6 = createDebugger("Deploy App");
 var deployApp = async (app, opt) => {
-  debug8(app.name, "start");
+  debug6(app.name, "start");
   const latestState = await opt.backend.state.get(app.urn);
   const appState = migrateAppState(
     latestState ?? {
@@ -884,60 +798,25 @@ var deployApp = async (app, opt) => {
   }
   const queue = concurrencyQueue(opt.concurrency ?? 10);
   const graph = new DependencyGraph();
-  for (const stack of filteredOutStacks) {
-    graph.add(stack.urn, [], async () => {
-      const stackState = appState.stacks[stack.urn];
-      if (stackState) {
-        for (const node of stack.nodes) {
-          const nodeState = stackState.nodes[node.$.urn];
-          if (nodeState && nodeState.output) {
-            debug8("hydrate", node.$.urn);
-            node.$.resolve(nodeState.output);
-          }
-        }
-      }
-    });
+  const allNodes = {};
+  for (const stackState of Object.values(appState.stacks)) {
+    for (const [urn, nodeState] of entries(stackState.nodes)) {
+      allNodes[urn] = nodeState;
+    }
   }
-  for (const stack of stacks) {
-    graph.add(
-      stack.urn,
-      [...stack.dependencies].map((dep) => dep.urn),
-      async () => {
-        const nodes = stack.nodes;
-        const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
-          name: stack.name,
-          dependencies: [],
-          nodes: {}
-        };
-        const deleteResourcesBefore = {};
-        const deleteResourcesAfter = {};
-        for (const [urn, state] of entries(stackState.nodes)) {
-          const resource = nodes.find((r) => r.$.urn === urn);
-          if (!resource) {
-            if (state.lifecycle?.deleteAfterCreate) {
-              deleteResourcesAfter[urn] = state;
-            } else {
-              deleteResourcesBefore[urn] = state;
-            }
-          }
+  for (const stack of filteredOutStacks) {
+    const stackState = appState.stacks[stack.urn];
+    if (stackState) {
+      for (const node of stack.nodes) {
+        const nodeState = stackState.nodes[node.$.urn];
+        if (nodeState && nodeState.output) {
+          graph.add(node.$.urn, [], async () => {
+            debug6("hydrate", node.$.urn);
+            node.$.resolve(nodeState.output);
+          });
         }
-        if (Object.keys(deleteResourcesBefore).length > 0) {
-          await deleteStackNodes(stackState, deleteResourcesBefore, appState.idempotentToken, queue, opt);
-        }
-        await deployStackNodes(
-          stackState,
-          nodes,
-          // stack.dataSources,
-          appState.idempotentToken,
-          queue,
-          opt
-        );
-        if (Object.keys(deleteResourcesAfter).length > 0) {
-          await deleteStackNodes(stackState, deleteResourcesAfter, appState.idempotentToken, queue, opt);
-        }
-        stackState.dependencies = [...stack.dependencies].map((d) => d.urn);
       }
-    );
+    }
   }
   for (const [urn, stackState] of entries(appState.stacks)) {
     const found = app.stacks.find((stack) => {
@@ -945,19 +824,156 @@ var deployApp = async (app, opt) => {
     });
     const filtered = opt.filters ? opt.filters.find((filter) => filter === stackState.name) : true;
     if (!found && filtered) {
-      graph.add(urn, dependentsOn(appState.stacks, urn), async () => {
-        await deleteStackNodes(stackState, stackState.nodes, appState.idempotentToken, queue, opt);
-        delete appState.stacks[urn];
+      for (const [urn2, nodeState] of entries(stackState.nodes)) {
+        graph.add(urn2, dependentsOn(allNodes, urn2), async () => {
+          if (nodeState.tag === "resource") {
+            await queue(
+              () => deleteResource(
+                //
+                appState.idempotentToken,
+                urn2,
+                nodeState,
+                opt
+              )
+            );
+          }
+          delete stackState.nodes[urn2];
+        });
+      }
+    }
+  }
+  for (const stack of stacks) {
+    const stackState = appState.stacks[stack.urn] = appState.stacks[stack.urn] ?? {
+      name: stack.name,
+      nodes: {}
+    };
+    for (const [urn, nodeState] of entries(stackState.nodes)) {
+      const resource = stack.nodes.find((r) => r.$.urn === urn);
+      if (!resource) {
+        graph.add(urn, dependentsOn(allNodes, urn), async () => {
+          if (nodeState.tag === "resource") {
+            await queue(
+              () => deleteResource(
+                //
+                appState.idempotentToken,
+                urn,
+                nodeState,
+                opt
+              )
+            );
+          }
+          delete stackState.nodes[urn];
+        });
+      }
+    }
+    for (const node of stack.nodes) {
+      const dependencies = [...node.$.dependencies];
+      const partialNewResourceState = {
+        dependencies,
+        lifecycle: isResource(node) ? {
+          // deleteAfterCreate: node.$.config?.deleteAfterCreate,
+          retainOnDelete: node.$.config?.retainOnDelete
+        } : void 0
+      };
+      graph.add(node.$.urn, dependencies, () => {
+        return queue(async () => {
+          let nodeState = stackState.nodes[node.$.urn];
+          let input;
+          try {
+            input = await resolveInputs(node.$.input);
+          } catch (error) {
+            throw ResourceError.wrap(
+              //
+              node.$.urn,
+              node.$.type,
+              "resolve",
+              error
+            );
+          }
+          if (isDataSource(node)) {
+            if (!nodeState) {
+              const dataSourceState = await getDataSource(node.$, input, opt);
+              nodeState = stackState.nodes[node.$.urn] = {
+                ...dataSourceState,
+                ...partialNewResourceState
+              };
+            } else if (!compareState(nodeState.input, input)) {
+              const dataSourceState = await getDataSource(node.$, input, opt);
+              Object.assign(nodeState, {
+                ...dataSourceState,
+                ...partialNewResourceState
+              });
+            } else {
+              Object.assign(nodeState, partialNewResourceState);
+            }
+          }
+          if (isResource(node)) {
+            if (!nodeState) {
+              if (node.$.config?.import) {
+                const importedState = await importResource(node, input, opt);
+                const newResourceState = await updateResource(
+                  node,
+                  appState.idempotentToken,
+                  importedState.output,
+                  input,
+                  opt
+                );
+                nodeState = stackState.nodes[node.$.urn] = {
+                  ...importedState,
+                  ...newResourceState,
+                  ...partialNewResourceState
+                };
+              } else {
+                const newResourceState = await createResource(
+                  node,
+                  appState.idempotentToken,
+                  input,
+                  opt
+                );
+                nodeState = stackState.nodes[node.$.urn] = {
+                  ...newResourceState,
+                  ...partialNewResourceState
+                };
+              }
+            } else if (
+              // --------------------------------------------------
+              // Check if any state has changed
+              !compareState(nodeState.input, input)
+            ) {
+              const newResourceState = await updateResource(
+                node,
+                appState.idempotentToken,
+                nodeState.output,
+                input,
+                opt
+              );
+              Object.assign(nodeState, {
+                input,
+                ...newResourceState,
+                ...partialNewResourceState
+              });
+            } else {
+              Object.assign(nodeState, partialNewResourceState);
+            }
+          }
+          if (nodeState?.output) {
+            node.$.resolve(nodeState.output);
+          }
+        });
       });
     }
   }
   const errors = await graph.run();
+  removeEmptyStackStates(appState);
   delete appState.idempotentToken;
   await opt.backend.state.update(app.urn, appState);
   releaseOnExit();
-  debug8(app.name, "done");
+  debug6(app.name, "done");
   if (errors.length > 0) {
     throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
+  }
+  if (Object.keys(appState.stacks).length === 0) {
+    await opt.backend.state.delete(app.urn);
   }
   return appState;
 };
@@ -1056,6 +1072,9 @@ var MemoryStateBackend = class {
   async delete(urn) {
     this.states.delete(urn);
   }
+  clear() {
+    this.states.clear();
+  }
 };
 
 // src/formation/backend/memory/lock.ts
@@ -1079,12 +1098,15 @@ var MemoryLockBackend = class {
       }
     };
   }
+  clear() {
+    this.locks.clear();
+  }
 };
 
 // src/formation/backend/file/state.ts
 var import_promises = require("fs/promises");
 var import_node_path = require("path");
-var debug9 = createDebugger("State");
+var debug7 = createDebugger("State");
 var FileStateBackend = class {
   constructor(props) {
     this.props = props;
@@ -1098,7 +1120,7 @@ var FileStateBackend = class {
     });
   }
   async get(urn) {
-    debug9("get");
+    debug7("get");
     let json;
     try {
       json = await (0, import_promises.readFile)((0, import_node_path.join)(this.stateFile(urn)), "utf8");
@@ -1108,12 +1130,12 @@ var FileStateBackend = class {
     return JSON.parse(json);
   }
   async update(urn, state) {
-    debug9("update");
+    debug7("update");
     await this.mkdir();
     await (0, import_promises.writeFile)(this.stateFile(urn), JSON.stringify(state, void 0, 2));
   }
   async delete(urn) {
-    debug9("delete");
+    debug7("delete");
     await this.mkdir();
     await (0, import_promises.rm)(this.stateFile(urn));
   }
@@ -1955,7 +1977,7 @@ var tfplugin6_default = {
 };
 
 // src/terraform/plugin/client.ts
-var debug10 = createDebugger("Client");
+var debug8 = createDebugger("Client");
 var protocols = {
   tfplugin5: tfplugin5_default,
   tfplugin6: tfplugin6_default
@@ -1975,7 +1997,7 @@ var createPluginClient = async (props) => {
       "grpc.max_send_message_length": 100 * 1024 * 1024
     }
   );
-  debug10("init", props.protocol);
+  debug8("init", props.protocol);
   await new Promise((resolve2, reject) => {
     const deadline = /* @__PURE__ */ new Date();
     deadline.setSeconds(deadline.getSeconds() + 10);
@@ -1987,22 +2009,22 @@ var createPluginClient = async (props) => {
       }
     });
   });
-  debug10("connected");
+  debug8("connected");
   return {
     call(method, payload) {
       return new Promise((resolve2, reject) => {
         const fn = client[method];
-        debug10("call", method);
+        debug8("call", method);
         if (!fn) {
           reject(new Error(`Unknown method call: ${method}`));
           return;
         }
         fn.call(client, payload, (error, response) => {
           if (error) {
-            debug10("failed", error);
+            debug8("failed", error);
             reject(error);
           } else if (response.diagnostics) {
-            debug10("failed", response.diagnostics);
+            debug8("failed", response.diagnostics);
             reject(throwDiagnosticError(response));
           } else {
             resolve2(response);
@@ -2064,7 +2086,7 @@ var exists = async (file2) => {
   }
   return true;
 };
-var debug11 = createDebugger("Downloader");
+var debug9 = createDebugger("Downloader");
 var downloadPlugin = async (location, org, type, version) => {
   if (version === "latest") {
     const { latest } = await getProviderVersions(org, type);
@@ -2073,7 +2095,7 @@ var downloadPlugin = async (location, org, type, version) => {
   const file2 = (0, import_node_path3.join)(location, `${org}-${type}-${version}`);
   const exist = await exists(file2);
   if (!exist) {
-    debug11(type, "downloading...");
+    debug9(type, "downloading...");
     const info = await getProviderDownloadUrl(org, type, version);
     const res = await fetch(info.url);
     const buf = await res.bytes();
@@ -2083,13 +2105,13 @@ var downloadPlugin = async (location, org, type, version) => {
       throw new Error(`Can't find the provider inside the downloaded zip file.`);
     }
     const binary = await zipped.async("nodebuffer");
-    debug11(type, "done");
+    debug9(type, "done");
     await (0, import_promises4.mkdir)(location, { recursive: true });
     await (0, import_promises4.writeFile)(file2, binary, {
       mode: 509
     });
   } else {
-    debug11(type, "already downloaded");
+    debug9(type, "already downloaded");
   }
   return {
     file: file2,
@@ -2099,10 +2121,10 @@ var downloadPlugin = async (location, org, type, version) => {
 
 // src/terraform/plugin/server.ts
 var import_node_child_process = require("child_process");
-var debug12 = createDebugger("Server");
+var debug10 = createDebugger("Server");
 var createPluginServer = (props) => {
   return new Promise((resolve2, reject) => {
-    debug12("init");
+    debug10("init");
     const process = (0, import_node_child_process.spawn)(`${props.file}`, ["-debug"]);
     process.stderr.on("data", (data) => {
       if (props.debug) {
@@ -2123,7 +2145,7 @@ var createPluginServer = (props) => {
             const entry = entries2[0];
             const version = entry.ProtocolVersion;
             const endpoint = entry.Addr.String;
-            debug12("started", endpoint);
+            debug10("started", endpoint);
             resolve2({
               kill() {
                 process.kill();
@@ -2137,6 +2159,7 @@ var createPluginServer = (props) => {
         }
       } catch (error) {
       }
+      debug10("failed");
       reject(new Error("Failed to start the plugin"));
     });
   });
@@ -2902,7 +2925,7 @@ var TerraformProvider = class {
 };
 
 // src/terraform/installer.ts
-var debug13 = createDebugger("Plugin");
+var debug11 = createDebugger("Plugin");
 var Terraform = class {
   constructor(props) {
     this.props = props;
@@ -2911,14 +2934,14 @@ var Terraform = class {
     const { file: file2, version: realVersion } = await downloadPlugin(this.props.providerLocation, org, type, version);
     return (input, config) => {
       const createLazyPlugin = async () => {
-        const server = await createPluginServer({ file: file2, debug: config?.debug });
-        const client = await createPluginClient(server);
+        const server = await retry(3, () => createPluginServer({ file: file2, debug: config?.debug }));
+        const client = await retry(3, () => createPluginClient(server));
         const plugins = {
           5: () => createPlugin5({ server, client }),
           6: () => createPlugin6({ server, client })
         };
         const plugin = await plugins[server.version]?.();
-        debug13(org, type, realVersion);
+        debug11(org, type, realVersion);
         if (!plugin) {
           throw new Error(`No plugin client available for protocol version ${server.version}`);
         }
@@ -2927,6 +2950,18 @@ var Terraform = class {
       return new TerraformProvider(type, config?.id ?? "default", createLazyPlugin, input);
     };
   }
+};
+var retry = async (tries, cb) => {
+  let latestError;
+  while (--tries) {
+    try {
+      const result = await cb();
+      return result;
+    } catch (error) {
+      latestError = error;
+    }
+  }
+  throw latestError;
 };
 
 // src/terraform/resource.ts
@@ -2944,24 +2979,16 @@ var createMeta = (tag, provider, parent, type, logicalId, input, config) => {
   const dependencies = /* @__PURE__ */ new Set();
   let output2;
   const linkMetaDep = (dep) => {
-    if (dep.stack.urn === stack.urn) {
-      if (dep.urn === urn) {
-        throw new Error("You can't depend on yourself");
-      }
-      dependencies.add(dep.urn);
-    } else {
-      stack.dependsOn(dep.stack);
+    if (dep.urn === urn) {
+      throw new Error("You can't depend on yourself");
     }
+    dependencies.add(dep.urn);
   };
   for (const dep of findInputDeps(input)) {
     linkMetaDep(dep);
   }
   for (const dep of config?.dependsOn ?? []) {
-    if (dep.$.stack.urn === stack.urn) {
-      dependencies.add(dep.$.urn);
-    } else {
-      stack.dependsOn(dep.$.stack);
-    }
+    linkMetaDep(dep.$);
   }
   return {
     tag,
@@ -3219,7 +3246,6 @@ var createCustomProvider = (providerId, resourceProviders) => {
   ResourceNotFound,
   S3StateBackend,
   Stack,
-  StackError,
   Terraform,
   WorkSpace,
   createCustomProvider,

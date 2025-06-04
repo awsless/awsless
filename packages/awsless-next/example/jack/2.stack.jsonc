@@ -1,11 +1,11 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack-2",
-	"depends": ["stack"],
-	"tests": "./test-2",
-	"functions": {
-		"echo": "./function.ts"
-	}
+	"depends": ["stack"]
+	// "tests": "./test-2",
+	// "functions": {
+	// 	"echo": "./function.ts"
+	// }
 	// "rest": {
 	// 	"api": {
 	// 		"GET /lol": "./function.ts"

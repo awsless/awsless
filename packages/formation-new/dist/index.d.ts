@@ -44,8 +44,6 @@ type ResourceConfig = Config & {
     import?: string;
     /** If true the resource will be retained in the backing cloud provider during a Pulumi delete operation. */
     retainOnDelete?: boolean;
-    /** Override the default create-after-delete behavior when replacing a resource. */
-    deleteAfterCreate?: boolean;
 };
 type ResourceMeta<I extends State$1 = State$1, O extends State$1 = State$1> = Meta<'resource', I, O, ResourceConfig>;
 type Resource<I extends State$1 = State$1, O extends State$1 = State$1> = O & {
@@ -135,7 +133,6 @@ type AppState = {
 };
 type StackState = {
     name: string;
-    dependencies: URN[];
     nodes: Record<URN, NodeState>;
 };
 type NodeState = {
@@ -235,13 +232,8 @@ declare class ResourceError extends Error {
 }
 declare class AppError extends Error {
     readonly app: string;
-    readonly issues: (StackError | Error)[];
-    constructor(app: string, issues: (StackError | Error)[], message: string);
-}
-declare class StackError extends Error {
-    readonly stack: string;
     readonly issues: (ResourceError | Error)[];
-    constructor(stack: string, issues: (ResourceError | Error)[], message: string);
+    constructor(app: string, issues: (ResourceError | Error)[], message: string);
 }
 declare class ResourceNotFound extends Error {
 }
@@ -253,6 +245,7 @@ declare class MemoryStateBackend implements StateBackend {
     get(urn: URN): Promise<AppState | undefined>;
     update(urn: URN, state: AppState): Promise<void>;
     delete(urn: URN): Promise<void>;
+    clear(): void;
 }
 
 declare class MemoryLockBackend implements LockBackend {
@@ -260,6 +253,7 @@ declare class MemoryLockBackend implements LockBackend {
     insecureReleaseLock(urn: URN): Promise<void>;
     locked(urn: URN): Promise<boolean>;
     lock(urn: URN): Promise<() => Promise<void>>;
+    clear(): void;
 }
 
 declare class FileStateBackend implements StateBackend {
@@ -420,11 +414,11 @@ declare const createCustomResourceClass: <I extends State$1, O extends State$1>(
 
 type CustomResourceProvider = Partial<{
     getResource?(props: Omit<GetProps, 'type'>): Promise<State$1>;
-    updateResource?(state: Omit<UpdateProps, 'type'>): Promise<State$1>;
-    createResource?(state: Omit<CreateProps, 'type'>): Promise<State$1>;
-    deleteResource?(state: Omit<DeleteProps, 'type'>): Promise<void>;
-    getData?(state: Omit<GetDataProps, 'type'>): Promise<State$1>;
+    updateResource?(props: Omit<UpdateProps, 'type'>): Promise<State$1>;
+    createResource?(props: Omit<CreateProps, 'type'>): Promise<State$1>;
+    deleteResource?(props: Omit<DeleteProps, 'type'>): Promise<void>;
+    getData?(props: Omit<GetDataProps, 'type'>): Promise<State$1>;
 }>;
 declare const createCustomProvider: (providerId: string, resourceProviders: Record<string, CustomResourceProvider>) => Provider;
 
-export { $, App, AppError, type CreateProps, type CustomResourceProvider, type DataSource, type DataSourceFunction, type DataSourceMeta, type DeleteProps, DynamoLockBackend, FileLockBackend, FileStateBackend, Future, type GetDataProps, type GetProps, Group, type Input, type LockBackend, MemoryLockBackend, MemoryStateBackend, type OptionalInput, type OptionalOutput, Output, type ProcedureOptions, type Provider, type Resource, ResourceAlreadyExists, type ResourceClass, type ResourceConfig, ResourceError, type ResourceMeta, ResourceNotFound, S3StateBackend, Stack, StackError, type StateBackend, Terraform, type URN, type UpdateProps, WorkSpace, type WorkSpaceOptions, createCustomProvider, createCustomResourceClass, createDebugger, deferredOutput, enableDebug, findInputDeps, output, resolveInputs };
+export { $, App, AppError, type CreateProps, type CustomResourceProvider, type DataSource, type DataSourceFunction, type DataSourceMeta, type DeleteProps, DynamoLockBackend, FileLockBackend, FileStateBackend, Future, type GetDataProps, type GetProps, Group, type Input, type LockBackend, MemoryLockBackend, MemoryStateBackend, type OptionalInput, type OptionalOutput, Output, type ProcedureOptions, type Provider, type Resource, ResourceAlreadyExists, type ResourceClass, type ResourceConfig, ResourceError, type ResourceMeta, ResourceNotFound, S3StateBackend, Stack, type StateBackend, Terraform, type URN, type UpdateProps, WorkSpace, type WorkSpaceOptions, createCustomProvider, createCustomResourceClass, createDebugger, deferredOutput, enableDebug, findInputDeps, output, resolveInputs };
