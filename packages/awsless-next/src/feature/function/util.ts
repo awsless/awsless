@@ -312,6 +312,7 @@ export const createLambdaFunction = (
 		{
 			// ...props,
 			functionName: name,
+			description: props.description,
 			role: role.arn,
 			// code,
 			// runtime: props.runtime === 'container' ? undefined : props.runtime,

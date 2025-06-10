@@ -7,7 +7,6 @@ import { AppError } from '../error.ts'
 import { NodeState, removeEmptyStackStates } from '../state.ts'
 import { migrateAppState } from '../state/migrate.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
-import { deleteStackNodes } from './__delete-stack.ts'
 import { deleteResource } from './delete-resource.ts'
 
 export const deleteApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptions) => {

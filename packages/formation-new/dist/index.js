@@ -491,10 +491,9 @@ var v1 = (oldAppState) => {
 var v2 = (oldAppState) => {
   const stacks = {};
   for (const [urn, stack] of entries(oldAppState.stacks)) {
-    const nodes = {};
     stacks[urn] = {
       name: stack.name,
-      nodes
+      nodes: stack.nodes
     };
   }
   return {

@@ -9,7 +9,7 @@ const versions = [
 ] as const
 
 export const migrateAppState = (oldState: AppStateV1 | AppStateV0 | AppState): AppState => {
-	let version = ('version' in oldState && oldState.version) || 0
+	const version = ('version' in oldState && oldState.version) || 0
 
 	for (const [v, migrate] of versions) {
 		if (v > version) {
