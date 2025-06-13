@@ -491,7 +491,7 @@ export const createAsyncLambdaFunction = (
 	id: string,
 	local: FunctionProps
 ) => {
-	const result = createLambdaFunction(group, ctx, ns, id, local)
+	const result = createLambdaFunction(group, ctx, ns, id, { ...local, warm: 0 })
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
 
 	// ------------------------------------------------------------
