@@ -445,29 +445,77 @@ export const createLambdaFunction = (
 	// Warm up cron
 
 	if (props.warm) {
-		const rule = new $.aws.cloudwatch.EventRule(group, 'warm', {
+		const scheduleRole = new $.aws.iam.Role(group, 'warm', {
 			name: `${shortName}--warm`,
-			description: name,
-			scheduleExpression: 'rate(5 minutes)',
-			isEnabled: true,
-		})
-
-		new $.aws.cloudwatch.EventTarget(group, 'warm', {
-			rule: rule.name,
-			targetId: 'warmer',
-			arn: lambda.arn,
-			input: JSON.stringify({
-				warmer: true,
-				concurrency: props.warm,
+			description: `${name} warmer`,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Action: 'sts:AssumeRole',
+						Effect: 'Allow',
+						Principal: {
+							Service: 'scheduler.amazonaws.com',
+						},
+					},
+				],
 			}),
+			inlinePolicy: [
+				{
+					name: 'invoke function',
+					policy: lambda.arn.pipe(arn =>
+						JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Action: ['lambda:InvokeFunction'],
+									Effect: 'Allow',
+									Resource: arn,
+								},
+							],
+						})
+					),
+				},
+			],
 		})
 
-		new $.aws.lambda.Permission(group, `warm`, {
-			action: 'lambda:InvokeFunction',
-			principal: 'events.amazonaws.com',
-			functionName: lambda.functionName,
-			sourceArn: rule.arn,
+		new $.aws.scheduler.Schedule(group, 'warm', {
+			name: `${shortName}--warm`,
+			description: `${name} warmer`,
+			scheduleExpression: 'rate(5 minutes)',
+			target: {
+				arn: lambda.arn,
+				roleArn: scheduleRole.arn,
+				input: JSON.stringify({
+					warmer: true,
+					concurrency: props.warm,
+				}),
+			},
 		})
+
+		// const rule = new $.aws.cloudwatch.EventRule(group, 'warm', {
+		// 	name: `${shortName}--warm`,
+		// 	description: name,
+		// 	scheduleExpression: 'rate(5 minutes)',
+		// 	isEnabled: true,
+		// })
+
+		// new $.aws.cloudwatch.EventTarget(group, 'warm', {
+		// 	rule: rule.name,
+		// 	targetId: 'warmer',
+		// 	arn: lambda.arn,
+		// 	input: JSON.stringify({
+		// 		warmer: true,
+		// 		concurrency: props.warm,
+		// 	}),
+		// })
+
+		// new $.aws.lambda.Permission(group, `warm`, {
+		// 	action: 'lambda:InvokeFunction',
+		// 	principal: 'events.amazonaws.com',
+		// 	functionName: lambda.functionName,
+		// 	sourceArn: rule.arn,
+		// })
 	}
 
 	return {

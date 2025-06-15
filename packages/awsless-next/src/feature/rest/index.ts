@@ -70,7 +70,10 @@ export const restFeature = defineFeature({
 
 				ctx.bind(`REST_${constantCase(id)}_ENDPOINT`, domainName)
 			} else {
-				// We should also export a env binding for when we don't use a domain.
+				ctx.bind(
+					`REST_${constantCase(id)}_ENDPOINT`,
+					stage.invokeUrl.pipe(url => url.split('/').slice(2).join('/'))
+				)
 			}
 		}
 	},

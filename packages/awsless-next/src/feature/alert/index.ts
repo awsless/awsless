@@ -65,7 +65,7 @@ export const alertFeature = defineFeature({
 			}
 		}
 
-		ctx.addAppPermission({
+		ctx.addGlobalPermission({
 			actions: ['sns:Publish'],
 			resources: [
 				`arn:aws:sns:${ctx.appConfig.region}:${ctx.accountId}:${formatGlobalResourceName({

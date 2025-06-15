@@ -16,31 +16,83 @@ export const cronFeature = defineFeature({
 				warm: 0,
 			})
 
-			const rule = new $.aws.cloudwatch.EventRule(group, 'rule', {
-				name: formatLocalResourceName({
-					appName: ctx.app.name,
-					stackName: ctx.stack.name,
-					resourceType: 'cron',
-					resourceName: shortId(id),
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'cron',
+				resourceName: shortId(id),
+			})
+
+			const scheduleRole = new $.aws.iam.Role(group, 'warm', {
+				name,
+				description: `Cron ${ctx.stack.name} ${id}`,
+				assumeRolePolicy: JSON.stringify({
+					Version: '2012-10-17',
+					Statement: [
+						{
+							Action: 'sts:AssumeRole',
+							Effect: 'Allow',
+							Principal: {
+								Service: 'scheduler.amazonaws.com',
+							},
+						},
+					],
 				}),
+				inlinePolicy: [
+					{
+						name: 'invoke function',
+						policy: lambda.arn.pipe(arn =>
+							JSON.stringify({
+								Version: '2012-10-17',
+								Statement: [
+									{
+										Action: ['lambda:InvokeFunction'],
+										Effect: 'Allow',
+										Resource: arn,
+									},
+								],
+							})
+						),
+					},
+				],
+			})
+
+			new $.aws.scheduler.Schedule(group, 'warm', {
+				name,
 				description: `Cron ${ctx.stack.name} ${id}`,
 				scheduleExpression: props.schedule,
-				isEnabled: props.enabled,
-				forceDestroy: true,
+				target: {
+					arn: lambda.arn,
+					roleArn: scheduleRole.arn,
+					input: JSON.stringify(props.payload),
+				},
 			})
 
-			new $.aws.cloudwatch.EventTarget(group, 'target', {
-				rule: rule.name,
-				arn: lambda.arn,
-				input: JSON.stringify(props.payload),
-			})
+			// const rule = new $.aws.cloudwatch.EventRule(group, 'rule', {
+			// 	name: formatLocalResourceName({
+			// 		appName: ctx.app.name,
+			// 		stackName: ctx.stack.name,
+			// 		resourceType: 'cron',
+			// 		resourceName: shortId(id),
+			// 	}),
+			// 	description: `Cron ${ctx.stack.name} ${id}`,
+			// 	scheduleExpression: props.schedule,
+			// 	isEnabled: props.enabled,
+			// 	forceDestroy: true,
+			// })
 
-			new $.aws.lambda.Permission(group, 'permission', {
-				action: 'lambda:InvokeFunction',
-				principal: 'events.amazonaws.com',
-				functionName: lambda.functionName,
-				sourceArn: rule.arn,
-			})
+			// new $.aws.cloudwatch.EventTarget(group, 'target', {
+			// 	rule: rule.name,
+			// 	arn: lambda.arn,
+			// 	input: JSON.stringify(props.payload),
+			// })
+
+			// new $.aws.lambda.Permission(group, 'permission', {
+			// 	action: 'lambda:InvokeFunction',
+			// 	principal: 'events.amazonaws.com',
+			// 	functionName: lambda.functionName,
+			// 	sourceArn: rule.arn,
+			// })
 		}
 	},
 })
