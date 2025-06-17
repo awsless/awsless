@@ -1,8 +1,11 @@
 type Serializable<I, O> = {
     is: (value: unknown) => boolean;
-    parse: (value: O) => I;
     stringify: (value: I) => O;
-};
+} & ({
+    parse: (value: O) => I;
+} | {
+    replace: (value: O) => I;
+});
 type SerializableTypes = Record<string, Serializable<any, any>>;
 
 declare const patch: (value: unknown, types?: SerializableTypes) => any;
@@ -10,11 +13,15 @@ declare const unpatch: (value: unknown, types?: SerializableTypes) => any;
 
 declare const parse: (json: string, types?: SerializableTypes) => any;
 type Reviver$1 = (this: any, key: string, value: any) => any;
-declare const createReviver: (types?: SerializableTypes) => Reviver$1;
+declare const createReviver: (types?: SerializableTypes, registerReplacement?: (target: any, key: string, value: unknown) => void) => Reviver$1;
 
 declare const stringify: (value: unknown, types?: SerializableTypes) => string;
 type Replacer$1 = (this: any, key: string, value: any) => any;
 declare const createReplacer: (types?: SerializableTypes) => Replacer$1;
+
+declare const setGlobalTypes: (types: SerializableTypes) => void;
+
+declare const $mockdate: Serializable<Date, string>;
 
 type Props$1 = {
     parse: (value: string) => unknown;
@@ -33,4 +40,4 @@ declare const safeNumberStringify: <T>(value: unknown, props: Props<T>) => strin
 type Replacer = (this: any, key: string, value: any) => any;
 declare const createSafeNumberReplacer: <T>(props: Props<T>) => Replacer;
 
-export { type Serializable, createReplacer, createReviver, createSafeNumberReplacer, createSafeNumberReviver, parse, patch, safeNumberParse, safeNumberStringify, stringify, unpatch };
+export { $mockdate, type Serializable, createReplacer, createReviver, createSafeNumberReplacer, createSafeNumberReviver, parse, patch, safeNumberParse, safeNumberStringify, setGlobalTypes, stringify, unpatch };

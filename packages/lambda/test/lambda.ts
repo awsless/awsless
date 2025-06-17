@@ -1,3 +1,4 @@
+import { parse, stringify } from '@awsless/json'
 import { string } from '@awsless/validate'
 import { Context } from 'aws-lambda'
 import { lambda, ViewableError } from '../src'
@@ -19,12 +20,20 @@ describe('Lambda', () => {
 		expect(result).toBeUndefined()
 	})
 
-	// it('should patch wrongly parsed JSON', async () => {
-	// 	const echo = lambda({ handle: (value: bigint) => value })
-	// 	const result = await echo({ $bigint: '1' })
+	it('should not strip away undefined values', async () => {
+		const input = {
+			foo: undefined,
+			bar: [undefined],
+		}
 
-	// 	expect(result).toBe(1n)
-	// })
+		const echo = lambda({ handle: input => input })
+		const result = await echo(input)
+
+		expect(result).toStrictEqual({
+			foo: undefined,
+			bar: [undefined],
+		})
+	})
 
 	it('should throw correctly', async () => {
 		const error = new Error()

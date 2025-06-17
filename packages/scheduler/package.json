@@ -28,9 +28,16 @@
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
+	"peerDependencies": {
+		"@awsless/duration": "workspace:^",
+		"@awsless/json": "workspace:^"
+	},
 	"dependencies": {
-		"@aws-sdk/client-scheduler": "3.329.0",
+		"@aws-sdk/client-scheduler": "3.828.0",
+		"@awsless/duration": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
-		"aws-sdk-client-mock": "^2.1.1"
+		"aws-sdk-client-mock": "^2.1.1",
+		"date-fns": "^4.1.0"
 	}
 }

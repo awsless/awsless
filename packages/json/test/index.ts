@@ -36,7 +36,7 @@ describe('JSON', () => {
 			number: 1,
 			boolean: true,
 			array: [1, 2, 3],
-			object: { foo: 'bar ' },
+			object: { foo: 'bar' },
 			null: null,
 
 			// -----------------------------
@@ -55,12 +55,10 @@ describe('JSON', () => {
 			infinity: Infinity,
 			negInfinity: -Infinity,
 			nan: NaN,
+			undefined: undefined,
 			url: new URL('https://domain.com/path?query#hash'),
 			binary: new Uint8Array([1]),
 			duration: days(1),
-
-			// Sadly this line will not work
-			// undefined: undefined,
 
 			undefinedSet: new Set([undefined]),
 			undefinedMap: new Map([[undefined, undefined]]),
@@ -78,7 +76,7 @@ describe('JSON', () => {
 
 		it('parse', () => {
 			const result = parse(stringify(complex))
-			expect(result).toMatchObject(complex)
+			expect(result).toStrictEqual(complex)
 		})
 
 		it('patch', () => {
@@ -86,7 +84,7 @@ describe('JSON', () => {
 			expect(broken).not.toMatchObject(complex)
 
 			const fixed = patch(broken)
-			expect(fixed).toMatchObject(complex)
+			expect(fixed).toStrictEqual(complex)
 		})
 
 		it('unpatch', () => {
@@ -200,6 +198,8 @@ describe('JSON', () => {
 		})
 	})
 
+	// describe('consistancy', () => {})
+
 	describe('known issues', () => {
 		it(`don't use the $ character inside your JSON`, () => {
 			const value = { $bigint: 'This will break' }
@@ -210,12 +210,51 @@ describe('JSON', () => {
 			}).toThrow(SyntaxError)
 		})
 
-		it('stripping undefined object properties', () => {
-			const value = { key: undefined }
-			const result = parse(stringify(value))
+		// it('stripping undefined from object properties', () => {
+		// 	const input = { key: undefined }
+		// 	const result = parse(stringify(input))
 
-			expect(result).toStrictEqual({})
-			expect(result).not.toStrictEqual(value)
-		})
+		// 	expect(result).toStrictEqual({})
+		// 	expect(result).not.toStrictEqual(input)
+		// })
+
+		// it('stripping undefined from array values', () => {
+		// 	const input = [undefined]
+		// 	const result = parse(stringify(input))
+
+		// 	expect(result).toStrictEqual(new Array(1))
+		// 	expect(result).not.toStrictEqual(input)
+		// })
 	})
 })
+
+// function parseWithFixup(input) {
+//   const fixups = [];
+//   function reviver(key, val) {
+//     if (val === "$undefined") {
+//       // we'll replace this value with an undefined at the end.
+//       fixups.push([this, key]);
+
+//       if (key === "") {
+//         // we might be at the top-level, i.e. visiting the root.
+//         // in case the whole string is "$undefined", we return undefined here --
+//         // we won't get the chance to replace it after.
+//         return undefined;
+//       }
+
+//       return null; // we'll replace it later, but just in case... it's close enough
+//     }
+
+//     return val;
+//   };
+
+//   const res = JSON.parse(input, reviver);
+
+//   for (let i = 0, len = fixups.length; i < len; i++) {
+//     const fixup = fixups[i];
+//     const target = fixup[0], key = fixup[1];
+//     target[key] = undefined;
+//   }
+
+//   return res;
+// }

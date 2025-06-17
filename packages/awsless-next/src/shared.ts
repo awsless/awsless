@@ -20,6 +20,11 @@ type SharedState = {
 		'bucket-name': Output<string>
 		'repository-name': Output<string>
 		'repository-url': Output<string>
+		'warm-group-name': Output<string>
+	}
+
+	cron: {
+		'group-name': Output<string>
 	}
 
 	layer: {

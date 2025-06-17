@@ -1,25 +1,18 @@
-import { schedule, deleteSchedule, mockScheduler } from '../src'
+import { minutes } from '@awsless/duration'
+import { mockScheduler, scheduleInvoke } from '../src'
 
 describe('Scheduler', () => {
 	const mock = mockScheduler({
 		test: () => {},
 	})
 
-	it('should schedule a lambda', async () => {
-		await schedule({
-			lambda: 'test',
-			idempotentKey: '123',
-			payload: {},
-			date: new Date(),
+	it('should schedule a lambda function', async () => {
+		await scheduleInvoke({
+			name: 'test',
+			schedule: minutes(5),
 			roleArn: 'arn::role',
 		})
 
 		expect(mock.test).toBeCalledTimes(1)
-	})
-
-	it('should delete a schedule', async () => {
-		await deleteSchedule({
-			idempotentKey: '123',
-		})
 	})
 })

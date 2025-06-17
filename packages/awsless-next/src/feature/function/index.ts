@@ -99,6 +99,7 @@ export const functionFeature = defineFeature({
 
 		// ------------------------------------------------------
 		// Define the Bucket used to store the lambda function code.
+
 		const bucket = new $.aws.s3.Bucket(group, 'bucket', {
 			bucket: formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -112,6 +113,19 @@ export const functionFeature = defineFeature({
 		})
 
 		ctx.shared.set('function', 'bucket-name', bucket.bucket)
+
+		// ------------------------------------------------------
+		// Define the ScheduleGroup for warmers
+
+		const warmGroup = new $.aws.scheduler.ScheduleGroup(ctx.base, 'warm', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'function',
+				resourceName: 'warm',
+			}),
+		})
+
+		ctx.shared.set('function', 'warm-group-name', warmGroup.name)
 
 		// ------------------------------------------------------
 		// Define the Repository used to store the container images.

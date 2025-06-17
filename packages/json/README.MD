@@ -118,16 +118,3 @@ console.log(eq(value, result)) // true
 ### Don't use the `$` character inside your JSON.
 
 We use the `$` character to encode our special types inside JSON. In order to prevent parsing errors we recommend to avoid using the `$` character inside your object property names.
-
-### Object properties with `undefined` as value type will be stripped away.
-
-```ts
-// Will result in an empty object.
-const result = parse(stringify({ key: undefined }))
-
-// Will log false.
-console.log('key' in result)
-
-// Will log true.
-console.log(result.key === undefined)
-```

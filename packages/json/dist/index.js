@@ -29,10 +29,24 @@ var $infinity = {
   stringify: (v) => v > 0 ? 1 : 0
 };
 
+// src/type/undefined.ts
+var $undefined = {
+  is: (v) => typeof v === "undefined",
+  replace: (_) => void 0,
+  stringify: (_) => 0
+};
+var isUndefined = (value) => {
+  return typeof value === "object" && value !== null && Object.keys(value).length === 1 && "$undefined" in value && value.$undefined === 0;
+};
+
 // src/type/map.ts
 var $map = {
   is: (v) => v instanceof Map,
-  parse: (v) => new Map(v),
+  parse: (v) => new Map(
+    v.map((pair) => {
+      return pair.map((i) => isUndefined(i) ? void 0 : i);
+    })
+  ),
   stringify: (v) => Array.from(v)
 };
 
@@ -53,7 +67,7 @@ var $regexp = {
 // src/type/set.ts
 var $set = {
   is: (v) => v instanceof Set,
-  parse: (v) => new Set(v),
+  parse: (v) => new Set(v.map((i) => isUndefined(i) ? void 0 : i)),
   stringify: (v) => Array.from(v)
 };
 
@@ -62,13 +76,6 @@ var $binary = {
   is: (v) => v instanceof Uint8Array,
   parse: (v) => Uint8Array.from(atob(v), (c) => c.charCodeAt(0)),
   stringify: (v) => btoa(String.fromCharCode(...v))
-};
-
-// src/type/undefined.ts
-var $undefined = {
-  is: (v) => typeof v === "undefined",
-  parse: (_) => void 0,
-  stringify: (_) => 0
 };
 
 // src/type/url.ts
@@ -104,9 +111,19 @@ var baseTypes = {
 
 // src/parse.ts
 var parse = (json, types = {}) => {
-  return JSON.parse(json, createReviver(types));
+  const replacements = [];
+  const result = JSON.parse(
+    json,
+    createReviver(types, (target, key, value) => {
+      replacements.push([target, key, value]);
+    })
+  );
+  for (const [target, key, value] of replacements) {
+    target[key] = value;
+  }
+  return result;
 };
-var createReviver = (types = {}) => {
+var createReviver = (types = {}, registerReplacement) => {
   types = {
     ...baseTypes,
     ...types
@@ -119,7 +136,16 @@ var createReviver = (types = {}) => {
         const typeName = keys[0];
         if (typeName in types && types[typeName]) {
           const type = types[typeName];
-          return type.parse(original[typeName]);
+          const stringified = original[typeName];
+          if ("parse" in type) {
+            return type.parse(stringified);
+          } else if (registerReplacement) {
+            const result = type.replace(stringified);
+            registerReplacement(this, key, result);
+            return result;
+          } else {
+            return type.replace(stringified);
+          }
         }
       }
     }
@@ -157,6 +183,18 @@ var unpatch = (value, types = {}) => {
   return JSON.parse(stringify(value, types));
 };
 
+// src/global.ts
+var setGlobalTypes = (types) => {
+  Object.assign(baseTypes, types);
+};
+
+// src/type/mockdate.ts
+var $mockdate = {
+  is: (v) => typeof v === "object" && v !== null && "toISOString" in v && typeof v.toISOString === "function" && "getTime" in v && typeof v.getTime === "function" && "toUTCString" in v && typeof v.toUTCString === "function",
+  parse: (v) => new Date(v),
+  stringify: (v) => v.toISOString()
+};
+
 // src/safe-number/parse.ts
 var safeNumberParse = (json, props) => {
   return JSON.parse(
@@ -188,6 +226,7 @@ var createSafeNumberReplacer = (props) => {
   };
 };
 export {
+  $mockdate,
   createReplacer,
   createReviver,
   createSafeNumberReplacer,
@@ -196,6 +235,7 @@ export {
   patch,
   safeNumberParse,
   safeNumberStringify,
+  setGlobalTypes,
   stringify,
   unpatch
 };

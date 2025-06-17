@@ -13,8 +13,18 @@
 	// 	}
 	// },
 
+	"crons": {
+		"test": {
+			"schedule": "5 minutes",
+			"consumer": "./function.ts"
+		}
+	},
+
 	"functions": {
-		"echo": "./function.ts"
+		"echo": {
+			"code": "./function.ts",
+			"warm": 1
+		}
 		// "echo-4": "./function.ts"
 		// "echo-3": "./function.ts"
 	}

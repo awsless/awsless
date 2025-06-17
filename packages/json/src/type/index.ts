@@ -13,9 +13,15 @@ import { $duration } from './duration'
 
 export type Serializable<I, O> = {
 	is: (value: unknown) => boolean
-	parse: (value: O) => I
 	stringify: (value: I) => O
-}
+} & (
+	| {
+			parse: (value: O) => I
+	  }
+	| {
+			replace: (value: O) => I
+	  }
+)
 
 export type SerializableTypes = Record<string, Serializable<any, any>>
 

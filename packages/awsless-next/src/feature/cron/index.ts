@@ -1,20 +1,33 @@
 import { $, Group } from '@awsless/formation'
 import { defineFeature } from '../../feature.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
-import { formatLocalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { shortId } from '../../util/id.js'
 
 export const cronFeature = defineFeature({
 	name: 'cron',
+	onApp(ctx) {
+		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)
+		if (found) {
+			const group = new $.aws.scheduler.ScheduleGroup(ctx.base, 'cron', {
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'cron',
+					resourceName: 'group',
+				}),
+				tags: {
+					app: ctx.app.name,
+				},
+			})
+
+			ctx.shared.set('cron', 'group-name', group.name)
+		}
+	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Group(ctx.stack, 'cron', id)
 
-			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, {
-				...props.consumer,
-				// Never warm cronjob lambda's
-				warm: 0,
-			})
+			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, props.consumer)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,
@@ -40,7 +53,7 @@ export const cronFeature = defineFeature({
 				}),
 				inlinePolicy: [
 					{
-						name: 'invoke function',
+						name: 'InvokeFunction',
 						policy: lambda.arn.pipe(arn =>
 							JSON.stringify({
 								Version: '2012-10-17',
@@ -59,40 +72,17 @@ export const cronFeature = defineFeature({
 
 			new $.aws.scheduler.Schedule(group, 'warm', {
 				name,
-				description: `Cron ${ctx.stack.name} ${id}`,
+				state: props.enabled ? 'ENABLED' : 'DISABLED',
+				groupName: ctx.shared.get('cron', 'group-name'),
+				description: `${ctx.stack.name} ${id}`,
 				scheduleExpression: props.schedule,
+				flexibleTimeWindow: { mode: 'OFF' },
 				target: {
 					arn: lambda.arn,
 					roleArn: scheduleRole.arn,
 					input: JSON.stringify(props.payload),
 				},
 			})
-
-			// const rule = new $.aws.cloudwatch.EventRule(group, 'rule', {
-			// 	name: formatLocalResourceName({
-			// 		appName: ctx.app.name,
-			// 		stackName: ctx.stack.name,
-			// 		resourceType: 'cron',
-			// 		resourceName: shortId(id),
-			// 	}),
-			// 	description: `Cron ${ctx.stack.name} ${id}`,
-			// 	scheduleExpression: props.schedule,
-			// 	isEnabled: props.enabled,
-			// 	forceDestroy: true,
-			// })
-
-			// new $.aws.cloudwatch.EventTarget(group, 'target', {
-			// 	rule: rule.name,
-			// 	arn: lambda.arn,
-			// 	input: JSON.stringify(props.payload),
-			// })
-
-			// new $.aws.lambda.Permission(group, 'permission', {
-			// 	action: 'lambda:InvokeFunction',
-			// 	principal: 'events.amazonaws.com',
-			// 	functionName: lambda.functionName,
-			// 	sourceArn: rule.arn,
-			// })
 		}
 	},
 })

@@ -75,6 +75,52 @@ export const taskFeature = defineFeature({
 
 		await ctx.write('task.d.ts', types, true)
 	},
+	// onApp(ctx) {
+	// 	const group = new Group(ctx.base, 'task', 'main')
+
+	// 	const scheduleRole = new $.aws.iam.Role(group, 'schedule', {
+	// 		name: formatGlobalResourceName({
+	// 			appName: ctx.app.name,
+	// 			resourceType: 'task',
+	// 			resourceName: 'schedule',
+	// 		}),
+	// 		description: `Task schedule ${ctx.app.name}`,
+	// 		assumeRolePolicy: JSON.stringify({
+	// 			Version: '2012-10-17',
+	// 			Statement: [
+	// 				{
+	// 					Action: 'sts:AssumeRole',
+	// 					Effect: 'Allow',
+	// 					Principal: {
+	// 						Service: 'scheduler.amazonaws.com',
+	// 					},
+	// 				},
+	// 			],
+	// 		}),
+	// 		inlinePolicy: [
+	// 			{
+	// 				name: 'Invoke function',
+	// 				policy: JSON.stringify({
+	// 					Version: '2012-10-17',
+	// 					Statement: [
+	// 						{
+	// 							Action: ['lambda:InvokeFunction'],
+	// 							Effect: 'Allow',
+	// 							Resource: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*--task--*`],
+	// 						},
+	// 					],
+	// 				}),
+	// 			},
+	// 		],
+	// 	})
+
+	// 	ctx.addGlobalPermission({
+	// 		actions: ['schedule:CreateSchedule'],
+	// 		resources: [`arn:aws:schedule:*:*:schedule:${ctx.appConfig.name}--*`],
+	// 	})
+
+	// 	ctx.addEnv('TASK_SCHEDULE_ROLE', scheduleRole.arn)
+	// },
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
 			const group = new Group(ctx.stack, 'task', id)

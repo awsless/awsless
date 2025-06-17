@@ -1,4 +1,4 @@
-import { SchedulerClient, CreateScheduleCommand, DeleteScheduleCommand } from '@aws-sdk/client-scheduler'
+import { CreateScheduleCommand, SchedulerClient } from '@aws-sdk/client-scheduler'
 import { mockScheduler } from '../src'
 
 describe('Scheduler Mock', () => {
@@ -39,14 +39,5 @@ describe('Scheduler Mock', () => {
 		)
 
 		await expect(promise).rejects.toThrow(TypeError)
-	})
-
-	it('should delete a schedule', async () => {
-		await client.send(
-			new DeleteScheduleCommand({
-				Name: 'test',
-				ClientToken: 'test',
-			})
-		)
 	})
 })

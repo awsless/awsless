@@ -1,12 +1,28 @@
 import { baseTypes, SerializableTypes } from './type'
 
 export const parse = (json: string, types: SerializableTypes = {}) => {
-	return JSON.parse(json, createReviver(types))
+	const replacements: [any, string, unknown][] = []
+
+	const result = JSON.parse(
+		json,
+		createReviver(types, (target, key, value) => {
+			replacements.push([target, key, value])
+		})
+	)
+
+	for (const [target, key, value] of replacements) {
+		target[key] = value
+	}
+
+	return result
 }
 
 type Reviver = (this: any, key: string, value: any) => any
 
-export const createReviver = (types: SerializableTypes = {}): Reviver => {
+export const createReviver = (
+	types: SerializableTypes = {},
+	registerReplacement?: (target: any, key: string, value: unknown) => void
+): Reviver => {
 	types = {
 		...baseTypes,
 		...types,
@@ -23,7 +39,17 @@ export const createReviver = (types: SerializableTypes = {}): Reviver => {
 
 				if (typeName in types && types[typeName]) {
 					const type = types[typeName]
-					return type.parse(original[typeName])
+					const stringified = original[typeName]
+
+					if ('parse' in type) {
+						return type.parse(stringified)
+					} else if (registerReplacement) {
+						const result = type.replace(stringified)
+						registerReplacement(this, key, result)
+						return result
+					} else {
+						return type.replace(stringified)
+					}
 				}
 			}
 		}

@@ -462,7 +462,7 @@ export const createLambdaFunction = (
 			}),
 			inlinePolicy: [
 				{
-					name: 'invoke function',
+					name: 'InvokeFunction',
 					policy: lambda.arn.pipe(arn =>
 						JSON.stringify({
 							Version: '2012-10-17',
@@ -480,9 +480,11 @@ export const createLambdaFunction = (
 		})
 
 		new $.aws.scheduler.Schedule(group, 'warm', {
-			name: `${shortName}--warm`,
+			name: shortName,
+			groupName: ctx.shared.get('function', 'warm-group-name'),
 			description: `${name} warmer`,
 			scheduleExpression: 'rate(5 minutes)',
+			flexibleTimeWindow: { mode: 'OFF' },
 			target: {
 				arn: lambda.arn,
 				roleArn: scheduleRole.arn,

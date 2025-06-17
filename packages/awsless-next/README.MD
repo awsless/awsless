@@ -4,9 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@awsless/awsless.svg?style=flat-square)](https://www.npmjs.org/package/@awsless/awsless)
 
-
 [![npm downloads](https://img.shields.io/npm/dm/@awsless/awsless.svg?style=flat-square)](https://npm-stat.com/charts.html?package=@awsless/awsless)
-
 
 </div>
 
@@ -83,7 +81,7 @@ $ pnpm i @awsless/awsless
 
 
 ## Getting Started
-In an AWSless project, your infrastructure is organized into modular stack files, each with its own purpose, and a shared base configuration. Before you begin, make sure you have the AWS CLI installed.
+In an Awsless project, your infrastructure is organized into modular stack files, each with its own purpose, and a shared base configuration. Before you begin, make sure you have the AWS CLI installed.
 
 
 ### Base Configuration
@@ -161,7 +159,7 @@ $ pnpm awsless deploy base
 ```
 
 ### Stack Updates
-AWSless makes it simple to remove infrastructure when it's no longer needed.
+Awsless makes it simple to remove infrastructure when it's no longer needed.
 
 🧼 Delete a Specific Stack
 ```bash
@@ -175,7 +173,7 @@ pnpm awsless delete
 ⚠️ This will remove all deployed resources associated with your stacks. Use with caution!
 
 ♻️ Updating or Replacing Resources
-When you modify a stack file and run a deployment again, AWSless will:
+When you modify a stack file and run a deployment again, Awsless will:
 
 * Update existing resources if changes are detected.
 
@@ -186,7 +184,7 @@ When you modify a stack file and run a deployment again, AWSless will:
 * This ensures your infrastructure always reflects the current state of your stack configuration — no manual cleanup required.
 
 ### Smart Helpers: Call Your Infra Like Functions
-Once your stacks are defined, AWSless provides built-in helpers like Fn, Queue, and Task to let you interact with your infrastructure directly from your application code — no wiring or manual setup needed.
+Once your stacks are defined, Awsless provides built-in helpers like Fn, Queue, and Task to let you interact with your infrastructure directly from your application code — no wiring or manual setup needed.
 
 To enable full type support for these resources, run:
 ```bash
@@ -212,7 +210,7 @@ await Queue.notifications.send({ userId: 123 })
 
 
 ## Testing Stacks
-AWSless supports built-in testing for your stacks to ensure everything works as expected before deployment.
+Awsless supports built-in testing for your stacks to ensure everything works as expected before deployment.
 
 You can define test folder in each stack
 ```json
@@ -240,7 +238,7 @@ $ pnpm awsless test rate
 This will look for a defined test folder inside the rate stack directory and run any defined tests inside here.
 
 🛡️ Tests Run Automatically Before Deploy
-Whenever you run `pnpm awsless deploy`, AWSless will automatically:
+Whenever you run `pnpm awsless deploy`, Awsless will automatically:
 
 * Check if a test/ folder exists for each stack
 
@@ -273,7 +271,7 @@ You can also customize your Lambda function with additional parameters like memo
 ```
 
 ### Task
-A Task in AWSless is an asynchronous Lambda function designed for background processing. You can trigger a task and immediately move on — AWSless handles the execution in the background, including retries and logging on failure.
+A Task in Awsless is an asynchronous Lambda function designed for background processing. You can trigger a task and immediately move on — Awsless handles the execution in the background, including retries and logging on failure.
 
 
 #### Basic usage
@@ -298,7 +296,7 @@ You can also customize your Lambda function with additional parameters like memo
 ```
 
 ### Table
-The tables feature in AWSless allows you to define fully managed, serverless DynamoDB tables directly in your stack configuration.
+The tables feature in Awsless allows you to define fully managed, serverless DynamoDB tables directly in your stack configuration.
 
 
 #### Usage
@@ -358,7 +356,7 @@ This allows you to define a topic along with the subscriber lambda.
 ```
 
 ### Crons
-AWSless uses AWS EventBridge to provide fully managed, serverless cron jobs — perfect for running scheduled tasks like cleanups, reports, or recurring syncs.
+Awsless uses AWS EventBridge to provide fully managed, serverless cron jobs — perfect for running scheduled tasks like cleanups, reports, or recurring syncs.
 
 #### Usage
 ```json
@@ -379,7 +377,7 @@ AWSless uses AWS EventBridge to provide fully managed, serverless cron jobs — 
 
 
 #### RPC
-AWSless allows you to easily expose any Lambda function as a type-safe RPC (Remote Procedure Call) endpoint for your frontend.
+Awsless allows you to easily expose any Lambda function as a type-safe RPC (Remote Procedure Call) endpoint for your frontend.
 
 The request and response types are automatically inferred from your Lambda function's payload and return value, giving you end-to-end type safety.
 

@@ -3,7 +3,7 @@ import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName } from './util.js'
 
-const cache = new WeakCache<string, unknown>()
+const cache = new WeakCache<string, Promise<unknown>>()
 
 export const getFunctionName = bindLocalResourceName('function')
 
@@ -24,26 +24,17 @@ export const Function: FunctionResources = /*@__PURE__*/ createProxy(stackName =
 
 		const call = ctx[name]
 
-		// call.async = (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
-		// 	return invoke({
-		// 		...options,
-		// 		type: 'Event',
-		// 		name,
-		// 		payload,
-		// 	})
-		// }
-
-		call.cached = async (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
+		call.cached = (payload: unknown, options: Omit<InvokeOptions, 'payload' | 'name' | 'type'> = {}) => {
 			const cacheKey = JSON.stringify({ name, payload, options })
 
 			if (!cache.has(cacheKey)) {
-				const result = await invoke({
+				const promise = invoke({
 					...options,
 					name,
 					payload,
 				})
 
-				cache.set(cacheKey, result)
+				cache.set(cacheKey, promise)
 			}
 
 			return cache.get(cacheKey)
