@@ -1,7 +1,6 @@
-import * as p from '@clack/prompts'
+import { log } from '@awsless/clui'
 import { ConfigError } from '../../../error.js'
 import { color, icon } from '../style.js'
-import { wrap } from '../util.js'
 
 const codeLine = (value: string, level = 0) => {
 	return [
@@ -100,13 +99,6 @@ export const logConfigError = (error: ConfigError) => {
 			}
 		})
 
-		p.log.message(
-			wrap([...message, ...end], {
-				trim: false,
-			}),
-			{
-				symbol: color.error`×`,
-			}
-		)
+		log.error([...message, ...end].join('\n'))
 	}
 }

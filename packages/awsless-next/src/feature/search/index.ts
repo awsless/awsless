@@ -40,7 +40,7 @@ export const searchFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.searchs ?? {})) {
 			const group = new Group(ctx.stack, 'search', id)
-			const name = `${id}-${shortId([ctx.app.name, ctx.stack.name, 'search', id].join('--'))}`
+			const name = `${ctx.app.name}-${shortId([ctx.app.name, ctx.stack.name, 'search', id].join('--'))}`
 
 			const openSearch = new $.aws.opensearch.Domain(
 				group,
@@ -80,10 +80,21 @@ export const searchFeature = defineFeature({
 								Resource: [`arn:aws:es:${ctx.appConfig.region}:${ctx.accountId}:domain/${name}/*`],
 								Condition: {
 									StringLike: {
-										'AWS:PrincipalArn': `arn:aws:iam::${ctx.accountId}:role/${ctx.app.name}--*`,
+										'AWS:PrincipalArn': `this-will-never-work`,
 									},
 								},
 							},
+							// {
+							// 	Effect: 'Allow',
+							// 	Action: 'es:*',
+							// 	Principal: { AWS: '*' },
+							// 	Resource: [`arn:aws:es:${ctx.appConfig.region}:${ctx.accountId}:domain/${name}/*`],
+							// 	Condition: {
+							// 		StringLike: {
+							// 			'AWS:PrincipalArn': `arn:aws:iam::${ctx.accountId}:role/${ctx.app.name}--*`,
+							// 		},
+							// 	},
+							// },
 						],
 					}),
 				},
@@ -97,7 +108,11 @@ export const searchFeature = defineFeature({
 
 			ctx.addStackPermission({
 				actions: ['es:ESHttp*'],
-				resources: [openSearch.arn],
+				resources: [
+					//
+					// openSearch.arn,
+					openSearch.arn.pipe(arn => `${arn}/*`),
+				],
 			})
 		}
 	},

@@ -1,4 +1,4 @@
-import { confirm, isCancel } from '@clack/prompts'
+import { prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { Cancelled } from '../../../error.js'
@@ -20,12 +20,12 @@ export const push = (program: Command) => {
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 				const { state } = await createWorkSpace({ credentials, region, accountId, profile })
 
-				const ok = await confirm({
+				const ok = await prompt.confirm({
 					message: 'Pushing up the local state might corrupt your remote state. Are you sure?',
 					initialValue: false,
 				})
 
-				if (!ok || isCancel(ok)) {
+				if (!ok) {
 					throw new Cancelled()
 				}
 

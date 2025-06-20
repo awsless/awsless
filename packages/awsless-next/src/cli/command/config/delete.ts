@@ -1,4 +1,4 @@
-import { confirm, isCancel, spinner } from '@clack/prompts'
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { Cancelled } from '../../../error.js'
 import { getCredentials } from '../../../util/aws.js'
@@ -18,21 +18,23 @@ export const del = (program: Command) => {
 					appConfig,
 				})
 
-				const ok = await confirm({
+				const ok = await prompt.confirm({
 					message: `Your deleting the ${color.info(name)} config parameter. Are you sure?`,
 					initialValue: false,
 				})
 
-				if (!ok || isCancel(ok)) {
+				if (!ok) {
 					throw new Cancelled()
 				}
 
-				const spin = spinner()
-				spin.start(`Deleting remote config parameter`)
-
-				await params.delete(name)
-
-				spin.stop(`Done deleting remote config parameter.`)
+				await log.task({
+					initialMessage: 'Deleting remote config parameter...',
+					successMessage: 'Done deleting remote config parameter.',
+					errorMessage: 'Failed deleting remote config parameter.',
+					async task() {
+						await params.delete(name)
+					},
+				})
 			})
 		})
 }

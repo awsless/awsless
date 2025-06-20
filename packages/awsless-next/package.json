@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.503",
+	"version": "0.0.508",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -59,7 +59,8 @@
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^"
+		"@awsless/weak-cache": "workspace:^",
+		"@awsless/clui": "workspace:^"
 	},
 	"dependencies": {
 		"@arcanyx/cidr-slicer": "^0.3.0",
@@ -85,6 +86,7 @@
 		"@awsless/graphql": "workspace:^",
 		"@awsless/json": "workspace:^",
 		"@awsless/size": "workspace:^",
+		"@awsless/clui": "workspace:^",
 		"@awsless/ts-file-cache": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@clack/prompts": "^0.7.0",

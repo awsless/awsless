@@ -1,13 +1,11 @@
-import { log } from '@clack/prompts'
+// import { log } from '@clack/prompts'
+import { log } from '@awsless/clui'
 import { FileError } from '../../../error.js'
-import { wrap } from '../util.js'
-import { color, icon } from '../style.js'
+import { color } from '../style.js'
 
 export const logFileError = (error: FileError) => {
-	log.message(
-		wrap([color.error(error.message), color.dim(error.file)].join('\n'), {
-			hard: true,
-		}),
-		{ symbol: color.error(icon.error) }
+	log.error(
+		[color.error(error.message), color.dim(error.file)].join('\n')
+		// { symbol: color.error(icon.error) }
 	)
 }

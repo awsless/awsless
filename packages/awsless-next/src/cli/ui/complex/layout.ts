@@ -1,4 +1,4 @@
-import { intro, outro } from '@clack/prompts'
+import { log } from '@awsless/clui'
 import { AppConfig } from '../../../config/app.js'
 import { loadAppConfig, loadStackConfigs } from '../../../config/load/load.js'
 import { StackConfig } from '../../../config/stack.js'
@@ -18,7 +18,7 @@ type Options = {
 
 export const layout = async (command: string, cb: (options: Options) => Promise<string | void>) => {
 	console.log()
-	intro(`${logo()} ${color.dim(command)}`)
+	log.intro(`${logo()} ${color.dim(command)}`)
 
 	try {
 		const options = program.optsWithGlobals() as ProgramOptions
@@ -39,11 +39,13 @@ export const layout = async (command: string, cb: (options: Options) => Promise<
 			stackConfigs,
 		})
 
-		outro(result ?? undefined)
+		log.outro(result ?? undefined)
+
+		process.exit(0)
 	} catch (error) {
 		playErrorSound()
 		logError(error)
-		outro()
+		log.outro()
 
 		process.exit(1)
 	}

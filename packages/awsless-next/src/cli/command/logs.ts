@@ -1,6 +1,6 @@
 import { CloudWatchLogsClient, StartLiveTailCommand } from '@aws-sdk/client-cloudwatch-logs'
+import { log } from '@awsless/clui'
 import { $ } from '@awsless/formation'
-import { log } from '@clack/prompts'
 import chalk from 'chalk'
 import chunk from 'chunk'
 import { Command as CliCommand } from 'commander'
@@ -11,7 +11,7 @@ import { getAccountId, getCredentials } from '../../util/aws.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color, icon } from '../ui/style.js'
-import { task, wrap } from '../ui/util.js'
+// import { task, wrap } from '../ui/util.js'
 
 export const logs = (program: CliCommand) => {
 	program
@@ -86,30 +86,34 @@ export const logs = (program: CliCommand) => {
 					abort.abort()
 				})
 
-				const streams = await task('Connecting to the log stream...', async update => {
-					const result = await Promise.all(
-						chunk(logGroupArns, 10).map(async arns => {
-							const command = new StartLiveTailCommand({
-								logGroupIdentifiers: arns,
+				const streams = await log.task({
+					initialMessage: 'Connecting to the log stream...',
+					errorMessage: 'Failed to connect to the log stream.',
+					async task(update) {
+						const result = await Promise.all(
+							chunk(logGroupArns, 10).map(async arns => {
+								const command = new StartLiveTailCommand({
+									logGroupIdentifiers: arns,
+								})
+
+								const response = await client.send(command, {
+									abortSignal: abort.signal,
+								})
+
+								if (!response.responseStream) {
+									throw new Error('Failed to connect to the log stream.')
+								}
+
+								return response.responseStream
 							})
+						)
 
-							const response = await client.send(command, {
-								abortSignal: abort.signal,
-							})
+						update(
+							`Connected to ${result.length} log stream${plural(result.length)} for ${logGroupArns.length} function${plural(logGroupArns.length)}.`
+						)
 
-							if (!response.responseStream) {
-								throw new Error('Failed to connect to the log stream.')
-							}
-
-							return response.responseStream
-						})
-					)
-
-					update(
-						`Connected to ${result.length} log stream${plural(result.length)} for ${logGroupArns.length} function${plural(logGroupArns.length)}.`
-					)
-
-					return result
+						return result
+					},
 				})
 
 				// ---------------------------------------------------
@@ -162,11 +166,9 @@ const formatLog = (level: string, date: Date, group: string, message: string) =>
 				color.dim(formatDate(date, 'HH:mm:ss')),
 				color.info(group),
 			].join(' '),
-			wrap(message),
+			message,
 		].join('\n'),
-		{
-			symbol: levelColor(icon.dot),
-		}
+		levelColor(icon.dot)
 	)
 }
 

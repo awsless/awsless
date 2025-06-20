@@ -63,7 +63,7 @@ const fixed = patch(broken)
 We let you extend JSON to support your own custom types.
 
 ```ts
-import { parse, stringify, Serializable } from '@awsless/json';
+import { parse, stringify, Serializable, setGlobalTypes } from '@awsless/json';
 
 class Custom {
 	readonly value
@@ -84,6 +84,10 @@ const json = stringify(new Custom('example'), { $custom })
 
 // Parse the json with your custom type.
 const value = parse(json, { $custom })
+
+// Additionally, you can globally add your own extensions.
+setGlobalTypes({ $custom })
+
 ```
 
 ## Precision Loss

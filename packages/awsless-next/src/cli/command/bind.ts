@@ -1,4 +1,4 @@
-import { log, note } from '@clack/prompts'
+import { log } from '@awsless/clui'
 import { constantCase } from 'change-case'
 import { spawn } from 'child_process'
 import { Command } from 'commander'
@@ -7,7 +7,7 @@ import { getAccountId, getCredentials } from '../../util/aws.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
-import { list, wrap } from '../ui/util.js'
+// import { list, wrap } from '../ui/util.js'
 
 export const bind = (program: Command) => {
 	program
@@ -41,7 +41,8 @@ export const bind = (program: Command) => {
 				}
 
 				if (Object.keys(env).length > 0) {
-					note(wrap(list(env)), 'Bind Env')
+					log.list('Bind Env', env)
+					// note(wrap(list(env)), 'Bind Env')
 				} else {
 					log.warning('No bindings available.')
 				}
@@ -53,7 +54,8 @@ export const bind = (program: Command) => {
 				}
 
 				if (configList.length ?? 0 > 0) {
-					note(wrap(configList.map(v => color.label(constantCase(v)))), 'Bind Config')
+					log.note('Bind Config', configList.map(v => color.label(constantCase(v))).join('\n'))
+					// note(wrap(configList.map(v => color.label(constantCase(v)))), 'Bind Config')
 				}
 
 				if (commands.length === 0) {

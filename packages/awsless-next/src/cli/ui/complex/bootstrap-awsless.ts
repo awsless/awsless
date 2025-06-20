@@ -15,12 +15,11 @@ import {
 	S3Client,
 	S3ServiceException,
 } from '@aws-sdk/client-s3'
-import { confirm, isCancel, log } from '@clack/prompts'
+import { log, prompt } from '@awsless/clui'
 import { Region } from '../../../config/schema/region.js'
 import { Cancelled } from '../../../error.js'
 import { Credentials } from '../../../util/aws.js'
 import { getStateBucketName } from '../../../util/workspace.js'
-import { task } from '../util.js'
 
 const hasLockTable = async (client: DynamoDB) => {
 	try {
@@ -128,28 +127,31 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 	])
 
 	if (!table || !bucket) {
-		log.warn(`Awsless hasn't been bootstrapped yet.`)
+		log.warning(`Awsless hasn't been bootstrapped yet.`)
 
 		if (!process.env.SKIP_PROMPT) {
-			const confirmed = await confirm({
+			const confirmed = await prompt.confirm({
 				message: 'Would you like to bootstrap now?',
 			})
 
-			if (!confirmed || isCancel(confirmed)) {
+			if (!confirmed) {
 				throw new Cancelled()
 			}
 		}
 
-		await task('Bootstrapping', async update => {
-			if (!table) {
-				await createLockTable(dynamo)
-			}
+		await log.task({
+			initialMessage: 'Bootstrapping...',
+			successMessage: 'Done deploying the bootstrap stack.',
+			errorMessage: 'Failed to bootstrap Awsless.',
+			async task() {
+				if (!table) {
+					await createLockTable(dynamo)
+				}
 
-			if (!bucket) {
-				await createStateBucket(s3, props.region, props.accountId)
-			}
-
-			update('Done deploying the bootstrap stack.')
+				if (!bucket) {
+					await createStateBucket(s3, props.region, props.accountId)
+				}
+			},
 		})
 	} else {
 		log.step('Awsless has already been bootstrapped.')

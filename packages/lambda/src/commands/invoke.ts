@@ -31,12 +31,12 @@ export const invoke: Invoke = async ({
 
 	const result = await client.send(command)
 	if (!result.Payload) {
-		return undefined
+		return
 	}
 
 	const json = toUtf8(result.Payload)
 	if (!json) {
-		return undefined
+		return
 	}
 
 	const response = parse(json)

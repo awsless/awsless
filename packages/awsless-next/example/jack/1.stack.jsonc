@@ -3,15 +3,15 @@
 	"name": "stack",
 	// "depends": ["stack-2"],
 
-	// "tests": "./test",
+	"tests": "./test",
 	// "configs": ["test"],
 
-	// "commands": {
-	// 	"test": {
-	// 		"file": "./command.ts",
-	// 		"description": "Test command"
-	// 	}
-	// },
+	"commands": {
+		"test": {
+			"file": "./command.ts",
+			"description": "Test command"
+		}
+	},
 
 	"crons": {
 		"test": {

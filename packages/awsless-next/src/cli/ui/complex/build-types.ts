@@ -1,4 +1,4 @@
-import { log } from '@clack/prompts'
+import { log } from '@awsless/clui'
 import { AppConfig } from '../../../config/app.js'
 import { StackConfig } from '../../../config/stack.js'
 import { generateTypes } from '../../../type-gen/generate.js'
@@ -10,8 +10,12 @@ export const buildTypes = async (props: { appConfig: AppConfig; stackConfigs: St
 
 	// Sadly doing this will generate random @clack/prompts errors.
 
-	// await task('Generate type definition files', async update => {
-	// 	await generateTypes(props)
-	// 	update('Done generating type definition files.')
+	// await log.task({
+	// 	initialMessage: 'Generate type definition files...',
+	// 	successMessage: 'Done generating type definition files.',
+	// 	errorMessage: 'Failed generating type definition files.',
+	// 	async task() {
+	// 		await generateTypes(props)
+	// 	},
 	// })
 }

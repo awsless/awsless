@@ -3,10 +3,10 @@ import {
 	AdminSetUserPasswordCommand,
 	CognitoIdentityProviderClient,
 } from '@aws-sdk/client-cognito-identity-provider'
-import { isCancel, password, select, text } from '@clack/prompts'
+import { prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../../app.js'
-import { Cancelled } from '../../../../error.js'
+import { ExpectedError } from '../../../../error.js'
 import { getAccountId, getCredentials } from '../../../../util/aws.js'
 import { createWorkSpace } from '../../../../util/workspace.js'
 import { layout } from '../../../ui/complex/layout.js'
@@ -23,25 +23,23 @@ export const create = (program: Command) => {
 				const credentials = getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
+				if (Object.keys(appConfig.defaults.auth ?? {}).length === 0) {
+					throw new ExpectedError('No auth resources are defined.')
+				}
+
 				if (!name) {
-					const selectedName = await select({
+					name = await prompt.select({
 						message: 'Select the auth userpool:',
-						initialValue: Object.keys(appConfig.defaults.auth)[0]!,
+						initialValue: Object.keys(appConfig.defaults.auth).at(0),
 						options: Object.keys(appConfig.defaults.auth).map(name => ({
 							label: name,
 							value: name,
 						})),
 					})
-
-					if (isCancel(selectedName)) {
-						throw new Cancelled()
-					}
-
-					name = selectedName
 				}
 
 				if (!(name! in appConfig.defaults.auth)) {
-					throw new Error(`Provided auth name doesn't exist inside your app config.`)
+					throw new ExpectedError(`Provided auth name doesn't exist inside your app config.`)
 				}
 
 				const { shared, app } = createApp({ appConfig, stackConfigs, accountId })
@@ -59,10 +57,10 @@ export const create = (program: Command) => {
 				try {
 					userPoolId = await shared.entry('auth', `user-pool-id`, name)
 				} catch (_) {
-					throw new Error(`The auth userpool hasn't been deployed yet.`)
+					throw new ExpectedError(`The auth userpool hasn't been deployed yet.`)
 				}
 
-				const user = await text({
+				const user = await prompt.text({
 					message: 'Username:',
 					validate(value) {
 						if (!value) {
@@ -73,13 +71,8 @@ export const create = (program: Command) => {
 					},
 				})
 
-				if (isCancel(user)) {
-					throw new Cancelled()
-				}
-
-				const pass = await password({
+				const pass = await prompt.password({
 					message: 'Password:',
-					mask: '*',
 					validate(value) {
 						if (!value) {
 							return 'Required'
@@ -88,10 +81,6 @@ export const create = (program: Command) => {
 						return
 					},
 				})
-
-				if (isCancel(user)) {
-					throw new Cancelled()
-				}
 
 				const client = new CognitoIdentityProviderClient({
 					region,

@@ -1,8 +1,8 @@
-import { confirm, isCancel } from '@clack/prompts'
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
-import { Cancelled } from '../../error.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
@@ -12,7 +12,6 @@ import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
 import { color } from '../ui/style.js'
-import { task } from '../ui/util.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -50,10 +49,14 @@ export const deploy = (program: Command) => {
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
 				debug('Stacks to deploy', formattedFilter)
 
+				if (filters.length > 0 && stackNames.length === 0) {
+					throw new ExpectedError(`The stack filters provided didn't match.`)
+				}
+
 				if (!process.env.SKIP_PROMPT) {
 					const deployAll = filters.length === 0
 					const deploySingle = filters.length === 1
-					const ok = await confirm({
+					const ok = await prompt.confirm({
 						message: deployAll
 							? `Are you sure you want to deploy ${color.warning('all')} stacks?`
 							: deploySingle
@@ -61,7 +64,7 @@ export const deploy = (program: Command) => {
 								: `Are you sure you want to deploy the [ ${formattedFilter} ] stacks?`,
 					})
 
-					if (!ok || isCancel(ok)) {
+					if (!ok) {
 						throw new Cancelled()
 					}
 				}
@@ -107,14 +110,16 @@ export const deploy = (program: Command) => {
 				// 	update('Done deploying the hosted-zones to AWS.')
 				// })
 
-				await task('Deploying the stacks to AWS', async update => {
-					await workspace.deploy(app, {
-						filters: stackNames,
-					})
+				await log.task({
+					initialMessage: 'Deploying the stacks to AWS',
+					successMessage: 'Done deploying the stacks to AWS.',
+					async task() {
+						await workspace.deploy(app, {
+							filters: stackNames,
+						})
 
-					await pullRemoteState(app, state)
-
-					update('Done deploying the stacks to AWS.')
+						await pullRemoteState(app, state)
+					},
 				})
 
 				playSuccessSound()

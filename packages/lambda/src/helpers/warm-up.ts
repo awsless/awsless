@@ -1,4 +1,3 @@
-import { Context } from 'aws-lambda'
 import { invoke } from '../commands/invoke'
 
 const warmerKey = 'warmer'
@@ -26,7 +25,7 @@ export const getWarmUpEvent = (event: unknown): Input | undefined => {
 	}
 }
 
-export const warmUp = async (input: Input, context?: Context) => {
+export const warmUp = async (input: Input) => {
 	// const event = {
 	// 	action: warmerKey,
 	// 	functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,

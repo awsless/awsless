@@ -1,0 +1,5 @@
+export const step = '◇'
+export const error = '×'
+export const success = '◆'
+export const warning = '▲'
+export const info = '·'

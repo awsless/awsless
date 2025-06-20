@@ -15,8 +15,8 @@ export const debugError = (error: unknown) => {
 			typeof error === 'string'
 				? error
 				: error instanceof Error
-				? color.error(error.message || '')
-				: JSON.stringify(error),
+					? color.error(error.message || '')
+					: JSON.stringify(error),
 	})
 }
 

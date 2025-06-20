@@ -1,7 +1,7 @@
+import { log } from '@awsless/clui'
 import { ResourceError } from '@awsless/formation'
-import { log } from '@clack/prompts'
 import { capitalCase } from 'change-case'
-import { color, icon } from '../style.js'
+import { color } from '../style.js'
 import { wrap } from '../util.js'
 
 const formatOperation = (operation: string) => {
@@ -26,7 +26,7 @@ const formatOperation = (operation: string) => {
 
 export const logResourceError = (error: ResourceError | Error) => {
 	if (error instanceof ResourceError) {
-		log.message(
+		log.error(
 			[
 				formatOperation(error.operation),
 				'\n',
@@ -36,13 +36,10 @@ export const logResourceError = (error: ResourceError | Error) => {
 				'\n\n',
 				wrap(color.error(error.message), { hard: true }),
 				// , '\n', color.error(issue.message)
-			].join(''),
-			{ symbol: color.error(icon.error) }
+			].join('')
 		)
 	} else if (error instanceof Error) {
-		log.message(wrap(color.error(error.message), { hard: true }), {
-			symbol: color.error(icon.error),
-		})
+		log.error(wrap(color.error(error.message), { hard: true }))
 	}
 }
 

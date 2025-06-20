@@ -1,6 +1,5 @@
-import { isCancel, spinner, text } from '@clack/prompts'
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
-import { Cancelled } from '../../../error.js'
 import { getCredentials } from '../../../util/aws.js'
 import { SsmStore } from '../../../util/ssm.js'
 import { layout } from '../../ui/complex/layout.js'
@@ -20,7 +19,7 @@ export const set = (program: Command) => {
 
 				const initialValue = await params.get(name)
 
-				const value = await text({
+				const value = await prompt.text({
 					message: 'Enter the config value:',
 					initialValue,
 					validate(value) {
@@ -32,17 +31,19 @@ export const set = (program: Command) => {
 					},
 				})
 
-				if (isCancel(value)) {
-					throw new Cancelled()
-				}
+				await log.task({
+					initialMessage: 'Saving remote config parameter...',
+					successMessage: 'Done saving remote config parameter.',
+					errorMessage: 'Failed saving remote config parameter.',
+					async task() {
+						await params.set(name, value)
+					},
+				})
 
-				const spin = spinner()
-
-				spin.start('Saving remote config parameter')
-
-				await params.set(name, value)
-
-				spin.stop(`Done saving remote config parameter.`)
+				// const spin = spinner()
+				// spin.start('Saving remote config parameter')
+				// await params.set(name, value)
+				// spin.stop(`Done saving remote config parameter.`)
 			})
 		})
 }

@@ -72,7 +72,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			const warmUpEvent = getWarmUpEvent(event)
 
 			if (warmUpEvent) {
-				await warmUp(warmUpEvent, context)
+				await warmUp(warmUpEvent)
 				// @ts-ignore
 				return undefined
 			}

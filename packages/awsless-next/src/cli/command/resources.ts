@@ -1,5 +1,5 @@
+import { log } from '@awsless/clui'
 import { Stack, URN } from '@awsless/formation'
-import { log } from '@clack/prompts'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
@@ -7,7 +7,6 @@ import { createApp } from '../../app.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
-import { line } from '../ui/util.js'
 
 export const resources = (program: Command) => {
 	program
@@ -43,28 +42,19 @@ export const resources = (program: Command) => {
 					}
 
 					log.step(chalk.magenta(stack.name))
-					line('')
+					log.message(stack.resources.map(resource => formatResource(stack, resource.$.urn)).join('\n'))
+					// line('')
 
-					for (const resource of stack.resources) {
-						line(formatResource(stack, resource.$.urn))
-						// resources.push([
-						// 	chalk.magenta(stack.name),
-						// 	// resource.type,
-						// 	formatResource(stack, resource.urn),
-						// ])
-					}
+					// for (const resource of stack.resources) {
+					// 	// log.message(formatResource(stack, resource.$.urn))
+					// 	line(formatResource(stack, resource.$.urn))
+					// 	// resources.push([
+					// 	// 	chalk.magenta(stack.name),
+					// 	// 	// resource.type,
+					// 	// 	formatResource(stack, resource.urn),
+					// 	// ])
+					// }
 				}
-
-				// const maxWidth = process.stdout.columns - 8
-				// const colWidths = [Math.floor(maxWidth / 8), Math.floor(maxWidth / 4), Math.floor(maxWidth / 1.5)]
-
-				// console.log(
-				// 	table({
-				// 		// colWidths,
-				// 		head: ['stack', 'urn'],
-				// 		body: resources,
-				// 	})
-				// )
 			})
 		})
 }

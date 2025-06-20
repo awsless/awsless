@@ -1,6 +1,6 @@
-import minimist, { ParsedArgs } from 'minimist'
+// import minimist, { ParsedArgs } from 'minimist'
 import { Region } from './config/schema/region.js'
-import { ExpectedError } from './error.js'
+// import { ExpectedError } from './error.js'
 import { Credentials } from './util/aws.js'
 
 export type Command = {
@@ -14,45 +14,53 @@ export type CommandContext = {
 	region: Region
 	credentials: Credentials
 	accountId: string
-	update: (msg: string) => void
 }
 
-export type CommandHandler = (options: CommandOptions, context: CommandContext) => Promise<string | undefined | void>
+export type CommandHandler = (context: CommandContext) => Promise<void>
 
-export class CommandOptions {
-	private opts: ParsedArgs
+// export type CommandContext = {
+// 	region: Region
+// 	credentials: Credentials
+// 	accountId: string
+// 	update: (msg: string) => void
+// }
 
-	constructor(args: string[]) {
-		this.opts = minimist(args)
-	}
+// export type CommandHandler = (options: CommandOptions, context: CommandContext) => Promise<string | undefined | void>
 
-	get(name: string) {
-		if (name in this.opts) {
-			return this.opts[name]
-		}
+// export class CommandOptions {
+// 	private opts: ParsedArgs
 
-		throw new ExpectedError(`CLI option "${name}" not found`)
-	}
+// 	constructor(args: string[]) {
+// 		this.opts = minimist(args)
+// 	}
 
-	private getAssertType<T extends 'string' | 'number' | 'boolean'>(name: string, type: T) {
-		const value = this.get(name)
+// 	get(name: string) {
+// 		if (name in this.opts) {
+// 			return this.opts[name]
+// 		}
 
-		if (typeof value === type) {
-			return value
-		}
+// 		throw new ExpectedError(`CLI option "${name}" not found`)
+// 	}
 
-		throw new ExpectedError(`CLI option "${name}" isn't a ${type} type`)
-	}
+// 	private getAssertType<T extends 'string' | 'number' | 'boolean'>(name: string, type: T) {
+// 		const value = this.get(name)
 
-	number(name: string): number {
-		return this.getAssertType(name, 'number')
-	}
+// 		if (typeof value === type) {
+// 			return value
+// 		}
 
-	string(name: string): string {
-		return this.getAssertType(name, 'string')
-	}
+// 		throw new ExpectedError(`CLI option "${name}" isn't a ${type} type`)
+// 	}
 
-	boolean(name: string): boolean {
-		return this.getAssertType(name, 'boolean')
-	}
-}
+// 	number(name: string): number {
+// 		return this.getAssertType(name, 'number')
+// 	}
+
+// 	string(name: string): string {
+// 		return this.getAssertType(name, 'string')
+// 	}
+
+// 	boolean(name: string): boolean {
+// 		return this.getAssertType(name, 'boolean')
+// 	}
+// }

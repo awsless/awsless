@@ -1,17 +1,17 @@
+import { prompt } from '@awsless/clui'
 import { DynamoDBClient, dynamoDBClient } from '@awsless/dynamodb'
 import { iotClient, IoTDataPlaneClient } from '@awsless/iot'
 import { LambdaClient, lambdaClient } from '@awsless/lambda'
 import { S3Client, s3Client } from '@awsless/s3'
 import { SNSClient, snsClient } from '@awsless/sns'
 import { SQSClient, sqsClient } from '@awsless/sqs'
-import { isCancel, select } from '@clack/prompts'
 import { Command as CliCommand } from 'commander'
 import { createApp } from '../../app.js'
-import { Command, CommandHandler, CommandOptions } from '../../command.js'
-import { Cancelled, ExpectedError } from '../../error.js'
+import { Command, CommandHandler } from '../../command.js'
+import { ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { layout } from '../ui/complex/layout.js'
-import { task } from '../ui/util.js'
+// import { task } from '../ui/util.js'
 
 // @ts-ignore
 import { tsImport } from 'tsx/esm/api'
@@ -41,7 +41,7 @@ export const run = (program: CliCommand) => {
 						return cmd.name === selected
 					})
 				} else {
-					const selected = await select({
+					command = await prompt.select({
 						message: 'Pick the command you want to run:',
 						initialValue: commands[0],
 						options: commands.map(cmd => ({
@@ -50,12 +50,6 @@ export const run = (program: CliCommand) => {
 							hint: cmd.description,
 						})),
 					})
-
-					if (isCancel(selected)) {
-						throw new Cancelled()
-					}
-
-					command = selected
 				}
 
 				if (!command) {
@@ -95,18 +89,26 @@ export const run = (program: CliCommand) => {
 				// ---------------------------------------------------
 				// Run command
 
-				const result = await task('Running', update => {
-					const options = new CommandOptions(program.args)
+				// const result = await task('Running', update => {
+				// 	const options = new CommandOptions(program.args)
 
-					return handler(options, {
-						region,
-						credentials,
-						accountId,
-						update,
-					})
+				// 	return handler(options, {
+				// 		region,
+				// 		credentials,
+				// 		accountId,
+				// 		update,
+				// 	})
+				// })
+
+				// const options = new CommandOptions(program.args)
+
+				await handler({
+					region,
+					credentials,
+					accountId,
 				})
 
-				return result
+				return
 			})
 		})
 }

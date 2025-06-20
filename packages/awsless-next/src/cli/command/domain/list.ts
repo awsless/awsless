@@ -1,4 +1,4 @@
-import { log } from '@clack/prompts'
+import { log } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'

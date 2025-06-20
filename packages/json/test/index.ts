@@ -67,6 +67,24 @@ describe('JSON', () => {
 			nullSet: new Set([null]),
 			nullMap: new Map([[null, null]]),
 			nullArray: [null],
+
+			complex: new Set([
+				undefined,
+				null,
+				{
+					key: undefined,
+					map: new Map([
+						[null, null],
+						[
+							undefined,
+							{
+								key: undefined,
+								array: [undefined],
+							},
+						],
+					]),
+				},
+			]),
 		}
 
 		it('stringify', () => {
@@ -81,7 +99,7 @@ describe('JSON', () => {
 
 		it('patch', () => {
 			const broken = JSON.parse(stringify(complex))
-			expect(broken).not.toMatchObject(complex)
+			expect(broken).not.toStrictEqual(complex)
 
 			const fixed = patch(broken)
 			expect(fixed).toStrictEqual(complex)
@@ -90,7 +108,7 @@ describe('JSON', () => {
 		it('unpatch', () => {
 			const broken = JSON.parse(stringify(complex))
 			const result = unpatch(complex)
-			expect(result).toMatchObject(broken)
+			expect(result).toStrictEqual(broken)
 		})
 	})
 
@@ -164,7 +182,7 @@ describe('JSON', () => {
 				expect(json).toBe(entry.output)
 
 				const result = parse(json)
-				expect(result).toMatchObject<any>(entry.input)
+				expect(result).toStrictEqual(entry.input)
 			})
 		}
 	})
@@ -198,8 +216,6 @@ describe('JSON', () => {
 		})
 	})
 
-	// describe('consistancy', () => {})
-
 	describe('known issues', () => {
 		it(`don't use the $ character inside your JSON`, () => {
 			const value = { $bigint: 'This will break' }
@@ -227,34 +243,3 @@ describe('JSON', () => {
 		// })
 	})
 })
-
-// function parseWithFixup(input) {
-//   const fixups = [];
-//   function reviver(key, val) {
-//     if (val === "$undefined") {
-//       // we'll replace this value with an undefined at the end.
-//       fixups.push([this, key]);
-
-//       if (key === "") {
-//         // we might be at the top-level, i.e. visiting the root.
-//         // in case the whole string is "$undefined", we return undefined here --
-//         // we won't get the chance to replace it after.
-//         return undefined;
-//       }
-
-//       return null; // we'll replace it later, but just in case... it's close enough
-//     }
-
-//     return val;
-//   };
-
-//   const res = JSON.parse(input, reviver);
-
-//   for (let i = 0, len = fixups.length; i < len; i++) {
-//     const fixup = fixups[i];
-//     const target = fixup[0], key = fixup[1];
-//     target[key] = undefined;
-//   }
-
-//   return res;
-// }

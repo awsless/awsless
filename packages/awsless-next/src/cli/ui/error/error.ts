@@ -1,7 +1,7 @@
+import { Cancelled as CancelledError, log } from '@awsless/clui'
 import { AppError, ResourceError } from '@awsless/formation'
-import { log } from '@clack/prompts'
 import { Cancelled, ConfigError, ExpectedError, FileError } from '../../../error.js'
-import { color, icon } from '../style.js'
+import { color } from '../style.js'
 import { wrap } from '../util.js'
 import { logAppError } from './app-error.js'
 import { logConfigError } from './config-error.js'
@@ -14,13 +14,11 @@ export const logError = (error: unknown) => {
 	if (error instanceof ConfigError) {
 		logConfigError(error)
 	} else if (error instanceof Cancelled) {
-		log.message(color.error('Cancelled.'), {
-			symbol: color.error(icon.error),
-		})
+		log.error(color.error('Cancelled.'))
+	} else if (error instanceof CancelledError) {
+		log.error(color.error('Cancelled.'))
 	} else if (error instanceof ExpectedError) {
-		log.message(color.error(error.message), {
-			symbol: color.error(icon.error),
-		})
+		log.error(color.error(error.message))
 	} else if (error instanceof AppError) {
 		logAppError(error)
 	} else if (error instanceof ResourceError) {
@@ -30,19 +28,15 @@ export const logError = (error: unknown) => {
 	} else if (error instanceof Error) {
 		const message = `${error.name}: ${error.message}`
 		const stack = error.stack ? color.dim(error.stack.replace(message, '')) : ''
-		log.message(
+		log.error(
 			wrap([color.error(message), stack], {
 				hard: true,
-			}),
-			{ symbol: color.error(icon.error) }
+			})
+			// { symbol: color.error(icon.error) }
 		)
 	} else if (typeof error === 'string') {
-		log.message(wrap(color.error(error)), {
-			symbol: color.error(icon.error),
-		})
+		log.error(color.error(error))
 	} else {
-		log.message(wrap(color.error('Unknown error!')), {
-			symbol: color.error(icon.error),
-		})
+		log.error(color.error('Unknown error!'))
 	}
 }

@@ -1,4 +1,3 @@
-// type ParseNumber = (value: string) => unknown
 type Props = {
 	parse: (value: string) => unknown
 }

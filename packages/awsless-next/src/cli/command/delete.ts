@@ -1,8 +1,8 @@
-import { confirm, isCancel, log } from '@clack/prompts'
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
-import { Cancelled } from '../../error.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { playSuccessSound } from '../../util/sound.js'
 import { createWorkSpace, pullRemoteState } from '../../util/workspace.js'
@@ -19,7 +19,7 @@ export const del = (program: Command) => {
 		.action(async (filters: string[]) => {
 			await layout('delete', async ({ appConfig, stackConfigs }) => {
 				if (appConfig.protect) {
-					log.warn('Your app is protected against deletion.')
+					log.warning('Your app is protected against deletion.')
 
 					return 'Disable the protect flag and try again.'
 				}
@@ -45,12 +45,16 @@ export const del = (program: Command) => {
 
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
 
+				if (filters.length > 0 && stackNames.length === 0) {
+					throw new ExpectedError(`The stack filters provided didn't match.`)
+				}
+
 				debug('Stacks to delete', formattedFilter)
 
 				if (!process.env.SKIP_PROMPT) {
 					const deployAll = filters.length === 0
 					const deploySingle = filters.length === 1
-					const ok = await confirm({
+					const ok = await prompt.confirm({
 						message: deployAll
 							? `Are you sure you want to ${color.error('delete')} ${color.warning('all')} stacks?`
 							: deploySingle
@@ -60,7 +64,7 @@ export const del = (program: Command) => {
 									)} the [ ${formattedFilter} ] stacks?`,
 					})
 
-					if (!ok || isCancel(ok)) {
+					if (!ok) {
 						throw new Cancelled()
 					}
 				}

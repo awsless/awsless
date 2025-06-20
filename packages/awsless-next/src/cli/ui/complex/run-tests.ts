@@ -1,4 +1,4 @@
-import { log } from '@clack/prompts'
+import { log } from '@awsless/clui'
 import chalk from 'chalk'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
@@ -60,9 +60,7 @@ const formatResult = (props: { stack: string; cached: boolean; event: FinishedEv
 
 const logTestLogs = (event: FinishedEvent) => {
 	if (event.logs.length > 0) {
-		log.message(color.info.bold.inverse(' LOGS '), {
-			symbol: color.dim(icon.dot),
-		})
+		log.message(color.info.bold.inverse(' LOGS '), color.dim(icon.dot))
 		log.message(event.logs.map(log => wrap(log, { hard: true })).join('\n'))
 	}
 }
@@ -76,7 +74,7 @@ const logTestErrors = (event: FinishedEvent) => {
 			comment.length > 0 ? color.dim(`//${comment}`) : '',
 		].join(' ')
 
-		log.message(
+		log.error(
 			[
 				//
 				color.error.inverse.bold(` FAIL `),
@@ -85,16 +83,9 @@ const logTestErrors = (event: FinishedEvent) => {
 				error.file,
 				color.dim(icon.arrow.right),
 				error.test,
-				[
-					`\n\n`,
-					wrap(errorMessage, {
-						hard: true,
-					}),
-					...(error.diff ? ['\n\n', error.diff] : []),
-				].join(''),
+				[`\n\n`, errorMessage, ...(error.diff ? ['\n\n', error.diff] : [])].join(''),
 				// error.test,
-			].join(' '),
-			{ symbol: color.error(icon.error) }
+			].join(' ')
 		)
 	})
 }

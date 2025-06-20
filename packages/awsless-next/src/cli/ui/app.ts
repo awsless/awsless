@@ -1,8 +1,9 @@
-import { note } from '@clack/prompts'
+import { log } from '@awsless/clui'
+// import { note } from '@clack/prompts'
 import { AppConfig } from '../../config/app.js'
 import { ProgramOptions } from '../program.js'
 import { color } from './style.js'
-import { list, wrap } from './util.js'
+// import { list, wrap } from './util.js'
 
 export const logApp = (app: AppConfig, opt: ProgramOptions) => {
 	const data: Record<string, string> = {
@@ -15,5 +16,7 @@ export const logApp = (app: AppConfig, opt: ProgramOptions) => {
 		data.Stage = color.warning(opt.stage)
 	}
 
-	note(wrap(list(data)), 'App Config')
+	log.list('App Config', data)
+
+	// note(wrap(list(data)), 'App Config')
 }

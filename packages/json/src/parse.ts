@@ -43,12 +43,11 @@ export const createReviver = (
 
 					if ('parse' in type) {
 						return type.parse(stringified)
-					} else if (registerReplacement) {
-						const result = type.replace(stringified)
-						registerReplacement(this, key, result)
-						return result
 					} else {
-						return type.replace(stringified)
+						const result = type.replace(stringified)
+						registerReplacement?.(this, key, result)
+
+						return result
 					}
 				}
 			}
