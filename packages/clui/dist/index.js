@@ -7,17 +7,21 @@ var __export = (target, all) => {
 // src/symbols.ts
 var symbols_exports = {};
 __export(symbols_exports, {
+  ellipsis: () => ellipsis,
   error: () => error,
   info: () => info,
+  message: () => message,
   step: () => step,
   success: () => success,
   warning: () => warning
 });
+var message = "\u2502";
 var step = "\u25C7";
 var error = "\xD7";
 var success = "\u25C6";
 var warning = "\u25B2";
 var info = "\xB7";
+var ellipsis = "\u2026";
 
 // src/prompts.ts
 var prompts_exports = {};
@@ -115,7 +119,7 @@ __export(logs_exports, {
   info: () => info2,
   intro: () => intro,
   list: () => list,
-  message: () => message,
+  message: () => message2,
   note: () => note,
   outro: () => outro,
   step: () => step2,
@@ -130,26 +134,27 @@ import Table from "cli-table3";
 // src/ansi.ts
 var ansi_exports = {};
 __export(ansi_exports, {
-  padString: () => padString,
-  stringLength: () => stringLength,
-  subString: () => subString,
-  wrapString: () => wrapString
+  length: () => length,
+  pad: () => pad,
+  truncate: () => truncate,
+  wrap: () => wrap
 });
-import ansiSubstring from "ansi-substring";
-import stringLength from "string-length";
-import wrapAnsi from "wrap-ansi";
-var wrapString = (lines, width, options) => {
-  return wrapAnsi(typeof lines === "string" ? lines : lines.join("\n"), width, options);
+import ansiTruncate from "ansi-truncate";
+import ansiLength from "string-length";
+import ansiWrap from "wrap-ansi";
+var wrap = (value, width, options) => {
+  return ansiWrap(value, width, options);
 };
-var subString = (message2, width) => {
-  const length = stringLength(message2);
-  if (length > width - 1) {
-    return ansiSubstring(message2, 0, width - 1) + "\u2026";
-  }
-  return ansiSubstring(message2, 0, width);
+var length = (value) => {
+  return ansiLength(value);
 };
-var padString = (texts) => {
-  const size = Math.max(...texts.map((text2) => stringLength(text2)));
+var truncate = (value, width) => {
+  return ansiTruncate(value, width, {
+    ellipsis
+  });
+};
+var pad = (texts) => {
+  const size = Math.max(...texts.map((text2) => ansiLength(text2)));
   return (text2, padding = 0, fill) => {
     return text2.padEnd(size + padding, fill);
   };
@@ -162,37 +167,37 @@ var color = chalk;
 // src/logs.ts
 var endMargin = 3;
 var intro = (title = "") => {
-  p_intro(subString(title, process.stdout.columns - 6 - endMargin));
+  p_intro(truncate(title, process.stdout.columns - 6 - endMargin));
 };
 var outro = (title = "") => {
-  p_outro(subString(title, process.stdout.columns - 6 - endMargin));
+  p_outro(truncate(title, process.stdout.columns - 6 - endMargin));
 };
-var note = (title, message2) => {
+var note = (title, message3) => {
   const width = process.stdout.columns - 6 - endMargin;
   p_note(
-    wrapString(message2, width, {
+    wrap(message3, width, {
       hard: true
     }),
-    subString(title, width)
+    truncate(title, width)
   );
 };
-var logMessage = (symbol, message2) => {
+var logMessage = (symbol, message3) => {
   log.message(
-    wrapString(message2, process.stdout.columns - 6 - endMargin, {
+    wrap(message3, process.stdout.columns - 6 - endMargin, {
       hard: true,
       trim: false
     }),
     { symbol }
   );
 };
-var message = (message2, symbol = color.gray("\u2502")) => logMessage(symbol, message2);
-var error2 = (message2) => logMessage(color.red(error), message2);
-var info2 = (message2) => logMessage(color.blue(info), message2);
-var step2 = (message2) => logMessage(color.green(step), message2);
-var warning2 = (message2) => logMessage(color.yellow(warning), message2);
-var success2 = (message2) => logMessage(color.green(success), message2);
+var message2 = (message3, symbol = color.gray(message)) => logMessage(symbol, message3);
+var error2 = (message3) => logMessage(color.red(error), message3);
+var info2 = (message3) => logMessage(color.blue(info), message3);
+var step2 = (message3) => logMessage(color.green(step), message3);
+var warning2 = (message3) => logMessage(color.yellow(warning), message3);
+var success2 = (message3) => logMessage(color.green(success), message3);
 var list = (title, data) => {
-  const padName = padString(Object.keys(data));
+  const padName = pad(Object.keys(data));
   note(
     title,
     Object.entries(data).map(([name, value]) => {
@@ -204,12 +209,12 @@ var task = async (opts) => {
   let last;
   const spin = spinner();
   spin.start(opts.initialMessage);
-  const stop = (message2, code) => {
-    spin.stop(subString(message2 ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code);
+  const stop = (message3, code) => {
+    spin.stop(truncate(message3 ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code);
   };
   try {
     const result = await opts.task((m) => {
-      spin.message(subString(m, process.stdout.columns - 6 - endMargin));
+      spin.message(truncate(m, process.stdout.columns - 6 - endMargin));
       last = m;
     });
     stop(opts.successMessage);
@@ -221,21 +226,21 @@ var task = async (opts) => {
 };
 var table = (props) => {
   log.message();
-  const length = Math.max(props.head.length, ...props.body.map((b) => b.length));
+  const length2 = Math.max(props.head.length, ...props.body.map((b) => b.length));
   const padding = 2;
-  const totalPadding = padding * 2 * length;
+  const totalPadding = padding * 2 * length2;
   const border = 1;
-  const totalBorder = (length - 1) * border + 2;
+  const totalBorder = (length2 - 1) * border + 2;
   const windowSize = process.stdout.columns;
-  const max = windowSize - totalPadding - totalBorder - endMargin;
-  const contentSizes = Array.from({ length }).map((_, i) => {
-    return Math.max(stringLength(props.head[i] ?? ""), ...props.body.map((b) => stringLength(String(b[i]))));
+  const maxTableSize = windowSize - totalPadding - totalBorder - endMargin;
+  const contentSizes = Array.from({ length: length2 }).map((_, i) => {
+    return Math.max(length(props.head[i] ?? ""), ...props.body.map((b) => length(String(b[i]))));
   });
-  const columnSizes = Array.from({ length }).map(() => {
+  const columnSizes = Array.from({ length: length2 }).map(() => {
     return 0;
   });
   let leftover = Math.min(
-    max,
+    maxTableSize,
     contentSizes.reduce((total, size) => total + size, 0)
   );
   while (leftover > 0) {
@@ -251,7 +256,7 @@ var table = (props) => {
   const table2 = new Table({
     head: props.head.map(
       (value, x) => "\n" + color.reset.whiteBright.bold(
-        wrapString(value, columnSizes[x], {
+        wrap(value, columnSizes[x], {
           hard: true
         })
       )
@@ -276,7 +281,7 @@ var table = (props) => {
         if (typeof value === "number") {
           return color.blue(value);
         }
-        return wrapString(value, columnSizes[x], {
+        return wrap(value, columnSizes[x], {
           hard: true
         });
       });

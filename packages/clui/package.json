@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/clui",
-	"version": "0.0.6",
+	"version": "0.0.7",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -32,7 +32,7 @@
 	},
 	"dependencies": {
 		"@clack/prompts": "^0.11.0",
-		"ansi-substring": "^1.0.3",
+		"ansi-truncate": "^1.2.0",
 		"chalk": "^5.4.1",
 		"cli-table3": "^0.6.5",
 		"string-length": "^6.0.0",

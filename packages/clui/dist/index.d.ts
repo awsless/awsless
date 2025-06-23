@@ -1,16 +1,18 @@
 import { TextOptions, PasswordOptions, ConfirmOptions, SelectOptions, MultiSelectOptions } from '@clack/prompts';
-import stringLength from 'string-length';
 import { Options } from 'wrap-ansi';
 import * as chalk from 'chalk';
 
+declare const message$1 = "\u2502";
 declare const step$1 = "\u25C7";
 declare const error$1 = "\u00D7";
 declare const success$1 = "\u25C6";
 declare const warning$1 = "\u25B2";
 declare const info$1 = "\u00B7";
+declare const ellipsis = "\u2026";
 
+declare const symbols_ellipsis: typeof ellipsis;
 declare namespace symbols {
-  export { error$1 as error, info$1 as info, step$1 as step, success$1 as success, warning$1 as warning };
+  export { symbols_ellipsis as ellipsis, error$1 as error, info$1 as info, message$1 as message, step$1 as step, success$1 as success, warning$1 as warning };
 }
 
 declare const text: (opts: TextOptions) => Promise<string>;
@@ -76,16 +78,17 @@ declare namespace logs {
   export { logs_error as error, logs_info as info, logs_intro as intro, logs_list as list, logs_message as message, logs_note as note, logs_outro as outro, logs_step as step, logs_success as success, logs_table as table, logs_task as task, logs_warning as warning };
 }
 
-declare const wrapString: (lines: string | string[], width: number, options?: Options) => string;
-declare const subString: (message: string, width: number) => any;
-declare const padString: (texts: string[]) => (text: string, padding?: number, fill?: string) => string;
+declare const wrap: (value: string, width: number, options?: Options) => string;
+declare const length: (value: string) => number;
+declare const truncate: (value: string, width: number) => string;
+declare const pad: (texts: string[]) => (text: string, padding?: number, fill?: string) => string;
 
-declare const ansi_padString: typeof padString;
-declare const ansi_stringLength: typeof stringLength;
-declare const ansi_subString: typeof subString;
-declare const ansi_wrapString: typeof wrapString;
+declare const ansi_length: typeof length;
+declare const ansi_pad: typeof pad;
+declare const ansi_truncate: typeof truncate;
+declare const ansi_wrap: typeof wrap;
 declare namespace ansi {
-  export { ansi_padString as padString, ansi_stringLength as stringLength, ansi_subString as subString, ansi_wrapString as wrapString };
+  export { ansi_length as length, ansi_pad as pad, ansi_truncate as truncate, ansi_wrap as wrap };
 }
 
 declare const color: chalk.ChalkInstance;

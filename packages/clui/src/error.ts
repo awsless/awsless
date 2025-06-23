@@ -6,12 +6,6 @@ export class Cancelled extends Error {
 	}
 }
 
-// export type WrapPromptOptions<T extends boolean | undefined = boolean> = {
-// 	throwOnCancel?: T
-// }
-
-// type Response<R, T> = T extends false ? R : Exclude<R, symbol>
-
 export async function wrapPrompt<T>(cb: () => Promise<T>): Promise<Exclude<T, symbol>> {
 	const result = await cb()
 

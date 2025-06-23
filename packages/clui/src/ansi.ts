@@ -1,84 +1,26 @@
-// @ts-ignore
-import ansiSubstring from 'ansi-substring'
-import stringLength from 'string-length'
-import wrapAnsi, { Options } from 'wrap-ansi'
+import ansiTruncate from 'ansi-truncate'
+import ansiLength from 'string-length'
+import ansiWrap, { Options } from 'wrap-ansi'
+import { ellipsis } from './symbols'
 
-export { stringLength }
-
-export const wrapString = (lines: string | string[], width: number, options?: Options) => {
-	return wrapAnsi(typeof lines === 'string' ? lines : lines.join('\n'), width, options)
+export const wrap = (value: string, width: number, options?: Options) => {
+	return ansiWrap(value, width, options)
 }
 
-export const subString = (message: string, width: number) => {
-	const length = stringLength(message)
-
-	if (length > width - 1) {
-		return ansiSubstring(message, 0, width - 1) + '…'
-	}
-
-	return ansiSubstring(message, 0, width)
+export const length = (value: string) => {
+	return ansiLength(value)
 }
 
-export const padString = (texts: string[]) => {
-	const size = Math.max(...texts.map(text => stringLength(text)))
+export const truncate = (value: string, width: number): string => {
+	return ansiTruncate(value, width, {
+		ellipsis,
+	})
+}
+
+export const pad = (texts: string[]) => {
+	const size = Math.max(...texts.map(text => ansiLength(text)))
 
 	return (text: string, padding = 0, fill?: string) => {
 		return text.padEnd(size + padding, fill)
 	}
 }
-
-// export const list = (data: Record<string, string>) => {
-// 	const padName = padText(Object.keys(data))
-
-// 	return Object.entries(data)
-// 		.map(([name, value]) => [color.label(padName(name + ':', 2)), value].join(''))
-// 		.join(char.br)
-// }
-
-// export const line = (message: string) => {
-// 	console.log(color.line('│ '), message)
-// }
-
-// export const table = (props: { head: string[]; body: (string | number | boolean)[][] }) => {
-// 	console.log(color.line('│'))
-
-// 	const table = new Table({
-// 		// wordWrap: true,
-// 		// wrapOnWordBoundary: false,
-// 		// truncate: '...',
-// 		// colWidths: props.colWidths,
-
-// 		// head: props.head.map(h => color.label(capitalCase(h))),
-// 		head: props.head.map(h => '\n' + color.label(capitalCase(h))),
-// 		// colWidths: [100, 200],
-// 		style: {
-// 			'padding-left': 2,
-// 			'padding-right': 2,
-// 		},
-// 		chars: {
-// 			'bottom-right': '╯',
-// 			'top-right': '╮',
-// 			'top-left': '├',
-// 			'bottom-left': '├',
-// 			// mid: '',
-// 			// 'mid-mid': '',
-// 			// 'left-mid': '',
-// 			// 'right-mid': '',
-// 		},
-// 	})
-
-// 	table.push(
-// 		...props.body.map(row =>
-// 			row.map(v => {
-// 				if (typeof v === 'boolean') {
-// 					return v ? color.success('yes') : color.error('no')
-// 				}
-
-// 				return v
-// 			})
-// 		)
-// 	)
-// 	// table.push(props.head.map(() => ''))
-
-// 	return table.toString()
-// }

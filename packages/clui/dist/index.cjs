@@ -42,17 +42,21 @@ module.exports = __toCommonJS(index_exports);
 // src/symbols.ts
 var symbols_exports = {};
 __export(symbols_exports, {
+  ellipsis: () => ellipsis,
   error: () => error,
   info: () => info,
+  message: () => message,
   step: () => step,
   success: () => success,
   warning: () => warning
 });
+var message = "\u2502";
 var step = "\u25C7";
 var error = "\xD7";
 var success = "\u25C6";
 var warning = "\u25B2";
 var info = "\xB7";
+var ellipsis = "\u2026";
 
 // src/prompts.ts
 var prompts_exports = {};
@@ -144,7 +148,7 @@ __export(logs_exports, {
   info: () => info2,
   intro: () => intro,
   list: () => list,
-  message: () => message,
+  message: () => message2,
   note: () => note,
   outro: () => outro,
   step: () => step2,
@@ -159,25 +163,26 @@ var import_cli_table3 = __toESM(require("cli-table3"), 1);
 // src/ansi.ts
 var ansi_exports = {};
 __export(ansi_exports, {
-  padString: () => padString,
-  stringLength: () => import_string_length.default,
-  subString: () => subString,
-  wrapString: () => wrapString
+  length: () => length,
+  pad: () => pad,
+  truncate: () => truncate,
+  wrap: () => wrap
 });
-var import_ansi_substring = __toESM(require("ansi-substring"), 1);
+var import_ansi_truncate = __toESM(require("ansi-truncate"), 1);
 var import_string_length = __toESM(require("string-length"), 1);
 var import_wrap_ansi = __toESM(require("wrap-ansi"), 1);
-var wrapString = (lines, width, options) => {
-  return (0, import_wrap_ansi.default)(typeof lines === "string" ? lines : lines.join("\n"), width, options);
+var wrap = (value, width, options) => {
+  return (0, import_wrap_ansi.default)(value, width, options);
 };
-var subString = (message2, width) => {
-  const length = (0, import_string_length.default)(message2);
-  if (length > width - 1) {
-    return (0, import_ansi_substring.default)(message2, 0, width - 1) + "\u2026";
-  }
-  return (0, import_ansi_substring.default)(message2, 0, width);
+var length = (value) => {
+  return (0, import_string_length.default)(value);
 };
-var padString = (texts) => {
+var truncate = (value, width) => {
+  return (0, import_ansi_truncate.default)(value, width, {
+    ellipsis
+  });
+};
+var pad = (texts) => {
   const size = Math.max(...texts.map((text2) => (0, import_string_length.default)(text2)));
   return (text2, padding = 0, fill) => {
     return text2.padEnd(size + padding, fill);
@@ -191,37 +196,37 @@ var color = import_chalk.default;
 // src/logs.ts
 var endMargin = 3;
 var intro = (title = "") => {
-  (0, import_prompts3.intro)(subString(title, process.stdout.columns - 6 - endMargin));
+  (0, import_prompts3.intro)(truncate(title, process.stdout.columns - 6 - endMargin));
 };
 var outro = (title = "") => {
-  (0, import_prompts3.outro)(subString(title, process.stdout.columns - 6 - endMargin));
+  (0, import_prompts3.outro)(truncate(title, process.stdout.columns - 6 - endMargin));
 };
-var note = (title, message2) => {
+var note = (title, message3) => {
   const width = process.stdout.columns - 6 - endMargin;
   (0, import_prompts3.note)(
-    wrapString(message2, width, {
+    wrap(message3, width, {
       hard: true
     }),
-    subString(title, width)
+    truncate(title, width)
   );
 };
-var logMessage = (symbol, message2) => {
+var logMessage = (symbol, message3) => {
   import_prompts3.log.message(
-    wrapString(message2, process.stdout.columns - 6 - endMargin, {
+    wrap(message3, process.stdout.columns - 6 - endMargin, {
       hard: true,
       trim: false
     }),
     { symbol }
   );
 };
-var message = (message2, symbol = color.gray("\u2502")) => logMessage(symbol, message2);
-var error2 = (message2) => logMessage(color.red(error), message2);
-var info2 = (message2) => logMessage(color.blue(info), message2);
-var step2 = (message2) => logMessage(color.green(step), message2);
-var warning2 = (message2) => logMessage(color.yellow(warning), message2);
-var success2 = (message2) => logMessage(color.green(success), message2);
+var message2 = (message3, symbol = color.gray(message)) => logMessage(symbol, message3);
+var error2 = (message3) => logMessage(color.red(error), message3);
+var info2 = (message3) => logMessage(color.blue(info), message3);
+var step2 = (message3) => logMessage(color.green(step), message3);
+var warning2 = (message3) => logMessage(color.yellow(warning), message3);
+var success2 = (message3) => logMessage(color.green(success), message3);
 var list = (title, data) => {
-  const padName = padString(Object.keys(data));
+  const padName = pad(Object.keys(data));
   note(
     title,
     Object.entries(data).map(([name, value]) => {
@@ -233,12 +238,12 @@ var task = async (opts) => {
   let last;
   const spin = (0, import_prompts3.spinner)();
   spin.start(opts.initialMessage);
-  const stop = (message2, code) => {
-    spin.stop(subString(message2 ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code);
+  const stop = (message3, code) => {
+    spin.stop(truncate(message3 ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code);
   };
   try {
     const result = await opts.task((m) => {
-      spin.message(subString(m, process.stdout.columns - 6 - endMargin));
+      spin.message(truncate(m, process.stdout.columns - 6 - endMargin));
       last = m;
     });
     stop(opts.successMessage);
@@ -250,21 +255,21 @@ var task = async (opts) => {
 };
 var table = (props) => {
   import_prompts3.log.message();
-  const length = Math.max(props.head.length, ...props.body.map((b) => b.length));
+  const length2 = Math.max(props.head.length, ...props.body.map((b) => b.length));
   const padding = 2;
-  const totalPadding = padding * 2 * length;
+  const totalPadding = padding * 2 * length2;
   const border = 1;
-  const totalBorder = (length - 1) * border + 2;
+  const totalBorder = (length2 - 1) * border + 2;
   const windowSize = process.stdout.columns;
-  const max = windowSize - totalPadding - totalBorder - endMargin;
-  const contentSizes = Array.from({ length }).map((_, i) => {
-    return Math.max((0, import_string_length.default)(props.head[i] ?? ""), ...props.body.map((b) => (0, import_string_length.default)(String(b[i]))));
+  const maxTableSize = windowSize - totalPadding - totalBorder - endMargin;
+  const contentSizes = Array.from({ length: length2 }).map((_, i) => {
+    return Math.max(length(props.head[i] ?? ""), ...props.body.map((b) => length(String(b[i]))));
   });
-  const columnSizes = Array.from({ length }).map(() => {
+  const columnSizes = Array.from({ length: length2 }).map(() => {
     return 0;
   });
   let leftover = Math.min(
-    max,
+    maxTableSize,
     contentSizes.reduce((total, size) => total + size, 0)
   );
   while (leftover > 0) {
@@ -280,7 +285,7 @@ var table = (props) => {
   const table2 = new import_cli_table3.default({
     head: props.head.map(
       (value, x) => "\n" + color.reset.whiteBright.bold(
-        wrapString(value, columnSizes[x], {
+        wrap(value, columnSizes[x], {
           hard: true
         })
       )
@@ -305,7 +310,7 @@ var table = (props) => {
         if (typeof value === "number") {
           return color.blue(value);
         }
-        return wrapString(value, columnSizes[x], {
+        return wrap(value, columnSizes[x], {
           hard: true
         });
       });

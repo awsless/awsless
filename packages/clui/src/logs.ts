@@ -1,32 +1,32 @@
 import { log, intro as p_intro, note as p_note, outro as p_outro, spinner } from '@clack/prompts'
 import Table from 'cli-table3'
-import { padString, stringLength, subString, wrapString } from './ansi'
+import * as ansi from './ansi'
 import { color } from './colors'
-import * as symbol from './symbols'
+import * as symbols from './symbols'
 
 const endMargin = 3
 
 export const intro = (title = '') => {
-	p_intro(subString(title, process.stdout.columns - 6 - endMargin))
+	p_intro(ansi.truncate(title, process.stdout.columns - 6 - endMargin))
 }
 
 export const outro = (title = '') => {
-	p_outro(subString(title, process.stdout.columns - 6 - endMargin))
+	p_outro(ansi.truncate(title, process.stdout.columns - 6 - endMargin))
 }
 
 export const note = (title: string, message: string) => {
 	const width = process.stdout.columns - 6 - endMargin
 	p_note(
-		wrapString(message, width, {
+		ansi.wrap(message, width, {
 			hard: true,
 		}),
-		subString(title, width)
+		ansi.truncate(title, width)
 	)
 }
 
 const logMessage = (symbol: string, message: string) => {
 	log.message(
-		wrapString(message, process.stdout.columns - 6 - endMargin, {
+		ansi.wrap(message, process.stdout.columns - 6 - endMargin, {
 			hard: true,
 			trim: false,
 		}),
@@ -34,15 +34,15 @@ const logMessage = (symbol: string, message: string) => {
 	)
 }
 
-export const message = (message: string, symbol: string = color.gray('│')) => logMessage(symbol, message)
-export const error = (message: string) => logMessage(color.red(symbol.error), message)
-export const info = (message: string) => logMessage(color.blue(symbol.info), message)
-export const step = (message: string) => logMessage(color.green(symbol.step), message)
-export const warning = (message: string) => logMessage(color.yellow(symbol.warning), message)
-export const success = (message: string) => logMessage(color.green(symbol.success), message)
+export const message = (message: string, symbol: string = color.gray(symbols.message)) => logMessage(symbol, message)
+export const error = (message: string) => logMessage(color.red(symbols.error), message)
+export const info = (message: string) => logMessage(color.blue(symbols.info), message)
+export const step = (message: string) => logMessage(color.green(symbols.step), message)
+export const warning = (message: string) => logMessage(color.yellow(symbols.warning), message)
+export const success = (message: string) => logMessage(color.green(symbols.success), message)
 
 export const list = (title: string, data: Record<string, string>) => {
-	const padName = padString(Object.keys(data))
+	const padName = ansi.pad(Object.keys(data))
 
 	note(
 		title,
@@ -67,12 +67,12 @@ export const task = async <T>(opts: TaskOptions<T>): Promise<T> => {
 	spin.start(opts.initialMessage)
 
 	const stop = (message?: string, code?: number) => {
-		spin.stop(subString(message ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code)
+		spin.stop(ansi.truncate(message ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code)
 	}
 
 	try {
 		const result = await opts.task(m => {
-			spin.message(subString(m, process.stdout.columns - 6 - endMargin))
+			spin.message(ansi.truncate(m, process.stdout.columns - 6 - endMargin))
 			last = m
 		})
 
@@ -87,9 +87,6 @@ export const task = async <T>(opts: TaskOptions<T>): Promise<T> => {
 export const table = (props: { head: string[]; body: (string | number | boolean)[][] }) => {
 	log.message()
 
-	// const columnWidth = Math.floor((process.stdout.columns - 1) / props.head.length)
-	// const width = columnWidth - 6
-
 	const length = Math.max(props.head.length, ...props.body.map(b => b.length))
 	const padding = 2
 	const totalPadding = padding * 2 * length
@@ -97,17 +94,11 @@ export const table = (props: { head: string[]; body: (string | number | boolean)
 	const border = 1
 	const totalBorder = (length - 1) * border + 2
 
-	// console.log(totalBorder)
-
 	const windowSize = process.stdout.columns
-	const max = windowSize - totalPadding - totalBorder - endMargin
-	// const column = Math.floor(max / length)
-	// const leftover = Math.floor(max - column * length)
-
-	// console.log(max, column, leftover)
+	const maxTableSize = windowSize - totalPadding - totalBorder - endMargin
 
 	const contentSizes = Array.from({ length }).map((_, i) => {
-		return Math.max(stringLength(props.head[i] ?? ''), ...props.body.map(b => stringLength(String(b[i]))))
+		return Math.max(ansi.length(props.head[i] ?? ''), ...props.body.map(b => ansi.length(String(b[i]))))
 	})
 
 	const columnSizes = Array.from({ length }).map(() => {
@@ -115,7 +106,7 @@ export const table = (props: { head: string[]; body: (string | number | boolean)
 	})
 
 	let leftover = Math.min(
-		max,
+		maxTableSize,
 		contentSizes.reduce((total, size) => total + size, 0)
 	)
 
@@ -136,7 +127,7 @@ export const table = (props: { head: string[]; body: (string | number | boolean)
 			(value, x) =>
 				'\n' +
 				color.reset.whiteBright.bold(
-					wrapString(value, columnSizes[x]!, {
+					ansi.wrap(value, columnSizes[x]!, {
 						hard: true,
 					})
 				)
@@ -164,7 +155,7 @@ export const table = (props: { head: string[]; body: (string | number | boolean)
 					return color.blue(value)
 				}
 
-				return wrapString(value, columnSizes[x]!, {
+				return ansi.wrap(value, columnSizes[x]!, {
 					hard: true,
 				})
 			})

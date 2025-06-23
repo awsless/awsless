@@ -1,5 +1,7 @@
+export const message = '│'
 export const step = '◇'
 export const error = '×'
 export const success = '◆'
 export const warning = '▲'
 export const info = '·'
+export const ellipsis = '…'

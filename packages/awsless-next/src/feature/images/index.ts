@@ -362,11 +362,12 @@ export const imagesFeature = defineFeature({
 						evaluateTargetHealth: false,
 					},
 				})
-
-				ctx.bind(`IMAGES_${ctx.stack.name}_${constantCase(id)}_ENDPOINT`, domainName)
-			} else {
-				ctx.bind(`IMAGES_${ctx.stack.name}_${constantCase(id)}_ENDPOINT`, distribution.domainName)
 			}
+
+			ctx.bind(
+				`IMAGES_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`,
+				domainName ?? distribution.domainName
+			)
 		}
 	},
 })
