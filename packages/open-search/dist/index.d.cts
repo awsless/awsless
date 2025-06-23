@@ -67,6 +67,16 @@ declare const bulk: <T extends AnyTable>(table: T, items: Array<{
     action: "delete";
     id: string;
 }>, { refresh }?: Options$4) => Promise<void>;
+declare class BulkError extends Error {
+    readonly items: BulkItemError[];
+    constructor(items: BulkItemError[]);
+}
+declare class BulkItemError extends Error {
+    readonly index: string;
+    readonly id: string;
+    readonly type: string;
+    constructor(index: string, id: string, type: string, message: string);
+}
 
 type Options$3 = {
     query?: unknown;
@@ -133,4 +143,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };

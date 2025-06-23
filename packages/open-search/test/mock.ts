@@ -6,6 +6,7 @@ import {
 	bigint,
 	boolean,
 	bulk,
+	BulkError,
 	createIndex,
 	date,
 	define,
@@ -27,7 +28,19 @@ describe('Open Search Mock', () => {
 	mockOpenSearch()
 
 	const id = randomUUID()
-	const createdAt = new Date()
+	const item = {
+		name: 'jacksclub',
+		type: 'bar' as const,
+		enabled: true,
+		likes: 10n,
+		balance: new BigFloat(1),
+		tags: new Set(['tag']),
+		links: [1],
+		createdAt: new Date(),
+		data: {
+			number: 1,
+		},
+	}
 
 	const users = define(
 		'users',
@@ -62,17 +75,7 @@ describe('Open Search Mock', () => {
 	it('should index item', async () => {
 		await indexItem(users, '1', {
 			id,
-			name: 'jacksclub',
-			type: 'bar',
-			enabled: true,
-			likes: 10n,
-			balance: new BigFloat(1),
-			tags: new Set(['tag']),
-			links: [1],
-			createdAt,
-			data: {
-				number: 1,
-			},
+			...item,
 		})
 	})
 
@@ -107,17 +110,8 @@ describe('Open Search Mock', () => {
 			items: [
 				{
 					id,
-					type: 'bar',
-					name: 'jacksclub',
+					...item,
 					enabled: false,
-					likes: 10n,
-					balance: new BigFloat(1),
-					tags: new Set(['tag']),
-					links: [1],
-					createdAt,
-					data: {
-						number: 1,
-					},
 				},
 			],
 		})
@@ -182,20 +176,6 @@ describe('Open Search Mock', () => {
 		const u2 = randomUUID()
 		const u3 = randomUUID()
 
-		const item = {
-			name: 'jacksclub',
-			type: 'bar' as const,
-			enabled: true,
-			likes: 10n,
-			balance: new BigFloat(1),
-			tags: new Set(['tag']),
-			links: [1],
-			createdAt,
-			data: {
-				number: 1,
-			},
-		}
-
 		await bulk(
 			users,
 			[u1, u2, u3].map(id => ({
@@ -234,7 +214,7 @@ describe('Open Search Mock', () => {
 			}))
 		)
 
-		const result = await search(users, {
+		const result2 = await search(users, {
 			query: {
 				bool: {
 					must: {
@@ -250,12 +230,27 @@ describe('Open Search Mock', () => {
 			},
 		})
 
-		expect(result).toStrictEqual({
+		expect(result2).toStrictEqual({
 			cursor: undefined,
 			found: 0,
 			count: 0,
 			items: [],
 		})
+	})
+
+	it('should throw proper bulk errors', async () => {
+		await expect(
+			bulk(users, [
+				{
+					action: 'update',
+					id,
+					item: {
+						id,
+						...item,
+					},
+				},
+			])
+		).rejects.toThrow(BulkError)
 	})
 
 	it('should delete index', async () => {

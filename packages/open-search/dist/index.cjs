@@ -30,6 +30,8 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  BulkError: () => BulkError,
+  BulkItemError: () => BulkItemError,
   array: () => array,
   bigfloat: () => bigfloat,
   bigint: () => bigint,
@@ -295,7 +297,41 @@ var bulk = async (table, items, { refresh = true } = {}) => {
       return body;
     }).flat()
   });
-  console.log(response);
+  if (response.body.errors) {
+    throw new BulkError(findBulkItemErrors(response.body.items));
+  }
+};
+var BulkError = class extends Error {
+  constructor(items) {
+    super("Bulk error");
+    this.items = items;
+  }
+};
+var BulkItemError = class extends Error {
+  constructor(index, id, type, message) {
+    super(message);
+    this.index = index;
+    this.id = id;
+    this.type = type;
+  }
+};
+var findBulkItemErrors = (items) => {
+  const errors = [];
+  for (const entry of items) {
+    const item = entry.delete || entry.update || entry.create || entry.index;
+    if (item.error) {
+      errors.push(
+        new BulkItemError(
+          //
+          item._index,
+          item._id,
+          item.error.type,
+          item.error.reason
+        )
+      );
+    }
+  }
+  return errors;
 };
 
 // src/ops/search.ts
@@ -514,6 +550,8 @@ var uuid = (props = {}) => new Schema(
 );
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  BulkError,
+  BulkItemError,
   array,
   bigfloat,
   bigint,

@@ -240,7 +240,41 @@ var bulk = async (table, items, { refresh = true } = {}) => {
       return body;
     }).flat()
   });
-  console.log(response);
+  if (response.body.errors) {
+    throw new BulkError(findBulkItemErrors(response.body.items));
+  }
+};
+var BulkError = class extends Error {
+  constructor(items) {
+    super("Bulk error");
+    this.items = items;
+  }
+};
+var BulkItemError = class extends Error {
+  constructor(index, id, type, message) {
+    super(message);
+    this.index = index;
+    this.id = id;
+    this.type = type;
+  }
+};
+var findBulkItemErrors = (items) => {
+  const errors = [];
+  for (const entry of items) {
+    const item = entry.delete || entry.update || entry.create || entry.index;
+    if (item.error) {
+      errors.push(
+        new BulkItemError(
+          //
+          item._index,
+          item._id,
+          item.error.type,
+          item.error.reason
+        )
+      );
+    }
+  }
+  return errors;
 };
 
 // src/ops/search.ts
@@ -458,6 +492,8 @@ var uuid = (props = {}) => new Schema(
   { type: "keyword", ...props }
 );
 export {
+  BulkError,
+  BulkItemError,
   array,
   bigfloat,
   bigint,
