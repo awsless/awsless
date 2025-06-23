@@ -6,6 +6,7 @@ type Options = {
 	limit?: number
 	cursor?: string
 	sort?: unknown
+	trackTotalHits?: boolean
 }
 
 type Response<T extends AnyTable> = {
@@ -34,13 +35,14 @@ const decodeCursor = (cursor?: string) => {
 
 export const search = async <T extends AnyTable>(
 	table: T,
-	{ query, aggs, limit = 10, cursor, sort }: Options
+	{ query, aggs, limit = 10, cursor, sort, trackTotalHits }: Options
 ): Promise<Response<T>> => {
 	const result = await table.client().search({
 		index: table.index,
 		body: {
 			size: limit + 1,
 			search_after: decodeCursor(cursor),
+			track_total_hits: trackTotalHits,
 			query,
 			aggs,
 			sort,

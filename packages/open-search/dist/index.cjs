@@ -28,8 +28,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   array: () => array,
   bigfloat: () => bigfloat,
   bigint: () => bigint,
@@ -50,7 +50,7 @@ __export(src_exports, {
   updateItem: () => updateItem,
   uuid: () => uuid
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/client.ts
 var import_credential_providers = require("@aws-sdk/credential-providers");
@@ -293,12 +293,13 @@ var decodeCursor = (cursor) => {
     return;
   }
 };
-var search = async (table, { query, aggs, limit = 10, cursor, sort }) => {
+var search = async (table, { query, aggs, limit = 10, cursor, sort, trackTotalHits }) => {
   const result = await table.client().search({
     index: table.index,
     body: {
       size: limit + 1,
       search_after: decodeCursor(cursor),
+      track_total_hits: trackTotalHits,
       query,
       aggs,
       sort

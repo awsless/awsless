@@ -62,6 +62,7 @@ type Options$3 = {
     limit?: number;
     cursor?: string;
     sort?: unknown;
+    trackTotalHits?: boolean;
 };
 type Response<T extends AnyTable> = {
     cursor?: string;
@@ -69,7 +70,7 @@ type Response<T extends AnyTable> = {
     count: number;
     items: T['schema']['OUTPUT'][];
 };
-declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort }: Options$3) => Promise<Response<T>>;
+declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort, trackTotalHits }: Options$3) => Promise<Response<T>>;
 
 type Options$2 = {
     refresh?: boolean;

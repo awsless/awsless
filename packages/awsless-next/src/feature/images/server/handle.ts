@@ -35,9 +35,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const presetConfig = configs.presets?.[preset]
 		const extensionConfig = configs.extensions?.[extension]
 
-		console.error('Preset config:', presetConfig)
-		console.error('Extension config:', extensionConfig)
-
 		// We only allow predefined presets and extensions.
 		// If no preset or extension configuration is found we won't allow the transformation to proceed.
 

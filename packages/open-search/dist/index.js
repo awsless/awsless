@@ -239,12 +239,13 @@ var decodeCursor = (cursor) => {
     return;
   }
 };
-var search = async (table, { query, aggs, limit = 10, cursor, sort }) => {
+var search = async (table, { query, aggs, limit = 10, cursor, sort, trackTotalHits }) => {
   const result = await table.client().search({
     index: table.index,
     body: {
       size: limit + 1,
       search_after: decodeCursor(cursor),
+      track_total_hits: trackTotalHits,
       query,
       aggs,
       sort
