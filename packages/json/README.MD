@@ -102,8 +102,9 @@ When using the native `JSON.parse/stringify` functions you could lose precision 
 import { safeNumberParse, safeNumberStringify } from '@awsless/json';
 import { BigFloat, eq } from '@awsless/big-float';
 
-const value = new BigFloat(1)
-const json = safeNumberStringify(ONE, {
+const one = new BigFloat(1)
+
+const json = safeNumberStringify(one, {
 	is: v => v instanceof BigFloat,
 	stringify: v => v.toString(),
 })
@@ -114,7 +115,7 @@ const result = safeNumberParse('1', {
 	parse: v => new BigFloat(v),
 })
 
-console.log(eq(value, result)) // true
+console.log(eq(one, result)) // true
 ```
 
 ## Known Issue's
