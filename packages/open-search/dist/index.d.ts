@@ -42,11 +42,11 @@ type VersionArgs = {
     started: (line: string) => boolean;
 };
 
-type Options$4 = {
+type Options$5 = {
     version?: VersionArgs;
     debug?: boolean;
 };
-declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
+declare const mockOpenSearch: ({ version, debug }?: Options$5) => void;
 
 type Table<I extends string, S extends AnySchema> = {
     index: I;
@@ -55,6 +55,18 @@ type Table<I extends string, S extends AnySchema> = {
 };
 type AnyTable = Table<string, AnySchema>;
 declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
+
+type Options$4 = {
+    refresh?: boolean;
+};
+declare const bulk: <T extends AnyTable>(table: T, items: Array<{
+    action: "create" | "update" | "index";
+    id: string;
+    item: T["schema"]["INPUT"];
+} | {
+    action: "delete";
+    id: string;
+}>, { refresh }?: Options$4) => Promise<void>;
 
 type Options$3 = {
     query?: unknown;
@@ -121,4 +133,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
+export { type AnySchema, type AnyTable, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };

@@ -5,6 +5,7 @@ import {
 	bigfloat,
 	bigint,
 	boolean,
+	bulk,
 	createIndex,
 	date,
 	define,
@@ -151,6 +152,87 @@ describe('Open Search Mock', () => {
 
 	it('should delete item', async () => {
 		await deleteItem(users, '1')
+
+		const result = await search(users, {
+			query: {
+				bool: {
+					must: {
+						query_string: {
+							query: 'jacksclub~',
+							fuzziness: 'AUTO',
+							fuzzy_transpositions: true,
+							allow_leading_wildcard: true,
+							fields: ['name'],
+						},
+					},
+				},
+			},
+		})
+
+		expect(result).toStrictEqual({
+			cursor: undefined,
+			found: 0,
+			count: 0,
+			items: [],
+		})
+	})
+
+	it('should support bulk processing', async () => {
+		const u1 = randomUUID()
+		const u2 = randomUUID()
+		const u3 = randomUUID()
+
+		const item = {
+			name: 'jacksclub',
+			type: 'bar' as const,
+			enabled: true,
+			likes: 10n,
+			balance: new BigFloat(1),
+			tags: new Set(['tag']),
+			links: [1],
+			createdAt,
+			data: {
+				number: 1,
+			},
+		}
+
+		await bulk(
+			users,
+			[u1, u2, u3].map(id => ({
+				action: 'index',
+				id,
+				item: {
+					id,
+					...item,
+				},
+			}))
+		)
+
+		const result1 = await search(users, {
+			query: {
+				bool: {
+					must: {
+						query_string: {
+							query: 'jacksclub~',
+							fuzziness: 'AUTO',
+							fuzzy_transpositions: true,
+							allow_leading_wildcard: true,
+							fields: ['name'],
+						},
+					},
+				},
+			},
+		})
+
+		expect(result1.count).toBe(3)
+
+		await bulk(
+			users,
+			[u1, u2, u3].map(id => ({
+				action: 'delete',
+				id,
+			}))
+		)
 
 		const result = await search(users, {
 			query: {

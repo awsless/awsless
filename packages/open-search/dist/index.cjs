@@ -34,6 +34,7 @@ __export(index_exports, {
   bigfloat: () => bigfloat,
   bigint: () => bigint,
   boolean: () => boolean,
+  bulk: () => bulk,
   createIndex: () => createIndex,
   date: () => date,
   define: () => define,
@@ -279,6 +280,24 @@ var define = (index, schema, client) => {
   };
 };
 
+// src/ops/bulk.ts
+var bulk = async (table, items, { refresh = true } = {}) => {
+  const response = await table.client().bulk({
+    index: table.index,
+    refresh,
+    body: items.map((entry) => {
+      const body = [{ [entry.action]: { _id: entry.id } }];
+      if (entry.action === "create" || entry.action === "index") {
+        body.push(table.schema.encode(entry.item));
+      } else if (entry.action === "update") {
+        body.push({ doc: table.schema.encode(entry.item) });
+      }
+      return body;
+    }).flat()
+  });
+  console.log(response);
+};
+
 // src/ops/search.ts
 var encodeCursor = (cursor) => {
   const json = JSON.stringify(cursor);
@@ -499,6 +518,7 @@ var uuid = (props = {}) => new Schema(
   bigfloat,
   bigint,
   boolean,
+  bulk,
   createIndex,
   date,
   define,
