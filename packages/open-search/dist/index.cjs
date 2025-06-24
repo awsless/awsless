@@ -37,6 +37,10 @@ __export(index_exports, {
   bigint: () => bigint,
   boolean: () => boolean,
   bulk: () => bulk,
+  bulkCreateItem: () => bulkCreateItem,
+  bulkDeleteItem: () => bulkDeleteItem,
+  bulkIndexItem: () => bulkIndexItem,
+  bulkUpdateItem: () => bulkUpdateItem,
   createIndex: () => createIndex,
   date: () => date,
   define: () => define,
@@ -283,16 +287,57 @@ var define = (index, schema, client) => {
 };
 
 // src/ops/bulk.ts
-var bulk = async (table, items, { refresh = true } = {}) => {
-  const response = await table.client().bulk({
-    index: table.index,
+var bulkDeleteItem = (table, id) => {
+  return {
+    action: "delete",
+    table,
+    id
+  };
+};
+var bulkIndexItem = (table, id, item) => {
+  return {
+    action: "index",
+    table,
+    item,
+    id
+  };
+};
+var bulkCreateItem = (table, id, item) => {
+  return {
+    action: "create",
+    table,
+    item,
+    id
+  };
+};
+var bulkUpdateItem = (table, id, item) => {
+  return {
+    action: "update",
+    table,
+    item,
+    id
+  };
+};
+var bulk = async ({ items, client, refresh = true }) => {
+  if (items.length === 0) {
+    return;
+  }
+  const openSearchClient = client ?? items[0].table.client();
+  const response = await openSearchClient.bulk({
     refresh,
     body: items.map((entry) => {
-      const body = [{ [entry.action]: { _id: entry.id } }];
+      const body = [
+        {
+          [entry.action]: {
+            _id: entry.id,
+            _index: entry.table.index
+          }
+        }
+      ];
       if (entry.action === "create" || entry.action === "index") {
-        body.push(table.schema.encode(entry.item));
+        body.push(entry.table.schema.encode(entry.item));
       } else if (entry.action === "update") {
-        body.push({ doc: table.schema.encode(entry.item) });
+        body.push({ doc: entry.table.schema.encode(entry.item) });
       }
       return body;
     }).flat()
@@ -557,6 +602,10 @@ var uuid = (props = {}) => new Schema(
   bigint,
   boolean,
   bulk,
+  bulkCreateItem,
+  bulkDeleteItem,
+  bulkIndexItem,
+  bulkUpdateItem,
   createIndex,
   date,
   define,

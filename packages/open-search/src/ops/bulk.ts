@@ -1,35 +1,83 @@
+import { Client } from '@opensearch-project/opensearch'
 import { AnyTable } from '../table'
 
-type Options = {
-	refresh?: boolean
+export const bulkDeleteItem = <T extends AnyTable>(table: T, id: string) => {
+	return {
+		action: 'delete',
+		table,
+		id,
+	} as const
 }
 
-export const bulk = async <T extends AnyTable>(
-	table: T,
+export const bulkIndexItem = <T extends AnyTable>(table: T, id: string, item: T['schema']['INPUT']) => {
+	return {
+		action: 'index',
+		table,
+		item,
+		id,
+	} as const
+}
+
+export const bulkCreateItem = <T extends AnyTable>(table: T, id: string, item: T['schema']['INPUT']) => {
+	return {
+		action: 'create',
+		table,
+		item,
+		id,
+	} as const
+}
+
+export const bulkUpdateItem = <T extends AnyTable>(table: T, id: string, item: T['schema']['INPUT']) => {
+	return {
+		action: 'update',
+		table,
+		item,
+		id,
+	} as const
+}
+
+type BulkOptions = {
 	items: Array<
 		| {
 				action: 'create' | 'update' | 'index'
+				table: AnyTable
 				id: string
-				item: T['schema']['INPUT']
+				item: unknown
 		  }
 		| {
 				action: 'delete'
+				table: AnyTable
 				id: string
 		  }
-	>,
-	{ refresh = true }: Options = {}
-) => {
-	const response = await table.client().bulk({
-		index: table.index,
+	>
+	client?: Client
+	refresh?: boolean
+}
+
+export const bulk = async ({ items, client, refresh = true }: BulkOptions) => {
+	if (items.length === 0) {
+		return
+	}
+
+	const openSearchClient = client ?? items[0]!.table.client()
+
+	const response = await openSearchClient.bulk({
 		refresh,
 		body: items
 			.map(entry => {
-				const body = [{ [entry.action]: { _id: entry.id } }]
+				const body = [
+					{
+						[entry.action]: {
+							_id: entry.id,
+							_index: entry.table.index,
+						},
+					},
+				]
 
 				if (entry.action === 'create' || entry.action === 'index') {
-					body.push(table.schema.encode(entry.item))
+					body.push(entry.table.schema.encode(entry.item))
 				} else if (entry.action === 'update') {
-					body.push({ doc: table.schema.encode(entry.item) })
+					body.push({ doc: entry.table.schema.encode(entry.item) })
 				}
 
 				return body

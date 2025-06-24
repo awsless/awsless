@@ -6,7 +6,10 @@ import {
 	bigint,
 	boolean,
 	bulk,
+	bulkDeleteItem,
 	BulkError,
+	bulkIndexItem,
+	bulkUpdateItem,
 	createIndex,
 	date,
 	define,
@@ -176,17 +179,9 @@ describe('Open Search Mock', () => {
 		const u2 = randomUUID()
 		const u3 = randomUUID()
 
-		await bulk(
-			users,
-			[u1, u2, u3].map(id => ({
-				action: 'index',
-				id,
-				item: {
-					id,
-					...item,
-				},
-			}))
-		)
+		await bulk({
+			items: [u1, u2, u3].map(id => bulkIndexItem(users, id, { id, ...item })),
+		})
 
 		const result1 = await search(users, {
 			query: {
@@ -206,13 +201,9 @@ describe('Open Search Mock', () => {
 
 		expect(result1.count).toBe(3)
 
-		await bulk(
-			users,
-			[u1, u2, u3].map(id => ({
-				action: 'delete',
-				id,
-			}))
-		)
+		await bulk({
+			items: [u1, u2, u3].map(id => bulkDeleteItem(users, id)),
+		})
 
 		const result2 = await search(users, {
 			query: {
@@ -240,16 +231,9 @@ describe('Open Search Mock', () => {
 
 	it('should throw proper bulk errors', async () => {
 		await expect(
-			bulk(users, [
-				{
-					action: 'update',
-					id,
-					item: {
-						id,
-						...item,
-					},
-				},
-			])
+			bulk({
+				items: [bulkUpdateItem(users, id, { id, ...item })],
+			})
 		).rejects.toThrow(BulkError)
 	})
 

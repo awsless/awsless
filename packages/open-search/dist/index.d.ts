@@ -42,11 +42,11 @@ type VersionArgs = {
     started: (line: string) => boolean;
 };
 
-type Options$5 = {
+type Options$4 = {
     version?: VersionArgs;
     debug?: boolean;
 };
-declare const mockOpenSearch: ({ version, debug }?: Options$5) => void;
+declare const mockOpenSearch: ({ version, debug }?: Options$4) => void;
 
 type Table<I extends string, S extends AnySchema> = {
     index: I;
@@ -56,17 +56,44 @@ type Table<I extends string, S extends AnySchema> = {
 type AnyTable = Table<string, AnySchema>;
 declare const define: <I extends string, S extends AnySchema>(index: I, schema: S, client: () => Client$1) => Table<I, S>;
 
-type Options$4 = {
+declare const bulkDeleteItem: <T extends AnyTable>(table: T, id: string) => {
+    readonly action: "delete";
+    readonly table: T;
+    readonly id: string;
+};
+declare const bulkIndexItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"]) => {
+    readonly action: "index";
+    readonly table: T;
+    readonly item: T["schema"]["INPUT"];
+    readonly id: string;
+};
+declare const bulkCreateItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"]) => {
+    readonly action: "create";
+    readonly table: T;
+    readonly item: T["schema"]["INPUT"];
+    readonly id: string;
+};
+declare const bulkUpdateItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"]) => {
+    readonly action: "update";
+    readonly table: T;
+    readonly item: T["schema"]["INPUT"];
+    readonly id: string;
+};
+type BulkOptions = {
+    items: Array<{
+        action: 'create' | 'update' | 'index';
+        table: AnyTable;
+        id: string;
+        item: unknown;
+    } | {
+        action: 'delete';
+        table: AnyTable;
+        id: string;
+    }>;
+    client?: Client;
     refresh?: boolean;
 };
-declare const bulk: <T extends AnyTable>(table: T, items: Array<{
-    action: "create" | "update" | "index";
-    id: string;
-    item: T["schema"]["INPUT"];
-} | {
-    action: "delete";
-    id: string;
-}>, { refresh }?: Options$4) => Promise<void>;
+declare const bulk: ({ items, client, refresh }: BulkOptions) => Promise<void>;
 declare class BulkError extends Error {
     readonly items: BulkItemError[];
     constructor(items: BulkItemError[]);
@@ -143,4 +170,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
