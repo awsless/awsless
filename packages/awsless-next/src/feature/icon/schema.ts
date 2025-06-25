@@ -33,32 +33,6 @@ export const ImagesSchema = z
 				.record(z.string(), transformationOptionsSchema)
 				.describe('Named presets for image transformations'),
 
-			extensions: z
-				.object({
-					jpeg: z
-						.object({
-							mozjpeg: z.boolean().optional(),
-							progressive: z.boolean().optional(),
-						})
-						.optional(),
-					webp: z
-						.object({
-							effort: z.number().int().default(7).min(1).max(10).optional(),
-							lossless: z.boolean().optional(),
-							nearLossless: z.boolean().optional(),
-						})
-						.optional(),
-					png: z
-						.object({
-							compressionLevel: z.number().int().min(0).max(9).optional(),
-						})
-						.optional(),
-				})
-				.refine(data => {
-					return Object.keys(data).length > 0
-				}, 'At least one extension must be defined.')
-				.describe('Specify the allowed extensions.'),
-
 			origin: z
 				.union([
 					z.object({
@@ -75,11 +49,13 @@ export const ImagesSchema = z
 					}),
 				])
 				.describe(
-					'Specify the origin of your images. Image transformation will be applied from a base image. Base images can be loaded from a S3 bucket (that is synced from a local directory) or dynamicly from a lambda function.'
+					'Image transformation will be applied from a base image. Base images orginates from a local directory that will be uploaded to S3 or from a lambda function.'
 				),
 
 			version: z.number().int().min(1).optional().describe('Version of the image configuration.'),
+
+			// postprocess: FunctionSchema.optional()
 		})
 	)
 	.optional()
-	.describe('Define an image proxy in your stack.')
+	.describe('Define image CDN & transformations in your stack.')
