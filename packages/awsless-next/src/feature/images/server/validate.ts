@@ -1,6 +1,6 @@
 import { integer, number, object, picklist, safeParse, string, transform } from '@awsless/validate'
 
-const supportedExtensions = ['jpeg', 'png', 'webp'] as const
+const supportedExtensions = ['jpeg', 'png', 'webp', 'svg'] as const
 
 const schema = transform(
 	string(),

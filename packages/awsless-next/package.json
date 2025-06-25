@@ -47,6 +47,7 @@
 	},
 	"peerDependencies": {
 		"@awsless/big-float": "workspace:^",
+		"@awsless/clui": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",
 		"@awsless/iot": "workspace:^",
 		"@awsless/json": "workspace:^",
@@ -59,8 +60,7 @@
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^",
-		"@awsless/clui": "workspace:^"
+		"@awsless/weak-cache": "workspace:^"
 	},
 	"dependencies": {
 		"@arcanyx/cidr-slicer": "^0.3.0",
@@ -80,13 +80,13 @@
 		"@aws-sdk/lib-storage": "^3.423.0",
 		"@aws-sdk/signature-v4-crt": "^3.816.0",
 		"@awsless/big-float": "workspace:^",
+		"@awsless/clui": "workspace:^",
 		"@awsless/code": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/formation": "workspace:^",
 		"@awsless/graphql": "workspace:^",
 		"@awsless/json": "workspace:^",
 		"@awsless/size": "workspace:^",
-		"@awsless/clui": "workspace:^",
 		"@awsless/ts-file-cache": "workspace:^",
 		"@awsless/validate": "workspace:^",
 		"@clack/prompts": "^0.7.0",
@@ -141,6 +141,7 @@
 		"rollup-plugin-natives": "^0.7.8",
 		"rollup-plugin-replace": "^2.2.0",
 		"rollup-plugin-swc3": "^0.11.2",
+		"svgo": "^4.0.0",
 		"tsx": "^4.15.5",
 		"type-fest": "^4.20.1",
 		"uuid": "^9.0.0",

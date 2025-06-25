@@ -2,6 +2,7 @@ import { invoke } from '@awsless/lambda'
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
 import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
+import { optimize } from 'svgo'
 import { parsePath } from './validate'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
@@ -94,15 +95,35 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			return { statusCode: 404 }
 		}
 
-		const image = await sharp(baseImage)
-			.resize({
-				width: presetConfig.width,
-				height: presetConfig.height,
-				fit: presetConfig.fit,
-				position: presetConfig.position,
+		let image: Buffer
+
+		if (extension === 'svg') {
+			const result = optimize(baseImage.toString('utf-8'), {
+				path: 'path-to.svg', // recommended
+				multipass: true,
+				plugins: [
+					'preset-default',
+					'convertStyleToAttrs',
+					// {
+					// 	name: 'prefixIds',
+					// 	params: {
+					// 		prefix: name,
+					// 	},
+					// },
+				],
 			})
-			[extension]({ ...extensionConfig, quality: presetConfig.quality })
-			.toBuffer()
+			image = Buffer.from(result.data, 'utf-8')
+		} else {
+			image = await sharp(baseImage)
+				.resize({
+					width: presetConfig.width,
+					height: presetConfig.height,
+					fit: presetConfig.fit,
+					position: presetConfig.position,
+				})
+				[extension]({ ...extensionConfig, quality: presetConfig.quality })
+				.toBuffer()
+		}
 
 		// ----------------------------------------
 		// Cache the image in S3
