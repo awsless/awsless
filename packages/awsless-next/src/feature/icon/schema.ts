@@ -29,9 +29,9 @@ export const ImagesSchema = z
 			subDomain: z.string().optional(),
 			log: LogSchema.optional(),
 
-			presets: z
-				.record(z.string(), transformationOptionsSchema)
-				.describe('Named presets for image transformations'),
+			minify: z.boolean(),
+			symbols: z.boolean(),
+			// path.1.svg
 
 			origin: z
 				.union([
