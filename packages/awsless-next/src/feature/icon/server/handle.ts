@@ -1,7 +1,6 @@
 import { invoke } from '@awsless/lambda'
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
-import { parsePath } from './validate'
 // @ts-ignore
 import { optimize } from 'svgo/browser'
 // @ts-ignore
@@ -9,12 +8,7 @@ import svgstore from 'svgstore'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
-		const request = parsePath(event.rawPath)
-		if (!request.success || !request.output) {
-			return { statusCode: 404 }
-		}
-
-		const { path, id, version } = request.output
+		const path = event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath
 
 		// ----------------------------------------
 		// Get the icon configuration
@@ -22,32 +16,23 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const configsEnv = process.env.ICON_CONFIG
 
 		if (!configsEnv) {
-			throw new Error('Icon configurations not found in environment variables')
+			throw new Error('Icon config not found in environment variables')
 		}
 
 		const config: {
 			preserveId: boolean
 			symbols: boolean
-			version?: number
 		} = JSON.parse(configsEnv)
-
-		// We can version in the path for cache busting.
-		// We don't want to allow any version due to DDoS attacks.
-
-		const maxVersion = config.version ?? 0
-		if (version > maxVersion) {
-			return { statusCode: 404 }
-		}
 
 		// ----------------------------------------
 		// Check if image is in the S3 bucket
 
-		let baseIcon: Buffer | undefined = undefined
+		let baseIcon: Buffer | undefined
 
 		if (process.env.ICON_ORIGIN_S3) {
 			const result = await getObject({
 				bucket: process.env.ICON_ORIGIN_S3,
-				key: `${id}.svg`,
+				key: path,
 			})
 
 			if (result?.body) {
@@ -57,7 +42,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		}
 
 		// ----------------------------------------
-		// Call the original icon fetcher
+		// Call the lamba origin function
 
 		if (!baseIcon && process.env.ICON_ORIGIN_LAMBDA) {
 			const result = (await invoke({
@@ -75,14 +60,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		}
 
 		// ----------------------------------------
-		// Process the icon (SVG doesn't need processing with sharp)
+		// Process the icon
 
 		if (!baseIcon) {
 			return { statusCode: 404 }
 		}
 
 		const { data } = optimize(baseIcon.toString('utf-8'), {
-			path: 'path-to.svg',
 			multipass: true,
 			plugins: [
 				{
@@ -104,22 +88,20 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		if (config.symbols) {
 			const symbols = svgstore()
-			symbols.add(id, data)
+			symbols.add('default', data)
 			icon = symbols.toString({ inline: true })
 		}
 
 		// ----------------------------------------
 		// Cache the image in S3
 
-		if (process.env.ICON_CACHE_BUCKET) {
-			await putObject({
-				bucket: process.env.ICON_CACHE_BUCKET,
-				key: path,
-				body: icon,
-				contentType: 'image/svg+xml',
-				cacheControl: 'public, max-age=31536000, immutable',
-			})
-		}
+		await putObject({
+			bucket: process.env.ICON_CACHE_BUCKET!,
+			key: path,
+			body: icon,
+			contentType: 'image/svg+xml',
+			cacheControl: 'public, max-age=31536000, immutable',
+		})
 
 		// ----------------------------------------
 

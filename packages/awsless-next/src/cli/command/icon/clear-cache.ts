@@ -2,6 +2,7 @@ import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-clo
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { Cancelled, log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
+import { randomUUID } from 'crypto'
 import { createApp } from '../../../app.js'
 import { ExpectedError } from '../../../error.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
@@ -30,7 +31,7 @@ export const clearCache = (program: Command) => {
 					})
 
 					stack = await prompt.select({
-						message: 'Select the icon proxy:',
+						message: 'Select the stack:',
 						options: iconStacks.map(stack => ({
 							label: stack.name,
 							value: stack.name,
@@ -46,11 +47,11 @@ export const clearCache = (program: Command) => {
 
 					const names = Object.keys(stackConfig.icons ?? {})
 					if (!names) {
-						throw new ExpectedError(`No icons are defined in stack "${stack}".`)
+						throw new ExpectedError(`No icon resources are defined in stack "${stack}".`)
 					}
 
 					name = await prompt.select({
-						message: 'Select the icon:',
+						message: 'Select the icon resource:',
 						options: names.map(name => ({
 							label: name,
 							value: name,
@@ -86,7 +87,7 @@ export const clearCache = (program: Command) => {
 					distributionId = await shared.entry('icon', 'distribution-id', name)
 					cacheBucket = await shared.entry('icon', 'cache-bucket', name)
 				} catch (_) {
-					throw new ExpectedError(`The icon proxy hasn't been deployed yet.`)
+					throw new ExpectedError(`The icon resource hasn't been deployed yet.`)
 				}
 
 				// ------------------------------------------------
@@ -97,62 +98,66 @@ export const clearCache = (program: Command) => {
 					region,
 				})
 
-				let continuationToken: string | undefined
-				let totalDeleted = 0
-				let hasMore = true
-
-				while (hasMore) {
-					const result = await s3Client.send(
-						new ListObjectsV2Command({
-							Bucket: cacheBucket,
-							ContinuationToken: continuationToken,
-							MaxKeys: 1000, // Maximum allowed per request
-						})
-					)
-
-					if (result.Contents && result.Contents.length > 0) {
-						await s3Client.send(
-							new DeleteObjectsCommand({
-								Bucket: cacheBucket,
-								Delete: {
-									Objects: result.Contents.map(obj => ({
-										Key: obj.Key!,
-									})),
-									Quiet: true,
-								},
-							})
-						)
-
-						totalDeleted += result.Contents.length
-						log.info(`${result.Contents.length} objects deleted from cache.`)
-					}
-
-					continuationToken = result.NextContinuationToken
-					hasMore = !!continuationToken
-				}
-
-				// ------------------------------------------------
-				// Invalidate CloudFront cache
-
 				const cloudFrontClient = new CloudFrontClient({
 					credentials,
 					region: 'us-east-1',
 				})
 
-				await cloudFrontClient.send(
-					new CreateInvalidationCommand({
-						DistributionId: distributionId,
-						InvalidationBatch: {
-							CallerReference: `icon-cache-clear-${Date.now()}`,
-							Paths: {
-								Quantity: 1,
-								Items: ['/*'],
-							},
-						},
-					})
-				)
+				let totalDeleted = 0
 
-				return 'Cache has been cleared'
+				await log.task({
+					initialMessage: 'Clearing cache...',
+					successMessage: 'Cache successfully cleared.',
+					task: async () => {
+						let continuationToken: string | undefined
+						while (true) {
+							const result = await s3Client.send(
+								new ListObjectsV2Command({
+									Bucket: cacheBucket,
+									ContinuationToken: continuationToken,
+									MaxKeys: 1000, // Maximum allowed per request
+								})
+							)
+
+							if (result.Contents && result.Contents.length > 0) {
+								await s3Client.send(
+									new DeleteObjectsCommand({
+										Bucket: cacheBucket,
+										Delete: {
+											Objects: result.Contents.map(obj => ({
+												Key: obj.Key!,
+											})),
+											Quiet: true,
+										},
+									})
+								)
+
+								totalDeleted += result.Contents.length
+							}
+
+							continuationToken = result.NextContinuationToken
+
+							if (!continuationToken) {
+								break
+							}
+						}
+
+						await cloudFrontClient.send(
+							new CreateInvalidationCommand({
+								DistributionId: distributionId,
+								InvalidationBatch: {
+									CallerReference: randomUUID(),
+									Paths: {
+										Quantity: 1,
+										Items: ['/*'],
+									},
+								},
+							})
+						)
+					},
+				})
+
+				return `${totalDeleted} objects deleted from cache.`
 			})
 		})
 }

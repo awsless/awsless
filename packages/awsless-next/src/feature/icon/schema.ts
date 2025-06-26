@@ -41,7 +41,7 @@ export const IconsSchema = z
 					'Image transformation will be applied from a base image. Base images orginates from a local directory that will be uploaded to S3 or from a lambda function.'
 				),
 
-			version: z.number().int().min(1).optional().describe('Version of the icon configuration.'),
+			// version: z.number().int().min(1).optional().describe('Version of the icon configuration.'),
 		})
 	)
 	.optional()

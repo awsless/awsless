@@ -10,6 +10,7 @@ import { days, seconds, toSeconds } from '@awsless/duration'
 import { constantCase } from 'change-case'
 import { fileURLToPath } from 'url'
 import { glob } from 'glob'
+import { shortId } from '../../util/id'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -91,8 +92,7 @@ export const imageFeature = defineFeature({
 						appName: ctx.app.name,
 						stackName: ctx.stack.name,
 						resourceType: 'image',
-						resourceName: id,
-						postfix: ctx.appId,
+						resourceName: shortId(`${id}-${ctx.appId}`),
 					}),
 					forceDestroy: true,
 				})
@@ -106,9 +106,11 @@ export const imageFeature = defineFeature({
 					appName: ctx.app.name,
 					stackName: ctx.stack.name,
 					resourceType: 'image',
-					resourceName: `cache-${id}`,
-					// postfix: ctx.appId,
+					resourceName: shortId(`cache-${id}-${ctx.appId}`),
 				}),
+				tags: {
+					cache: 'true',
+				},
 				forceDestroy: true,
 			})
 
@@ -176,17 +178,6 @@ export const imageFeature = defineFeature({
 					version: props.version,
 				})
 			)
-
-			// new UpdateFunctionCode(group, 'update', {
-			// 	version: '',
-
-			// 	functionName: transformFn.lambda.functionName,
-			// 	architectures: transformFn.lambda.architectures as any,
-			// 	s3Bucket: transformFn.lambda.s3Bucket,
-			// 	s3Key: transformFn.lambda.s3Key,
-			// 	s3ObjectVersion: transformFn.lambda.s3ObjectVersion,
-			// 	imageUri: transformFn.lambda.imageUri,
-			// })
 
 			serverLambda.setEnvironment('IMAGE_CACHE_BUCKET', cacheBucket.bucket)
 

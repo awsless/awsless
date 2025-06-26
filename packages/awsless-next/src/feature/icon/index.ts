@@ -10,6 +10,7 @@ import { days, seconds, toSeconds } from '@awsless/duration'
 import { constantCase } from 'change-case'
 import { fileURLToPath } from 'url'
 import { glob } from 'glob'
+import { shortId } from '../../util/id'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -43,8 +44,7 @@ export const iconFeature = defineFeature({
 						appName: ctx.app.name,
 						stackName: ctx.stack.name,
 						resourceType: 'icon',
-						resourceName: id,
-						postfix: ctx.appId,
+						resourceName: shortId(`${id}-${ctx.appId}`),
 					}),
 					forceDestroy: true,
 				})
@@ -58,9 +58,11 @@ export const iconFeature = defineFeature({
 					appName: ctx.app.name,
 					stackName: ctx.stack.name,
 					resourceType: 'icon',
-					resourceName: `cache-${id}`,
-					// postfix: ctx.appId,
+					resourceName: shortId(`cache-${id}-${ctx.appId}`),
 				}),
+				tags: {
+					cache: 'true',
+				},
 				forceDestroy: true,
 			})
 
@@ -119,7 +121,6 @@ export const iconFeature = defineFeature({
 				JSON.stringify({
 					preserveId: props.preserveId,
 					symbols: props.symbols,
-					version: props.version,
 				})
 			)
 
