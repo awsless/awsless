@@ -59,7 +59,7 @@ export const iconFeature = defineFeature({
 					stackName: ctx.stack.name,
 					resourceType: 'icon',
 					resourceName: `cache-${id}`,
-					postfix: ctx.appId,
+					// postfix: ctx.appId,
 				}),
 				forceDestroy: true,
 			})

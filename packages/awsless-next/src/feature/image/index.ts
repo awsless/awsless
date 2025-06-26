@@ -107,7 +107,7 @@ export const imageFeature = defineFeature({
 					stackName: ctx.stack.name,
 					resourceType: 'image',
 					resourceName: `cache-${id}`,
-					postfix: ctx.appId,
+					// postfix: ctx.appId,
 				}),
 				forceDestroy: true,
 			})
