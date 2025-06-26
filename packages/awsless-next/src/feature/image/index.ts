@@ -251,6 +251,14 @@ export const imageFeature = defineFeature({
 				aliases: domainName ? [domainName] : undefined,
 				priceClass: 'PriceClass_All',
 				httpVersion: 'http2and3',
+
+				restrictions: {
+					geoRestriction: {
+						restrictionType: 'none',
+						locations: [],
+					},
+				},
+
 				viewerCertificate: certificateArn
 					? {
 							sslSupportMethod: 'sni-only',

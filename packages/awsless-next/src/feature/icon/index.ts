@@ -60,9 +60,6 @@ export const iconFeature = defineFeature({
 					resourceType: 'icon',
 					resourceName: shortId(`cache-${id}-${ctx.appId}`),
 				}),
-				tags: {
-					cache: 'true',
-				},
 				forceDestroy: true,
 			})
 
@@ -200,6 +197,14 @@ export const iconFeature = defineFeature({
 				aliases: domainName ? [domainName] : undefined,
 				priceClass: 'PriceClass_All',
 				httpVersion: 'http2and3',
+
+				restrictions: {
+					geoRestriction: {
+						restrictionType: 'none',
+						locations: [],
+					},
+				},
+
 				viewerCertificate: certificateArn
 					? {
 							sslSupportMethod: 'sni-only',
