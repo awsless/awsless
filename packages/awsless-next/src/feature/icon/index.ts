@@ -69,9 +69,8 @@ export const iconFeature = defineFeature({
 			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'icon', id, {
 				bundleFile: join(__dirname, '/prebuild/icon/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/icon/HASH'),
-				memorySize: mebibytes(1024),
-				timeout: seconds(60),
-				architecture: 'x86_64',
+				memorySize: mebibytes(512),
+				timeout: seconds(10),
 				handler: 'index.default',
 				runtime: 'nodejs22.x',
 				log: props.log,
@@ -191,6 +190,19 @@ export const iconFeature = defineFeature({
 				defaultTtl: toSeconds(days(365)),
 			})
 
+			const responseHeaders = new $.aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
+				name,
+				corsConfig: {
+					originOverride: props.cors?.override ?? false,
+					accessControlMaxAgeSec: toSeconds(props.cors?.maxAge ?? days(365)),
+					accessControlAllowHeaders: { items: props.cors?.headers ?? ['*'] },
+					accessControlAllowMethods: { items: ['GET', 'HEAD'] },
+					accessControlAllowOrigins: { items: props.cors?.origins ?? ['*'] },
+					accessControlExposeHeaders: { items: props.cors?.exposeHeaders ?? ['*'] },
+					accessControlAllowCredentials: props.cors?.credentials ?? false,
+				},
+			})
+
 			const distribution = new $.aws.cloudfront.Distribution(group, 'distribution', {
 				comment: name,
 				enabled: true,
@@ -256,6 +268,7 @@ export const iconFeature = defineFeature({
 					viewerProtocolPolicy: 'redirect-to-https',
 					allowedMethods: ['GET', 'HEAD'],
 					cachedMethods: ['GET', 'HEAD'],
+					responseHeadersPolicyId: responseHeaders.id,
 				},
 			})
 

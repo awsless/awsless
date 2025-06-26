@@ -3,7 +3,6 @@
 	"name": "stack",
 	"icons": {
 		"test": {
-			"version": 2,
 			"preserveId": true,
 			"symbols": false,
 			"log": {

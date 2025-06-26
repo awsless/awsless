@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema, LogSchema } from '../function/schema.js'
@@ -40,6 +41,18 @@ export const IconsSchema = z
 				.describe(
 					'Image transformation will be applied from a base image. Base images orginates from a local directory that will be uploaded to S3 or from a lambda function.'
 				),
+
+			cors: z
+				.object({
+					override: z.boolean().default(false),
+					maxAge: DurationSchema.default('365 days'),
+					exposeHeaders: z.string().array().optional(),
+					credentials: z.boolean().default(false),
+					headers: z.string().array().default(['*']),
+					origins: z.string().array().default(['*']),
+				})
+				.optional()
+				.describe('Specify the cors headers.'),
 
 			// version: z.number().int().min(1).optional().describe('Version of the icon configuration.'),
 		})
