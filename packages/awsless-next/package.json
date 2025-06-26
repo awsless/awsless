@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.509",
+	"version": "0.0.510",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -142,6 +142,7 @@
 		"rollup-plugin-replace": "^2.2.0",
 		"rollup-plugin-swc3": "^0.11.2",
 		"svgo": "^4.0.0",
+		"svgstore": "^3.0.1",
 		"tsx": "^4.15.5",
 		"type-fest": "^4.20.1",
 		"uuid": "^9.0.0",

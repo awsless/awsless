@@ -13,8 +13,8 @@ import { glob } from 'glob'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-export const imagesFeature = defineFeature({
-	name: 'images',
+export const imageFeature = defineFeature({
+	name: 'image',
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {
 			return Object.keys(stack.images ?? {}).length > 0
@@ -47,7 +47,7 @@ export const imagesFeature = defineFeature({
 
 		const layer = new $.aws.lambda.LayerVersion(group, 'layer', {
 			layerName: layerId,
-			description: 'sharp-arm.zip for the awsless images feature.',
+			description: 'sharp-arm.zip for the awsless image feature.',
 			compatibleArchitectures: ['arm64'],
 			s3Bucket: zipFile.bucket,
 			s3ObjectVersion: zipFile.versionId,
@@ -65,12 +65,12 @@ export const imagesFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.images ?? {})) {
-			const group = new Group(ctx.stack, 'images', id)
+			const group = new Group(ctx.stack, 'image', id)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,
 				stackName: ctx.stack.name,
-				resourceType: 'images',
+				resourceType: 'image',
 				resourceName: id,
 			})
 
@@ -90,7 +90,7 @@ export const imagesFeature = defineFeature({
 					bucket: formatLocalResourceName({
 						appName: ctx.app.name,
 						stackName: ctx.stack.name,
-						resourceType: 'images',
+						resourceType: 'image',
 						resourceName: id,
 						postfix: ctx.appId,
 					}),
@@ -99,13 +99,13 @@ export const imagesFeature = defineFeature({
 			}
 
 			// ------------------------------------------------------------
-			// Create the image transformation cache
+			// Create the image cache
 
 			const cacheBucket = new $.aws.s3.Bucket(group, 'cache', {
 				bucket: formatLocalResourceName({
 					appName: ctx.app.name,
 					stackName: ctx.stack.name,
-					resourceType: 'images',
+					resourceType: 'image',
 					resourceName: `cache-${id}`,
 					postfix: ctx.appId,
 				}),
@@ -113,7 +113,7 @@ export const imagesFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Create the image transformation function
+			// Create the image server function
 
 			const sharpLayerId = formatGlobalResourceName({
 				appName: ctx.appConfig.name,
@@ -121,9 +121,9 @@ export const imagesFeature = defineFeature({
 				resourceName: 'sharp',
 			})
 
-			const transformFn = createPrebuildLambdaFunction(group, ctx, 'images', id, {
-				bundleFile: join(__dirname, '/prebuild/images/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/images/HASH'),
+			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'image', id, {
+				bundleFile: join(__dirname, '/prebuild/image/bundle.zip'),
+				bundleHash: join(__dirname, '/prebuild/image/HASH'),
 				memorySize: mebibytes(512),
 				timeout: seconds(10),
 				handler: 'index.default',
@@ -135,22 +135,22 @@ export const imagesFeature = defineFeature({
 			const permission = new $.aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',
 				action: 'lambda:InvokeFunctionUrl',
-				functionName: transformFn.lambda.functionName,
+				functionName: serverLambda.lambda.functionName,
 				functionUrlAuthType: 'AWS_IAM',
 				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 			})
 
-			const transformFnUrl = new $.aws.lambda.FunctionUrl(
+			const serverLambdaUrl = new $.aws.lambda.FunctionUrl(
 				group,
 				'url',
 				{
-					functionName: transformFn.lambda.functionName,
+					functionName: serverLambda.lambda.functionName,
 					authorizationType: 'AWS_IAM',
 				},
 				{ dependsOn: [permission] }
 			)
 
-			transformFn.addPermission({
+			serverLambda.addPermission({
 				actions: [
 					's3:ListBucket',
 					's3:ListBucketV2',
@@ -168,8 +168,8 @@ export const imagesFeature = defineFeature({
 				],
 			})
 
-			transformFn.setEnvironment(
-				'IMAGES_CONFIG',
+			serverLambda.setEnvironment(
+				'IMAGE_CONFIG',
 				JSON.stringify({
 					presets: props.presets,
 					extensions: props.extensions,
@@ -188,18 +188,18 @@ export const imagesFeature = defineFeature({
 			// 	imageUri: transformFn.lambda.imageUri,
 			// })
 
-			transformFn.setEnvironment('IMAGES_CACHE_BUCKET', cacheBucket.bucket)
+			serverLambda.setEnvironment('IMAGE_CACHE_BUCKET', cacheBucket.bucket)
 
 			if (lambdaOrigin) {
-				transformFn.setEnvironment('IMAGES_ORIGIN_LAMBDA', lambdaOrigin.name)
+				serverLambda.setEnvironment('IMAGE_ORIGIN_LAMBDA', lambdaOrigin.name)
 			}
 
 			if (s3Origin) {
-				transformFn.setEnvironment('IMAGES_ORIGIN_S3', s3Origin.bucket)
+				serverLambda.setEnvironment('IMAGE_ORIGIN_S3', s3Origin.bucket)
 			}
 
 			// ------------------------------------------------------------
-			// Upload static images
+			// Upload static images to S3
 
 			ctx.onReady(() => {
 				if (props.origin.static && s3Origin) {
@@ -235,7 +235,7 @@ export const imagesFeature = defineFeature({
 
 			const s3AccessControl = new $.aws.cloudfront.OriginAccessControl(group, `s3`, {
 				name: `${name}-s3`,
-				description: 'Policy for Images cache in S3',
+				description: `Policy for the ${id} image cache in S3`,
 				originAccessControlOriginType: 's3',
 				signingBehavior: 'always',
 				signingProtocol: 'sigv4',
@@ -243,7 +243,7 @@ export const imagesFeature = defineFeature({
 
 			const lambdaAccessControl = new $.aws.cloudfront.OriginAccessControl(group, 'lambda', {
 				name: `${name}-lambda`,
-				description: 'Policy for Images Lambda Transformation Function URL',
+				description: `Policy for the ${id} image lambda server function URL`,
 				originAccessControlOriginType: 'lambda',
 				signingBehavior: 'always',
 				signingProtocol: 'sigv4',
@@ -282,8 +282,8 @@ export const imagesFeature = defineFeature({
 					},
 
 					{
-						originId: 'transform',
-						domainName: transformFnUrl.functionUrl.pipe(url => url.split('/')[2]!),
+						originId: 'server',
+						domainName: serverLambdaUrl.functionUrl.pipe(url => url.split('/')[2]!),
 						originAccessControlId: lambdaAccessControl.id,
 						customOriginConfig: {
 							originProtocolPolicy: 'https-only',
@@ -297,7 +297,7 @@ export const imagesFeature = defineFeature({
 				originGroup: [
 					{
 						originId: 'group',
-						member: [{ originId: 'cache' }, { originId: 'transform' }],
+						member: [{ originId: 'cache' }, { originId: 'server' }],
 						failoverCriteria: {
 							statusCodes: [403, 404],
 						},
@@ -365,9 +365,12 @@ export const imagesFeature = defineFeature({
 			}
 
 			ctx.bind(
-				`IMAGES_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`,
+				`IMAGE_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`,
 				domainName ?? distribution.domainName
 			)
+
+			ctx.shared.add('image', 'distribution-id', id, distribution.id)
+			ctx.shared.add('image', 'cache-bucket', id, cacheBucket.bucket)
 		}
 	},
 })

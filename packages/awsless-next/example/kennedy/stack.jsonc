@@ -1,31 +1,25 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"images": {
+	"icons": {
 		"test": {
 			"version": 2,
+			"preserveId": true,
+			"symbols": false,
 			"log": {
 				"retention": "7 days",
 				"format": "json",
 				"level": "debug",
 				"system": "info"
 			},
-			"presets": {
-				"mobile": { "width": 100, "quality": 70 },
-				"lg": { "width": 500, "quality": 70 }
-			},
-			"extensions": {
-				"jpeg": { "mozjpeg": true },
-				"webp": { "effort": 6 }
-			},
 			"origin": {
-				"static": "./static"
-				// "function": {
-				// 	"code": "./function.ts",
-				// 	"log": {
-				// 		"format": "text"
-				// 	}
-				// }
+				"static": "./static/svg",
+				"function": {
+					"code": "./function.ts",
+					"log": {
+						"format": "text"
+					}
+				}
 			}
 		}
 	}

@@ -7,7 +7,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const builds = {
 	rpc: '../src/feature/rpc/server/handle.ts',
-	images: '../src/feature/images/server/handle.ts',
+	image: '../src/feature/image/server/handle.ts',
+	icon: '../src/feature/icon/server/handle.ts',
 }
 
 for (const [name, file] of Object.entries(builds)) {

@@ -14,11 +14,11 @@ const transformationOptionsSchema = z.object({
 })
 
 const staticOriginSchema = LocalDirectorySchema.describe(
-	'Specifies the path to a image directory that will be uploaded in S3.'
+	'Specifies the path to a local image directory that will be uploaded in S3.'
 )
 
 const functionOriginSchema = FunctionSchema.describe(
-	"Specifies the file that will be called when an image isn't found in the S3 bucket."
+	"Specifies the file that will be called when an image isn't found in the (cache) bucket."
 )
 
 export const ImagesSchema = z
@@ -43,14 +43,14 @@ export const ImagesSchema = z
 						.optional(),
 					webp: z
 						.object({
-							effort: z.number().int().default(7).min(1).max(10).optional(),
+							effort: z.number().int().min(1).max(10).default(7).optional(),
 							lossless: z.boolean().optional(),
 							nearLossless: z.boolean().optional(),
 						})
 						.optional(),
 					png: z
 						.object({
-							compressionLevel: z.number().int().min(0).max(9).optional(),
+							compressionLevel: z.number().int().min(0).max(9).default(6).optional(),
 						})
 						.optional(),
 				})
@@ -82,4 +82,4 @@ export const ImagesSchema = z
 		})
 	)
 	.optional()
-	.describe('Define an image proxy in your stack.')
+	.describe('Define an image proxy in your stack. Store, transform, optimize, and deliver images at scale.')

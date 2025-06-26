@@ -13,6 +13,8 @@ import { test } from './test.js'
 import { types } from './types.js'
 import { domain } from './domain/index.js'
 import { logs } from './logs.js'
+import { image } from './image/index.js'
+import { icon } from './icon/index.js'
 
 export const commands = [
 	bootstrap,
@@ -33,4 +35,6 @@ export const commands = [
 	resources,
 	config,
 	test,
+	image,
+	icon,
 ]

@@ -1,7 +1,7 @@
 {
 	"$schema": "../../dist/app.json",
 	"name": "app-kennedy",
-	"region": "eu-west-1",
+	"region": "us-east-1",
 	"profile": "jacksclub",
 	"defaults": {
 		"layers": {}

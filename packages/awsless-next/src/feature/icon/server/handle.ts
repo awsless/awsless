@@ -1,51 +1,40 @@
 import { invoke } from '@awsless/lambda'
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
-import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
 import { parsePath } from './validate'
+// @ts-ignore
+import { optimize } from 'svgo/browser'
+// @ts-ignore
+import svgstore from 'svgstore'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const request = parsePath(event.rawPath)
-
-		if (!request.success) {
+		if (!request.success || !request.output) {
 			return { statusCode: 404 }
 		}
 
-		const originalPath = request.output.originalPath!
-		const preset = request.output.preset!
-		const extension = request.output.extension!
-		const version = request.output.version!
+		const { path, id, version } = request.output
 
 		// ----------------------------------------
-		// Get the preset and extension configuration
+		// Get the icon configuration
 
-		const configsEnv = process.env.IMAGES_CONFIG
+		const configsEnv = process.env.ICON_CONFIG
 
 		if (!configsEnv) {
-			throw new Error('Image configurations not found in environment variables')
+			throw new Error('Icon configurations not found in environment variables')
 		}
 
-		const configs: {
-			presets: Record<string, ResizeOptions & { quality?: number }>
-			extensions: Record<string, JpegOptions | WebpOptions | PngOptions>
+		const config: {
+			preserveId: boolean
+			symbols: boolean
 			version?: number
 		} = JSON.parse(configsEnv)
-
-		const presetConfig = configs.presets?.[preset]
-		const extensionConfig = configs.extensions?.[extension]
-
-		// We only allow predefined presets and extensions.
-		// If no preset or extension configuration is found we won't allow the transformation to proceed.
-
-		if (!presetConfig || !extensionConfig) {
-			return { statusCode: 404 }
-		}
 
 		// We can version in the path for cache busting.
 		// We don't want to allow any version due to DDoS attacks.
 
-		const maxVersion = configs.version ?? 0
+		const maxVersion = config.version ?? 0
 		if (version > maxVersion) {
 			return { statusCode: 404 }
 		}
@@ -53,66 +42,81 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Check if image is in the S3 bucket
 
-		let baseImage: Buffer | undefined = undefined
+		let baseIcon: Buffer | undefined = undefined
 
-		if (process.env.IMAGES_ORIGIN_S3) {
+		if (process.env.ICON_ORIGIN_S3) {
 			const result = await getObject({
-				bucket: process.env.IMAGES_ORIGIN_S3,
-				key: originalPath,
+				bucket: process.env.ICON_ORIGIN_S3,
+				key: `${id}.svg`,
 			})
 
 			if (result?.body) {
 				const data = await result.body.transformToByteArray()
-				baseImage = Buffer.from(data)
+				baseIcon = Buffer.from(data)
 			}
 		}
 
 		// ----------------------------------------
-		// Call the orginal image fetcher
+		// Call the original icon fetcher
 
-		if (!baseImage && process.env.IMAGES_ORIGIN_LAMBDA) {
+		if (!baseIcon && process.env.ICON_ORIGIN_LAMBDA) {
 			const result = (await invoke({
-				name: process.env.IMAGES_ORIGIN_LAMBDA,
-				payload: {
-					path: originalPath,
-				},
-			})) as string
+				name: process.env.ICON_ORIGIN_LAMBDA,
+				payload: { path },
+			})) as string | undefined
 
 			if (typeof result === 'string') {
-				baseImage = Buffer.from(result, 'base64')
-			} else if (typeof result === undefined) {
+				baseIcon = Buffer.from(result, 'base64')
+			} else if (result === undefined) {
 				return { statusCode: 404 }
 			} else {
-				throw new Error('Invalid response from image origin lambda')
+				throw new Error('Invalid response from icon origin lambda')
 			}
 		}
 
 		// ----------------------------------------
-		// Process the image with sharp
+		// Process the icon (SVG doesn't need processing with sharp)
 
-		if (!baseImage) {
+		if (!baseIcon) {
 			return { statusCode: 404 }
 		}
 
-		const image = await sharp(baseImage)
-			.resize({
-				width: presetConfig.width,
-				height: presetConfig.height,
-				fit: presetConfig.fit,
-				position: presetConfig.position,
-			})
-			[extension]({ ...extensionConfig, quality: presetConfig.quality })
-			.toBuffer()
+		const { data } = optimize(baseIcon.toString('utf-8'), {
+			path: 'path-to.svg',
+			multipass: true,
+			plugins: [
+				{
+					name: 'preset-default',
+					params: {
+						overrides: {
+							...(config.preserveId
+								? {
+										cleanupIds: false,
+									}
+								: {}),
+						},
+					},
+				},
+			],
+		})
+
+		let icon = data as string
+
+		if (config.symbols) {
+			const symbols = svgstore()
+			symbols.add(id, data)
+			icon = symbols.toString({ inline: true })
+		}
 
 		// ----------------------------------------
 		// Cache the image in S3
 
-		if (process.env.IMAGES_CACHE_BUCKET) {
+		if (process.env.ICON_CACHE_BUCKET) {
 			await putObject({
-				bucket: process.env.IMAGES_CACHE_BUCKET,
-				key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
-				body: image,
-				contentType: `image/${extension}`,
+				bucket: process.env.ICON_CACHE_BUCKET,
+				key: path,
+				body: icon,
+				contentType: 'image/svg+xml',
 				cacheControl: 'public, max-age=31536000, immutable',
 			})
 		}
@@ -121,10 +125,10 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		return {
 			statusCode: 200,
-			body: image.toString('base64'),
+			body: Buffer.from(icon).toString('base64'),
 			isBase64Encoded: true,
 			headers: {
-				'Content-Type': `image/${extension}`,
+				'Content-Type': 'image/svg+xml',
 				'Cache-Control': 'public, max-age=31536000, immutable',
 			},
 		}

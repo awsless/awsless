@@ -62,6 +62,16 @@ type SharedEntries = {
 	rest: {
 		id: Output<string>
 	}
+
+	image: {
+		'distribution-id': Output<string>
+		'cache-bucket': Output<string>
+	}
+
+	icon: {
+		'distribution-id': Output<string>
+		'cache-bucket': Output<string>
+	}
 }
 
 export class SharedData {

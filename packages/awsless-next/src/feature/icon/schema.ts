@@ -3,25 +3,15 @@ import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema, LogSchema } from '../function/schema.js'
 
-const transformationOptionsSchema = z.object({
-	width: z.number().int().positive().optional(),
-	height: z.number().int().positive().optional(),
-	fit: z.enum(['cover', 'contain', 'fill', 'inside', 'outside']).optional(),
-	position: z
-		.enum(['top', 'right top', 'right', 'right bottom', 'bottom', 'left bottom', 'left', 'left top', 'center'])
-		.optional(),
-	quality: z.number().int().min(1).max(100).optional(),
-})
-
 const staticOriginSchema = LocalDirectorySchema.describe(
-	'Specifies the path to a image directory that will be uploaded in S3.'
+	'Specifies the path to a local image directory that will be uploaded in S3.'
 )
 
 const functionOriginSchema = FunctionSchema.describe(
-	"Specifies the file that will be called when an image isn't found in the S3 bucket."
+	"Specifies the file that will be called when an image isn't found in the (cache) bucket."
 )
 
-export const ImagesSchema = z
+export const IconsSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
@@ -29,9 +19,8 @@ export const ImagesSchema = z
 			subDomain: z.string().optional(),
 			log: LogSchema.optional(),
 
-			minify: z.boolean(),
-			symbols: z.boolean(),
-			// path.1.svg
+			preserveId: z.boolean().optional().default(false).describe('Preserve the IDs of the icons.'),
+			symbols: z.boolean().optional().default(false).describe('Use SVG symbols for icons.'),
 
 			origin: z
 				.union([
@@ -52,10 +41,8 @@ export const ImagesSchema = z
 					'Image transformation will be applied from a base image. Base images orginates from a local directory that will be uploaded to S3 or from a lambda function.'
 				),
 
-			version: z.number().int().min(1).optional().describe('Version of the image configuration.'),
-
-			// postprocess: FunctionSchema.optional()
+			version: z.number().int().min(1).optional().describe('Version of the icon configuration.'),
 		})
 	)
 	.optional()
-	.describe('Define image CDN & transformations in your stack.')
+	.describe('Define an icon proxy in your stack. Store, optimize, and deliver icons at scale.')
