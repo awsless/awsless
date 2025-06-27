@@ -14,12 +14,12 @@
 			"origin": {
 				"static": "./static/svg",
 				"function": {
-					"code": "./function.ts",
-					"log": {
-						"format": "text"
-					}
+					"code": "./function.ts"
 				}
 			}
+			// "cors": {
+			// 	"override": false
+			// }
 		}
 	}
 }

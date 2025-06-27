@@ -44,7 +44,7 @@ export const IconsSchema = z
 
 			cors: z
 				.object({
-					override: z.boolean().default(false),
+					override: z.boolean().default(true),
 					maxAge: DurationSchema.default('365 days'),
 					exposeHeaders: z.string().array().optional(),
 					credentials: z.boolean().default(false),

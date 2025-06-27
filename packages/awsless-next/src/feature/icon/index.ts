@@ -193,17 +193,18 @@ export const iconFeature = defineFeature({
 			const responseHeaders = new $.aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
 				corsConfig: {
-					originOverride: props.cors?.override ?? false,
-					accessControlMaxAgeSec: toSeconds(props.cors?.maxAge ?? days(365)),
-					accessControlAllowHeaders: { items: props.cors?.headers ?? ['*'] },
-					accessControlAllowMethods: { items: ['GET', 'HEAD'] },
-					accessControlAllowOrigins: { items: props.cors?.origins ?? ['*'] },
-					accessControlExposeHeaders: { items: props.cors?.exposeHeaders ?? ['*'] },
-					accessControlAllowCredentials: props.cors?.credentials ?? false,
+					originOverride: true,
+					accessControlMaxAgeSec: toSeconds(days(365)),
+					accessControlAllowHeaders: { items: ['*'] },
+					accessControlAllowMethods: { items: ['ALL'] },
+					accessControlAllowOrigins: { items: ['*'] },
+					accessControlExposeHeaders: { items: ['*'] },
+					accessControlAllowCredentials: false,
 				},
 			})
 
 			const distribution = new $.aws.cloudfront.Distribution(group, 'distribution', {
+				waitForDeployment: false,
 				comment: name,
 				enabled: true,
 				aliases: domainName ? [domainName] : undefined,
