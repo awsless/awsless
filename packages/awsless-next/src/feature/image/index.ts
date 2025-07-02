@@ -21,7 +21,7 @@ export const imageFeature = defineFeature({
 			return Object.keys(stack.images ?? {}).length > 0
 		})
 
-		if (!found) {
+		if (found.length === 0) {
 			return
 		}
 

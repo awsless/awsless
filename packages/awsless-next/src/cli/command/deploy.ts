@@ -46,6 +46,7 @@ export const deploy = (program: Command) => {
 						return !!filters.find(f => wildstring.match(f, stack.name))
 					})
 					.map(s => s.name)
+
 				const formattedFilter = stackNames.map(i => color.info(i)).join(color.dim(', '))
 				debug('Stacks to deploy', formattedFilter)
 
@@ -73,7 +74,9 @@ export const deploy = (program: Command) => {
 				// Building stack assets & run tests
 
 				if (!options.skipTests) {
-					const passed = await runTests(tests, filters)
+					const passed = await runTests(tests, filters, [], {
+						showLogs: false,
+					})
 
 					if (!passed) {
 						throw new Cancelled()

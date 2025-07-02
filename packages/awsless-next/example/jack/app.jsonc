@@ -14,9 +14,9 @@
 		// 		"domain": "getblockalert.com"
 		// 	}
 		// },
-		// "auth": {
-		// 	"users": {}
-		// },
+		"auth": {
+			"users": {}
+		},
 		// "pubsub": {
 		// 	"admin": {
 		// 		// "domain": "main",

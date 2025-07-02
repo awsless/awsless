@@ -23,7 +23,9 @@ export const test = (program: Command) => {
 					return 'No tests found.'
 				}
 
-				await runTests(tests, stacks, options?.filters)
+				await runTests(tests, stacks, options?.filters, {
+					showLogs: true,
+				})
 
 				return 'All tests finished.'
 			})

@@ -90,7 +90,14 @@ const logTestErrors = (event: FinishedEvent) => {
 	})
 }
 
-export const runTest = async (stack: string, dir: string, filters: string[]) => {
+export const runTest = async (
+	stack: string,
+	dir: string,
+	filters: string[],
+	opts: {
+		showLogs: boolean
+	}
+) => {
 	await mkdir(directories.test, { recursive: true })
 
 	const fingerprint = await fingerprintFromDirectory(dir)
@@ -109,7 +116,11 @@ export const runTest = async (stack: string, dir: string, filters: string[]) => 
 					event: data,
 				})
 			)
-			logTestLogs(data)
+
+			if (opts.showLogs) {
+				logTestLogs(data)
+			}
+
 			logTestErrors(data)
 
 			return data.failed === 0
@@ -148,7 +159,10 @@ export const runTest = async (stack: string, dir: string, filters: string[]) => 
 		return result!
 	})
 
-	logTestLogs(result)
+	if (opts.showLogs) {
+		logTestLogs(result)
+	}
+
 	logTestErrors(result)
 
 	await writeFile(
@@ -162,7 +176,14 @@ export const runTest = async (stack: string, dir: string, filters: string[]) => 
 	return result.errors.length === 0
 }
 
-export const runTests = async (tests: TestCase[], stackFilters: string[] = [], testFilters: string[] = []) => {
+export const runTests = async (
+	tests: TestCase[],
+	stackFilters: string[] = [],
+	testFilters: string[] = [],
+	opts: {
+		showLogs: boolean
+	}
+) => {
 	for (const test of tests) {
 		if (stackFilters && stackFilters.length > 0) {
 			const found = stackFilters.find(f => wildstring.match(f, test.stackName))
@@ -173,7 +194,7 @@ export const runTests = async (tests: TestCase[], stackFilters: string[] = [], t
 		}
 
 		for (const path of test.paths) {
-			const result = await runTest(test.name, path, testFilters)
+			const result = await runTest(test.name, path, testFilters, opts)
 
 			if (!result) {
 				return false
