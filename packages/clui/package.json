@@ -24,6 +24,7 @@
 		}
 	},
 	"scripts": {
+		"bug": "deno run --unstable-sloppy-imports --allow-env ./demo/bug.ts",
 		"prompts": "deno run --unstable-sloppy-imports --allow-env ./demo/prompts.ts",
 		"logs": "deno run --unstable-sloppy-imports --allow-env ./demo/logs.ts",
 		"test": "pnpm code test",

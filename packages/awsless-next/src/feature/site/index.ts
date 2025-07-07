@@ -55,28 +55,6 @@ export const siteFeature = defineFeature({
 			}
 
 			// ------------------------------------------------------------
-			// The Key Value Store for the static asset routes
-
-			const kvs = new $.aws.cloudfront.KeyValueStore(group, 'kvs', {
-				name,
-				comment: 'Store for static assets',
-			})
-
-			const keys: { key: string; value: Input<string> }[] = []
-
-			// new $.aws.cloudfrontkeyvaluestore.KeysExclusive(group, 'keys', {
-			// 	keyValueStoreArn: kvs.arn,
-			// 	resourceKeyValuePair: new Future(resolve => {
-			// 		resolve(keys)
-			// 	}),
-			// })
-
-			new ImportKeys(group, 'keys', {
-				kvsArn: kvs.arn,
-				keys,
-			})
-
-			// ------------------------------------------------------------
 
 			const versions: Array<Input<string> | Input<string | undefined>> = []
 
@@ -111,6 +89,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Static Assets
 
+			let kvs: $.aws.cloudfront.KeyValueStore | undefined
 			let bucket: $.aws.s3.Bucket | undefined
 
 			if (props.static) {
@@ -154,6 +133,24 @@ export const siteFeature = defineFeature({
 						bucket.arn.pipe(arn => `${arn}/*`),
 					],
 				})
+
+				// ------------------------------------------------------------
+				// The Key Value Store for the static asset routes
+
+				kvs = new $.aws.cloudfront.KeyValueStore(group, 'kvs', {
+					name,
+					comment: 'Store for static assets',
+				})
+
+				const keys: { key: string; value: Input<string> }[] = []
+
+				new ImportKeys(group, 'keys', {
+					kvsArn: kvs.arn,
+					keys,
+				})
+
+				// ------------------------------------------------------------
+				// Get all static files
 
 				ctx.onReady(() => {
 					if (typeof props.static === 'string' && bucket) {
@@ -298,17 +295,14 @@ export const siteFeature = defineFeature({
 				comment: `Viewer Request - ${name}`,
 				publish: true,
 				code: getViewerRequestFunctionCode(domainName, bucket, functionUrl),
-				keyValueStoreAssociations: [kvs.arn],
+				keyValueStoreAssociations: kvs ? [kvs.arn] : undefined,
 			})
 
 			// ------------------------------------------------------------
 			// CDN
 
 			const distribution = new $.aws.cloudfront.Distribution(group, 'distribution', {
-				// name,
-				// tags: {
-				// 	Name: name,
-				// },
+				waitForDeployment: false,
 				comment: name,
 				enabled: true,
 				aliases: domainName ? [domainName] : undefined,

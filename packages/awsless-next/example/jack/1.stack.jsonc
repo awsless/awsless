@@ -95,14 +95,14 @@
 	// "sites": {
 	// 	"website": {
 	// 		// "domain": "main",
-	// 		"build": {
-	// 			"command": "echo 1",
-	// 			"cacheKey": ["./site/", "./app.jsonc"]
-	// 		},
-	// 		"ssr": "./ssr.ts",
-	// 		"static": {
-	// 			"nocheck": "./site"
-	// 		}
+	// 		// "build": {
+	// 		// 	"command": "echo 1",
+	// 		// 	"cacheKey": ["./site/", "./app.jsonc"]
+	// 		// },
+	// 		"ssr": "./ssr.ts"
+	// 		// "static": {
+	// 		// 	"nocheck": "./site"
+	// 		// }
 	// 	}
 	// }
 

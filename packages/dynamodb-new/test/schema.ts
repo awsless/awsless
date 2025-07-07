@@ -49,6 +49,21 @@ describe('Schema', () => {
 	// 	key2: string()
 	// })
 
+	// type Name = 'table' & {
+	// 	hash: 'key'
+	// 	hashType: 'S'
+	// 	// ttlKey: 'ttl'
+	// 	// indexes: Record<
+	// 	// 	string,
+	// 	// 	{
+	// 	// 		hashKey: string
+	// 	// 		hashType: 'S' | 'N' | 'B'
+	// 	// 		sortKey?: string
+	// 	// 		sortType?: 'S' | 'N' | 'B'
+	// 	// 	}
+	// 	// >
+	// }
+
 	const table = define('table', {
 		hash: 'key',
 		schema: object({

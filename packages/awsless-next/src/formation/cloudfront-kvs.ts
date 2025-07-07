@@ -89,6 +89,10 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 		let ifMatch = prev.ETag
 
 		for (const mutations of batches) {
+			if (mutations.length === 0) {
+				continue
+			}
+
 			result = await client.send(
 				new UpdateKeysCommand({
 					KvsARN: props.arn,
