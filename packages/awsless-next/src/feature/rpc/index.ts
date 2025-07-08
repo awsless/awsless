@@ -270,6 +270,8 @@ export const rpcFeature = defineFeature({
 				// 	Name: name,
 				// 	// Feature: ''
 				// },
+
+				waitForDeployment: false,
 				comment: name,
 				enabled: true,
 				aliases: domainName ? [domainName] : undefined,

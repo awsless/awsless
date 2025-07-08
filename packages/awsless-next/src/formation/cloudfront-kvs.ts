@@ -31,7 +31,7 @@ type ImportKeysOutput = {
 		}[]
 	>
 
-	eTag: Output<string>
+	eTag: Output<string | undefined>
 	itemCount: Output<number>
 	totalSizeInBytes: Output<number>
 }
@@ -49,17 +49,21 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 		return z
 			.object({
 				kvsArn: z.string(),
-				keys: z.array(z.object({ key: z.string(), value: z.string() })),
-				eTag: z.string().optional(),
+				keys: z.array(
+					z.object({
+						key: z.string(),
+						value: z.string(),
+					})
+				),
 			})
 			.parse(state)
 	}
 
-	const formatOutput = (output: UpdateKeysCommandOutput) => {
+	const formatOutput = (output?: UpdateKeysCommandOutput) => {
 		return {
-			eTag: output.ETag,
-			itemCount: output.ItemCount,
-			totalSizeInBytes: output.TotalSizeInBytes,
+			eTag: output?.ETag,
+			itemCount: output?.ItemCount ?? 0,
+			totalSizeInBytes: output?.TotalSizeInBytes ?? 0,
 		}
 	}
 
@@ -76,7 +80,7 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 					key: string
 			  }
 		>
-	}): Promise<UpdateKeysCommandOutput> => {
+	}): Promise<UpdateKeysCommandOutput | undefined> => {
 		const batches = chunk(props.mutations, 50)
 
 		let prev = await client.send(
@@ -85,7 +89,7 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 			})
 		)
 
-		let result: UpdateKeysCommandOutput
+		let result: UpdateKeysCommandOutput | undefined
 		let ifMatch = prev.ETag
 
 		for (const mutations of batches) {
@@ -114,7 +118,7 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 			ifMatch = result.ETag
 		}
 
-		return result!
+		return result
 	}
 
 	return createCustomProvider('cloudfront-kvs', {

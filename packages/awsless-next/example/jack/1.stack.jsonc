@@ -27,7 +27,7 @@
 		}
 		// "echo-4": "./function.ts"
 		// "echo-3": "./function.ts"
-	}
+	},
 
 	// "caches": {
 	// 	"test": {}
@@ -92,19 +92,20 @@
 	// 	}
 	// },
 
-	// "sites": {
-	// 	"website": {
-	// 		// "domain": "main",
-	// 		// "build": {
-	// 		// 	"command": "echo 1",
-	// 		// 	"cacheKey": ["./site/", "./app.jsonc"]
-	// 		// },
-	// 		"ssr": "./ssr.ts"
-	// 		// "static": {
-	// 		// 	"nocheck": "./site"
-	// 		// }
-	// 	}
-	// }
+	"sites": {
+		"website": {
+			// "domain": "main",
+			// "build": {
+			// 	"command": "echo 1",
+			// 	"cacheKey": ["./site/", "./app.jsonc"]
+			// },
+			"ssr": "./ssr.ts",
+			"static": true
+			// "static": {
+			// 	"nocheck": "./site"
+			// }
+		}
+	}
 
 	// "streams": {
 	// 	"arena": {
