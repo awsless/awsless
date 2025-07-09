@@ -6,7 +6,7 @@ import { join, dirname } from 'path'
 import { formatFullDomainName } from '../domain/util'
 import { createPrebuildLambdaFunction } from '../function/prebuild'
 import { mebibytes } from '@awsless/size'
-import { days, seconds, toSeconds } from '@awsless/duration'
+import { days, seconds, toDays, toSeconds } from '@awsless/duration'
 import { constantCase } from 'change-case'
 import { fileURLToPath } from 'url'
 import { glob } from 'glob'
@@ -60,7 +60,24 @@ export const iconFeature = defineFeature({
 					resourceType: 'icon',
 					resourceName: shortId(`cache-${id}-${ctx.appId}`),
 				}),
+				tags: {
+					cache: 'true',
+				},
 				forceDestroy: true,
+
+				...(props.cacheDuration
+					? {
+							lifecycleRule: [
+								{
+									enabled: true,
+									id: 'icon-cache-duration',
+									expiration: {
+										days: toDays(props.cacheDuration),
+									},
+								},
+							],
+						}
+					: {}),
 			})
 
 			// ------------------------------------------------------------

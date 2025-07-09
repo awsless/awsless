@@ -107,15 +107,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Cache the image in S3
 
-		if (process.env.IMAGE_CACHE_BUCKET) {
-			await putObject({
-				bucket: process.env.IMAGE_CACHE_BUCKET,
-				key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
-				body: image,
-				contentType: `image/${extension}`,
-				cacheControl: 'public, max-age=31536000, immutable',
-			})
-		}
+		await putObject({
+			bucket: process.env.IMAGE_CACHE_BUCKET!,
+			key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
+			body: image,
+			contentType: `image/${extension}`,
+			cacheControl: 'public, max-age=31536000, immutable',
+		})
 
 		// ----------------------------------------
 

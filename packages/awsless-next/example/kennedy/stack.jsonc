@@ -3,6 +3,7 @@
 	"name": "stack",
 	"icons": {
 		"test": {
+			"cacheDuration": "12 weeks",
 			"preserveId": true,
 			"symbols": false,
 			"log": {
@@ -12,10 +13,7 @@
 				"system": "info"
 			},
 			"origin": {
-				"static": "./static/svg",
-				"function": {
-					"code": "./function.ts"
-				}
+				"function": "./function.ts"
 			}
 			// "cors": {
 			// 	"override": false

@@ -4,7 +4,7 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	"defaults": {
-		"layers": {}
+		// "layers": {}
 		// "pubsub": {
 		// 	"test": {
 		// 		"auth": "./function.ts"

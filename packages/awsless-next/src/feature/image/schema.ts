@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema, LogSchema } from '../function/schema.js'
@@ -28,6 +29,7 @@ export const ImagesSchema = z
 			domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
 			subDomain: z.string().optional(),
 			log: LogSchema.optional(),
+			cacheDuration: DurationSchema.optional().describe('Cache duration of the cached images.'),
 
 			presets: z
 				.record(z.string(), transformationOptionsSchema)

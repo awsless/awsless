@@ -19,6 +19,7 @@ export const IconsSchema = z
 			domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
 			subDomain: z.string().optional(),
 			log: LogSchema.optional(),
+			cacheDuration: DurationSchema.optional().describe('The cache duration of the cached icons.'),
 
 			preserveId: z.boolean().optional().default(false).describe('Preserve the IDs of the icons.'),
 			symbols: z.boolean().optional().default(false).describe('Use SVG symbols for icons.'),

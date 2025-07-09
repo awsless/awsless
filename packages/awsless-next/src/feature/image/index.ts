@@ -6,7 +6,7 @@ import { join, dirname } from 'path'
 import { formatFullDomainName } from '../domain/util'
 import { createPrebuildLambdaFunction } from '../function/prebuild'
 import { mebibytes } from '@awsless/size'
-import { days, seconds, toSeconds } from '@awsless/duration'
+import { days, seconds, toDays, toSeconds } from '@awsless/duration'
 import { constantCase } from 'change-case'
 import { fileURLToPath } from 'url'
 import { glob } from 'glob'
@@ -112,6 +112,20 @@ export const imageFeature = defineFeature({
 					cache: 'true',
 				},
 				forceDestroy: true,
+
+				...(props.cacheDuration
+					? {
+							lifecycleRule: [
+								{
+									enabled: true,
+									id: 'image-cache-duration',
+									expiration: {
+										days: toDays(props.cacheDuration),
+									},
+								},
+							],
+						}
+					: {}),
 			})
 
 			// ------------------------------------------------------------
@@ -251,6 +265,7 @@ export const imageFeature = defineFeature({
 				aliases: domainName ? [domainName] : undefined,
 				priceClass: 'PriceClass_All',
 				httpVersion: 'http2and3',
+				waitForDeployment: false,
 
 				restrictions: {
 					geoRestriction: {
