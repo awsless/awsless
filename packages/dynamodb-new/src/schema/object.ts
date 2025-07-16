@@ -1,4 +1,4 @@
-import { AnySchema, Schema } from './schema'
+import { AnySchema, BaseSchema, createSchema } from './schema'
 
 type Properties = Record<string, AnySchema>
 
@@ -30,7 +30,7 @@ type InferOptPaths<S extends Properties> = {
 	[K in KeyOf<S>]: S[K]['OPTIONAL'] extends true ? [K] | [K, ...S[K]['OPT_PATHS']] : []
 }[KeyOf<S>]
 
-export type AnyObjectSchema = Schema<
+export type AnyObjectSchema = BaseSchema<
 	//
 	'M',
 	any,
@@ -41,48 +41,48 @@ export type AnyObjectSchema = Schema<
 >
 
 export const object = <S extends Properties>(props: S) =>
-	new Schema<
+	createSchema<
 		//
 		'M',
 		InferInput<S>,
 		InferOutput<S>,
 		InferPaths<S>,
 		InferOptPaths<S>
-	>(
-		'M',
-		(unmarshalled: Record<string, unknown>) => {
-			const marshalled: Record<string, any> = {}
+	>({
+		type: 'M',
+		encode: (input: Record<string, unknown>) => {
+			const result: Record<string, any> = {}
 
 			for (const [key, schema] of Object.entries(props)) {
-				const value = unmarshalled[key]
+				const value = input[key]
 
 				if (schema.filterIn(value)) {
 					continue
 				}
 
-				marshalled[key] = schema.marshall(value)
+				result[key] = schema.marshall(value)
 			}
 
-			return { M: marshalled }
+			return result
 		},
-		marshalled => {
-			const unmarshalled: Record<string, unknown> = {}
+		decode: output => {
+			const result: Record<string, any> = {}
 
 			for (const [key, schema] of Object.entries(props)) {
-				const value = marshalled.M[key]!
+				const value = output[key]
 
 				if (schema.filterOut(value)) {
 					continue
 				}
 
-				unmarshalled[key] = schema.unmarshall(value)
+				result[key] = schema.unmarshall(value!)
 			}
 
-			return unmarshalled as InferOutput<S>
+			return result as InferOutput<S>
 		},
-		(path, ...rest) => {
+		walk(path, ...rest) {
 			const type = props[path]!
 
 			return rest.length ? type.walk?.(...rest) : type
-		}
-	)
+		},
+	})

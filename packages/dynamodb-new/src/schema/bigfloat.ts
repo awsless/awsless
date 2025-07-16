@@ -1,9 +1,9 @@
 import { BigFloat, Numeric } from '@awsless/big-float'
-import { Schema } from './schema'
+import { createSchema } from './schema'
 
 export const bigfloat = () =>
-	new Schema<'N', Numeric, BigFloat>(
-		'N',
-		value => ({ N: new BigFloat(value).toString() }),
-		value => new BigFloat(value.N)
-	)
+	createSchema<'N', Numeric, BigFloat>({
+		type: 'N',
+		encode: value => new BigFloat(value).toString(),
+		decode: value => new BigFloat(value),
+	})

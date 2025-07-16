@@ -1,4 +1,4 @@
-import { Schema, Types } from './schema'
+import { BaseSchema, createSchema, Types } from './schema'
 
 export const optional = <
 	//
@@ -7,25 +7,24 @@ export const optional = <
 	P extends Array<string | number> = [],
 	OP extends Array<string | number> = [],
 >(
-	schema: Schema<any, I, O, P, OP>
+	schema: BaseSchema<any, I, O, P, OP, false>
 ) => {
-	return new Schema<Types, I | undefined, O | undefined, P, OP, true>(
-		schema.type,
-		value => {
-			value
+	return createSchema<Types, I | undefined, O | undefined, P, OP, true>({
+		...schema,
+		optional: true,
+		marshall(value) {
 			if (typeof value === 'undefined') {
 				return undefined
 			}
 
 			return schema.marshall(value)
 		},
-		value => {
+		unmarshall(value) {
 			if (typeof value === 'undefined') {
 				return undefined
 			}
 
 			return schema.unmarshall(value)
 		},
-		schema.walk
-	)
+	})
 }

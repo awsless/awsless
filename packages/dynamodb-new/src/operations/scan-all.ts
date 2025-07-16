@@ -11,10 +11,10 @@ type ScanAllOptions<T extends AnyTable, P extends ProjectionExpression<T> | unde
 	cursor?: CursorKey<T>
 }
 
-export const scanAll = function* <T extends AnyTable, P extends ProjectionExpression<T> | undefined>(
+export const scanAll = async function* <T extends AnyTable, P extends ProjectionExpression<T> | undefined>(
 	table: T,
 	options: ScanAllOptions<T, P>
-): Generator<Promise<ProjectionResponse<T, P>[]>> {
+): AsyncGenerator<ProjectionResponse<T, P>[], void, void> {
 	let cursor: CursorKey<T> | undefined = options.cursor
 	let done = false
 

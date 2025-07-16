@@ -1,8 +1,11 @@
 import { AttributeValue } from '@aws-sdk/client-dynamodb'
 // import { NativeAttributeBinary } from '@aws-sdk/util-dynamodb'
 // import { number } from './schema/number'
+// import { NativeAttributeBinary } from '@aws-sdk/util-dynamodb'
+// import { number } from './schema/number'
 import { AnyObjectSchema } from './schema/object'
 import { AnySchema } from './schema/schema'
+// import { string } from './schema/string'
 // import { string } from './schema/string'
 
 // export type AnyTable = TableDefinition<
@@ -15,21 +18,26 @@ import { AnySchema } from './schema/schema'
 export type Input<T extends AnyTable> = T['schema']['INPUT']
 export type Output<T extends AnyTable> = T['schema']['OUTPUT']
 
-export type AnyTable = Table<AnySchema, keyof AnySchema['INPUT'], keyof AnySchema['INPUT'] | undefined, any>
+export type AnyTable = Table<
+	AnySchema,
+	Extract<keyof AnySchema['INPUT'], string>,
+	Extract<keyof AnySchema['INPUT'], string> | undefined,
+	any
+>
 
 export type IndexNames<T extends AnyTable> = keyof T['indexes']
 
 export type TableIndex<Struct extends AnySchema> = {
-	hash: keyof Struct['INPUT']
-	sort?: keyof Struct['INPUT'] | undefined
+	hash: Extract<keyof Struct['INPUT'], string>
+	sort?: Extract<keyof Struct['INPUT'], string> | undefined
 }
 
 type TableIndexes<Struct extends AnySchema> = Record<string, TableIndex<Struct>>
 
 export class Table<
 	Schema extends AnyObjectSchema,
-	Hash extends keyof Schema['INPUT'],
-	Sort extends keyof Schema['INPUT'] | undefined,
+	Hash extends Extract<keyof Schema['INPUT'], string>,
+	Sort extends Extract<keyof Schema['INPUT'], string> | undefined,
 	Indexes extends TableIndexes<Schema> | undefined,
 > {
 	readonly hash: Hash
@@ -89,47 +97,68 @@ export class Table<
 // 	HashType extends string | number | NativeAttributeBinary,
 // 	Sort extends string | number | symbol | undefined = undefined,
 // 	SortType extends string | number | NativeAttributeBinary | undefined = undefined,
+// > = string & {
+// 	readonly _TABLE: TableDef<Hash, HashType, Sort, SortType>
+// }
+
+// type BrandedTableName<
+// 	Hash extends string | number | symbol,
+// 	HashType extends string | number | NativeAttributeBinary,
+// 	Sort extends string | number | symbol = never,
+// 	SortType extends string | number | NativeAttributeBinary = never,
 // 	// TTL extends keyof Schema['INPUT'] | undefined,
 // > = string & {
 // 	TABLE?: TableDef<Hash, HashType, Sort, SortType>
 // }
 
-// type Options<
-// 	Name extends BrandedTableName<
-// 		Hash,
-// 		Schema['INPUT'][Hash],
-// 		Sort,
-// 		Sort extends keyof Schema['INPUT'] ? Schema['INPUT'][Sort] : undefined
-// 	>,
-// 	Schema extends AnyObjectSchema,
-// 	Hash extends keyof Schema['INPUT'],
-// 	Sort extends keyof Schema['INPUT'] | undefined,
-// 	Indexes extends TableIndexes<Schema> | undefined,
-// > = {
+// type HasSortKey<T> = T extends BrandedTableName<any, any, infer Sort, any> ? (Sort extends never ? false : true) : false
+
+// type ExtractSortKey<T> =
+// 	T extends BrandedTableName<any, any, infer Sort, any> ? (Sort extends never ? undefined : Sort) : undefined
+
+// type IsBranded<T> = T extends BrandedTableName<any, any, any, any> ? true : false
+
+// type IsBranded<T> = T extends { readonly _TABLE: any } ? true : false
+
+// type Options<Name, Schema, Hash, Sort, Indexes> = {
 // 	hash: Hash
 // 	schema: Schema
 // 	indexes?: Indexes
-// } & (Name['TABLE'] extends TableDef<
-// 	Hash,
-// 	Schema['INPUT'][Hash],
-// 	Sort,
-// 	Sort extends keyof Schema['INPUT'] ? Schema['INPUT'][Sort] : undefined
-// >
-// 	? Name['TABLE']['sort'] extends string
+// } & (IsBranded<Name> extends true
+// 	? //
+// 		HasSortKey<Name> extends true
 // 		? { sort: Sort }
 // 		: {}
 // 	: { sort?: Sort })
 
+// type Options<Name, Schema, Hash, Sort, Indexes> =
+// 	HasSortKey<Name> extends true
+// 		? { hash: Hash; sort: ExtractSortKey<Name>; schema: Schema; indexes?: Indexes }
+// 		: { hash: Hash; schema: Schema; indexes?: Indexes }
+
 export const define = <
-	// Name extends BrandedTableName<
-	// 	Hash,
-	// 	Schema['INPUT'][Hash],
-	// 	Sort,
-	// 	Sort extends keyof Schema['INPUT'] ? Schema['INPUT'][Sort] : undefined
+	// Name extends
+	// 	| string
+	// 	| BrandedTableName<
+	// 			Hash,
+	// 			Schema['INPUT'][Hash],
+	// 			Sort,
+	// 			Sort extends keyof Schema['INPUT'] ? Schema['INPUT'][Sort] : never
+	// 	  >,
+	// Schema extends BaseSchema<
+	// 	//
+	// 	'M',
+	// 	IsBranded<Name> extends true ? {
+	// 		[K of Name['_TABLE']['hash']]: Name['_TABLE']['hashType'] : any
+	// 	} : any,
+	// 	any,
+	// 	Array<string | number>,
+	// 	Array<string | number>,
+	// 	boolean
 	// >,
 	Schema extends AnyObjectSchema,
-	Hash extends keyof Schema['INPUT'],
-	Sort extends keyof Schema['INPUT'] | undefined,
+	Hash extends Extract<keyof Schema['INPUT'], string>,
+	Sort extends Extract<keyof Schema['INPUT'], string> | undefined,
 	Indexes extends TableIndexes<Schema> | undefined,
 >(
 	// name: Name,
@@ -158,19 +187,32 @@ export const define = <
 // 	// name: 'lol' as Name,
 // 	// name: 'lol',
 // 	// hash: 'sort',
-// 	// sort: 'key',
 // 	hash: 'key',
-// 	// sort: 'sort',
+
+// 	// sort: undefined,
+// 	sort: 'sort',
+// 	// sort: 'key',
 // 	// sort: 'key',
 // 	schema: object({
 // 		key: string(),
-// 		sort: number(),
+// 		// sort: number(),
+// 		sort: string(),
 // 	}),
 // })
 
 // define('lol', {
 // 	hash: 'key',
-// 	sort: 'sort',
+// 	sort: 'key',
+// 	// lol: true,
+// 	schema: object({
+// 		key: string(),
+// 		sort: string(),
+// 	}),
+// })
+
+// define('lol', {
+// 	hash: 'key',
+// 	// sort: 'key',
 // 	schema: object({
 // 		key: string(),
 // 		sort: string(),
@@ -198,3 +240,31 @@ export const define = <
 // 	Array<string | number>,
 // 	boolean
 // >
+
+// const table = Table.stack.name.define<['id', 'S'] | ['num', 'N'] | ['sortkey', 'N']>({
+// 	id: string(),
+// })
+
+// TABLES = {
+// 	stack_name: {
+// 		h: 'id',
+// 		s: 'num',
+// 		i: {
+// 			list: {
+// 				h: 'id',
+// 				s: 'num',
+// 			},
+// 		},
+// 	},
+// }
+
+// define(Table.stack.name, {
+
+// })
+
+// type Name = 'table-name' & {
+// 	hashKey: 'sort'
+// 	hashType: 'L'
+// 	sortKey: 'sort'
+// 	sortType: 'S'
+// }

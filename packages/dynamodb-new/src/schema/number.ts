@@ -1,11 +1,11 @@
-import { Schema } from './schema'
+import { BaseSchema, createSchema } from './schema'
 
-export function number(): Schema<'N', number, number>
-export function number<T extends number>(): Schema<'N', T, T>
+export function number(): BaseSchema<'N', number, number>
+export function number<T extends number>(): BaseSchema<'N', T, T>
 export function number<T extends number>() {
-	return new Schema<'N', T, T>(
-		'N',
-		value => ({ N: value.toString() }),
-		value => Number(value.N) as T
-	)
+	return createSchema<'N', T, T>({
+		type: 'N',
+		encode: value => value.toString(),
+		decode: value => Number(value) as T,
+	})
 }

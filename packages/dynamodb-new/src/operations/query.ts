@@ -45,7 +45,7 @@ export const query = async <
 	const gen = new IDGenerator(table)
 	const command = new QueryCommand({
 		TableName: table.name,
-		IndexName: options.index,
+		IndexName: options.index?.toString(),
 		KeyConditionExpression: keyConditionExpression(options, gen),
 		ConsistentRead: options.consistentRead,
 		ScanIndexForward: forward,

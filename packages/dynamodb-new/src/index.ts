@@ -15,6 +15,7 @@ export {
 export { optional } from './schema/optional.js'
 
 export { any } from './schema/any.js'
+export { set } from './schema/set.js'
 export { uuid } from './schema/uuid.js'
 export { string } from './schema/string.js'
 export { boolean } from './schema/boolean.js'
@@ -33,10 +34,10 @@ export { unknown } from './schema/unknown.js'
 export { stringEnum } from './schema/enum/string.js'
 export { numberEnum } from './schema/enum/number.js'
 
-export { stringSet } from './schema/set/string.js'
-export { numberSet } from './schema/set/number.js'
-export { bigintSet } from './schema/set/bigint.js'
-export { binarySet } from './schema/set/binary.js'
+// export { stringSet } from './schema/__set/string.js'
+// export { numberSet } from './schema/__set/number.js'
+// export { bigintSet } from './schema/__set/bigint.js'
+// export { binarySet } from './schema/__set/binary.js'
 
 // test
 export { mockDynamoDB } from './test/mock.js'

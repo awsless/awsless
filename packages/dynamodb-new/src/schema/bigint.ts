@@ -1,11 +1,11 @@
-import { Schema } from './schema'
+import { BaseSchema, createSchema } from './schema'
 
-export function bigint(): Schema<'N', bigint, bigint>
-export function bigint<T extends bigint>(): Schema<'N', T, T>
+export function bigint(): BaseSchema<'N', bigint, bigint>
+export function bigint<T extends bigint>(): BaseSchema<'N', T, T>
 export function bigint<T extends bigint>() {
-	return new Schema<'N', T, T>(
-		'N',
-		value => ({ N: value.toString() }),
-		value => BigInt(value.N) as T
-	)
+	return createSchema<'N', T, T>({
+		type: 'N',
+		encode: value => value.toString(),
+		decode: value => BigInt(value) as T,
+	})
 }
