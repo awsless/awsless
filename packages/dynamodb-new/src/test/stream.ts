@@ -35,7 +35,7 @@ export const streamTable = <T extends AnyTable>(
 }
 
 const getPrimaryKey = (table: AnyTable, item: any): PrimaryKey<AnyTable> => {
-	const key = {
+	const key: PrimaryKey<AnyTable> = {
 		[table.hash]: item[table.hash],
 	}
 

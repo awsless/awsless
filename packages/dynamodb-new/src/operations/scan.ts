@@ -40,7 +40,7 @@ export const scan = async <
 	const gen = new IDGenerator(table)
 	const command = new ScanCommand({
 		TableName: table.name,
-		IndexName: options.index,
+		IndexName: options.index?.toString(),
 		ConsistentRead: options.consistentRead,
 		Limit: options.limit || 10,
 		ExclusiveStartKey: options.cursor && table.marshall(options.cursor),

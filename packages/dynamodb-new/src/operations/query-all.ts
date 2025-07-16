@@ -19,11 +19,11 @@ type QueryAllOptions<
 	batch: number
 }
 
-export const queryAll = function* <
+export const queryAll = async function* <
 	T extends AnyTable,
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined,
->(table: T, options: QueryAllOptions<T, P, I>): Generator<Promise<ProjectionResponse<T, P>[]>> {
+>(table: T, options: QueryAllOptions<T, P, I>): AsyncGenerator<ProjectionResponse<T, P>[], void, void> {
 	let cursor: CursorKey<T, I> | undefined = options.cursor
 	let done = false
 

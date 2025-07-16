@@ -1,19 +1,17 @@
-
-import { define, queryAll, mockDynamoDB, number, object, seedTable } from '../../src/index'
+import { define, mockDynamoDB, number, object, queryAll, seedTable } from '../../src/index'
 
 describe('Query All', () => {
-
 	const posts = define('posts', {
 		hash: 'userId',
 		sort: 'id',
 		schema: object({
-			userId:	number(),
-			id:	number(),
-		})
+			userId: number(),
+			id: number(),
+		}),
 	})
 
 	mockDynamoDB({
-		tables: [ posts ],
+		tables: [posts],
 		seed: [
 			seedTable(posts, [
 				{ userId: 1, id: 1 },
@@ -26,25 +24,22 @@ describe('Query All', () => {
 				{ userId: 1, id: 8 },
 				{ userId: 1, id: 9 },
 				{ userId: 1, id: 10 },
-			])
-		]
+			]),
+		],
 	})
 
 	it('should list all items in the table', async () => {
-		let items:any[] = []
+		let items: any[] = []
 
 		const generator = queryAll(posts, {
 			batch: 3,
-			keyCondition: exp => exp.where('userId').eq(1)
+			keyCondition: exp => exp.where('userId').eq(1),
 		})
 
 		for await (const batch of generator) {
 			expect(batch.length).toBeLessThanOrEqual(3)
 
-			items = [
-				...items,
-				...batch,
-			]
+			items = [...items, ...batch]
 		}
 
 		expect(items).toStrictEqual([

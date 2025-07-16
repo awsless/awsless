@@ -5,9 +5,7 @@ import {
 	array,
 	bigfloat,
 	bigint,
-	bigintSet,
 	binary,
-	binarySet,
 	boolean,
 	date,
 	define,
@@ -16,19 +14,18 @@ import {
 	mockDynamoDB,
 	number,
 	numberEnum,
-	numberSet,
 	object,
 	optional,
 	putItem,
 	record,
 	string,
 	stringEnum,
-	stringSet,
 	ttl,
 	unknown,
 	updateItem,
 	uuid,
 } from '../src'
+import { set } from '../src/schema/set'
 
 enum StringEnum {
 	one = '1',
@@ -100,11 +97,21 @@ describe('Schema', () => {
 			),
 			any: any(),
 			sets: object({
-				empty: stringSet(),
-				string: stringSet(),
-				number: numberSet(),
-				bigint: bigintSet(),
-				binary: binarySet(),
+				// empty: stringSet(),
+				// string: stringSet(),
+				// number: numberSet(),
+				// bigint: bigintSet(),
+				// binary: binarySet(),
+
+				empty: set(string()),
+				string: set(string()),
+				uuid: set(uuid()),
+				json: set(json<{ n: bigint }>()),
+				number: set(number()),
+				bigint: set(bigint()),
+				bigfloat: set(bigfloat()),
+				date: set(date()),
+				binary: set(binary()),
 			}),
 		}),
 	})
@@ -144,8 +151,12 @@ describe('Schema', () => {
 		sets: {
 			empty: new Set<string>(),
 			string: new Set(['1']),
+			uuid: new Set([id]),
+			json: new Set([{ n: 1n }]),
 			number: new Set([1]),
 			bigint: new Set([1n]),
+			bigfloat: new Set([new BigFloat(1)]),
+			date: new Set([new Date()]),
 			binary: new Set([bytes]),
 		},
 	}
@@ -184,8 +195,12 @@ describe('Schema', () => {
 					sets: {
 						empty: Set<string>
 						string: Set<string>
+						json: Set<{ n: 1n }>
+						uuid: Set<UUID>
 						number: Set<number>
 						bigint: Set<bigint>
+						bigfloat: Set<BigFloat>
+						date: Set<Date>
 						binary: Set<Uint8Array>
 					}
 			  }
@@ -261,10 +276,18 @@ describe('Schema', () => {
 						.set(new Set())
 						.update('sets', 'string')
 						.set(new Set(['2']))
+						.update('sets', 'uuid')
+						.set(new Set(['0-0-0-0-0']))
+						.update('sets', 'json')
+						.set(new Set([{ n: 2n }]))
 						.update('sets', 'number')
 						.set(new Set([2]))
 						.update('sets', 'bigint')
 						.set(new Set([2n]))
+						.update('sets', 'bigfloat')
+						.set(new Set([new BigFloat(2)]))
+						.update('sets', 'date')
+						.set(new Set([date]))
 						.update('sets', 'binary')
 						.set(new Set([bytes])),
 			}
@@ -297,8 +320,12 @@ describe('Schema', () => {
 			sets: {
 				empty: new Set(),
 				string: new Set(['2']),
+				uuid: new Set(['0-0-0-0-0']),
+				json: new Set([{ n: 2n }]),
 				number: new Set([2]),
 				bigint: new Set([2n]),
+				bigfloat: new Set([new BigFloat(2)]),
+				date: new Set([date]),
 				binary: new Set([bytes]),
 			},
 		})

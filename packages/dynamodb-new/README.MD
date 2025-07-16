@@ -135,16 +135,13 @@ We provides the following schema types:
 - object
 - optional
 - record
+- set
 - string
 - ttl
 - unknown
 - uuid
-- bigintSet
-- binarySet
-- numberSet
-- stringSet
 
-The `binary` & `binarySet` schema type supports the following input value types:
+The `binary` schema type supports the following input value types:
 
 `ArrayBuffer, Blob, Buffer, DataView, File, Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array, Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array`
 

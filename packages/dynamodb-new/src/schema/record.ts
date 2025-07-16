@@ -1,37 +1,37 @@
-import { AnySchema, Schema } from './schema'
+import { AnySchema, createSchema } from './schema'
 
 type RecordPaths<S extends AnySchema> = [string] | [string, ...S['PATHS']]
 type RecordOptPaths<S extends AnySchema> = [string] | [string, ...S['OPT_PATHS']]
 
 export const record = <S extends AnySchema>(schema: S) =>
-	new Schema<
+	createSchema<
 		//
 		'M',
 		Record<string, S['INPUT']>,
 		Record<string, S['OUTPUT']>,
 		RecordPaths<S>,
 		RecordOptPaths<S>
-	>(
-		'M',
-		unmarshalled => {
-			const marshalled: Record<string, any> = {}
+	>({
+		type: 'M',
+		encode(input) {
+			const result: Record<string, any> = {}
 
-			for (const [key, value] of Object.entries(unmarshalled)) {
-				marshalled[key] = schema.marshall(value)
+			for (const [key, value] of Object.entries(input)) {
+				result[key] = schema.marshall(value)
 			}
 
-			return { M: marshalled }
+			return result
 		},
-		marshalled => {
-			const unmarshalled: Record<string, S['OUTPUT']> = {}
+		decode(output) {
+			const result: Record<string, S['OUTPUT']> = {}
 
-			for (const [key, value] of Object.entries(marshalled.M)) {
-				unmarshalled[key] = schema.unmarshall(value)
+			for (const [key, value] of Object.entries(output)) {
+				result[key] = schema.unmarshall(value)
 			}
 
-			return unmarshalled
+			return result
 		},
-		(_, ...rest) => {
+		walk(_, ...rest) {
 			return rest.length ? schema.walk?.(...rest) : schema
-		}
-	)
+		},
+	})

@@ -512,285 +512,250 @@ var transactDelete = (table, key3, options = {}) => {
 };
 
 // src/schema/schema.ts
-var Schema = class {
-  constructor(type, marshall3, unmarshall3, walk = void 0) {
-    this.type = type;
-    this.marshall = marshall3;
-    this.unmarshall = unmarshall3;
-    this.walk = walk;
-  }
-  filterIn(value) {
-    return typeof value === "undefined";
-  }
-  filterOut(value) {
-    return typeof value === "undefined";
-  }
+var createSchema = (props) => {
+  return {
+    optional: false,
+    encode(value) {
+      return value;
+    },
+    decode(value) {
+      return value;
+    },
+    marshall(value) {
+      return {
+        [props.type]: this.encode(value)
+      };
+    },
+    unmarshall(value) {
+      return this.decode(value[props.type]);
+    },
+    filterIn(value) {
+      return typeof value === "undefined";
+    },
+    filterOut(value) {
+      return typeof value === "undefined";
+    },
+    ...props
+  };
 };
 
 // src/schema/optional.ts
 var optional = (schema) => {
-  return new Schema(
-    schema.type,
-    (value) => {
-      value;
+  return createSchema({
+    ...schema,
+    optional: true,
+    marshall(value) {
       if (typeof value === "undefined") {
         return void 0;
       }
       return schema.marshall(value);
     },
-    (value) => {
+    unmarshall(value) {
       if (typeof value === "undefined") {
         return void 0;
       }
       return schema.unmarshall(value);
-    },
-    schema.walk
-  );
+    }
+  });
 };
 
-// src/schema/any.ts
+// src/schema/unknown.ts
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
-var any = (opts) => new Schema(
-  void 0,
-  (value) => marshall({ value }, opts).value,
-  (value) => unmarshall({ value }, opts).value
-);
+var unknown = (opts) => createSchema({
+  marshall(value) {
+    return marshall(
+      { value },
+      {
+        removeUndefinedValues: true,
+        ...opts?.marshall ?? {}
+      }
+    ).value;
+  },
+  unmarshall(value) {
+    if (typeof value === "undefined") {
+      return;
+    }
+    return unmarshall({ value }, opts?.unmarshall).value;
+  }
+});
+
+// src/schema/any.ts
+var any = (opts) => unknown(opts);
+
+// src/schema/set.ts
+var set = (schema) => {
+  const type = `${schema.type}S`;
+  return createSchema({
+    type,
+    encode(value) {
+      if (value.size === 0) {
+        return void 0;
+      }
+      return Array.from(value).map((v) => {
+        return schema.encode(v);
+      });
+    },
+    decode(value) {
+      return new Set(
+        value.map((v) => {
+          return schema.decode(v);
+        })
+      );
+    },
+    unmarshall(value) {
+      if (typeof value === "undefined") {
+        return /* @__PURE__ */ new Set();
+      }
+      return this.decode(value[type]);
+    },
+    filterIn: (value) => typeof value === "undefined" || value.size === 0,
+    filterOut: () => false,
+    walk: () => schema
+  });
+};
 
 // src/schema/uuid.ts
-var uuid = () => new Schema(
-  "S",
-  (value) => ({ S: value }),
-  (value) => value?.S
-);
+var uuid = () => createSchema({
+  type: "S"
+});
 
 // src/schema/string.ts
 function string() {
-  return new Schema(
-    "S",
-    (value) => ({ S: value }),
-    (value) => value.S
-  );
+  return createSchema({
+    type: "S"
+  });
 }
 
 // src/schema/boolean.ts
-var boolean = () => new Schema(
-  "BOOL",
-  (value) => ({ BOOL: value }),
-  (value) => value.BOOL
-);
+var boolean = () => createSchema({
+  type: "BOOL"
+});
 
 // src/schema/number.ts
 function number() {
-  return new Schema(
-    "N",
-    (value) => ({ N: value.toString() }),
-    (value) => Number(value.N)
-  );
+  return createSchema({
+    type: "N",
+    encode: (value) => value.toString(),
+    decode: (value) => Number(value)
+  });
 }
 
 // src/schema/bigint.ts
 function bigint() {
-  return new Schema(
-    "N",
-    (value) => ({ N: value.toString() }),
-    (value) => BigInt(value.N)
-  );
+  return createSchema({
+    type: "N",
+    encode: (value) => value.toString(),
+    decode: (value) => BigInt(value)
+  });
 }
 
 // src/schema/bigfloat.ts
 import { BigFloat } from "@awsless/big-float";
-var bigfloat = () => new Schema(
-  "N",
-  (value) => ({ N: new BigFloat(value).toString() }),
-  (value) => new BigFloat(value.N)
-);
+var bigfloat = () => createSchema({
+  type: "N",
+  encode: (value) => new BigFloat(value).toString(),
+  decode: (value) => new BigFloat(value)
+});
 
 // src/schema/binary.ts
-var binary = () => new Schema(
-  "B",
-  (value) => ({ B: value }),
-  (value) => value.B
-);
+var binary = () => createSchema({
+  type: "B"
+});
 
 // src/schema/object.ts
-var object = (props) => new Schema(
-  "M",
-  (unmarshalled) => {
-    const marshalled = {};
+var object = (props) => createSchema({
+  type: "M",
+  encode: (input) => {
+    const result = {};
     for (const [key3, schema] of Object.entries(props)) {
-      const value = unmarshalled[key3];
+      const value = input[key3];
       if (schema.filterIn(value)) {
         continue;
       }
-      marshalled[key3] = schema.marshall(value);
+      result[key3] = schema.marshall(value);
     }
-    return { M: marshalled };
+    return result;
   },
-  (marshalled) => {
-    const unmarshalled = {};
+  decode: (output) => {
+    const result = {};
     for (const [key3, schema] of Object.entries(props)) {
-      const value = marshalled.M[key3];
+      const value = output[key3];
       if (schema.filterOut(value)) {
         continue;
       }
-      unmarshalled[key3] = schema.unmarshall(value);
+      result[key3] = schema.unmarshall(value);
     }
-    return unmarshalled;
+    return result;
   },
-  (path, ...rest) => {
+  walk(path, ...rest) {
     const type = props[path];
     return rest.length ? type.walk?.(...rest) : type;
   }
-);
+});
 
 // src/schema/record.ts
-var record = (schema) => new Schema(
-  "M",
-  (unmarshalled) => {
-    const marshalled = {};
-    for (const [key3, value] of Object.entries(unmarshalled)) {
-      marshalled[key3] = schema.marshall(value);
+var record = (schema) => createSchema({
+  type: "M",
+  encode(input) {
+    const result = {};
+    for (const [key3, value] of Object.entries(input)) {
+      result[key3] = schema.marshall(value);
     }
-    return { M: marshalled };
+    return result;
   },
-  (marshalled) => {
-    const unmarshalled = {};
-    for (const [key3, value] of Object.entries(marshalled.M)) {
-      unmarshalled[key3] = schema.unmarshall(value);
+  decode(output) {
+    const result = {};
+    for (const [key3, value] of Object.entries(output)) {
+      result[key3] = schema.unmarshall(value);
     }
-    return unmarshalled;
+    return result;
   },
-  (_, ...rest) => {
+  walk(_, ...rest) {
     return rest.length ? schema.walk?.(...rest) : schema;
   }
-);
+});
 
 // src/schema/array.ts
-var array = (schema) => new Schema(
-  "L",
-  (unmarshalled) => ({ L: unmarshalled.map((item) => schema.marshall(item)) }),
-  (marshalled) => marshalled.L.map((item) => schema.unmarshall(item)),
-  (_, ...rest) => {
+var array = (schema) => createSchema({
+  type: "L",
+  encode: (value) => value.map((item) => schema.marshall(item)),
+  decode: (value) => value.map((item) => schema.unmarshall(item)),
+  walk(_, ...rest) {
     return rest.length ? schema.walk?.(...rest) : schema;
   }
-);
+});
 
 // src/schema/date.ts
-var date = () => new Schema(
-  "N",
-  (value) => ({ N: String(value.getTime()) }),
-  (value) => new Date(Number(value.N))
-);
+var date = () => createSchema({
+  type: "N",
+  encode: (value) => String(value.getTime()),
+  decode: (value) => new Date(Number(value))
+});
 
 // src/schema/json.ts
 import { parse, stringify } from "@awsless/json";
-var json = () => new Schema(
-  "S",
-  (value) => ({ S: stringify(value) }),
-  (value) => parse(value.S)
-);
+var json = () => createSchema({
+  type: "S",
+  encode: (value) => stringify(value),
+  decode: (value) => parse(value)
+});
 
 // src/schema/ttl.ts
-var ttl = () => new Schema(
-  "N",
-  (value) => ({ N: String(Math.floor(value.getTime() / 1e3)) }),
-  (value) => new Date(Number(value?.N) * 1e3)
-);
-
-// src/schema/unknown.ts
-import { marshall as marshall2, unmarshall as unmarshall2 } from "@aws-sdk/util-dynamodb";
-var unknown = (opts) => new Schema(
-  void 0,
-  (value) => marshall2(
-    { value },
-    {
-      removeUndefinedValues: true,
-      ...opts?.marshall ?? {}
-    }
-  ).value,
-  (value) => {
-    if (typeof value === "undefined") {
-      return;
-    }
-    return unmarshall2({ value }, opts?.unmarshall).value;
-  }
-);
+var ttl = () => createSchema({
+  type: "N",
+  encode: (value) => String(Math.floor(value.getTime() / 1e3)),
+  decode: (value) => new Date(Number(value) * 1e3)
+});
 
 // src/schema/enum/string.ts
-var stringEnum = (_) => new Schema(
-  "S",
-  (value) => ({ S: value }),
-  (value) => value.S
-);
+var stringEnum = (_) => createSchema({ type: "S" });
 
 // src/schema/enum/number.ts
-var numberEnum = (_) => new Schema(
-  "N",
-  (value) => ({ N: value.toString() }),
-  (value) => Number(value.N)
-);
-
-// src/schema/set/schema.ts
-var SetSchema = class extends Schema {
-  constructor(type, marshall3, unmarshall3, walk = void 0) {
-    super(type, marshall3, unmarshall3, walk);
-  }
-  filterIn(value) {
-    return typeof value === "undefined" || value.size === 0;
-  }
-  filterOut() {
-    return false;
-  }
-  // marshall(value: Input): Record<Type, Marshalled> {
-  // 	return {
-  // 		[this.type]: this._marshall(value),
-  // 	} as Record<Type, Marshalled>
-  // }
-  // unmarshall(value: Record<Type, Marshalled> | undefined): Output {
-  // 	if (typeof value === 'undefined') {
-  // 		return new Set() as Output
-  // 	}
-  // 	return this._unmarshall(value[this.type])
-  // }
-};
-
-// src/schema/set/string.ts
-function stringSet() {
-  return new SetSchema(
-    "SS",
-    (value) => value.size > 0 ? { SS: Array.from(value) } : void 0,
-    (value) => new Set(value?.SS),
-    () => string()
-  );
-}
-
-// src/schema/set/number.ts
-function numberSet() {
-  return new SetSchema(
-    "NS",
-    (value) => value.size > 0 ? { NS: Array.from(value).map((item) => item.toString()) } : void 0,
-    (value) => new Set(value?.NS.map((item) => Number(item))),
-    () => number()
-  );
-}
-
-// src/schema/set/bigint.ts
-function bigintSet() {
-  return new SetSchema(
-    "NS",
-    (value) => value.size > 0 ? { NS: Array.from(value).map((item) => item.toString()) } : void 0,
-    (value) => new Set(value?.NS.map((item) => BigInt(item))),
-    () => bigint()
-  );
-}
-
-// src/schema/set/binary.ts
-var binarySet = () => new SetSchema(
-  "BS",
-  (value) => value.size > 0 ? { BS: Array.from(value) } : void 0,
-  (value) => new Set(value?.BS),
-  () => binary()
-);
+var numberEnum = (_) => createSchema({
+  type: "N",
+  encode: (value) => value.toString(),
+  decode: (value) => Number(value)
+});
 
 // src/test/mock.ts
 import {
@@ -1092,10 +1057,10 @@ var pipeStream = (streams, command, send) => {
           const tableName = keyed?.TableName || item.Put?.TableName;
           const stream = streams.find((stream2) => stream2.table.name === tableName);
           if (!stream) return;
-          const marshall3 = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
+          const marshall2 = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
           return {
             ...stream,
-            items: [{ key: stream.table.unmarshall(marshall3) }]
+            items: [{ key: stream.table.unmarshall(marshall2) }]
           };
         });
       }
@@ -1391,7 +1356,7 @@ var query = async (table, options) => {
   const gen = new IDGenerator(table);
   const command = new QueryCommand2({
     TableName: table.name,
-    IndexName: options.index,
+    IndexName: options.index?.toString(),
     KeyConditionExpression: keyConditionExpression(options, gen),
     ConsistentRead: options.consistentRead,
     ScanIndexForward: forward,
@@ -1498,7 +1463,7 @@ var scan = async (table, options = {}) => {
   const gen = new IDGenerator(table);
   const command = new ScanCommand2({
     TableName: table.name,
-    IndexName: options.index,
+    IndexName: options.index?.toString(),
     ConsistentRead: options.consistentRead,
     Limit: options.limit || 10,
     ExclusiveStartKey: options.cursor && table.marshall(options.cursor),
@@ -1515,7 +1480,7 @@ var scan = async (table, options = {}) => {
 };
 
 // src/operations/query-all.ts
-var queryAll = function* (table, options) {
+var queryAll = async function* (table, options) {
   let cursor2 = options.cursor;
   let done = false;
   const loop = async () => {
@@ -1541,7 +1506,7 @@ var queryAll = function* (table, options) {
 };
 
 // src/operations/scan-all.ts
-var scanAll = function* (table, options) {
+var scanAll = async function* (table, options) {
   let cursor2 = options.cursor;
   let done = false;
   const loop = async () => {
@@ -1654,9 +1619,7 @@ export {
   batchPutItem,
   bigfloat,
   bigint,
-  bigintSet,
   binary,
-  binarySet,
   boolean,
   date,
   define,
@@ -1670,7 +1633,6 @@ export {
   mockDynamoDB,
   number,
   numberEnum,
-  numberSet,
   object,
   optional,
   paginateQuery,
@@ -1683,10 +1645,10 @@ export {
   scanAll,
   seed,
   seedTable,
+  set,
   streamTable,
   string,
   stringEnum,
-  stringSet,
   transactConditionCheck,
   transactDelete,
   transactPut,

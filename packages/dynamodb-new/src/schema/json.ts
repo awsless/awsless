@@ -1,9 +1,9 @@
 import { parse, stringify } from '@awsless/json'
-import { Schema } from './schema'
+import { createSchema } from './schema'
 
 export const json = <T = unknown>() =>
-	new Schema<'S', T, T>(
-		'S',
-		value => ({ S: stringify(value) }),
-		value => parse(value.S) as T
-	)
+	createSchema<'S', T, T>({
+		type: 'S',
+		encode: value => stringify(value),
+		decode: value => parse(value) as T,
+	})

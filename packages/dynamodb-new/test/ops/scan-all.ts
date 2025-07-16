@@ -1,17 +1,15 @@
-
 import { define, mockDynamoDB, number, object, scanAll, seedTable } from '../../src/index'
 
 describe('Scan All', () => {
-
 	const posts = define('posts', {
 		hash: 'id',
 		schema: object({
-			id:	number(),
-		})
+			id: number(),
+		}),
 	})
 
 	mockDynamoDB({
-		tables: [ posts ],
+		tables: [posts],
 		seed: [
 			seedTable(posts, [
 				{ id: 1 },
@@ -24,12 +22,12 @@ describe('Scan All', () => {
 				{ id: 8 },
 				{ id: 9 },
 				{ id: 10 },
-			])
-		]
+			]),
+		],
 	})
 
 	it('should list all items in the table', async () => {
-		let items:any[] = []
+		let items: any[] = []
 
 		const generator = scanAll(posts, {
 			batch: 3,
@@ -38,17 +36,14 @@ describe('Scan All', () => {
 		for await (const batch of generator) {
 			expect(batch.length).toBeLessThanOrEqual(3)
 
-			items = [
-				...items,
-				...batch,
-			]
+			items = [...items, ...batch]
 		}
 
 		expect(items.length).toStrictEqual(10)
 	})
 
 	it('should list all items in the table', async () => {
-		let items:any[] = []
+		let items: any[] = []
 
 		const generator = scanAll(posts, {
 			batch: 3,
@@ -57,10 +52,7 @@ describe('Scan All', () => {
 		for await (const batch of generator) {
 			expect(batch.length).toBeLessThanOrEqual(3)
 
-			items = [
-				...items,
-				...batch,
-			]
+			items = [...items, ...batch]
 		}
 
 		expect(items.length).toStrictEqual(10)

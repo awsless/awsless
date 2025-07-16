@@ -1,27 +1,27 @@
 import { marshall, marshallOptions, unmarshall, unmarshallOptions } from '@aws-sdk/util-dynamodb'
-import { Schema, Types } from './schema'
+import { createSchema, Types } from './schema'
 
-type Options = {
+export type UnknownOptions = {
 	marshall?: marshallOptions
 	unmarshall?: unmarshallOptions
 }
 
-export const unknown = (opts?: Options) =>
-	new Schema<Types, unknown, unknown>(
-		undefined,
-		value =>
-			marshall(
+export const unknown = (opts?: UnknownOptions) =>
+	createSchema<Types, unknown, unknown>({
+		marshall(value) {
+			return marshall(
 				{ value },
 				{
 					removeUndefinedValues: true,
 					...(opts?.marshall ?? {}),
 				}
-			).value as any,
-		value => {
+			).value as Record<Types, any>
+		},
+		unmarshall(value) {
 			if (typeof value === 'undefined') {
 				return
 			}
 
 			return unmarshall({ value: value as any }, opts?.unmarshall).value
-		}
-	)
+		},
+	})

@@ -1,8 +1,6 @@
-import { Schema } from './schema'
+import { createSchema } from './schema'
 
 export const boolean = () =>
-	new Schema<'BOOL', boolean, boolean>(
-		'BOOL',
-		value => ({ BOOL: value }),
-		value => value.BOOL
-	)
+	createSchema<'BOOL', boolean, boolean>({
+		type: 'BOOL',
+	})

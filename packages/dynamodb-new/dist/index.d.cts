@@ -8,7 +8,7 @@ export { DynamoDBServer } from '@awsless/dynamodb-server';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-type AnySchema = Schema<any, any, any, Array<string | number>, Array<string | number>, boolean>;
+type AnySchema = BaseSchema<any, any, any, Array<string | number>, Array<string | number>, boolean>;
 type MarshallInputTypes = {
     S: string;
     N: string;
@@ -16,9 +16,9 @@ type MarshallInputTypes = {
     BOOL: boolean;
     M: Record<string, Partial<MarshallInputTypes>>;
     L: MarshallInputTypes[];
-    SS: string[];
-    NS: string[];
-    BS: NativeAttributeBinary[];
+    SS: string[] | undefined;
+    NS: string[] | undefined;
+    BS: NativeAttributeBinary[] | undefined;
 };
 type MarshallOutputTypes = {
     S: string;
@@ -32,20 +32,22 @@ type MarshallOutputTypes = {
     BS: Uint8Array[];
 };
 type Types = keyof MarshallInputTypes;
-declare class Schema<Type extends Types, Input, Output, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Optional extends boolean = false> {
-    readonly type: Type | undefined;
-    readonly marshall: (value: Input) => Record<Type, MarshallInputTypes[Type]> | undefined;
-    readonly unmarshall: (value: Record<Type, MarshallOutputTypes[Type]>) => Output;
-    readonly walk: undefined | ((...path: Array<string | number>) => AnySchema | undefined);
+type BaseSchema<Type extends Types, Input, Output, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Optional extends boolean = false> = {
     readonly INPUT: Input;
     readonly OUTPUT: Output;
     readonly PATHS: Paths;
     readonly OPT_PATHS: OptionalPaths;
     readonly OPTIONAL: Optional;
-    constructor(type: Type | undefined, marshall: (value: Input) => Record<Type, MarshallInputTypes[Type]> | undefined, unmarshall: (value: Record<Type, MarshallOutputTypes[Type]>) => Output, walk?: undefined | ((...path: Array<string | number>) => AnySchema | undefined));
+    readonly type?: Type;
+    readonly optional: Optional;
+    encode(value: Input): MarshallInputTypes[Type];
+    decode(value: MarshallOutputTypes[Type]): Output;
+    marshall(value: Input): Record<Type, MarshallInputTypes[Type]> | undefined;
+    unmarshall(value: Record<Type, MarshallOutputTypes[Type]>): Output;
     filterIn(value: Input | undefined): boolean;
     filterOut(value: Input | undefined): boolean;
-}
+    walk?(...path: Array<string | number>): AnySchema | undefined;
+};
 
 type Properties = Record<string, AnySchema>;
 type KeyOf<S> = Extract<keyof S, string>;
@@ -68,13 +70,13 @@ type InferPaths<S extends Properties> = {
 type InferOptPaths<S extends Properties> = {
     [K in KeyOf<S>]: S[K]['OPTIONAL'] extends true ? [K] | [K, ...S[K]['OPT_PATHS']] : [];
 }[KeyOf<S>];
-type AnyObjectSchema = Schema<'M', any, any, Array<string | number>, Array<string | number>, boolean>;
-declare const object: <S extends Properties>(props: S) => Schema<"M", InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, false>;
+type AnyObjectSchema = BaseSchema<'M', any, any, Array<string | number>, Array<string | number>, boolean>;
+declare const object: <S extends Properties>(props: S) => BaseSchema<"M", InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>, false>;
 
 type Input<T extends AnyTable> = T['schema']['INPUT'];
 type Output<T extends AnyTable> = T['schema']['OUTPUT'];
 type AnyTable = Table<AnySchema, Extract<keyof AnySchema['INPUT'], string>, Extract<keyof AnySchema['INPUT'], string> | undefined, any>;
-type IndexNames<T extends AnyTable> = Extract<keyof T['indexes'], string>;
+type IndexNames<T extends AnyTable> = keyof T['indexes'];
 type TableIndex<Struct extends AnySchema> = {
     hash: Extract<keyof Struct['INPUT'], string>;
     sort?: Extract<keyof Struct['INPUT'], string> | undefined;
@@ -95,12 +97,12 @@ declare class Table<Schema extends AnyObjectSchema, Hash extends Extract<keyof S
     marshall(item: Partial<Schema['INPUT']>): Record<string, AttributeValue$1>;
     unmarshall(item: any): Schema['OUTPUT'];
 }
-declare const define: <Struct extends AnyObjectSchema, Hash extends Extract<keyof Struct["INPUT"], string>, Sort extends Extract<keyof Struct["INPUT"], string> | undefined, Indexes extends TableIndexes<Struct> | undefined>(name: string, options: {
+declare const define: <Schema extends AnyObjectSchema, Hash extends Extract<keyof Schema["INPUT"], string>, Sort extends Extract<keyof Schema["INPUT"], string> | undefined, Indexes extends TableIndexes<Schema> | undefined>(name: string, options: {
     hash: Hash;
     sort?: Sort;
-    schema: Struct;
+    schema: Schema;
     indexes?: Indexes;
-}) => Table<Struct, Hash, Sort, Indexes>;
+}) => Table<Schema, Hash, Sort, Indexes>;
 
 type Key<T extends AnyTable, K extends keyof T['schema']['INPUT']> = Required<Record<K, T['schema']['INPUT'][K]>>;
 type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>;
@@ -221,11 +223,11 @@ type ReturnValues = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NE
 type LimitedReturnValues = 'NONE' | 'ALL_OLD';
 type ReturnResponse<T extends AnyTable, R extends ReturnValues = 'NONE'> = R extends 'NONE' ? void : R extends 'ALL_NEW' | 'ALL_OLD' ? T['schema']['OUTPUT'] | undefined : Partial<T['schema']['OUTPUT']> | undefined;
 
-interface Options$2 {
+interface Options {
     client?: DynamoDBClient;
     debug?: boolean;
 }
-interface MutateOptions<T extends AnyTable, R extends ReturnValues = 'NONE'> extends Options$2 {
+interface MutateOptions<T extends AnyTable, R extends ReturnValues = 'NONE'> extends Options {
     condition?: (exp: Condition<T>) => Combine$1<T>;
     return?: R;
 }
@@ -259,7 +261,7 @@ type TransactDelete = {
     };
 };
 type Transactable = TransactConditionCheck | TransactPut | TransactUpdate | TransactDelete;
-type TransactWriteOptions = Options$2 & {
+type TransactWriteOptions = Options & {
     idempotantKey?: string;
     items: Transactable[];
 };
@@ -282,75 +284,60 @@ type DeleteOptions<T extends AnyTable> = {
 };
 declare const transactDelete: <T extends AnyTable>(table: T, key: PrimaryKey<T>, options?: DeleteOptions<T>) => TransactDelete;
 
-declare const optional: <I, O, P extends Array<string | number> = [], OP extends Array<string | number> = []>(schema: Schema<any, I, O, P, OP>) => Schema<keyof MarshallInputTypes, I | undefined, O | undefined, P, OP, true>;
+declare const optional: <I, O, P extends Array<string | number> = [], OP extends Array<string | number> = []>(schema: BaseSchema<any, I, O, P, OP, false>) => BaseSchema<keyof MarshallInputTypes, I | undefined, O | undefined, P, OP, true>;
 
-type Options$1 = marshallOptions & unmarshallOptions;
-declare const any: (opts?: Options$1) => Schema<keyof MarshallInputTypes, any, any, [], [], false>;
-
-declare const uuid: () => Schema<"S", `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], false>;
-
-declare function string(): Schema<'S', string, string>;
-declare function string<T extends string>(): Schema<'S', T, T>;
-
-declare const boolean: () => Schema<"BOOL", boolean, boolean, [], [], false>;
-
-declare function number(): Schema<'N', number, number>;
-declare function number<T extends number>(): Schema<'N', T, T>;
-
-declare function bigint(): Schema<'N', bigint, bigint>;
-declare function bigint<T extends bigint>(): Schema<'N', T, T>;
-
-declare const bigfloat: () => Schema<"N", Numeric, BigFloat, [], [], false>;
-
-declare const binary: () => Schema<"B", NativeAttributeBinary, Uint8Array, [], [], false>;
-
-type RecordPaths<S extends AnySchema> = [string] | [string, ...S['PATHS']];
-type RecordOptPaths<S extends AnySchema> = [string] | [string, ...S['OPT_PATHS']];
-declare const record: <S extends AnySchema>(schema: S) => Schema<"M", Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, false>;
-
-type ArrayPaths<L extends AnySchema> = [number] | [number, ...L['PATHS']];
-type ArrayOptPaths<L extends AnySchema> = [number] | [number, ...L['OPT_PATHS']];
-type RequiredSchema = Schema<any, any, any, Array<string | number>, Array<string | number>, false>;
-declare const array: <S extends RequiredSchema>(schema: S) => Schema<"L", S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, false>;
-
-declare const date: () => Schema<"N", Date, Date, [], [], false>;
-
-declare const json: <T = unknown>() => Schema<"S", T, T, [], [], false>;
-
-declare const ttl: () => Schema<"N", Date, Date, [], [], false>;
-
-type Options = {
+type UnknownOptions = {
     marshall?: marshallOptions;
     unmarshall?: unmarshallOptions;
 };
-declare const unknown: (opts?: Options) => Schema<keyof MarshallInputTypes, unknown, unknown, [], [], false>;
+declare const unknown: (opts?: UnknownOptions) => BaseSchema<keyof MarshallInputTypes, unknown, unknown, [], [], false>;
+
+declare const any: (opts?: UnknownOptions) => BaseSchema<Types, any, any>;
+
+type AllowedSchema = BaseSchema<'S', any, any> | BaseSchema<'N', any, any> | BaseSchema<'B', any, any>;
+declare const set: <S extends AllowedSchema>(schema: S) => BaseSchema<`${Exclude<S["type"], undefined>}S`, Set<S["INPUT"]>, Set<S["OUTPUT"]>, [], [], false>;
+
+declare const uuid: () => BaseSchema<"S", `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, [], [], false>;
+
+declare function string(): BaseSchema<'S', string, string>;
+declare function string<T extends string>(): BaseSchema<'S', T, T>;
+
+declare const boolean: () => BaseSchema<"BOOL", boolean, boolean, [], [], false>;
+
+declare function number(): BaseSchema<'N', number, number>;
+declare function number<T extends number>(): BaseSchema<'N', T, T>;
+
+declare function bigint(): BaseSchema<'N', bigint, bigint>;
+declare function bigint<T extends bigint>(): BaseSchema<'N', T, T>;
+
+declare const bigfloat: () => BaseSchema<"N", Numeric, BigFloat, [], [], false>;
+
+declare const binary: () => BaseSchema<"B", NativeAttributeBinary, Uint8Array<ArrayBufferLike>, [], [], false>;
+
+type RecordPaths<S extends AnySchema> = [string] | [string, ...S['PATHS']];
+type RecordOptPaths<S extends AnySchema> = [string] | [string, ...S['OPT_PATHS']];
+declare const record: <S extends AnySchema>(schema: S) => BaseSchema<"M", Record<string, S["INPUT"]>, Record<string, S["OUTPUT"]>, RecordPaths<S>, RecordOptPaths<S>, false>;
+
+type ArrayPaths<L extends AnySchema> = [number] | [number, ...L['PATHS']];
+type ArrayOptPaths<L extends AnySchema> = [number] | [number, ...L['OPT_PATHS']];
+type RequiredSchema = BaseSchema<any, any, any, Array<string | number>, Array<string | number>, false>;
+declare const array: <S extends RequiredSchema>(schema: S) => BaseSchema<"L", S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, false>;
+
+declare const date: () => BaseSchema<"N", Date, Date, [], [], false>;
+
+declare const json: <T = unknown>() => BaseSchema<"S", T, T, [], [], false>;
+
+declare const ttl: () => BaseSchema<"N", Date, Date, [], [], false>;
 
 type StringEnum = {
     [key: string | number]: string;
 };
-declare const stringEnum: <T extends StringEnum>(_: T) => Schema<"S", T[keyof T], T[keyof T], [], [], false>;
+declare const stringEnum: <T extends StringEnum>(_: T) => BaseSchema<"S", T[keyof T], T[keyof T], [], [], false>;
 
 type NumberEnum = {
     [key: number | string]: number | string;
 };
-declare const numberEnum: <T extends NumberEnum>(_: T) => Schema<"N", T[keyof T], T[keyof T], [], [], false>;
-
-declare class SetSchema<Type extends Types, Input extends Set<any>, Output extends Set<any>, Paths extends Array<string | number> = [], OptionalPaths extends Array<string | number> = [], Optional extends boolean = false> extends Schema<Type, Input, Output, Paths, OptionalPaths, Optional> {
-    constructor(type: Type | undefined, marshall: (value: Input) => Record<Type, MarshallInputTypes[Type]> | undefined, unmarshall: (value: Record<Type, MarshallOutputTypes[Type]>) => Output, walk?: undefined | ((...path: Array<string | number>) => AnySchema | undefined));
-    filterIn(value: Input | undefined): boolean;
-    filterOut(): boolean;
-}
-
-declare function stringSet(): SetSchema<'SS', Set<string>, Set<string>>;
-declare function stringSet<T extends string>(): SetSchema<'SS', Set<T>, Set<T>>;
-
-declare function numberSet(): SetSchema<'NS', Set<number>, Set<number>>;
-declare function numberSet<T extends number>(): SetSchema<'NS', Set<T>, Set<T>>;
-
-declare function bigintSet(): SetSchema<'NS', Set<bigint>, Set<bigint>>;
-declare function bigintSet<T extends bigint>(): SetSchema<'NS', Set<T>, Set<T>>;
-
-declare const binarySet: () => SetSchema<"BS", Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], false>;
+declare const numberEnum: <T extends NumberEnum>(_: T) => BaseSchema<"N", T[keyof T], T[keyof T], [], [], false>;
 
 type StreamData<T extends AnyTable> = {
     Keys: PrimaryKey<T>;
@@ -419,7 +406,7 @@ type Merge<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) =>
 type ProjectionExpression<T extends AnyTable> = Array<T['schema']['PATHS'] | Exclude<T['schema']['PATHS'][number], number>>;
 type ProjectionResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = P extends ProjectionExpression<T> ? Merge<DeepPickList<T['schema']['OUTPUT'], P>> : T['schema']['OUTPUT'];
 
-declare const getItem: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T>, options?: Options$2 & {
+declare const getItem: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T>, options?: Options & {
     consistentRead?: boolean;
     projection?: P;
 }) => Promise<ProjectionResponse<T, P> | undefined>;
@@ -433,12 +420,12 @@ declare const updateItem: <T extends AnyTable, R extends ReturnValues = "NONE">(
 
 declare const deleteItem: <T extends AnyTable, R extends LimitedReturnValues = "NONE">(table: T, key: PrimaryKey<T>, options?: MutateOptions<T, R>) => Promise<ReturnResponse<T, R>>;
 
-declare const getIndexedItem: <T extends AnyTable, I extends IndexNames<T>, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T, I>, options: Options$2 & {
+declare const getIndexedItem: <T extends AnyTable, I extends IndexNames<T>, P extends ProjectionExpression<T> | undefined = undefined>(table: T, key: PrimaryKey<T, I>, options: Options & {
     index: I;
     projection?: P;
 }) => Promise<ProjectionResponse<T, P> | undefined>;
 
-type BatchGetOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, F extends boolean> = Options$2 & {
+type BatchGetOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, F extends boolean> = Options & {
     projection?: P;
     consistentRead?: boolean;
     filterNonExistentItems?: F;
@@ -449,9 +436,9 @@ type BatchGetItem = {
 };
 declare const batchGetItem: BatchGetItem;
 
-declare const batchPutItem: <T extends AnyTable>(table: T, items: T["schema"]["INPUT"][], options?: Options$2) => Promise<void>;
+declare const batchPutItem: <T extends AnyTable>(table: T, items: T["schema"]["INPUT"][], options?: Options) => Promise<void>;
 
-declare const batchDeleteItem: <T extends AnyTable>(table: T, keys: PrimaryKey<T>[], options?: Options$2) => Promise<void>;
+declare const batchDeleteItem: <T extends AnyTable>(table: T, keys: PrimaryKey<T>[], options?: Options) => Promise<void>;
 
 type PrimaryKeyNames<T extends AnyTable, I extends IndexNames<T> | undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? T['indexes'][I]['hash'] | T['indexes'][I]['sort'] : T['indexes'][I]['hash'] : T['sort'] extends string ? T['hash'] | T['sort'] : T['hash'];
 type InferValue<T extends AnyTable, P extends PrimaryKeyNames<T, I>, I extends IndexNames<T> | undefined> = T['schema']['INPUT'][P];
@@ -476,7 +463,7 @@ declare class Combine<T extends AnyTable, I extends IndexNames<T> | undefined> e
     get or(): KeyCondition<T, I>;
 }
 
-type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$2 & {
+type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
     projection?: P;
     index?: I;
@@ -492,7 +479,7 @@ type QueryResponse<T extends AnyTable, P extends ProjectionExpression<T> | undef
 };
 declare const query: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options: QueryOptions<T, P, I>) => Promise<QueryResponse<T, P, I>>;
 
-type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$2 & {
+type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     projection?: P;
     index?: I;
     consistentRead?: boolean;
@@ -506,7 +493,7 @@ type ScanResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefi
 };
 declare const scan: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options?: ScanOptions<T, P, I>) => Promise<ScanResponse<T, P, I>>;
 
-type QueryAllOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$2 & {
+type QueryAllOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
     projection?: P;
     index?: I;
@@ -515,17 +502,17 @@ type QueryAllOptions<T extends AnyTable, P extends ProjectionExpression<T> | und
     cursor?: CursorKey<T, I>;
     batch: number;
 };
-declare const queryAll: <T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined>(table: T, options: QueryAllOptions<T, P, I>) => Generator<Promise<ProjectionResponse<T, P>[]>>;
+declare const queryAll: <T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined>(table: T, options: QueryAllOptions<T, P, I>) => AsyncGenerator<ProjectionResponse<T, P>[], void, void>;
 
-type ScanAllOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = Options$2 & {
+type ScanAllOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = Options & {
     projection?: P;
     consistentRead?: boolean;
     batch: number;
     cursor?: CursorKey<T>;
 };
-declare const scanAll: <T extends AnyTable, P extends ProjectionExpression<T> | undefined>(table: T, options: ScanAllOptions<T, P>) => Generator<Promise<ProjectionResponse<T, P>[]>>;
+declare const scanAll: <T extends AnyTable, P extends ProjectionExpression<T> | undefined>(table: T, options: ScanAllOptions<T, P>) => AsyncGenerator<ProjectionResponse<T, P>[], void, void>;
 
-type PaginateQueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$2 & {
+type PaginateQueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     keyCondition: (exp: KeyCondition<T, I>) => Combine<T, I>;
     projection?: P;
     index?: I;
@@ -541,7 +528,7 @@ type PaginateQueryResponse<T extends AnyTable, P extends ProjectionExpression<T>
 };
 declare const paginateQuery: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options: PaginateQueryOptions<T, P, I>) => Promise<PaginateQueryResponse<T, P>>;
 
-type PaginateScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$2 & {
+type PaginateScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
     projection?: P;
     index?: I;
     consistentRead?: boolean;
@@ -555,4 +542,4 @@ type PaginateScanResponse<T extends AnyTable, P extends ProjectionExpression<T> 
 };
 declare const paginateScan: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
-export { type AnyTable, type CursorKey, type HashKey, type Input, type Output, type PrimaryKey, type SortKey, Table, type TransactConditionCheck, type TransactDelete, type TransactPut, type TransactUpdate, type Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, bigintSet, binary, binarySet, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, json, migrate, mockDynamoDB, number, numberEnum, numberSet, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, streamTable, string, stringEnum, stringSet, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { type AnyTable, type CursorKey, type HashKey, type Input, type Output, type PrimaryKey, type SortKey, Table, type TransactConditionCheck, type TransactDelete, type TransactPut, type TransactUpdate, type Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, binary, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, json, migrate, mockDynamoDB, number, numberEnum, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, set, streamTable, string, stringEnum, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
