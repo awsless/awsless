@@ -24,7 +24,8 @@ export const getContentType = (file: string) => {
 export const getViewerRequestFunctionCode = (
 	domain?: string,
 	bucket?: $.aws.s3.Bucket,
-	functionUrl?: $.aws.lambda.FunctionUrl
+	functionUrl?: $.aws.lambda.FunctionUrl,
+	basicAuth?: { username: string; password: string }
 ): Output<string> => {
 	return $resolve([bucket?.bucketRegionalDomainName, functionUrl?.functionUrl], (bucketDomain, lambdaUrl) => {
 		return CF_FUNC_WRAP([
@@ -32,6 +33,11 @@ export const getViewerRequestFunctionCode = (
 			// Block direct access to cloudfront.
 
 			domain ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
+
+			// --------------------------------------------------------
+			// Basic Authentication
+
+			basicAuth ? BASIC_AUTH_CHECK(basicAuth.username, basicAuth.password) : '',
 
 			// --------------------------------------------------------
 			// Define functions.
@@ -76,6 +82,19 @@ if (event.request.headers.host.value.includes('cloudfront.net')) {
 	};
 }`
 
+const BASIC_AUTH_CHECK = (username: string, password: string) => `
+var auth = event.request.headers.authorization && event.request.headers.authorization.value;
+if (!auth || !auth.startsWith('Basic ') || atob(auth.slice(6)) !== '${username}:${password}') {
+	return {
+		statusCode: 401,
+		headers: {
+			'www-authenticate': {
+				value: 'Basic realm="Protected"'
+			}
+		}
+	};
+}`
+
 // delete event.request.headers['Cookies'];
 // delete event.request.headers['cookies'];
 // delete event.request.cookies;
@@ -91,8 +110,8 @@ function setS3Origin(s3Domain) {
 		}
 	};
 
-	console.log("s3 origin")
-	console.log(origin)
+	// console.log("s3 origin")
+	// console.log(origin)
 	cf.updateRequestOrigin(origin);
 }`
 

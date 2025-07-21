@@ -294,7 +294,7 @@ export const siteFeature = defineFeature({
 				runtime: `cloudfront-js-2.0`,
 				comment: `Viewer Request - ${name}`,
 				publish: true,
-				code: getViewerRequestFunctionCode(domainName, bucket, functionUrl),
+				code: getViewerRequestFunctionCode(domainName, bucket, functionUrl, props.auth),
 				keyValueStoreAssociations: kvs ? [kvs.arn] : undefined,
 			})
 

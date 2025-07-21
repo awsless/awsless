@@ -157,6 +157,14 @@ export const SitesSchema = z
 				.optional()
 				.describe('Specify the cors headers.'),
 
+			auth: z
+				.object({
+					username: z.string().describe('Basic auth username'),
+					password: z.string().describe('Basic auth password'),
+				})
+				.optional()
+				.describe('Enable basic authentication for the site'),
+
 			security: z
 				.object({
 					// contentSecurityPolicy: z.object({

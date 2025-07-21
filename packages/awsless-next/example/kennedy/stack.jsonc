@@ -1,23 +1,14 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack",
-	"icons": {
-		"test": {
-			"cacheDuration": "12 weeks",
-			"preserveId": true,
-			"symbols": false,
-			"log": {
-				"retention": "7 days",
-				"format": "json",
-				"level": "debug",
-				"system": "info"
-			},
-			"origin": {
-				"function": "./function.ts"
-			}
-			// "cors": {
-			// 	"override": false
-			// }
-		}
-	}
+	"name": "stack"
+	// "sites": {
+	// 	"test": {
+	// 		"auth": {
+	// 			"username": "admin",
+	// 			"password": "password"
+	// 		},
+	// 		"ssr": "./function.ts",
+	// 		"static": "./static"
+	// 	}
+	// }
 }
