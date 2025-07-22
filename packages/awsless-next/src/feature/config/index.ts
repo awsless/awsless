@@ -16,6 +16,12 @@ export const configFeature = defineFeature({
 			for (const name of stack.configs ?? []) {
 				resources.addConst(name, 'string')
 			}
+
+			for (const site of Object.values(stack.sites ?? {})) {
+				for (const name of site.build?.configs ?? []) {
+					resources.addConst(name, 'string')
+				}
+			}
 		}
 
 		gen.addInterface('ConfigResources', resources.toString())

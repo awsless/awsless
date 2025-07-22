@@ -1,3 +1,2 @@
-export { createI18nPlugin as i18n } from './vite'
-export { chatgpt } from './translate/chat-gpt'
-export { mock } from './translate/mock'
+export { createI18nPlugin as i18n, type I18nPluginProps, type Translator } from './vite'
+export { ai } from './translate/ai'

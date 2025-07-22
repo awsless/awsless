@@ -7,7 +7,7 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { getCacheControl, getContentType, getViewerRequestFunctionCode } from './util.js'
-import { camelCase } from 'change-case'
+import { camelCase, constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
 import { execCommand } from '../../util/exec.js'
@@ -39,10 +39,16 @@ export const siteFeature = defineFeature({
 
 					return build(fingerprint, async write => {
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
+						const env: Record<string, string> = {}
+
+						for (const name of props.build?.configs ?? []) {
+							env[`CONFIG_${constantCase(name)}`] = name
+						}
 
 						await execCommand({
 							cwd,
 							command: buildProps.command,
+							env,
 						})
 
 						await write('HASH', fingerprint)

@@ -1,5 +1,5 @@
 <script>
-	import { t } from '../../src/framework/svelte'
+	import { lang } from '../../src/framework/svelte.svelte'
 </script>
 
-<div>{ $t`head` }</div>
+<div>{ lang.t`head` }</div>

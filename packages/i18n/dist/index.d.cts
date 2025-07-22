@@ -1,38 +1,39 @@
 import { Plugin } from 'vite';
-import { ClientOptions } from 'openai';
+import { LanguageModel } from 'ai';
 
 type Translator = (defaultLocale: string, list: {
-    original: string;
+    source: string;
     locale: string;
 }[]) => TranslationResponse[] | Promise<TranslationResponse[]>;
 type TranslationResponse = {
-    original: string;
+    source: string;
     locale: string;
     translation: string;
 };
 type I18nPluginProps = {
-    /** The default locale that your original text is writen in. */
+    /** The original language your source text is written in.
+     * @default "en"
+     */
     default?: string;
-    /** A list of locales that you want your text translated too. */
+    /** The list of target locales to translate your text into. */
     locales: string[];
-    /** The callback that is responsible for translating the text. */
-    translate: (defaultLocale: string, list: {
-        original: string;
-        locale: string;
-    }[]) => TranslationResponse[] | Promise<TranslationResponse[]>;
+    /** Function that performs the translation of a given text. */
+    translate: Translator;
 };
-declare const createI18nPlugin: (props: I18nPluginProps) => Plugin[];
+declare const createI18nPlugin: (props: I18nPluginProps) => Plugin;
 
-type ChatgptProps = ClientOptions & {
-    /** The maximum number of tokens that can be generated in the chat completion. */
-    maxTokens?: number;
-    /** ID of the model to use. */
-    model?: string;
-    /** The rules that chatgpt should follow. It will be added to the prompt. */
+type AiTranslationProps = {
+    /** The maximum number of tokens allowed in the AI's response. */
+    maxTokens: number;
+    /** The language model to use for translations (e.g., gpt-4, gpt-3.5-turbo). */
+    model: LanguageModel;
+    /** Number of text entries to translate in a single batch.
+     * @default 1000
+     */
+    batchSize?: number;
+    /** Custom translation guidelines for the AI. These are injected into the prompt. */
     rules?: string[];
 };
-declare const chatgpt: (props?: ChatgptProps) => Translator;
+declare const ai: (props: AiTranslationProps) => Translator;
 
-declare const mock: (translation?: string) => Translator;
-
-export { chatgpt, createI18nPlugin as i18n, mock };
+export { type I18nPluginProps, type Translator, ai, createI18nPlugin as i18n };

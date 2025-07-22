@@ -11,10 +11,12 @@ export const findSvelteTranslatable = (code: string) => {
 
 	const enter = (node: Node) => {
 		if (
-			//
 			node.type === 'TaggedTemplateExpression' &&
-			node.tag.type === 'Identifier' &&
-			node.tag.name === '$t' &&
+			node.tag.type === 'MemberExpression' &&
+			node.tag.object.type === 'Identifier' &&
+			node.tag.object.name === 'lang' &&
+			node.tag.property.type === 'Identifier' &&
+			node.tag.property.name === 't' &&
 			node.quasi.type === 'TemplateLiteral' &&
 			node.quasi.loc
 		) {

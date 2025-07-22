@@ -11,10 +11,11 @@ export const findTypescriptTranslatable = async (code: string) => {
 	simple(ast, {
 		TaggedTemplateExpression(node: TaggedTemplateExpression) {
 			if (
-				node.tag.type === 'CallExpression' &&
-				node.tag.callee.type === 'Identifier' &&
-				node.tag.callee.value === 'get' &&
-				node.template.type === 'TemplateLiteral'
+				node.tag.type === 'MemberExpression' &&
+				node.tag.object.type === 'Identifier' &&
+				node.tag.object.value === 'lang' &&
+				node.tag.property.type === 'Identifier' &&
+				node.tag.property.value === 't'
 			) {
 				const content = code.substring(
 					node.template.span.start - ast.span.start + 1,

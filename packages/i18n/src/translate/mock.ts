@@ -1,15 +1,15 @@
 import { Translator } from '../vite'
 
 export const mock = (translation = 'REPLACED'): Translator => {
-	return (_, list) => {
+	return (_, originals) => {
 		const response: {
 			original: string
 			locale: string
 			translation: string
 		}[] = []
 
-		for (const item of list) {
-			response.push({ ...item, translation })
+		for (const original of originals) {
+			response.push({ ...original, translation })
 		}
 
 		return response

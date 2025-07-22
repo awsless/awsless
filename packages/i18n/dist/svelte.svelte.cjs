@@ -17,26 +17,51 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/framework/svelte.ts
-var svelte_exports = {};
-__export(svelte_exports, {
-  locale: () => locale,
-  t: () => t
+// src/framework/svelte.svelte.ts
+var svelte_svelte_exports = {};
+__export(svelte_svelte_exports, {
+  lang: () => lang
 });
-module.exports = __toCommonJS(svelte_exports);
-var import_store = require("svelte/store");
-var locale = (0, import_store.writable)("en");
-var t = (0, import_store.derived)([locale], ([locale2]) => {
+module.exports = __toCommonJS(svelte_svelte_exports);
+var locale = $state("en");
+var t = $derived.by(() => {
   const api = (template, ...args) => {
     return String.raw({ raw: template.raw }, ...args);
   };
   api.get = (og, translations) => {
-    return translations[locale2] ?? og;
+    return translations[locale] ?? og;
   };
   return api;
 });
+var lang = {
+  /** Get the current locale.
+   *
+   * @example
+   * console.log(lang.locale)
+   */
+  get locale() {
+    return locale;
+  },
+  /** To change the locale that is being rendered simply change this property.
+   *
+   * @example
+   * lang.locale = 'jp'
+   */
+  set locale(v) {
+    locale = v;
+  },
+  /** Translate helper for translating template strings.
+   * The i18n Vite plugin will find all instances where you want text
+   * to be translated and automatically translate your text during build time.
+   *
+   * @example
+   * lang.t`Hello world!`
+   */
+  get t() {
+    return t;
+  }
+};
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  locale,
-  t
+  lang
 });
