@@ -74,6 +74,7 @@ export const SitesSchema = z
 						.describe(
 							`Specifies the files and directories to generate the cache key for your custom build command.`
 						),
+					configs: z.string().array().describe('Define the config values for your build command.'),
 				})
 				.optional()
 				.describe(`Specifies the build process for sites that need a build step.`),

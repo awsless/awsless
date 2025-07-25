@@ -6,32 +6,28 @@ import { findTranslatable } from './find'
 export type Translator = (
 	defaultLocale: string,
 	list: {
-		original: string
+		source: string
 		locale: string
 	}[]
 ) => TranslationResponse[] | Promise<TranslationResponse[]>
 
 export type TranslationResponse = {
-	original: string
+	source: string
 	locale: string
 	translation: string
 }
 
 export type I18nPluginProps = {
-	/** The default locale that your original text is writen in. */
+	/** The original language your source text is written in.
+	 * @default "en"
+	 */
 	default?: string
 
-	/** A list of locales that you want your text translated too. */
+	/** The list of target locales to translate your text into. */
 	locales: string[]
 
-	/** The callback that is responsible for translating the text. */
-	translate: (
-		defaultLocale: string,
-		list: {
-			original: string
-			locale: string
-		}[]
-	) => TranslationResponse[] | Promise<TranslationResponse[]>
+	/** Function that performs the translation of a given text. */
+	translate: Translator
 }
 
 export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
@@ -43,21 +39,24 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
 			const cwd = process.cwd()
 
 			this.info('Finding all translatable text...')
-			const originals = await findTranslatable(cwd)
+			const sourceTexts = await findTranslatable(cwd)
 
 			cache = await loadCache(cwd)
 
 			// Clean up the unused transations from the cache
-			removeUnusedTranslations(cache, originals, props.locales)
+			removeUnusedTranslations(cache, sourceTexts, props.locales)
 
-			const newOriginals = findNewTranslations(cache, originals, props.locales)
+			const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales)
 
-			if (newOriginals.length > 0) {
-				this.info(`Translating ${newOriginals.length} new texts.`)
+			if (newSourceTexts.length > 0) {
+				this.info(`Translating ${newSourceTexts.length} new texts.`)
 
-				const translations = await props.translate(props.default ?? 'en', newOriginals)
+				const translations = await props.translate(props.default ?? 'en', newSourceTexts)
+
+				this.info(`Translated ${translations.length} texts.`)
+
 				for (const item of translations) {
-					cache.set(item.original, item.locale, item.translation)
+					cache.set(item.source, item.locale, item.translation)
 				}
 			}
 
@@ -67,26 +66,13 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
 		transform(code) {
 			let replaced = false
 
-			if (code.includes(`$t\``)) {
+			if (code.includes('lang.t`')) {
 				for (const item of cache.entries()) {
-					code = code.replaceAll(`$t\`${item.original}\``, () => {
+					code = code.replaceAll(`lang.t\`${item.source}\``, () => {
 						replaced = true
-						return `$t.get(\`${item.original}\`, {${props.locales
+						return `lang.t.get(\`${item.source}\`, {${props.locales
 							.map(locale => {
-								return `"${locale}":\`${cache.get(item.original, locale)}\``
-							})
-							.join(',')}})`
-					})
-				}
-			}
-
-			if (code.includes(`get(t)\``)) {
-				for (const item of cache.entries()) {
-					code = code.replaceAll(`get(t)\`${item.original}\``, () => {
-						replaced = true
-						return `get(t).get(\`${item.original}\`, {${props.locales
-							.map(locale => {
-								return `"${locale}":\`${cache.get(item.original, locale)}\``
+								return `"${locale}":\`${cache.get(item.source, locale)}\``
 							})
 							.join(',')}})`
 					})

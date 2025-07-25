@@ -21,38 +21,38 @@ export const saveCache = async (cwd: string, cache: Cache) => {
 export class Cache {
 	constructor(private data: Record<string, Record<string, string>> = {}) {}
 
-	set(original: string, locale: string, translation: string) {
-		if (!this.data[original]) {
-			this.data[original] = {}
+	set(source: string, locale: string, translation: string) {
+		if (!this.data[source]) {
+			this.data[source] = {}
 		}
 
-		if (!this.data[original][locale]) {
-			this.data[original][locale] = translation
+		if (!this.data[source][locale]) {
+			this.data[source][locale] = translation
 		}
 	}
 
-	get(original: string, locale: string) {
-		return this.data[original]?.[locale]
+	get(source: string, locale: string) {
+		return this.data[source]?.[locale]
 	}
 
-	has(original: string, locale: string) {
-		return typeof this.get(original, locale) === 'string'
+	has(source: string, locale: string) {
+		return typeof this.get(source, locale) === 'string'
 	}
 
-	delete(original: string, locale: string) {
-		if (this.data[original]?.[locale]) {
-			delete this.data[original][locale]
+	delete(source: string, locale: string) {
+		if (this.data[source]?.[locale]) {
+			delete this.data[source][locale]
 		}
 
-		if (this.data[original] && Object.keys(this.data[original]).length === 0) {
-			delete this.data[original]
+		if (this.data[source] && Object.keys(this.data[source]).length === 0) {
+			delete this.data[source]
 		}
 	}
 
 	*entries() {
-		for (const [original, locales] of Object.entries(this.data)) {
+		for (const [source, locales] of Object.entries(this.data)) {
 			for (const [locale, translation] of Object.entries(locales)) {
-				yield { original, locale, translation }
+				yield { source, locale, translation }
 			}
 		}
 	}

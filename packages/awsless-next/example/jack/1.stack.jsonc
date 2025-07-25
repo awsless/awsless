@@ -95,10 +95,11 @@
 	"sites": {
 		"website": {
 			// "domain": "main",
-			// "build": {
-			// 	"command": "echo 1",
-			// 	"cacheKey": ["./site/", "./app.jsonc"]
-			// },
+			"build": {
+				"command": "echo 1",
+				"cacheKey": ["./site/", "./app.jsonc"],
+				"configs": ["test"]
+			},
 			"ssr": "./ssr.ts",
 			"static": true
 			// "static": {

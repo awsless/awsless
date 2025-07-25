@@ -1,17 +1,14 @@
 # AI-generated internationalization made easy
 
-The `@awsless/i18n` package is a Vite plugin that automatically translates your text in build time using AI or any other tool you prefer. The plugin will inline the translations so you don't have to worry about loading the translations at the right time.
+The `@awsless/i18n` package is a Vite plugin that automatically translates your text during build time using AI or any other tool you prefer. The plugin will inline the translations so you don't have to worry about loading the translations at the right time. This means, switching the locale will instantly switch all your translated text on the page.
 
 ## Features
 
 - Automatic text translation
 - Inlines translations
-- Extremely lightweight (373 bytes uncompressed 🔥)
-- Svelte support
-
-## Todo's
-
-- Create a CLI command to find the text that needs to be translated & translate it, so that we can remove that part from the vite plugin.
+- Extremely lightweight (431 bytes uncompressed 🔥)
+- Instant locale switch
+- Svelte 5 support
 
 ## Setup
 
@@ -24,15 +21,17 @@ npm i @awsless/i18n
 ## Vite installation
 
 ```ts
-import { i18n, chatgpt } from '@awsless/i18n'
+import { i18n, ai } from '@awsless/i18n'
+import { openai } from '@ai-sdk/openai'
 
 export defineConfig({
   plugins: [
     i18n({
       default: 'en',
       locales: ['es', 'jp'],
-      translate: chatgpt({
-        apiKey: '...',
+      translate: ai({
+		maxTokens: 32_000,
+		model: openai('gpt-4.1'),
       })
     })
   ]
@@ -42,11 +41,11 @@ export defineConfig({
 ## Svelte example
 
 ```ts
-import { t } from '@awsless/i18n/svelte'
+import { lang } from '@awsless/i18n/svelte'
 
 const count = 1
 
-$t`${count} count`
+lang.t`${count} count`
 ```
 
 The plugin will find all instances where you want text to be translated.
@@ -54,23 +53,22 @@ The text is translated automatically during build time to produce
 a bundled output something like this:
 
 ```ts
-import { t } from '@awsless/i18n/svelte'
+import { lang } from '@awsless/i18n/svelte'
 
 const count = 1
 
-$t.get({
-  en: `${count} count`,
+lang.t.get(`${count} count`, {
   es: `${count} contar`,
   jp: `${count} カウント`,
 })
 ```
 
-To change the locale that is being rendered simply call the `locale.set` function.
+To change the locale that is being rendered simply change the `lang.locale` property.
 
 ```ts
-import { locale } from '@awsless/i18n/svelte'
+import { lang } from '@awsless/i18n/svelte'
 
-locale.set('jp')
+lang.locale = 'jp'
 ```
 
 ## Changing the AI-generated text

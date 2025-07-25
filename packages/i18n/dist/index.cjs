@@ -28,13 +28,12 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
-  chatgpt: () => chatgpt,
-  i18n: () => createI18nPlugin,
-  mock: () => mock
+var index_exports = {};
+__export(index_exports, {
+  ai: () => ai,
+  i18n: () => createI18nPlugin
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/cache.ts
 var import_promises = require("fs/promises");
@@ -56,32 +55,32 @@ var Cache = class {
   constructor(data = {}) {
     this.data = data;
   }
-  set(original, locale, translation) {
-    if (!this.data[original]) {
-      this.data[original] = {};
+  set(source, locale, translation) {
+    if (!this.data[source]) {
+      this.data[source] = {};
     }
-    if (!this.data[original][locale]) {
-      this.data[original][locale] = translation;
+    if (!this.data[source][locale]) {
+      this.data[source][locale] = translation;
     }
   }
-  get(original, locale) {
-    return this.data[original]?.[locale];
+  get(source, locale) {
+    return this.data[source]?.[locale];
   }
-  has(original, locale) {
-    return typeof this.get(original, locale) === "string";
+  has(source, locale) {
+    return typeof this.get(source, locale) === "string";
   }
-  delete(original, locale) {
-    if (this.data[original]?.[locale]) {
-      delete this.data[original][locale];
+  delete(source, locale) {
+    if (this.data[source]?.[locale]) {
+      delete this.data[source][locale];
     }
-    if (this.data[original] && Object.keys(this.data[original]).length === 0) {
-      delete this.data[original];
+    if (this.data[source] && Object.keys(this.data[source]).length === 0) {
+      delete this.data[source];
     }
   }
   *entries() {
-    for (const [original, locales] of Object.entries(this.data)) {
+    for (const [source, locales] of Object.entries(this.data)) {
       for (const [locale, translation] of Object.entries(locales)) {
-        yield { original, locale, translation };
+        yield { source, locale, translation };
       }
     }
   }
@@ -91,21 +90,21 @@ var Cache = class {
 };
 
 // src/diff.ts
-var findNewTranslations = (cache, originals, locales) => {
+var findNewTranslations = (cache, sources, locales) => {
   const list = [];
-  for (const original of originals) {
+  for (const source of sources) {
     for (const locale of locales) {
-      if (!cache.has(original, locale)) {
-        list.push({ original, locale });
+      if (!cache.has(source, locale)) {
+        list.push({ source, locale });
       }
     }
   }
   return list;
 };
-var removeUnusedTranslations = (cache, originals, locales) => {
+var removeUnusedTranslations = (cache, sources, locales) => {
   for (const item of cache.entries()) {
-    if (!locales.includes(item.locale) || !originals.includes(item.original)) {
-      cache.delete(item.original, item.locale);
+    if (!locales.includes(item.locale) || !sources.includes(item.source)) {
+      cache.delete(item.source, item.locale);
     }
   }
 };
@@ -126,10 +125,7 @@ var findSvelteTranslatable = (code) => {
     css: false
   });
   const enter = (node) => {
-    if (
-      //
-      node.type === "TaggedTemplateExpression" && node.tag.type === "Identifier" && node.tag.name === "$t" && node.quasi.type === "TemplateLiteral" && node.quasi.loc
-    ) {
+    if (node.type === "TaggedTemplateExpression" && node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.name === "lang" && node.tag.property.type === "Identifier" && node.tag.property.name === "t" && node.quasi.type === "TemplateLiteral" && node.quasi.loc) {
       const start = node.quasi.loc.start;
       const end = node.quasi.loc.end;
       const content = code.substring(
@@ -159,7 +155,7 @@ var findTypescriptTranslatable = async (code) => {
   });
   (0, import_swc_walk.simple)(ast, {
     TaggedTemplateExpression(node) {
-      if (node.tag.type === "CallExpression" && node.tag.callee.type === "Identifier" && node.tag.callee.value === "get" && node.template.type === "TemplateLiteral") {
+      if (node.tag.type === "MemberExpression" && node.tag.object.type === "Identifier" && node.tag.object.value === "lang" && node.tag.property.type === "Identifier" && node.tag.property.value === "t") {
         const content = code.substring(
           node.template.span.start - ast.span.start + 1,
           node.template.span.end - ast.span.start - 1
@@ -185,13 +181,12 @@ var findTranslatable = async (cwd) => {
   const found = [];
   for (const file of files) {
     const code = await (0, import_promises2.readFile)((0, import_path2.join)(cwd, file), "utf8");
-    if (code.includes("$t`")) {
-      if ((0, import_path2.extname)(file) === ".svelte") {
+    if (code.includes("lang.t`")) {
+      if (file.endsWith(".svelte")) {
         found.push(...findSvelteTranslatable(code));
+      } else {
+        found.push(...await findTypescriptTranslatable(code));
       }
-    }
-    if (code.includes("get(t)`")) {
-      found.push(...await findTypescriptTranslatable(code));
     }
   }
   return found;
@@ -200,117 +195,85 @@ var findTranslatable = async (cwd) => {
 // src/vite.ts
 var createI18nPlugin = (props) => {
   let cache;
-  return [
-    {
-      name: "awsless/i18n",
-      enforce: "pre",
-      async buildStart() {
-        const cwd = process.cwd();
-        const originals = await findTranslatable(cwd);
-        cache = await loadCache(cwd);
-        removeUnusedTranslations(cache, originals, props.locales);
-        const newOriginals = findNewTranslations(cache, originals, props.locales);
-        if (newOriginals.length > 0) {
-          const translations = await props.translate(props.default ?? "en", newOriginals);
-          for (const item of translations) {
-            cache.set(item.original, item.locale, item.translation);
-          }
+  return {
+    name: "awsless/i18n",
+    enforce: "pre",
+    async buildStart() {
+      const cwd = process.cwd();
+      this.info("Finding all translatable text...");
+      const sourceTexts = await findTranslatable(cwd);
+      cache = await loadCache(cwd);
+      removeUnusedTranslations(cache, sourceTexts, props.locales);
+      const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales);
+      if (newSourceTexts.length > 0) {
+        this.info(`Translating ${newSourceTexts.length} new texts.`);
+        const translations = await props.translate(props.default ?? "en", newSourceTexts);
+        this.info(`Translated ${translations.length} texts.`);
+        for (const item of translations) {
+          cache.set(item.source, item.locale, item.translation);
         }
-        await saveCache(cwd, cache);
-      },
-      transform(code) {
-        let replaced = false;
-        if (code.includes(`$t\``)) {
-          for (const item of cache.entries()) {
-            code = code.replaceAll(`$t\`${item.original}\``, () => {
-              replaced = true;
-              return `$t.get(\`${item.original}\`, {${props.locales.map((locale) => {
-                return `"${locale}":\`${cache.get(item.original, locale)}\``;
-              }).join(",")}})`;
-            });
-          }
-        }
-        if (code.includes(`get(t)\``)) {
-          for (const item of cache.entries()) {
-            code = code.replaceAll(`get(t)\`${item.original}\``, () => {
-              replaced = true;
-              return `get(t).get(\`${item.original}\`, {${props.locales.map((locale) => {
-                return `"${locale}":\`${cache.get(item.original, locale)}\``;
-              }).join(",")}})`;
-            });
-          }
-        }
-        if (!replaced) {
-          return;
-        }
-        return {
-          code
-        };
       }
+      await saveCache(cwd, cache);
+      this.info(`Translating done.`);
+    },
+    transform(code) {
+      let replaced = false;
+      if (code.includes("lang.t`")) {
+        for (const item of cache.entries()) {
+          code = code.replaceAll(`lang.t\`${item.source}\``, () => {
+            replaced = true;
+            return `lang.t.get(\`${item.source}\`, {${props.locales.map((locale) => {
+              return `"${locale}":\`${cache.get(item.source, locale)}\``;
+            }).join(",")}})`;
+          });
+        }
+      }
+      if (!replaced) {
+        return;
+      }
+      return {
+        code
+      };
     }
-  ];
-};
-
-// src/translate/chat-gpt.ts
-var import_openai = __toESM(require("openai"), 1);
-var import_zod = require("openai/helpers/zod");
-var import_zod2 = require("zod");
-var chatgpt = (props) => {
-  const format = (0, import_zod.zodResponseFormat)(
-    import_zod2.z.object({
-      translations: import_zod2.z.object({
-        original: import_zod2.z.string(),
-        locale: import_zod2.z.string(),
-        translation: import_zod2.z.string()
-      }).array()
-    }),
-    "final_schema"
-  );
-  return async (originalLocale, list) => {
-    const client = new import_openai.default(props);
-    const response = await client.chat.completions.create({
-      model: props?.model ?? "gpt-4o-2024-08-06",
-      max_tokens: props?.maxTokens ?? 4095,
-      response_format: format,
-      messages: [
-        { role: "system", content: "You are a helpful translator." },
-        { role: "user", content: prompt(originalLocale, list, props?.rules) }
-      ]
-    });
-    const json = response.choices[0]?.message.content;
-    if (typeof json !== "string") {
-      throw new Error("Invalid chat gpt response");
-    }
-    let data;
-    try {
-      data = JSON.parse(json);
-    } catch (error) {
-      throw new Error(`Invalid chat gpt json response: ${json}`);
-    }
-    return data.translations;
   };
 };
-var prompt = (originalLocale, list, rules) => {
-  return `You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.
-${rules?.join("\n") ?? ""}
 
-JSON FILE:
-${JSON.stringify(list)}`;
-};
-
-// src/translate/mock.ts
-var mock = (translation = "REPLACED") => {
-  return (_, list) => {
-    const response = [];
-    for (const item of list) {
-      response.push({ ...item, translation });
-    }
-    return response;
+// src/translate/ai.ts
+var import_ai = require("ai");
+var import_chunk = __toESM(require("chunk"), 1);
+var import_zod = require("zod");
+var ai = (props) => {
+  return async (originalLocale, texts) => {
+    const batches = (0, import_chunk.default)(texts, props.batchSize ?? 1e3);
+    const translations = await Promise.all(
+      batches.map(async (texts2) => {
+        const result = await (0, import_ai.generateObject)({
+          model: props.model,
+          maxTokens: props.maxTokens,
+          schema: import_zod.z.object({
+            translations: import_zod.z.object({
+              source: import_zod.z.string(),
+              locale: import_zod.z.string(),
+              translation: import_zod.z.string()
+            }).array()
+          }),
+          prompt: [
+            `You have to translate the text inside the JSON file below from "${originalLocale}" to the provided locale.`,
+            ...props?.rules ?? [],
+            "",
+            `JSON FILE:`,
+            JSON.stringify(texts2)
+          ].join("\n"),
+          system: "You are a helpful translator."
+        });
+        return result.object.translations;
+      })
+    );
+    return translations.flat(3);
   };
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  chatgpt,
-  i18n,
-  mock
+  ai,
+  i18n
 });
