@@ -27,8 +27,6 @@ const workspace = new WorkSpace({
 			profile: 'jacksclub',
 			region: 'us-east-1',
 		}),
-		// archive({}),
-		// cloudFlare({}),
 	],
 	backend: {
 		state: new FileStateBackend({ dir }),
@@ -48,8 +46,8 @@ const cluster = new $.aws.ecs.Cluster(base, 'cluster', {
 try {
 	console.log('Deploying Fargate resources...')
 
-	// await workspace.deploy(app)
-	await workspace.delete(app)
+	await workspace.deploy(app)
+	// await workspace.delete(app)
 } catch (error) {
 	console.log(error)
 	// throw error;
