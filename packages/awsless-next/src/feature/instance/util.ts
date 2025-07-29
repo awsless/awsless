@@ -1,5 +1,5 @@
 import { toDays, toSeconds } from '@awsless/duration'
-import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/formation'
+import { $, Future, Group, Input, OptionalInput, resolveInputs, Resource } from '@awsless/formation'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
@@ -216,7 +216,7 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 	// VPC
 
-	// let dependsOn: Resource<any, any>[] = []
+	let dependsOn: Resource<any, any>[] = []
 
 	// dependsOn.push(
 	// 	new $.aws.iam.RolePolicy(group, 'vpc-policy', {
@@ -251,6 +251,8 @@ export const createFargateTask = (
 			retentionInDays: toDays(props.log.retention),
 		})
 
+		dependsOn.push(logGroup)
+
 		addPermission({
 			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
 			resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
@@ -275,72 +277,98 @@ export const createFargateTask = (
 
 	// ------------------------------------------------------------
 
-	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
-
-	const task = new $.aws.ecs.TaskDefinition(
-		group,
-		'task',
-		{
-			family: name,
-			networkMode: 'awsvpc',
-			cpu: '512', // props.cpuSize,
-			memory: '1024', // props.memorySize,
-			requiresCompatibilities: ['FARGATE'],
-			executionRoleArn: executionRole.arn,
-			taskRoleArn: executionRole.arn,
-			trackLatest: true,
-
-			// runtimePlatform: {
-			// 	cpuArchitecture: constantCase(props.architecture),
-			// 	operatingSystemFamily: 'LINUX',
-			// },
-
-			containerDefinitions: JSON.stringify([
-				{
-					name: 'container',
-					image: 'public.ecr.aws/d7g8v4v5/nodejs/server',
-					essential: true,
-					// environment: variables,
-					portMappings: [
-						{
-							containerPort: 81,
-							hostPort: 81,
-							protocol: 'tcp',
-						},
-					],
-					// ...(logGroup && {
-					// 	logConfiguration: {
-					// 		logDriver: 'awslogs',
-					// 		options: {
-					// 			'awslogs-group': logGroup.name,
-					// 			'awslogs-region': ctx.appConfig.region,
-					// 			// mode: 'non-blocking',
-					// 			// 'max-buffer-size': '1m',
-					// 		},
-					// 	},
-					// }),
-					// healthCheck: props.healthCheck
-					// 	? {
-					// 			command: props.healthCheck.command,
-					// 			interval: toSeconds(props.healthCheck.interval),
-					// 			retries: props.healthCheck.retries,
-					// 			startPeriod: toSeconds(props.healthCheck.startPeriod),
-					// 			timeout: toSeconds(props.healthCheck.timeout),
-					// 		}
-					// 	: undefined,
-				},
-			]),
-		}
-		// {
-		// 	dependsOn,
-		// }
-	)
-
 	const tags = {
 		APP: ctx.appConfig.name,
 		APP_ID: ctx.appId,
 		STACK: ctx.stackConfig.name,
 	}
+
+	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
+
+	const task = new $.aws.ecs.TaskDefinition(
+		group,
+		`task-${code.sourceHash.pipe(hash => hash)}`,
+		{
+			family: name,
+			networkMode: 'awsvpc',
+			cpu: props.cpuSize,
+			memory: props.memorySize.toString(),
+			requiresCompatibilities: ['FARGATE'],
+			executionRoleArn: executionRole.arn,
+			taskRoleArn: role.arn,
+			trackLatest: true,
+			runtimePlatform: {
+				cpuArchitecture: constantCase(props.architecture),
+				operatingSystemFamily: 'LINUX',
+			},
+			containerDefinitions: JSON.stringify([
+				{
+					name: `container-${id}`,
+					image: 'public.ecr.aws/d7g8v4v5/nodejs/server',
+					protocol: 'tcp',
+					portMappings: [
+						{
+							protocol: 'tcp',
+							appProtocol: 'http',
+							containerPort: 80,
+							hostPort: 80,
+						},
+						{
+							protocol: 'tcp',
+							appProtocol: 'http',
+							containerPort: 443,
+							hostPort: 443,
+						},
+					],
+					environment: [
+						{
+							name: 'AWS_REGION',
+							value: ctx.appConfig.region,
+						},
+					],
+
+					...(props.restartPolicy && {
+						restartPolicy: {
+							enabled: props.restartPolicy.enabled,
+							...(props.restartPolicy.ignoredExitCodes && {
+								ignoredExitCodes: props.restartPolicy.ignoredExitCodes,
+							}),
+							...(props.restartPolicy.restartAttemptPeriod && {
+								restartAttemptPeriod: props.restartPolicy.restartAttemptPeriod,
+							}),
+						},
+					}),
+
+					...(logGroup && {
+						logConfiguration: {
+							logDriver: 'awslogs',
+							options: {
+								'awslogs-group': `/aws/ecs/${name}`,
+								'awslogs-region': ctx.appConfig.region,
+								'awslogs-stream-prefix': 'ecs',
+								// mode: 'non-blocking',
+								// 'max-buffer-size': '1m',
+							},
+						},
+					}),
+
+					healthCheck: props.healthCheck
+						? {
+								command: props.healthCheck.command,
+								interval: toSeconds(props.healthCheck.interval),
+								retries: props.healthCheck.retries,
+								startPeriod: toSeconds(props.healthCheck.startPeriod),
+								timeout: toSeconds(props.healthCheck.timeout),
+							}
+						: undefined,
+				},
+			]),
+			tags,
+		},
+		{
+			dependsOn,
+		}
+	)
 
 	const securityGroup = new $.aws.security.Group(group, 'security-group', {
 		name: name,
@@ -349,11 +377,21 @@ export const createFargateTask = (
 		tags,
 	})
 
-	new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule', {
+	new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
 		securityGroupId: securityGroup.id,
-		description: `Allow HTTP traffic on port 3000 to the ${name} instance`,
+		description: `Allow HTTP traffic on port 80 to the ${name} instance`,
 		fromPort: 80,
 		toPort: 80,
+		ipProtocol: 'tcp',
+		cidrIpv4: '0.0.0.0/0',
+		tags,
+	})
+
+	new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-https', {
+		securityGroupId: securityGroup.id,
+		description: `Allow HTTP traffic on port 443 to the ${name} instance`,
+		fromPort: 443,
+		toPort: 443,
 		ipProtocol: 'tcp',
 		cidrIpv4: '0.0.0.0/0',
 		tags,
@@ -378,6 +416,13 @@ export const createFargateTask = (
 			securityGroups: [securityGroup.id],
 			assignPublicIp: true,
 		},
+		forceNewDeployment: true,
+		forceDelete: true,
+		deploymentCircuitBreaker: {
+			enable: true,
+			rollback: true,
+		},
+		deploymentController: { type: 'ECS' },
 		tags,
 	})
 

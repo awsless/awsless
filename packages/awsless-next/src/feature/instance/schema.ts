@@ -22,36 +22,36 @@ const CpuSizeSchema = z
 const MemorySizeSchema = z
 	.union([
 		// 0.25 vCPU
-		z.literal('512'),
-		z.literal('1024'),
-		z.literal('2048'),
+		z.literal(512),
+		z.literal(1024),
+		z.literal(2048),
 		// 0.5 vCPU
-		z.literal('1024'),
-		z.literal('2048'),
-		z.literal('3072'),
-		z.literal('4096'),
+		z.literal(1024),
+		z.literal(2048),
+		z.literal(3072),
+		z.literal(4096),
 		// 1 vCPU
-		z.literal('2048'),
-		z.literal('3072'),
-		z.literal('4096'),
-		z.literal('5120'),
-		z.literal('6144'),
-		z.literal('7168'),
-		z.literal('8192'),
+		z.literal(2048),
+		z.literal(3072),
+		z.literal(4096),
+		z.literal(5120),
+		z.literal(6144),
+		z.literal(7168),
+		z.literal(8192),
 		// 2 vCPU
-		z.literal('4096'),
-		z.literal('5120'),
-		z.literal('6144'),
-		z.literal('7168'),
-		z.literal('8192'),
-		z.literal('9216'),
-		z.literal('10240'),
-		z.literal('11264'),
-		z.literal('12288'),
-		z.literal('13312'),
-		z.literal('14336'),
-		z.literal('15360'),
-		z.literal('16384'),
+		z.literal(4096),
+		z.literal(5120),
+		z.literal(6144),
+		z.literal(7168),
+		z.literal(8192),
+		z.literal(9216),
+		z.literal(10240),
+		z.literal(11264),
+		z.literal(12288),
+		z.literal(13312),
+		z.literal(14336),
+		z.literal(15360),
+		z.literal(16384),
 	])
 	.describe(
 		'The amount of memory (in MiB) used by the task. For tasks using the Fargate launch type, this field is required and must be compatible with the CPU value. Valid memory values depend on the CPU configuration.'
@@ -79,6 +79,27 @@ const HealthCheckSchema = z
 		),
 	})
 	.describe('The health check command and associated configuration parameters for the container.')
+
+const RestartPolicySchema = z
+	.object({
+		enabled: z.boolean().describe('Whether to enable the restart policy for the container.'),
+		ignoredExitCodes: z
+			.number()
+			.int()
+			.array()
+			.optional()
+			.describe('A list of exit codes that Amazon ECS will ignore and not attempt a restart against.'),
+		restartAttemptPeriod: z
+			.number()
+			.int()
+			.min(0)
+			.max(1800)
+			.optional()
+			.describe(
+				"A period of time (in seconds) that the container must run for before a restart can be attempted. A container can be restarted only once every restartAttemptPeriod seconds. If a container isn't able to run for this time period and exits early, it will not be restarted. You can set a minimum restartAttemptPeriod of 60 seconds and a maximum restartAttemptPeriod of 1800 seconds."
+			),
+	})
+	.describe('The restart policy for the container. This parameter maps to the --restart option to docker run.')
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
@@ -172,6 +193,7 @@ const ISchema = z.object({
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
 	healthCheck: HealthCheckSchema.optional(),
+	restartPolicy: RestartPolicySchema.optional(),
 })
 
 const InstanceSchema = z.union([
@@ -198,11 +220,12 @@ export const InstanceDefaultSchema = z
 			system: 'system' in log ? log.system : 'warn',
 			format: 'format' in log ? log.format : 'json',
 		})),
-		memorySize: MemorySizeSchema.default('512'),
+		memorySize: MemorySizeSchema.default(512),
 		cpuSize: CpuSizeSchema.default('0.25 vCPU'),
 		architecture: ArchitectureSchema.default('arm64'),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 		healthCheck: HealthCheckSchema.optional(),
+		restartPolicy: RestartPolicySchema.default({ enabled: true }),
 	})
 	.default({})

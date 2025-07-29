@@ -8,6 +8,19 @@
 			"image": "public.ecr.aws/d7g8v4v5/nodejs/server",
 			"log": {
 				"retention": "1 week"
+			},
+			"cpuSize": "0.5 vCPU",
+			"memorySize": 1024,
+			"architecture": "arm64",
+			"restartPolicy": {
+				"enabled": true
+			},
+			"healthCheck": {
+				"command": ["CMD-SHELL", "curl -f http://localhost:444/ || exit 1"],
+				"interval": "10 seconds",
+				"timeout": "5 seconds",
+				"retries": 3,
+				"startPeriod": "30 second"
 			}
 		}
 		// "layers": {}
