@@ -1,6 +1,11 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack"
+	"name": "stack",
+	"instances": {
+		// "test": {
+		// 	"code": "./instance.ts"
+		// }
+	}
 	// "sites": {
 	// 	"test": {
 	// 		"auth": {

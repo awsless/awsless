@@ -30,6 +30,11 @@ type SharedState = {
 	layer: {
 		'bucket-name': Output<string>
 	}
+
+	instance: {
+		'bucket-name': Output<string>
+		'cluster-arn': Output<string>
+	}
 }
 
 type SharedEntries = {

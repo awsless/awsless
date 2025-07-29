@@ -33,6 +33,7 @@
 		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; node dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
 		"build": "pnpm tsup src/server.ts src/client.ts src/bin.ts --format esm --dts --clean",
 		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; node ./dist/build-json-schema.js",
+		"publish-docker-image": "zsh ./cli/publish-fargate-image.sh",
 		"build-test-setup": "pnpm tsup src/test/test-global-setup.ts --format esm",
 		"build-prebuild": "pnpm tsup src/prebuild.ts --format esm; node ./dist/prebuild.js",
 		"build-layers": "mkdir -p dist/layers && cp -r layers/* dist/layers",

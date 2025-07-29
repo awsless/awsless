@@ -27,6 +27,7 @@ import { alertFeature } from './alert/index.js'
 import { layerFeature } from './layer/index.js'
 import { imageFeature } from './image/index.js'
 import { iconFeature } from './icon/index.js'
+import { instanceFeature } from './instance/index.js'
 
 export const features = [
 	// 1
@@ -44,7 +45,7 @@ export const features = [
 
 	// 3
 	functionFeature,
-	// instanceFeature,
+	instanceFeature,
 	// graphqlFeature,
 	configFeature,
 	searchFeature,

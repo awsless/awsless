@@ -4,6 +4,12 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	"defaults": {
+		"instance": {
+			"image": "public.ecr.aws/d7g8v4v5/nodejs/server",
+			"log": {
+				"retention": "1 week"
+			}
+		}
 		// "layers": {}
 		// "pubsub": {
 		// 	"test": {

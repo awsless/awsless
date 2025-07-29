@@ -570,7 +570,7 @@ var versions = [
   [2, v2]
 ];
 var migrateAppState = (oldState) => {
-  let version = "version" in oldState && oldState.version || 0;
+  const version = "version" in oldState && oldState.version || 0;
   for (const [v, migrate] of versions) {
     if (v > version) {
       oldState = migrate(oldState);
