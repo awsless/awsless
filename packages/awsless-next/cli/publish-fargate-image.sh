@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Install docker first
 # Before running this script
 # Create a repo in ecr
 # After creating repo in ecr you can check the account in push commands, it should be same, but check it anyway
