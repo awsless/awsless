@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Before running this script
+# Create a repo in ecr
+# After creating repo in ecr you can check the account in push commands, it should be same, but check it anyway
+
 region="us-east-1"
 reponame="nodejs/server"
 account="public.ecr.aws/d7g8v4v5"
