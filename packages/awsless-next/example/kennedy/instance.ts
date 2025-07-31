@@ -1,6 +1,7 @@
-import { createServer } from 'http'
+console.log('Starting instance...')
+import { createServer } from 'node:http'
 
-const PORT = process.env.PORT || 443
+const PORT = process.env.PORT || 80
 
 const server = createServer((req, res) => {
 	res.writeHead(200, { 'Content-Type': 'text/plain' })

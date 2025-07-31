@@ -76,6 +76,17 @@ export const instanceFeature = defineFeature({
 		})
 
 		ctx.shared.set('instance', 'cluster-arn', cluster.arn)
+
+		// ------------------------------------------------------------
+		// Create Cloud Map namespace for service discovery
+
+		const namespace = new $.aws.service.DiscoveryPrivateDnsNamespace(group, 'namespace', {
+			name: ctx.app.name,
+			vpc: ctx.shared.get('vpc', 'id'),
+			description: `Private DNS namespace for ${ctx.app.name}`,
+		})
+
+		ctx.shared.set('instance', 'namespace', namespace.name)
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.instances ?? {})) {

@@ -1,15 +1,19 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"instances": {
-		"test": {
-			"code": "./instance.ts"
+	"functions": {
+		"connect-instance": {
+			"code": "./connect-instance.ts",
+			"vpc": true
 		}
+	},
+	"instances": {
+		"test": "./instance.ts"
 	}
 	// "sites": {
 	// 	"test": {
 	// 		"auth": {
-	// 			"username": "admin",
+	// 			"username": "user",
 	// 			"password": "password"
 	// 		},
 	// 		"ssr": "./function.ts",

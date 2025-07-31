@@ -1,7 +1,6 @@
 import { days, toDays } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMin, DurationSchema } from '../../config/schema/duration.js'
-import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
@@ -131,6 +130,8 @@ const MinifySchema = z.boolean().describe('Minify the function code.')
 
 const DescriptionSchema = z.string().describe('A description of the function.')
 
+const ImageSchema = z.string().optional().describe('The URL of the container image to use.')
+
 const validLogRetentionDays = [
 	...[1, 3, 5, 7, 14, 30, 60, 90, 120, 150],
 	...[180, 365, 400, 545, 731, 1096, 1827, 2192],
@@ -162,15 +163,6 @@ export const LogSchema = z
 const FileCodeSchema = z.object({
 	file: LocalFileSchema.describe('The file path of the function code.'),
 	minify: MinifySchema.optional().default(true),
-	external: z
-		.string()
-		.array()
-		.optional()
-		.describe(`A list of external packages that won't be included in the bundle.`),
-})
-
-const BundleCodeSchema = z.object({
-	bundle: LocalDirectorySchema.describe('The directory that needs to be bundled.'),
 })
 
 const CodeSchema = z
@@ -179,13 +171,13 @@ const CodeSchema = z
 			file,
 		})).pipe(FileCodeSchema),
 		FileCodeSchema,
-		BundleCodeSchema,
 	])
 	.describe('Specify the code of your instance.')
 
 const ISchema = z.object({
 	code: CodeSchema,
 	description: DescriptionSchema.optional(),
+	image: ImageSchema.optional(),
 	log: LogSchema.optional(),
 	memorySize: MemorySizeSchema.optional(),
 	cpuSize: CpuSizeSchema.optional(),
@@ -212,14 +204,7 @@ export type InstanceProps = z.output<typeof ISchema>
 
 export const InstanceDefaultSchema = z
 	.object({
-		image: z.string().optional().describe('The URL of the container image to use.'),
-		// handler: HandlerSchema.default('index.default'),
-		log: LogSchema.default(true).transform(log => ({
-			retention: log.retention ?? days(7),
-			level: 'level' in log ? log.level : 'error',
-			system: 'system' in log ? log.system : 'warn',
-			format: 'format' in log ? log.format : 'json',
-		})),
+		image: ImageSchema.default('public.ecr.aws/aws-cli/aws-cli:amd64'),
 		memorySize: MemorySizeSchema.default(512),
 		cpuSize: CpuSizeSchema.default('0.25 vCPU'),
 		architecture: ArchitectureSchema.default('arm64'),
@@ -227,5 +212,8 @@ export const InstanceDefaultSchema = z
 		permissions: PermissionsSchema.optional(),
 		healthCheck: HealthCheckSchema.optional(),
 		restartPolicy: RestartPolicySchema.default({ enabled: true }),
+		log: LogSchema.default(true).transform(log => ({
+			retention: log.retention ?? days(7),
+		})),
 	})
 	.default({})

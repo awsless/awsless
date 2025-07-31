@@ -4,23 +4,28 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	"defaults": {
-		"instance": {
-			"image": "public.ecr.aws/d7g8v4v5/nodejs/server",
+		"function": {
 			"log": {
-				"retention": "1 week"
-			},
-			"cpuSize": "0.5 vCPU",
-			"memorySize": 1024,
-			"architecture": "arm64",
+				"retention": "1 week",
+				"format": "text"
+			}
+		},
+		"instance": {
+			"cpuSize": "1 vCPU",
+			"memorySize": 3072,
+			"architecture": "x86_64",
 			"restartPolicy": {
 				"enabled": true
 			},
 			"healthCheck": {
-				"command": ["CMD-SHELL", "curl -f http://localhost:444/ || exit 1"],
+				"command": ["CMD-SHELL", "curl -f http://localhost || exit 1"],
 				"interval": "10 seconds",
 				"timeout": "5 seconds",
 				"retries": 3,
 				"startPeriod": "30 second"
+			},
+			"log": {
+				"retention": "1 week"
 			}
 		}
 		// "layers": {}

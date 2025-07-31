@@ -1,21 +1,17 @@
 import { toDays, toSeconds } from '@awsless/duration'
-import { $, Future, Group, Input, OptionalInput, resolveInputs, Resource } from '@awsless/formation'
+import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/formation'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
-import { basename } from 'path'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
-import { generateCacheKey } from '../../util/cache.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
-import { zipBundle } from '../function/build/bundle/bundle.js'
-import { bundleTypeScript } from '../function/build/typescript/bundle.js'
-import { zipFiles } from '../function/build/zip.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
+import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
 export const createFargateTask = (
@@ -40,90 +36,35 @@ export const createFargateTask = (
 
 	// ------------------------------------------------------------
 
-	let code: $.aws.s3.BucketObject
+	ctx.registerBuild('instance', name, async (build, { workspace }) => {
+		const fingerprint = await generateFileHash(workspace, local.code.file)
 
-	if ('file' in local.code) {
-		const fileCode = local.code
-		ctx.registerBuild('instance', name, async (build, { workspace }) => {
-			const fingerprint = await generateFileHash(workspace, fileCode.file)
+		return build(fingerprint, async write => {
+			const temp = await createTempFolder(`instance--${name}`)
+			const executable = await buildExecutable(local.code.file, temp.path)
 
-			return build(fingerprint, async write => {
-				const temp = await createTempFolder(`instance--${name}`)
+			await Promise.all([
+				//
+				write('HASH', executable.hash),
+				write('program', executable.file),
+				temp.delete(),
+			])
 
-				const bundle = await bundleTypeScript({
-					file: fileCode.file,
-					external: [...(fileCode.external ?? [])],
-					minify: fileCode.minify,
-					nativeDir: temp.path,
-				})
-
-				const nativeFiles = await temp.files()
-				const archive = await zipFiles([
-					...bundle.files,
-					...nativeFiles.map(file => ({
-						name: basename(file),
-						path: file,
-					})),
-				])
-
-				await Promise.all([
-					write('HASH', bundle.hash),
-					write('bundle.zip', archive),
-					...bundle.files.map(file => write(`files/${file.name}`, file.code)),
-					...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
-				])
-
-				await temp.delete()
-
-				return {
-					size: formatByteSize(archive.byteLength),
-				}
-			})
+			return {
+				size: formatByteSize(executable.file.byteLength),
+			}
 		})
+	})
 
-		code = new $.aws.s3.BucketObject(group, 'code', {
-			bucket: ctx.shared.get('instance', 'bucket-name'),
-			key: `/fargate/${name}.zip`,
-			source: relativePath(getBuildPath('instance', name, 'bundle.zip')),
-			sourceHash: $hash(getBuildPath('instance', name, 'HASH')),
-		})
-	} else {
-		const bundleCode = local.code
-		ctx.registerBuild('instance', name, async build => {
-			const fingerprint = await generateCacheKey([bundleCode.bundle])
-
-			return build(fingerprint, async write => {
-				const bundle = await zipBundle({
-					directory: bundleCode.bundle,
-				})
-
-				await write('HASH', fingerprint)
-				await write('bundle.zip', bundle)
-
-				return {
-					size: formatByteSize(bundle.byteLength),
-				}
-			})
-		})
-
-		code = new $.aws.s3.BucketObject(group, 'code', {
-			bucket: ctx.shared.get('instance', 'bucket-name'),
-			key: `fargate/${name}.zip`,
-			source: relativePath(getBuildPath('instance', name, 'bundle.zip')),
-			sourceHash: $hash(getBuildPath('instance', name, 'HASH')),
-		})
-	}
-
-	const s3Bucket = code.bucket
-	const s3Key = code.key.pipe(name => {
-		if (name.startsWith('/')) {
-			return name.substring(1)
-		}
-
-		return name
+	const code = new $.aws.s3.BucketObject(group, 'code', {
+		bucket: ctx.shared.get('instance', 'bucket-name'),
+		key: `fargate/${name}`,
+		source: relativePath(getBuildPath('instance', name, 'program')),
+		sourceHash: $hash(getBuildPath('instance', name, 'HASH')),
 	})
 
 	// ------------------------------------------------------------
+	// Permissions
 
 	const executionRole = new $.aws.iam.Role(group, 'execution-role', {
 		name: shortId(`${shortName}:execution-role`),
@@ -143,61 +84,52 @@ export const createFargateTask = (
 		managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
 	})
 
-	// ------------------------------------------------------------
-
-	const role = new $.aws.iam.Role(group, 'task-role', {
-		name: shortId(`${shortName}:task-role`),
-		description: name,
-		assumeRolePolicy: JSON.stringify({
-			Version: '2012-10-17',
-			Statement: [
-				{
-					Effect: 'Allow',
-					Action: 'sts:AssumeRole',
-					Principal: {
-						Service: ['ecs-tasks.amazonaws.com'],
+	const role = new $.aws.iam.Role(
+		group,
+		'task-role',
+		{
+			name: shortId(`${shortName}:task-role`),
+			description: name,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['ecs-tasks.amazonaws.com'],
+						},
 					},
+				],
+			}),
+			inlinePolicy: [
+				{
+					name: 's3-code-access',
+					policy: $resolve([code.bucket, code.key], (bucket, key) => {
+						return JSON.stringify({
+							Version: '2012-10-17',
+							Statement: [
+								{
+									Effect: pascalCase('allow'),
+									Action: ['s3:getObject', 's3:HeadObject'],
+									Resource: `arn:aws:s3:::${bucket}/${key}`,
+								},
+							],
+						})
+					}),
 				},
 			],
-		}),
-		managedPolicyArns: ['arn:aws:iam::aws:policy/AmazonS3FullAccess'],
-		// inlinePolicy: [
-		// 	{
-		// 		name: 'instance-asset-access',
-		// 		policy: JSON.stringify({
-		// 			Version: '2012-10-17',
-		// 			Statement: [
-		// 				{
-		// 					Effect: pascalCase('allow'),
-		// 					Action: 's3:getObject',
-		// 					Resoure: `${s3Bucket}/${s3Key}`,
-		// 				},
-		// 			],
-		// 		}),
-		// 	},
-		// ],
-	})
-
-	const statements: Permission[] = [
-		{
-			effect: 'allow',
-			actions: ['s3:getObject'],
-			resources: [`arn:aws:s3:::${s3Bucket}/${s3Key}`],
 		},
-	]
+		{
+			dependsOn: [code],
+		}
+	)
 
-	const addPermission = (...permissions: Permission[]) => {
-		statements.push(...permissions)
-		policy.$.attachDependencies(permissions)
-	}
-
-	ctx.onPermission(statement => {
-		addPermission(statement)
-	})
+	const statements: Permission[] = []
 
 	const policy = new $.aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
-		name: 'fargate-task-policy',
+		name: 'task-policy',
 		policy: new Future(async resolve => {
 			const list = await resolveInputs(statements)
 			resolve(
@@ -213,33 +145,14 @@ export const createFargateTask = (
 		}),
 	})
 
-	// ------------------------------------------------------------
-	// VPC
+	const addPermission = (...permissions: Permission[]) => {
+		statements.push(...permissions)
+		policy.$.attachDependencies(permissions)
+	}
 
-	let dependsOn: Resource<any, any>[] = []
-
-	// dependsOn.push(
-	// 	new $.aws.iam.RolePolicy(group, 'vpc-policy', {
-	// 		role: role.name,
-	// 		name: 'fargate-task-vpc-policy',
-	// 		policy: JSON.stringify({
-	// 			Version: '2012-10-17',
-	// 			Statement: [
-	// 				{
-	// 					Effect: 'Allow',
-	// 					Action: [
-	// 						'ec2:CreateNetworkInterface',
-	// 						'ec2:DescribeNetworkInterfaces',
-	// 						'ec2:DeleteNetworkInterface',
-	// 						'ec2:AssignPrivateIpAddresses',
-	// 						'ec2:UnassignPrivateIpAddresses',
-	// 					],
-	// 					Resource: ['*'],
-	// 				},
-	// 			],
-	// 		}),
-	// 	})
-	// )
+	ctx.onPermission(statement => {
+		addPermission(statement)
+	})
 
 	// ------------------------------------------------------------
 	// Logging
@@ -251,15 +164,8 @@ export const createFargateTask = (
 			retentionInDays: toDays(props.log.retention),
 		})
 
-		dependsOn.push(logGroup)
-
-		addPermission({
-			actions: ['logs:PutLogEvents', 'logs:CreateLogStream'],
-			resources: [logGroup.arn.pipe(arn => `${arn}:*`)],
-		})
-
 		// ------------------------------------------------------------
-		// Add Log subscription
+		// Add log subscription
 
 		const onLogArn = getGlobalOnLog(ctx)
 
@@ -287,7 +193,7 @@ export const createFargateTask = (
 
 	const task = new $.aws.ecs.TaskDefinition(
 		group,
-		`task-${code.sourceHash.pipe(hash => hash)}`,
+		'task',
 		{
 			family: name,
 			networkMode: 'awsvpc',
@@ -301,72 +207,91 @@ export const createFargateTask = (
 				cpuArchitecture: constantCase(props.architecture),
 				operatingSystemFamily: 'LINUX',
 			},
-			containerDefinitions: JSON.stringify([
-				{
-					name: `container-${id}`,
-					image: 'public.ecr.aws/d7g8v4v5/nodejs/server',
-					protocol: 'tcp',
-					portMappings: [
+			containerDefinitions: new Future<string>(async resolve => {
+				const data = await resolveInputs(variables)
+
+				const { s3Bucket, s3Key } = await resolveInputs({
+					s3Bucket: code.bucket,
+					s3Key: code.key,
+				})
+
+				resolve(
+					JSON.stringify([
 						{
+							name: `container-${id}`,
+							image: props.image,
 							protocol: 'tcp',
-							appProtocol: 'http',
-							containerPort: 80,
-							hostPort: 80,
-						},
-						{
-							protocol: 'tcp',
-							appProtocol: 'http',
-							containerPort: 443,
-							hostPort: 443,
-						},
-					],
-					environment: [
-						{
-							name: 'AWS_REGION',
-							value: ctx.appConfig.region,
-						},
-					],
+							workingDirectory: '/usr/app',
+							entryPoint: ['sh', '-c'],
+							command: [
+								`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program && chmod +x /usr/app/program && /usr/app/program`, // can only run a single command
+							],
 
-					...(props.restartPolicy && {
-						restartPolicy: {
-							enabled: props.restartPolicy.enabled,
-							...(props.restartPolicy.ignoredExitCodes && {
-								ignoredExitCodes: props.restartPolicy.ignoredExitCodes,
+							environment: Object.entries(data).map(([name, value]) => ({
+								name,
+								value,
+							})),
+
+							portMappings: [
+								{
+									name: 'http',
+									protocol: 'tcp',
+									appProtocol: 'http',
+									containerPort: 80,
+									hostPort: 80,
+								},
+								{
+									name: 'https',
+									protocol: 'tcp',
+									appProtocol: 'http',
+									containerPort: 443,
+									hostPort: 443,
+								},
+							],
+
+							...(props.restartPolicy && {
+								restartPolicy: {
+									enabled: props.restartPolicy.enabled,
+									...(props.restartPolicy.ignoredExitCodes && {
+										ignoredExitCodes: props.restartPolicy.ignoredExitCodes,
+									}),
+									...(props.restartPolicy.restartAttemptPeriod && {
+										restartAttemptPeriod: props.restartPolicy.restartAttemptPeriod,
+									}),
+								},
 							}),
-							...(props.restartPolicy.restartAttemptPeriod && {
-								restartAttemptPeriod: props.restartPolicy.restartAttemptPeriod,
+
+							...(logGroup && {
+								logConfiguration: {
+									logDriver: 'awslogs',
+									options: {
+										'awslogs-group': `/aws/ecs/${name}`,
+										'awslogs-region': ctx.appConfig.region,
+										'awslogs-stream-prefix': 'ecs',
+										// mode: 'non-blocking',
+										// 'max-buffer-size': '1m',
+									},
+								},
 							}),
-						},
-					}),
 
-					...(logGroup && {
-						logConfiguration: {
-							logDriver: 'awslogs',
-							options: {
-								'awslogs-group': `/aws/ecs/${name}`,
-								'awslogs-region': ctx.appConfig.region,
-								'awslogs-stream-prefix': 'ecs',
-								// mode: 'non-blocking',
-								// 'max-buffer-size': '1m',
-							},
+							healthCheck: props.healthCheck
+								? {
+										command: props.healthCheck.command,
+										interval: toSeconds(props.healthCheck.interval),
+										retries: props.healthCheck.retries,
+										startPeriod: toSeconds(props.healthCheck.startPeriod),
+										timeout: toSeconds(props.healthCheck.timeout),
+									}
+								: undefined,
 						},
-					}),
+					])
+				)
+			}),
 
-					healthCheck: props.healthCheck
-						? {
-								command: props.healthCheck.command,
-								interval: toSeconds(props.healthCheck.interval),
-								retries: props.healthCheck.retries,
-								startPeriod: toSeconds(props.healthCheck.startPeriod),
-								timeout: toSeconds(props.healthCheck.timeout),
-							}
-						: undefined,
-				},
-			]),
 			tags,
 		},
 		{
-			dependsOn,
+			dependsOn: [code],
 		}
 	)
 
@@ -417,21 +342,41 @@ export const createFargateTask = (
 			assignPublicIp: true,
 		},
 		forceNewDeployment: true,
-		forceDelete: true,
-		deploymentCircuitBreaker: {
-			enable: true,
-			rollback: true,
-		},
-		deploymentController: { type: 'ECS' },
+		// serviceRegistries: {
+		// 	registryArn: ctx.shared.get('instance', 'namespace'),
+		// },
 		tags,
+		// forceDelete: true,
+		// deploymentCircuitBreaker: {
+		// 	enable: true,
+		// 	rollback: true,
+		// },
+		// deploymentController: { type: 'ECS' },
+
+		// The internal url (dnsName) doesn't work for ldambda's
+		// https://github.com/aws/containers-roadmap/issues/1960
+		// serviceConnectConfiguration: {
+		// 	enabled: true,
+		// 	namespace: ctx.shared.get('instance', 'namespace'),
+		// 	service: [
+		// 		{
+		// 			clientAlias: {
+		// 				port: 80,
+		// 				dnsName: `${id}.${ctx.app.name}.internal`,
+		// 			},
+		// 			discoveryName: name,
+		// 			portName: 'http',
+		// 		},
+		// 	],
+		// },
 	})
 
 	// ------------------------------------------------------------
 
-	ctx.onEnv((name, value) => {
-		variables[name] = value
-		task.$.attachDependencies({ value })
-	})
+	// ctx.onEnv((name, value) => {
+	// 	variables[name] = value
+	// 	task.$.attachDependencies(value)
+	// })
 
 	// ------------------------------------------------------------
 	// Env Vars
@@ -440,33 +385,18 @@ export const createFargateTask = (
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
-	variables.S3_BUCKET = s3Bucket
-	variables.S3_KEY = s3Key
 	variables.CODE_HASH = code.sourceHash
 
 	// ------------------------------------------------------------
-	// Permissions
+	// Add user defined permissions
 
-	if (ctx.appConfig.defaults.function.permissions) {
-		statements.push(...ctx.appConfig.defaults.function.permissions)
+	if (ctx.appConfig.defaults.instance.permissions) {
+		statements.push(...ctx.appConfig.defaults.instance.permissions)
 	}
 
 	if ('permissions' in local && local.permissions) {
 		statements.push(...local.permissions)
 	}
 
-	return {
-		name,
-		task,
-		service,
-		policy,
-		code,
-		group,
-		setEnvironment(name: string, value: Input<string>) {
-			variables[name] = value
-		},
-		addPermission(statement: Permission) {
-			addPermission(statement)
-		},
-	}
+	return { name, task, service, policy, code, group }
 }
