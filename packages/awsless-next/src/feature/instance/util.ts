@@ -3,6 +3,7 @@ import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
+import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
@@ -187,6 +188,7 @@ export const createFargateTask = (
 		APP: ctx.appConfig.name,
 		APP_ID: ctx.appId,
 		STACK: ctx.stackConfig.name,
+		CODE_HASH: code.sourceHash.pipe<string>(v => v!),
 	}
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
@@ -195,18 +197,20 @@ export const createFargateTask = (
 		group,
 		'task',
 		{
-			family: name,
+			// family: name,
+			family: 'test',
 			networkMode: 'awsvpc',
 			cpu: props.cpuSize,
 			memory: props.memorySize.toString(),
 			requiresCompatibilities: ['FARGATE'],
 			executionRoleArn: executionRole.arn,
 			taskRoleArn: role.arn,
-			trackLatest: true,
 			runtimePlatform: {
 				cpuArchitecture: constantCase(props.architecture),
 				operatingSystemFamily: 'LINUX',
 			},
+			trackLatest: false,
+			skipDestroy: true,
 			containerDefinitions: new Future<string>(async resolve => {
 				const data = await resolveInputs(variables)
 
@@ -219,6 +223,7 @@ export const createFargateTask = (
 					JSON.stringify([
 						{
 							name: `container-${id}`,
+							essential: true,
 							image: props.image,
 							protocol: 'tcp',
 							workingDirectory: '/usr/app',
@@ -239,13 +244,6 @@ export const createFargateTask = (
 									appProtocol: 'http',
 									containerPort: 80,
 									hostPort: 80,
-								},
-								{
-									name: 'https',
-									protocol: 'tcp',
-									appProtocol: 'http',
-									containerPort: 443,
-									hostPort: 443,
 								},
 							],
 
@@ -276,7 +274,10 @@ export const createFargateTask = (
 
 							healthCheck: props.healthCheck
 								? {
-										command: props.healthCheck.command,
+										command: [
+											'CMD-SHELL',
+											`curl -f http://${join('localhost', props.healthCheck.path)} || exit 1`,
+										],
 										interval: toSeconds(props.healthCheck.interval),
 										retries: props.healthCheck.retries,
 										startPeriod: toSeconds(props.healthCheck.startPeriod),
@@ -289,11 +290,13 @@ export const createFargateTask = (
 			}),
 
 			tags,
-		},
+		}
 		{
 			dependsOn: [code],
 		}
 	)
+
+	return
 
 	const securityGroup = new $.aws.security.Group(group, 'security-group', {
 		name: name,
@@ -312,16 +315,6 @@ export const createFargateTask = (
 		tags,
 	})
 
-	new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-https', {
-		securityGroupId: securityGroup.id,
-		description: `Allow HTTP traffic on port 443 to the ${name} instance`,
-		fromPort: 443,
-		toPort: 443,
-		ipProtocol: 'tcp',
-		cidrIpv4: '0.0.0.0/0',
-		tags,
-	})
-
 	new $.aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
 		securityGroupId: securityGroup.id,
 		description: `Allow all outbound traffic from the ${name} instance`,
@@ -330,9 +323,26 @@ export const createFargateTask = (
 		tags,
 	})
 
+	const discoveryService = new $.aws.service.DiscoveryService(group, `service-discovery`, {
+		name: shortId(`${ctx.stack.name}:${id}`),
+		description: `Service discovery for the ${name} instance`,
+		dnsConfig: {
+			namespaceId: ctx.shared.get('instance', 'namespace-id'),
+			routingPolicy: 'MULTIVALUE',
+			dnsRecords: [
+				{
+					type: 'A',
+					ttl: 300,
+				},
+			],
+		},
+		forceDestroy: true,
+		tags,
+	})
+
 	const service = new $.aws.ecs.Service(group, 'service', {
-		cluster: ctx.shared.get('instance', 'cluster-arn'),
 		name: name,
+		cluster: ctx.shared.get('instance', 'cluster-arn'),
 		taskDefinition: task.arn,
 		desiredCount: 1,
 		launchType: 'FARGATE',
@@ -342,16 +352,23 @@ export const createFargateTask = (
 			assignPublicIp: true,
 		},
 		forceNewDeployment: true,
-		// serviceRegistries: {
-		// 	registryArn: ctx.shared.get('instance', 'namespace'),
-		// },
-		tags,
-		// forceDelete: true,
+		forceDelete: true,
+
+		serviceRegistries: {
+			registryArn: discoveryService.arn,
+		},
+
 		// deploymentCircuitBreaker: {
 		// 	enable: true,
 		// 	rollback: true,
 		// },
 		// deploymentController: { type: 'ECS' },
+
+		triggers: {
+			redeployment: new Date().toISOString(),
+		},
+
+		tags,
 
 		// The internal url (dnsName) doesn't work for ldambda's
 		// https://github.com/aws/containers-roadmap/issues/1960

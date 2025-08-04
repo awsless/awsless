@@ -1,7 +1,8 @@
+import { Instance } from '../../src/server'
+
 export default async () => {
-	const result = await fetch('http://test.app-kennedy.internal:80', {
-		method: 'GET',
-	})
+	// @ts-ignore
+	const result = await fetch(Instance.stack.test)
 
 	if (!result.ok) {
 		throw new Error(`Failed to connect to instance: ${result.statusText}`)

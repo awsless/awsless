@@ -19,6 +19,8 @@ export const vpcFeature = defineFeature({
 				Name: ctx.app.name,
 			},
 			cidrBlock: '10.0.0.0/16',
+			enableDnsSupport: true,
+			enableDnsHostnames: true,
 		})
 
 		const privateRouteTable = new $.aws.route.Table(group, 'private', {

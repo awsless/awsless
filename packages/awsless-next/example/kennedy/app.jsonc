@@ -11,19 +11,19 @@
 			}
 		},
 		"instance": {
-			"cpuSize": "1 vCPU",
-			"memorySize": 3072,
+			"cpuSize": "0.25 vCPU",
+			"memorySize": 1024,
 			"architecture": "x86_64",
 			"restartPolicy": {
 				"enabled": true
 			},
-			"healthCheck": {
-				"command": ["CMD-SHELL", "curl -f http://localhost || exit 1"],
-				"interval": "10 seconds",
-				"timeout": "5 seconds",
-				"retries": 3,
-				"startPeriod": "30 second"
-			},
+			// "healthCheck": {
+			// 	"path": "/",
+			// 	"interval": "10 seconds",
+			// 	"timeout": "5 seconds",
+			// 	"retries": 3,
+			// 	"startPeriod": "30 second"
+			// },
 			"log": {
 				"retention": "1 week"
 			}

@@ -58,9 +58,7 @@ const MemorySizeSchema = z
 
 const HealthCheckSchema = z
 	.object({
-		command: z
-			.union([z.string(), z.string().array()])
-			.describe('The command that the container runs to determine if it is healthy.'),
+		path: z.string().describe('The path that the container runs to determine if it is healthy.'),
 		interval: DurationSchema.describe('The time period in seconds between each health check execution.'),
 		retries: z
 			.number()
