@@ -1382,7 +1382,7 @@ var query = (table, hashKey, options = {}) => {
     ...iterable(options.cursor, execute),
     ...thenable(async () => {
       const result = await execute(options.cursor);
-      if (result.cursor) {
+      if (result.cursor && !options.disablePreciseCursor) {
         const more = await execute(result.cursor, 1);
         if (more.items.length === 0) {
           delete result.cursor;
@@ -1399,7 +1399,8 @@ var getIndexItem = (table, index, key, options) => {
     const result = await query(table, key, {
       ...options,
       index,
-      limit: 1
+      limit: 1,
+      disablePreciseCursor: true
     });
     return result.items[0];
   });
@@ -1429,7 +1430,7 @@ var scan = (table, options = {}) => {
     ...iterable(options.cursor, execute),
     ...thenable(async () => {
       const result = await execute(options.cursor);
-      if (result.cursor) {
+      if (result.cursor && !options.disablePreciseCursor) {
         const more = await execute(result.cursor, 1);
         if (more.items.length === 0) {
           delete result.cursor;

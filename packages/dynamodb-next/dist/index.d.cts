@@ -625,6 +625,7 @@ type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefi
     order?: 'asc' | 'desc';
     limit?: number;
     cursor?: string;
+    disablePreciseCursor?: boolean;
 };
 type QueryResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = {
     items: ProjectionResponse<T, P>[];
@@ -646,6 +647,7 @@ type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefin
     consistentRead?: boolean;
     limit?: number;
     cursor?: string;
+    disablePreciseCursor?: boolean;
 };
 type ScanResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = {
     items: ProjectionResponse<T, P>[];

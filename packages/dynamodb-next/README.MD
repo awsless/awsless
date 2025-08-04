@@ -81,7 +81,10 @@ for await(const items of scan(posts, { limit: 100 })) {
 // Write transaction
 await transactWrite([
 	conditionCheck(posts, { userId: 1, id: 0 }, {
-		when: e => e.id.notExists()
+		when: e => [
+			e.id.notExists(),
+			e.size(e.comments.at(0)).gt(0)
+		]
 	}),
 
 	putItem(posts, { userId: 1, id: 1, title: 'Post 1' }),
