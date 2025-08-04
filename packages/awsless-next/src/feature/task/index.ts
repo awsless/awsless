@@ -4,9 +4,10 @@ import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatLocalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
+import { $ } from '@awsless/formation'
 
 const typeGenCode = `
 import { InvokeOptions } from '@awsless/lambda'
@@ -75,52 +76,78 @@ export const taskFeature = defineFeature({
 
 		await ctx.write('task.d.ts', types, true)
 	},
-	// onApp(ctx) {
-	// 	const group = new Group(ctx.base, 'task', 'main')
+	onApp(ctx) {
+		const group = new Group(ctx.base, 'task', 'main')
 
-	// 	const scheduleRole = new $.aws.iam.Role(group, 'schedule', {
-	// 		name: formatGlobalResourceName({
-	// 			appName: ctx.app.name,
-	// 			resourceType: 'task',
-	// 			resourceName: 'schedule',
-	// 		}),
-	// 		description: `Task schedule ${ctx.app.name}`,
-	// 		assumeRolePolicy: JSON.stringify({
-	// 			Version: '2012-10-17',
-	// 			Statement: [
-	// 				{
-	// 					Action: 'sts:AssumeRole',
-	// 					Effect: 'Allow',
-	// 					Principal: {
-	// 						Service: 'scheduler.amazonaws.com',
-	// 					},
-	// 				},
-	// 			],
-	// 		}),
-	// 		inlinePolicy: [
-	// 			{
-	// 				name: 'Invoke function',
-	// 				policy: JSON.stringify({
-	// 					Version: '2012-10-17',
-	// 					Statement: [
-	// 						{
-	// 							Action: ['lambda:InvokeFunction'],
-	// 							Effect: 'Allow',
-	// 							Resource: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*--task--*`],
-	// 						},
-	// 					],
-	// 				}),
-	// 			},
-	// 		],
-	// 	})
+		const scheduleGroupName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'task',
+			resourceName: 'group',
+		})
 
-	// 	ctx.addGlobalPermission({
-	// 		actions: ['schedule:CreateSchedule'],
-	// 		resources: [`arn:aws:schedule:*:*:schedule:${ctx.appConfig.name}--*`],
-	// 	})
+		new $.aws.scheduler.ScheduleGroup(group, 'group', {
+			name: scheduleGroupName,
+			tags: {
+				app: ctx.app.name,
+			},
+		})
 
-	// 	ctx.addEnv('TASK_SCHEDULE_ROLE', scheduleRole.arn)
-	// },
+		const role = new $.aws.iam.Role(group, 'schedule', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'task',
+				resourceName: 'schedule',
+			}),
+			description: `Task schedule ${ctx.app.name}`,
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Action: 'sts:AssumeRole',
+						Effect: 'Allow',
+						Principal: {
+							Service: 'scheduler.amazonaws.com',
+						},
+					},
+				],
+			}),
+			inlinePolicy: [
+				{
+					name: 'InvokeFunction',
+					policy: JSON.stringify({
+						Version: '2012-10-17',
+						Statement: [
+							{
+								Action: ['lambda:InvokeFunction'],
+								Effect: 'Allow',
+								Resource: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*--task--*`],
+							},
+						],
+					}),
+				},
+			],
+		})
+
+		// role.arn.pipe(console.log)
+
+		ctx.addGlobalPermission({
+			actions: ['scheduler:CreateSchedule'],
+			// resources: [`arn:aws:scheduler:*:*:schedule:${ctx.appConfig.name}--*`],
+			resources: [`arn:aws:scheduler:*:*:schedule/${scheduleGroupName}/*`],
+		})
+
+		ctx.addGlobalPermission({
+			actions: ['iam:PassRole'],
+			resources: [role.arn],
+		})
+
+		// arn:aws:scheduler:us-east-1:468004125411:schedule/app-jack-next--task--group/278058c5-301b-4b62-8d75-a4dacb8cd6a
+
+		// console.log();
+
+		// ctx.addEnv('TASK_SCHEDULE_GROUP', scheduleGroup.name)
+		// ctx.addEnv('TASK_SCHEDULE_ROLE', scheduleRole.arn)
+	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
 			const group = new Group(ctx.stack, 'task', id)

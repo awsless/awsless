@@ -26,7 +26,7 @@ export class Cache {
 			this.data[source] = {}
 		}
 
-		if (!this.data[source][locale]) {
+		if (typeof this.data[source][locale] === 'undefined') {
 			this.data[source][locale] = translation
 		}
 	}
@@ -40,7 +40,7 @@ export class Cache {
 	}
 
 	delete(source: string, locale: string) {
-		if (this.data[source]?.[locale]) {
+		if (typeof this.data[source]?.[locale] !== 'undefined') {
 			delete this.data[source][locale]
 		}
 

@@ -3,7 +3,7 @@ import { Translator } from '../vite'
 export const mock = (translation = 'REPLACED'): Translator => {
 	return (_, originals) => {
 		const response: {
-			original: string
+			source: string
 			locale: string
 			translation: string
 		}[] = []

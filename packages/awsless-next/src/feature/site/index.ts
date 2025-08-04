@@ -15,6 +15,7 @@ import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'crypto'
 import { Future } from '@awsless/formation'
 import { ImportKeys } from '../../formation/cloudfront-kvs.js'
+import { getCredentials } from '../../util/aws.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -38,8 +39,22 @@ export const siteFeature = defineFeature({
 					const fingerprint = await generateCacheKey(buildProps.cacheKey)
 
 					return build(fingerprint, async write => {
+						const credentials = await getCredentials(ctx.appConfig.profile)()
+
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
-						const env: Record<string, string> = {}
+						const env: Record<string, string | undefined> = {
+							// Pass the app config name
+							APP: ctx.appConfig.name,
+
+							// Basic AWS info
+							AWS_REGION: ctx.appConfig.region,
+							AWS_ACCOUNT_ID: ctx.accountId,
+
+							// Give AWS access
+							AWS_ACCESS_KEY_ID: credentials.accessKeyId,
+							AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
+							AWS_SESSION_TOKEN: credentials.sessionToken,
+						}
 
 						for (const name of props.build?.configs ?? []) {
 							env[`CONFIG_${constantCase(name)}`] = name

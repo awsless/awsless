@@ -10,6 +10,7 @@ import {
 	date,
 	define,
 	getItem,
+	Input,
 	json,
 	mockDynamoDB,
 	number,
@@ -21,6 +22,7 @@ import {
 	string,
 	stringEnum,
 	ttl,
+	tuple,
 	unknown,
 	updateItem,
 	uuid,
@@ -90,6 +92,15 @@ describe('Schema', () => {
 				})
 			),
 			array2: array(string()),
+			tuple: tuple(
+				[
+					string(),
+					object({
+						key: string(),
+					}),
+				],
+				number()
+			),
 			record: record(
 				object({
 					key: string(),
@@ -122,7 +133,7 @@ describe('Schema', () => {
 	const now = new Date()
 	const bytes = new Int8Array(5).fill(1)
 
-	const item = {
+	const item: Input<typeof table> = {
 		id,
 		key: 1,
 		number: 1,
@@ -143,6 +154,7 @@ describe('Schema', () => {
 		json: { n: 1n },
 		array: [{ key: '1' }],
 		array2: ['hello'],
+		tuple: ['hello', { key: '1' }, 1],
 		record: {
 			key1: { key: '1' },
 			key2: { key: '1' },
@@ -190,6 +202,7 @@ describe('Schema', () => {
 					optional?: string
 					array: { key: string }[]
 					array2: string[]
+					tuple: [string, { key: string }, ...number[]]
 					record: Record<string, { key: string }>
 					any: any
 					sets: {
@@ -264,6 +277,12 @@ describe('Schema', () => {
 						.set({ n: 2n })
 						.update('array', 0)
 						.set({ key: '2' })
+						.update('tuple', 0)
+						.set('world')
+						.update('tuple', 1, 'key')
+						.set('2')
+						.update('tuple', 2)
+						.set(2)
 						.update('record', 'key1')
 						.set({ key: '2' })
 						.update('record', 'key2')
@@ -312,6 +331,7 @@ describe('Schema', () => {
 			json: { n: 2n },
 			array: [{ key: '2' }],
 			array2: ['hello'],
+			tuple: ['world', { key: '2' }, 2],
 			record: {
 				key1: { key: '2' },
 				key2: { key: '2' },

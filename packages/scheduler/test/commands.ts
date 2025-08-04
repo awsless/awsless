@@ -1,5 +1,5 @@
 import { minutes } from '@awsless/duration'
-import { mockScheduler, scheduleInvoke } from '../src'
+import { mockScheduler, schedule } from '../src'
 
 describe('Scheduler', () => {
 	const mock = mockScheduler({
@@ -7,7 +7,7 @@ describe('Scheduler', () => {
 	})
 
 	it('should schedule a lambda function', async () => {
-		await scheduleInvoke({
+		await schedule({
 			name: 'test',
 			schedule: minutes(5),
 			roleArn: 'arn::role',

@@ -6,28 +6,28 @@
 	// "tests": "./test",
 	// "configs": ["test"],
 
-	"commands": {
-		"test": {
-			"file": "./command.ts",
-			"description": "Test command"
-		}
-	},
+	// "commands": {
+	// 	"test": {
+	// 		"file": "./command.ts",
+	// 		"description": "Test command"
+	// 	}
+	// },
 
-	"crons": {
-		"test": {
-			"schedule": "5 minutes",
-			"consumer": "./function.ts"
-		}
-	},
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "5 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
 
-	"functions": {
-		"echo": {
-			"code": "./function.ts",
-			"warm": 1
-		}
-		// "echo-4": "./function.ts"
-		// "echo-3": "./function.ts"
-	},
+	// "functions": {
+	// 	"echo": {
+	// 		"code": "./function.ts",
+	// 		"warm": 1
+	// 	}
+	// 	// "echo-4": "./function.ts"
+	// 	// "echo-3": "./function.ts"
+	// }
 
 	// "caches": {
 	// 	"test": {}
@@ -75,9 +75,24 @@
 	// 	"queue": "./function.ts"
 	// },
 
-	// "tasks": {
-	// 	"echo": "./function.ts"
-	// },
+	"tests": "./schedule/test",
+
+	"tables": {
+		"state": {
+			"hash": "id",
+			"fields": {
+				"id": "number"
+			}
+		}
+	},
+
+	"functions": {
+		"start": "./schedule/start.ts"
+	},
+
+	"tasks": {
+		"end": "./schedule/end.ts"
+	}
 
 	// "pubsub": {
 	// 	"test": {
@@ -92,21 +107,21 @@
 	// 	}
 	// },
 
-	"sites": {
-		"website": {
-			// "domain": "main",
-			"build": {
-				"command": "echo 1",
-				"cacheKey": ["./site/", "./app.jsonc"],
-				"configs": ["test"]
-			},
-			"ssr": "./ssr.ts",
-			"static": true
-			// "static": {
-			// 	"nocheck": "./site"
-			// }
-		}
-	}
+	// "sites": {
+	// 	"website": {
+	// 		// "domain": "main",
+	// 		"build": {
+	// 			"command": "pnpm test",
+	// 			"cacheKey": ["./site/", "./app.jsonc"],
+	// 			"configs": ["test"]
+	// 		},
+	// 		"ssr": "./ssr.ts",
+	// 		"static": true
+	// 		// "static": {
+	// 		// 	"nocheck": "./site"
+	// 		// }
+	// 	}
+	// }
 
 	// "streams": {
 	// 	"arena": {

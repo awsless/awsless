@@ -7,10 +7,11 @@ type Props = {
 }
 
 export const execCommand = async ({ cwd, env, command }: Props) => {
-	await exec(command, { cwd, env })
-
-	// console.log('')
-	// console.log(output.code)
-	// console.log(output.stderr)
-	// console.log('')
+	await exec(command, {
+		cwd,
+		env: {
+			...process.env,
+			...(env ?? {}),
+		},
+	})
 }

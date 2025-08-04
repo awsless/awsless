@@ -1,11 +1,12 @@
 import { UUID } from 'crypto'
-import { date, define, Input, object, optional, Output, string, uuid } from '../src'
+import { date, define, Input, object, optional, Output, string, tuple, uuid } from '../src'
 
 describe('Infer', () => {
 	const posts = define('posts', {
 		hash: 'id',
 		schema: object({
 			id: uuid(),
+			color: tuple([string(), string()]),
 			title: string(),
 			content: optional(string()),
 			createdAt: date(),
@@ -17,6 +18,7 @@ describe('Infer', () => {
 		type Out = Output<typeof posts>
 		type Expectation = {
 			id: UUID
+			color: [string, string]
 			title: string
 			content?: string
 			createdAt: Date

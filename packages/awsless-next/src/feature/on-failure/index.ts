@@ -38,6 +38,7 @@ export const onFailureFeature = defineFeature({
 			}),
 		})
 
+		ctx.addEnv('ON_FAILURE_QUEUE_ARN', queue.arn)
 		ctx.shared.set('on-failure', 'queue-arn', queue.arn)
 
 		const result = createLambdaFunction(group, ctx, 'on-failure', 'consumer', ctx.appConfig.defaults.onFailure)

@@ -194,6 +194,7 @@ declare class UpdateExpression<T extends AnyTable> extends Chain<T> {
     /** Update a given property */
     update<P extends InferPath<T>>(...path: P): Update<T, P>;
     extend<R extends UpdateExpression<T> | void>(fn: (exp: UpdateExpression<T>) => R): R;
+    setItem(item: Partial<T['schema']['INPUT']>): UpdateExpression<T>;
 }
 declare class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T> {
     private path;
@@ -320,8 +321,19 @@ declare const record: <S extends AnySchema>(schema: S) => BaseSchema<"M", Record
 
 type ArrayPaths<L extends AnySchema> = [number] | [number, ...L['PATHS']];
 type ArrayOptPaths<L extends AnySchema> = [number] | [number, ...L['OPT_PATHS']];
+type RequiredSchema$1 = BaseSchema<any, any, any, Array<string | number>, Array<string | number>, false>;
+declare const array: <S extends RequiredSchema$1>(schema: S) => BaseSchema<"L", S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, false>;
+
+type TuplePaths<Entries extends AnySchema[]> = [number] | [number, ...Entries[number]['PATHS']];
+type TupleOptPaths<Entries extends AnySchema[]> = [number] | [number, ...Entries[number]['OPT_PATHS']];
 type RequiredSchema = BaseSchema<any, any, any, Array<string | number>, Array<string | number>, false>;
-declare const array: <S extends RequiredSchema>(schema: S) => BaseSchema<"L", S["INPUT"][], S["OUTPUT"][], ArrayPaths<S>, ArrayOptPaths<S>, false>;
+type TupleInput<Entries extends RequiredSchema[]> = {
+    -readonly [Key in keyof Entries]: Entries[Key]['INPUT'];
+};
+type TupleOuput<Entries extends RequiredSchema[]> = {
+    -readonly [Key in keyof Entries]: Entries[Key]['OUTPUT'];
+};
+declare const tuple: <const Entries extends RequiredSchema[], const Rest extends RequiredSchema | undefined = undefined>(entries: Entries, rest?: Rest) => BaseSchema<"L", Rest extends RequiredSchema ? [...TupleInput<Entries>, ...Rest["INPUT"][]] : TupleInput<Entries>, Rest extends RequiredSchema ? [...TupleOuput<Entries>, ...Rest["OUTPUT"][]] : TupleOuput<Entries>, Rest extends RequiredSchema ? [number] | [number, ...Entries[number]["PATHS"]] | [number, ...Rest["PATHS"]] : TuplePaths<Entries>, Rest extends RequiredSchema ? [number] | [number, ...Entries[number]["OPT_PATHS"]] | [number, ...Rest["OPT_PATHS"]] : TupleOptPaths<Entries>, false>;
 
 declare const date: () => BaseSchema<"N", Date, Date, [], [], false>;
 
@@ -542,4 +554,4 @@ type PaginateScanResponse<T extends AnyTable, P extends ProjectionExpression<T> 
 };
 declare const paginateScan: <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options?: PaginateScanOptions<T, P, I>) => Promise<PaginateScanResponse<T, P>>;
 
-export { type AnyTable, type CursorKey, type HashKey, type Input, type Output, type PrimaryKey, type SortKey, Table, type TransactConditionCheck, type TransactDelete, type TransactPut, type TransactUpdate, type Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, binary, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, json, migrate, mockDynamoDB, number, numberEnum, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, set, streamTable, string, stringEnum, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, unknown, updateItem, uuid };
+export { type AnyTable, type CursorKey, type HashKey, type Input, type Output, type PrimaryKey, type SortKey, Table, type TransactConditionCheck, type TransactDelete, type TransactPut, type TransactUpdate, type Transactable, any, array, batchDeleteItem, batchGetItem, batchPutItem, bigfloat, bigint, binary, boolean, date, define, deleteItem, dynamoDBClient, dynamoDBDocumentClient, getIndexedItem, getItem, json, migrate, mockDynamoDB, number, numberEnum, object, optional, paginateQuery, paginateScan, putItem, query, queryAll, record, scan, scanAll, seed, seedTable, set, streamTable, string, stringEnum, transactConditionCheck, transactDelete, transactPut, transactUpdate, transactWrite, ttl, tuple, unknown, updateItem, uuid };

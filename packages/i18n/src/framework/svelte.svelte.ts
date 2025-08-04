@@ -1,7 +1,7 @@
 declare const $state: <T>(v: T) => T
 declare const $derived: { by: <T>(c: () => T) => T }
 
-let locale: string = $state('en')
+let locale = $state('en')
 
 let t: {
 	(template: TemplateStringsArray, ...args: Array<string | number | { toString(): string }>): string
