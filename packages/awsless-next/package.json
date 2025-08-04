@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.540",
+	"version": "0.0.543",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -55,6 +55,7 @@
 		"@awsless/lambda": "workspace:^",
 		"@awsless/mqtt": "workspace:^",
 		"@awsless/open-search": "workspace:^",
+		"@awsless/duration": "workspace:^",
 		"@awsless/redis": "workspace:^",
 		"@awsless/s3": "workspace:^",
 		"@awsless/sns": "workspace:^",

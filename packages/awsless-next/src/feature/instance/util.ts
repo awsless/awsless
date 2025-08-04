@@ -59,9 +59,9 @@ export const createFargateTask = (
 
 	const code = new $.aws.s3.BucketObject(group, 'code', {
 		bucket: ctx.shared.get('instance', 'bucket-name'),
-		key: `fargate/${name}`,
+		key: name,
 		source: relativePath(getBuildPath('instance', name, 'program')),
-		sourceHash: $hash(getBuildPath('instance', name, 'HASH')),
+		sourceHash: $file(getBuildPath('instance', name, 'HASH')),
 	})
 
 	// ------------------------------------------------------------
@@ -146,13 +146,14 @@ export const createFargateTask = (
 		}),
 	})
 
-	const addPermission = (...permissions: Permission[]) => {
-		statements.push(...permissions)
-		policy.$.attachDependencies(permissions)
-	}
+	// const addPermission = (...permissions: Permission[]) => {
+	// 	statements.push(...permissions)
+	// 	policy.$.attachDependencies(permissions)
+	// }
 
 	ctx.onPermission(statement => {
-		addPermission(statement)
+		statements.push(statement)
+		policy.$.attachDependencies(statement)
 	})
 
 	// ------------------------------------------------------------
@@ -229,7 +230,11 @@ export const createFargateTask = (
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
 							command: [
-								`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program && chmod +x /usr/app/program && /usr/app/program`, // can only run a single command
+								[
+									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
+									`chmod +x /usr/app/program`,
+									`/usr/app/program`,
+								].join(' && '),
 							],
 
 							environment: Object.entries(data).map(([name, value]) => ({

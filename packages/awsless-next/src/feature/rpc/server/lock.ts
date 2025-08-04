@@ -13,8 +13,17 @@ const lockRequest = async (requestId: UUID, key: string) => {
 			lockTable,
 			{ key },
 			{
-				update: exp => exp.update('requestId').set(requestId).update('ttl').set(ttl),
-				condition: exp => exp.where('key').not.exists.or.where('ttl').lt(now),
+				update: e => [
+					//
+					e.requestId.set(requestId),
+					e.ttl.set(ttl),
+				],
+				when: e =>
+					e.or([
+						//
+						e.key.notExists(),
+						e.ttl.lt(now),
+					]),
 			}
 		)
 	} catch (error) {
@@ -34,7 +43,11 @@ const unlockRequest = async (requestId: UUID, key: string) => {
 			lockTable,
 			{ key },
 			{
-				condition: exp => exp.where('key').exists.and.where('requestId').eq(requestId),
+				when: e => [
+					//
+					e.key.exists(),
+					e.requestId.eq(requestId),
+				],
 			}
 		)
 	} catch (error) {

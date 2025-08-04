@@ -5,15 +5,7 @@ import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
 const CpuSizeSchema = z
-	.union([
-		z.literal('0.25 vCPU'),
-		z.literal('0.5 vCPU'),
-		z.literal('1 vCPU'),
-		z.literal('2 vCPU'),
-		z.literal('4 vCPU'),
-		z.literal('8 vCPU'),
-		z.literal('16 vCPU'),
-	])
+	.enum(['0.25 vCPU', '0.5 vCPU', '1 vCPU', '2 vCPU', '4 vCPU', '8 vCPU', '16 vCPU'])
 	.describe(
 		'The number of vCPU units used by the task. For tasks using the Fargate launch type, this field is required. Valid values: 0.25, 0.5, 1, 2, 4, 8, 16 vCPU.'
 	)
