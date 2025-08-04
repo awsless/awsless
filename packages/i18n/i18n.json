@@ -1,47 +1,38 @@
 {
   "Hello ${1} world": {
     "fr": "Bonjour ${1} monde",
-    "jp": "こんにちは${1}世界",
-    "nl": "Hallo ${1} wereld"
+    "jp": "こんにちは${1}世界"
   },
   "Right now it's ${new Date()}.": {
     "fr": "En ce moment, il est ${new Date()}.",
-    "jp": "現在の時刻は${new Date()}です。",
-    "nl": "Op dit moment is het ${new Date()}."
+    "jp": "現在の時刻は${new Date()}です。"
   },
   "": {
     "fr": "",
-    "jp": "",
-    "nl": ""
+    "jp": ""
   },
   "head": {
     "fr": "tête",
-    "jp": "ヘッド",
-    "nl": "kop"
+    "jp": "ヘッド"
   },
   "test": {
     "fr": "test",
-    "jp": "テスト",
-    "nl": "test"
+    "jp": "テスト"
   },
   "the count is ${num}": {
     "fr": "le compte est de ${num}",
-    "jp": "カウントは${num}です",
-    "nl": "het aantal is ${num}"
+    "jp": "カウントは${num}です"
   },
   "the number is ${1}": {
     "fr": "le nombre est ${1}",
-    "jp": "数値は${1}です",
-    "nl": "het getal is ${1}"
+    "jp": "数値は${1}です"
   },
   "Loading...": {
     "fr": "Chargement...",
-    "jp": "読み込み中...",
-    "nl": "Laden..."
+    "jp": "読み込み中..."
   },
   "Title": {
     "fr": "Titre",
-    "jp": "タイトル",
-    "nl": "Titel"
+    "jp": "タイトル"
   }
 }

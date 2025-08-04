@@ -24,7 +24,8 @@ export const findTranslatable = async (cwd: string) => {
 			if (file.endsWith('.svelte')) {
 				found.push(...findSvelteTranslatable(code))
 			} else {
-				found.push(...(await findTypescriptTranslatable(code)))
+				const entries = await findTypescriptTranslatable(code)
+				found.push(...entries)
 			}
 		}
 	}

@@ -89,6 +89,7 @@ __export(index_exports, {
   transactUpdate: () => transactUpdate,
   transactWrite: () => transactWrite,
   ttl: () => ttl,
+  tuple: () => tuple,
   unknown: () => unknown,
   updateItem: () => updateItem,
   uuid: () => uuid
@@ -359,17 +360,28 @@ var m = (chain, op, ...items) => {
     del: [...d.del]
   };
   if (op && items.length) {
-    n[op].push(items);
+    n[op].push(...items);
   }
   return n;
 };
-var UpdateExpression = class extends Chain {
+var UpdateExpression = class _UpdateExpression extends Chain {
   /** Update a given property */
   update(...path) {
     return new Update(m(this), path);
   }
   extend(fn) {
     return fn(this);
+  }
+  setItem(item) {
+    return new _UpdateExpression(
+      m(
+        this,
+        "set",
+        ...Object.entries(item).map(([k, v]) => {
+          return [{ p: [k] }, "=", { v, p: [k] }];
+        })
+      )
+    );
   }
 };
 var Update = class extends Chain {
@@ -378,7 +390,7 @@ var Update = class extends Chain {
     this.path = path;
   }
   u(op, ...items) {
-    return new UpdateExpression(m(this, op, ...items));
+    return new UpdateExpression(m(this, op, items));
   }
   i(op, value = 1, initialValue = 0) {
     return this.u(
@@ -819,6 +831,17 @@ var array = (schema) => createSchema({
   decode: (value) => value.map((item) => schema.unmarshall(item)),
   walk(_, ...rest) {
     return rest.length ? schema.walk?.(...rest) : schema;
+  }
+});
+
+// src/schema/tuple.ts
+var tuple = (entries, rest) => createSchema({
+  type: "L",
+  encode: (value) => value.map((item, i) => (entries[i] ?? rest)?.marshall(item)),
+  decode: (value) => value.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)),
+  walk(path, ...restPath) {
+    const schema = entries[path] || rest;
+    return restPath.length ? schema?.walk?.(...restPath) : schema;
   }
 });
 
@@ -1721,6 +1744,7 @@ var paginateScan = async (table, options = {}) => {
   transactUpdate,
   transactWrite,
   ttl,
+  tuple,
   unknown,
   updateItem,
   uuid

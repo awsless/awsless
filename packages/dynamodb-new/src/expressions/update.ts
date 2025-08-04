@@ -21,7 +21,7 @@ class Chain<T extends AnyTable> {
 	}
 }
 
-const m = <T extends AnyTable>(chain: Chain<T>, op?: keyof ChainData<T>, ...items: QueryItem<T>[]): ChainData<T> => {
+const m = <T extends AnyTable>(chain: Chain<T>, op?: keyof ChainData<T>, ...items: QueryItem<T>[][]): ChainData<T> => {
 	const d = chain[key]
 	const n = {
 		set: [...d.set],
@@ -31,7 +31,7 @@ const m = <T extends AnyTable>(chain: Chain<T>, op?: keyof ChainData<T>, ...item
 	}
 
 	if (op && items.length) {
-		n[op].push(items)
+		n[op].push(...items)
 	}
 
 	return n
@@ -46,6 +46,18 @@ export class UpdateExpression<T extends AnyTable> extends Chain<T> {
 	extend<R extends UpdateExpression<T> | void>(fn: (exp: UpdateExpression<T>) => R): R {
 		return fn(this)
 	}
+
+	setItem(item: Partial<T['schema']['INPUT']>) {
+		return new UpdateExpression<T>(
+			m(
+				this,
+				'set',
+				...Object.entries(item).map(([k, v]) => {
+					return [{ p: [k] }, '=', { v, p: [k] }]
+				})
+			)
+		)
+	}
 }
 
 class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T> {
@@ -57,7 +69,7 @@ class Update<T extends AnyTable, P extends InferPath<T>> extends Chain<T> {
 	}
 
 	private u(op: keyof ChainData<T>, ...items: QueryItem<T>[]) {
-		return new UpdateExpression<T>(m(this, op, ...items))
+		return new UpdateExpression<T>(m(this, op, items))
 	}
 
 	private i(op: '+' | '-', value: number | bigint | BigFloat = 1, initialValue: number | bigint | BigFloat = 0) {

@@ -30,7 +30,7 @@ const formatScheduleExpression = (schedule: Date | Duration): string => {
 	return schedule.toISOString().split('.').at(0)!
 }
 
-export const scheduleInvoke = async ({
+export const schedule = async ({
 	client = schedulerClient(),
 	name,
 	group,
@@ -41,7 +41,7 @@ export const scheduleInvoke = async ({
 	timezone,
 	deadLetterArn,
 	retryAttempts = 3,
-	region = process.env.REGION,
+	region = process.env.AWS_REGION,
 	accountId = process.env.AWS_ACCOUNT_ID,
 }: CreateSchedule) => {
 	const command = new CreateScheduleCommand({
@@ -59,13 +59,17 @@ export const scheduleInvoke = async ({
 			RetryPolicy: {
 				MaximumRetryAttempts: retryAttempts,
 			},
-			DeadLetterConfig: {
-				Arn: deadLetterArn,
-			},
+			...(deadLetterArn
+				? {
+						DeadLetterConfig: {
+							Arn: deadLetterArn,
+						},
+					}
+				: {}),
 		},
 	})
 
-	return client.send(command)
+	await client.send(command)
 }
 
 // await Task.stack.func({ payload }, { schedule: hours(1) })

@@ -27,6 +27,8 @@ describe('Update Expression', () => {
 
 	assert('SET #n1 = :v1', exp => exp.update('id').set(1))
 
+	assert('SET #n1 = :v1, #n2 = :v2', exp => exp.update('id').set(1).update('name').set('hello'))
+
 	assert('SET #n1 = if_not_exists( #n1 , :v1 )', exp => exp.update('id').setIfNotExists(1))
 
 	assert('REMOVE #n1', exp => exp.update('id').del())
@@ -40,6 +42,8 @@ describe('Update Expression', () => {
 	assert('DELETE #n1 :v1', exp => exp.update('id').remove(1))
 
 	assert('REMOVE #n1', exp => exp.update('json').set(undefined))
+
+	assert('SET #n1 = :v1, #n2 = :v2', exp => exp.setItem({ id: 1, name: 'hello' }))
 
 	assert(
 		[

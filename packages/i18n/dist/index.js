@@ -22,7 +22,7 @@ var Cache = class {
     if (!this.data[source]) {
       this.data[source] = {};
     }
-    if (!this.data[source][locale]) {
+    if (typeof this.data[source][locale] === "undefined") {
       this.data[source][locale] = translation;
     }
   }
@@ -33,7 +33,7 @@ var Cache = class {
     return typeof this.get(source, locale) === "string";
   }
   delete(source, locale) {
-    if (this.data[source]?.[locale]) {
+    if (typeof this.data[source]?.[locale] !== "undefined") {
       delete this.data[source][locale];
     }
     if (this.data[source] && Object.keys(this.data[source]).length === 0) {
@@ -148,7 +148,8 @@ var findTranslatable = async (cwd) => {
       if (file.endsWith(".svelte")) {
         found.push(...findSvelteTranslatable(code));
       } else {
-        found.push(...await findTypescriptTranslatable(code));
+        const entries = await findTypescriptTranslatable(code);
+        found.push(...entries);
       }
     }
   }
@@ -156,7 +157,7 @@ var findTranslatable = async (cwd) => {
 };
 
 // src/vite.ts
-var createI18nPlugin = (props) => {
+var i18n = (props) => {
   let cache;
   return {
     name: "awsless/i18n",
@@ -186,8 +187,12 @@ var createI18nPlugin = (props) => {
           code = code.replaceAll(`lang.t\`${item.source}\``, () => {
             replaced = true;
             return `lang.t.get(\`${item.source}\`, {${props.locales.map((locale) => {
-              return `"${locale}":\`${cache.get(item.source, locale)}\``;
-            }).join(",")}})`;
+              const translation = cache.get(item.source, locale);
+              if (translation === item.source) {
+                return;
+              }
+              return `"${locale}":\`${translation}\``;
+            }).filter((v) => !!v).join(",")}})`;
           });
         }
       }
@@ -237,5 +242,5 @@ var ai = (props) => {
 };
 export {
   ai,
-  createI18nPlugin as i18n
+  i18n
 };

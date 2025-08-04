@@ -117,6 +117,11 @@ mockDynamoDB({
 
 it('your test', async () => {
 	const result = await getItem(posts, { id: 1 })
+
+	expect(result).toStrictEqual({
+		id: 1,
+		title: 'Hello World',
+	})
 })
 ```
 
@@ -124,6 +129,7 @@ it('your test', async () => {
 
 We provides the following schema types:
 
+- any
 - array
 - bigfloat
 - bigint
@@ -131,6 +137,7 @@ We provides the following schema types:
 - boolean
 - date
 - enums
+- json
 - number
 - object
 - optional
@@ -138,6 +145,7 @@ We provides the following schema types:
 - set
 - string
 - ttl
+- tuple
 - unknown
 - uuid
 

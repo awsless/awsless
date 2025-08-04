@@ -30,7 +30,7 @@ export type I18nPluginProps = {
 	translate: Translator
 }
 
-export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
+export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
 	return {
 		name: 'awsless/i18n',
@@ -61,6 +61,7 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
 			}
 
 			await saveCache(cwd, cache)
+
 			this.info(`Translating done.`)
 		},
 		transform(code) {
@@ -72,8 +73,17 @@ export const createI18nPlugin = (props: I18nPluginProps): Plugin => {
 						replaced = true
 						return `lang.t.get(\`${item.source}\`, {${props.locales
 							.map(locale => {
-								return `"${locale}":\`${cache.get(item.source, locale)}\``
+								const translation = cache.get(item.source, locale)
+
+								// Skip adding the translated text if it's the
+								// same as the original source text.
+								if (translation === item.source) {
+									return
+								}
+
+								return `"${locale}":\`${translation}\``
 							})
+							.filter(v => !!v)
 							.join(',')}})`
 					})
 				}

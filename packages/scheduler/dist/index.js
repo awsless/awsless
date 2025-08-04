@@ -1,5 +1,9 @@
 // src/commands.ts
-import { CreateScheduleCommand, DeleteScheduleCommand } from "@aws-sdk/client-scheduler";
+import { CreateScheduleCommand } from "@aws-sdk/client-scheduler";
+import { Duration, toSeconds } from "@awsless/duration";
+import { stringify } from "@awsless/json";
+import { randomUUID } from "crypto";
+import { addSeconds } from "date-fns";
 
 // src/client.ts
 import { SchedulerClient } from "@aws-sdk/client-scheduler";
@@ -9,59 +13,69 @@ var schedulerClient = globalClient(() => {
 });
 
 // src/commands.ts
+var formatScheduleExpression = (schedule2) => {
+  if (schedule2 instanceof Duration) {
+    const now = /* @__PURE__ */ new Date();
+    schedule2 = addSeconds(now, toSeconds(schedule2));
+  }
+  return schedule2.toISOString().split(".").at(0);
+};
 var schedule = async ({
   client = schedulerClient(),
-  lambda,
+  name,
+  group,
   payload,
-  date,
+  schedule: schedule2,
   idempotentKey,
   roleArn,
   timezone,
-  region = process.env.REGION,
+  deadLetterArn,
+  retryAttempts = 3,
+  region = process.env.AWS_REGION,
   accountId = process.env.AWS_ACCOUNT_ID
 }) => {
   const command = new CreateScheduleCommand({
     ClientToken: idempotentKey,
-    Name: idempotentKey,
-    ScheduleExpression: `at(${date.toISOString().split(".")[0]})`,
-    ScheduleExpressionTimezone: timezone || void 0,
+    Name: randomUUID(),
+    GroupName: group,
+    ScheduleExpression: `at(${formatScheduleExpression(schedule2)})`,
+    ScheduleExpressionTimezone: timezone,
     FlexibleTimeWindow: { Mode: "OFF" },
+    ActionAfterCompletion: "DELETE",
     Target: {
-      Arn: `arn:aws:lambda:${region}:${accountId}:function:${lambda}`,
-      Input: payload ? JSON.stringify(payload) : void 0,
-      RoleArn: roleArn
+      Arn: `arn:aws:lambda:${region}:${accountId}:function:${name}`,
+      Input: payload ? stringify(payload) : void 0,
+      RoleArn: roleArn,
+      RetryPolicy: {
+        MaximumRetryAttempts: retryAttempts
+      },
+      ...deadLetterArn ? {
+        DeadLetterConfig: {
+          Arn: deadLetterArn
+        }
+      } : {}
     }
   });
-  return client.send(command);
-};
-var deleteSchedule = ({ client = schedulerClient(), idempotentKey }) => {
-  const command = new DeleteScheduleCommand({
-    ClientToken: idempotentKey,
-    Name: idempotentKey
-  });
-  return client.send(command);
+  await client.send(command);
 };
 
 // src/mock.ts
-import {
-  SchedulerClient as SchedulerClient2,
-  CreateScheduleCommand as CreateScheduleCommand2,
-  DeleteScheduleCommand as DeleteScheduleCommand2
-} from "@aws-sdk/client-scheduler";
+import { CreateScheduleCommand as CreateScheduleCommand2, SchedulerClient as SchedulerClient3 } from "@aws-sdk/client-scheduler";
+import { parse } from "@awsless/json";
 import { mockObjectValues, nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";
 var mockScheduler = (lambdas) => {
   const list = mockObjectValues(lambdas);
-  mockClient(SchedulerClient2).on(CreateScheduleCommand2).callsFake(async (input) => {
-    const parts = input.Target.Arn.split(":");
+  mockClient(SchedulerClient3).on(CreateScheduleCommand2).callsFake(async (input) => {
+    const parts = input.Target?.Arn?.split(":") ?? "";
     const name = parts[parts.length - 1];
     const callback = list[name];
     if (!callback) {
       throw new TypeError(`Scheduler mock function not defined for: ${name}`);
     }
-    const payload = input.Target?.Input ? JSON.parse(input.Target.Input) : void 0;
+    const payload = input.Target?.Input ? parse(input.Target.Input) : void 0;
     await nextTick(callback, payload);
-  }).on(DeleteScheduleCommand2).resolves({});
+  });
   beforeEach(() => {
     Object.values(list).forEach((fn) => {
       fn.mockClear();
@@ -70,7 +84,6 @@ var mockScheduler = (lambdas) => {
   return list;
 };
 export {
-  deleteSchedule,
   mockScheduler,
   schedule,
   schedulerClient

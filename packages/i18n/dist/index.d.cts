@@ -20,7 +20,7 @@ type I18nPluginProps = {
     /** Function that performs the translation of a given text. */
     translate: Translator;
 };
-declare const createI18nPlugin: (props: I18nPluginProps) => Plugin;
+declare const i18n: (props: I18nPluginProps) => Plugin;
 
 type AiTranslationProps = {
     /** The maximum number of tokens allowed in the AI's response. */
@@ -36,4 +36,4 @@ type AiTranslationProps = {
 };
 declare const ai: (props: AiTranslationProps) => Translator;
 
-export { type I18nPluginProps, type Translator, ai, createI18nPlugin as i18n };
+export { type AiTranslationProps, type I18nPluginProps, type Translator, ai, i18n };

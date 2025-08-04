@@ -27,7 +27,12 @@ describe('DynamoDB Transact', () => {
 
 	it('should put', async () => {
 		await transactWrite({
-			items: [transactPut(users, { id: 1 }), transactPut(users, { id: 2 }), transactPut(users, { id: 3 })],
+			items: [
+				//
+				transactPut(users, { id: 1 }),
+				transactPut(users, { id: 2 }),
+				transactPut(users, { id: 3 }),
+			],
 		})
 
 		const result = await scan(users)

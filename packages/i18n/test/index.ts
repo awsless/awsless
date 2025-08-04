@@ -5,6 +5,8 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { loadCache } from '../src/cache'
 import { openai } from '@ai-sdk/openai'
 
+// import { mock } from '../src/translate/mock'
+
 describe('i18n', () => {
 	process.env.OPENAI_API_KEY = ''
 
@@ -14,10 +16,10 @@ describe('i18n', () => {
 			await build({
 				plugins: [
 					i18n({
-						locales: ['fr', 'jp', 'nl'],
+						locales: ['fr', 'jp'],
 						translate: ai({
 							maxTokens: 32_000,
-							model: openai.chat('gpt-4.1'),
+							model: openai('gpt-4.1'),
 						}),
 					}),
 					svelte(),
@@ -55,7 +57,6 @@ describe('i18n', () => {
 				//
 				'fr',
 				'jp',
-				'nl',
 			])
 
 			for (const translated of Object.values(entries)) {
@@ -63,4 +64,22 @@ describe('i18n', () => {
 			}
 		}
 	})
+
+	// it('Skip adding translations if they are the same', async () => {
+	// 	const result = await build({
+	// 		plugins: [
+	// 			i18n({
+	// 				locales: ['fr', 'jp'],
+	// 				translate: mock(),
+	// 			}),
+	// 			svelte(),
+	// 		],
+	// 		root: resolve(__dirname, './_site'),
+	// 		build: {
+	// 			write: false,
+	// 		},
+	// 	})
+
+	// 	console.log(result)
+	// })
 })
