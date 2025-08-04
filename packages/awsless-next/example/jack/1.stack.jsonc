@@ -75,23 +75,30 @@
 	// 	"queue": "./function.ts"
 	// },
 
-	"tests": "./schedule/test",
+	// "tests": "./schedule/test",
 
-	"tables": {
-		"state": {
-			"hash": "id",
-			"fields": {
-				"id": "number"
-			}
+	// "tables": {
+	// 	"state": {
+	// 		"hash": "id",
+	// 		"fields": {
+	// 			"id": "number"
+	// 		}
+	// 	}
+	// },
+
+	// "functions": {
+	// 	"start": "./schedule/start.ts"
+	// },
+
+	// "tasks": {
+	// 	"end": "./schedule/end.ts"
+	// },
+
+	"instances": {
+		"test": {
+			"code": "./instance/index.ts",
+			"memorySize": "1 GB"
 		}
-	},
-
-	"functions": {
-		"start": "./schedule/start.ts"
-	},
-
-	"tasks": {
-		"end": "./schedule/end.ts"
 	}
 
 	// "pubsub": {

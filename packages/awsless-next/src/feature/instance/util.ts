@@ -1,5 +1,6 @@
 import { toDays, toSeconds } from '@awsless/duration'
 import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/formation'
+import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
@@ -160,7 +161,7 @@ export const createFargateTask = (
 	// Logging
 
 	let logGroup: $.aws.cloudwatch.LogGroup | undefined
-	if (props.log.retention!.value > 0n) {
+	if (props.log.retention && props.log.retention.value > 0n) {
 		logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
 			name: `/aws/ecs/${name}`,
 			retentionInDays: toDays(props.log.retention),
@@ -198,11 +199,11 @@ export const createFargateTask = (
 		group,
 		'task',
 		{
-			// family: name,
-			family: 'test',
+			family: name,
+			// family: 'test',
 			networkMode: 'awsvpc',
-			cpu: props.cpuSize,
-			memory: props.memorySize.toString(),
+			cpu: props.cpu,
+			memory: toMebibytes(props.memorySize).toString(),
 			requiresCompatibilities: ['FARGATE'],
 			executionRoleArn: executionRole.arn,
 			taskRoleArn: role.arn,
@@ -210,8 +211,8 @@ export const createFargateTask = (
 				cpuArchitecture: constantCase(props.architecture),
 				operatingSystemFamily: 'LINUX',
 			},
-			trackLatest: false,
-			skipDestroy: true,
+			// trackLatest: false,
+			// skipDestroy: true,
 			containerDefinitions: new Future<string>(async resolve => {
 				const data = await resolveInputs(variables)
 
@@ -252,17 +253,10 @@ export const createFargateTask = (
 								},
 							],
 
-							...(props.restartPolicy && {
-								restartPolicy: {
-									enabled: props.restartPolicy.enabled,
-									...(props.restartPolicy.ignoredExitCodes && {
-										ignoredExitCodes: props.restartPolicy.ignoredExitCodes,
-									}),
-									...(props.restartPolicy.restartAttemptPeriod && {
-										restartAttemptPeriod: props.restartPolicy.restartAttemptPeriod,
-									}),
-								},
-							}),
+							restartPolicy: {
+								enabled: true,
+								restartAttemptPeriod: 60,
+							},
 
 							...(logGroup && {
 								logConfiguration: {
@@ -295,7 +289,7 @@ export const createFargateTask = (
 			}),
 
 			tags,
-		}
+		},
 		{
 			dependsOn: [code],
 		}
