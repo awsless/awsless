@@ -46,16 +46,14 @@ export type SetFunction<A extends AttributeType, T> = {
 	set(value: Path<A, T>): Fluent
 }
 
-export type SetIfNotExistFunction<A extends AttributeType, T> = undefined extends T
-	? {
-			/**
-			 * Set the attribute value only if it does not already exist.
-			 * @param value - The value to assign if the attribute is currently undefined.
-			 */
-			setIfNotExists(value: T): Fluent
-			setIfNotExists(value: Path<A, T>): Fluent
-		}
-	: {}
+export type SetIfNotExistFunction<A extends AttributeType, T> = {
+	/**
+	 * Set the attribute value only if it does not already exist.
+	 * @param value - The value to assign if the attribute is currently undefined.
+	 */
+	setIfNotExists(value: T): Fluent
+	setIfNotExists(value: Path<A, T>): Fluent
+}
 
 export type DeleteFunction<T> = undefined extends T
 	? {

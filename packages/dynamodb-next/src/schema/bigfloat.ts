@@ -1,4 +1,4 @@
-import { BigFloat, Numeric } from '@awsless/big-float'
+import { BigFloat } from '@awsless/big-float'
 import { NumberExpression } from '../expression/types'
 import { BaseSchema, createSchema } from './schema'
 
@@ -6,7 +6,7 @@ export type BigFloatSchema = BaseSchema<
 	//
 	'N',
 	BigFloat,
-	NumberExpression<Numeric>
+	NumberExpression<BigFloat>
 >
 
 export const bigfloat = (): BigFloatSchema =>

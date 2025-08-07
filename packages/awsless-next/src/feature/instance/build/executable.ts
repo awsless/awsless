@@ -1,4 +1,4 @@
-import { execSync } from 'child_process'
+// import { execSync } from 'child_process'
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
@@ -12,10 +12,6 @@ export const buildExecutable = async (input: string, outputPath: string) => {
 	const args = ['build', input, '--compile', '--target', 'bun-linux-x64-modern', '--outfile', filePath]
 
 	// const path = await getBunPath()
-
-	// console.log(`bun ${args.join(' ')}`)
-
-	// await exec(`bun ${args.join(' ')}`)
 
 	try {
 		await exec(`bun ${args.join(' ')}`)

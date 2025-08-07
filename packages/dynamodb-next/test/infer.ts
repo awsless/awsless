@@ -1,4 +1,4 @@
-import { BigFloat, ONE } from '@awsless/big-float'
+import { BigFloat, ONE, TWO } from '@awsless/big-float'
 import { UUID } from 'crypto'
 import {
 	any,
@@ -129,6 +129,7 @@ describe('Infer', () => {
 
 					// number
 					e.number.set(1),
+					e.number.setIfNotExists(1),
 					e.number.incr(1, 0),
 					e.number.decr(1, 0),
 
@@ -139,30 +140,34 @@ describe('Infer', () => {
 
 					// bigint
 					e.bigint.set(1n),
+					e.bigint.setIfNotExists(1n),
 					e.bigint.incr(1n),
 					e.bigint.decr(1n),
 
 					// bigfloat
-					e.bigfloat.set(1),
-					e.bigfloat.set(1n),
 					e.bigfloat.set(ONE),
+					e.bigfloat.setIfNotExists(ONE),
 					e.bigfloat.incr(ONE),
 					e.bigfloat.decr(ONE),
 
 					// date
 					e.date.set(new Date()),
+					e.date.setIfNotExists(new Date()),
 					// e.date.incr(new Date()),
 					// e.date.decr(new Date()),
 
 					// string
 					e.string.set('test'),
+					e.string.setIfNotExists('test'),
 
 					// uuid
 					e.uuid.set('0-0-0-0-0'),
+					e.uuid.setIfNotExists('0-0-0-0-0'),
 
 					// narrow string
 					e.stringNarrow.set('open'),
 					e.stringNarrow.set('closed'),
+					e.stringNarrow.setIfNotExists('closed'),
 
 					// json
 					e.json.set({ id: 1 }),
@@ -281,13 +286,13 @@ describe('Infer', () => {
 					e.bigint.type('N'),
 
 					// bigfloat
-					e.bigfloat.eq(1n),
-					e.bigfloat.nq(1n),
-					e.bigfloat.gt(1n),
-					e.bigfloat.gte(1n),
-					e.bigfloat.lt(1n),
-					e.bigfloat.lte(1n),
-					e.bigfloat.between(1n, 2n),
+					e.bigfloat.eq(ONE),
+					e.bigfloat.nq(ONE),
+					e.bigfloat.gt(ONE),
+					e.bigfloat.gte(ONE),
+					e.bigfloat.lt(ONE),
+					e.bigfloat.lte(ONE),
+					e.bigfloat.between(ONE, TWO),
 					e.bigfloat.exists(),
 					e.bigfloat.notExists(),
 					e.bigfloat.type('N'),

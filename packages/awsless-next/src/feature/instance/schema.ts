@@ -126,8 +126,8 @@ const ISchema = z.object({
 	description: DescriptionSchema.optional(),
 	image: ImageSchema.optional(),
 	log: LogSchema.optional(),
-	memorySize: MemorySizeSchema.optional(),
 	cpu: CpuSchema.optional(),
+	memorySize: MemorySizeSchema.optional(),
 	architecture: ArchitectureSchema.optional(),
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
@@ -152,8 +152,8 @@ export type InstanceProps = z.output<typeof ISchema>
 export const InstanceDefaultSchema = z
 	.object({
 		image: ImageSchema.default('public.ecr.aws/aws-cli/aws-cli:amd64'),
+		cpu: CpuSchema.default(0.25),
 		memorySize: MemorySizeSchema.default('512 MB'),
-		cpuSize: CpuSchema.default(0.25),
 		architecture: ArchitectureSchema.default('arm64'),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),

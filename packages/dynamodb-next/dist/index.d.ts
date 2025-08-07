@@ -3,7 +3,7 @@ import * as _aws_sdk_client_dynamodb from '@aws-sdk/client-dynamodb';
 import { AttributeValue, DynamoDBClient, TransactWriteItem, CreateTableCommandInput, UpdateItemCommandInput, TransactGetItem } from '@aws-sdk/client-dynamodb';
 export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { UUID } from 'node:crypto';
-import { BigFloat, Numeric } from '@awsless/big-float';
+import { BigFloat } from '@awsless/big-float';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
 export { DynamoDBServer } from '@awsless/dynamodb-server';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
@@ -173,14 +173,14 @@ type SetFunction<A extends AttributeType, T> = {
     set(value: T): Fluent;
     set(value: Path<A, T>): Fluent;
 };
-type SetIfNotExistFunction<A extends AttributeType, T> = undefined extends T ? {
+type SetIfNotExistFunction<A extends AttributeType, T> = {
     /**
      * Set the attribute value only if it does not already exist.
      * @param value - The value to assign if the attribute is currently undefined.
      */
     setIfNotExists(value: T): Fluent;
     setIfNotExists(value: Path<A, T>): Fluent;
-} : {};
+};
 type DeleteFunction<T> = undefined extends T ? {
     /** Delete attribute value. */
     delete(): Fluent;
@@ -432,7 +432,7 @@ type BigIntSchema<T extends bigint = bigint> = BaseSchema<'N', T, NumberExpressi
 declare function bigint(): BigIntSchema;
 declare function bigint<T extends bigint>(): BigIntSchema<T>;
 
-type BigFloatSchema = BaseSchema<'N', BigFloat, NumberExpression<Numeric>>;
+type BigFloatSchema = BaseSchema<'N', BigFloat, NumberExpression<BigFloat>>;
 declare const bigfloat: () => BigFloatSchema;
 
 type Uint8ArraySchema = BaseSchema<'B', Uint8Array, BinaryExpression<Uint8Array>>;

@@ -20,17 +20,18 @@ import type { Mock } from 'vitest'
 type Func = (...args: any[]) => any
 
 type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
+type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type'>
 
 type InvokeWithPayload<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly cached: (payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
-	(payload: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>): InvokeResponse<F>
+	readonly cached: (payload: Parameters<F>[0], options?: Options) => InvokeResponse<F>
+	(payload: Parameters<F>[0], options?: Options): InvokeResponse<F>
 }
 
 type InvokeWithoutPayload<Name extends string, F extends Func> = {
 	readonly name: Name
-	readonly cached: (payload?: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>) => InvokeResponse<F>
-	(payload?: Parameters<F>[0], options?: Omit<InvokeOptions, 'name' | 'payload' | 'type'>): InvokeResponse<F>
+	readonly cached: (payload?: Parameters<F>[0], options?: Options) => InvokeResponse<F>
+	(payload?: Parameters<F>[0], options?: Options): InvokeResponse<F>
 }
 
 type Response<F extends Func> = PartialDeep<Awaited<InvokeResponse<F>>, { recurseIntoArrays: true }>
