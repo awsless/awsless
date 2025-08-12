@@ -44,6 +44,10 @@ type ResourceConfig = Config & {
     import?: string;
     /** If true the resource will be retained in the backing cloud provider during a Pulumi delete operation. */
     retainOnDelete?: boolean;
+    /** Override the default create-after-delete behavior when replacing a resource. */
+    /** If set, the provider’s Delete method will not be called for this resource if the specified resource is being deleted as well. */
+    /** Declare that changes to certain properties should be treated as forcing a replacement. */
+    replaceOnChanges?: string[];
 };
 type ResourceMeta<I extends State$1 = State$1, O extends State$1 = State$1> = Meta<'resource', I, O, ResourceConfig>;
 type Resource<I extends State$1 = State$1, O extends State$1 = State$1> = O & {
@@ -221,7 +225,7 @@ declare class WorkSpace {
     protected destroyProviders(): Promise<void>;
 }
 
-type ResourceOperation = 'create' | 'update' | 'delete' | 'import' | 'resolve' | 'get';
+type ResourceOperation = 'create' | 'update' | 'delete' | 'replace' | 'import' | 'resolve' | 'get';
 
 declare class ResourceError extends Error {
     readonly urn: URN;
@@ -353,6 +357,10 @@ type Plugin = Readonly<{
     readResource: (type: string, state: State) => Promise<State>;
     readDataSource: (type: string, state: State) => Promise<State>;
     validateResource: (type: string, state: State) => Promise<void>;
+    planResourceChange: (type: string, priorState: State | null, proposedNewState: State | null) => Promise<{
+        requiresReplace: Array<string | number>[];
+        plannedState: State;
+    }>;
     applyResourceChange: (type: string, priorState: State | null, proposedNewState: State | null) => Promise<State>;
 }>;
 

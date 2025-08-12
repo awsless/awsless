@@ -1,4 +1,4 @@
-import { putItem } from '../operations/put-item'
+import { putItem } from '../operation/put-item'
 import { define } from '../table'
 import { array } from './array'
 import { number } from './number'

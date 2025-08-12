@@ -5,6 +5,7 @@ import type { Plugin } from './type.ts'
 import {
 	decodeDynamicValue,
 	encodeDynamicValue,
+	formatAttributePath,
 	formatInputState,
 	formatOutputState,
 	getResourceSchema,
@@ -68,7 +69,7 @@ export const createPlugin6 = async ({
 				config: encodeDynamicValue(formatInputState(schema, state)),
 			})
 		},
-		async applyResourceChange(
+		async planResourceChange(
 			type: string,
 			priorState: Record<string, unknown> | null,
 			proposedState: Record<string, unknown> | null
@@ -85,15 +86,57 @@ export const createPlugin6 = async ({
 			})
 
 			const plannedState = decodeDynamicValue(plan.plannedState)
+			const requiresReplace = formatAttributePath(plan.requiresReplace)
+
+			return {
+				requiresReplace,
+				plannedState,
+			}
+		},
+		async applyResourceChange(
+			type: string,
+			priorState: Record<string, unknown> | null,
+			proposedState: Record<string, unknown> | null
+		) {
+			const schema = getResourceSchema(resources, type)
+			const preparedPriorState = formatInputState(schema, priorState)
+			const preparedProposedState = formatInputState(schema, proposedState)
 
 			const apply = await client.call('ApplyResourceChange', {
 				typeName: type,
 				priorState: encodeDynamicValue(preparedPriorState),
-				plannedState: encodeDynamicValue(plannedState),
-				config: encodeDynamicValue(plannedState),
+				plannedState: encodeDynamicValue(preparedProposedState),
+				config: encodeDynamicValue(preparedProposedState),
 			})
 
 			return formatOutputState(schema, decodeDynamicValue(apply.newState))
 		},
+		// async applyResourceChange(
+		// 	type: string,
+		// 	priorState: Record<string, unknown> | null,
+		// 	proposedState: Record<string, unknown> | null
+		// ) {
+		// 	const schema = getResourceSchema(resources, type)
+		// 	const preparedPriorState = formatInputState(schema, priorState)
+		// 	const preparedProposedState = formatInputState(schema, proposedState)
+
+		// 	const plan = await client.call('PlanResourceChange', {
+		// 		typeName: type,
+		// 		priorState: encodeDynamicValue(preparedPriorState),
+		// 		proposedNewState: encodeDynamicValue(preparedProposedState),
+		// 		config: encodeDynamicValue(preparedProposedState),
+		// 	})
+
+		// 	const plannedState = decodeDynamicValue(plan.plannedState)
+
+		// 	const apply = await client.call('ApplyResourceChange', {
+		// 		typeName: type,
+		// 		priorState: encodeDynamicValue(preparedPriorState),
+		// 		plannedState: encodeDynamicValue(plannedState),
+		// 		config: encodeDynamicValue(plannedState),
+		// 	})
+
+		// 	return formatOutputState(schema, decodeDynamicValue(apply.newState))
+		// },
 	}
 }

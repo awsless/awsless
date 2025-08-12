@@ -23,7 +23,7 @@ export type ResourceConfig = Config & {
 	// deletedWith?: Resource;
 
 	/** Declare that changes to certain properties should be treated as forcing a replacement. */
-	// replaceOnChanges?: string[];
+	replaceOnChanges?: string[]
 
 	/** Declare that changes to certain properties should be ignored during a diff. */
 	// ignoreChanges?: string[];

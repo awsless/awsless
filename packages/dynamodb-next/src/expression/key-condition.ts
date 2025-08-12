@@ -1,8 +1,11 @@
-import { AnyTable } from '../table'
+import { AnyTable, IndexNames } from '../table'
 import { Fluent } from './fluent'
 
-export type KeyConditionExpression<T extends AnyTable> = (
-	e: Pick<T['schema'][symbol]['Expression']['Root']['Condition'], T['sort']>
+export type KeyConditionExpression<T extends AnyTable, I extends IndexNames<T> | undefined> = (
+	e: Pick<
+		T['schema'][symbol]['Expression']['Root']['Condition'],
+		I extends IndexNames<T> ? T['indexes'][I]['sort'] : T['sort']
+	>
 ) => Fluent | Fluent[]
 
 // import { IDGenerator } from '../helper/id-generator'

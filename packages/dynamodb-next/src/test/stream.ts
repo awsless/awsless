@@ -5,7 +5,7 @@ import {
 	TransactWriteItemsCommand,
 	UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { getItem } from '../operations/get-item'
+import { getItem } from '../command/get-item'
 import { AnyTable, Infer } from '../table'
 import { PrimaryKey } from '../types/key'
 

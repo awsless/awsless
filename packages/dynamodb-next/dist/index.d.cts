@@ -96,6 +96,7 @@ type Key<T extends AnyTable, K extends keyof Infer<T>> = Required<Record<K, Infe
 type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>;
 type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key<T, T['sort']> : {};
 type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
+type QueryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & Partial<SortKey<T, I>>;
 
 interface Options {
     client?: DynamoDBClient;
@@ -615,10 +616,10 @@ declare const getIndexItem: <T extends AnyTable, I extends IndexNames<T>, const 
     select?: P;
 }) => Thenable<ProjectionResponse<T, P> | undefined>;
 
-type KeyConditionExpression<T extends AnyTable> = (e: Pick<T['schema'][symbol]['Expression']['Root']['Condition'], T['sort']>) => Fluent | Fluent[];
+type KeyConditionExpression<T extends AnyTable, I extends IndexNames<T> | undefined> = (e: Pick<T['schema'][symbol]['Expression']['Root']['Condition'], I extends IndexNames<T> ? T['indexes'][I]['sort'] : T['sort']>) => Fluent | Fluent[];
 
 type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
-    where?: KeyConditionExpression<T>;
+    where?: KeyConditionExpression<T, I>;
     select?: P;
     index?: I;
     consistentRead?: boolean;
@@ -631,7 +632,7 @@ type QueryResponse<T extends AnyTable, P extends ProjectionExpression<T> | undef
     items: ProjectionResponse<T, P>[];
     cursor?: string;
 };
-declare const query: <T extends AnyTable, const P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, hashKey: HashKey<T, I>, options?: QueryOptions<T, P, I>) => {
+declare const query: <T extends AnyTable, const P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, key: QueryKey<T, I>, options?: QueryOptions<T, P, I>) => {
     then<Result1 = QueryResponse<T, P>, Result2 = never>(onfulfilled: (value: QueryResponse<T, P>) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
     [Symbol.asyncIterator](): {
         next(): Promise<{

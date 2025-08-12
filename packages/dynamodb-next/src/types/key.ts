@@ -17,5 +17,8 @@ export type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = un
 export type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> &
 	SortKey<T, I>
 
+export type QueryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> &
+	Partial<SortKey<T, I>>
+
 // export type CursorKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> &
 // 	(I extends IndexNames<T> ? PrimaryKey<T, I> : {})

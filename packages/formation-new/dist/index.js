@@ -605,6 +605,26 @@ var deleteApp = async (app, opt) => {
   }
 };
 
+// src/formation/workspace/replacement.ts
+import { get } from "get-wild";
+var requiresReplacement = (priorState, proposedState, replaceOnChanges) => {
+  for (const path of replaceOnChanges) {
+    const priorValue = get(priorState, path);
+    const proposedValue = get(proposedState, path);
+    if (path.includes("*") && Array.isArray(priorValue)) {
+      for (let i = 0; i < priorValue.length; i++) {
+        if (!compareState(priorValue[i], proposedValue[i])) {
+          return true;
+        }
+      }
+    }
+    if (!compareState(priorValue, proposedValue)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 // src/formation/workspace/procedure/create-resource.ts
 var debug2 = createDebugger("Create");
 var createResource = async (resource, appToken, input, opt) => {
@@ -686,14 +706,56 @@ var importResource = async (resource, input, opt) => {
   };
 };
 
+// src/formation/workspace/procedure/replace-resource.ts
+var debug5 = createDebugger("Replace");
+var replaceResource = async (resource, appToken, priorState, proposedState, opt) => {
+  const urn = resource.$.urn;
+  const type = resource.$.type;
+  const provider = findProvider(opt.providers, resource.$.provider);
+  const idempotantToken = createIdempotantToken(appToken, resource.$.urn, "replace");
+  debug5(resource.$.type);
+  debug5(proposedState);
+  if (resource.$.config?.retainOnDelete) {
+    debug5("retain", type);
+  } else {
+    try {
+      await provider.deleteResource({
+        type,
+        state: priorState,
+        idempotantToken
+      });
+    } catch (error) {
+      if (error instanceof ResourceNotFound) {
+        debug5(type, "already deleted");
+      } else {
+        throw ResourceError.wrap(urn, type, "replace", error);
+      }
+    }
+  }
+  let result;
+  try {
+    result = await provider.createResource({
+      type,
+      state: proposedState,
+      idempotantToken
+    });
+  } catch (error) {
+    throw ResourceError.wrap(urn, type, "replace", error);
+  }
+  return {
+    version: result.version,
+    output: result.state
+  };
+};
+
 // src/formation/workspace/procedure/update-resource.ts
-var debug5 = createDebugger("Update");
+var debug6 = createDebugger("Update");
 var updateResource = async (resource, appToken, priorState, proposedState, opt) => {
   const provider = findProvider(opt.providers, resource.$.provider);
   const idempotantToken = createIdempotantToken(appToken, resource.$.urn, "update");
   let result;
-  debug5(resource.$.type);
-  debug5(proposedState);
+  debug6(resource.$.type);
+  debug6(proposedState);
   try {
     result = await provider.updateResource({
       type: resource.$.type,
@@ -711,9 +773,9 @@ var updateResource = async (resource, appToken, priorState, proposedState, opt) 
 };
 
 // src/formation/workspace/procedure/deploy-app.ts
-var debug6 = createDebugger("Deploy App");
+var debug7 = createDebugger("Deploy App");
 var deployApp = async (app, opt) => {
-  debug6(app.name, "start");
+  debug7(app.name, "start");
   const latestState = await opt.backend.state.get(app.urn);
   const appState = migrateAppState(
     latestState ?? {
@@ -749,7 +811,7 @@ var deployApp = async (app, opt) => {
         const nodeState = stackState.nodes[node.$.urn];
         if (nodeState && nodeState.output) {
           graph.add(node.$.urn, [], async () => {
-            debug6("hydrate", node.$.urn);
+            debug7("hydrate", node.$.urn);
             node.$.resolve(nodeState.output);
           });
         }
@@ -878,13 +940,24 @@ var deployApp = async (app, opt) => {
               // Check if any state has changed
               !compareState(nodeState.input, input)
             ) {
-              const newResourceState = await updateResource(
-                node,
-                appState.idempotentToken,
-                nodeState.output,
-                input,
-                opt
-              );
+              let newResourceState;
+              if (requiresReplacement(nodeState.input, input, node.$.config?.replaceOnChanges ?? [])) {
+                newResourceState = await replaceResource(
+                  node,
+                  appState.idempotentToken,
+                  nodeState.output,
+                  input,
+                  opt
+                );
+              } else {
+                newResourceState = await updateResource(
+                  node,
+                  appState.idempotentToken,
+                  nodeState.output,
+                  input,
+                  opt
+                );
+              }
               Object.assign(nodeState, {
                 input,
                 ...newResourceState,
@@ -906,7 +979,7 @@ var deployApp = async (app, opt) => {
   delete appState.idempotentToken;
   await opt.backend.state.update(app.urn, appState);
   releaseOnExit();
-  debug6(app.name, "done");
+  debug7(app.name, "done");
   if (errors.length > 0) {
     throw new AppError(app.name, [...new Set(errors)], "Deploying app failed.");
   }
@@ -1044,7 +1117,7 @@ var MemoryLockBackend = class {
 // src/formation/backend/file/state.ts
 import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { join } from "path";
-var debug7 = createDebugger("State");
+var debug8 = createDebugger("State");
 var FileStateBackend = class {
   constructor(props) {
     this.props = props;
@@ -1058,7 +1131,7 @@ var FileStateBackend = class {
     });
   }
   async get(urn) {
-    debug7("get");
+    debug8("get");
     let json;
     try {
       json = await readFile(join(this.stateFile(urn)), "utf8");
@@ -1068,12 +1141,12 @@ var FileStateBackend = class {
     return JSON.parse(json);
   }
   async update(urn, state) {
-    debug7("update");
+    debug8("update");
     await this.mkdir();
     await writeFile(this.stateFile(urn), JSON.stringify(state, void 0, 2));
   }
   async delete(urn) {
-    debug7("delete");
+    debug8("delete");
     await this.mkdir();
     await rm(this.stateFile(urn));
   }
@@ -1921,7 +1994,7 @@ var tfplugin6_default = {
 };
 
 // src/terraform/plugin/client.ts
-var debug8 = createDebugger("Client");
+var debug9 = createDebugger("Client");
 var protocols = {
   tfplugin5: tfplugin5_default,
   tfplugin6: tfplugin6_default
@@ -1941,7 +2014,7 @@ var createPluginClient = async (props) => {
       "grpc.max_send_message_length": 100 * 1024 * 1024
     }
   );
-  debug8("init", props.protocol);
+  debug9("init", props.protocol);
   await new Promise((resolve2, reject) => {
     const deadline = /* @__PURE__ */ new Date();
     deadline.setSeconds(deadline.getSeconds() + 10);
@@ -1953,22 +2026,22 @@ var createPluginClient = async (props) => {
       }
     });
   });
-  debug8("connected");
+  debug9("connected");
   return {
     call(method, payload) {
       return new Promise((resolve2, reject) => {
         const fn = client[method];
-        debug8("call", method);
+        debug9("call", method);
         if (!fn) {
           reject(new Error(`Unknown method call: ${method}`));
           return;
         }
         fn.call(client, payload, (error, response) => {
           if (error) {
-            debug8("failed", error);
+            debug9("failed", error);
             reject(error);
           } else if (response.diagnostics) {
-            debug8("failed", response.diagnostics);
+            debug9("failed", response.diagnostics);
             reject(throwDiagnosticError(response));
           } else {
             resolve2(response);
@@ -2030,7 +2103,7 @@ var exists = async (file2) => {
   }
   return true;
 };
-var debug9 = createDebugger("Downloader");
+var debug10 = createDebugger("Downloader");
 var downloadPlugin = async (location, org, type, version) => {
   if (version === "latest") {
     const { latest } = await getProviderVersions(org, type);
@@ -2039,7 +2112,7 @@ var downloadPlugin = async (location, org, type, version) => {
   const file2 = join3(location, `${org}-${type}-${version}`);
   const exist = await exists(file2);
   if (!exist) {
-    debug9(type, "downloading...");
+    debug10(type, "downloading...");
     const info = await getProviderDownloadUrl(org, type, version);
     const res = await fetch(info.url);
     const buf = await res.bytes();
@@ -2049,13 +2122,13 @@ var downloadPlugin = async (location, org, type, version) => {
       throw new Error(`Can't find the provider inside the downloaded zip file.`);
     }
     const binary = await zipped.async("nodebuffer");
-    debug9(type, "done");
+    debug10(type, "done");
     await mkdir3(location, { recursive: true });
     await writeFile2(file2, binary, {
       mode: 509
     });
   } else {
-    debug9(type, "already downloaded");
+    debug10(type, "already downloaded");
   }
   return {
     file: file2,
@@ -2065,10 +2138,10 @@ var downloadPlugin = async (location, org, type, version) => {
 
 // src/terraform/plugin/server.ts
 import { spawn } from "child_process";
-var debug10 = createDebugger("Server");
+var debug11 = createDebugger("Server");
 var createPluginServer = (props) => {
   return new Promise((resolve2, reject) => {
-    debug10("init");
+    debug11("init");
     const process = spawn(`${props.file}`, ["-debug"]);
     process.stderr.on("data", (data) => {
       if (props.debug) {
@@ -2089,7 +2162,7 @@ var createPluginServer = (props) => {
             const entry = entries2[0];
             const version = entry.ProtocolVersion;
             const endpoint = entry.Addr.String;
-            debug10("started", endpoint);
+            debug11("started", endpoint);
             resolve2({
               kill() {
                 process.kill();
@@ -2103,7 +2176,7 @@ var createPluginServer = (props) => {
         }
       } catch (error) {
       }
-      debug10("failed");
+      debug11("failed");
       reject(new Error("Failed to start the plugin"));
     });
   });
@@ -2311,6 +2384,13 @@ var getResourceSchema = (resources, type) => {
   }
   return resource;
 };
+var formatAttributePath = (state) => {
+  return state.map((item) => {
+    return item.steps.map((attr) => {
+      return attr.attributeName ?? attr.elementKeyString ?? attr.elementKeyInt;
+    });
+  });
+};
 var IncorrectType = class extends TypeError {
   constructor(type, path) {
     super(`${path.join(".")} should be a ${type}`);
@@ -2486,7 +2566,7 @@ var createPlugin5 = async ({
         config: encodeDynamicValue(formatInputState(schema2, state))
       });
     },
-    async applyResourceChange(type, priorState, proposedState) {
+    async planResourceChange(type, priorState, proposedState) {
       const schema2 = getResourceSchema(resources, type);
       const preparedPriorState = formatInputState(schema2, priorState);
       const preparedProposedState = formatInputState(schema2, proposedState);
@@ -2497,11 +2577,21 @@ var createPlugin5 = async ({
         config: encodeDynamicValue(preparedProposedState)
       });
       const plannedState = decodeDynamicValue(plan.plannedState);
+      const requiresReplace = formatAttributePath(plan.requiresReplace);
+      return {
+        requiresReplace,
+        plannedState
+      };
+    },
+    async applyResourceChange(type, priorState, proposedState) {
+      const schema2 = getResourceSchema(resources, type);
+      const preparedPriorState = formatInputState(schema2, priorState);
+      const preparedProposedState = formatInputState(schema2, proposedState);
       const apply = await client.call("ApplyResourceChange", {
         typeName: type,
         priorState: encodeDynamicValue(preparedPriorState),
-        plannedState: encodeDynamicValue(plannedState),
-        config: encodeDynamicValue(plannedState)
+        plannedState: encodeDynamicValue(preparedProposedState),
+        config: encodeDynamicValue(preparedProposedState)
       });
       return formatOutputState(schema2, decodeDynamicValue(apply.newState));
     }
@@ -2560,7 +2650,7 @@ var createPlugin6 = async ({
         config: encodeDynamicValue(formatInputState(schema2, state))
       });
     },
-    async applyResourceChange(type, priorState, proposedState) {
+    async planResourceChange(type, priorState, proposedState) {
       const schema2 = getResourceSchema(resources, type);
       const preparedPriorState = formatInputState(schema2, priorState);
       const preparedProposedState = formatInputState(schema2, proposedState);
@@ -2571,14 +2661,47 @@ var createPlugin6 = async ({
         config: encodeDynamicValue(preparedProposedState)
       });
       const plannedState = decodeDynamicValue(plan.plannedState);
+      const requiresReplace = formatAttributePath(plan.requiresReplace);
+      return {
+        requiresReplace,
+        plannedState
+      };
+    },
+    async applyResourceChange(type, priorState, proposedState) {
+      const schema2 = getResourceSchema(resources, type);
+      const preparedPriorState = formatInputState(schema2, priorState);
+      const preparedProposedState = formatInputState(schema2, proposedState);
       const apply = await client.call("ApplyResourceChange", {
         typeName: type,
         priorState: encodeDynamicValue(preparedPriorState),
-        plannedState: encodeDynamicValue(plannedState),
-        config: encodeDynamicValue(plannedState)
+        plannedState: encodeDynamicValue(preparedProposedState),
+        config: encodeDynamicValue(preparedProposedState)
       });
       return formatOutputState(schema2, decodeDynamicValue(apply.newState));
     }
+    // async applyResourceChange(
+    // 	type: string,
+    // 	priorState: Record<string, unknown> | null,
+    // 	proposedState: Record<string, unknown> | null
+    // ) {
+    // 	const schema = getResourceSchema(resources, type)
+    // 	const preparedPriorState = formatInputState(schema, priorState)
+    // 	const preparedProposedState = formatInputState(schema, proposedState)
+    // 	const plan = await client.call('PlanResourceChange', {
+    // 		typeName: type,
+    // 		priorState: encodeDynamicValue(preparedPriorState),
+    // 		proposedNewState: encodeDynamicValue(preparedProposedState),
+    // 		config: encodeDynamicValue(preparedProposedState),
+    // 	})
+    // 	const plannedState = decodeDynamicValue(plan.plannedState)
+    // 	const apply = await client.call('ApplyResourceChange', {
+    // 		typeName: type,
+    // 		priorState: encodeDynamicValue(preparedPriorState),
+    // 		plannedState: encodeDynamicValue(plannedState),
+    // 		config: encodeDynamicValue(plannedState),
+    // 	})
+    // 	return formatOutputState(schema, decodeDynamicValue(apply.newState))
+    // },
   };
 };
 
@@ -2824,6 +2947,13 @@ var TerraformProvider = class {
   }
   async updateResource({ type, priorState, proposedState }) {
     const plugin = await this.configure();
+    const { requiresReplace } = await plugin.planResourceChange(type, priorState, proposedState);
+    if (requiresReplace.length > 0) {
+      const formattedAttrs = requiresReplace.map((p) => p.join(".")).join('", "');
+      throw new Error(
+        `Updating the "${formattedAttrs}" properties for the "${type}" resource will require the resource to be replaced.`
+      );
+    }
     const newState = await plugin.applyResourceChange(type, priorState, proposedState);
     return {
       version: 0,
@@ -2869,7 +2999,7 @@ var TerraformProvider = class {
 };
 
 // src/terraform/installer.ts
-var debug11 = createDebugger("Plugin");
+var debug12 = createDebugger("Plugin");
 var Terraform = class {
   constructor(props) {
     this.props = props;
@@ -2885,7 +3015,7 @@ var Terraform = class {
           6: () => createPlugin6({ server, client })
         };
         const plugin = await plugins[server.version]?.();
-        debug11(org, type, realVersion);
+        debug12(org, type, realVersion);
         if (!plugin) {
           throw new Error(`No plugin client available for protocol version ${server.version}`);
         }
@@ -2982,7 +3112,7 @@ var createNamespaceProxy = (cb, target = {}) => {
     }
   });
 };
-var createClassProxy = (construct, get) => {
+var createClassProxy = (construct, get2) => {
   return new Proxy(class {
   }, {
     construct(_, args) {
@@ -2991,7 +3121,7 @@ var createClassProxy = (construct, get) => {
     get(_, key) {
       if (key === "get") {
         return (...args) => {
-          return get(...args);
+          return get2(...args);
         };
       }
       return;

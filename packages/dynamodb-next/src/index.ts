@@ -3,7 +3,7 @@ export { AnyTable, define, Infer, Table } from './table.js'
 
 // types
 export { PrimaryKey, HashKey, SortKey } from './types/key.js'
-export { Transactable } from './operations/transact-write.js'
+export { Transactable } from './command/transact-write.js'
 
 // structs
 export { optional } from './schema/optional.js'
@@ -39,7 +39,7 @@ export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 export { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 
-// commands
+// raw commands
 export { GetItemCommand, PutItemCommand, UpdateItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb'
 export { QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb'
 export { TransactWriteItemsCommand, TransactGetItemsCommand } from '@aws-sdk/client-dynamodb'
@@ -49,21 +49,21 @@ export { BatchGetItemCommand, BatchWriteItemCommand } from '@aws-sdk/client-dyna
 import './exception/transaction-canceled'
 export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb'
 
-// operations
-export { getItem } from './operations/get-item.js'
-export { putItem } from './operations/put-item.js'
-export { updateItem } from './operations/update-item.js'
-export { deleteItem } from './operations/delete-item.js'
+// commands
+export { getItem } from './command/get-item.js'
+export { putItem } from './command/put-item.js'
+export { updateItem } from './command/update-item.js'
+export { deleteItem } from './command/delete-item.js'
 
-export { getItems } from './operations/get-items.js'
-export { putItems } from './operations/put-items.js'
-export { deleteItems } from './operations/delete-items.js'
+export { getItems } from './command/get-items.js'
+export { putItems } from './command/put-items.js'
+export { deleteItems } from './command/delete-items.js'
 
-export { getIndexItem } from './operations/get-index-item.js'
+export { getIndexItem } from './command/get-index-item.js'
 
-export { query } from './operations/query.js'
-export { scan } from './operations/scan.js'
+export { query } from './command/query.js'
+export { scan } from './command/scan.js'
 
-export { conditionCheck } from './operations/condition-check.js'
-export { transactWrite } from './operations/transact-write.js'
-export { transactRead } from './operations/transact-read.js'
+export { conditionCheck } from './command/condition-check.js'
+export { transactWrite } from './command/transact-write.js'
+export { transactRead } from './command/transact-read.js'

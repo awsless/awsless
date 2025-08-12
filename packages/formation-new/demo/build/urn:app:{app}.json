@@ -1,0 +1,58 @@
+{
+  "name": "app",
+  "stacks": {
+    "urn:app:{app}:stack:{stack}": {
+      "name": "stack",
+      "nodes": {
+        "urn:app:{app}:stack:{stack}:resource:aws_dynamodb_table:{test}": {
+          "tag": "resource",
+          "version": 0,
+          "type": "aws_dynamodb_table",
+          "provider": "terraform:aws:default",
+          "input": {
+            "name": "test-2",
+            "billingMode": "PAY_PER_REQUEST",
+            "hashKey": "key",
+            "attribute": [
+              {
+                "name": "key",
+                "type": "S"
+              }
+            ]
+          },
+          "output": {
+            "arn": "arn:aws:dynamodb:us-east-1:468004125411:table/test-2",
+            "billingMode": "PAY_PER_REQUEST",
+            "deletionProtectionEnabled": false,
+            "hashKey": "key",
+            "id": "test-2",
+            "name": "test-2",
+            "readCapacity": 0,
+            "streamArn": "",
+            "streamEnabled": false,
+            "streamLabel": "",
+            "streamViewType": "",
+            "tableClass": "STANDARD",
+            "writeCapacity": 0,
+            "attribute": [
+              {
+                "name": "key",
+                "type": "S"
+              }
+            ],
+            "pointInTimeRecovery": {
+              "enabled": false
+            },
+            "ttl": {
+              "attributeName": "",
+              "enabled": false
+            }
+          },
+          "dependencies": [],
+          "lifecycle": {}
+        }
+      }
+    }
+  },
+  "version": 2
+}

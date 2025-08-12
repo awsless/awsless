@@ -1,4 +1,4 @@
-import { putItems } from '../operations/put-items'
+import { putItems } from '../command/put-items'
 import { AnyTable, Infer } from '../table'
 
 export const seedTable = <T extends AnyTable>(table: T, items: Infer<T>[]) => {

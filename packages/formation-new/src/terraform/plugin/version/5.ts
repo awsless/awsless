@@ -5,6 +5,7 @@ import type { Plugin } from './type.ts'
 import {
 	decodeDynamicValue,
 	encodeDynamicValue,
+	formatAttributePath,
 	formatInputState,
 	formatOutputState,
 	getResourceSchema,
@@ -78,7 +79,7 @@ export const createPlugin5 = async ({
 				config: encodeDynamicValue(formatInputState(schema, state)),
 			})
 		},
-		async applyResourceChange(
+		async planResourceChange(
 			type: string,
 			priorState: Record<string, unknown> | null,
 			proposedState: Record<string, unknown> | null
@@ -86,9 +87,6 @@ export const createPlugin5 = async ({
 			const schema = getResourceSchema(resources, type)
 			const preparedPriorState = formatInputState(schema, priorState)
 			const preparedProposedState = formatInputState(schema, proposedState)
-
-			// console.log(proposedState)
-			// console.log(preparedProposedState)
 
 			const plan = await client.call('PlanResourceChange', {
 				typeName: type,
@@ -98,16 +96,27 @@ export const createPlugin5 = async ({
 			})
 
 			const plannedState = decodeDynamicValue(plan.plannedState)
+			const requiresReplace = formatAttributePath(plan.requiresReplace)
 
-			// console.log(priorState)
-			// console.log(preparedPriorState)
-			// console.log(plannedState)
+			return {
+				requiresReplace,
+				plannedState,
+			}
+		},
+		async applyResourceChange(
+			type: string,
+			priorState: Record<string, unknown> | null,
+			proposedState: Record<string, unknown> | null
+		) {
+			const schema = getResourceSchema(resources, type)
+			const preparedPriorState = formatInputState(schema, priorState)
+			const preparedProposedState = formatInputState(schema, proposedState)
 
 			const apply = await client.call('ApplyResourceChange', {
 				typeName: type,
 				priorState: encodeDynamicValue(preparedPriorState),
-				plannedState: encodeDynamicValue(plannedState),
-				config: encodeDynamicValue(plannedState),
+				plannedState: encodeDynamicValue(preparedProposedState),
+				config: encodeDynamicValue(preparedProposedState),
 			})
 
 			return formatOutputState(schema, decodeDynamicValue(apply.newState))

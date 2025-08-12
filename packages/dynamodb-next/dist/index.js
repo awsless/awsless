@@ -30,7 +30,7 @@ var Table = class {
 };
 var define = (name, options) => new Table(name, options);
 
-// src/operations/transact-write.ts
+// src/command/transact-write.ts
 import { TransactWriteItemsCommand } from "@aws-sdk/client-dynamodb";
 
 // src/client.ts
@@ -58,7 +58,7 @@ var client = (options) => {
   return options.client || dynamoDBClient();
 };
 
-// src/operations/transact-write.ts
+// src/command/transact-write.ts
 var transactWrite = async (items, options = {}) => {
   const command = new TransactWriteItemsCommand({
     ClientRequestToken: options.idempotantKey,
@@ -453,11 +453,11 @@ var migrate = (client2, tables) => {
   );
 };
 
-// src/operations/put-items.ts
+// src/command/put-items.ts
 import { BatchWriteItemCommand } from "@aws-sdk/client-dynamodb";
 import chunk from "chunk";
 
-// src/operations/command.ts
+// src/command/command.ts
 var thenable = (callback) => {
   let promise;
   return {
@@ -490,7 +490,7 @@ var iterable = (cursor, callback) => ({
   }
 });
 
-// src/operations/put-items.ts
+// src/command/put-items.ts
 var putItems = (table, items, options = {}) => {
   return thenable(async () => {
     await Promise.all(
@@ -535,7 +535,7 @@ import {
   UpdateItemCommand
 } from "@aws-sdk/client-dynamodb";
 
-// src/operations/get-item.ts
+// src/command/get-item.ts
 import { GetItemCommand } from "@aws-sdk/client-dynamodb";
 
 // src/expression/attributes.ts
@@ -616,7 +616,7 @@ var buildProjectionExpression = (attrs, projection) => {
   return projection.map((key) => attrs.name(key)).join(", ");
 };
 
-// src/operations/get-item.ts
+// src/command/get-item.ts
 var getItem = (table, key, options = {}) => {
   const attrs = new ExpressionAttributes(table);
   const command = new GetItemCommand({
@@ -904,7 +904,7 @@ TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) 
 // src/index.ts
 import { ConditionalCheckFailedException, TransactionCanceledException as TransactionCanceledException2 } from "@aws-sdk/client-dynamodb";
 
-// src/operations/put-item.ts
+// src/command/put-item.ts
 import { PutItemCommand as PutItemCommand3 } from "@aws-sdk/client-dynamodb";
 
 // src/expression/fluent.ts
@@ -1031,7 +1031,7 @@ var buildConditionExpression = (attrs, builder) => {
   return build(fluent);
 };
 
-// src/operations/put-item.ts
+// src/command/put-item.ts
 var putItem = (table, item, options = {}) => {
   const attrs = new ExpressionAttributes(table);
   const command = new PutItemCommand3({
@@ -1055,7 +1055,7 @@ var putItem = (table, item, options = {}) => {
   };
 };
 
-// src/operations/update-item.ts
+// src/command/update-item.ts
 import { UpdateItemCommand as UpdateItemCommand3 } from "@aws-sdk/client-dynamodb";
 
 // src/expression/update.ts
@@ -1147,7 +1147,7 @@ var buildUpdateExpression = (attrs, builder) => {
   }).join(" ");
 };
 
-// src/operations/update-item.ts
+// src/command/update-item.ts
 var updateItem = (table, key, options) => {
   const attrs = new ExpressionAttributes(table);
   const command = new UpdateItemCommand3({
@@ -1172,7 +1172,7 @@ var updateItem = (table, key, options) => {
   };
 };
 
-// src/operations/delete-item.ts
+// src/command/delete-item.ts
 import { DeleteItemCommand as DeleteItemCommand3 } from "@aws-sdk/client-dynamodb";
 var deleteItem = (table, key, options = {}) => {
   const attrs = new ExpressionAttributes(table);
@@ -1195,7 +1195,7 @@ var deleteItem = (table, key, options = {}) => {
   };
 };
 
-// src/operations/get-items.ts
+// src/command/get-items.ts
 import { BatchGetItemCommand as BatchGetItemCommand2 } from "@aws-sdk/client-dynamodb";
 var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
   return thenable(async () => {
@@ -1241,7 +1241,7 @@ var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
   });
 };
 
-// src/operations/delete-items.ts
+// src/command/delete-items.ts
 import { BatchWriteItemCommand as BatchWriteItemCommand4 } from "@aws-sdk/client-dynamodb";
 import chunk2 from "chunk";
 var deleteItems = (table, keys, options = {}) => {
@@ -1267,7 +1267,7 @@ var deleteItems = (table, keys, options = {}) => {
   });
 };
 
-// src/operations/query.ts
+// src/command/query.ts
 import { QueryCommand as QueryCommand2 } from "@aws-sdk/client-dynamodb";
 
 // src/helper/cursor.ts
@@ -1292,8 +1292,8 @@ var toCursorString = (cursor) => {
   return buffer.toString("base64");
 };
 
-// src/operations/query.ts
-var query = (table, hashKey, options = {}) => {
+// src/command/query.ts
+var query = (table, key, options = {}) => {
   const execute = async (cursor, limit) => {
     const attrs = new ExpressionAttributes(table);
     const command = new QueryCommand2({
@@ -1302,7 +1302,7 @@ var query = (table, hashKey, options = {}) => {
       KeyConditionExpression: buildConditionExpression(
         attrs,
         (e) => e.and([
-          ...Object.entries(hashKey).map(([k, v]) => e(k).eq(v)),
+          ...Object.entries(key).map(([k, v]) => e(k).eq(v)),
           ...options.where ? [options.where(e)] : []
         ])
       ),
@@ -1334,7 +1334,7 @@ var query = (table, hashKey, options = {}) => {
   };
 };
 
-// src/operations/get-index-item.ts
+// src/command/get-index-item.ts
 var getIndexItem = (table, index, key, options) => {
   return thenable(async () => {
     const result = await query(table, key, {
@@ -1347,7 +1347,7 @@ var getIndexItem = (table, index, key, options) => {
   });
 };
 
-// src/operations/scan.ts
+// src/command/scan.ts
 import { ScanCommand as ScanCommand2 } from "@aws-sdk/client-dynamodb";
 var scan = (table, options = {}) => {
   const execute = async (cursor, limit) => {
@@ -1382,7 +1382,7 @@ var scan = (table, options = {}) => {
   };
 };
 
-// src/operations/condition-check.ts
+// src/command/condition-check.ts
 var conditionCheck = (table, key, options) => {
   const attrs = new ExpressionAttributes(table);
   const input = {
@@ -1396,7 +1396,7 @@ var conditionCheck = (table, key, options) => {
   }));
 };
 
-// src/operations/transact-read.ts
+// src/command/transact-read.ts
 import { TransactGetItemsCommand as TransactGetItemsCommand2 } from "@aws-sdk/client-dynamodb";
 var transactRead = async (items, options = {}) => {
   const transactItems = items.map((item) => item.transact());

@@ -35,6 +35,15 @@ describe('Query', () => {
 		})
 	})
 
+	it('should allow sort key inside the key', async () => {
+		const result = await query(posts, { userId: 1, id: 1 })
+
+		expect(result).toStrictEqual({
+			cursor: undefined,
+			items: [{ userId: 1, sortId: 1, id: 1 }],
+		})
+	})
+
 	it('should query with projection', async () => {
 		const result = await query(posts, { userId: 1 }, { select: ['id'] })
 
@@ -106,7 +115,14 @@ describe('Query', () => {
 	})
 
 	it('should support index', async () => {
-		const result = await query(posts, { userId: 1 }, { index: 'list' })
+		const result = await query(
+			posts,
+			{ userId: 1 },
+			{
+				index: 'list',
+				where: e => e.sortId.gt(0),
+			}
+		)
 
 		expect(result).toStrictEqual({
 			cursor: undefined,

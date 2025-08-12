@@ -37,6 +37,14 @@ export const getResourceSchema = (resources: Record<string, RootProperty>, type:
 // 	return empty
 // }
 
+export const formatAttributePath = (state: any): Array<number | string>[] => {
+	return state.map((item: any) => {
+		return item.steps.map((attr: any) => {
+			return attr.attributeName ?? attr.elementKeyString ?? attr.elementKeyInt
+		})
+	})
+}
+
 class IncorrectType extends TypeError {
 	constructor(type: string, path: Array<string | number>) {
 		super(`${path.join('.')} should be a ${type}`)

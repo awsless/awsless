@@ -6,7 +6,7 @@ import { KeyConditionExpression } from '../expression/key-condition'
 import { buildProjectionExpression, ProjectionExpression, ProjectionResponse } from '../expression/projection'
 import { fromCursorString, toCursorString } from '../helper/cursor'
 import { AnyTable, IndexNames } from '../table'
-import { HashKey } from '../types/key'
+import { QueryKey } from '../types/key'
 import { Options } from '../types/options'
 import { iterable, thenable } from './command'
 
@@ -15,7 +15,7 @@ type QueryOptions<
 	P extends ProjectionExpression<T> | undefined,
 	I extends IndexNames<T> | undefined,
 > = Options & {
-	where?: KeyConditionExpression<T>
+	where?: KeyConditionExpression<T, I>
 	select?: P
 	index?: I
 	consistentRead?: boolean
@@ -36,7 +36,7 @@ export const query = <
 	I extends IndexNames<T> | undefined = undefined,
 >(
 	table: T,
-	hashKey: HashKey<T, I>,
+	key: QueryKey<T, I>,
 	options: QueryOptions<T, P, I> = {}
 ) => {
 	const execute = async (cursor?: string, limit?: number) => {
@@ -46,7 +46,7 @@ export const query = <
 			IndexName: options.index,
 			KeyConditionExpression: buildConditionExpression(attrs, e =>
 				(e as any).and([
-					...Object.entries(hashKey).map(([k, v]) => e(k).eq(v)),
+					...Object.entries(key).map(([k, v]) => e(k).eq(v)),
 					...(options.where ? [options.where(e)] : []),
 				])
 			),

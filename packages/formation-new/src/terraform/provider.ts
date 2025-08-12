@@ -81,6 +81,16 @@ export class TerraformProvider implements Provider {
 
 	async updateResource({ type, priorState, proposedState }: UpdateProps) {
 		const plugin = await this.configure()
+		const { requiresReplace } = await plugin.planResourceChange(type, priorState, proposedState)
+
+		if (requiresReplace.length > 0) {
+			const formattedAttrs = requiresReplace.map(p => p.join('.')).join('", "')
+
+			throw new Error(
+				`Updating the "${formattedAttrs}" properties for the "${type}" resource will require the resource to be replaced.`
+			)
+		}
+
 		const newState = await plugin.applyResourceChange(type, priorState, proposedState)
 
 		return {

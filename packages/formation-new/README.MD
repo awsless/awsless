@@ -8,7 +8,7 @@ The `@awsless/formation` package is a TypeScript API that provides an infrastruc
 The most used IaC solutions are slow & don't effectively leverage diffing to speed up their deployments.
 
 ## Todo's
-- When a resource is being deleted inside a deployment we need to make sure that resources that depend on our deleted resource will be updated first.
+- When a resource is being deleted inside a deployment we need to make sure that resources that depends on our deleted resource will be updated first.
 
 ## Setup
 
@@ -32,8 +32,6 @@ We also need to give it a lock provider & state provider.
 In this example, we will use a local file lock & state provider.
 
 ```ts
-import { minutes } from '@awsless/duration'
-import { fromIni } from '@aws-sdk/credential-providers'
 import { App, FileStateBackend, FileLockBackend, $, Terraform, Stack, WorkSpace } from '@awsless/formation'
 
 const terraform = new Terraform({

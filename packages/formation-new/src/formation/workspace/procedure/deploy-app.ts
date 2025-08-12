@@ -9,6 +9,7 @@ import { DependencyGraph, dependentsOn } from '../dependency.ts'
 import { entries } from '../entries.ts'
 import { AppError, ResourceError } from '../error.ts'
 import { onExit } from '../exit.ts'
+import { requiresReplacement } from '../replacement.ts'
 import { compareState, NodeState, removeEmptyStackStates, StackState } from '../state.ts'
 import { migrateAppState } from '../state/migrate.ts'
 import { ProcedureOptions, WorkSpaceOptions } from '../workspace.ts'
@@ -16,6 +17,7 @@ import { createResource } from './create-resource.ts'
 import { deleteResource } from './delete-resource.ts'
 import { getDataSource } from './get-data-source.ts'
 import { importResource } from './import-resource.ts'
+import { replaceResource } from './replace-resource.ts'
 import { updateResource } from './update-resource.ts'
 
 const debug = createDebugger('Deploy App')
@@ -272,16 +274,31 @@ export const deployApp = async (app: App, opt: WorkSpaceOptions & ProcedureOptio
 							// Check if any state has changed
 							!compareState(nodeState.input, input)
 						) {
-							// --------------------------------------------------
-							// Update resource
+							let newResourceState
 
-							const newResourceState = await updateResource(
-								node,
-								appState.idempotentToken!,
-								nodeState.output!,
-								input,
-								opt
-							)
+							if (requiresReplacement(nodeState.input, input, node.$.config?.replaceOnChanges ?? [])) {
+								// --------------------------------------------------
+								// Replace resource
+
+								newResourceState = await replaceResource(
+									node,
+									appState.idempotentToken!,
+									nodeState.output!,
+									input,
+									opt
+								)
+							} else {
+								// --------------------------------------------------
+								// Update resource
+
+								newResourceState = await updateResource(
+									node,
+									appState.idempotentToken!,
+									nodeState.output!,
+									input,
+									opt
+								)
+							}
 
 							Object.assign(nodeState, {
 								input,

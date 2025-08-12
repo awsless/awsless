@@ -13,5 +13,13 @@ export type Plugin = Readonly<{
 	readResource: (type: string, state: State) => Promise<State>
 	readDataSource: (type: string, state: State) => Promise<State>
 	validateResource: (type: string, state: State) => Promise<void>
+	planResourceChange: (
+		type: string,
+		priorState: State | null,
+		proposedNewState: State | null
+	) => Promise<{
+		requiresReplace: Array<string | number>[]
+		plannedState: State
+	}>
 	applyResourceChange: (type: string, priorState: State | null, proposedNewState: State | null) => Promise<State>
 }>
