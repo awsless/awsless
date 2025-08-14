@@ -2385,6 +2385,9 @@ var getResourceSchema = (resources, type) => {
   return resource;
 };
 var formatAttributePath = (state) => {
+  if (!state) {
+    return [];
+  }
   return state.map((item) => {
     return item.steps.map((attr) => {
       return attr.attributeName ?? attr.elementKeyString ?? attr.elementKeyInt;

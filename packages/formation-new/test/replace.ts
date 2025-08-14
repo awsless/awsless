@@ -98,10 +98,10 @@ describe('replace resource', () => {
 			const valid = [
 				// valid
 				['key'],
+				['key', 'unknown'],
 				['list[1].key'],
 				['list.1.key'],
 				['list.*.key'],
-				['key', 'unknown'],
 			]
 
 			for (const paths of valid) {

@@ -37,7 +37,11 @@ export const getResourceSchema = (resources: Record<string, RootProperty>, type:
 // 	return empty
 // }
 
-export const formatAttributePath = (state: any): Array<number | string>[] => {
+export const formatAttributePath = (state?: any[]): Array<number | string>[] => {
+	if (!state) {
+		return []
+	}
+
 	return state.map((item: any) => {
 		return item.steps.map((attr: any) => {
 			return attr.attributeName ?? attr.elementKeyString ?? attr.elementKeyInt
