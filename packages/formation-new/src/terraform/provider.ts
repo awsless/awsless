@@ -110,11 +110,13 @@ export class TerraformProvider implements Provider {
 			// So we need to check if the resource exists with every
 			// error and throw our own custom ResourceNotFound error.
 
-			const newState = await plugin.readResource(type, state)
+			try {
+				const newState = await plugin.readResource(type, state)
 
-			if (!newState) {
-				throw new ResourceNotFound()
-			}
+				if (!newState) {
+					throw new ResourceNotFound()
+				}
+			} catch (_) {}
 
 			throw error
 		}

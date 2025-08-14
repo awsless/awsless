@@ -3023,9 +3023,12 @@ var TerraformProvider = class {
     try {
       await plugin.applyResourceChange(type, state, null);
     } catch (error) {
-      const newState = await plugin.readResource(type, state);
-      if (!newState) {
-        throw new ResourceNotFound();
+      try {
+        const newState = await plugin.readResource(type, state);
+        if (!newState) {
+          throw new ResourceNotFound();
+        }
+      } catch (_) {
       }
       throw error;
     }
