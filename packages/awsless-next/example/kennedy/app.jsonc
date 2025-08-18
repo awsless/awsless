@@ -11,12 +11,9 @@
 			}
 		},
 		"instance": {
-			"cpuSize": "0.25 vCPU",
-			"memorySize": 1024,
+			"cpu": 0.25,
+			"memorySize": "1 GB",
 			"architecture": "x86_64",
-			"restartPolicy": {
-				"enabled": true
-			},
 			// "healthCheck": {
 			// 	"path": "/",
 			// 	"interval": "10 seconds",

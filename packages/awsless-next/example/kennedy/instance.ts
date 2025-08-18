@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 
-console.log('version 1')
+console.log('version 5')
 console.log('Starting instance...')
 
 const PORT = process.env.PORT || 80

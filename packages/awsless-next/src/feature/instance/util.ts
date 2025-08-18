@@ -190,7 +190,7 @@ export const createFargateTask = (
 		APP: ctx.appConfig.name,
 		APP_ID: ctx.appId,
 		STACK: ctx.stackConfig.name,
-		CODE_HASH: code.sourceHash.pipe<string>(v => v!),
+		// CODE_HASH: code.sourceHash.pipe<string>(v => v!),
 	}
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
@@ -200,7 +200,6 @@ export const createFargateTask = (
 		'task',
 		{
 			family: name,
-			// family: 'test',
 			networkMode: 'awsvpc',
 			cpu: props.cpu,
 			memory: toMebibytes(props.memorySize).toString(),
@@ -211,8 +210,7 @@ export const createFargateTask = (
 				cpuArchitecture: constantCase(props.architecture),
 				operatingSystemFamily: 'LINUX',
 			},
-			// trackLatest: false,
-			// skipDestroy: true,
+			trackLatest: true,
 			containerDefinitions: new Future<string>(async resolve => {
 				const data = await resolveInputs(variables)
 
@@ -291,16 +289,23 @@ export const createFargateTask = (
 			tags,
 		},
 		{
+			replaceOnChanges: [
+				'containerDefinitions',
+				'cpu',
+				'memory',
+				'runtimePlatform',
+				'executionRoleArn',
+				'taskRoleArn',
+			],
 			dependsOn: [code],
 		}
 	)
-
-	return
 
 	const securityGroup = new $.aws.security.Group(group, 'security-group', {
 		name: name,
 		description: 'Security group for the instance',
 		vpcId: ctx.shared.get('vpc', 'id'),
+		revokeRulesOnDelete: true,
 		tags,
 	})
 
@@ -362,10 +367,6 @@ export const createFargateTask = (
 		// 	rollback: true,
 		// },
 		// deploymentController: { type: 'ECS' },
-
-		triggers: {
-			redeployment: new Date().toISOString(),
-		},
 
 		tags,
 
