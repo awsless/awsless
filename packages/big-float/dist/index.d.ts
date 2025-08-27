@@ -1,5 +1,5 @@
 import { IBigFloat } from 'bigfloat-esnext';
-export { IBigFloat, evaluate, fraction, scientific, set_precision } from 'bigfloat-esnext';
+export { IBigFloat, set_precision } from 'bigfloat-esnext';
 
 type Numeric = IBigFloat | number | bigint | string;
 declare class BigFloat implements IBigFloat {
@@ -9,6 +9,10 @@ declare class BigFloat implements IBigFloat {
     toJSON(): string;
     toString(radix?: Numeric): string;
 }
+
+declare const scientific: (number: Numeric) => string;
+declare const fraction: (number: Numeric) => BigFloat;
+declare const integer: (number: Numeric) => BigFloat;
 
 declare const neg: (a: Numeric) => BigFloat;
 declare const abs: (a: Numeric) => BigFloat;
@@ -55,4 +59,4 @@ declare const MILLION: BigFloat;
 declare const BILLION: BigFloat;
 declare const TRILLION: BigFloat;
 
-export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, type Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, cmp, div, eq, factor, floor, gt, gte, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, max, min, minmax, mul, neg, pow, sqrt, sub };
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, MILLION, NINE, type Numeric, ONE, SEVEN, SIX, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, cmp, div, eq, factor, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, max, min, minmax, mul, neg, pow, scientific, sqrt, sub };

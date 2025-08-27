@@ -43,12 +43,12 @@ __export(index_exports, {
   cmp: () => cmp,
   div: () => div,
   eq: () => eq,
-  evaluate: () => import_bigfloat_esnext5.evaluate,
   factor: () => factor,
   floor: () => floor,
-  fraction: () => import_bigfloat_esnext5.fraction,
+  fraction: () => fraction,
   gt: () => gt,
   gte: () => gte,
+  integer: () => integer,
   isBigFloat: () => isBigFloat,
   isInteger: () => isInteger,
   isNegative: () => isNegative,
@@ -62,8 +62,8 @@ __export(index_exports, {
   mul: () => mul,
   neg: () => neg,
   pow: () => pow,
-  scientific: () => import_bigfloat_esnext5.scientific,
-  set_precision: () => import_bigfloat_esnext5.set_precision,
+  scientific: () => scientific,
+  set_precision: () => import_bigfloat_esnext6.set_precision,
   sqrt: () => sqrt,
   sub: () => sub
 });
@@ -72,11 +72,23 @@ module.exports = __toCommonJS(index_exports);
 // src/bigfloat.ts
 var import_bigfloat_esnext = require("bigfloat-esnext");
 (0, import_bigfloat_esnext.set_precision)(-12);
+var make = (number) => {
+  if (typeof number === "string") {
+    const lower = number.toLowerCase();
+    if (lower.includes("e")) {
+      if (lower.includes("+")) {
+        return (0, import_bigfloat_esnext.make)(lower.replaceAll("+", ""));
+      }
+      return (0, import_bigfloat_esnext.make)(lower);
+    }
+  }
+  return (0, import_bigfloat_esnext.make)(number);
+};
 var BigFloat = class {
   exponent;
   coefficient;
   constructor(number) {
-    const { exponent, coefficient } = (0, import_bigfloat_esnext.make)(number);
+    const { exponent, coefficient } = make(number);
     this.exponent = exponent;
     this.coefficient = coefficient;
   }
@@ -85,73 +97,85 @@ var BigFloat = class {
   }
   toString(radix) {
     if (typeof radix !== "undefined") {
-      radix = (0, import_bigfloat_esnext.make)(radix);
+      radix = make(radix);
     }
     return (0, import_bigfloat_esnext.string)(this, radix);
   }
 };
 
-// src/arithmetic.ts
+// src/constructors.ts
 var import_bigfloat_esnext2 = require("bigfloat-esnext");
-var neg = (a) => new BigFloat((0, import_bigfloat_esnext2.neg)((0, import_bigfloat_esnext2.make)(a)));
-var abs = (a) => new BigFloat((0, import_bigfloat_esnext2.abs)((0, import_bigfloat_esnext2.make)(a)));
+var scientific = (number) => {
+  return (0, import_bigfloat_esnext2.scientific)(make(number));
+};
+var fraction = (number) => {
+  return new BigFloat((0, import_bigfloat_esnext2.fraction)(make(number)));
+};
+var integer = (number) => {
+  return new BigFloat((0, import_bigfloat_esnext2.integer)(make(number)));
+};
+
+// src/arithmetic.ts
+var import_bigfloat_esnext3 = require("bigfloat-esnext");
+var neg = (a) => new BigFloat((0, import_bigfloat_esnext3.neg)(make(a)));
+var abs = (a) => new BigFloat((0, import_bigfloat_esnext3.abs)(make(a)));
 var add = (a, ...other) => {
   return new BigFloat(
     other.reduce((prev, current) => {
-      return (0, import_bigfloat_esnext2.add)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+      return (0, import_bigfloat_esnext3.add)(make(prev), make(current));
     }, a)
   );
 };
 var sub = (a, ...other) => {
   return new BigFloat(
     other.reduce((prev, current) => {
-      return (0, import_bigfloat_esnext2.sub)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+      return (0, import_bigfloat_esnext3.sub)(make(prev), make(current));
     }, a)
   );
 };
 var mul = (multiplicand, ...multipliers) => {
   return new BigFloat(
     multipliers.reduce((prev, current) => {
-      return (0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(prev), (0, import_bigfloat_esnext2.make)(current));
+      return (0, import_bigfloat_esnext3.mul)(make(prev), make(current));
     }, multiplicand)
   );
 };
 var div = (dividend, divisor, precision) => {
-  return new BigFloat((0, import_bigfloat_esnext2.div)((0, import_bigfloat_esnext2.make)(dividend), (0, import_bigfloat_esnext2.make)(divisor), precision));
+  return new BigFloat((0, import_bigfloat_esnext3.div)(make(dividend), make(divisor), precision));
 };
-var sqrt = (a) => new BigFloat((0, import_bigfloat_esnext2.sqrt)((0, import_bigfloat_esnext2.make)(a)));
+var sqrt = (a) => new BigFloat((0, import_bigfloat_esnext3.sqrt)(make(a)));
 var ceil = (a, precision = 0, divisorPrecision) => {
-  const divisor = (0, import_bigfloat_esnext2.make)(Math.pow(10, precision));
-  return new BigFloat((0, import_bigfloat_esnext2.div)((0, import_bigfloat_esnext2.ceil)((0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(a), divisor)), divisor, divisorPrecision));
+  const divisor = make(Math.pow(10, precision));
+  return new BigFloat((0, import_bigfloat_esnext3.div)((0, import_bigfloat_esnext3.ceil)((0, import_bigfloat_esnext3.mul)(make(a), divisor)), divisor, divisorPrecision));
 };
 var floor = (a, precision = 0, divisorPrecision) => {
-  const divisor = (0, import_bigfloat_esnext2.make)(Math.pow(10, precision));
-  return new BigFloat((0, import_bigfloat_esnext2.div)((0, import_bigfloat_esnext2.floor)((0, import_bigfloat_esnext2.mul)((0, import_bigfloat_esnext2.make)(a), divisor)), divisor, divisorPrecision));
+  const divisor = make(Math.pow(10, precision));
+  return new BigFloat((0, import_bigfloat_esnext3.div)((0, import_bigfloat_esnext3.floor)((0, import_bigfloat_esnext3.mul)(make(a), divisor)), divisor, divisorPrecision));
 };
 var pow = (base, exp) => {
-  return new BigFloat((0, import_bigfloat_esnext2.exponentiation)((0, import_bigfloat_esnext2.make)(base), (0, import_bigfloat_esnext2.make)(exp)));
+  return new BigFloat((0, import_bigfloat_esnext3.exponentiation)(make(base), make(exp)));
 };
 var factor = (number) => {
-  const value = (0, import_bigfloat_esnext2.make)(number);
-  const ZERO2 = (0, import_bigfloat_esnext2.make)(0);
-  if ((0, import_bigfloat_esnext2.lt)(value, ZERO2)) {
-    const NEG_ONE = (0, import_bigfloat_esnext2.make)(-1);
-    return new BigFloat((0, import_bigfloat_esnext2.mul)(NEG_ONE, factor((0, import_bigfloat_esnext2.mul)(value, NEG_ONE))));
+  const value = make(number);
+  const ZERO2 = make(0);
+  if ((0, import_bigfloat_esnext3.lt)(value, ZERO2)) {
+    const NEG_ONE = make(-1);
+    return new BigFloat((0, import_bigfloat_esnext3.mul)(NEG_ONE, factor((0, import_bigfloat_esnext3.mul)(value, NEG_ONE))));
   }
-  const ONE2 = (0, import_bigfloat_esnext2.make)(1);
-  if ((0, import_bigfloat_esnext2.eq)(value, ZERO2) || (0, import_bigfloat_esnext2.eq)(value, ONE2)) {
+  const ONE2 = make(1);
+  if ((0, import_bigfloat_esnext3.eq)(value, ZERO2) || (0, import_bigfloat_esnext3.eq)(value, ONE2)) {
     return new BigFloat(ONE2);
   }
-  return new BigFloat((0, import_bigfloat_esnext2.mul)(value, factor((0, import_bigfloat_esnext2.sub)(value, ONE2))));
+  return new BigFloat((0, import_bigfloat_esnext3.mul)(value, factor((0, import_bigfloat_esnext3.sub)(value, ONE2))));
 };
 
 // src/relational.ts
-var import_bigfloat_esnext3 = require("bigfloat-esnext");
-var eq = (a, b) => (0, import_bigfloat_esnext3.eq)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
-var lt = (a, b) => (0, import_bigfloat_esnext3.lt)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
-var lte = (a, b) => (0, import_bigfloat_esnext3.lte)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
-var gt = (a, b) => (0, import_bigfloat_esnext3.gt)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
-var gte = (a, b) => (0, import_bigfloat_esnext3.gte)((0, import_bigfloat_esnext3.make)(a), (0, import_bigfloat_esnext3.make)(b));
+var import_bigfloat_esnext4 = require("bigfloat-esnext");
+var eq = (a, b) => (0, import_bigfloat_esnext4.eq)(make(a), make(b));
+var lt = (a, b) => (0, import_bigfloat_esnext4.lt)(make(a), make(b));
+var lte = (a, b) => (0, import_bigfloat_esnext4.lte)(make(a), make(b));
+var gt = (a, b) => (0, import_bigfloat_esnext4.gt)(make(a), make(b));
+var gte = (a, b) => (0, import_bigfloat_esnext4.gte)(make(a), make(b));
 var min = (...values) => {
   return new BigFloat(
     values.reduce((prev, current) => {
@@ -182,28 +206,28 @@ var cmp = (a, b) => {
 };
 
 // src/predicate.ts
-var import_bigfloat_esnext4 = require("bigfloat-esnext");
+var import_bigfloat_esnext5 = require("bigfloat-esnext");
 var isBigFloat = (number) => {
   return number instanceof BigFloat;
 };
 var isInteger = (number) => {
-  return (0, import_bigfloat_esnext4.is_integer)((0, import_bigfloat_esnext4.make)(number));
+  return (0, import_bigfloat_esnext5.is_integer)(make(number));
 };
 var isNegative = (number) => {
-  return (0, import_bigfloat_esnext4.is_negative)((0, import_bigfloat_esnext4.make)(number));
+  return (0, import_bigfloat_esnext5.is_negative)(make(number));
 };
 var isPositive = (number) => {
   if (isZero(number)) {
     return false;
   }
-  return (0, import_bigfloat_esnext4.is_positive)((0, import_bigfloat_esnext4.make)(number));
+  return (0, import_bigfloat_esnext5.is_positive)(make(number));
 };
 var isZero = (number) => {
-  return (0, import_bigfloat_esnext4.is_zero)((0, import_bigfloat_esnext4.make)(number));
+  return (0, import_bigfloat_esnext5.is_zero)(make(number));
 };
 
 // src/index.ts
-var import_bigfloat_esnext5 = require("bigfloat-esnext");
+var import_bigfloat_esnext6 = require("bigfloat-esnext");
 
 // src/constants.ts
 var ZERO = /* @__PURE__ */ new BigFloat(0);
@@ -247,12 +271,12 @@ var TRILLION = /* @__PURE__ */ new BigFloat(1e12);
   cmp,
   div,
   eq,
-  evaluate,
   factor,
   floor,
   fraction,
   gt,
   gte,
+  integer,
   isBigFloat,
   isInteger,
   isNegative,

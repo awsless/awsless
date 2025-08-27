@@ -5,7 +5,19 @@ set_precision(-12)
 export type Numeric = IBigFloat | number | bigint | string
 
 export const make = (number: Numeric) => {
-	return a_make(typeof number === 'string' ? number.toLowerCase() : number)
+	if (typeof number === 'string') {
+		const lower = number.toLowerCase()
+
+		if (lower.includes('e')) {
+			if (lower.includes('+')) {
+				return a_make(lower.replaceAll('+', ''))
+			}
+
+			return a_make(lower)
+		}
+	}
+
+	return a_make(number)
 }
 
 export class BigFloat implements IBigFloat {

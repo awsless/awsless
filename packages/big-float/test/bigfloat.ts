@@ -224,22 +224,24 @@ describe('BigFloat', () => {
 			const test = (value: Numeric, expectation: Numeric) => {
 				it(`new BigFloat(${value})`, () => {
 					const result = new BigFloat(value)
-					expect(eq(result, expectation)).toBe(true)
 					expect(result.toString()).toBe(expectation)
+					expect(eq(result, expectation)).toBe(true)
 				})
 			}
 
 			test(8e6, '8000000')
 			test(-8e6, '-8000000')
 			test('8e6', '8000000')
+			test('8e+6', '8000000')
 			test('-8e6', '-8000000')
+			test('-8e+6', '-8000000')
 
 			test('8e-6', '0.000008')
 			test('-8e-6', '-0.000008')
-			test('8.0e-6', '0.000008')
-			test('-8.0e-6', '-0.000008')
-			test('8.0E-6', '0.000008')
-			test('-8.0E-6', '-0.000008')
+			test('8.1e-6', '0.0000081')
+			test('-8.1e-6', '-0.0000081')
+			test('8.1E-6', '0.0000081')
+			test('-8.1E-6', '-0.0000081')
 		})
 
 		describe('stringify', () => {
