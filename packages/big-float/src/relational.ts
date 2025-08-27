@@ -1,6 +1,6 @@
-import { eq as a_eq, gt as a_gt, gte as a_gte, lt as a_lt, lte as a_lte, make } from 'bigfloat-esnext'
+import { eq as a_eq, gt as a_gt, gte as a_gte, lt as a_lt, lte as a_lte } from 'bigfloat-esnext'
 
-import { BigFloat, Numeric } from './bigfloat.js'
+import { BigFloat, make, Numeric } from './bigfloat.js'
 
 export const eq = (a: Numeric, b: Numeric) => a_eq(make(a), make(b))
 export const lt = (a: Numeric, b: Numeric) => a_lt(make(a), make(b))

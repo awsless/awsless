@@ -1,8 +1,12 @@
-import { IBigFloat, make, set_precision, string } from 'bigfloat-esnext'
+import { IBigFloat, make as a_make, set_precision, string } from 'bigfloat-esnext'
 
 set_precision(-12)
 
 export type Numeric = IBigFloat | number | bigint | string
+
+export const make = (number: Numeric) => {
+	return a_make(typeof number === 'string' ? number.toLowerCase() : number)
+}
 
 export class BigFloat implements IBigFloat {
 	readonly exponent: number

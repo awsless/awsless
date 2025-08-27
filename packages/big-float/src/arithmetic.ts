@@ -11,10 +11,9 @@ import {
 	neg as a_neg,
 	sqrt as a_sqrt,
 	sub as a_sub,
-	make,
 } from 'bigfloat-esnext'
 
-import { BigFloat, Numeric } from './bigfloat.js'
+import { BigFloat, make, Numeric } from './bigfloat.js'
 
 export const neg = (a: Numeric) => new BigFloat(a_neg(make(a)))
 export const abs = (a: Numeric) => new BigFloat(a_abs(make(a)))

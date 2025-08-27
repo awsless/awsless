@@ -1,5 +1,5 @@
-import { is_integer, is_negative, is_positive, is_zero, make } from 'bigfloat-esnext'
-import { BigFloat, Numeric } from './bigfloat'
+import { is_integer, is_negative, is_positive, is_zero } from 'bigfloat-esnext'
+import { BigFloat, make, Numeric } from './bigfloat'
 
 export const isBigFloat = (number: unknown) => {
 	return number instanceof BigFloat

@@ -12,9 +12,11 @@ import {
 	FIVE,
 	floor,
 	FOUR,
+	fraction,
 	gt,
 	gte,
 	HUNDRED,
+	integer,
 	isBigFloat,
 	isInteger,
 	isNegative,
@@ -32,6 +34,7 @@ import {
 	Numeric,
 	ONE,
 	pow,
+	scientific,
 	SEVEN,
 	SIX,
 	sqrt,
@@ -182,6 +185,78 @@ describe('BigFloat', () => {
 		test('0.5555555555', 0, 1)
 		test('0.5555555555', 2, 0.56)
 		test('0.5555555555', 8, '0.55555556')
+	})
+
+	describe('integer', () => {
+		const test = (value: Numeric, expectation: Numeric) => {
+			it(`integer(${value}) = ${expectation}`, () => {
+				const result = integer(value)
+				expect(eq(result, expectation)).toBe(true)
+			})
+		}
+
+		test('1', '1')
+		test('1.1', '1')
+		test('1.00000000001', '1')
+		test('1000.00000000001', '1000')
+		test('8e6', '8000000')
+		test('8e-6', '0')
+	})
+
+	describe('fraction', () => {
+		const test = (value: Numeric, expectation: Numeric) => {
+			it(`fraction(${value}) = ${expectation}`, () => {
+				const result = fraction(value)
+				expect(eq(result, expectation)).toBe(true)
+			})
+		}
+
+		test('1', '0')
+		test('1.1', '0.1')
+		test('1.00000000001', '0.00000000001')
+		test('1000.00000000001', '0.00000000001')
+		test('8e6', '0')
+		test('8e-6', '0.000008')
+	})
+
+	describe('scientific', () => {
+		describe('parse', () => {
+			const test = (value: Numeric, expectation: Numeric) => {
+				it(`new BigFloat(${value})`, () => {
+					const result = new BigFloat(value)
+					expect(eq(result, expectation)).toBe(true)
+					expect(result.toString()).toBe(expectation)
+				})
+			}
+
+			test(8e6, '8000000')
+			test(-8e6, '-8000000')
+			test('8e6', '8000000')
+			test('-8e6', '-8000000')
+
+			test('8e-6', '0.000008')
+			test('-8e-6', '-0.000008')
+			test('8.0e-6', '0.000008')
+			test('-8.0e-6', '-0.000008')
+			test('8.0E-6', '0.000008')
+			test('-8.0E-6', '-0.000008')
+		})
+
+		describe('stringify', () => {
+			const test = (value: Numeric, expectation: Numeric) => {
+				it(`scientific(${value}) = ${expectation}`, () => {
+					const result = scientific(value)
+					expect(eq(result, expectation)).toBe(true)
+					expect(result.toString()).toBe(expectation)
+				})
+			}
+
+			test('8000000', '8.000000e6')
+			test('-8000000', '-8.000000e6')
+
+			test('0.000008', '8e-6')
+			test('-0.000008', '-8e-6')
+		})
 	})
 
 	describe('constants', () => {
