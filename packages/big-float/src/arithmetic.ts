@@ -1,78 +1,136 @@
-import {
-	abs as a_abs,
-	add as a_add,
-	ceil as a_ceil,
-	div as a_div,
-	eq as a_eq,
-	exponentiation as a_exponentiation,
-	floor as a_floor,
-	lt as a_lt,
-	mul as a_mul,
-	neg as a_neg,
-	sqrt as a_sqrt,
-	sub as a_sub,
-} from 'bigfloat-esnext'
+import { BigFloat } from './bigfloat.js'
+import { make } from './constructors'
+import * as internal from './internal'
+import { parse } from './internal'
+import { Numeric } from './type'
 
-import { BigFloat, make, Numeric } from './bigfloat.js'
+/**
+ * Returns the negation of a number.
+ * @param {Numeric} n - The number to negate.
+ * @returns {BigFloat} The negated value of `n`.
+ */
+export const neg = (n: Numeric): BigFloat => make(internal.neg(parse(n)))
 
-export const neg = (a: Numeric) => new BigFloat(a_neg(make(a)))
-export const abs = (a: Numeric) => new BigFloat(a_abs(make(a)))
-export const add = (a: Numeric, ...other: Numeric[]) => {
-	return new BigFloat(
-		other.reduce((prev, current) => {
-			return a_add(make(prev), make(current))
-		}, a)
+/**
+ * Returns the absolute value of a number.
+ * @param {Numeric} n - The number to get the absolute value of.
+ * @returns {BigFloat} The absolute value of `n`.
+ */
+export const abs = (n: Numeric): BigFloat => make(internal.abs(parse(n)))
+
+/**
+ * Adds two or more numbers together.
+ * @param {Numeric} n - The first addend.
+ * @param {...Numeric} other - Additional numbers to add.
+ * @returns {BigFloat} The sum of all arguments.
+ */
+export const add = (n: Numeric, ...other: Numeric[]): BigFloat => {
+	return make(
+		other.map(parse).reduce((prev, current) => {
+			return internal.add(prev, current)
+		}, parse(n))
 	)
 }
 
-export const sub = (a: Numeric, ...other: Numeric[]) => {
-	return new BigFloat(
-		other.reduce((prev, current) => {
-			return a_sub(make(prev), make(current))
-		}, a)
+/**
+ * Subtracts numbers from the first number.
+ * @param {Numeric} n - The initial value.
+ * @param {...Numeric} other - Numbers to subtract from `n`.
+ * @returns {BigFloat} The result of the subtraction.
+ */
+export const sub = (n: Numeric, ...other: Numeric[]): BigFloat => {
+	return make(
+		other.map(parse).reduce((prev, current) => {
+			return internal.sub(prev, current)
+		}, parse(n))
 	)
 }
 
-export const mul = (multiplicand: Numeric, ...multipliers: Numeric[]) => {
-	return new BigFloat(
-		multipliers.reduce((prev, current) => {
-			return a_mul(make(prev), make(current))
-		}, multiplicand)
+/**
+ * Multiplies two or more numbers together.
+ * @param {Numeric} multiplicand - The first number.
+ * @param {...Numeric} multipliers - Additional numbers to multiply with.
+ * @returns {BigFloat} The product of all arguments.
+ */
+export const mul = (multiplicand: Numeric, ...multipliers: Numeric[]): BigFloat => {
+	return make(
+		multipliers.map(parse).reduce((prev, current) => {
+			return internal.mul(prev, current)
+		}, parse(multiplicand))
 	)
 }
 
-export const div = (dividend: Numeric, divisor: Numeric, precision?: number) => {
-	return new BigFloat(a_div(make(dividend), make(divisor), precision))
+/**
+ * Divides one number by another with optional precision.
+ * @param {Numeric} dividend - The numerator.
+ * @param {Numeric} divisor - The denominator.
+ * @param {number} [precision] - Optional precision for the division.
+ * @returns {BigFloat} The quotient of the division.
+ */
+export const div = (dividend: Numeric, divisor: Numeric, precision?: number): BigFloat => {
+	return make(internal.div(parse(dividend), parse(divisor), precision))
 }
 
-export const sqrt = (a: Numeric) => new BigFloat(a_sqrt(make(a)))
+/**
+ * Returns the square root of a number.
+ * @param {Numeric} n - The number to take the square root of.
+ * @returns {BigFloat} The square root of `n`.
+ */
+export const sqrt = (n: Numeric) => make(internal.sqrt(parse(n)))
 
-export const ceil = (a: Numeric, precision: number = 0, divisorPrecision?: number) => {
-	const divisor = make(Math.pow(10, precision))
-	return new BigFloat(a_div(a_ceil(a_mul(make(a), divisor)), divisor, divisorPrecision))
+/**
+ * Rounds a number up to the nearest integer or given precision.
+ * @param {Numeric} n - The number to round up.
+ * @param {number} [precision=0] - The decimal precision to round to.
+ * @param {number} [divisorPrecision] - Optional precision for internal division.
+ * @returns {BigFloat} The rounded-up value.
+ */
+export const ceil = (n: Numeric, precision: number = 0, divisorPrecision?: number): BigFloat => {
+	const divisor = parse(Math.pow(10, precision))
+	return make(internal.div(internal.ceil(internal.mul(parse(n), divisor)), divisor, divisorPrecision))
 }
-export const floor = (a: Numeric, precision: number = 0, divisorPrecision?: number) => {
-	const divisor = make(Math.pow(10, precision))
-	return new BigFloat(a_div(a_floor(a_mul(make(a), divisor)), divisor, divisorPrecision))
+
+/**
+ * Rounds a number down to the nearest integer or given precision.
+ * @param {Numeric} n - The number to round down.
+ * @param {number} [precision=0] - The decimal precision to round to.
+ * @param {number} [divisorPrecision] - Optional precision for internal division.
+ * @returns {BigFloat} The rounded-down value.
+ */
+export const floor = (n: Numeric, precision: number = 0, divisorPrecision?: number): BigFloat => {
+	const divisor = parse(Math.pow(10, precision))
+	return make(internal.div(internal.floor(internal.mul(parse(n), divisor)), divisor, divisorPrecision))
 }
 
-export const pow = (base: Numeric, exp: Numeric) => {
-	return new BigFloat(a_exponentiation(make(base), make(exp)))
+/**
+ * Rounds a number to the nearest integer or given precision.
+ * Similar to `Math.round`, but supports arbitrary-precision numbers (`BigFloat`).
+ * @param {Numeric} n - The number to round.
+ * @param {number} [precision=0] - The decimal precision to round to.
+ * For example, `precision = 2` rounds to the nearest hundredth.
+ * @param {number} [divisorPrecision] - Optional precision for internal division operations.
+ * @returns {BigFloat} The number rounded to the specified precision.
+ */
+export const round = (n: Numeric, precision: number = 0, divisorPrecision?: number): BigFloat => {
+	const divisor = parse(Math.pow(10, precision))
+	return make(internal.div(internal.round(internal.mul(parse(n), divisor)), divisor, divisorPrecision))
 }
 
-export const factor = (number: Numeric): BigFloat => {
-	const value = make(number)
-	const ZERO = make(0)
+/**
+ * Raises a number to a given power.
+ * @param {Numeric} base - The base number.
+ * @param {Numeric} exp - The exponent.
+ * @returns {BigFloat} The result of `base^exp`.
+ */
+export const pow = (base: Numeric, exp: Numeric): BigFloat => {
+	return make(internal.pow(parse(base), parse(exp)))
+}
 
-	if (a_lt(value, ZERO)) {
-		const NEG_ONE = make(-1)
-		return new BigFloat(a_mul(NEG_ONE, factor(a_mul(value, NEG_ONE))))
-	}
-
-	const ONE = make(1)
-	if (a_eq(value, ZERO) || a_eq(value, ONE)) {
-		return new BigFloat(ONE)
-	}
-
-	return new BigFloat(a_mul(value, factor(a_sub(value, ONE))))
+/**
+ * Computes the factorial of a number.
+ * @param {Numeric} n - The number to compute the factorial for.
+ * @returns {BigFloat} The factorial of `n`.
+ */
+export const fact = (n: Numeric): BigFloat => {
+	return make(internal.fact(parse(n)))
 }

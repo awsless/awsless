@@ -827,11 +827,7 @@ importers:
         specifier: ^0.34.2
         version: 0.34.2
 
-  packages/big-float:
-    dependencies:
-      bigfloat-esnext:
-        specifier: ^3.0.1
-        version: 3.0.1
+  packages/big-float: {}
 
   packages/bugsnag:
     dependencies:
@@ -6554,9 +6550,6 @@ packages:
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
-
-  bigfloat-esnext@3.0.1:
-    resolution: {integrity: sha512-+L6LRIuW3y7BTy0WRC2G2w4w2TPtC88h3GLPhEJ6tH4tTE1m5otWXk4rOhEwfwiXxyPcRzqx6YHQ637rpKJvKA==}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -18524,8 +18517,6 @@ snapshots:
     optional: true
 
   base64-js@1.5.1: {}
-
-  bigfloat-esnext@3.0.1: {}
 
   binary-extensions@2.3.0: {}
 

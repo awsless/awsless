@@ -1,14 +1,43 @@
-import { fraction as a_fraction, integer as a_integer, scientific as a_scientific } from 'bigfloat-esnext'
-import { BigFloat, make, Numeric } from './bigfloat'
+import { BigFloat } from './bigfloat'
+import * as internal from './internal/index'
+import { IBigFloat, Numeric } from './type'
 
-export const scientific = (number: Numeric): string => {
-	return a_scientific(make(number))
+export const make = (n: IBigFloat): BigFloat => {
+	return new BigFloat(n)
 }
 
-export const fraction = (number: Numeric) => {
-	return new BigFloat(a_fraction(make(number)))
+/**
+ * Returns the fractional part of a number.
+ * @param {Numeric} n - The number to extract the fraction from.
+ * @returns {BigFloat} The fractional part of `n`.
+ */
+export const fraction = (n: Numeric): BigFloat => {
+	return make(internal.fraction(internal.parse(n)))
 }
 
-export const integer = (number: Numeric) => {
-	return new BigFloat(a_integer(make(number)))
+/**
+ * Returns the integer part of a number.
+ * @param {Numeric} n - The number to extract the integer part from.
+ * @returns {BigFloat} The integer part of `n`.
+ */
+export const integer = (n: Numeric): BigFloat => {
+	return make(internal.integer(internal.parse(n)))
+}
+
+/**
+ * Converts a number to its standard string representation.
+ * @param {Numeric} n - The number to convert.
+ * @returns {string} The string representation of `n`.
+ */
+export const string = (n: Numeric): string => {
+	return internal.string(internal.parse(n))
+}
+
+/**
+ * Converts a number to its scientific notation string representation.
+ * @param {Numeric} n - The number to convert.
+ * @returns {string} The scientific notation of `n`.
+ */
+export const scientific = (n: Numeric): string => {
+	return internal.scientific(internal.parse(n))
 }

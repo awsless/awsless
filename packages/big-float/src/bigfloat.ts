@@ -1,45 +1,50 @@
-import { IBigFloat, make as a_make, set_precision, string } from 'bigfloat-esnext'
+import { parse, string } from './internal'
+import { IBigFloat, Numeric } from './type'
 
-set_precision(-12)
-
-export type Numeric = IBigFloat | number | bigint | string
-
-export const make = (number: Numeric) => {
-	if (typeof number === 'string') {
-		const lower = number.toLowerCase()
-
-		if (lower.includes('e')) {
-			if (lower.includes('+')) {
-				return a_make(lower.replaceAll('+', ''))
-			}
-
-			return a_make(lower)
-		}
-	}
-
-	return a_make(number)
-}
-
+/**
+ * Represents an arbitrary-precision floating point number.
+ *
+ * A BigFloat consists of a `coefficient` (bigint) and an `exponent` (number),
+ * similar to scientific notation: `coefficient × 10^exponent`.
+ */
 export class BigFloat implements IBigFloat {
+	/**
+	 * The power of 10 applied to the coefficient.
+	 * @type {number}
+	 */
 	readonly exponent: number
+
+	/**
+	 * The integer coefficient of the floating-point number.
+	 * @type {bigint}
+	 */
 	readonly coefficient: bigint
 
-	constructor(number: Numeric) {
-		const { exponent, coefficient } = make(number)
-
+	/**
+	 * Creates a new BigFloat instance from a numeric value.
+	 * @param {Numeric} n - The number to parse into a BigFloat.
+	 */
+	constructor(n: Numeric) {
+		const { exponent, coefficient } = parse(n)
 		this.exponent = exponent
 		this.coefficient = coefficient
 	}
 
+	/**
+	 * Converts the BigFloat to a JSON-compatible string representation.
+	 * Equivalent to calling {@link BigFloat.toString}.
+	 * @returns {string} A string representation of the BigFloat.
+	 */
 	toJSON() {
 		return this.toString()
 	}
 
-	toString(radix?: Numeric) {
-		if (typeof radix !== 'undefined') {
-			radix = make(radix)
-		}
-
-		return string(this, radix) as string
+	/**
+	 * Converts the BigFloat to its string representation.
+	 * @param {number} [radix] - The base/radix for string conversion (e.g. 10 for decimal, 16 for hex).
+	 * @returns {string} A string representation of the BigFloat.
+	 */
+	toString(radix?: number) {
+		return string(this, radix)
 	}
 }
