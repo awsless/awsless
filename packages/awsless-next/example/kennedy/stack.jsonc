@@ -1,15 +1,30 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"functions": {
-		"connect-instance": {
-			"code": "./connect-instance.ts",
-			"vpc": true
+	"images": {
+		"test": {
+			"cacheDuration": "7 days",
+			"presets": {
+				"default": { "width": 600, "quality": 100 }
+			},
+			"extensions": {
+				"jpeg": {},
+				"png": {}
+			},
+			"origin": {
+				"function": "./image-origin.ts"
+			}
 		}
-	},
-	"instances": {
-		"test": "./instance.ts"
 	}
+	// "functions": {
+	// 	"connect-instance": {
+	// 		"code": "./connect-instance.ts",
+	// 		"vpc": true
+	// 	}
+	// }
+	// "instances": {
+	// 	"test": "./instance.ts"
+	// }
 	// "sites": {
 	// 	"test": {
 	// 		"auth": {

@@ -259,6 +259,19 @@ export const imageFeature = defineFeature({
 				defaultTtl: toSeconds(days(365)),
 			})
 
+			const responseHeaders = new $.aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
+				name,
+				corsConfig: {
+					originOverride: true,
+					accessControlMaxAgeSec: toSeconds(days(365)),
+					accessControlAllowHeaders: { items: ['*'] },
+					accessControlAllowMethods: { items: ['ALL'] },
+					accessControlAllowOrigins: { items: ['*'] },
+					accessControlExposeHeaders: { items: ['*'] },
+					accessControlAllowCredentials: false,
+				},
+			})
+
 			const distribution = new $.aws.cloudfront.Distribution(group, 'distribution', {
 				comment: name,
 				enabled: true,
@@ -322,6 +335,7 @@ export const imageFeature = defineFeature({
 					compress: true,
 					targetOriginId: 'group',
 					cachePolicyId: cache.id,
+					responseHeadersPolicyId: responseHeaders.id,
 					viewerProtocolPolicy: 'redirect-to-https',
 					allowedMethods: ['GET', 'HEAD'],
 					cachedMethods: ['GET', 'HEAD'],
