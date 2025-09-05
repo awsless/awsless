@@ -27,7 +27,7 @@
 	// 	}
 	// 	// "echo-4": "./function.ts"
 	// 	// "echo-3": "./function.ts"
-	// }
+	// },
 
 	// "caches": {
 	// 	"test": {}
@@ -39,14 +39,10 @@
 	// },
 
 	// "tables": {
-	// 	"test": {
-	// 		"hash": "id",
-	// 		"stream": {
-	// 			"type": "new-and-old-images",
-	// 			"consumer": "./function.ts"
-	// 		}
+	// 	"state": {
+	// 		"hash": "id"
 	// 	}
-	// }
+	// },
 
 	// "stores": {
 	// 	"test": {}
@@ -77,29 +73,31 @@
 
 	// "tests": "./schedule/test",
 
-	// "tables": {
-	// 	"state": {
-	// 		"hash": "id",
-	// 		"fields": {
-	// 			"id": "number"
-	// 		}
-	// 	}
-	// },
-
-	// "functions": {
-	// 	"start": "./schedule/start.ts"
-	// },
-
-	// "tasks": {
-	// 	"end": "./schedule/end.ts"
-	// },
-
-	"instances": {
-		"test": {
-			"code": "./instance/index.ts",
-			"memorySize": "1 GB"
+	"tables": {
+		"state": {
+			"hash": "id",
+			"fields": {
+				"id": "number"
+			}
 		}
+	},
+
+	"functions": {
+		"start": {
+			"code": "./schedule/start.ts"
+		}
+	},
+
+	"tasks": {
+		"end": "./schedule/end.ts"
 	}
+
+	// "instances": {
+	// 	"test": {
+	// 		"code": "./instance/index.ts",
+	// 		"memorySize": "1 GB"
+	// 	}
+	// }
 
 	// "pubsub": {
 	// 	"test": {

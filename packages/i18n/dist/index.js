@@ -1,3 +1,6 @@
+// src/vite.ts
+import MagicString from "magic-string";
+
 // src/cache.ts
 import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
@@ -181,27 +184,28 @@ var i18n = (props) => {
       this.info(`Translating done.`);
     },
     transform(code) {
-      let replaced = false;
       if (code.includes("lang.t`")) {
+        const transformedCode = new MagicString(code);
         for (const item of cache.entries()) {
-          code = code.replaceAll(`lang.t\`${item.source}\``, () => {
-            replaced = true;
-            return `lang.t.get(\`${item.source}\`, {${props.locales.map((locale) => {
+          transformedCode.replaceAll(
+            `lang.t\`${item.source}\``,
+            `lang.t.get(\`${item.source}\`, {${props.locales.map((locale) => {
               const translation = cache.get(item.source, locale);
               if (translation === item.source) {
                 return;
               }
               return `"${locale}":\`${translation}\``;
-            }).filter((v) => !!v).join(",")}})`;
-          });
+            }).filter((v) => !!v).join(",")}})`
+          );
         }
+        return {
+          code: transformedCode.toString(),
+          map: transformedCode.generateMap({
+            hires: true
+          })
+        };
       }
-      if (!replaced) {
-        return;
-      }
-      return {
-        code
-      };
+      return;
     }
   };
 };

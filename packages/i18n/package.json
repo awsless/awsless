@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/i18n",
-	"version": "0.0.11",
+	"version": "0.0.13",
 	"license": "MIT",
 	"type": "module",
 	"keywords": [
@@ -21,25 +21,22 @@
 	"files": [
 		"dist"
 	],
-	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
-			"require": "./dist/index.cjs",
 			"import": "./dist/index.js",
 			"types": "./dist/index.d.ts"
 		},
 		"./svelte": {
-			"require": "./dist/svelte.svelte.cjs",
-			"import": "./dist/svelte.svelte.js",
-			"types": "./dist/svelte.svelte.d.ts"
+			"svelte": "./dist/svelte-5.svelte.js",
+			"types": "./dist/svelte-5.svelte.d.ts"
 		}
 	},
 	"scripts": {
 		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"build-svelte": "pnpm tsup src/framework/svelte.svelte.ts --format cjs,esm --dts",
+		"build": "pnpm tsup src/index.ts --format esm --dts --clean",
+		"build-svelte": "pnpm tsup src/framework/svelte-5.svelte.ts --format esm --dts",
 		"prepublish": "if pnpm test; then pnpm build; pnpm build-svelte; else exit; fi"
 	},
 	"vitest": {
@@ -67,6 +64,7 @@
 		"estree-walker": "^3.0.3",
 		"glob": "^10.3.9",
 		"line-column": "^1.0.2",
+		"magic-string": "^0.30.18",
 		"swc-walk": "1.0.0-rc.2",
 		"zod": "^3.21.4"
 	}

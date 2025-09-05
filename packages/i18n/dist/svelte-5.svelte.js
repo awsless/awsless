@@ -1,4 +1,4 @@
-// src/framework/svelte.svelte.ts
+// src/framework/svelte-5.svelte.ts
 var locale = $state("en");
 var t = $derived.by(() => {
   const api = (template, ...args) => {

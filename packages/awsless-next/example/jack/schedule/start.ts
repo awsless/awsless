@@ -4,10 +4,10 @@ import { Task } from '../../../src/server'
 import { stateTable } from './table'
 
 export default async () => {
-	// await putItem(stateTable, {
-	// 	id: 1,
-	// 	state: 'started',
-	// })
+	await putItem(stateTable, {
+		id: 1,
+		state: 'started',
+	})
 
 	await Task.stack.end(
 		{},
@@ -15,6 +15,4 @@ export default async () => {
 			schedule: minutes(1),
 		}
 	)
-
-	await Task.stack.end({})
 }

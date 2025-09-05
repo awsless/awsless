@@ -1,3 +1,4 @@
+import MagicString from 'magic-string'
 import { Plugin } from 'vite'
 import { Cache, loadCache, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
@@ -65,13 +66,13 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			this.info(`Translating done.`)
 		},
 		transform(code) {
-			let replaced = false
-
 			if (code.includes('lang.t`')) {
+				const transformedCode = new MagicString(code)
+
 				for (const item of cache.entries()) {
-					code = code.replaceAll(`lang.t\`${item.source}\``, () => {
-						replaced = true
-						return `lang.t.get(\`${item.source}\`, {${props.locales
+					transformedCode.replaceAll(
+						`lang.t\`${item.source}\``,
+						`lang.t.get(\`${item.source}\`, {${props.locales
 							.map(locale => {
 								const translation = cache.get(item.source, locale)
 
@@ -85,17 +86,17 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 							})
 							.filter(v => !!v)
 							.join(',')}})`
-					})
+					)
+				}
+				return {
+					code: transformedCode.toString(),
+					map: transformedCode.generateMap({
+						hires: true,
+					}),
 				}
 			}
 
-			if (!replaced) {
-				return
-			}
-
-			return {
-				code,
-			}
+			return
 		},
 	}
 }

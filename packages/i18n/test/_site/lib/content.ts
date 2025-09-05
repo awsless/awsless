@@ -1,4 +1,4 @@
-import { lang } from '../../../src/framework/svelte.svelte'
+import { lang } from '../../../src/framework/svelte-5.svelte'
 
 export const content = lang.t`Hello ${1} world`
 

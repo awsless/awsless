@@ -1,5 +1,5 @@
 <script>
-	import { lang } from '../../src/framework/svelte.svelte'
+	import { lang } from '../../src/framework/svelte-5.svelte'
 	import { content } from './lib/content'
 	import Head from './head.svelte'
 

@@ -5,8 +5,6 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { loadCache } from '../src/cache'
 import { openai } from '@ai-sdk/openai'
 
-// import { mock } from '../src/translate/mock'
-
 describe('i18n', () => {
 	process.env.OPENAI_API_KEY = ''
 
