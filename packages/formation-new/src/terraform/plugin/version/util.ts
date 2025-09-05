@@ -1,6 +1,9 @@
 import { camelCase, snakeCase } from 'change-case'
 import { pack, unpack } from 'msgpackr'
+import { createDebugger } from '../../../formation/debug.ts'
 import { Property, RootProperty } from '../schema.ts'
+
+const debug = createDebugger('TerraformPluginUtil')
 
 export const encodeDynamicValue = (value: unknown) => {
 	return {
@@ -37,14 +40,46 @@ export const getResourceSchema = (resources: Record<string, RootProperty>, type:
 // 	return empty
 // }
 
-export const formatAttributePath = (state?: any[]): Array<number | string>[] => {
+type AttributePath = {
+	steps?: Array<
+		| {
+				attributeName: string
+		  }
+		| {
+				elementKeyString: string
+		  }
+		| {
+				elementKeyInt: number
+		  }
+	>
+}
+
+export const formatAttributePath = (state?: AttributePath[]): Array<number | string>[] => {
 	if (!state) {
 		return []
 	}
 
-	return state.map((item: any) => {
-		return item.steps.map((attr: any) => {
-			return attr.attributeName ?? attr.elementKeyString ?? attr.elementKeyInt
+	debug('AttributePath', state)
+
+	return state.map(item => {
+		if (!item.steps) {
+			throw new Error('AttributePath should always have steps')
+		}
+
+		return item.steps.map(attr => {
+			if ('attributeName' in attr) {
+				return attr.attributeName
+			}
+
+			if ('elementKeyString' in attr) {
+				return attr.elementKeyString
+			}
+
+			if ('elementKeyInt' in attr) {
+				return attr.elementKeyInt
+			}
+
+			throw new Error('AttributePath step should always have an element')
 		})
 	})
 }
