@@ -112,10 +112,9 @@ describe('Transact Write', () => {
 			if (error instanceof TransactionCanceledException) {
 				expect(error.conditionFailedAt(0)).toBe(false)
 				expect(error.conditionFailedAt(1)).toBe(true)
-				expect(error.conditionFailedAt(0, 1)).toBe(true)
-				expect(error.conditionFailedAt(2, 3)).toBe(false)
-				expect(error.conditionFailedAt(0, 1, 2)).toBe(true)
-				expect(error.conditionFailedAt(2, 3, 4)).toBe(false)
+				expect(error.conditionFailedAt(2)).toBe(false)
+			} else {
+				throw error
 			}
 		}
 
@@ -125,4 +124,44 @@ describe('Transact Write', () => {
 			items: [{ id: 1 }],
 		})
 	})
+
+	// it('should throw on conflict error', async () => {
+	// 	const promise = Promise.all(
+	// 		Array.from({ length: 1000 }).map(async () => {
+	// 			await transactWrite([
+	// 				//
+	// 				updateItem(
+	// 					users,
+	// 					{ id: 1 },
+	// 					{
+	// 						update: e => e.name.set('Conflict'),
+	// 						when: e => e.id.exists(),
+	// 					}
+	// 				),
+	// 				conditionCheck(
+	// 					users,
+	// 					{ id: 2 },
+	// 					{
+	// 						when: e => e.id.notExists(),
+	// 					}
+	// 				),
+	// 			])
+	// 		})
+	// 	)
+
+	// 	await expect(promise).rejects.toThrow(TransactionCanceledException)
+
+	// 	try {
+	// 		await promise
+	// 	} catch (error) {
+	// 		console.log(error)
+
+	// 		if (error instanceof TransactionCanceledException) {
+	// 			expect(error.conflictAt(0)).toBe(true)
+	// 			expect(error.conflictAt(1)).toBe(false)
+	// 		} else {
+	// 			throw error
+	// 		}
+	// 	}
+	// })
 })

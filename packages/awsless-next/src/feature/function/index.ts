@@ -118,7 +118,7 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 		// Define the ScheduleGroup for warmers
 
-		const warmGroup = new $.aws.scheduler.ScheduleGroup(ctx.base, 'warm', {
+		const warmGroup = new $.aws.scheduler.ScheduleGroup(group, 'warm', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'function',

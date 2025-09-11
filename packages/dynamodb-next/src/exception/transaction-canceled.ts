@@ -1,20 +1,26 @@
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb'
 
+type Code = 'ConditionalCheckFailed' | 'TransactionConflict'
+
 declare module '@aws-sdk/client-dynamodb' {
 	export interface TransactionCanceledException {
-		conditionFailedAt: (...indexes: number[]) => boolean
+		cancellationReasonAt: (index: number) => Code | undefined
+		conditionFailedAt: (index: number) => boolean
+		conflictAt: (index: number) => boolean
 	}
 }
 
-/* Will return true if atleast one of the provided indexes has a conditional failure. */
-TransactionCanceledException.prototype.conditionFailedAt = function (...indexes: number[]): boolean {
-	const reasons = this.CancellationReasons || []
+TransactionCanceledException.prototype.cancellationReasonAt = function (index: number): Code | undefined {
+	const reasons = this.CancellationReasons ?? []
+	return reasons[index]?.Code as Code
+}
 
-	for (const index of indexes) {
-		if (reasons[index]?.Code === 'ConditionalCheckFailed') {
-			return true
-		}
-	}
+/** Will return true if index has a conditional failure. */
+TransactionCanceledException.prototype.conditionFailedAt = function (index: number): boolean {
+	return this.cancellationReasonAt(index) === 'ConditionalCheckFailed'
+}
 
-	return false
+/** Will return true if index has a transaction conflict. */
+TransactionCanceledException.prototype.conflictAt = function (index: number): boolean {
+	return this.cancellationReasonAt(index) === 'TransactionConflict'
 }

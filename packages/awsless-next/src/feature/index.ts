@@ -28,6 +28,7 @@ import { layerFeature } from './layer/index.js'
 import { imageFeature } from './image/index.js'
 import { iconFeature } from './icon/index.js'
 import { instanceFeature } from './instance/index.js'
+import { metricFeature } from './metric/index.js'
 
 export const features = [
 	// 1
@@ -50,6 +51,7 @@ export const features = [
 	configFeature,
 	searchFeature,
 	pubsubFeature,
+	metricFeature,
 	// streamFeature,
 	tableFeature,
 	topicFeature,

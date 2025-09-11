@@ -1,6 +1,6 @@
 {
-	"name": "@awsless/scheduler",
-	"version": "0.0.4",
+	"name": "@awsless/cloudwatch",
+	"version": "0.0.1",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -13,29 +13,28 @@
 	"files": [
 		"dist"
 	],
-	"main": "./dist/index.cjs",
+	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
-			"require": "./dist/index.cjs",
 			"import": "./dist/index.js",
 			"types": "./dist/index.d.ts"
 		}
 	},
 	"scripts": {
 		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+		"build": "pnpm tsup src/index.ts --format esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"peerDependencies": {
 		"@awsless/duration": "workspace:^",
-		"@awsless/json": "workspace:^"
+		"@awsless/size": "workspace:^"
 	},
 	"dependencies": {
-		"@aws-sdk/client-scheduler": "3.828.0",
+		"@aws-sdk/client-cloudwatch": "^3.883.0",
 		"@awsless/duration": "workspace:^",
-		"@awsless/json": "workspace:^",
+		"@awsless/size": "workspace:^",
 		"@awsless/utils": "workspace:^",
 		"aws-sdk-client-mock": "^2.1.1",
 		"date-fns": "^4.1.0"

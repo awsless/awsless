@@ -38,10 +38,21 @@ export type OnEnvListener = (name: string, value: Input<string>) => void
 // export type OnFunction = (callback: OnFunctionListener) => void
 // export type OnFunctionListener = (lambda: $.aws.lambda.Function) => void
 
+// const lol: Statement = {
+// 	Effect: 'Allow',
+// 	""
+// 	'Condition': {
+// 		'Statement': {
+
+// 		}
+// 	}
+// }
+
 export type Permission = {
 	effect?: 'allow' | 'deny'
 	actions: string[]
 	resources: Input<Input<string>[]>
+	conditions?: unknown
 }
 
 export type OnPermission = (callback: OnPermissionCallback) => void

@@ -98,14 +98,12 @@ export const queueFeature = defineFeature({
 				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
 				messageRetentionSeconds: toSeconds(props.retentionPeriod),
 				maxMessageSize: toBytes(props.maxMessageSize),
-				redrivePolicy:
-					onFailure &&
-					onFailure.pipe(arn =>
-						JSON.stringify({
-							deadLetterTargetArn: arn,
-							maxReceiveCount: 100,
-						})
-					),
+				redrivePolicy: onFailure.pipe(arn =>
+					JSON.stringify({
+						deadLetterTargetArn: arn,
+						maxReceiveCount: 100,
+					})
+				),
 			})
 
 			const result = createLambdaFunction(group, ctx, `queue`, id, local.consumer)

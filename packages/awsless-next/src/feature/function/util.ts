@@ -24,6 +24,7 @@ import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { zipBundle } from './build/bundle/bundle.js'
 import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
+// import { Condition } from 'aws-lambda'
 // import { bundleCacheKey } from './build/bundle/__cache.js'
 // import { buildDockerImage } from './build/container/build.js'
 
@@ -256,6 +257,7 @@ export const createLambdaFunction = (
 						Effect: pascalCase(statement.effect ?? 'allow'),
 						Action: statement.actions,
 						Resource: statement.resources,
+						Condition: statement.conditions,
 					})),
 				})
 			)
@@ -562,7 +564,7 @@ export const createAsyncLambdaFunction = (
 			functionName: result.lambda.arn,
 			maximumRetryAttempts: props.retryAttempts,
 			destinationConfig: {
-				onFailure: onFailure ? { destination: onFailure } : undefined,
+				onFailure: { destination: onFailure },
 			},
 		},
 		{
@@ -570,12 +572,10 @@ export const createAsyncLambdaFunction = (
 		}
 	)
 
-	if (onFailure) {
-		result.addPermission({
-			actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-			resources: [onFailure],
-		})
-	}
+	result.addPermission({
+		actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+		resources: [onFailure],
+	})
 
 	return result
 }

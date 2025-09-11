@@ -57,7 +57,7 @@ export const alertFeature = defineFeature({
 			})
 
 			for (const email of emails) {
-				new $.aws.sns.TopicSubscription(group, id, {
+				new $.aws.sns.TopicSubscription(group, email, {
 					topicArn: topic.arn,
 					protocol: 'email',
 					endpoint: email,

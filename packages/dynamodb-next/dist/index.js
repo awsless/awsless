@@ -891,14 +891,15 @@ import { BatchGetItemCommand as BatchGetItemCommand3, BatchWriteItemCommand as B
 
 // src/exception/transaction-canceled.ts
 import { TransactionCanceledException } from "@aws-sdk/client-dynamodb";
-TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) {
-  const reasons = this.CancellationReasons || [];
-  for (const index of indexes) {
-    if (reasons[index]?.Code === "ConditionalCheckFailed") {
-      return true;
-    }
-  }
-  return false;
+TransactionCanceledException.prototype.cancellationReasonAt = function(index) {
+  const reasons = this.CancellationReasons ?? [];
+  return reasons[index]?.Code;
+};
+TransactionCanceledException.prototype.conditionFailedAt = function(index) {
+  return this.cancellationReasonAt(index) === "ConditionalCheckFailed";
+};
+TransactionCanceledException.prototype.conflictAt = function(index) {
+  return this.cancellationReasonAt(index) === "TransactionConflict";
 };
 
 // src/index.ts

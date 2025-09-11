@@ -26,7 +26,7 @@ export const resources = (program: Command) => {
 				const formatResource = (stack: Stack, urn: URN) => {
 					return urn
 						.replace(stack.urn + ':', '')
-						.replace(/\{([a-z0-9\-\s\/\._]+)\}/gi, (_, v) => {
+						.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
 							return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
 						})
 						.replaceAll(':', color.dim(':'))

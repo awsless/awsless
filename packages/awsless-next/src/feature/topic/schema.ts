@@ -10,13 +10,13 @@ export const TopicNameSchema = z
 	.transform(value => kebabCase(value))
 	.describe('Define event topic name.')
 
-export const TopicsSchema = z
+export const TopicsDefaultSchema = z
 	.array(TopicNameSchema)
 	.refine(topics => {
 		return topics.length === new Set(topics).size
 	}, 'Must be a list of unique topic names')
 	.optional()
-	.describe('Define the event topics to publish too in your stack.')
+	.describe('Define the event topics for your app.')
 
 export const SubscribersSchema = z
 	.record(TopicNameSchema, FunctionSchema)

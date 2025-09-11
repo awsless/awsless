@@ -17,14 +17,6 @@ export const onFailureFeature = defineFeature({
 	// 	}
 	// },
 	onApp(ctx) {
-		// if (!hasOnFailure(ctx.stackConfigs)) {
-		// 	return
-		// }
-
-		if (!ctx.appConfig.defaults.onFailure) {
-			return
-		}
-
 		// ----------------------------------------------------------------
 		// Create a single on-failure queue to capture all failed jobs
 
@@ -38,8 +30,14 @@ export const onFailureFeature = defineFeature({
 			}),
 		})
 
-		ctx.addEnv('ON_FAILURE_QUEUE_ARN', queue.arn)
 		ctx.shared.set('on-failure', 'queue-arn', queue.arn)
+
+		// ----------------------------------------------------------------
+		// Link a consumer to the on-failure queue
+
+		if (!ctx.appConfig.defaults.onFailure) {
+			return
+		}
 
 		const result = createLambdaFunction(group, ctx, 'on-failure', 'consumer', ctx.appConfig.defaults.onFailure)
 
@@ -67,35 +65,4 @@ export const onFailureFeature = defineFeature({
 			resources: [queue.arn],
 		})
 	},
-	// onStack(ctx) {
-	// 	const onFailure = ctx.stackConfig.onFailure
-
-	// 	if (!onFailure) {
-	// 		return
-	// 	}
-
-	// 	const queueArn = ctx.shared.get<aws.ARN>('on-failure-queue-arn')
-	// 	const group = new Node(ctx.stack, 'on-failure', 'failure')
-
-	// 	const { lambda, policy } = createLambdaFunction(group, ctx, 'on-failure', 'failure', onFailure)
-
-	// 	const source = new aws.lambda.EventSourceMapping(group, 'on-failure', {
-	// 		functionArn: lambda.arn,
-	// 		sourceArn: queueArn,
-	// 		batchSize: 10,
-	// 	})
-
-	// 	source.dependsOn(policy)
-
-	// 	policy.addStatement({
-	// 		actions: [
-	// 			'sqs:SendMessage',
-	// 			'sqs:DeleteMessage',
-	// 			'sqs:ReceiveMessage',
-	// 			'sqs:GetQueueUrl',
-	// 			'sqs:GetQueueAttributes',
-	// 		],
-	// 		resources: [queueArn],
-	// 	})
-	// },
 })

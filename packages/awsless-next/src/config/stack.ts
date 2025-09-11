@@ -20,10 +20,11 @@ import { StoresSchema } from '../feature/store/schema.js'
 import { FunctionsSchema } from '../feature/function/schema.js'
 import { IconsSchema } from '../feature/icon/schema.js'
 import { ImagesSchema } from '../feature/image/schema.js'
+import { MetricsSchema } from '../feature/metric/schema.js'
 import { TablesSchema } from '../feature/table/schema.js'
 import { TasksSchema } from '../feature/task/schema.js'
 import { TestsSchema } from '../feature/test/schema.js'
-import { SubscribersSchema, TopicsSchema } from '../feature/topic/schema.js'
+import { SubscribersSchema } from '../feature/topic/schema.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
 
 const DependsSchema = ResourceIdSchema.array().optional().describe('Define the stacks that this stack is depended on.')
@@ -48,7 +49,7 @@ export const StackSchema = z.object({
 	configs: ConfigsSchema,
 	crons: CronsSchema,
 	caches: CachesSchema,
-	topics: TopicsSchema,
+	// topics: TopicsSchema,
 	subscribers: SubscribersSchema,
 	functions: FunctionsSchema,
 	instances: InstancesSchema,
@@ -63,6 +64,7 @@ export const StackSchema = z.object({
 	tests: TestsSchema,
 	images: ImagesSchema,
 	icons: IconsSchema,
+	metrics: MetricsSchema,
 })
 
 // export type StackConfigInput = z.input<typeof StackSchema>

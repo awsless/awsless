@@ -167,7 +167,9 @@ export const tableFeature = defineFeature({
 
 						startingPosition: 'LATEST',
 						destinationConfig: {
-							onFailure: onFailure ? { destinationArn: onFailure } : undefined,
+							onFailure: {
+								destinationArn: onFailure,
+							},
 						},
 					},
 					{ dependsOn: [result.policy] }
@@ -183,12 +185,10 @@ export const tableFeature = defineFeature({
 					resources: [table.streamArn],
 				})
 
-				if (onFailure) {
-					result.addPermission({
-						actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-						resources: [onFailure],
-					})
-				}
+				result.addPermission({
+					actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+					resources: [onFailure],
+				})
 			}
 
 			ctx.addStackPermission({

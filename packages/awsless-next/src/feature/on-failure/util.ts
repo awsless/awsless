@@ -3,7 +3,7 @@
 import { AppContext, StackContext } from '../../feature.js'
 
 export const getGlobalOnFailure = (ctx: StackContext | AppContext) => {
-	return ctx.appConfig.defaults.onFailure ? ctx.shared.get('on-failure', 'queue-arn') : undefined
+	return ctx.shared.get('on-failure', 'queue-arn')
 }
 
 // export const hasOnFailure = (stacks: StackConfig[]) => {

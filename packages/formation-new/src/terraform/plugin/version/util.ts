@@ -1,9 +1,6 @@
 import { camelCase, snakeCase } from 'change-case'
 import { pack, unpack } from 'msgpackr'
-import { createDebugger } from '../../../formation/debug.ts'
 import { Property, RootProperty } from '../schema.ts'
-
-const debug = createDebugger('TerraformPluginUtil')
 
 export const encodeDynamicValue = (value: unknown) => {
 	return {
@@ -41,7 +38,7 @@ export const getResourceSchema = (resources: Record<string, RootProperty>, type:
 // }
 
 type AttributePath = {
-	steps?: Array<
+	steps: Array<
 		| {
 				attributeName: string
 		  }
@@ -58,8 +55,6 @@ export const formatAttributePath = (state?: AttributePath[]): Array<number | str
 	if (!state) {
 		return []
 	}
-
-	debug('AttributePath', state)
 
 	return state.map(item => {
 		if (!item.steps) {

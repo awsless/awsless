@@ -8,4 +8,4 @@ export * from './predicates.js'
 export * from './relational.js'
 export * from './type'
 
-export * as internal from './internal/index'
+// export * as internal from './internal/index'

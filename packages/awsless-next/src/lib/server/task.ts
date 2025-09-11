@@ -2,6 +2,7 @@ import { Duration } from '@awsless/duration'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { schedule } from '@awsless/scheduler'
 import { createProxy } from '../proxy.js'
+import { onFailureQueue } from './on-failure.js'
 import { bindGlobalResourceName, bindLocalResourceName } from './util.js'
 
 export const getTaskName = bindLocalResourceName('task')
@@ -26,8 +27,7 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 						schedule: options.schedule,
 						group: resourceTaskName('group'),
 						roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName('schedule')}`,
-						deadLetterArn: process.env.ON_FAILURE_QUEUE_ARN,
-						// deadLetterArn: bindGlobalResourceName('on-failure')('failure'),
+						deadLetterArn: onFailureQueue,
 					})
 				} else {
 					await invoke({

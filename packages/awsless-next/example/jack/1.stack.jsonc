@@ -6,6 +6,24 @@
 	// "tests": "./test",
 	// "configs": ["test"],
 
+	"metrics": {
+		"size": {
+			"type": "number",
+			"alarms": [
+				{
+					"where": "sum > 1",
+					"period": "1 minutes",
+					"trigger": "./metric/trigger.ts",
+					"minDataPoints": 1
+				}
+			]
+		}
+	},
+
+	"functions": {
+		"log-metric": "./metric/log-metric.ts"
+	}
+
 	// "commands": {
 	// 	"test": {
 	// 		"file": "./command.ts",
@@ -73,24 +91,24 @@
 
 	// "tests": "./schedule/test",
 
-	"tables": {
-		"state": {
-			"hash": "id",
-			"fields": {
-				"id": "number"
-			}
-		}
-	},
+	// "tables": {
+	// 	"state": {
+	// 		"hash": "id",
+	// 		"fields": {
+	// 			"id": "number"
+	// 		}
+	// 	}
+	// },
 
-	"functions": {
-		"start": {
-			"code": "./schedule/start.ts"
-		}
-	},
+	// "functions": {
+	// 	"start": {
+	// 		"code": "./schedule/start.ts"
+	// 	}
+	// },
 
-	"tasks": {
-		"end": "./schedule/end.ts"
-	}
+	// "tasks": {
+	// 	"end": "./schedule/end.ts"
+	// }
 
 	// "instances": {
 	// 	"test": {

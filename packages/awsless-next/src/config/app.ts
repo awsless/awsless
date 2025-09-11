@@ -17,6 +17,7 @@ import { RpcDefaultSchema } from '../feature/rpc/schema.js'
 // import { StoreDefaultSchema } from '../feature/store/schema.js'
 // import { TableDefaultSchema } from '../feature/table/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
+import { TopicsDefaultSchema } from '../feature/topic/schema.js'
 import { RegionSchema } from './schema/region.js'
 import { ResourceIdSchema } from './schema/resource-id.js'
 
@@ -65,6 +66,7 @@ export const AppSchema = z.object({
 			// table: TableDefaultSchema,
 			// store: StoreDefaultSchema,
 			alerts: AlertsDefaultSchema,
+			topics: TopicsDefaultSchema,
 			layers: LayerSchema,
 			// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
 		})
