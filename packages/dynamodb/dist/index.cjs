@@ -28,8 +28,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   BatchGetItemCommand: () => import_client_dynamodb20.BatchGetItemCommand,
   BatchWriteItemCommand: () => import_client_dynamodb20.BatchWriteItemCommand,
   ConditionalCheckFailedException: () => import_client_dynamodb21.ConditionalCheckFailedException,
@@ -95,7 +95,7 @@ __export(src_exports, {
   updateItem: () => updateItem,
   uuid: () => uuid
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/table.ts
 var TableDefinition = class {

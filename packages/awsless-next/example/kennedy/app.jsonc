@@ -4,6 +4,12 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	"defaults": {
+		// "pubsub": {
+		// 	"test": {
+		// 		"auth": "./pubsub/auth.ts"
+		// 		// "logLevel": "all"
+		// 	}
+		// },
 		"function": {
 			"log": {
 				"retention": "1 week",

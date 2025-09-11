@@ -236,7 +236,7 @@ type DeleteOptions<T extends AnyTableDefinition> = {
 };
 declare const transactDelete: <T extends AnyTableDefinition>(table: T, key: PrimaryKey<T>, options?: DeleteOptions<T>) => TransactDelete<T>;
 
-declare const optional: <M, I, O, P extends Array<string | number> = [], OP extends Array<string | number> = [], T extends AttributeTypes = "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown">(struct: Struct<M, I, O, P, OP, T>) => Struct<M, I, O, P, OP, T, true>;
+declare const optional: <M, I, O, P extends Array<string | number> = [], OP extends Array<string | number> = [], T extends AttributeTypes = AttributeTypes>(struct: Struct<M, I, O, P, OP, T>) => Struct<M, I, O, P, OP, T, true>;
 
 type Options = marshallOptions & unmarshallOptions;
 declare const any: (options?: Options) => AnyStruct;
@@ -256,7 +256,7 @@ declare function bigint<T extends bigint>(): Struct<string, T, T>;
 
 declare const bigfloat: () => Struct<string, Numeric, BigFloat, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
-declare const binary: () => Struct<NativeAttributeBinary, NativeAttributeBinary, Uint8Array, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare const binary: () => Struct<NativeAttributeBinary, NativeAttributeBinary, Uint8Array<ArrayBufferLike>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 type Schema = Record<string | symbol, AnyStruct>;
 type KeyOf<S> = Extract<keyof S, string>;
@@ -335,7 +335,7 @@ declare function numberSet<T extends number>(): SetStruct<string[], Set<T>, Set<
 declare function bigintSet(): SetStruct<string[], Set<bigint>, Set<bigint>>;
 declare function bigintSet<T extends bigint>(): SetStruct<string[], Set<T>, Set<T>>;
 
-declare const binarySet: () => SetStruct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
+declare const binarySet: () => SetStruct<NativeAttributeBinary[], Set<NativeAttributeBinary>, Set<Uint8Array<ArrayBufferLike>>, [], [], "S" | "N" | "B" | "SS" | "NS" | "BS" | "M" | "L" | "NULL" | "BOOL" | "$unknown", false>;
 
 type StreamData<T extends AnyTableDefinition> = {
     Keys: PrimaryKey<T>;

@@ -48,10 +48,11 @@ export const createWorkSpace = async (props: {
 		enableDebug()
 	}
 
-	const aws = await terraform.install('hashicorp', 'aws', '5.98.0')
+	const aws = await terraform.install('hashicorp', 'aws', '6.9.0')
 
 	// const __dirname = dirname(fileURLToPath(import.meta.url))
 	// await aws({}).generateTypes(join(__dirname, './formation.d.ts'))
+	// console.log(join(__dirname, './formation.d.ts'))
 
 	// // $.aws.cloudfrontkeyvaluestore.Key
 

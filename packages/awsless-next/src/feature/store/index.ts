@@ -7,6 +7,9 @@ import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 import { $ } from '@awsless/formation'
+import { glob } from 'glob'
+import { getCacheControl, getContentType } from './util.js'
+import { join } from 'path'
 
 const typeGenCode = `
 import { Body, PutObjectProps, BodyStream } from '@awsless/s3'
@@ -110,6 +113,29 @@ export const storeFeature = defineFeature({
 					import: ctx.import ? name : undefined,
 				}
 			)
+
+			// ------------------------------------------------------------
+			// Get all static files
+
+			ctx.onReady(() => {
+				if (typeof props.static === 'string' && bucket) {
+					const files = glob.sync('**', {
+						cwd: props.static,
+						nodir: true,
+					})
+
+					for (const file of files) {
+						new $.aws.s3.BucketObject(group, file, {
+							bucket: bucket.bucket,
+							key: file,
+							cacheControl: getCacheControl(file),
+							contentType: getContentType(file),
+							source: join(props.static, file),
+							sourceHash: $hash(join(props.static, file)),
+						})
+					}
+				}
+			})
 
 			// ---------------------------------------------
 			// Event notifications

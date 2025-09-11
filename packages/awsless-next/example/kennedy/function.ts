@@ -1,8 +1,8 @@
 export default async (event: unknown) => {
 	return {
-		statusCode: 200,
+		statusCode: 400,
 		body: JSON.stringify({
-			message: 'Hello from Kennedy!',
+			message: 'Hello from Kennedy! ! !',
 			event,
 		}),
 	}

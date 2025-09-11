@@ -2423,7 +2423,6 @@ var parseType = (type) => {
 // src/terraform/plugin/version/util.ts
 var import_change_case = require("change-case");
 var import_msgpackr = require("msgpackr");
-var debug12 = createDebugger("TerraformPluginUtil");
 var encodeDynamicValue = (value) => {
   return {
     msgpack: (0, import_msgpackr.pack)(value),
@@ -2444,7 +2443,6 @@ var formatAttributePath = (state) => {
   if (!state) {
     return [];
   }
-  debug12("AttributePath", state);
   return state.map((item) => {
     if (!item.steps) {
       throw new Error("AttributePath should always have steps");
@@ -3074,7 +3072,7 @@ var TerraformProvider = class {
 };
 
 // src/terraform/installer.ts
-var debug13 = createDebugger("Plugin");
+var debug12 = createDebugger("Plugin");
 var Terraform = class {
   constructor(props) {
     this.props = props;
@@ -3090,7 +3088,7 @@ var Terraform = class {
           6: () => createPlugin6({ server, client })
         };
         const plugin = await plugins[server.version]?.();
-        debug13(org, type, realVersion);
+        debug12(org, type, realVersion);
         if (!plugin) {
           throw new Error(`No plugin client available for protocol version ${server.version}`);
         }
