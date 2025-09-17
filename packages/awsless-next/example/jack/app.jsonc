@@ -6,6 +6,7 @@
 	// "protect": true,
 
 	"defaults": {
+		// "topics": ["topic"],
 		// "alerts": {
 		// 	"debug": "info@jacksclub.io"
 		// },

@@ -48,6 +48,10 @@ export type CreateAppProps = {
 	import?: boolean
 }
 
+export type Warning = {
+	message: string
+}
+
 export type TestCase = {
 	stackName: string
 	name: string
@@ -88,6 +92,7 @@ export const createApp = (props: CreateAppProps) => {
 	const commands: Command[] = []
 	const configs = new Set<string>()
 	const tests: TestCase[] = []
+	const warnings: Warning[] = []
 	const builders: BuildTask[] = []
 	const domainZones: $.aws.route53.Zone[] = []
 
@@ -133,6 +138,9 @@ export const createApp = (props: CreateAppProps) => {
 			base,
 			zones,
 			shared,
+			addWarning(props) {
+				warnings.push(props)
+			},
 		})
 	}
 
@@ -156,6 +164,9 @@ export const createApp = (props: CreateAppProps) => {
 			},
 			addAppPermission(permission) {
 				appPermissions.push(permission)
+			},
+			addWarning(props) {
+				warnings.push(props)
 			},
 			registerBuild(type, name, builder) {
 				builders.push({
@@ -246,6 +257,9 @@ export const createApp = (props: CreateAppProps) => {
 				},
 				addStackPermission(permission) {
 					stackPermissions.push(permission)
+				},
+				addWarning(props) {
+					warnings.push(props)
 				},
 				// onGlobalPolicy(callback) {
 				// 	globalPoliciesListeners.push(callback)
@@ -438,6 +452,7 @@ export const createApp = (props: CreateAppProps) => {
 		binds,
 		shared,
 		configs,
+		warnings,
 		builders,
 		commands,
 		// deploymentLine,

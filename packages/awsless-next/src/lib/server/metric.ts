@@ -11,7 +11,7 @@ import {
 } from '@awsless/cloudwatch'
 import { constantCase, kebabCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { APP, STACK } from './util.js'
+import { APP, IS_TEST, STACK } from './util.js'
 
 export const getMetricName = (name: string) => {
 	return kebabCase(name)
@@ -33,20 +33,25 @@ export const Metric: MetricResources = /*@__PURE__*/ createProxy(stack => {
 		const namespace = getMetricNamespace(stack)
 		const unit = process.env[`METRIC_${constantCase(metricName)}`] as Unit | undefined
 
-		if (!unit) {
+		let metric: TMetric<any>
+
+		if (!unit && !IS_TEST) {
 			throw new TypeError(`Metric "${name}" isn't defined in your stack.`)
-		}
+		} else if (!unit) {
+			// This is just for testing purposes
+			metric = createMetric({ name, namespace })
+		} else {
+			const factories: Record<Unit, (props: CreateMetricProps) => TMetric<any>> = {
+				number: createMetric,
+				size: createSizeMetric,
+				duration: createDurationMetric,
+			}
 
-		const factories: Record<Unit, (props: CreateMetricProps) => TMetric<any>> = {
-			number: createMetric,
-			size: createSizeMetric,
-			duration: createDurationMetric,
+			metric = factories[unit]({
+				name,
+				namespace,
+			})
 		}
-
-		const metric = factories[unit]({
-			name,
-			namespace,
-		})
 
 		return {
 			name,

@@ -1305,14 +1305,15 @@ var import_client_dynamodb20 = require("@aws-sdk/client-dynamodb");
 
 // src/exceptions/transaction-canceled.ts
 var import_client_dynamodb8 = require("@aws-sdk/client-dynamodb");
-import_client_dynamodb8.TransactionCanceledException.prototype.conditionFailedAt = function(...indexes) {
-  const reasons = this.CancellationReasons || [];
-  for (const index of indexes) {
-    if (reasons[index]?.Code === "ConditionalCheckFailed") {
-      return true;
-    }
-  }
-  return false;
+import_client_dynamodb8.TransactionCanceledException.prototype.cancellationReasonAt = function(index) {
+  const reasons = this.CancellationReasons ?? [];
+  return reasons[index]?.Code;
+};
+import_client_dynamodb8.TransactionCanceledException.prototype.conditionFailedAt = function(index) {
+  return this.cancellationReasonAt(index) === "ConditionalCheckFailed";
+};
+import_client_dynamodb8.TransactionCanceledException.prototype.conflictAt = function(index) {
+  return this.cancellationReasonAt(index) === "TransactionConflict";
 };
 
 // src/index.ts

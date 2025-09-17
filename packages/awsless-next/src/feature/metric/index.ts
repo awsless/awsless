@@ -9,6 +9,8 @@ import { toSeconds } from '@awsless/duration'
 
 const typeGenCode = `
 import { type PutDataProps, putData, batchPutData } from '@awsless/cloudwatch'
+import { type Duration } from '@awsless/duration'
+import { type Size } from '@awsless/size'
 
 type PutResponse = ReturnType<typeof putData>
 type Batch = typeof batchPutData

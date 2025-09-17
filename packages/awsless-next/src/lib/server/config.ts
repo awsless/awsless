@@ -1,12 +1,10 @@
 import { ssm } from '@awsless/ssm'
 import { kebabCase } from 'change-case'
-import { APP } from './util.js'
+import { APP, IS_TEST } from './util.js'
 
 export const getConfigName = (name: string) => {
 	return `/.awsless/${APP}/${name}`
 }
-
-const IS_TEST = process.env.NODE_ENV === 'test'
 
 /*@__NO_SIDE_EFFECTS__*/
 const loadConfigData = async () => {

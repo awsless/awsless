@@ -11,6 +11,7 @@ import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
+import { showWarnings } from '../ui/complex/show-warnings.js'
 import { color } from '../ui/style.js'
 
 export const deploy = (program: Command) => {
@@ -34,12 +35,14 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { app, tests, builders, ready } = createApp({
+				const { app, tests, warnings, builders, ready } = createApp({
 					appConfig,
 					stackConfigs,
 					accountId,
 					import: options.import,
 				})
+
+				await showWarnings(warnings)
 
 				const stackNames = app.stacks
 					.filter(stack => {

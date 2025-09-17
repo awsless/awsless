@@ -1,4 +1,5 @@
 import { $, App, Input, Stack } from '@awsless/formation'
+import { Warning } from './app.js'
 import { Builder } from './build/index.js'
 import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
@@ -90,6 +91,8 @@ export type BeforeContext = {
 	base: Stack
 	zones: Stack
 	shared: SharedData
+
+	addWarning(warning: Warning): void
 }
 
 export type AppContext = BeforeContext & {

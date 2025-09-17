@@ -2,6 +2,7 @@ import { kebabCase } from 'change-case'
 
 export const APP = (process.env.APP ?? 'app') as 'app'
 export const STACK = (process.env.STACK ?? 'stack') as 'stack'
+export const IS_TEST = process.env.NODE_ENV === 'test'
 
 // const bindResourceName = (
 // 	resourceType: string,
