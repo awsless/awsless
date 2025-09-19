@@ -471,15 +471,19 @@ var transactable = (transact) => ({
 });
 var iterable = (cursor, callback) => ({
   [Symbol.asyncIterator]() {
+    let done = false;
     return {
       async next() {
+        if (done) {
+          return { done: true };
+        }
         const result = await callback(cursor);
         cursor = result.cursor;
-        if (result.items.length === 0 || !result.cursor) {
-          return {
-            value: result.items,
-            done: true
-          };
+        if (!result.cursor) {
+          done = true;
+        }
+        if (result.items.length === 0) {
+          return { done: true };
         }
         return {
           value: result.items,

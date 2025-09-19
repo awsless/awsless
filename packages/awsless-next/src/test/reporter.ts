@@ -1,12 +1,17 @@
 import { getSuites, getTests } from '@vitest/runner/utils'
+import { parseStacktrace } from '@vitest/utils/source-map'
 import { Reporter, Task, UserConsoleLog } from 'vitest'
 import { Vitest } from 'vitest/node'
 
 export type TestError = {
+	location: {
+		line?: number
+		column?: number
+	}
 	file: string
 	test?: string
 	diff?: string
-	type: string
+	type?: string
 	message: string
 }
 
@@ -60,19 +65,32 @@ export class CustomReporter implements Reporter {
 		const passed = tests.filter(t => t.result?.state === 'pass').length
 		const failed = tests.filter(t => t.result?.state === 'fail').length
 
-		const errors = [...suites, ...tests]
+		const errors: TestError[] = [...suites, ...tests]
 			.map(test => {
 				if (!test.result?.errors || test.result.errors.length === 0) {
 					return []
 				}
 
-				return test.result.errors.map(error => ({
-					file: test.type === 'suite' ? test.name : test.file?.name,
-					test: test.type === 'test' ? test.name : undefined,
-					diff: error.showDiff && error.diff ? error.diff : undefined,
-					type: error.name,
-					message: error.message,
-				}))
+				const item = test.type === 'suite' ? test : test.file
+
+				// console.log(test.result.errors)
+				// console.log(test)
+
+				return test.result.errors.map(error => {
+					const traces = error.stackStr ? parseStacktrace(error.stackStr) : []
+
+					return {
+						location: {
+							line: traces[0]?.line ?? item.location?.line,
+							column: traces[0]?.column ?? item.location?.column,
+						},
+						file: item.name,
+						test: test.type === 'test' ? test.name : undefined,
+						diff: error.showDiff && error.diff ? error.diff : undefined,
+						type: error.name,
+						message: error.message,
+					}
+				})
 			})
 			.flat()
 

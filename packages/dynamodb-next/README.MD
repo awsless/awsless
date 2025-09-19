@@ -201,7 +201,7 @@ We provides the following schema types:
 You can infer the item type of your table definition with the `Infer` utility type.
 
 ```ts
-import { define, Infer, object, uuid, number, string, buffer } from "@awsless/dynamodb";
+import { define, type Infer, object, uuid, number, string, buffer } from "@awsless/dynamodb";
 
 const posts = define('posts', {
 	hash: 'id',

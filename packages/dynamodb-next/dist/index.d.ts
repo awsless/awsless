@@ -639,8 +639,10 @@ declare const query: <T extends AnyTable, const P extends ProjectionExpression<T
     then<Result1 = QueryResponse<T, P>, Result2 = never>(onfulfilled: (value: QueryResponse<T, P>) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
     [Symbol.asyncIterator](): {
         next(): Promise<{
+            done: true;
+        } | {
+            done: false;
             value: ProjectionResponse<T, P>[];
-            done: boolean;
         }>;
     };
 };
@@ -661,8 +663,10 @@ declare const scan: <T extends AnyTable, const P extends ProjectionExpression<T>
     then<Result1 = ScanResponse<T, P>, Result2 = never>(onfulfilled: (value: ScanResponse<T, P>) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
     [Symbol.asyncIterator](): {
         next(): Promise<{
+            done: true;
+        } | {
+            done: false;
             value: ProjectionResponse<T, P>[];
-            done: boolean;
         }>;
     };
 };

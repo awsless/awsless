@@ -24,6 +24,10 @@ export const startTest = async (props: { reporter?: CustomReporter; dir: string;
 			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 			globals: true,
 			reporters: props.reporter,
+			// typecheck: {
+			// 	checker: 'tsc',
+			// 	enabled: true,
+			// },
 			setupFiles: [
 				//
 				join(__dirname, 'test-global-setup.js'),

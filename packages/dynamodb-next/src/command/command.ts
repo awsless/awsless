@@ -24,17 +24,24 @@ export const iterable = <T>(
 	callback: (cursor?: string) => Promise<{ cursor?: string; items: T[] }>
 ) => ({
 	[Symbol.asyncIterator]() {
+		let done = false
+
 		return {
-			async next() {
+			async next(): Promise<{ done: true } | { done: false; value: T[] }> {
+				if (done) {
+					return { done: true }
+				}
+
 				const result = await callback(cursor)
 
 				cursor = result.cursor
 
-				if (result.items.length === 0 || !result.cursor) {
-					return {
-						value: result.items,
-						done: true,
-					}
+				if (!result.cursor) {
+					done = true
+				}
+
+				if (result.items.length === 0) {
+					return { done: true }
 				}
 
 				return {

@@ -65,6 +65,26 @@ const logTestLogs = (event: FinishedEvent) => {
 	}
 }
 
+const formatFileName = (error: TestError) => {
+	const name = [error.file]
+
+	// console.log(error)
+
+	const loc = error.location
+
+	if (loc) {
+		if (typeof loc.line === 'number') {
+			name.push(`:${loc.line}`)
+
+			if (typeof loc.column === 'number') {
+				name.push(`:${loc.column}`)
+			}
+		}
+	}
+
+	return name.join('')
+}
+
 const logTestErrors = (event: FinishedEvent) => {
 	event.errors.forEach((error, i) => {
 		const [message, ...comment] = error.message.split('//')
@@ -80,9 +100,10 @@ const logTestErrors = (event: FinishedEvent) => {
 				color.error.inverse.bold(` FAIL `),
 				color.dim(`(${i + 1}/${event.errors.length})`),
 				color.dim(icon.arrow.right),
-				error.file,
+				formatFileName(error),
 				color.dim(icon.arrow.right),
-				error.test,
+				// `\n${color.label.inverse.bold(` TEST `)}`,
+				color.dim(error.test),
 				[`\n\n`, errorMessage, ...(error.diff ? ['\n\n', error.diff] : [])].join(''),
 				// error.test,
 			].join(' ')

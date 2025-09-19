@@ -158,4 +158,22 @@ describe('Query', () => {
 			{ userId: 1, sortId: 3, id: 3 },
 		])
 	})
+
+	it('should iterate over all items in the table with high limit', async () => {
+		const items: any[] = []
+
+		const iterable = query(posts, { userId: 1 }, { limit: 100 })
+
+		for await (const batch of iterable) {
+			expect(batch.length).toBeLessThanOrEqual(3)
+
+			items.push(...batch)
+		}
+
+		expect(items).toStrictEqual([
+			{ userId: 1, sortId: 1, id: 1 },
+			{ userId: 1, sortId: 2, id: 2 },
+			{ userId: 1, sortId: 3, id: 3 },
+		])
+	})
 })

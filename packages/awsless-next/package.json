@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.552",
+	"version": "0.0.556",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -48,6 +48,7 @@
 	},
 	"peerDependencies": {
 		"@awsless/big-float": "workspace:^",
+		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/clui": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",
@@ -62,8 +63,7 @@
 		"@awsless/sqs": "workspace:^",
 		"@awsless/ssm": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/weak-cache": "workspace:^",
-		"@awsless/cloudwatch": "workspace:^"
+		"@awsless/weak-cache": "workspace:^"
 	},
 	"dependencies": {
 		"@arcanyx/cidr-slicer": "^0.3.0",
@@ -83,6 +83,7 @@
 		"@aws-sdk/lib-storage": "^3.423.0",
 		"@aws-sdk/signature-v4-crt": "^3.816.0",
 		"@awsless/big-float": "workspace:^",
+		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/clui": "workspace:^",
 		"@awsless/duration": "workspace:^",
 		"@awsless/formation": "workspace:^",
@@ -92,7 +93,6 @@
 		"@awsless/size": "workspace:^",
 		"@awsless/ts-file-cache": "workspace:^",
 		"@awsless/validate": "workspace:^",
-		"@awsless/cloudwatch": "workspace:^",
 		"@clack/prompts": "^0.7.0",
 		"@graphql-tools/merge": "^9.0.0",
 		"@rollup/plugin-commonjs": "^25.0.5",
@@ -112,6 +112,7 @@
 		"@types/uuid": "^9.0.0",
 		"@types/wildstring": "^1.0.3",
 		"@vitest/runner": "^3.1.4",
+		"@vitest/utils": "3.2.4",
 		"aws-cron-expression-validator": "^1.0.5",
 		"aws-lambda": "^1.0.7",
 		"chalk": "^5.3.0",

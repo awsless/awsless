@@ -10,7 +10,7 @@ import { StackConfig, StackSchema } from '../stack.js'
 import { readConfigWithStage } from './read.js'
 import { validateConfig } from './validate.js'
 
-export const loadAppConfig = async (options: ProgramOptions) => {
+export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig> => {
 	debug('Find the root directory')
 
 	const cwd = options.configFile ? dirname(join(process.cwd(), options.configFile)) : process.cwd()
@@ -31,7 +31,7 @@ export const loadAppConfig = async (options: ProgramOptions) => {
 
 	debug('Validate app config file')
 
-	const app: AppConfig = await validateConfig(AppSchema, appFileName, appConfig)
+	const app = await validateConfig(AppSchema, appFileName, appConfig)
 
 	// debug('Load credentials', style.info(app.profile))
 	// const credentials = getCredentials(app.profile)
@@ -55,7 +55,8 @@ export const loadStackConfigs = async (options: ProgramOptions) => {
 	const stacks: StackConfig[] = []
 
 	for (const file of stackFiles.sort()) {
-		if (basename(file).startsWith('_')) {
+		const shouldIngore = file.split('/').filter(v => v.startsWith('_')).length > 0
+		if (shouldIngore) {
 			debug('Skip stack file:', color.info(file))
 			continue
 		}

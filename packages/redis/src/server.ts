@@ -1,5 +1,5 @@
+import { Cluster, Redis } from 'ioredis'
 import { RedisMemoryServer } from 'redis-memory-server'
-import { Redis, Cluster } from 'ioredis'
 
 export class RedisServer {
 	private client?: Redis | Cluster
