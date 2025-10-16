@@ -7,7 +7,7 @@ type VersionsResponse = {
 	versions: {
 		version: Version
 		protocols: string[]
-		platforms: { os: string; arch: string }[]
+		platforms: { os: OS; arch: Architecture }[]
 	}[]
 }
 
@@ -17,8 +17,8 @@ export const getProviderVersions = async (org: string, type: string) => {
 	const resp = await fetch(`${baseUrl}/${org}/${type}/versions`)
 	const data: VersionsResponse = await resp.json()
 	const versions = data.versions
-	const os = platform()
-	const ar = arch()
+	const os = getOS()
+	const ar = getArchitecture()
 	const supported = versions.filter(v => {
 		return !!v.platforms.find(p => p.os === os && p.arch === ar)
 	})
@@ -37,9 +37,16 @@ export const getProviderVersions = async (org: string, type: string) => {
 }
 
 export const getProviderDownloadUrl = async (org: string, type: string, version: Version) => {
-	const os = platform()
-	const ar = arch()
-	const url = [baseUrl, org, type, version, 'download', os, ar].join('/')
+	const url = [
+		//
+		baseUrl,
+		org,
+		type,
+		version,
+		'download',
+		getOS(),
+		getArchitecture(),
+	].join('/')
 
 	const response = await fetch(url)
 	const result = await response.json()
@@ -49,4 +56,42 @@ export const getProviderDownloadUrl = async (org: string, type: string, version:
 		shasum: result.shasum,
 		protocols: result.protocols,
 	}
+}
+
+type OS = 'linux' | 'windows' | 'darwin' | 'freebsd' | 'openbsd'
+
+const getOS = (): OS => {
+	const os = platform()
+	switch (os) {
+		case 'linux':
+			return 'linux'
+		case 'win32':
+			return 'windows'
+		case 'darwin':
+			return 'darwin'
+		case 'freebsd':
+			return 'freebsd'
+		case 'openbsd':
+			return 'openbsd'
+	}
+
+	throw new Error(`Unsupported OS platform: ${os}`)
+}
+
+type Architecture = 'arm' | 'arm64' | 'amd64' | '386'
+
+const getArchitecture = (): Architecture => {
+	const ar = arch()
+	switch (ar) {
+		case 'arm':
+			return 'arm'
+		case 'arm64':
+			return 'arm64'
+		case 'x64':
+			return 'amd64'
+		case 'ia32':
+			return '386'
+	}
+
+	throw new Error(`Unsupported architecture: ${ar}`)
 }

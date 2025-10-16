@@ -74,7 +74,7 @@ export const SitesSchema = z
 						.describe(
 							`Specifies the files and directories to generate the cache key for your custom build command.`
 						),
-					configs: z.string().array().describe('Define the config values for your build command.'),
+					configs: z.string().array().optional().describe('Define the config values for your build command.'),
 				})
 				.optional()
 				.describe(`Specifies the build process for sites that need a build step.`),
@@ -158,13 +158,13 @@ export const SitesSchema = z
 				.optional()
 				.describe('Specify the cors headers.'),
 
-			auth: z
+			basicAuth: z
 				.object({
-					username: z.string().describe('Basic auth username'),
-					password: z.string().describe('Basic auth password'),
+					username: z.string().describe('Basic auth username.'),
+					password: z.string().describe('Basic auth password.'),
 				})
 				.optional()
-				.describe('Enable basic authentication for the site'),
+				.describe('Enable basic authentication for the site.'),
 
 			security: z
 				.object({

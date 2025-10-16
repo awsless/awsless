@@ -909,9 +909,6 @@ TransactionCanceledException.prototype.conflictAt = function(index) {
 // src/index.ts
 import { ConditionalCheckFailedException, TransactionCanceledException as TransactionCanceledException2 } from "@aws-sdk/client-dynamodb";
 
-// src/command/put-item.ts
-import { PutItemCommand as PutItemCommand3 } from "@aws-sdk/client-dynamodb";
-
 // src/expression/fluent.ts
 var secret = Symbol("fluent");
 var Fluent = class extends Function {
@@ -956,6 +953,9 @@ var getFluentExpression = (prop) => {
 var getFluentPath = (prop) => {
   return getFluentData(prop).flat();
 };
+
+// src/command/put-item.ts
+import { PutItemCommand as PutItemCommand3 } from "@aws-sdk/client-dynamodb";
 
 // src/expression/condition.ts
 var buildConditionExpression = (attrs, builder) => {
@@ -1097,19 +1097,21 @@ var buildUpdateExpression = (attrs, builder) => {
     };
     switch (op) {
       case "set":
-        if (path.length > 0) {
-          if (shouldDelete(value[0])) {
-            rem.push(p);
-          } else {
-            set2.push(`${p} = ${param(0)}`);
-          }
+        if (path.length === 0) {
+          throw new TypeError(`You can't set the root object`);
+        }
+        if (shouldDelete(value[0])) {
+          rem.push(p);
         } else {
-          for (const [k, v] of Object.entries(value[0])) {
-            if (shouldDelete(v)) {
-              rem.push(k);
-            } else {
-              set2.push(`${attrs.path([k])} = ${attrs.value(v, [k])}`);
-            }
+          set2.push(`${p} = ${param(0)}`);
+        }
+        break;
+      case "setPartial":
+        for (const [k, v] of Object.entries(value[0])) {
+          if (shouldDelete(v)) {
+            rem.push(k);
+          } else {
+            set2.push(`${attrs.path([...path, k])} = ${attrs.value(v, [...path, k])}`);
           }
         }
         break;
@@ -1423,6 +1425,7 @@ export {
   DynamoDBClient4 as DynamoDBClient,
   DynamoDBDocumentClient3 as DynamoDBDocumentClient,
   DynamoDBServer2 as DynamoDBServer,
+  Fluent,
   GetItemCommand3 as GetItemCommand,
   PutItemCommand4 as PutItemCommand,
   QueryCommand3 as QueryCommand,
@@ -1438,6 +1441,7 @@ export {
   bigint,
   boolean,
   conditionCheck,
+  createFluent,
   date,
   define,
   deleteItem,

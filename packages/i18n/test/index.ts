@@ -16,8 +16,8 @@ describe('i18n', () => {
 					i18n({
 						locales: ['fr', 'jp'],
 						translate: ai({
-							maxTokens: 32_000,
-							model: openai('gpt-4.1'),
+							maxOutputTokens: 32_000,
+							model: openai('gpt-5'),
 						}),
 					}),
 					svelte(),

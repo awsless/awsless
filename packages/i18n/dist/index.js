@@ -221,7 +221,7 @@ var ai = (props) => {
       batches.map(async (texts2) => {
         const result = await generateObject({
           model: props.model,
-          maxTokens: props.maxTokens,
+          maxOutputTokens: props.maxOutputTokens,
           schema: z.object({
             translations: z.object({
               source: z.string(),

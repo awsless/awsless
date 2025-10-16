@@ -21,10 +21,18 @@ describe('Update Expression', () => {
 		assert('SET #n1[0] = :v1', e.items(0).set(1))
 	})
 
+	it('should throw when you try to set the root object', () => {
+		expect(() => {
+			const update = e.set({ id: 1, name: 1 })
+			const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+			buildUpdateExpression(attrs, () => update)
+		}).toThrow(TypeError)
+	})
+
 	describe('set partial on root', () => {
 		assert(
 			'SET #n1 = :v1, #n2 = :v1',
-			e.set({
+			e.setPartial({
 				id: 1,
 				name: 1,
 			})

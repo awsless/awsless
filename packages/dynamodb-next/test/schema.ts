@@ -217,7 +217,7 @@ describe('Schema', () => {
 			{
 				return: 'ALL_NEW',
 				update: e => [
-					e.set({
+					e.setPartial({
 						id: '0-0-0-0-0',
 						number: 2,
 						string: '2',

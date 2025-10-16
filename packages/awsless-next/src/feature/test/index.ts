@@ -11,6 +11,7 @@ export const testFeature = defineFeature({
 				message: [
 					`Stack ${color.info(ctx.stack.name)} has no tests defined.`,
 					`Consider adding test cases to ensure stability.`,
+					`If your stack doesn't need tests you can set the tests field to \`false\``,
 				].join(' '),
 			})
 		}

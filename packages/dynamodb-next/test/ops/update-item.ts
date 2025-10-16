@@ -47,7 +47,10 @@ describe('Update', () => {
 			users,
 			{ id: 1 },
 			{
-				update: e => e.set({ name: 'Edited 1' }),
+				update: e =>
+					e.setPartial({
+						name: 'Edited 1',
+					}),
 			}
 		)
 
