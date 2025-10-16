@@ -49,6 +49,9 @@ export { BatchGetItemCommand, BatchWriteItemCommand } from '@aws-sdk/client-dyna
 import './exception/transaction-canceled'
 export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb'
 
+// fluent
+export { Fluent, createFluent } from './expression/fluent.js'
+
 // commands
 export { getItem } from './command/get-item.js'
 export { putItem } from './command/put-item.js'

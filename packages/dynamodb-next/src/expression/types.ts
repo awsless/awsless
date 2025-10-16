@@ -46,6 +46,19 @@ export type SetFunction<A extends AttributeType, T> = {
 	set(value: Path<A, T>): Fluent
 }
 
+export type SetPartialFunction<A extends AttributeType, T> = {
+	/**
+	 * Partially update the object fields with the provided value.
+	 *
+	 * Unlike {@link SetFunction.set}, which replaces the entire attribute,
+	 * this method allows updating only a subset of the object fields.
+	 *
+	 * @param value - A partial object containing the fields to update.
+	 */
+	setPartial(value: Partial<T>): Fluent
+	setPartial(value: Path<A, T>): Fluent
+}
+
 export type SetIfNotExistFunction<A extends AttributeType, T> = {
 	/**
 	 * Set the attribute value only if it does not already exist.

@@ -117,6 +117,7 @@ declare const secret: unique symbol;
 declare class Fluent extends Function {
     readonly [secret]: any[];
 }
+declare const createFluent: () => any;
 
 type BaseConditionExpression<A extends AttributeType, T> = Path<A, any> & EqualFunction<A, T> & NotEqualFunction<A, T> & ExistsFunction & NotExistsFunction & TypeFunction<A>;
 type RootConditionExpression<R extends Record<string, any>> = {
@@ -141,10 +142,12 @@ type UnknownConditionExpression<T> = BaseConditionExpression<AttributeType, T>;
 type ConditionExpression<T extends AnyTable> = (e: T['schema'][symbol]['Expression']['Root']['Condition']) => Fluent | Fluent[];
 
 type BaseUpdateExpression<A extends AttributeType, T> = Path<A, T> & SetFunction<A, T> & SetIfNotExistFunction<A, T> & DeleteFunction<T>;
-type RootUpdateExpression<T, R extends Record<string, any>> = R & SetFunction<'M', Partial<T>>;
+type RootUpdateExpression<T, R extends Record<string, any>> = {
+    at<K extends keyof R>(key: K): R[K];
+} & R & SetPartialFunction<'M', Partial<T>>;
 type MapUpdateExpression<T, R extends Record<string, any>> = {
     at<K extends keyof R>(key: K): R[K];
-} & R & BaseUpdateExpression<'M', T>;
+} & R & BaseUpdateExpression<'M', T> & SetPartialFunction<'M', T>;
 type ListUpdateExpression<T extends any[], L extends any[]> = {
     at<K extends keyof L>(index: K): L[K];
 } & BaseUpdateExpression<'L', T> & PushFunction<T>;
@@ -173,6 +176,18 @@ type SetFunction<A extends AttributeType, T> = {
      */
     set(value: T): Fluent;
     set(value: Path<A, T>): Fluent;
+};
+type SetPartialFunction<A extends AttributeType, T> = {
+    /**
+     * Partially update the object fields with the provided value.
+     *
+     * Unlike {@link SetFunction.set}, which replaces the entire attribute,
+     * this method allows updating only a subset of the object fields.
+     *
+     * @param value - A partial object containing the fields to update.
+     */
+    setPartial(value: Partial<T>): Fluent;
+    setPartial(value: Path<A, T>): Fluent;
 };
 type SetIfNotExistFunction<A extends AttributeType, T> = {
     /**
@@ -697,4 +712,4 @@ type TransactReadResponse<T extends Transactable[]> = {
 type TransactWriteOptions = Options;
 declare const transactRead: <const T extends Transactable[]>(items: T, options?: TransactWriteOptions) => Promise<TransactReadResponse<T>>;
 
-export { type AnyTable, type HashKey, type Infer, type PrimaryKey, type SortKey, Table, type Transactable$1 as Transactable, any, array, bigfloat, bigint, boolean, conditionCheck, date, define, deleteItem, deleteItems, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexItem, getItem, getItems, json, migrate, mockDynamoDB, number, object, optional, putItem, putItems, query, record, scan, seed, seedTable, set, streamTable, string, transactRead, transactWrite, ttl, tuple, uint8array, unknown, updateItem, uuid };
+export { type AnyTable, Fluent, type HashKey, type Infer, type PrimaryKey, type SortKey, Table, type Transactable$1 as Transactable, any, array, bigfloat, bigint, boolean, conditionCheck, createFluent, date, define, deleteItem, deleteItems, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexItem, getItem, getItems, json, migrate, mockDynamoDB, number, object, optional, putItem, putItems, query, record, scan, seed, seedTable, set, streamTable, string, transactRead, transactWrite, ttl, tuple, uint8array, unknown, updateItem, uuid };

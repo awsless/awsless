@@ -37,6 +37,7 @@ __export(index_exports, {
   DynamoDBClient: () => import_client_dynamodb17.DynamoDBClient,
   DynamoDBDocumentClient: () => import_lib_dynamodb3.DynamoDBDocumentClient,
   DynamoDBServer: () => import_dynamodb_server2.DynamoDBServer,
+  Fluent: () => Fluent,
   GetItemCommand: () => import_client_dynamodb18.GetItemCommand,
   PutItemCommand: () => import_client_dynamodb18.PutItemCommand,
   QueryCommand: () => import_client_dynamodb19.QueryCommand,
@@ -52,6 +53,7 @@ __export(index_exports, {
   bigint: () => bigint,
   boolean: () => boolean,
   conditionCheck: () => conditionCheck,
+  createFluent: () => createFluent,
   date: () => date,
   define: () => define,
   deleteItem: () => deleteItem,
@@ -968,9 +970,6 @@ import_client_dynamodb8.TransactionCanceledException.prototype.conflictAt = func
 // src/index.ts
 var import_client_dynamodb22 = require("@aws-sdk/client-dynamodb");
 
-// src/command/put-item.ts
-var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
-
 // src/expression/fluent.ts
 var secret = Symbol("fluent");
 var Fluent = class extends Function {
@@ -1015,6 +1014,9 @@ var getFluentExpression = (prop) => {
 var getFluentPath = (prop) => {
   return getFluentData(prop).flat();
 };
+
+// src/command/put-item.ts
+var import_client_dynamodb9 = require("@aws-sdk/client-dynamodb");
 
 // src/expression/condition.ts
 var buildConditionExpression = (attrs, builder) => {
@@ -1156,19 +1158,21 @@ var buildUpdateExpression = (attrs, builder) => {
     };
     switch (op) {
       case "set":
-        if (path.length > 0) {
-          if (shouldDelete(value[0])) {
-            rem.push(p);
-          } else {
-            set2.push(`${p} = ${param(0)}`);
-          }
+        if (path.length === 0) {
+          throw new TypeError(`You can't set the root object`);
+        }
+        if (shouldDelete(value[0])) {
+          rem.push(p);
         } else {
-          for (const [k, v] of Object.entries(value[0])) {
-            if (shouldDelete(v)) {
-              rem.push(k);
-            } else {
-              set2.push(`${attrs.path([k])} = ${attrs.value(v, [k])}`);
-            }
+          set2.push(`${p} = ${param(0)}`);
+        }
+        break;
+      case "setPartial":
+        for (const [k, v] of Object.entries(value[0])) {
+          if (shouldDelete(v)) {
+            rem.push(k);
+          } else {
+            set2.push(`${attrs.path([...path, k])} = ${attrs.value(v, [...path, k])}`);
           }
         }
         break;
@@ -1483,6 +1487,7 @@ var transactRead = async (items, options = {}) => {
   DynamoDBClient,
   DynamoDBDocumentClient,
   DynamoDBServer,
+  Fluent,
   GetItemCommand,
   PutItemCommand,
   QueryCommand,
@@ -1498,6 +1503,7 @@ var transactRead = async (items, options = {}) => {
   bigint,
   boolean,
   conditionCheck,
+  createFluent,
   date,
   define,
   deleteItem,

@@ -23,8 +23,8 @@ type I18nPluginProps = {
 declare const i18n: (props: I18nPluginProps) => Plugin;
 
 type AiTranslationProps = {
-    /** The maximum number of tokens allowed in the AI's response. */
-    maxTokens: number;
+    /** The maximum number of output tokens allowed in the AI's response. */
+    maxOutputTokens: number;
     /** The language model to use for translations (e.g., gpt-4, gpt-3.5-turbo). */
     model: LanguageModel;
     /** Number of text entries to translate in a single batch.

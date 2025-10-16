@@ -57,6 +57,9 @@ describe('Infer', () => {
 			tupleRest: tuple([string(), string()], number()),
 			array: array(string()),
 			record: record(string()),
+			partial: object({
+				key: string(),
+			}),
 
 			sets: object({
 				string: set(string()),
@@ -92,7 +95,9 @@ describe('Infer', () => {
 			tupleRest: [string, string, ...number[]]
 			array: string[]
 			record: Record<string, string>
-
+			partial: {
+				key: string
+			}
 			sets: {
 				string: Set<string>
 				number: Set<number>
@@ -217,6 +222,11 @@ describe('Infer', () => {
 					e.tupleRest.at(1).set('test'),
 					e.tupleRest.at(2).set(1),
 					e.tupleRest.at(3).set(1),
+
+					// partial
+					e.partial.setPartial({
+						key: 'foo',
+					}),
 
 					// sets
 					e.sets.number.set(new Set([1, 2, 3])),

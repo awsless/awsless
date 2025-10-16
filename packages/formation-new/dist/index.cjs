@@ -2120,8 +2120,8 @@ var getProviderVersions = async (org, type) => {
   const resp = await fetch(`${baseUrl}/${org}/${type}/versions`);
   const data = await resp.json();
   const versions2 = data.versions;
-  const os = (0, import_node_os.platform)();
-  const ar = (0, import_node_os.arch)();
+  const os = getOS();
+  const ar = getArch();
   const supported = versions2.filter((v) => {
     return !!v.platforms.find((p) => p.os === os && p.arch === ar);
   });
@@ -2137,8 +2137,8 @@ var getProviderVersions = async (org, type) => {
   };
 };
 var getProviderDownloadUrl = async (org, type, version) => {
-  const os = (0, import_node_os.platform)();
-  const ar = (0, import_node_os.arch)();
+  const os = getOS();
+  const ar = getArch();
   const url = [baseUrl, org, type, version, "download", os, ar].join("/");
   const response = await fetch(url);
   const result = await response.json();
@@ -2147,6 +2147,36 @@ var getProviderDownloadUrl = async (org, type, version) => {
     shasum: result.shasum,
     protocols: result.protocols
   };
+};
+var getOS = () => {
+  const os = (0, import_node_os.platform)();
+  switch (os) {
+    case "linux":
+      return "linux";
+    case "win32":
+      return "windows";
+    case "darwin":
+      return "darwin";
+    case "freebsd":
+      return "freebsd";
+    case "openbsd":
+      return "openbsd";
+  }
+  throw new Error(`Unsupported OS Platform ${os}`);
+};
+var getArch = () => {
+  const ar = (0, import_node_os.arch)();
+  switch (ar) {
+    case "arm":
+      return "arm";
+    case "arm64":
+      return "arm64";
+    case "x64":
+      return "amd64";
+    case "ia32":
+      return "386";
+  }
+  throw new Error(`Unsupported Arch ${ar}`);
 };
 
 // src/terraform/plugin/download.ts

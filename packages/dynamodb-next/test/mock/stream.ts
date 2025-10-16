@@ -146,13 +146,7 @@ describe('Mock Stream', () => {
 	it('transact write', async () => {
 		await transactWrite([
 			putItem(users, { id: 1, name: 'Jack' }),
-			updateItem(
-				users,
-				{ id: 2 },
-				{
-					update: e => e.name.set('Black'),
-				}
-			),
+			updateItem(users, { id: 2 }, { update: e => e.name.set('Black') }),
 			deleteItem(users, { id: 3 }),
 		])
 

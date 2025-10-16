@@ -4,8 +4,8 @@ import { z } from 'zod'
 import { Translator } from '../vite'
 
 export type AiTranslationProps = {
-	/** The maximum number of tokens allowed in the AI's response. */
-	maxTokens: number
+	/** The maximum number of output tokens allowed in the AI's response. */
+	maxOutputTokens: number
 
 	/** The language model to use for translations (e.g., gpt-4, gpt-3.5-turbo). */
 	model: LanguageModel
@@ -27,7 +27,7 @@ export const ai = (props: AiTranslationProps): Translator => {
 			batches.map(async texts => {
 				const result = await generateObject({
 					model: props.model,
-					maxTokens: props.maxTokens,
+					maxOutputTokens: props.maxOutputTokens,
 					schema: z.object({
 						translations: z
 							.object({

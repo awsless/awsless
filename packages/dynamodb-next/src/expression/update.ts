@@ -12,6 +12,7 @@ import {
 	RemoveFunction,
 	SetFunction,
 	SetIfNotExistFunction,
+	SetPartialFunction,
 } from './types'
 
 // ------------------------------------------------------------
@@ -22,12 +23,16 @@ type BaseUpdateExpression<A extends AttributeType, T> = Path<A, T> &
 	SetIfNotExistFunction<A, T> &
 	DeleteFunction<T>
 
-export type RootUpdateExpression<T, R extends Record<string, any>> = R & SetFunction<'M', Partial<T>>
+export type RootUpdateExpression<T, R extends Record<string, any>> = {
+	at<K extends keyof R>(key: K): R[K]
+} & R &
+	SetPartialFunction<'M', Partial<T>>
 
 export type MapUpdateExpression<T, R extends Record<string, any>> = {
 	at<K extends keyof R>(key: K): R[K]
 } & R &
-	BaseUpdateExpression<'M', T>
+	BaseUpdateExpression<'M', T> &
+	SetPartialFunction<'M', T>
 
 export type ListUpdateExpression<T extends any[], L extends any[]> = {
 	at<K extends keyof L>(index: K): L[K]
@@ -106,20 +111,23 @@ export const buildUpdateExpression = (
 
 		switch (op) {
 			case 'set':
-				if (path.length > 0) {
-					if (shouldDelete(value[0])) {
-						rem.push(p)
-					} else {
-						set.push(`${p} = ${param(0)}`)
-					}
+				if (path.length === 0) {
+					throw new TypeError(`You can't set the root object`)
+				}
+
+				if (shouldDelete(value[0])) {
+					rem.push(p)
 				} else {
-					// root level set should be a partial set
-					for (const [k, v] of Object.entries(value[0])) {
-						if (shouldDelete(v)) {
-							rem.push(k)
-						} else {
-							set.push(`${attrs.path([k])} = ${attrs.value(v, [k])}`)
-						}
+					set.push(`${p} = ${param(0)}`)
+				}
+				break
+
+			case 'setPartial':
+				for (const [k, v] of Object.entries(value[0])) {
+					if (shouldDelete(v)) {
+						rem.push(k)
+					} else {
+						set.push(`${attrs.path([...path, k])} = ${attrs.value(v, [...path, k])}`)
 					}
 				}
 				break
