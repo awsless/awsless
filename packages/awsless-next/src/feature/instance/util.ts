@@ -163,7 +163,8 @@ export const createFargateTask = (
 	let logGroup: $.aws.cloudwatch.LogGroup | undefined
 	if (props.log.retention && props.log.retention.value > 0n) {
 		logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
-			name: `/aws/ecs/${name}`,
+			// name: `/aws/ecs/${name}`,
+			name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention),
 		})
 
@@ -260,7 +261,8 @@ export const createFargateTask = (
 								logConfiguration: {
 									logDriver: 'awslogs',
 									options: {
-										'awslogs-group': `/aws/ecs/${name}`,
+										// 'awslogs-group': `/aws/ecs/${name}`,
+										'awslogs-group': `/aws/lambda/${name}`,
 										'awslogs-region': ctx.appConfig.region,
 										'awslogs-stream-prefix': 'ecs',
 										// mode: 'non-blocking',

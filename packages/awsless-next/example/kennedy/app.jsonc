@@ -30,11 +30,11 @@
 			"log": {
 				"retention": "1 week"
 			}
-		},
-		"onLog": {
-			"filter": ["error"],
-			"consumer": "./log-parser.ts"
 		}
+		// "onLog": {
+		// 	"filter": ["error"],
+		// 	"consumer": "./log-parser.ts"
+		// }
 		// "layers": {}
 		// "pubsub": {
 		// 	"test": {
