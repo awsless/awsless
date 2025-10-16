@@ -1,10 +1,10 @@
 import { $, Group } from '@awsless/formation'
 import { constantCase } from 'change-case'
-import { defineFeature } from '../../feature.js'
-import { formatGlobalResourceName } from '../../util/name.js'
-import { formatFullDomainName } from '../domain/util.js'
-import { createLambdaFunction } from '../function/util.js'
-import { shortId } from '../../util/id.js'
+import { defineFeature } from '../../../feature.js'
+import { formatGlobalResourceName } from '../../../util/name.js'
+import { formatFullDomainName } from '../../domain/util.js'
+import { createLambdaFunction } from '../../function/util.js'
+import { shortId } from '../../../util/id.js'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',

@@ -39,43 +39,6 @@ export const instanceFeature = defineFeature({
 		})
 
 		ctx.shared.set('instance', 'bucket-name', bucket.bucket)
-
-		// ------------------------------------------------------
-		// Define the Repository used to store the container images.
-
-		// const repository = new $.aws.ecr.Repository(group, 'repository', {
-		// 	name: formatGlobalResourceName({
-		// 		appName: ctx.app.name,
-		// 		resourceType: 'function',
-		// 		resourceName: 'repository',
-		// 		seperator: '-',
-		// 	}),
-		// 	imageTagMutability: 'MUTABLE',
-		// })
-
-		// new $.aws.ecr.LifecyclePolicy(group, 'lifecycle', {
-		// 	repository: repository.name,
-		// 	policy: JSON.stringify({
-		// 		rules: [
-		// 			{
-		// 				rulePriority: 1,
-		// 				description: 'Remove untagged images older then 1 day',
-		// 				action: {
-		// 					type: 'expire',
-		// 				},
-		// 				selection: {
-		// 					tagStatus: 'untagged',
-		// 					countType: 'sinceImagePushed',
-		// 					countNumber: 1,
-		// 					countUnit: 'days',
-		// 				},
-		// 			},
-		// 		],
-		// 	}),
-		// })
-
-		// ctx.shared.set('function-repository-name', repository.name)
-		// ctx.shared.set('function-repository-uri', repository.repositoryUrl)
 	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.filter(stack => {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { ResourceIdSchema } from '../../../config/schema/resource-id.js'
+import { FunctionSchema } from '../../function/schema.js'
 
 const DomainSchema = ResourceIdSchema.describe('The domain id to link your Pubsub API with.')
 

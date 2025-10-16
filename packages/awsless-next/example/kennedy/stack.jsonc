@@ -6,6 +6,9 @@
 	// 		"static": "./static"
 	// 	}
 	// },
+	"instances": {
+		"test": "./instance/main.ts"
+	},
 	"functions": {
 		"test": "./function.ts"
 	}
@@ -33,9 +36,7 @@
 	// 		"vpc": true
 	// 	}
 	// }
-	// "instances": {
-	// 	"test": "./instance.ts"
-	// }
+
 	// "sites": {
 	// 	"test": {
 	// 		"auth": {

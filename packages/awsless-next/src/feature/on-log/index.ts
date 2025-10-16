@@ -24,7 +24,8 @@ export const onLogFeature = defineFeature({
 			action: 'lambda:InvokeFunction',
 			principal: 'logs.amazonaws.com',
 			functionName: lambda.functionName,
-			sourceArn: `arn:aws:logs:${ctx.appConfig.region}:${ctx.accountId}:log-group:/aws/lambda/${ctx.app.name}--*`,
+			sourceArn: `arn:aws:logs:${ctx.appConfig.region}:${ctx.accountId}:log-group:/aws/*/${ctx.app.name}--*`,
+			// sourceArn: `arn:aws:logs:${ctx.appConfig.region}:${ctx.accountId}:log-group:/aws/lambda/${ctx.app.name}--*`,
 		})
 
 		ctx.shared.set('on-log', 'consumer-arn', lambda.arn)

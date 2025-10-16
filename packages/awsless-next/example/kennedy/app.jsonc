@@ -12,7 +12,7 @@
 		// },
 		"function": {
 			"log": {
-				"retention": "1 week",
+				"retention": "7 days",
 				"format": "text"
 			}
 		},
@@ -30,6 +30,10 @@
 			"log": {
 				"retention": "1 week"
 			}
+		},
+		"onLog": {
+			"filter": ["error"],
+			"consumer": "./log-parser.ts"
 		}
 		// "layers": {}
 		// "pubsub": {
