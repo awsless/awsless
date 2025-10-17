@@ -43,7 +43,7 @@ export const createFargateTask = (
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`instance--${name}`)
-			const executable = await buildExecutable(local.code.file, temp.path)
+			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
 
 			await Promise.all([
 				//

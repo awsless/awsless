@@ -52,7 +52,7 @@ const HealthCheckSchema = z
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
-const ArchitectureSchema = z
+export const ArchitectureSchema = z
 	.enum(['x86_64', 'arm64'])
 	.describe('The instruction set architecture that the instance supports.')
 
