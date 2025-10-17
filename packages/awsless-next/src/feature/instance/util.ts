@@ -2,7 +2,7 @@ import { toDays, toSeconds } from '@awsless/duration'
 import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/formation'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
-import { constantCase, pascalCase } from 'change-case'
+import { pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
@@ -43,7 +43,7 @@ export const createFargateTask = (
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`instance--${name}`)
-			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
+			const executable = await buildExecutable(local.code.file, temp.path)
 
 			await Promise.all([
 				//
@@ -208,7 +208,7 @@ export const createFargateTask = (
 			executionRoleArn: executionRole.arn,
 			taskRoleArn: role.arn,
 			runtimePlatform: {
-				cpuArchitecture: constantCase(props.architecture),
+				cpuArchitecture: 'X86_64',
 				operatingSystemFamily: 'LINUX',
 			},
 			trackLatest: true,
