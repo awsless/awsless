@@ -34,7 +34,7 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 	const file = await readFile(filePath)
 
 	return {
-		hash: createHash('sha1').update(file).digest('hex'),
+		hash: createHash('sha1').update(file).update(architecture).digest('hex'),
 		file,
 	}
 }
