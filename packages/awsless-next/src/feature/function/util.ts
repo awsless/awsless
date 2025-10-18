@@ -145,6 +145,7 @@ export const createLambdaFunction = (
 					],
 					minify: fileCode.minify,
 					nativeDir: temp.path,
+					importAsString: fileCode.importAsString,
 				})
 
 				const nativeFiles = await temp.files()

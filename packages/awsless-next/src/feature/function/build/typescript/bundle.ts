@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import { dirname } from 'path'
 import { rollup } from 'rollup'
 import natives from 'rollup-plugin-natives'
+import { importAsString } from 'rollup-plugin-string-import'
 import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
 import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
@@ -16,6 +17,7 @@ export type BundleTypeScriptProps = {
 	handler?: string
 	file: string
 	nativeDir?: string
+	importAsString?: string[]
 }
 
 export const bundleTypeScript = async ({
@@ -24,7 +26,11 @@ export const bundleTypeScript = async ({
 	file,
 	nativeDir,
 	external,
+	importAsString: importAsStringList,
 }: BundleTypeScriptProps) => {
+	// const plugins: InputPluginOption = []
+	// plugins.
+
 	const bundle = await rollup({
 		input: file,
 		external: importee => {
@@ -65,6 +71,11 @@ export const bundleTypeScript = async ({
 					})
 				: undefined,
 			json(),
+			importAsStringList
+				? importAsString({
+						include: importAsStringList,
+					})
+				: undefined,
 		],
 	})
 

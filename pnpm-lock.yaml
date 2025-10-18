@@ -793,6 +793,9 @@ importers:
       rollup-plugin-replace:
         specifier: ^2.2.0
         version: 2.2.0
+      rollup-plugin-string-import:
+        specifier: 1.2.6
+        version: 1.2.6(rollup@4.39.0)
       rollup-plugin-swc3:
         specifier: ^0.11.2
         version: 0.11.2(@swc/core@1.11.16)(rollup@4.39.0)
@@ -9353,6 +9356,11 @@ packages:
     resolution: {integrity: sha512-/5bxtUPkDHyBJAKketb4NfaeZjL5yLZdeUihSfbF2PQMz+rSTEb8ARKoOl3UBT4m7/X+QOXJo3sLTcq+yMMYTA==}
     deprecated: This module has moved and is now available at @rollup/plugin-replace. Please update your dependencies. This version is no longer maintained.
 
+  rollup-plugin-string-import@1.2.6:
+    resolution: {integrity: sha512-vChs/dPkgErR7RBXOuOoZ6gBnwQqoUILuQxdcb8uynKSSn9fzjympIIVa3b2iTW3J78Ufk6q9nOKM7jxtJJUxw==}
+    peerDependencies:
+      rollup: '>=1.20.0'
+
   rollup-plugin-swc3@0.10.4:
     resolution: {integrity: sha512-ggLdYqAe3fZmhuyavDnuixMcNyK1/7CIlmJatW2UcKveN1GpQeFlaRjtXnK6/UCIt71SVr3Qy6p2iCLIkXq3iQ==}
     engines: {node: '>=12'}
@@ -17059,17 +17067,17 @@ snapshots:
 
   '@rollup/pluginutils@5.1.4(rollup@3.29.5)':
     dependencies:
-      '@types/estree': 1.0.7
+      '@types/estree': 1.0.8
       estree-walker: 2.0.2
-      picomatch: 4.0.2
+      picomatch: 4.0.3
     optionalDependencies:
       rollup: 3.29.5
 
   '@rollup/pluginutils@5.1.4(rollup@4.39.0)':
     dependencies:
-      '@types/estree': 1.0.7
+      '@types/estree': 1.0.8
       estree-walker: 2.0.2
-      picomatch: 4.0.2
+      picomatch: 4.0.3
     optionalDependencies:
       rollup: 4.39.0
 
@@ -22467,6 +22475,11 @@ snapshots:
     dependencies:
       magic-string: 0.25.9
       rollup-pluginutils: 2.8.2
+
+  rollup-plugin-string-import@1.2.6(rollup@4.39.0):
+    dependencies:
+      '@rollup/pluginutils': 5.1.4(rollup@4.39.0)
+      rollup: 4.39.0
 
   rollup-plugin-swc3@0.10.4(@swc/core@1.11.16)(rollup@4.39.0):
     dependencies:
