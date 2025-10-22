@@ -132,7 +132,7 @@ export const iconFeature = defineFeature({
 			serverLambda.setEnvironment(
 				'ICON_CONFIG',
 				JSON.stringify({
-					preserveId: props.preserveId,
+					preserveIds: props.preserveIds,
 					symbols: props.symbols,
 				})
 			)

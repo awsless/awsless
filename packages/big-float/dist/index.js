@@ -1,48 +1,3 @@
-var __defProp = Object.defineProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-
-// src/internal/index.ts
-var internal_exports = {};
-__export(internal_exports, {
-  abs: () => abs,
-  add: () => add,
-  ceil: () => ceil,
-  clamp: () => clamp,
-  cmp: () => cmp,
-  div: () => div,
-  eq: () => eq,
-  fact: () => fact,
-  floor: () => floor,
-  fraction: () => fraction,
-  gt: () => gt,
-  gte: () => gte,
-  integer: () => integer,
-  isBigFloatLike: () => isBigFloatLike,
-  isInteger: () => isInteger,
-  isNegative: () => isNegative,
-  isPositive: () => isPositive,
-  isZero: () => isZero,
-  lt: () => lt,
-  lte: () => lte,
-  make: () => make,
-  max: () => max,
-  min: () => min,
-  mul: () => mul,
-  neg: () => neg,
-  normalize: () => normalize,
-  number: () => number,
-  parse: () => parse,
-  pow: () => pow,
-  round: () => round,
-  scientific: () => scientific,
-  sqrt: () => sqrt,
-  string: () => string,
-  sub: () => sub
-});
-
 // src/percision.ts
 var PRECISION = 20;
 var setPrecision = (n) => {
@@ -173,14 +128,6 @@ var gt = (comparahend, comparator) => {
 };
 var gte = (comparahend, comparator) => {
   return gt(comparahend, comparator) || eq(comparahend, comparator);
-};
-var cmp = (a, b) => {
-  if (gt(a, b)) {
-    return 1;
-  } else if (lt(a, b)) {
-    return -1;
-  }
-  return 0;
 };
 var min = (...values) => {
   return values.reduce((prev, current) => {
@@ -424,7 +371,7 @@ var BigFloat = class {
   /**
    * Converts the BigFloat to a JSON-compatible string representation.
    * Equivalent to calling {@link BigFloat.toString}.
-   * @returns {string} A string representation of the BigFloat.
+   * @returns {StringNumericLiteral} A string representation of the BigFloat.
    */
   toJSON() {
     return this.toString();
@@ -432,7 +379,7 @@ var BigFloat = class {
   /**
    * Converts the BigFloat to its string representation.
    * @param {number} [radix] - The base/radix for string conversion (e.g. 10 for decimal, 16 for hex).
-   * @returns {string} A string representation of the BigFloat.
+   * @returns {StringNumericLiteral} A string representation of the BigFloat.
    */
   toString(radix) {
     return string(this, radix);
@@ -544,7 +491,7 @@ var lt2 = (a, b) => lt(parse(a), parse(b));
 var lte2 = (a, b) => lte(parse(a), parse(b));
 var gt2 = (a, b) => gt(parse(a), parse(b));
 var gte2 = (a, b) => gte(parse(a), parse(b));
-var cmp2 = (a, b) => {
+var cmp = (a, b) => {
   if (gt2(a, b)) {
     return 1;
   } else if (lt2(a, b)) {
@@ -584,7 +531,7 @@ export {
   add2 as add,
   ceil2 as ceil,
   clamp2 as clamp,
-  cmp2 as cmp,
+  cmp,
   div2 as div,
   eq2 as eq,
   fact2 as fact,
@@ -593,7 +540,6 @@ export {
   gt2 as gt,
   gte2 as gte,
   integer2 as integer,
-  internal_exports as internal,
   isBigFloat,
   isInteger2 as isInteger,
   isNegative2 as isNegative,

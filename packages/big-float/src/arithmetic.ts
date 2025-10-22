@@ -76,7 +76,7 @@ export const div = (dividend: Numeric, divisor: Numeric, precision?: number): Bi
  * @param {Numeric} n - The number to take the square root of.
  * @returns {BigFloat} The square root of `n`.
  */
-export const sqrt = (n: Numeric) => make(internal.sqrt(parse(n)))
+export const sqrt = (n: Numeric): BigFloat => make(internal.sqrt(parse(n)))
 
 /**
  * Rounds a number up to the nearest integer or given precision.

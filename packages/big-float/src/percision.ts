@@ -5,10 +5,10 @@ export let PRECISION = 20
  *
  * Precision is expressed as a positive integer, where the magnitude determines
  * the number of decimal digits retained.
- * For example, `-10` means calculations will keep up to 10 decimal places.
+ * For example, `10` means calculations will keep up to 10 decimal places.
  *
  * @param {number} n - The precision to set (must be a positive integer).
- * @throws {Error} If `n` is not a positive integer.
+ * @throws {TypeError} If `n` is not a positive integer.
  * @returns {void}
  */
 export const setPrecision = (n: number): void => {

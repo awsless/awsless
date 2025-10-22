@@ -1,7 +1,7 @@
-import { BigFloat, eq, Numeric, setPrecision, string } from '../../src'
+import { BigFloat, eq, Numeric, string } from '../../src'
 
 describe('parse / stringify', () => {
-	const t = (n: Numeric, expectation: string) => {
+	const t = (n: Numeric, expectation: Numeric) => {
 		it(`parse(${n}) = ${expectation}`, () => {
 			const result = new BigFloat(n)
 			expect(result.toString()).toBe(expectation)

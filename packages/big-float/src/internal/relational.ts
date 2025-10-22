@@ -32,19 +32,19 @@ export const cmp = (a: IBigFloat, b: IBigFloat): 1 | -1 | 0 => {
 	return 0
 }
 
-export const min = (...values: IBigFloat[]) => {
+export const min = (...values: IBigFloat[]): IBigFloat => {
 	return values.reduce((prev, current) => {
 		return lt(prev, current) ? prev : current
 	})
 }
 
-export const max = (...values: IBigFloat[]) => {
+export const max = (...values: IBigFloat[]): IBigFloat => {
 	return values.reduce((prev, current) => {
 		return gt(prev, current) ? prev : current
 	})
 }
 
-export const clamp = (number: IBigFloat, min: IBigFloat, max: IBigFloat) => {
+export const clamp = (number: IBigFloat, min: IBigFloat, max: IBigFloat): IBigFloat => {
 	if (gt(min, max)) {
 		throw new TypeError(`min ${min} bound can't be greater then the max ${max} bound`)
 	}
