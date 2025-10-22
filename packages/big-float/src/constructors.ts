@@ -1,6 +1,6 @@
 import { BigFloat } from './bigfloat'
 import * as internal from './internal/index'
-import { IBigFloat, Numeric } from './type'
+import { IBigFloat, Numeric, StringNumericLiteral } from './type'
 
 export const make = (n: IBigFloat): BigFloat => {
 	return new BigFloat(n)
@@ -29,7 +29,7 @@ export const integer = (n: Numeric): BigFloat => {
  * @param {Numeric} n - The number to convert.
  * @returns {string} The string representation of `n`.
  */
-export const string = (n: Numeric): string => {
+export const string = (n: Numeric): StringNumericLiteral => {
 	return internal.string(internal.parse(n))
 }
 
@@ -38,6 +38,6 @@ export const string = (n: Numeric): string => {
  * @param {Numeric} n - The number to convert.
  * @returns {string} The scientific notation of `n`.
  */
-export const scientific = (n: Numeric): string => {
+export const scientific = (n: Numeric): StringNumericLiteral => {
 	return internal.scientific(internal.parse(n))
 }

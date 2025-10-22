@@ -21,8 +21,8 @@ export const IconsSchema = z
 			log: LogSchema.optional(),
 			cacheDuration: DurationSchema.optional().describe('The cache duration of the cached icons.'),
 
-			preserveId: z.boolean().optional().default(false).describe('Preserve the IDs of the icons.'),
-			symbols: z.boolean().optional().default(false).describe('Use SVG symbols for icons.'),
+			preserveIds: z.boolean().optional().default(false).describe('Preserve the IDs of the icons.'),
+			symbols: z.boolean().optional().default(false).describe(`Convert the SVG's to SVG symbols.`),
 
 			origin: z
 				.union([
@@ -34,10 +34,10 @@ export const IconsSchema = z
 						static: staticOriginSchema.optional(),
 						function: functionOriginSchema,
 					}),
-					z.object({
-						static: staticOriginSchema,
-						function: functionOriginSchema,
-					}),
+					// z.object({
+					// 	static: staticOriginSchema,
+					// 	function: functionOriginSchema,
+					// }),
 				])
 				.describe(
 					'Image transformation will be applied from a base image. Base images orginates from a local directory that will be uploaded to S3 or from a lambda function.'

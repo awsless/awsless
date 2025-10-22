@@ -1,5 +1,5 @@
 import { parse, string } from './internal'
-import { IBigFloat, Numeric } from './type'
+import { IBigFloat, Numeric, StringNumericLiteral } from './type'
 
 /**
  * Represents an arbitrary-precision floating point number.
@@ -33,18 +33,18 @@ export class BigFloat implements IBigFloat {
 	/**
 	 * Converts the BigFloat to a JSON-compatible string representation.
 	 * Equivalent to calling {@link BigFloat.toString}.
-	 * @returns {string} A string representation of the BigFloat.
+	 * @returns {StringNumericLiteral} A string representation of the BigFloat.
 	 */
-	toJSON() {
+	toJSON(): StringNumericLiteral {
 		return this.toString()
 	}
 
 	/**
 	 * Converts the BigFloat to its string representation.
 	 * @param {number} [radix] - The base/radix for string conversion (e.g. 10 for decimal, 16 for hex).
-	 * @returns {string} A string representation of the BigFloat.
+	 * @returns {StringNumericLiteral} A string representation of the BigFloat.
 	 */
-	toString(radix?: number) {
+	toString(radix?: number): StringNumericLiteral {
 		return string(this, radix)
 	}
 }

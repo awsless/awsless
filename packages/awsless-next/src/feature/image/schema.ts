@@ -71,10 +71,10 @@ export const ImagesSchema = z
 						static: staticOriginSchema.optional(),
 						function: functionOriginSchema,
 					}),
-					z.object({
-						static: staticOriginSchema,
-						function: functionOriginSchema,
-					}),
+					// z.object({
+					// 	static: staticOriginSchema,
+					// 	function: functionOriginSchema,
+					// }),
 				])
 				.describe(
 					'Specify the origin of your images. Image transformation will be applied from a base image. Base images can be loaded from a S3 bucket (that is synced from a local directory) or dynamicly from a lambda function.'

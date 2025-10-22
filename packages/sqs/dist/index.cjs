@@ -28,15 +28,15 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   SQSClient: () => import_client_sqs4.SQSClient,
   mockSQS: () => mockSQS,
   sendMessage: () => sendMessage,
   sendMessageBatch: () => sendMessageBatch,
   sqsClient: () => sqsClient
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 var import_client_sqs4 = require("@aws-sdk/client-sqs");
 
 // src/client.ts
@@ -115,10 +115,10 @@ var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
 var import_crypto = require("crypto");
 var formatAttributes2 = (attributes) => {
   const list = {};
-  for (const key in attributes) {
+  for (const [key, attr] of Object.entries(attributes ?? {})) {
     list[key] = {
-      dataType: attributes[key].DataType,
-      stringValue: attributes[key].StringValue
+      dataType: attr.DataType,
+      stringValue: attr.StringValue
     };
   }
   return list;

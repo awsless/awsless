@@ -1,13 +1,15 @@
 import {
-	SQSClient,
-	SendMessageCommand,
+	DeleteMessageCommand,
 	GetQueueUrlCommand,
-	SendMessageBatchCommand,
 	MessageAttributeValue,
+	ReceiveMessageCommand,
+	SQSClient,
+	SendMessageBatchCommand,
+	SendMessageCommand,
 } from '@aws-sdk/client-sqs'
-import { SendMessageOptions, SendMessageBatchOptions, Attributes } from './types'
-import { sqsClient } from './client'
 import chunk from 'chunk'
+import { sqsClient } from './client'
+import { Attributes, SendMessageBatchOptions, SendMessageOptions } from './types'
 
 const formatAttributes = (attributes: Attributes) => {
 	const list: Record<string, MessageAttributeValue> = {}
@@ -80,4 +82,50 @@ export const sendMessageBatch = async ({ client = sqsClient(), queue, items }: S
 			return client.send(command)
 		})
 	)
+}
+
+export const receiveMessages = async ({
+	client = sqsClient(),
+	queue,
+	maxMessages = 10,
+	waitTimeSeconds = 20,
+	visibilityTimeout = 30,
+}: {
+	client?: SQSClient
+	queue: string
+	maxMessages?: number
+	waitTimeSeconds?: number
+	visibilityTimeout?: number
+}) => {
+	const url = await getCachedQueueUrl(client, queue)
+
+	const command = new ReceiveMessageCommand({
+		QueueUrl: url,
+		MaxNumberOfMessages: maxMessages,
+		WaitTimeSeconds: waitTimeSeconds,
+		VisibilityTimeout: visibilityTimeout,
+		MessageAttributeNames: ['All'],
+	})
+
+	const response = await client.send(command)
+	return response.Messages ?? []
+}
+
+export const deleteMessage = async ({
+	client = sqsClient(),
+	queue,
+	receiptHandle,
+}: {
+	client?: SQSClient
+	queue: string
+	receiptHandle: string
+}) => {
+	const url = await getCachedQueueUrl(client, queue)
+
+	const command = new DeleteMessageCommand({
+		QueueUrl: url,
+		ReceiptHandle: receiptHandle,
+	})
+
+	await client.send(command)
 }

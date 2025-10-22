@@ -1,4 +1,4 @@
-import type { IBigFloat, Numeric } from '../type.js'
+import type { IBigFloat, Numeric, StringNumericLiteral } from '../type.js'
 import { sub } from './arithmetic.js'
 import { isNegative, isZero } from './predicates.js'
 
@@ -78,13 +78,13 @@ export const make = (coefficient: bigint, exponent: number): IBigFloat => {
 	return bigfloat
 }
 
-export const string = (a: IBigFloat, radix?: number): string => {
+export const string = (a: IBigFloat, radix?: number): StringNumericLiteral => {
 	if (isZero(a)) {
 		return '0'
 	}
 
 	if (radix) {
-		return integer(a).coefficient.toString(radix)
+		return integer(a).coefficient.toString(radix) as StringNumericLiteral
 	}
 
 	a = normalize(a)
@@ -107,7 +107,7 @@ export const string = (a: IBigFloat, radix?: number): string => {
 		s = '-' + s
 	}
 
-	return s
+	return s as StringNumericLiteral
 }
 
 // export const scientific = (a: IBigFloat): string => {
@@ -136,7 +136,7 @@ export const string = (a: IBigFloat, radix?: number): string => {
 // 	return s
 // }
 
-export const scientific = (a: IBigFloat): string => {
+export const scientific = (a: IBigFloat): StringNumericLiteral => {
 	if (isZero(a)) {
 		return '0'
 	}
@@ -167,5 +167,5 @@ export const scientific = (a: IBigFloat): string => {
 		s = '-' + s
 	}
 
-	return s
+	return s as StringNumericLiteral
 }

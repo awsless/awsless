@@ -10,9 +10,11 @@ var sqsClient = globalClient(() => {
 
 // src/commands.ts
 import {
-  SendMessageCommand,
+  DeleteMessageCommand,
   GetQueueUrlCommand,
-  SendMessageBatchCommand
+  ReceiveMessageCommand,
+  SendMessageBatchCommand,
+  SendMessageCommand
 } from "@aws-sdk/client-sqs";
 import chunk from "chunk";
 var formatAttributes = (attributes) => {
@@ -86,10 +88,10 @@ import { mockClient } from "aws-sdk-client-mock";
 import { randomUUID } from "crypto";
 var formatAttributes2 = (attributes) => {
   const list = {};
-  for (const key in attributes) {
+  for (const [key, attr] of Object.entries(attributes ?? {})) {
     list[key] = {
-      dataType: attributes[key].DataType,
-      stringValue: attributes[key].StringValue
+      dataType: attr.DataType,
+      stringValue: attr.StringValue
     };
   }
   return list;

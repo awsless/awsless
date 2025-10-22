@@ -1,11 +1,12 @@
 import { eq, Numeric, pow, string } from '../../src'
 
 describe('pow', () => {
-	const t = (expectation: Numeric, a: Numeric, b: Numeric) => {
-		it(`pow(${a}, ${b}) = ${expectation}`, () => {
-			const result = pow(a, b)
-			expect(result.toString()).toBe(string(expectation))
-			expect(eq(result, expectation)).toBe(true)
+	const t = (expectation: string | Numeric, a: string | Numeric, b: string | Numeric) => {
+		const exp = expectation as Numeric
+		it(`pow(${a}, ${b}) = ${exp}`, () => {
+			const result = pow(a as Numeric, b as Numeric)
+			expect(result.toString()).toBe(string(exp))
+			expect(eq(result, exp)).toBe(true)
 		})
 	}
 

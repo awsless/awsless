@@ -180,6 +180,11 @@ const FileCodeSchema = z.object({
 		.array()
 		.optional()
 		.describe(`A list of external packages that won't be included in the bundle.`),
+	importAsString: z
+		.string()
+		.array()
+		.optional()
+		.describe(`A list of glob patterns, which specifies the files that should be imported as string.`),
 })
 
 // export type FileCode = z.infer<typeof FileCodeSchema>

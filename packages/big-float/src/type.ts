@@ -3,4 +3,6 @@ export type IBigFloat = {
 	readonly coefficient: bigint
 }
 
-export type Numeric = IBigFloat | number | bigint | string
+export type StringNumericLiteral = `${number}`
+
+export type Numeric = IBigFloat | number | bigint | StringNumericLiteral

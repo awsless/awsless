@@ -20,7 +20,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		}
 
 		const config: {
-			preserveId: boolean
+			preserveIds: boolean
 			symbols: boolean
 		} = JSON.parse(configsEnv)
 
@@ -51,7 +51,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			})) as string | undefined
 
 			if (typeof result === 'string') {
-				baseIcon = Buffer.from(result, 'base64')
+				baseIcon = Buffer.from(result)
 			} else if (result === undefined) {
 				return { statusCode: 404 }
 			} else {
@@ -73,7 +73,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 					name: 'preset-default',
 					params: {
 						overrides: {
-							...(config.preserveId
+							...(config.preserveIds
 								? {
 										cleanupIds: false,
 									}
