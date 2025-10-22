@@ -18,15 +18,14 @@
 		},
 		"instance": {
 			"cpu": 0.25,
-			"memorySize": "1 GB",
-			"architecture": "x86_64",
-			// "healthCheck": {
-			// 	"path": "/",
-			// 	"interval": "10 seconds",
-			// 	"timeout": "5 seconds",
-			// 	"retries": 3,
-			// 	"startPeriod": "30 second"
-			// },
+			"memorySize": "512 MB",
+			"healthCheck": {
+				"path": "/",
+				"interval": "10 seconds",
+				"timeout": "5 seconds",
+				"retries": 3,
+				"startPeriod": "30 second"
+			},
 			"log": {
 				"retention": "1 week"
 			}

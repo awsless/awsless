@@ -2,7 +2,7 @@ import { toDays, toSeconds } from '@awsless/duration'
 import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/formation'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
-import { pascalCase } from 'change-case'
+import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
@@ -36,6 +36,12 @@ export const createFargateTask = (
 
 	const props = deepmerge(ctx.appConfig.defaults.instance, local)
 
+	const image =
+		props.image ||
+		(props.architecture === 'arm64'
+			? 'public.ecr.aws/aws-cli/aws-cli:arm64'
+			: 'public.ecr.aws/aws-cli/aws-cli:amd64')
+
 	// ------------------------------------------------------------
 
 	ctx.registerBuild('instance', name, async (build, { workspace }) => {
@@ -43,7 +49,7 @@ export const createFargateTask = (
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`instance--${name}`)
-			const executable = await buildExecutable(local.code.file, temp.path)
+			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
 
 			await Promise.all([
 				//
@@ -191,7 +197,6 @@ export const createFargateTask = (
 		APP: ctx.appConfig.name,
 		APP_ID: ctx.appId,
 		STACK: ctx.stackConfig.name,
-		// CODE_HASH: code.sourceHash.pipe<string>(v => v!),
 	}
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
@@ -208,7 +213,7 @@ export const createFargateTask = (
 			executionRoleArn: executionRole.arn,
 			taskRoleArn: role.arn,
 			runtimePlatform: {
-				cpuArchitecture: 'X86_64',
+				cpuArchitecture: constantCase(props.architecture),
 				operatingSystemFamily: 'LINUX',
 			},
 			trackLatest: true,
@@ -225,7 +230,7 @@ export const createFargateTask = (
 						{
 							name: `container-${id}`,
 							essential: true,
-							image: props.image,
+							image,
 							protocol: 'tcp',
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
@@ -329,23 +334,6 @@ export const createFargateTask = (
 		tags,
 	})
 
-	const discoveryService = new $.aws.service.DiscoveryService(group, `service-discovery`, {
-		name: shortId(`${ctx.stack.name}:${id}`),
-		description: `Service discovery for the ${name} instance`,
-		dnsConfig: {
-			namespaceId: ctx.shared.get('instance', 'namespace-id'),
-			routingPolicy: 'MULTIVALUE',
-			dnsRecords: [
-				{
-					type: 'A',
-					ttl: 300,
-				},
-			],
-		},
-		forceDestroy: true,
-		tags,
-	})
-
 	const service = new $.aws.ecs.Service(group, 'service', {
 		name: name,
 		cluster: ctx.shared.get('instance', 'cluster-arn'),
@@ -355,14 +343,11 @@ export const createFargateTask = (
 		networkConfiguration: {
 			subnets: ctx.shared.get('vpc', 'public-subnets'),
 			securityGroups: [securityGroup.id],
-			assignPublicIp: true,
+			assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
 		},
+
 		forceNewDeployment: true,
 		forceDelete: true,
-
-		serviceRegistries: {
-			registryArn: discoveryService.arn,
-		},
 
 		// deploymentCircuitBreaker: {
 		// 	enable: true,
@@ -371,31 +356,14 @@ export const createFargateTask = (
 		// deploymentController: { type: 'ECS' },
 
 		tags,
-
-		// The internal url (dnsName) doesn't work for ldambda's
-		// https://github.com/aws/containers-roadmap/issues/1960
-		// serviceConnectConfiguration: {
-		// 	enabled: true,
-		// 	namespace: ctx.shared.get('instance', 'namespace'),
-		// 	service: [
-		// 		{
-		// 			clientAlias: {
-		// 				port: 80,
-		// 				dnsName: `${id}.${ctx.app.name}.internal`,
-		// 			},
-		// 			discoveryName: name,
-		// 			portName: 'http',
-		// 		},
-		// 	],
-		// },
 	})
 
 	// ------------------------------------------------------------
 
-	// ctx.onEnv((name, value) => {
-	// 	variables[name] = value
-	// 	task.$.attachDependencies(value)
-	// })
+	ctx.onEnv((name, value) => {
+		variables[name] = value
+		task.$.attachDependencies(value)
+	})
 
 	// ------------------------------------------------------------
 	// Env Vars
@@ -404,7 +372,7 @@ export const createFargateTask = (
 	variables.APP_ID = ctx.appId
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
-	variables.CODE_HASH = code.sourceHash
+	variables.CODE_HASH = code.sourceHash // needed to force update on code change
 
 	// ------------------------------------------------------------
 	// Add user defined permissions

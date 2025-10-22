@@ -10,13 +10,6 @@ overrides:
 importers:
 
   .:
-    dependencies:
-      '@types/bun':
-        specifier: 1.3.0
-        version: 1.3.0(@types/react@19.2.2)
-      bun:
-        specifier: 1.3.0
-        version: 1.3.0
     devDependencies:
       '@aws-sdk/types':
         specifier: 3.329.0
@@ -969,7 +962,7 @@ importers:
         version: 4.9.5
       vite:
         specifier: ^4.1.4
-        version: 4.5.12(@types/node@22.14.0)(stylus@0.59.0)(terser@5.39.0)
+        version: 4.5.12(@types/node@20.17.30)(stylus@0.59.0)(terser@5.39.0)
       vitest:
         specifier: ^0.30.1
         version: 0.30.1(stylus@0.59.0)(terser@5.39.0)
@@ -985,13 +978,13 @@ importers:
         version: 9.0.8
       jest:
         specifier: ^29.4.2
-        version: 29.7.0(@types/node@22.14.0)
+        version: 29.7.0(@types/node@20.17.30)
       preact:
         specifier: ^10.12.1
         version: 10.26.4
       ts-jest:
         specifier: ^29.0.3
-        version: 29.3.1(@babel/core@7.26.10)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.26.10))(esbuild@0.25.2)(jest@29.7.0(@types/node@22.14.0))(typescript@4.9.5)
+        version: 29.3.1(@babel/core@7.26.10)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.26.10))(esbuild@0.25.2)(jest@29.7.0(@types/node@20.17.30))(typescript@4.9.5)
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
@@ -1021,7 +1014,7 @@ importers:
         version: 3.363.0(aws-crt@1.26.2)
       '@aws-sdk/lib-dynamodb':
         specifier: 3.363.0
-        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.329.0)
+        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.862.0)
       '@aws-sdk/util-dynamodb':
         specifier: 3.363.0
         version: 3.363.0
@@ -1061,7 +1054,7 @@ importers:
         version: 3.363.0(aws-crt@1.26.2)
       '@aws-sdk/lib-dynamodb':
         specifier: 3.363.0
-        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.329.0)
+        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.862.0)
       '@aws-sdk/util-dynamodb':
         specifier: 3.363.0
         version: 3.363.0
@@ -1104,7 +1097,7 @@ importers:
         version: 3.363.0(aws-crt@1.26.2)
       '@aws-sdk/lib-dynamodb':
         specifier: 3.363.0
-        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.329.0)
+        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.862.0)
       '@aws-sdk/util-dynamodb':
         specifier: 3.363.0
         version: 3.363.0
@@ -1147,7 +1140,7 @@ importers:
         version: 3.363.0(aws-crt@1.26.2)
       '@aws-sdk/lib-dynamodb':
         specifier: 3.363.0
-        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.329.0)
+        version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.862.0)
       '@aws-sdk/url-parser':
         specifier: ^3.272.0
         version: 3.374.0
@@ -4821,61 +4814,6 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
-  '@oven/bun-darwin-aarch64@1.3.0':
-    resolution: {integrity: sha512-WeXSaL29ylJEZMYHHW28QZ6rgAbxQ1KuNSZD9gvd3fPlo0s6s2PglvPArjjP07nmvIK9m4OffN0k4M98O7WmAg==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@oven/bun-darwin-x64-baseline@1.3.0':
-    resolution: {integrity: sha512-+FSr/ub5vA/EkD3fMhHJUzYioSf/sXd50OGxNDAntVxcDu4tXL/81Ka3R/gkZmjznpLFIzovU/1Ts+b7dlkrfw==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@oven/bun-darwin-x64@1.3.0':
-    resolution: {integrity: sha512-CFKjoUWQH0Oz3UHYfKbdKLq0wGryrFsTJEYq839qAwHQSECvVZYAnxVVDYUDa0yQFonhO2qSHY41f6HK+b7xtw==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@oven/bun-linux-aarch64-musl@1.3.0':
-    resolution: {integrity: sha512-HT5sr7N8NDYbQRjAnT7ISpx64y+ewZZRQozOJb0+KQObKvg4UUNXGm4Pn1xA4/WPMZDDazjO8E2vtOQw1nJlAQ==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@oven/bun-linux-aarch64@1.3.0':
-    resolution: {integrity: sha512-WHthS/eLkCNcp9pk4W8aubRl9fIUgt2XhHyLrP0GClB1FVvmodu/zIOtG0NXNpzlzB8+gglOkGo4dPjfVf4Z+g==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@oven/bun-linux-x64-baseline@1.3.0':
-    resolution: {integrity: sha512-OmlEH3nlxQyv7HOvTH21vyNAZGv9DIPnrTznzvKiOQxkOphhCyKvPTlF13ydw4s/i18iwaUrhHy+YG9HSSxa4Q==}
-    cpu: [x64]
-    os: [linux]
-
-  '@oven/bun-linux-x64-musl-baseline@1.3.0':
-    resolution: {integrity: sha512-hrr7mDvUjMX1tuJaXz448tMsgKIqGJBY8+rJqztKOw1U5+a/v2w5HuIIW1ce7ut0ZwEn+KIDvAujlPvpH33vpQ==}
-    cpu: [x64]
-    os: [linux]
-
-  '@oven/bun-linux-x64-musl@1.3.0':
-    resolution: {integrity: sha512-rtzUEzCynl3Rhgn/iR9DQezSFiZMcAXAbU+xfROqsweMGKwvwIA2ckyyckO08psEP8XcUZTs3LT9CH7PnaMiEA==}
-    cpu: [x64]
-    os: [linux]
-
-  '@oven/bun-linux-x64@1.3.0':
-    resolution: {integrity: sha512-sGEWoJQXO4GDr0x4t/yJQ/Bq1yNkOdX9tHbZZ+DBGJt3z3r7jeb4Digv8xQUk6gdTFC9vnGHuin+KW3/yD1Aww==}
-    cpu: [x64]
-    os: [linux]
-
-  '@oven/bun-windows-x64-baseline@1.3.0':
-    resolution: {integrity: sha512-/jVZ8eYjpYHLDFNoT86cP+AjuWvpkzFY+0R0a1bdeu0sQ6ILuy1FV6hz1hUAP390E09VCo5oP76fnx29giHTtA==}
-    cpu: [x64]
-    os: [win32]
-
-  '@oven/bun-windows-x64@1.3.0':
-    resolution: {integrity: sha512-xXwtpZVVP7T+vkxcF/TUVVOGRjEfkByO4mKveKYb4xnHWV4u4NnV0oNmzyMKkvmj10to5j2h0oZxA4ZVVv4gfA==}
-    cpu: [x64]
-    os: [win32]
-
   '@oxc-project/types@0.70.0':
     resolution: {integrity: sha512-ngyLUpUjO3dpqygSRQDx7nMx8+BmXbWOU4oIwTJFV2MVIDG7knIZwgdwXlQWLg3C3oxg1lS7ppMtPKqKFb7wzw==}
 
@@ -6580,9 +6518,6 @@ packages:
   '@types/babel__traverse@7.20.7':
     resolution: {integrity: sha512-dkO5fhS7+/oos4ciWxyEyjWe48zmG6wbCheo/G2ZnHx4fs3EU6YC6UM8rk56gAjNJ9P3MTH2jo5jb92/K6wbng==}
 
-  '@types/bun@1.3.0':
-    resolution: {integrity: sha512-+lAGCYjXjip2qY375xX/scJeVRmZ5cY0wyHYyCYxNcdEXrQ4AOe3gACgd4iQ8ksOslJtW4VNxBJ8llUwc3a6AA==}
-
   '@types/chai-subset@1.3.6':
     resolution: {integrity: sha512-m8lERkkQj+uek18hXOZuec3W/fCRTrU4hrnXjH3qhHy96ytuPaPiWGgu7sJb7tZxZonO75vYAjCvpe/e4VUwRw==}
     peerDependencies:
@@ -6662,9 +6597,6 @@ packages:
 
   '@types/proper-lockfile@4.1.4':
     resolution: {integrity: sha512-uo2ABllncSqg9F1D4nugVl9v93RmjxF6LJzQLMLDdPaXCUIDPeOJ21Gbqi43xNKzBi/WQ0Q0dICqufzQbMjipQ==}
-
-  '@types/react@19.2.2':
-    resolution: {integrity: sha512-6mDvHUFSjyT2B2yeNx2nUgMxh9LtOWvkhIU3uePn2I2oyNymUAX1NIsdgviM4CH+JSrp2D2hsMvJOkxY+0wNRA==}
 
   '@types/readable-stream@4.0.18':
     resolution: {integrity: sha512-21jK/1j+Wg+7jVw1xnSwy/2Q1VgVjWuFssbYGTREPUBeZ+rqVFl2udq0IkxzPC0ZhOzVceUbyIACFZKLqKEBlA==}
@@ -7084,17 +7016,6 @@ packages:
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
 
-  bun-types@1.3.0:
-    resolution: {integrity: sha512-u8X0thhx+yJ0KmkxuEo9HAtdfgCBaM/aI9K90VQcQioAmkVp3SG3FkwWGibUFz3WdXAdcsqOcbU40lK7tbHdkQ==}
-    peerDependencies:
-      '@types/react': ^19
-
-  bun@1.3.0:
-    resolution: {integrity: sha512-YI7mFs7iWc/VsGsh2aw6eAPD2cjzn1j+LKdYVk09x1CrdTWKYIHyd+dG5iQoN9//3hCDoZj8U6vKpZzEf5UARA==}
-    cpu: [arm64, x64]
-    os: [darwin, linux, win32]
-    hasBin: true
-
   bundle-require@4.2.1:
     resolution: {integrity: sha512-7Q/6vkyYAwOmQNRw75x+4yRtZCZJXUDmHHlFdkiV0wgv/reNjtJwpu1jPJ0w2kbEpIM0uoKI3S4/f39dU7AjSA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
@@ -7375,9 +7296,6 @@ packages:
   csso@5.0.5:
     resolution: {integrity: sha512-0LrrStPOdJj+SPCCrGhzryycLjwcgUSHBtxNA8aIDxf0GLsRh1cKYhB00Gd1lDOS4yGH69+SNn13+TWbVHETFQ==}
     engines: {node: ^10 || ^12.20.0 || ^14.13.0 || >=15.0.0, npm: '>=7.0.0'}
-
-  csstype@3.1.3:
-    resolution: {integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==}
 
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
@@ -13561,10 +13479,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@aws-sdk/lib-dynamodb@3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.329.0)':
+  '@aws-sdk/lib-dynamodb@3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.862.0)':
     dependencies:
       '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.26.2)
-      '@aws-sdk/types': 3.329.0
+      '@aws-sdk/types': 3.862.0
       '@aws-sdk/util-dynamodb': 3.363.0
       tslib: 2.8.1
 
@@ -16818,39 +16736,6 @@ snapshots:
 
   '@opentelemetry/api@1.9.0': {}
 
-  '@oven/bun-darwin-aarch64@1.3.0':
-    optional: true
-
-  '@oven/bun-darwin-x64-baseline@1.3.0':
-    optional: true
-
-  '@oven/bun-darwin-x64@1.3.0':
-    optional: true
-
-  '@oven/bun-linux-aarch64-musl@1.3.0':
-    optional: true
-
-  '@oven/bun-linux-aarch64@1.3.0':
-    optional: true
-
-  '@oven/bun-linux-x64-baseline@1.3.0':
-    optional: true
-
-  '@oven/bun-linux-x64-musl-baseline@1.3.0':
-    optional: true
-
-  '@oven/bun-linux-x64-musl@1.3.0':
-    optional: true
-
-  '@oven/bun-linux-x64@1.3.0':
-    optional: true
-
-  '@oven/bun-windows-x64-baseline@1.3.0':
-    optional: true
-
-  '@oven/bun-windows-x64@1.3.0':
-    optional: true
-
   '@oxc-project/types@0.70.0': {}
 
   '@pkgjs/parseargs@0.11.0':
@@ -19203,12 +19088,6 @@ snapshots:
     dependencies:
       '@babel/types': 7.27.0
 
-  '@types/bun@1.3.0(@types/react@19.2.2)':
-    dependencies:
-      bun-types: 1.3.0(@types/react@19.2.2)
-    transitivePeerDependencies:
-      - '@types/react'
-
   '@types/chai-subset@1.3.6(@types/chai@4.3.20)':
     dependencies:
       '@types/chai': 4.3.20
@@ -19283,10 +19162,6 @@ snapshots:
   '@types/proper-lockfile@4.1.4':
     dependencies:
       '@types/retry': 0.12.5
-
-  '@types/react@19.2.2':
-    dependencies:
-      csstype: 3.1.3
 
   '@types/readable-stream@4.0.18':
     dependencies:
@@ -19844,25 +19719,6 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
-  bun-types@1.3.0(@types/react@19.2.2):
-    dependencies:
-      '@types/node': 20.17.30
-      '@types/react': 19.2.2
-
-  bun@1.3.0:
-    optionalDependencies:
-      '@oven/bun-darwin-aarch64': 1.3.0
-      '@oven/bun-darwin-x64': 1.3.0
-      '@oven/bun-darwin-x64-baseline': 1.3.0
-      '@oven/bun-linux-aarch64': 1.3.0
-      '@oven/bun-linux-aarch64-musl': 1.3.0
-      '@oven/bun-linux-x64': 1.3.0
-      '@oven/bun-linux-x64-baseline': 1.3.0
-      '@oven/bun-linux-x64-musl': 1.3.0
-      '@oven/bun-linux-x64-musl-baseline': 1.3.0
-      '@oven/bun-windows-x64': 1.3.0
-      '@oven/bun-windows-x64-baseline': 1.3.0
-
   bundle-require@4.2.1(esbuild@0.19.12):
     dependencies:
       esbuild: 0.19.12
@@ -20135,13 +19991,13 @@ snapshots:
       crc-32: 1.2.2
       readable-stream: 4.7.0
 
-  create-jest@29.7.0(@types/node@22.14.0):
+  create-jest@29.7.0(@types/node@20.17.30):
     dependencies:
       '@jest/types': 29.6.3
       chalk: 4.1.2
       exit: 0.1.2
       graceful-fs: 4.2.11
-      jest-config: 29.7.0(@types/node@22.14.0)
+      jest-config: 29.7.0(@types/node@20.17.30)
       jest-util: 29.7.0
       prompts: 2.4.2
     transitivePeerDependencies:
@@ -20198,8 +20054,6 @@ snapshots:
   csso@5.0.5:
     dependencies:
       css-tree: 2.2.1
-
-  csstype@3.1.3: {}
 
   date-fns@4.1.0: {}
 
@@ -21244,16 +21098,16 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-cli@29.7.0(@types/node@22.14.0):
+  jest-cli@29.7.0(@types/node@20.17.30):
     dependencies:
       '@jest/core': 29.7.0
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
       chalk: 4.1.2
-      create-jest: 29.7.0(@types/node@22.14.0)
+      create-jest: 29.7.0(@types/node@20.17.30)
       exit: 0.1.2
       import-local: 3.2.0
-      jest-config: 29.7.0(@types/node@22.14.0)
+      jest-config: 29.7.0(@types/node@20.17.30)
       jest-util: 29.7.0
       jest-validate: 29.7.0
       yargs: 17.7.2
@@ -21262,6 +21116,36 @@ snapshots:
       - babel-plugin-macros
       - supports-color
       - ts-node
+
+  jest-config@29.7.0(@types/node@20.17.30):
+    dependencies:
+      '@babel/core': 7.26.10
+      '@jest/test-sequencer': 29.7.0
+      '@jest/types': 29.6.3
+      babel-jest: 29.7.0(@babel/core@7.26.10)
+      chalk: 4.1.2
+      ci-info: 3.9.0
+      deepmerge: 4.3.1
+      glob: 7.2.3
+      graceful-fs: 4.2.11
+      jest-circus: 29.7.0
+      jest-environment-node: 29.7.0
+      jest-get-type: 29.6.3
+      jest-regex-util: 29.6.3
+      jest-resolve: 29.7.0
+      jest-runner: 29.7.0
+      jest-util: 29.7.0
+      jest-validate: 29.7.0
+      micromatch: 4.0.8
+      parse-json: 5.2.0
+      pretty-format: 29.7.0
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 20.17.30
+    transitivePeerDependencies:
+      - babel-plugin-macros
+      - supports-color
 
   jest-config@29.7.0(@types/node@22.14.0):
     dependencies:
@@ -21508,12 +21392,12 @@ snapshots:
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
-  jest@29.7.0(@types/node@22.14.0):
+  jest@29.7.0(@types/node@20.17.30):
     dependencies:
       '@jest/core': 29.7.0
       '@jest/types': 29.6.3
       import-local: 3.2.0
-      jest-cli: 29.7.0(@types/node@22.14.0)
+      jest-cli: 29.7.0(@types/node@20.17.30)
     transitivePeerDependencies:
       - '@types/node'
       - babel-plugin-macros
@@ -23026,12 +22910,12 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  ts-jest@29.3.1(@babel/core@7.26.10)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.26.10))(esbuild@0.25.2)(jest@29.7.0(@types/node@22.14.0))(typescript@4.9.5):
+  ts-jest@29.3.1(@babel/core@7.26.10)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.26.10))(esbuild@0.25.2)(jest@29.7.0(@types/node@20.17.30))(typescript@4.9.5):
     dependencies:
       bs-logger: 0.2.6
       ejs: 3.1.10
       fast-json-stable-stringify: 2.1.0
-      jest: 29.7.0(@types/node@22.14.0)
+      jest: 29.7.0(@types/node@20.17.30)
       jest-util: 29.7.0
       json5: 2.2.3
       lodash.memoize: 4.1.2
@@ -23296,17 +23180,6 @@ snapshots:
       rollup: 3.29.5
     optionalDependencies:
       '@types/node': 20.17.30
-      fsevents: 2.3.3
-      stylus: 0.59.0
-      terser: 5.39.0
-
-  vite@4.5.12(@types/node@22.14.0)(stylus@0.59.0)(terser@5.39.0):
-    dependencies:
-      esbuild: 0.18.20
-      postcss: 8.5.3
-      rollup: 3.29.5
-    optionalDependencies:
-      '@types/node': 22.14.0
       fsevents: 2.3.3
       stylus: 0.59.0
       terser: 5.39.0

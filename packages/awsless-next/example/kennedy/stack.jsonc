@@ -1,17 +1,32 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
+	"tests": "./test",
 	// "stores": {
 	// 	"test": {
 	// 		"static": "./static"
 	// 	}
 	// },
-	"instances": {
-		"test": "./instance/main.ts"
+	"queues": {
+		"test": {
+			"maxConcurrency": 5,
+			"batchSize": 40,
+			"maxBatchingWindow": "5 seconds",
+			"receiveMessageWaitTime": "5 seconds",
+			"visibilityTimeout": "3 minutes"
+		}
 	},
-	"functions": {
-		"test": "./function.ts"
+	"instances": {
+		"test": "./instance/server.ts"
+	},
+	"tables": {
+		"test": {
+			"hash": "id"
+		}
 	}
+	// "functions": {
+	// 	"test": "./function.ts"
+	// }
 	// "tasks": {
 	// 	"test": "./function.ts"
 	// }

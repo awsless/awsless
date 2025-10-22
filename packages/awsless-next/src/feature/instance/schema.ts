@@ -52,9 +52,9 @@ const HealthCheckSchema = z
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
-// const ArchitectureSchema = z
-// 	.enum(['x86_64', 'arm64'])
-// 	.describe('The instruction set architecture that the instance supports.')
+const ArchitectureSchema = z
+	.enum(['x86_64', 'arm64'])
+	.describe('The instruction set architecture that the instance supports.')
 
 const ActionSchema = z.string()
 const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])
@@ -128,7 +128,7 @@ const ISchema = z.object({
 	log: LogSchema.optional(),
 	cpu: CpuSchema.optional(),
 	memorySize: MemorySizeSchema.optional(),
-	// architecture: ArchitectureSchema.optional(),
+	architecture: ArchitectureSchema.optional(),
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
 	healthCheck: HealthCheckSchema.optional(),
@@ -151,10 +151,10 @@ export type InstanceProps = z.output<typeof ISchema>
 
 export const InstanceDefaultSchema = z
 	.object({
-		image: ImageSchema.default('public.ecr.aws/aws-cli/aws-cli:amd64'),
+		image: ImageSchema.optional(),
 		cpu: CpuSchema.default(0.25),
 		memorySize: MemorySizeSchema.default('512 MB'),
-		// architecture: ArchitectureSchema.default('arm64'),
+		architecture: ArchitectureSchema.default('arm64'),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
 		healthCheck: HealthCheckSchema.optional(),

@@ -52,7 +52,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.consumer.code) {
+				if (props.consumer && 'file' in props.consumer.code) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -106,39 +106,41 @@ export const queueFeature = defineFeature({
 				),
 			})
 
-			const result = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
+			if (local.consumer) {
+				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
 
-			result.setEnvironment('LOG_VIEWABLE_ERROR', '1')
+				lambdaConsumer.setEnvironment('LOG_VIEWABLE_ERROR', '1')
 
-			new $.aws.lambda.EventSourceMapping(
-				group,
-				'event',
-				{
-					functionName: result.lambda.functionName,
-					eventSourceArn: queue.arn,
-					batchSize: props.batchSize,
-					maximumBatchingWindowInSeconds: props.maxBatchingWindow && toSeconds(props.maxBatchingWindow),
-					scalingConfig: {
-						maximumConcurrency: props.maxConcurrency,
+				new $.aws.lambda.EventSourceMapping(
+					group,
+					'event',
+					{
+						functionName: lambdaConsumer.lambda.functionName,
+						eventSourceArn: queue.arn,
+						batchSize: props.batchSize,
+						maximumBatchingWindowInSeconds: props.maxBatchingWindow && toSeconds(props.maxBatchingWindow),
+						scalingConfig: {
+							maximumConcurrency: props.maxConcurrency,
+						},
 					},
-				},
-				{
-					dependsOn: [result.policy],
-				}
-			)
+					{
+						dependsOn: [lambdaConsumer.policy],
+					}
+				)
 
-			result.addPermission({
-				actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
-				resources: [queue.arn],
-			})
+				lambdaConsumer.addPermission({
+					actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
+					resources: [queue.arn],
+				})
+			}
 
 			ctx.addEnv(`QUEUE_${constantCase(ctx.stack.name)}_${constantCase(id)}_URL`, queue.url)
 
 			ctx.addStackPermission({
 				actions: [
-					//
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',
+					'sqs:DeleteMessage',
 					'sqs:GetQueueUrl',
 					'sqs:GetQueueAttributes',
 				],

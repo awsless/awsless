@@ -84,7 +84,7 @@ export const QueueDefaultSchema = z
 	.default({})
 
 const QueueSchema = z.object({
-	consumer: FunctionSchema.describe('The consuming lambda function properties.'),
+	consumer: FunctionSchema.describe('The consuming lambda function properties.').optional(),
 	retentionPeriod: RetentionPeriodSchema.optional(),
 	visibilityTimeout: VisibilityTimeoutSchema.optional(),
 	deliveryDelay: DeliveryDelaySchema.optional(),
