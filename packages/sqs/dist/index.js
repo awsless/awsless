@@ -327,6 +327,7 @@ var mockSQS = (queues) => {
 };
 export {
   SQSClient4 as SQSClient,
+  changeMessageVisibility,
   deleteMessage,
   listen,
   mockSQS,

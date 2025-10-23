@@ -31,6 +31,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   SQSClient: () => import_client_sqs4.SQSClient,
+  changeMessageVisibility: () => changeMessageVisibility,
   deleteMessage: () => deleteMessage,
   listen: () => listen,
   mockSQS: () => mockSQS,
@@ -354,6 +355,7 @@ var mockSQS = (queues) => {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   SQSClient,
+  changeMessageVisibility,
   deleteMessage,
   listen,
   mockSQS,

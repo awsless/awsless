@@ -43,6 +43,12 @@ declare const deleteMessage: ({ client, queue, receiptHandle, }: {
     queue: string;
     receiptHandle: string;
 }) => Promise<void>;
+declare const changeMessageVisibility: ({ client, queue, receiptHandle, visibilityTimeout, }: {
+    client?: SQSClient;
+    queue: string;
+    receiptHandle: string;
+    visibilityTimeout: number;
+}) => Promise<void>;
 declare const listen: ({ client, queue, maxMessages, waitTimeSeconds, visibilityTimeout, heartbeatInterval, handleMessage, }: {
     client?: SQSClient;
     queue: string;
@@ -60,4 +66,4 @@ type Queues = {
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
-export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, deleteMessage, listen, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient };
+export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, listen, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient };
