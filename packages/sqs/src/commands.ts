@@ -1,6 +1,8 @@
 import {
+	ChangeMessageVisibilityCommand,
 	DeleteMessageCommand,
 	GetQueueUrlCommand,
+	Message,
 	MessageAttributeValue,
 	ReceiveMessageCommand,
 	SQSClient,
@@ -128,4 +130,136 @@ export const deleteMessage = async ({
 	})
 
 	await client.send(command)
+}
+
+export const changeMessageVisibility = async ({
+	client = sqsClient(),
+	queue,
+	receiptHandle,
+	visibilityTimeout,
+}: {
+	client?: SQSClient
+	queue: string
+	receiptHandle: string
+	visibilityTimeout: number
+}) => {
+	const url = await getCachedQueueUrl(client, queue)
+
+	const command = new ChangeMessageVisibilityCommand({
+		QueueUrl: url,
+		ReceiptHandle: receiptHandle,
+		VisibilityTimeout: visibilityTimeout,
+	})
+
+	await client.send(command)
+}
+
+export const listen = ({
+	client = sqsClient(),
+	queue,
+	maxMessages,
+	waitTimeSeconds,
+	visibilityTimeout,
+	heartbeatInterval,
+	handleMessage,
+}: {
+	client?: SQSClient
+	queue: string
+	maxMessages: number
+	waitTimeSeconds: number
+	visibilityTimeout: number
+	heartbeatInterval?: number
+	handleMessage: (message: Message, options: { signal: AbortSignal }) => Promise<void>
+}) => {
+	let isListening = true
+	let inFlightMessages = 0
+	const abortController = new AbortController()
+	const signal = abortController.signal
+
+	const startHeartbeat = (receiptHandle: string, interval: number) => {
+		const heartbeat = setInterval(async () => {
+			if (!isListening || signal.aborted) {
+				clearInterval(heartbeat)
+				return
+			}
+			await changeMessageVisibility({
+				client,
+				queue,
+				receiptHandle,
+				visibilityTimeout,
+			})
+		}, interval)
+
+		return () => clearInterval(heartbeat)
+	}
+
+	const poll = async () => {
+		while (isListening && !signal.aborted) {
+			try {
+				const messages = await receiveMessages({
+					client,
+					queue,
+					maxMessages,
+					waitTimeSeconds,
+					visibilityTimeout,
+				})
+
+				if (messages.length > 0) {
+					inFlightMessages += messages.length
+
+					await Promise.all(
+						messages.map(async message => {
+							let stopHeartbeat: (() => void) | undefined
+
+							try {
+								// Start heartbeat if configured
+								if (heartbeatInterval) {
+									stopHeartbeat = startHeartbeat(message.ReceiptHandle!, heartbeatInterval)
+								}
+
+								await handleMessage(message, { signal })
+
+								// Only delete if not aborted
+								if (!signal.aborted) {
+									await deleteMessage({
+										client,
+										queue,
+										receiptHandle: message.ReceiptHandle!,
+									})
+								}
+							} catch (error) {
+								if (!signal.aborted) {
+									console.error('Error processing message:', error)
+								}
+							} finally {
+								stopHeartbeat?.()
+								inFlightMessages--
+							}
+						})
+					)
+				} else {
+					// Yield to event loop when no messages to prevent tight loop
+					await new Promise(resolve => setImmediate(resolve))
+				}
+			} catch (error) {
+				if (isListening && !signal.aborted) {
+					console.error('Error polling queue:', error)
+				}
+			}
+		}
+	}
+
+	poll()
+
+	return async (maxWaitTime = 60 * 1000) => {
+		isListening = false
+		abortController.abort()
+
+		// Wait for in-flight messages to complete (with timeout)
+		const deadline = Date.now() + maxWaitTime
+
+		while (inFlightMessages > 0 && Date.now() < deadline) {
+			await new Promise(resolve => setTimeout(resolve, 100))
+		}
+	}
 }

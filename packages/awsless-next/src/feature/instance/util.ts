@@ -316,15 +316,15 @@ export const createFargateTask = (
 		tags,
 	})
 
-	new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
-		securityGroupId: securityGroup.id,
-		description: `Allow HTTP traffic on port 80 to the ${name} instance`,
-		fromPort: 80,
-		toPort: 80,
-		ipProtocol: 'tcp',
-		cidrIpv4: '0.0.0.0/0',
-		tags,
-	})
+	// new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
+	// 	securityGroupId: securityGroup.id,
+	// 	description: `Allow HTTP traffic on port 80 to the ${name} instance`,
+	// 	fromPort: 80,
+	// 	toPort: 80,
+	// 	ipProtocol: 'tcp',
+	// 	cidrIpv4: '0.0.0.0/0',
+	// 	tags,
+	// })
 
 	new $.aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
 		securityGroupId: securityGroup.id,
@@ -345,7 +345,6 @@ export const createFargateTask = (
 			securityGroups: [securityGroup.id],
 			assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
 		},
-
 		forceNewDeployment: true,
 		forceDelete: true,
 

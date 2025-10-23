@@ -8,13 +8,7 @@
 	// 	}
 	// },
 	"queues": {
-		"test": {
-			"maxConcurrency": 5,
-			"batchSize": 40,
-			"maxBatchingWindow": "5 seconds",
-			"receiveMessageWaitTime": "5 seconds",
-			"visibilityTimeout": "3 minutes"
-		}
+		"test": true
 	},
 	"instances": {
 		"test": "./instance/server.ts"

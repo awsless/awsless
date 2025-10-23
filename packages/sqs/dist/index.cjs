@@ -31,7 +31,10 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   SQSClient: () => import_client_sqs4.SQSClient,
+  deleteMessage: () => deleteMessage,
+  listen: () => listen,
   mockSQS: () => mockSQS,
+  receiveMessages: () => receiveMessages,
   sendMessage: () => sendMessage,
   sendMessageBatch: () => sendMessageBatch,
   sqsClient: () => sqsClient
@@ -107,6 +110,135 @@ var sendMessageBatch = async ({ client = sqsClient(), queue, items }) => {
     })
   );
 };
+var receiveMessages = async ({
+  client = sqsClient(),
+  queue,
+  maxMessages = 10,
+  waitTimeSeconds = 20,
+  visibilityTimeout = 30
+}) => {
+  const url = await getCachedQueueUrl(client, queue);
+  const command = new import_client_sqs2.ReceiveMessageCommand({
+    QueueUrl: url,
+    MaxNumberOfMessages: maxMessages,
+    WaitTimeSeconds: waitTimeSeconds,
+    VisibilityTimeout: visibilityTimeout,
+    MessageAttributeNames: ["All"]
+  });
+  const response = await client.send(command);
+  return response.Messages ?? [];
+};
+var deleteMessage = async ({
+  client = sqsClient(),
+  queue,
+  receiptHandle
+}) => {
+  const url = await getCachedQueueUrl(client, queue);
+  const command = new import_client_sqs2.DeleteMessageCommand({
+    QueueUrl: url,
+    ReceiptHandle: receiptHandle
+  });
+  await client.send(command);
+};
+var changeMessageVisibility = async ({
+  client = sqsClient(),
+  queue,
+  receiptHandle,
+  visibilityTimeout
+}) => {
+  const url = await getCachedQueueUrl(client, queue);
+  const command = new import_client_sqs2.ChangeMessageVisibilityCommand({
+    QueueUrl: url,
+    ReceiptHandle: receiptHandle,
+    VisibilityTimeout: visibilityTimeout
+  });
+  await client.send(command);
+};
+var listen = ({
+  client = sqsClient(),
+  queue,
+  maxMessages,
+  waitTimeSeconds,
+  visibilityTimeout,
+  heartbeatInterval,
+  handleMessage
+}) => {
+  let isListening = true;
+  let inFlightMessages = 0;
+  const abortController = new AbortController();
+  const signal = abortController.signal;
+  const startHeartbeat = (receiptHandle, interval) => {
+    const heartbeat = setInterval(async () => {
+      if (!isListening || signal.aborted) {
+        clearInterval(heartbeat);
+        return;
+      }
+      await changeMessageVisibility({
+        client,
+        queue,
+        receiptHandle,
+        visibilityTimeout
+      });
+    }, interval);
+    return () => clearInterval(heartbeat);
+  };
+  const poll = async () => {
+    while (isListening && !signal.aborted) {
+      try {
+        const messages = await receiveMessages({
+          client,
+          queue,
+          maxMessages,
+          waitTimeSeconds,
+          visibilityTimeout
+        });
+        if (messages.length > 0) {
+          inFlightMessages += messages.length;
+          await Promise.all(
+            messages.map(async (message) => {
+              let stopHeartbeat;
+              try {
+                if (heartbeatInterval) {
+                  stopHeartbeat = startHeartbeat(message.ReceiptHandle, heartbeatInterval);
+                }
+                await handleMessage(message, { signal });
+                if (!signal.aborted) {
+                  await deleteMessage({
+                    client,
+                    queue,
+                    receiptHandle: message.ReceiptHandle
+                  });
+                }
+              } catch (error) {
+                if (!signal.aborted) {
+                  console.error("Error processing message:", error);
+                }
+              } finally {
+                stopHeartbeat?.();
+                inFlightMessages--;
+              }
+            })
+          );
+        } else {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+      } catch (error) {
+        if (isListening && !signal.aborted) {
+          console.error("Error polling queue:", error);
+        }
+      }
+    }
+  };
+  poll();
+  return async (maxWaitTime = 60 * 1e3) => {
+    isListening = false;
+    abortController.abort();
+    const deadline = Date.now() + maxWaitTime;
+    while (inFlightMessages > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  };
+};
 
 // src/mock.ts
 var import_client_sqs3 = require("@aws-sdk/client-sqs");
@@ -123,8 +255,30 @@ var formatAttributes2 = (attributes) => {
   }
   return list;
 };
+var MessageStore = class {
+  queues = {};
+  addMessage(queueUrl, message) {
+    if (!this.queues[queueUrl]) {
+      this.queues[queueUrl] = [];
+    }
+    this.queues[queueUrl].push(message);
+  }
+  receiveMessages(queueUrl, maxMessages) {
+    const messages = this.queues[queueUrl] || [];
+    return messages.slice(0, maxMessages);
+  }
+  deleteMessage(queueUrl, receiptHandle) {
+    if (this.queues[queueUrl]) {
+      this.queues[queueUrl] = this.queues[queueUrl].filter((msg) => msg.ReceiptHandle !== receiptHandle);
+    }
+  }
+  clear() {
+    this.queues = {};
+  }
+};
 var mockSQS = (queues) => {
   const list = (0, import_utils2.mockObjectValues)(queues);
+  const messageStore = new MessageStore();
   const get = (input) => {
     const name = input.QueueUrl;
     const callback = list[name];
@@ -133,38 +287,77 @@ var mockSQS = (queues) => {
     }
     return callback;
   };
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_sqs3.SQSClient).on(import_client_sqs3.GetQueueUrlCommand).callsFake((input) => ({ QueueUrl: input.QueueName })).on(import_client_sqs3.SendMessageCommand).callsFake(async (input) => {
+  const client = (0, import_aws_sdk_client_mock.mockClient)(import_client_sqs3.SQSClient);
+  client.on(import_client_sqs3.GetQueueUrlCommand).callsFake((input) => ({ QueueUrl: input.QueueName })).on(import_client_sqs3.SendMessageCommand).callsFake(async (input) => {
     const callback = get(input);
+    const messageId = (0, import_crypto.randomUUID)();
+    const receiptHandle = (0, import_crypto.randomUUID)();
+    messageStore.addMessage(input.QueueUrl, {
+      MessageId: messageId,
+      ReceiptHandle: receiptHandle,
+      Body: input.MessageBody,
+      MessageAttributes: input.MessageAttributes
+    });
     await (0, import_utils2.nextTick)(callback, {
       Records: [
         {
           body: input.MessageBody,
-          messageId: (0, import_crypto.randomUUID)(),
+          messageId,
           messageAttributes: input.MessageAttributes
         }
       ]
     });
+    return {
+      MessageId: messageId
+    };
   }).on(import_client_sqs3.SendMessageBatchCommand).callsFake(async (input) => {
     const callback = get(input);
-    await (0, import_utils2.nextTick)(callback, {
-      Records: input.Entries?.map((entry) => ({
+    const records = input.Entries?.map((entry) => {
+      const messageId = entry.Id || (0, import_crypto.randomUUID)();
+      const receiptHandle = (0, import_crypto.randomUUID)();
+      messageStore.addMessage(input.QueueUrl, {
+        MessageId: messageId,
+        ReceiptHandle: receiptHandle,
+        Body: entry.MessageBody,
+        MessageAttributes: entry.MessageAttributes
+      });
+      return {
         body: entry.MessageBody,
-        messageId: entry.Id || (0, import_crypto.randomUUID)(),
+        messageId,
         messageAttributes: formatAttributes2(entry.MessageAttributes)
-      }))
+      };
     });
+    await (0, import_utils2.nextTick)(callback, {
+      Records: records
+    });
+  }).on(import_client_sqs3.ReceiveMessageCommand).callsFake(async (input) => {
+    const messages = messageStore.receiveMessages(input.QueueUrl, input.MaxNumberOfMessages ?? 1);
+    return {
+      Messages: messages
+    };
+  }).on(import_client_sqs3.DeleteMessageCommand).callsFake(async (input) => {
+    messageStore.deleteMessage(input.QueueUrl, input.ReceiptHandle);
+    return {};
+  }).on(import_client_sqs3.ChangeMessageVisibilityCommand).callsFake(async () => {
+    return {};
   });
   beforeEach(() => {
     Object.values(list).forEach((fn) => {
       fn.mockClear();
     });
   });
+  beforeAll(() => {
+    messageStore.clear();
+  });
   return list;
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   SQSClient,
+  deleteMessage,
+  listen,
   mockSQS,
+  receiveMessages,
   sendMessage,
   sendMessageBatch,
   sqsClient

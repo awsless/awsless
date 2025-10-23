@@ -52,7 +52,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if (props.consumer && 'file' in props.consumer.code) {
+				if (typeof props === 'object' && 'file' in props.consumer.code) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -77,7 +77,7 @@ export const queueFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
-			const props = deepmerge(ctx.appConfig.defaults.queue, local)
+			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
 
 			const group = new Group(ctx.stack, 'queue', id)
 			const name = formatLocalResourceName({
@@ -106,7 +106,7 @@ export const queueFeature = defineFeature({
 				),
 			})
 
-			if (local.consumer) {
+			if (typeof local === 'object') {
 				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
 
 				lambdaConsumer.setEnvironment('LOG_VIEWABLE_ERROR', '1')
@@ -129,7 +129,12 @@ export const queueFeature = defineFeature({
 				)
 
 				lambdaConsumer.addPermission({
-					actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
+					actions: [
+						//
+						'sqs:ReceiveMessage',
+						'sqs:DeleteMessage',
+						'sqs:GetQueueAttributes',
+					],
 					resources: [queue.arn],
 				})
 			}
@@ -141,6 +146,7 @@ export const queueFeature = defineFeature({
 					'sqs:SendMessage',
 					'sqs:ReceiveMessage',
 					'sqs:DeleteMessage',
+					'sqs:ChangeMessageVisibility',
 					'sqs:GetQueueUrl',
 					'sqs:GetQueueAttributes',
 				],
