@@ -1,5 +1,6 @@
 import { SQSClient, Message } from '@aws-sdk/client-sqs';
 export { SQSClient } from '@aws-sdk/client-sqs';
+import { Duration } from '@awsless/duration';
 import { Mock } from 'vitest';
 
 declare const sqsClient: {
@@ -49,17 +50,17 @@ declare const changeMessageVisibility: ({ client, queue, receiptHandle, visibili
     receiptHandle: string;
     visibilityTimeout: number;
 }) => Promise<void>;
-declare const listen: ({ client, queue, maxMessages, waitTimeSeconds, visibilityTimeout, heartbeatInterval, handleMessage, }: {
+declare const listen: ({ client, queue, maxMessages, waitTimeSeconds, visibilityTimeout, autoExtendVisibility, handleMessage, }: {
     client?: SQSClient;
     queue: string;
     maxMessages: number;
     waitTimeSeconds: number;
     visibilityTimeout: number;
-    heartbeatInterval?: number;
+    autoExtendVisibility?: boolean;
     handleMessage: (message: Message, options: {
         signal: AbortSignal;
-    }) => Promise<void>;
-}) => (maxWaitTime?: number) => Promise<void>;
+    }) => Promise<unknown> | void;
+}) => (maxWaitTime?: Duration) => Promise<void>;
 
 type Queues = {
     [key: string]: (payload: unknown) => unknown;

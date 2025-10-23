@@ -1623,6 +1623,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.329.0
         version: 3.329.0(aws-crt@1.26.2)
+      '@awsless/duration':
+        specifier: workspace:^
+        version: link:../duration
       '@awsless/utils':
         specifier: workspace:^
         version: link:../utils

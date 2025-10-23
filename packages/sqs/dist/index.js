@@ -17,6 +17,7 @@ import {
   SendMessageBatchCommand,
   SendMessageCommand
 } from "@aws-sdk/client-sqs";
+import { seconds, toMilliSeconds } from "@awsless/duration";
 import chunk from "chunk";
 var formatAttributes = (attributes) => {
   const list = {};
@@ -126,17 +127,18 @@ var listen = ({
   maxMessages,
   waitTimeSeconds,
   visibilityTimeout,
-  heartbeatInterval,
+  autoExtendVisibility,
   handleMessage
 }) => {
   let isListening = true;
   let inFlightMessages = 0;
   const abortController = new AbortController();
   const signal = abortController.signal;
-  const startHeartbeat = (receiptHandle, interval) => {
-    const heartbeat = setInterval(async () => {
+  const extensionInterval = autoExtendVisibility ? visibilityTimeout * 1e3 / 2 : void 0;
+  const startVisibilityExtension = (receiptHandle) => {
+    const interval = setInterval(async () => {
       if (!isListening || signal.aborted) {
-        clearInterval(heartbeat);
+        clearInterval(interval);
         return;
       }
       await changeMessageVisibility({
@@ -145,10 +147,10 @@ var listen = ({
         receiptHandle,
         visibilityTimeout
       });
-    }, interval);
-    return () => clearInterval(heartbeat);
+    }, extensionInterval);
+    return () => clearInterval(interval);
   };
-  const poll = async () => {
+  (async () => {
     while (isListening && !signal.aborted) {
       try {
         const messages = await receiveMessages({
@@ -162,10 +164,10 @@ var listen = ({
           inFlightMessages += messages.length;
           await Promise.all(
             messages.map(async (message) => {
-              let stopHeartbeat;
+              let stopExtension;
               try {
-                if (heartbeatInterval) {
-                  stopHeartbeat = startHeartbeat(message.ReceiptHandle, heartbeatInterval);
+                if (extensionInterval) {
+                  stopExtension = startVisibilityExtension(message.ReceiptHandle);
                 }
                 await handleMessage(message, { signal });
                 if (!signal.aborted) {
@@ -180,7 +182,7 @@ var listen = ({
                   console.error("Error processing message:", error);
                 }
               } finally {
-                stopHeartbeat?.();
+                stopExtension?.();
                 inFlightMessages--;
               }
             })
@@ -194,12 +196,11 @@ var listen = ({
         }
       }
     }
-  };
-  poll();
-  return async (maxWaitTime = 60 * 1e3) => {
+  })();
+  return async (maxWaitTime = seconds(10)) => {
     isListening = false;
     abortController.abort();
-    const deadline = Date.now() + maxWaitTime;
+    const deadline = Date.now() + toMilliSeconds(maxWaitTime);
     while (inFlightMessages > 0 && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
