@@ -1,4 +1,5 @@
-import { SQSClient, Message } from '@aws-sdk/client-sqs';
+import * as _aws_sdk_client_sqs from '@aws-sdk/client-sqs';
+import { SQSClient } from '@aws-sdk/client-sqs';
 export { SQSClient } from '@aws-sdk/client-sqs';
 import { Duration } from '@awsless/duration';
 import { Mock } from 'vitest';
@@ -32,13 +33,14 @@ interface BatchItem<Payload = unknown> {
 declare const sendMessage: ({ client, queue, payload, delay, attributes, }: SendMessageOptions) => Promise<void>;
 /** Add batch of messages to a SQS queue */
 declare const sendMessageBatch: ({ client, queue, items }: SendMessageBatchOptions) => Promise<void>;
-declare const receiveMessages: ({ client, queue, maxMessages, waitTimeSeconds, visibilityTimeout, }: {
+declare const receiveMessages: ({ client, queue, maxMessages, waitTime, visibilityTimeout, abortSignal, }: {
     client?: SQSClient;
     queue: string;
     maxMessages?: number;
-    waitTimeSeconds?: number;
-    visibilityTimeout?: number;
-}) => Promise<Message[]>;
+    waitTime?: Duration;
+    visibilityTimeout: Duration;
+    abortSignal?: AbortSignal;
+}) => Promise<_aws_sdk_client_sqs.Message[]>;
 declare const deleteMessage: ({ client, queue, receiptHandle, }: {
     client?: SQSClient;
     queue: string;
@@ -48,23 +50,24 @@ declare const changeMessageVisibility: ({ client, queue, receiptHandle, visibili
     client?: SQSClient;
     queue: string;
     receiptHandle: string;
-    visibilityTimeout: number;
+    visibilityTimeout: Duration;
 }) => Promise<void>;
-declare const listen: ({ client, queue, maxMessages, waitTimeSeconds, visibilityTimeout, autoExtendVisibility, handleMessage, }: {
+declare const subscribe: ({ client, queue, maxMessages, waitTime, visibilityTimeout, autoExtendVisibility, handleMessage, }: {
     client?: SQSClient;
     queue: string;
     maxMessages: number;
-    waitTimeSeconds: number;
-    visibilityTimeout: number;
+    waitTime: Duration;
+    visibilityTimeout: Duration;
     autoExtendVisibility?: boolean;
-    handleMessage: (message: Message, options: {
-        signal: AbortSignal;
-    }) => Promise<unknown> | void;
-}) => (maxWaitTime?: Duration) => Promise<void>;
+    handleMessage: (props: {
+        payload: unknown;
+        attributes?: Record<string, string>;
+    }) => Promise<void> | void;
+}) => () => void;
 
 type Queues = {
     [key: string]: (payload: unknown) => unknown;
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
-export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, listen, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient };
+export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };

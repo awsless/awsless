@@ -1626,6 +1626,9 @@ importers:
       '@awsless/duration':
         specifier: workspace:^
         version: link:../duration
+      '@awsless/json':
+        specifier: workspace:^
+        version: link:../json
       '@awsless/utils':
         specifier: workspace:^
         version: link:../utils

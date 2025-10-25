@@ -5,7 +5,7 @@ export {
 	sendMessageBatch,
 	receiveMessages,
 	deleteMessage,
-	listen,
+	subscribe,
 	changeMessageVisibility,
 } from './commands'
 export { mockSQS } from './mock'

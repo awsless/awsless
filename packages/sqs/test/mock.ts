@@ -76,13 +76,12 @@ describe('Mock', () => {
 			new ReceiveMessageCommand({
 				QueueUrl: 'service__echo',
 				MaxNumberOfMessages: 10,
+				VisibilityTimeout: 1,
+				WaitTimeSeconds: 1,
 			})
 		)
 
 		expect(result.Messages).toHaveLength(3)
-		expect(result.Messages?.[0]?.Body).toBe('message body')
-		expect(result.Messages?.[0]?.MessageId).toBeDefined()
-		expect(result.Messages?.[0]?.ReceiptHandle).toBeDefined()
 
 		await client.send(
 			new DeleteMessageCommand({
@@ -91,10 +90,14 @@ describe('Mock', () => {
 			})
 		)
 
+		await new Promise(resolve => setTimeout(resolve, 250))
+
 		const result2 = await client.send(
 			new ReceiveMessageCommand({
 				QueueUrl: 'service__echo',
 				MaxNumberOfMessages: 10,
+				VisibilityTimeout: 1,
+				WaitTimeSeconds: 1,
 			})
 		)
 

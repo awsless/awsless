@@ -2,25 +2,34 @@ import {
 	ChangeMessageVisibilityCommand,
 	DeleteMessageCommand,
 	GetQueueUrlCommand,
-	Message,
 	MessageAttributeValue,
 	ReceiveMessageCommand,
 	SQSClient,
 	SendMessageBatchCommand,
 	SendMessageCommand,
 } from '@aws-sdk/client-sqs'
-import { Duration, seconds, toMilliSeconds } from '@awsless/duration'
+import { Duration, seconds, toMilliSeconds, toSeconds } from '@awsless/duration'
+import { parse, stringify } from '@awsless/json'
 import chunk from 'chunk'
 import { sqsClient } from './client'
 import { Attributes, SendMessageBatchOptions, SendMessageOptions } from './types'
 
-const formatAttributes = (attributes: Attributes) => {
+const encodeAttributes = (attributes: Attributes) => {
 	const list: Record<string, MessageAttributeValue> = {}
-	for (let key in attributes) {
+	for (const key in attributes) {
 		list[key] = {
 			DataType: 'String',
 			StringValue: attributes[key],
 		}
+	}
+
+	return list
+}
+
+const decodeAttributes = (attributes?: Record<string, MessageAttributeValue>) => {
+	const list: Attributes = {}
+	for (const key in attributes) {
+		list[key] = attributes[key]?.StringValue!
 	}
 
 	return list
@@ -58,9 +67,9 @@ export const sendMessage = async ({
 
 	const command = new SendMessageCommand({
 		QueueUrl: url,
-		MessageBody: JSON.stringify(payload),
+		MessageBody: stringify(payload),
 		DelaySeconds: delay,
-		MessageAttributes: formatAttributes({ queue, ...attributes }),
+		MessageAttributes: encodeAttributes({ queue, ...attributes }),
 	})
 
 	await client.send(command)
@@ -76,9 +85,9 @@ export const sendMessageBatch = async ({ client = sqsClient(), queue, items }: S
 				QueueUrl: url,
 				Entries: batch.map(({ payload, delay = 0, attributes = {} }, id) => ({
 					Id: String(id),
-					MessageBody: JSON.stringify(payload),
+					MessageBody: stringify(payload),
 					DelaySeconds: delay,
-					MessageAttributes: formatAttributes({ queue, ...attributes }),
+					MessageAttributes: encodeAttributes({ queue, ...attributes }),
 				})),
 			})
 
@@ -91,26 +100,28 @@ export const receiveMessages = async ({
 	client = sqsClient(),
 	queue,
 	maxMessages = 10,
-	waitTimeSeconds = 20,
-	visibilityTimeout = 30,
+	waitTime = seconds(20),
+	visibilityTimeout,
+	abortSignal,
 }: {
 	client?: SQSClient
 	queue: string
 	maxMessages?: number
-	waitTimeSeconds?: number
-	visibilityTimeout?: number
+	waitTime?: Duration
+	visibilityTimeout: Duration
+	abortSignal?: AbortSignal
 }) => {
 	const url = await getCachedQueueUrl(client, queue)
 
 	const command = new ReceiveMessageCommand({
 		QueueUrl: url,
 		MaxNumberOfMessages: maxMessages,
-		WaitTimeSeconds: waitTimeSeconds,
-		VisibilityTimeout: visibilityTimeout,
+		WaitTimeSeconds: toSeconds(waitTime),
+		VisibilityTimeout: toSeconds(visibilityTimeout),
 		MessageAttributeNames: ['All'],
 	})
 
-	const response = await client.send(command)
+	const response = await client.send(command, { abortSignal })
 	return response.Messages ?? []
 }
 
@@ -142,24 +153,24 @@ export const changeMessageVisibility = async ({
 	client?: SQSClient
 	queue: string
 	receiptHandle: string
-	visibilityTimeout: number
+	visibilityTimeout: Duration
 }) => {
 	const url = await getCachedQueueUrl(client, queue)
 
 	const command = new ChangeMessageVisibilityCommand({
 		QueueUrl: url,
 		ReceiptHandle: receiptHandle,
-		VisibilityTimeout: visibilityTimeout,
+		VisibilityTimeout: toSeconds(visibilityTimeout),
 	})
 
 	await client.send(command)
 }
 
-export const listen = ({
+export const subscribe = ({
 	client = sqsClient(),
 	queue,
 	maxMessages,
-	waitTimeSeconds,
+	waitTime,
 	visibilityTimeout,
 	autoExtendVisibility,
 	handleMessage,
@@ -167,21 +178,18 @@ export const listen = ({
 	client?: SQSClient
 	queue: string
 	maxMessages: number
-	waitTimeSeconds: number
-	visibilityTimeout: number
+	waitTime: Duration
+	visibilityTimeout: Duration
 	autoExtendVisibility?: boolean
-	handleMessage: (message: Message, options: { signal: AbortSignal }) => Promise<unknown> | void
+	handleMessage: (props: { payload: unknown; attributes?: Record<string, string> }) => Promise<void> | void
 }) => {
-	let isListening = true
-	let inFlightMessages = 0
+	let subscribed = true
 	const abortController = new AbortController()
-	const signal = abortController.signal
-
-	const extensionInterval = autoExtendVisibility ? (visibilityTimeout * 1000) / 2 : undefined
+	const autoExtensionInterval = autoExtendVisibility ? toMilliSeconds(visibilityTimeout) / 2 : undefined
 
 	const startVisibilityExtension = (receiptHandle: string) => {
 		const interval = setInterval(async () => {
-			if (!isListening || signal.aborted) {
+			if (!subscribed) {
 				clearInterval(interval)
 				return
 			}
@@ -191,73 +199,66 @@ export const listen = ({
 				receiptHandle,
 				visibilityTimeout,
 			})
-		}, extensionInterval!)
+		}, autoExtensionInterval!)
 
 		return () => clearInterval(interval)
 	}
 
-	;(async () => {
-		while (isListening && !signal.aborted) {
-			try {
-				const messages = await receiveMessages({
-					client,
-					queue,
-					maxMessages,
-					waitTimeSeconds,
-					visibilityTimeout,
-				})
+	const poll = async () => {
+		try {
+			const messages = await receiveMessages({
+				client,
+				queue,
+				maxMessages,
+				waitTime,
+				visibilityTimeout,
+				abortSignal: abortController.signal,
+			})
 
-				if (messages.length > 0) {
-					inFlightMessages += messages.length
+			await Promise.all(
+				messages.map(async message => {
+					let stopExtension
 
-					await Promise.all(
-						messages.map(async message => {
-							let stopExtension
+					if (autoExtendVisibility) {
+						stopExtension = startVisibilityExtension(message.ReceiptHandle!)
+					}
 
-							try {
-								if (extensionInterval) {
-									stopExtension = startVisibilityExtension(message.ReceiptHandle!)
-								}
-
-								await handleMessage(message, { signal })
-
-								// Only delete if not aborted
-								if (!signal.aborted) {
-									await deleteMessage({
-										client,
-										queue,
-										receiptHandle: message.ReceiptHandle!,
-									})
-								}
-							} catch (error) {
-								if (!signal.aborted) {
-									console.error('Error processing message:', error)
-								}
-							} finally {
-								stopExtension?.()
-								inFlightMessages--
-							}
+					try {
+						await handleMessage({
+							payload: parse(message.Body!),
+							attributes: decodeAttributes(message.MessageAttributes),
 						})
-					)
-				} else {
-					await new Promise(resolve => setImmediate(resolve))
-				}
-			} catch (error) {
-				if (isListening && !signal.aborted) {
-					console.error('Error polling queue:', error)
-				}
-			}
-		}
-	})()
+					} catch (error) {
+						console.error('Error processing message:', error)
+						return
+					} finally {
+						stopExtension?.()
+					}
 
-	return async (maxWaitTime: Duration = seconds(10)) => {
-		isListening = false
+					try {
+						await deleteMessage({
+							client,
+							queue,
+							receiptHandle: message.ReceiptHandle!,
+						})
+					} catch (error) {
+						console.error('Error deleting message:', error)
+					}
+				})
+			)
+		} catch (error) {
+			console.error('Error polling queue:', error)
+		}
+
+		if (subscribed) {
+			poll()
+		}
+	}
+
+	poll()
+
+	return () => {
+		subscribed = false
 		abortController.abort()
-
-		const deadline = Date.now() + toMilliSeconds(maxWaitTime)
-
-		while (inFlightMessages > 0 && Date.now() < deadline) {
-			await new Promise(resolve => setTimeout(resolve, 100))
-		}
 	}
 }

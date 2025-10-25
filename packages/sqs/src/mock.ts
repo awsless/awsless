@@ -1,5 +1,6 @@
 import {
 	ChangeMessageVisibilityCommand,
+	ChangeMessageVisibilityCommandInput,
 	DeleteMessageCommand,
 	DeleteMessageCommandInput,
 	GetQueueUrlCommand,
@@ -37,23 +38,40 @@ const formatAttributes = (attributes: Record<string, MessageAttributeValue> | un
 }
 
 class MessageStore {
-	private queues: Record<string, Message[]> = {}
+	private queues: Record<string, { message: Message; invisible?: number }[]> = {}
 
 	addMessage(queueUrl: string, message: Message) {
 		if (!this.queues[queueUrl]) {
 			this.queues[queueUrl] = []
 		}
-		this.queues[queueUrl]!.push(message)
+		this.queues[queueUrl].push({ message })
 	}
 
-	receiveMessages(queueUrl: string, maxMessages: number): Message[] {
-		const messages = this.queues[queueUrl] || []
-		return messages.slice(0, maxMessages)
+	receiveMessages(queueUrl: string, maxMessages: number, timeout = 1): Message[] {
+		const messages = this.queues[queueUrl] ?? []
+		return messages
+			.filter(entry => !entry.invisible || Date.now() > entry.invisible)
+			.slice(0, maxMessages)
+			.map(entry => {
+				entry.invisible = Date.now() + timeout * 1000
+				return entry.message
+			})
 	}
 
 	deleteMessage(queueUrl: string, receiptHandle: string) {
 		if (this.queues[queueUrl]) {
-			this.queues[queueUrl] = this.queues[queueUrl]!.filter(msg => msg.ReceiptHandle !== receiptHandle)
+			this.queues[queueUrl] = this.queues[queueUrl]!.filter(
+				entry => entry.message.ReceiptHandle !== receiptHandle
+			)
+		}
+	}
+
+	changeVisibility(queueUrl: string, receiptHandle: string, timeout: number) {
+		const messages = this.queues[queueUrl] ?? []
+		for (const entry of messages) {
+			if (entry.message.ReceiptHandle === receiptHandle) {
+				entry.invisible = Date.now() + timeout * 1000
+			}
 		}
 	}
 
@@ -141,10 +159,25 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 
 		.on(ReceiveMessageCommand)
 		.callsFake(async (input: ReceiveMessageCommandInput) => {
-			const messages = messageStore.receiveMessages(input.QueueUrl!, input.MaxNumberOfMessages ?? 1)
+			const deadline = Date.now() + (input.WaitTimeSeconds || 1) * 1000
+			while (Date.now() < deadline) {
+				const messages = messageStore.receiveMessages(
+					input.QueueUrl!,
+					input.MaxNumberOfMessages ?? 1,
+					input.VisibilityTimeout
+				)
+
+				if (messages.length > 0) {
+					return {
+						Messages: messages,
+					}
+				}
+
+				await new Promise(resolve => setTimeout(resolve, 10))
+			}
 
 			return {
-				Messages: messages,
+				Messages: [],
 			}
 		})
 
@@ -155,8 +188,8 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 		})
 
 		.on(ChangeMessageVisibilityCommand)
-		.callsFake(async () => {
-			// Mock doesn't need to do anything - just acknowledge the call
+		.callsFake(async (input: ChangeMessageVisibilityCommandInput) => {
+			messageStore.changeVisibility(input.QueueUrl!, input.ReceiptHandle!, input.VisibilityTimeout!)
 			return {}
 		})
 

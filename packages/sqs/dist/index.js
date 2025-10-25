@@ -17,15 +17,23 @@ import {
   SendMessageBatchCommand,
   SendMessageCommand
 } from "@aws-sdk/client-sqs";
-import { seconds, toMilliSeconds } from "@awsless/duration";
+import { seconds, toMilliSeconds, toSeconds } from "@awsless/duration";
+import { parse, stringify } from "@awsless/json";
 import chunk from "chunk";
-var formatAttributes = (attributes) => {
+var encodeAttributes = (attributes) => {
   const list = {};
-  for (let key in attributes) {
+  for (const key in attributes) {
     list[key] = {
       DataType: "String",
       StringValue: attributes[key]
     };
+  }
+  return list;
+};
+var decodeAttributes = (attributes) => {
+  const list = {};
+  for (const key in attributes) {
+    list[key] = attributes[key]?.StringValue;
   }
   return list;
 };
@@ -54,9 +62,9 @@ var sendMessage = async ({
   const url = await getCachedQueueUrl(client, queue);
   const command = new SendMessageCommand({
     QueueUrl: url,
-    MessageBody: JSON.stringify(payload),
+    MessageBody: stringify(payload),
     DelaySeconds: delay,
-    MessageAttributes: formatAttributes({ queue, ...attributes })
+    MessageAttributes: encodeAttributes({ queue, ...attributes })
   });
   await client.send(command);
 };
@@ -68,9 +76,9 @@ var sendMessageBatch = async ({ client = sqsClient(), queue, items }) => {
         QueueUrl: url,
         Entries: batch.map(({ payload, delay = 0, attributes = {} }, id) => ({
           Id: String(id),
-          MessageBody: JSON.stringify(payload),
+          MessageBody: stringify(payload),
           DelaySeconds: delay,
-          MessageAttributes: formatAttributes({ queue, ...attributes })
+          MessageAttributes: encodeAttributes({ queue, ...attributes })
         }))
       });
       return client.send(command);
@@ -81,18 +89,19 @@ var receiveMessages = async ({
   client = sqsClient(),
   queue,
   maxMessages = 10,
-  waitTimeSeconds = 20,
-  visibilityTimeout = 30
+  waitTime = seconds(20),
+  visibilityTimeout,
+  abortSignal
 }) => {
   const url = await getCachedQueueUrl(client, queue);
   const command = new ReceiveMessageCommand({
     QueueUrl: url,
     MaxNumberOfMessages: maxMessages,
-    WaitTimeSeconds: waitTimeSeconds,
-    VisibilityTimeout: visibilityTimeout,
+    WaitTimeSeconds: toSeconds(waitTime),
+    VisibilityTimeout: toSeconds(visibilityTimeout),
     MessageAttributeNames: ["All"]
   });
-  const response = await client.send(command);
+  const response = await client.send(command, { abortSignal });
   return response.Messages ?? [];
 };
 var deleteMessage = async ({
@@ -117,27 +126,25 @@ var changeMessageVisibility = async ({
   const command = new ChangeMessageVisibilityCommand({
     QueueUrl: url,
     ReceiptHandle: receiptHandle,
-    VisibilityTimeout: visibilityTimeout
+    VisibilityTimeout: toSeconds(visibilityTimeout)
   });
   await client.send(command);
 };
-var listen = ({
+var subscribe = ({
   client = sqsClient(),
   queue,
   maxMessages,
-  waitTimeSeconds,
+  waitTime,
   visibilityTimeout,
   autoExtendVisibility,
   handleMessage
 }) => {
-  let isListening = true;
-  let inFlightMessages = 0;
+  let subscribed = true;
   const abortController = new AbortController();
-  const signal = abortController.signal;
-  const extensionInterval = autoExtendVisibility ? visibilityTimeout * 1e3 / 2 : void 0;
+  const autoExtensionInterval = autoExtendVisibility ? toMilliSeconds(visibilityTimeout) / 2 : void 0;
   const startVisibilityExtension = (receiptHandle) => {
     const interval = setInterval(async () => {
-      if (!isListening || signal.aborted) {
+      if (!subscribed) {
         clearInterval(interval);
         return;
       }
@@ -147,63 +154,58 @@ var listen = ({
         receiptHandle,
         visibilityTimeout
       });
-    }, extensionInterval);
+    }, autoExtensionInterval);
     return () => clearInterval(interval);
   };
-  (async () => {
-    while (isListening && !signal.aborted) {
-      try {
-        const messages = await receiveMessages({
-          client,
-          queue,
-          maxMessages,
-          waitTimeSeconds,
-          visibilityTimeout
-        });
-        if (messages.length > 0) {
-          inFlightMessages += messages.length;
-          await Promise.all(
-            messages.map(async (message) => {
-              let stopExtension;
-              try {
-                if (extensionInterval) {
-                  stopExtension = startVisibilityExtension(message.ReceiptHandle);
-                }
-                await handleMessage(message, { signal });
-                if (!signal.aborted) {
-                  await deleteMessage({
-                    client,
-                    queue,
-                    receiptHandle: message.ReceiptHandle
-                  });
-                }
-              } catch (error) {
-                if (!signal.aborted) {
-                  console.error("Error processing message:", error);
-                }
-              } finally {
-                stopExtension?.();
-                inFlightMessages--;
-              }
-            })
-          );
-        } else {
-          await new Promise((resolve) => setImmediate(resolve));
-        }
-      } catch (error) {
-        if (isListening && !signal.aborted) {
-          console.error("Error polling queue:", error);
-        }
-      }
+  const poll = async () => {
+    try {
+      const messages = await receiveMessages({
+        client,
+        queue,
+        maxMessages,
+        waitTime,
+        visibilityTimeout,
+        abortSignal: abortController.signal
+      });
+      await Promise.all(
+        messages.map(async (message) => {
+          let stopExtension;
+          if (autoExtendVisibility) {
+            stopExtension = startVisibilityExtension(message.ReceiptHandle);
+          }
+          try {
+            await handleMessage({
+              payload: parse(message.Body),
+              attributes: decodeAttributes(message.MessageAttributes)
+            });
+          } catch (error) {
+            console.error("Error processing message:", error);
+            return;
+          } finally {
+            stopExtension?.();
+          }
+          try {
+            await deleteMessage({
+              client,
+              queue,
+              receiptHandle: message.ReceiptHandle
+            });
+          } catch (error) {
+            console.error("Error deleting message:", error);
+          }
+        })
+      );
+    } catch (error) {
+      console.error("Error polling queue:", error);
     }
-  })();
-  return async (maxWaitTime = seconds(10)) => {
-    isListening = false;
+    if (subscribed) {
+      poll();
+    }
+  };
+  poll();
+  return () => {
+    subscribed = false;
     abortController.abort();
-    const deadline = Date.now() + toMilliSeconds(maxWaitTime);
-    while (inFlightMessages > 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
   };
 };
 
@@ -220,7 +222,7 @@ import {
 import { mockObjectValues, nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-client-mock";
 import { randomUUID } from "crypto";
-var formatAttributes2 = (attributes) => {
+var formatAttributes = (attributes) => {
   const list = {};
   for (const [key, attr] of Object.entries(attributes ?? {})) {
     list[key] = {
@@ -236,15 +238,28 @@ var MessageStore = class {
     if (!this.queues[queueUrl]) {
       this.queues[queueUrl] = [];
     }
-    this.queues[queueUrl].push(message);
+    this.queues[queueUrl].push({ message });
   }
-  receiveMessages(queueUrl, maxMessages) {
-    const messages = this.queues[queueUrl] || [];
-    return messages.slice(0, maxMessages);
+  receiveMessages(queueUrl, maxMessages, timeout = 1) {
+    const messages = this.queues[queueUrl] ?? [];
+    return messages.filter((entry) => !entry.invisible || Date.now() > entry.invisible).slice(0, maxMessages).map((entry) => {
+      entry.invisible = Date.now() + timeout * 1e3;
+      return entry.message;
+    });
   }
   deleteMessage(queueUrl, receiptHandle) {
     if (this.queues[queueUrl]) {
-      this.queues[queueUrl] = this.queues[queueUrl].filter((msg) => msg.ReceiptHandle !== receiptHandle);
+      this.queues[queueUrl] = this.queues[queueUrl].filter(
+        (entry) => entry.message.ReceiptHandle !== receiptHandle
+      );
+    }
+  }
+  changeVisibility(queueUrl, receiptHandle, timeout) {
+    const messages = this.queues[queueUrl] ?? [];
+    for (const entry of messages) {
+      if (entry.message.ReceiptHandle === receiptHandle) {
+        entry.invisible = Date.now() + timeout * 1e3;
+      }
     }
   }
   clear() {
@@ -299,21 +314,35 @@ var mockSQS = (queues) => {
       return {
         body: entry.MessageBody,
         messageId,
-        messageAttributes: formatAttributes2(entry.MessageAttributes)
+        messageAttributes: formatAttributes(entry.MessageAttributes)
       };
     });
     await nextTick(callback, {
       Records: records
     });
   }).on(ReceiveMessageCommand2).callsFake(async (input) => {
-    const messages = messageStore.receiveMessages(input.QueueUrl, input.MaxNumberOfMessages ?? 1);
+    const deadline = Date.now() + (input.WaitTimeSeconds || 1) * 1e3;
+    while (Date.now() < deadline) {
+      const messages = messageStore.receiveMessages(
+        input.QueueUrl,
+        input.MaxNumberOfMessages ?? 1,
+        input.VisibilityTimeout
+      );
+      if (messages.length > 0) {
+        return {
+          Messages: messages
+        };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
     return {
-      Messages: messages
+      Messages: []
     };
   }).on(DeleteMessageCommand2).callsFake(async (input) => {
     messageStore.deleteMessage(input.QueueUrl, input.ReceiptHandle);
     return {};
-  }).on(ChangeMessageVisibilityCommand2).callsFake(async () => {
+  }).on(ChangeMessageVisibilityCommand2).callsFake(async (input) => {
+    messageStore.changeVisibility(input.QueueUrl, input.ReceiptHandle, input.VisibilityTimeout);
     return {};
   });
   beforeEach(() => {
@@ -330,10 +359,10 @@ export {
   SQSClient4 as SQSClient,
   changeMessageVisibility,
   deleteMessage,
-  listen,
   mockSQS,
   receiveMessages,
   sendMessage,
   sendMessageBatch,
-  sqsClient
+  sqsClient,
+  subscribe
 };
