@@ -61,8 +61,8 @@ export const queueFeature = defineFeature({
 					resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
 					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 				} else {
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					resource.addType(name, `Send<'${queueName}', typeof ${varName}>`)
+					mock.addType(name, `MockBuilder<(...args: any[]) => any>`)
+					resource.addType(name, `Send<'${queueName}', (...args: any[]) => any>`)
 				}
 			}
 
