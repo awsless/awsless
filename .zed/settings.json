@@ -1,0 +1,7 @@
+{
+	"tab_size": 4,
+	"hard_tabs": true,
+	"format_on_save": "on",
+	"remove_trailing_whitespace_on_save": true,
+	"ensure_final_newline_on_save": true
+}
