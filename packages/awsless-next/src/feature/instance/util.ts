@@ -355,13 +355,18 @@ export const createFargateTask = (
 
 		// ------------------------------------------------------------
 		// Deployment safeguards: keep the service pinned to one running task.
-		// schedulingStrategy: 'REPLICA',
-		// deploymentMaximumPercent: 100,
-		// deploymentMinimumHealthyPercent: 0,
-		// deploymentCircuitBreaker: {
-		// 	enable: true,
-		// 	rollback: true,
-		// },
+		schedulingStrategy: 'REPLICA',
+		deploymentMaximumPercent: 100,
+		deploymentMinimumHealthyPercent: 0,
+		deploymentCircuitBreaker: {
+			enable: true,
+			rollback: true,
+		},
+
+		// ------------------------------------------------------------
+		// Tag hygiene: let ECS manage and propagate runtime tags automatically.
+		enableEcsManagedTags: true,
+		propagateTags: 'SERVICE',
 	})
 
 	new $.aws.appautoscaling.Target(
