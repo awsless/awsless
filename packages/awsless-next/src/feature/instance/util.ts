@@ -334,9 +334,12 @@ export const createFargateTask = (
 		tags,
 	})
 
+	const clusterName = ctx.shared.get('instance', 'cluster-name')
+	const clusterArn = ctx.shared.get('instance', 'cluster-arn')
+
 	const service = new $.aws.ecs.Service(group, 'service', {
 		name: name,
-		cluster: ctx.shared.get('instance', 'cluster-arn'),
+		cluster: clusterArn,
 		taskDefinition: task.arn,
 		desiredCount: 1,
 		launchType: 'FARGATE',
@@ -345,17 +348,44 @@ export const createFargateTask = (
 			securityGroups: [securityGroup.id],
 			assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
 		},
+
 		forceNewDeployment: true,
 		forceDelete: true,
-
-		// deploymentCircuitBreaker: {
-		// 	enable: true,
-		// 	rollback: true,
-		// },
-		// deploymentController: { type: 'ECS' },
-
 		tags,
+
+		// ------------------------------------------------------------
+		// Deployment safeguards: keep the service pinned to one running task.
+		schedulingStrategy: 'REPLICA',
+		deploymentMaximumPercent: 100,
+		deploymentMinimumHealthyPercent: 0,
+		deploymentCircuitBreaker: {
+			enable: true,
+			rollback: true,
+		},
+
+		// ------------------------------------------------------------
+		// Tag hygiene: let ECS manage and propagate runtime tags automatically.
+		enableEcsManagedTags: true,
+		propagateTags: 'SERVICE',
 	})
+
+	new $.aws.appautoscaling.Target(
+		group,
+		'autoscaling-target',
+		{
+			serviceNamespace: 'ecs',
+			scalableDimension: 'ecs:service:DesiredCount',
+			minCapacity: 1,
+			maxCapacity: 1,
+			resourceId: $resolve([clusterName, service.name], (clusterName: string, serviceName: string) => {
+				return `service/${clusterName}/${serviceName}`
+			}),
+			tags,
+		},
+		{
+			dependsOn: [service],
+		}
+	)
 
 	// ------------------------------------------------------------
 

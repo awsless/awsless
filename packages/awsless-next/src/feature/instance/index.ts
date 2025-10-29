@@ -38,6 +38,7 @@ export const instanceFeature = defineFeature({
 			name: ctx.app.name,
 		})
 
+		ctx.shared.set('instance', 'cluster-name', cluster.name)
 		ctx.shared.set('instance', 'cluster-arn', cluster.arn)
 	},
 	onStack(ctx) {
