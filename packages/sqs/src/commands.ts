@@ -178,8 +178,8 @@ export const subscribe = ({
 	client?: SQSClient
 	queue: string
 	maxMessages: number
-	waitTime: Duration
 	visibilityTimeout: Duration
+	waitTime?: Duration
 	autoExtendVisibility?: boolean
 	handleMessage: (props: { payload: unknown; attributes?: Record<string, string> }) => Promise<void> | void
 }) => {
