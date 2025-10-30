@@ -8,6 +8,15 @@ import { formatFullDomainName } from '../domain/util.js'
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
 	onApp(ctx) {
+		ctx.addGlobalPermission({
+			actions: ['iot:Publish'],
+			resources: [
+				//
+				`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`,
+				`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/${ctx.app.name}/pubsub/*`,
+			],
+		})
+
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults.pubsub ?? {})) {
 			const group = new Group(ctx.base, 'pubsub', id)
 
@@ -68,15 +77,6 @@ export const pubsubFeature = defineFeature({
 				ctx.bind(`PUBSUB_${constantCase(id)}_ENDPOINT`, endpoint.endpointAddress)
 			}
 		}
-
-		ctx.addGlobalPermission({
-			actions: [`iot:Publish`],
-			resources: [
-				//
-				`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`,
-				`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/${ctx.app.name}/pubsub/*`,
-			],
-		})
 	},
 	onStack(ctx) {
 		// We still need to find a way to namespace the listeners you can listen to.

@@ -56,8 +56,8 @@ declare const subscribe: ({ client, queue, maxMessages, waitTime, visibilityTime
     client?: SQSClient;
     queue: string;
     maxMessages: number;
-    waitTime: Duration;
     visibilityTimeout: Duration;
+    waitTime?: Duration;
     autoExtendVisibility?: boolean;
     handleMessage: (props: {
         payload: unknown;

@@ -218,18 +218,35 @@ export const subscribe = ({
 			await Promise.all(
 				messages.map(async message => {
 					let stopExtension
-
 					if (autoExtendVisibility) {
 						stopExtension = startVisibilityExtension(message.ReceiptHandle!)
 					}
 
+					let body
 					try {
-						await handleMessage({
+						body = {
 							payload: parse(message.Body!),
 							attributes: decodeAttributes(message.MessageAttributes),
-						})
+						}
 					} catch (error) {
-						console.error('Error processing message:', error)
+						console.error(
+							JSON.stringify({
+								message: 'Error processing message body',
+								error,
+							})
+						)
+						return
+					}
+
+					try {
+						await handleMessage(body)
+					} catch (error) {
+						console.error(
+							JSON.stringify({
+								message: 'Error processing message',
+								error,
+							})
+						)
 						return
 					} finally {
 						stopExtension?.()
@@ -242,12 +259,23 @@ export const subscribe = ({
 							receiptHandle: message.ReceiptHandle!,
 						})
 					} catch (error) {
-						console.error('Error deleting message:', error)
+						console.error(
+							JSON.stringify({
+								message: 'Error deleting message',
+								error,
+							})
+						)
+						throw error
 					}
 				})
 			)
 		} catch (error) {
-			console.error('Error polling queue:', error)
+			console.error(
+				JSON.stringify({
+					message: 'Error polling queue',
+					error,
+				})
+			)
 		}
 
 		if (subscribed) {
