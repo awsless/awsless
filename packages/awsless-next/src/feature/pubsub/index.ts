@@ -11,8 +11,7 @@ export const pubsubFeature = defineFeature({
 		ctx.addGlobalPermission({
 			actions: ['iot:Publish'],
 			resources: [
-				//
-				`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`,
+				// `arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/*`,
 				`arn:aws:iot:${ctx.appConfig.region}:${ctx.accountId}:topic/${ctx.app.name}/pubsub/*`,
 			],
 		})
