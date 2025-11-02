@@ -12,36 +12,36 @@ export class ViewableError extends Error {
 	}
 }
 
-export type ViewableErrorResponse = {
-	__error__: {
-		type: string
-		message: string
-		data?: unknown
-	}
-}
+// export type ViewableErrorResponse = {
+// 	__error__: {
+// 		type: string
+// 		message: string
+// 		data?: unknown
+// 	}
+// }
 
 // export const isViewableErrorType = (error: unknown, type: string): boolean => {
 // 	return isViewableError(error) && getViewableErrorData(error).type === type
 // }
 
-export const isViewableErrorResponse = (response: unknown): response is ViewableErrorResponse => {
-	return (
-		typeof response === 'object' &&
-		response !== null &&
-		'__error__' in response &&
-		typeof response.__error__ === 'object'
-	)
-}
+// export const isViewableErrorResponse = (response: unknown): response is ViewableErrorResponse => {
+// 	return (
+// 		typeof response === 'object' &&
+// 		response !== null &&
+// 		'__error__' in response &&
+// 		typeof response.__error__ === 'object'
+// 	)
+// }
 
-export const toViewableErrorResponse = (error: ViewableError): ViewableErrorResponse => {
-	return {
-		__error__: {
-			type: error.type,
-			data: error.data,
-			message: error.message,
-		},
-	}
-}
+// export const toViewableErrorResponse = (error: ViewableError): ViewableErrorResponse => {
+// 	return {
+// 		__error__: {
+// 			type: error.type,
+// 			data: error.data,
+// 			message: error.message,
+// 		},
+// 	}
+// }
 
 // export const isViewableErrorString = (value: string): boolean => {
 // 	return 0 === value.indexOf(prefix)

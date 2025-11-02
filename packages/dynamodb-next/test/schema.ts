@@ -18,6 +18,7 @@ import {
 	optional,
 	putItem,
 	record,
+	set,
 	string,
 	ttl,
 	tuple,
@@ -26,7 +27,6 @@ import {
 	updateItem,
 	uuid,
 } from '../src'
-import { set } from '../src/schema/set'
 
 enum StringEnum {
 	one = '1',
@@ -75,6 +75,15 @@ describe('Schema', () => {
 						key: string(),
 					}),
 				],
+				number()
+			),
+			object: object({
+				key: string(),
+			}),
+			objectRest: object(
+				{
+					key: string(),
+				},
 				number()
 			),
 			record: record(
@@ -130,6 +139,13 @@ describe('Schema', () => {
 		array: [{ key: '1' }],
 		array2: ['hello'],
 		tuple: ['hello', { key: '1' }, 1],
+		object: {
+			key: '1',
+		},
+		objectRest: {
+			key: '1',
+			n: 1,
+		},
 		record: {
 			key1: { key: '1' },
 			key2: { key: '1' },
@@ -178,6 +194,8 @@ describe('Schema', () => {
 					array: { key: string }[]
 					array2: string[]
 					tuple: [string, { key: string }, ...number[]]
+					object: { key: string }
+					objectRest: { key: string; [key: string]: number | string }
 					record: Record<string, { key: string }>
 					any?: any
 					sets: {
@@ -237,6 +255,13 @@ describe('Schema', () => {
 						array: [{ key: '2' }],
 						array2: ['hello'],
 						tuple: ['world', { key: '2' }, 2],
+						object: {
+							key: '2',
+						},
+						objectRest: {
+							key: '2',
+							n: 2,
+						},
 						record: {
 							key1: { key: '2' },
 							key2: { key: '2' },
@@ -278,6 +303,13 @@ describe('Schema', () => {
 			array: [{ key: '2' }],
 			array2: ['hello'],
 			tuple: ['world', { key: '2' }, 2],
+			object: {
+				key: '2',
+			},
+			objectRest: {
+				key: '2',
+				n: 2,
+			},
 			record: {
 				key1: { key: '2' },
 				key2: { key: '2' },

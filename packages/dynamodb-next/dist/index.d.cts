@@ -389,11 +389,11 @@ type NumberExpression<T> = Expression<NumberUpdateExpression<T>, NumberCondition
 type BooleanExpression<T> = Expression<BooleanUpdateExpression<T>, BooleanConditionExpression<T>>;
 type BinaryExpression<T> = Expression<BinaryUpdateExpression<T>, BinaryConditionExpression<T>>;
 type JsonExpression<T> = Expression<StringUpdateExpression<T>, JsonConditionExpression<T>>;
-type MapExpression<T, P extends Record<string, AnySchema$1>, P_UPDATE extends Record<string, any> = {
+type MapExpression<T, P extends Record<string, AnySchema$1>, R extends AnySchema$1 | undefined = undefined, P_UPDATE extends Record<string, any> = {
     [K in keyof P]: P[K][symbol]['Expression']['Update'];
-}, P_CONDITION extends Record<string, any> = {
+} & (R extends AnySchema$1 ? Record<string, R[symbol]['Expression']['Update']> : {}), P_CONDITION extends Record<string, any> = {
     [K in keyof P]: P[K][symbol]['Expression']['Condition'];
-}> = Expression<MapUpdateExpression<T, P_UPDATE>, MapConditionExpression<T, P_CONDITION>, RootUpdateExpression<T, P_UPDATE>, RootConditionExpression<P_CONDITION>>;
+} & (R extends AnySchema$1 ? Record<string, R[symbol]['Expression']['Condition']> : {})> = Expression<MapUpdateExpression<T, P_UPDATE>, MapConditionExpression<T, P_CONDITION>, RootUpdateExpression<T, P_UPDATE>, RootConditionExpression<P_CONDITION>>;
 type ListExpression<T extends any[], L extends AnySchema$1[]> = Expression<ListUpdateExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Update'];
 }>, ListConditionExpression<T, {
@@ -455,20 +455,22 @@ type Uint8ArraySchema = BaseSchema<'B', Uint8Array, BinaryExpression<Uint8Array>
 declare const uint8array: () => Uint8ArraySchema;
 
 type Properties = Record<string, AnySchema$1>;
-type KeyOf<S> = Extract<keyof S, string>;
+type KeyOf<T> = Extract<keyof T, string>;
 type IsOptional<T extends AnySchema$1> = undefined extends T[symbol]['Type'] ? true : false;
-type FilterOptional<S extends Properties> = {
-    [K in KeyOf<S> as IsOptional<S[K]> extends true ? K : never]?: S[K];
+type FilterOptional<T extends Properties> = {
+    [K in KeyOf<T> as IsOptional<T[K]> extends true ? K : never]?: T[K];
 };
-type FilterRequired<S extends Properties> = {
-    [K in KeyOf<S> as IsOptional<S[K]> extends true ? never : K]: S[K];
+type FilterRequired<T extends Properties> = {
+    [K in KeyOf<T> as IsOptional<T[K]> extends true ? never : K]: T[K];
 };
-type Optinalize<S extends Properties> = FilterOptional<S> & FilterRequired<S>;
-type InferProps<S extends Properties> = {
+type Optinalize<T extends Properties> = FilterOptional<T> & FilterRequired<T>;
+type InferProps<S extends Properties, R extends AnySchema$1 | undefined = undefined> = {
     [K in keyof Optinalize<S>]: S[K][symbol]['Type'];
-};
-type ObjectSchema<T, P extends Properties> = BaseSchema<'M', T, MapExpression<T, P>>;
-declare const object: <P extends Properties>(props: P) => ObjectSchema<InferProps<P>, P>;
+} & (R extends AnySchema$1 ? {
+    [key: string]: R[symbol]['Type'] | S[keyof S][symbol]['Type'];
+} : {});
+type ObjectSchema<T, P extends Properties, R extends AnySchema$1 | undefined = undefined> = BaseSchema<'M', T, MapExpression<T, P, R>>;
+declare const object: <P extends Properties, R extends AnySchema$1 | undefined = undefined>(props: P, rest?: R) => ObjectSchema<InferProps<P, R>, P, R>;
 
 type RecordSchema<S extends AnySchema$1> = BaseSchema<'M', Record<string, S[symbol]['Type']>, MapExpression<Record<string, S[symbol]['Type']>, Record<string, S>>>;
 declare const record: <S extends AnySchema$1>(schema: S) => RecordSchema<S>;
@@ -491,7 +493,7 @@ type Enum = Record<string, string | number>;
 type EnumSchema<T extends Enum> = BaseSchema<'N' | 'S', T[keyof T], EnumExpression<T[keyof T]>>;
 declare function enum_<T extends Enum>(_: T): EnumSchema<T>;
 
-type JsonSchema<T> = BaseSchema<'S', T, JsonExpression<T>>;
+type JsonSchema<T = unknown> = BaseSchema<'S', T, JsonExpression<T>>;
 declare const json: <T = unknown>() => JsonSchema<T>;
 
 type TtlSchema = BaseSchema<'N', Date, NumberExpression<Date>>;

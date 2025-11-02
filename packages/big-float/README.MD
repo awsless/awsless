@@ -34,6 +34,9 @@ interface IBigFloat {
 ```ts
 import { BigFloat, type IBigFloat, type Numeric, setPrecision } from "@awsless/big-float";
 
+// constructors
+import { parse, fraction, integer, string, scientific } from '@awsless/big-float'
+
 // arithmetic
 import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor, fact } from '@awsless/big-float'
 
@@ -44,5 +47,5 @@ export { eq, lt, lte, gt, gte, min, max, clamp, cmp } from '@awsless/big-float'
 export { isBigFloat, isInteger, isNegative, isPositive, isZero } from '@awsless/big-float'
 
 // constants
-export { ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, HUNDRED, THOUSAND, MILLION, BILLION, TRILLION } from '@awsless/big-float'
+export { ZERO, ONE, TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, HUNDRED, THOUSAND, MILLION, BILLION, TRILLION, ... } from '@awsless/big-float'
 ```

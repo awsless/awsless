@@ -333,11 +333,29 @@ export type JsonExpression<T> = Expression<
 	JsonConditionExpression<T>
 >
 
+// export type MapExpression<
+// 	T,
+// 	P extends Record<string, AnySchema>,
+// 	// R extends AnySchema,
+// 	P_UPDATE extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Update'] },
+// 	P_CONDITION extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Condition'] },
+// > = Expression<
+// 	MapUpdateExpression<T, P_UPDATE>,
+// 	MapConditionExpression<T, P_CONDITION>,
+// 	RootUpdateExpression<T, P_UPDATE>,
+// 	RootConditionExpression<P_CONDITION>
+// >
+
 export type MapExpression<
 	T,
 	P extends Record<string, AnySchema>,
-	P_UPDATE extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Update'] },
-	P_CONDITION extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Condition'] },
+	R extends AnySchema | undefined = undefined,
+	P_UPDATE extends Record<string, any> = {
+		[K in keyof P]: P[K][symbol]['Expression']['Update']
+	} & (R extends AnySchema ? Record<string, R[symbol]['Expression']['Update']> : {}),
+	P_CONDITION extends Record<string, any> = {
+		[K in keyof P]: P[K][symbol]['Expression']['Condition']
+	} & (R extends AnySchema ? Record<string, R[symbol]['Expression']['Condition']> : {}),
 > = Expression<
 	MapUpdateExpression<T, P_UPDATE>,
 	MapConditionExpression<T, P_CONDITION>,

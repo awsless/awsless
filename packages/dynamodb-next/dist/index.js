@@ -204,11 +204,11 @@ function bigint() {
 }
 
 // src/schema/bigfloat.ts
-import { BigFloat } from "@awsless/big-float";
+import { parse } from "@awsless/big-float";
 var bigfloat = () => createSchema({
   type: "N",
   encode: (value) => value.toString(),
-  decode: (value) => new BigFloat(value)
+  decode: (value) => parse(value)
 });
 
 // src/schema/uint8-array.ts
@@ -217,7 +217,7 @@ var uint8array = () => createSchema({
 });
 
 // src/schema/object.ts
-var object = (props) => createSchema({
+var object = (props, rest) => createSchema({
   type: "M",
   encode: (input) => {
     const result = {};
@@ -227,6 +227,17 @@ var object = (props) => createSchema({
         continue;
       }
       result[key] = schema.marshall(value);
+    }
+    if (rest) {
+      for (const [key, value] of Object.entries(input)) {
+        if (props[key]) {
+          continue;
+        }
+        if (rest.filterIn(value)) {
+          continue;
+        }
+        result[key] = rest.marshall(value);
+      }
     }
     return result;
   },
@@ -239,11 +250,22 @@ var object = (props) => createSchema({
       }
       result[key] = schema.unmarshall(value);
     }
+    if (rest) {
+      for (const [key, value] of Object.entries(output)) {
+        if (props[key]) {
+          continue;
+        }
+        if (rest.filterIn(value)) {
+          continue;
+        }
+        result[key] = rest.unmarshall(value);
+      }
+    }
     return result;
   },
-  walk(path, ...rest) {
-    const type = props[path];
-    return rest.length ? type.walk?.(...rest) : type;
+  walk(path, ...next) {
+    const type = props[path] ?? rest;
+    return next.length ? type?.walk?.(...next) : type;
   }
 });
 
@@ -305,11 +327,11 @@ function enum_(_) {
 }
 
 // src/schema/json.ts
-import { parse, stringify } from "@awsless/json";
+import { parse as parse2, stringify } from "@awsless/json";
 var json = () => createSchema({
   type: "S",
   encode: (value) => stringify(value),
-  decode: (value) => parse(value)
+  decode: (value) => parse2(value)
 });
 
 // src/schema/ttl.ts

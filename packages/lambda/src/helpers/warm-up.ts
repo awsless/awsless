@@ -43,7 +43,7 @@ export const warmUp = async (input: Input) => {
 	}
 
 	await invoke({
-		name: process.env.AWS_LAMBDA_FUNCTION_NAME || '',
+		name: process.env.AWS_LAMBDA_FUNCTION_NAME ?? '',
 		// qualifier: '$LATEST',
 		payload: {
 			[warmerKey]: true,

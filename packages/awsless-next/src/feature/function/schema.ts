@@ -191,6 +191,11 @@ const FileCodeSchema = z.object({
 
 const BundleCodeSchema = z.object({
 	bundle: LocalDirectorySchema.describe('The directory that needs to be bundled.'),
+
+	// dir: z.string(),
+	// build: z.string(),
+	// run: z.string(),
+	// cacheKey:
 })
 
 // export type BundleCode = z.infer<typeof BundleCodeSchema>

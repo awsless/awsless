@@ -1,9 +1,9 @@
-import { BigFloat, eq, Numeric, string } from '../../src'
+import { eq, Numeric, parse, string } from '../../src'
 
 describe('parse / stringify', () => {
 	const t = (n: Numeric, expectation: Numeric) => {
 		it(`parse(${n}) = ${expectation}`, () => {
-			const result = new BigFloat(n)
+			const result = parse(n)
 			expect(result.toString()).toBe(expectation)
 			expect(string(result)).toBe(expectation)
 			expect(eq(result, expectation)).toBe(true)
@@ -11,31 +11,31 @@ describe('parse / stringify', () => {
 	}
 
 	const e = (n: Numeric) => {
-		it(`new BigFloat(${n}) should throw`, () => {
-			expect(() => new BigFloat(n)).toThrow(TypeError)
+		it(`parse(${n}) should throw`, () => {
+			expect(() => parse(n)).toThrow(TypeError)
 		})
 	}
 
 	t(0, '0')
 	t(0n, '0')
 	t('0', '0')
-	t(new BigFloat(0), '0')
-	t(new BigFloat(0n), '0')
-	t(new BigFloat('0'), '0')
+	t(parse(0), '0')
+	t(parse(0n), '0')
+	t(parse('0'), '0')
 
 	t(1, '1')
 	t(1n, '1')
 	t('1', '1')
-	t(new BigFloat(1), '1')
-	t(new BigFloat(1n), '1')
-	t(new BigFloat('1'), '1')
+	t(parse(1), '1')
+	t(parse(1n), '1')
+	t(parse('1'), '1')
 
 	t(-1, '-1')
 	t(-1n, '-1')
 	t('-1', '-1')
-	t(new BigFloat(-1), '-1')
-	t(new BigFloat(-1n), '-1')
-	t(new BigFloat('-1'), '-1')
+	t(parse(-1), '-1')
+	t(parse(-1n), '-1')
+	t(parse('-1'), '-1')
 
 	// Throw for octal, hex, and binary values
 	e('0o1')
