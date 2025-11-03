@@ -444,6 +444,7 @@ export const createApp = (props: CreateAppProps) => {
 
 	return {
 		app,
+		appId,
 		base,
 		zones,
 		ready,

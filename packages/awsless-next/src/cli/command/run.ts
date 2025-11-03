@@ -29,7 +29,7 @@ export const run = (program: CliCommand) => {
 				const region = appConfig.region
 				const credentials = getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
-				const { commands } = createApp({ appConfig, stackConfigs, accountId })
+				const { commands, appId } = createApp({ appConfig, stackConfigs, accountId })
 
 				// ---------------------------------------------------
 				// Select the command
@@ -60,6 +60,7 @@ export const run = (program: CliCommand) => {
 				// Set env vars
 
 				process.env.APP = appConfig.name
+				process.env.APP_ID = appId
 				process.env.AWS_REGION = region
 				process.env.AWS_ACCOUNT_ID = accountId
 
