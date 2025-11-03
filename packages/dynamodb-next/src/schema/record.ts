@@ -1,10 +1,13 @@
 import { MapExpression } from '../expression/types'
 import { AnySchema, BaseSchema, createSchema } from './schema'
 
+type Infer<S extends AnySchema> = Record<string, S[symbol]['Type']>
+
 export type RecordSchema<S extends AnySchema> = BaseSchema<
+	//
 	'M',
-	Record<string, S[symbol]['Type']>,
-	MapExpression<Record<string, S[symbol]['Type']>, Record<string, S>>
+	Infer<S>,
+	MapExpression<Infer<S>, {}, S>
 >
 
 export const record = <S extends AnySchema>(schema: S): RecordSchema<S> =>
@@ -20,7 +23,7 @@ export const record = <S extends AnySchema>(schema: S): RecordSchema<S> =>
 			return result
 		},
 		decode(output) {
-			const result: Record<string, S[symbol]['Type']> = {}
+			const result: Infer<S> = {}
 
 			for (const [key, value] of Object.entries(output)) {
 				result[key] = schema.unmarshall(value)

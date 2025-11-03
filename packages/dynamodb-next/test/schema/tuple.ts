@@ -6,20 +6,19 @@ import {
 	mockDynamoDB,
 	number,
 	object,
-	optional,
 	putItem,
 	string,
+	tuple,
 	updateItem,
 	uuid,
 } from '../../src'
 
-describe('object', () => {
+describe('tuple', () => {
 	const table = define('table', {
 		hash: 'id',
 		schema: object({
 			id: uuid(),
-			objectRest: object({ id: string() }, number()),
-			object: object({ id: string(), opt: optional(string()) }),
+			tuple: tuple([string(), string()], number()),
 		}),
 	})
 
@@ -28,14 +27,7 @@ describe('object', () => {
 	const id = randomUUID()
 	const item: Infer<typeof table> = {
 		id,
-		objectRest: {
-			id: '1',
-			n1: 1,
-		},
-		object: {
-			id: '1',
-			opt: '1',
-		},
+		tuple: ['1', '2'],
 	}
 
 	it('put', async () => {
@@ -49,14 +41,7 @@ describe('object', () => {
 			| undefined
 			| {
 					id: UUID
-					object: {
-						id: string
-						opt?: string
-					}
-					objectRest: {
-						id: string
-						[key: string]: string | number
-					}
+					tuple: [string, string, ...number[]]
 			  }
 		>()
 
@@ -70,32 +55,19 @@ describe('object', () => {
 			{
 				return: 'ALL_NEW',
 				update: e => [
-					e.objectRest.id.set('2'),
-					e.objectRest.at('n1').set(1),
-					e.objectRest.at('n2').set(2),
-					e.objectRest.at('n3').set(3),
+					//
+					e.tuple.at(2).set(1),
 				],
 				when: e => [
 					//
-					e.objectRest.at('n3').notExists(),
-					e.objectRest.at('n1').eq(1),
-					// e.objectRest.at('id').eq(1),
+					e.tuple.at(0).exists(),
 				],
 			}
 		)
 
 		expect(result).toStrictEqual({
 			id,
-			object: {
-				id: '1',
-				opt: '1',
-			},
-			objectRest: {
-				id: '2',
-				n1: 1,
-				n2: 2,
-				n3: 3,
-			},
+			tuple: ['1', '2', 1],
 		})
 	})
 
@@ -107,25 +79,14 @@ describe('object', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.object.opt.delete(),
-					// e.objectRest.delete(),
-					// e.objectRest.id
-					// e.objectRest.at('id').delete(),
-					e.objectRest.at('n1').delete(),
-					e.objectRest.at('n2').delete(),
-					e.objectRest.at('n3').delete(),
+					e.tuple.at(2).delete(),
 				],
 			}
 		)
 
 		expect(result).toStrictEqual({
 			id,
-			object: {
-				id: '1',
-			},
-			objectRest: {
-				id: '2',
-			},
+			tuple: ['1', '2'],
 		})
 	})
 })

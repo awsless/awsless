@@ -181,9 +181,11 @@ function string() {
 }
 
 // src/schema/boolean.ts
-var boolean = () => createSchema({
-  type: "BOOL"
-});
+function boolean() {
+  return createSchema({
+    type: "BOOL"
+  });
+}
 
 // src/schema/number.ts
 function number() {
@@ -308,7 +310,7 @@ function tuple(entries, rest) {
     encode: (value) => value.map((item, i) => (entries[i] ?? rest)?.marshall(item)),
     decode: (value) => value.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)),
     walk(path, ...restPath) {
-      const schema = entries[path] || rest;
+      const schema = entries[path] ?? rest;
       return restPath.length ? schema?.walk?.(...restPath) : schema;
     }
   });

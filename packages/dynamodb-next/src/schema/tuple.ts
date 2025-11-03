@@ -28,7 +28,7 @@ export function tuple<const T extends AnySchema[], const R extends AnySchema | u
 		encode: value => value.map((item, i) => (entries[i] ?? rest)?.marshall(item) as MarshallInputTypes),
 		decode: value => value.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)) as any,
 		walk(path, ...restPath) {
-			const schema = entries[path as number] || rest
+			const schema = entries[path as number] ?? rest
 			return restPath.length ? schema?.walk?.(...restPath) : schema
 		},
 	})

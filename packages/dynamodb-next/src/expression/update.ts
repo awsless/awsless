@@ -23,19 +23,34 @@ type BaseUpdateExpression<A extends AttributeType, T> = Path<A, T> &
 	SetIfNotExistFunction<A, T> &
 	DeleteFunction<T>
 
-export type RootUpdateExpression<T, R extends Record<string, any>> = {
-	at<K extends keyof R>(key: K): R[K]
-} & R &
+export type RootUpdateExpression<T, P extends Record<string, any>> = {
+	at<K extends keyof P>(key: K): P[K]
+} & P &
 	SetPartialFunction<'M', Partial<T>>
 
-export type MapUpdateExpression<T, R extends Record<string, any>> = {
-	at<K extends keyof R>(key: K): R[K]
-} & R &
+export type RootWithRestUpdateExpression<T, P extends Record<string, any>, R> = {
+	at<K extends keyof P>(key: K): P[K]
+	at(key: string): R & DeleteFunction
+} & P &
+	SetPartialFunction<'M', Partial<T>>
+
+export type MapUpdateExpression<T, P extends Record<string, any>> = {
+	at<K extends keyof P>(key: K): P[K]
+	// at(key: string): DeleteFunction
+} & P &
+	BaseUpdateExpression<'M', T> &
+	SetPartialFunction<'M', T>
+
+export type MapWithRestUpdateExpression<T, P extends Record<string, any>, R> = {
+	// at<K extends keyof P>(key: K): K extends keyof P ? P[K] : R & DeleteFunction
+	at<K extends keyof P>(key: K): P[K]
+	at(key: string): R & DeleteFunction
+} & P &
 	BaseUpdateExpression<'M', T> &
 	SetPartialFunction<'M', T>
 
 export type ListUpdateExpression<T extends any[], L extends any[]> = {
-	at<K extends keyof L>(index: K): L[K]
+	at<K extends keyof L>(index: K): L[K] & DeleteFunction
 } & BaseUpdateExpression<'L', T> &
 	PushFunction<T>
 
@@ -44,7 +59,7 @@ export type TupleUpdateExpression<T extends any[], L extends any[]> = {
 } & BaseUpdateExpression<'L', T>
 
 export type TupleWithRestUpdateExpression<T extends any[], L extends any[], R> = {
-	at<K extends number>(index: K): L[K] extends undefined ? R : L[K]
+	at<K extends number>(index: K): L[K] extends undefined ? R & DeleteFunction : L[K]
 } & BaseUpdateExpression<'L', T>
 
 export type SetUpdateExpression<A extends AttributeType, T> = BaseUpdateExpression<A, T> &
