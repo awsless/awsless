@@ -1,9 +1,9 @@
 // import { Body, deleteObject, getObject, headObject, putObject, StorageClass } from '@awsless/s3'
 // import { createProxy } from '../proxy.js'
-import { bindPostfixedLocalResourceName } from './util.js'
+import { APP_ID, bindPostfixedLocalResourceName } from './util.js'
 
 // export const getSiteBucketName = bindLocalResourceName('site')
-export const getSiteBucketName = bindPostfixedLocalResourceName('site', process.env.APP_ID!)
+export const getSiteBucketName = bindPostfixedLocalResourceName('site', APP_ID)
 
 // export interface SiteResources {}
 

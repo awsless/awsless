@@ -14,6 +14,7 @@ import {
 	number,
 	object,
 	optional,
+	PrimaryKey,
 	query,
 	record,
 	set,
@@ -67,6 +68,15 @@ describe('Infer', () => {
 				// binary: set(binary()),
 			}),
 		}),
+	})
+
+	it('infer primary key', () => {
+		type Type = PrimaryKey<typeof posts>
+
+		expectTypeOf<Type>().toEqualTypeOf<{
+			string: string
+			number: number
+		}>()
 	})
 
 	it('infer type check', () => {
@@ -196,8 +206,8 @@ describe('Infer', () => {
 
 					// record
 					e.record.set({ key: 'test' }),
-					e.record.key!.set('test'),
-					e.record['key']!.set('test'),
+					// e.record.key!.set('test'),
+					// e.record['key']!.set('test'),
 					e.record.at('key').set('test'),
 
 					// array

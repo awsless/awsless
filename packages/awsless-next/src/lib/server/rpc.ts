@@ -1,4 +1,4 @@
-import { DurationFormat } from '@awsless/duration'
+import { Duration } from '@awsless/duration'
 
 export type RpcAuthorizerResponse =
 	| {
@@ -8,5 +8,6 @@ export type RpcAuthorizerResponse =
 			authorized: true
 			context?: unknown
 			lockKey?: string
-			ttl: DurationFormat
+			permissions?: string[]
+			ttl: Duration
 	  }

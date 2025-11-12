@@ -152,7 +152,7 @@ export const authFeature = defineFeature({
 				resourceName: id,
 			})
 
-			props.username
+			// props.username
 
 			const userPool = new $.aws.cognito.UserPool(
 				group,

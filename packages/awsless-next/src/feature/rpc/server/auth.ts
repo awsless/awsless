@@ -9,6 +9,7 @@ const cache = new WeakCache<
 	{
 		ttl: Date
 		context?: Record<string, unknown>
+		permissions: string[]
 		lockKey?: string
 	}
 >()
@@ -45,6 +46,7 @@ export const authenticate = async (token?: string) => {
 				authorized: true,
 				context: entry.context,
 				lockKey: entry.lockKey,
+				permissions: entry.permissions,
 			}
 		} else {
 			cache.delete(token)
@@ -97,17 +99,20 @@ export const authenticate = async (token?: string) => {
 	const now = new Date()
 	const ttl = addSeconds(now, Number(toSeconds(result.output.ttl)))
 	const context = result.output.context
+	const permissions = result.output.permissions
 	const lockKey = result.output.lockKey
 
 	cache.set(token, {
 		ttl,
 		context,
+		permissions,
 		lockKey,
 	})
 
 	return {
 		authorized: true,
 		context,
+		permissions,
 		lockKey,
 	}
 }
