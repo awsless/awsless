@@ -1,3 +1,7 @@
+minimumReleaseAge: 8640
+minimumReleaseAgeExclude:
+    - '@awsless/*'
+    - typescript
 
 packages:
-  - 'packages/*'
+    - 'packages/*'
