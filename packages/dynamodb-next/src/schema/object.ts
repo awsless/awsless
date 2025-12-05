@@ -2,23 +2,47 @@ import { MapExpression } from '../expression/types'
 import { AnySchema, BaseSchema, createSchema } from './schema'
 
 type Properties = Record<string, AnySchema>
-type KeyOf<S> = Extract<keyof S, string>
+type KeyOf<T> = Extract<keyof T, string>
 type IsOptional<T extends AnySchema> = undefined extends T[symbol]['Type'] ? true : false
 
-type FilterOptional<S extends Properties> = { [K in KeyOf<S> as IsOptional<S[K]> extends true ? K : never]?: S[K] }
-type FilterRequired<S extends Properties> = { [K in KeyOf<S> as IsOptional<S[K]> extends true ? never : K]: S[K] }
+type FilterOptional<T extends Properties> = { [K in KeyOf<T> as IsOptional<T[K]> extends true ? K : never]?: T[K] }
+type FilterRequired<T extends Properties> = { [K in KeyOf<T> as IsOptional<T[K]> extends true ? never : K]: T[K] }
 
-type Optinalize<S extends Properties> = FilterOptional<S> & FilterRequired<S>
+type Optinalize<T extends Properties> = FilterOptional<T> & FilterRequired<T>
 
-type InferProps<S extends Properties> = { [K in keyof Optinalize<S>]: S[K][symbol]['Type'] }
+type InferProps<S extends Properties, R extends AnySchema | undefined = undefined> = {
+	[K in keyof Optinalize<S>]: S[K][symbol]['Type']
+} & (R extends AnySchema ? { [key: string]: R[symbol]['Type'] | S[keyof S][symbol]['Type'] } : {})
 
-export type ObjectSchema<T, P extends Properties> = BaseSchema<'M', T, MapExpression<T, P>>
+export type ObjectSchema<T, P extends Properties, R extends AnySchema | undefined = undefined> = BaseSchema<
+	'M',
+	T,
+	MapExpression<T, P, R>
+>
 
-export const object = <P extends Properties>(props: P): ObjectSchema<InferProps<P>, P> =>
-	createSchema<'M', InferProps<P>>({
+export const object = <P extends Properties, R extends AnySchema | undefined = undefined>(
+	props: P,
+	rest?: R
+): ObjectSchema<InferProps<P, R>, P, R> =>
+	createSchema<'M', InferProps<P, R>>({
 		type: 'M',
 		encode: (input: Record<string, unknown>) => {
 			const result: Record<string, any> = {}
+
+			// for (const [key, value] of Object.entries(input)) {
+			// 	const schema = props[key] ?? rest
+
+			// 	if (!schema) {
+			// 		continue
+			// 		// throw new TypeError(`Unknown object schema key: ${key}`)
+			// 	}
+
+			// 	if (schema.filterIn(value)) {
+			// 		continue
+			// 	}
+
+			// 	result[key] = schema.marshall(value)
+			// }
 
 			for (const [key, schema] of Object.entries(props)) {
 				const value = input[key]
@@ -30,10 +54,38 @@ export const object = <P extends Properties>(props: P): ObjectSchema<InferProps<
 				result[key] = schema.marshall(value)
 			}
 
+			if (rest) {
+				for (const [key, value] of Object.entries(input)) {
+					if (props[key]) {
+						continue
+					}
+
+					if (rest.filterIn(value)) {
+						continue
+					}
+
+					result[key] = rest.marshall(value)
+				}
+			}
+
 			return result
 		},
 		decode: output => {
 			const result: Record<string, any> = {}
+
+			// for (const [key, value] of Object.entries(output)) {
+			// 	const schema = props[key] ?? rest
+
+			// 	if (!schema) {
+			// 		continue
+			// 	}
+
+			// 	if (schema.filterIn(value)) {
+			// 		continue
+			// 	}
+
+			// 	result[key] = schema.unmarshall(value)
+			// }
 
 			for (const [key, schema] of Object.entries(props)) {
 				const value = output[key]
@@ -45,11 +97,25 @@ export const object = <P extends Properties>(props: P): ObjectSchema<InferProps<
 				result[key] = schema.unmarshall(value!)
 			}
 
-			return result as InferProps<P>
-		},
-		walk(path, ...rest) {
-			const type = props[path]!
+			if (rest) {
+				for (const [key, value] of Object.entries(output)) {
+					if (props[key]) {
+						continue
+					}
 
-			return rest.length ? type.walk?.(...rest) : type
+					if (rest.filterIn(value)) {
+						continue
+					}
+
+					result[key] = rest.unmarshall(value)
+				}
+			}
+
+			return result as InferProps<P, R>
+		},
+		walk(path, ...next) {
+			const type = props[path] ?? rest
+
+			return next.length ? type?.walk?.(...next) : type
 		},
 	})

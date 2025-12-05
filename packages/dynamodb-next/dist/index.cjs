@@ -274,9 +274,11 @@ function string() {
 }
 
 // src/schema/boolean.ts
-var boolean = () => createSchema({
-  type: "BOOL"
-});
+function boolean() {
+  return createSchema({
+    type: "BOOL"
+  });
+}
 
 // src/schema/number.ts
 function number() {
@@ -301,7 +303,7 @@ var import_big_float = require("@awsless/big-float");
 var bigfloat = () => createSchema({
   type: "N",
   encode: (value) => value.toString(),
-  decode: (value) => new import_big_float.BigFloat(value)
+  decode: (value) => (0, import_big_float.parse)(value)
 });
 
 // src/schema/uint8-array.ts
@@ -310,7 +312,7 @@ var uint8array = () => createSchema({
 });
 
 // src/schema/object.ts
-var object = (props) => createSchema({
+var object = (props, rest) => createSchema({
   type: "M",
   encode: (input) => {
     const result = {};
@@ -320,6 +322,17 @@ var object = (props) => createSchema({
         continue;
       }
       result[key] = schema.marshall(value);
+    }
+    if (rest) {
+      for (const [key, value] of Object.entries(input)) {
+        if (props[key]) {
+          continue;
+        }
+        if (rest.filterIn(value)) {
+          continue;
+        }
+        result[key] = rest.marshall(value);
+      }
     }
     return result;
   },
@@ -332,11 +345,22 @@ var object = (props) => createSchema({
       }
       result[key] = schema.unmarshall(value);
     }
+    if (rest) {
+      for (const [key, value] of Object.entries(output)) {
+        if (props[key]) {
+          continue;
+        }
+        if (rest.filterIn(value)) {
+          continue;
+        }
+        result[key] = rest.unmarshall(value);
+      }
+    }
     return result;
   },
-  walk(path, ...rest) {
-    const type = props[path];
-    return rest.length ? type.walk?.(...rest) : type;
+  walk(path, ...next) {
+    const type = props[path] ?? rest;
+    return next.length ? type?.walk?.(...next) : type;
   }
 });
 
@@ -379,7 +403,7 @@ function tuple(entries, rest) {
     encode: (value) => value.map((item, i) => (entries[i] ?? rest)?.marshall(item)),
     decode: (value) => value.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)),
     walk(path, ...restPath) {
-      const schema = entries[path] || rest;
+      const schema = entries[path] ?? rest;
       return restPath.length ? schema?.walk?.(...restPath) : schema;
     }
   });

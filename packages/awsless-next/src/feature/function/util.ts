@@ -157,6 +157,8 @@ export const createLambdaFunction = (
 					})),
 				])
 
+				// bundle.files.map(file => file.)
+
 				await Promise.all([
 					write('HASH', bundle.hash),
 					write('bundle.zip', archive),
@@ -171,6 +173,13 @@ export const createLambdaFunction = (
 				}
 			})
 		})
+
+		// new $.aws.s3.BucketObject(group, 'code', {
+		// 	bucket: ctx.shared.get('function', 'bucket-name'),
+		// 	key: `/lambda/${name}.map`,
+		// 	source: relativePath(getBuildPath('function', name, 'bundle.map')),
+		// 	sourceHash: $hash(getBuildPath('function', name, 'HASH')),
+		// })
 
 		code = new $.aws.s3.BucketObject(group, 'code', {
 			bucket: ctx.shared.get('function', 'bucket-name'),

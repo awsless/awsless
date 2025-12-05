@@ -1,9 +1,15 @@
 import { getItem } from '@awsless/dynamodb'
 import { schemaTable } from './table'
 
-const schema: Record<string, string> = {}
+const schema: Record<
+	string,
+	{
+		function: string
+		permissions?: string[]
+	}
+> = {}
 
-export const getFunctionName = async (name: string) => {
+export const getFunctionDetails = async (name: string) => {
 	if (name in schema) {
 		return schema[name]
 	}
@@ -14,9 +20,10 @@ export const getFunctionName = async (name: string) => {
 		return
 	}
 
-	schema[name] = entry.function
-
-	return entry.function
+	return (schema[name] = {
+		function: entry.function,
+		permissions: entry.permissions,
+	})
 }
 
 export const invalidate = (name: string) => {

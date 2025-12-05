@@ -35,8 +35,8 @@ export const rpcFeature = defineFeature({
 
 			for (const stack of ctx.stackConfigs) {
 				for (const [name, props] of Object.entries(stack.rpc?.[id] ?? {})) {
-					if ('file' in props.code) {
-						const relFile = relative(directories.types, props.code.file)
+					if ('file' in props.function.code) {
+						const relFile = relative(directories.types, props.function.code.file)
 						const varName = camelCase(`${stack.name}-${name}`)
 
 						types.addImport(varName, relFile)
@@ -74,7 +74,7 @@ export const rpcFeature = defineFeature({
 						list.add(name)
 					}
 
-					const timeout = toSeconds(props.timeout ?? ctx.appConfig.defaults.function.timeout)
+					const timeout = toSeconds(props.function.timeout ?? ctx.appConfig.defaults.function.timeout)
 					const maxTimeout = toSeconds(ctx.appConfig.defaults.rpc![id]!.timeout) * 0.8
 
 					if (timeout > maxTimeout) {
@@ -356,7 +356,7 @@ export const rpcFeature = defineFeature({
 				const entryId = kebabCase(`${id}-${shortId(name)}`)
 
 				createLambdaFunction(queryGroup, ctx, `rpc`, entryId, {
-					...props,
+					...props.function,
 					description: `${id} ${name}`,
 				})
 
@@ -373,6 +373,11 @@ export const rpcFeature = defineFeature({
 								resourceType: 'rpc',
 								resourceName: entryId,
 							}),
+						},
+						permissions: {
+							L: props.permissions.map(permission => ({
+								S: permission,
+							})),
 						},
 					}),
 				})

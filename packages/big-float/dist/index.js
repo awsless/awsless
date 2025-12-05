@@ -390,6 +390,9 @@ var BigFloat = class {
 var make2 = (n) => {
   return new BigFloat(n);
 };
+var parse2 = (n) => {
+  return new BigFloat(n);
+};
 var fraction2 = (n) => {
   return make2(fraction(parse(n)));
 };
@@ -466,7 +469,11 @@ var HUNDRED = /* @__PURE__ */ new BigFloat(100);
 var THOUSAND = /* @__PURE__ */ new BigFloat(1e3);
 var MILLION = /* @__PURE__ */ new BigFloat(1e6);
 var BILLION = /* @__PURE__ */ new BigFloat(1e9);
-var TRILLION = /* @__PURE__ */ new BigFloat(1e12);
+var TRILLION = /* @__PURE__ */ new BigFloat(1000000000000n);
+var QUADRILLION = /* @__PURE__ */ new BigFloat(1000000000000000n);
+var QUINTILLION = /* @__PURE__ */ new BigFloat(1000000000000000000n);
+var SEXTILLION = /* @__PURE__ */ new BigFloat(1000000000000000000000n);
+var SEPTILLION = /* @__PURE__ */ new BigFloat(1000000000000000000000000n);
 
 // src/predicates.ts
 var isBigFloat = (n) => {
@@ -519,7 +526,11 @@ export {
   NINE,
   ONE2 as ONE,
   PRECISION,
+  QUADRILLION,
+  QUINTILLION,
+  SEPTILLION,
   SEVEN,
+  SEXTILLION,
   SIX,
   TEN,
   THOUSAND,
@@ -552,6 +563,7 @@ export {
   min2 as min,
   mul2 as mul,
   neg2 as neg,
+  parse2 as parse,
   pow2 as pow,
   round2 as round,
   scientific2 as scientific,

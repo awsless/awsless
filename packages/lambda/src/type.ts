@@ -7,9 +7,14 @@ export type Output<T extends Schema = undefined> = T extends undefined ? unknown
 
 export type RemoveUndefined<T> = T extends undefined ? never : T
 
-export type Context = LambdaContext & {
+export type Context = {
+	readonly raw: unknown
 	readonly event: unknown
+	readonly context?: LambdaContext
 	readonly log: Logger
+	readonly onSuccess: (cb: (res: unknown) => void) => void
+	readonly onFailure: (cb: (err: unknown) => void) => void
+	readonly onFinally: (cb: () => void) => void
 }
 
 export type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R

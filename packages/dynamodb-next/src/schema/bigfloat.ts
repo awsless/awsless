@@ -1,4 +1,4 @@
-import { BigFloat } from '@awsless/big-float'
+import { BigFloat, parse } from '@awsless/big-float'
 import { NumberExpression } from '../expression/types'
 import { BaseSchema, createSchema } from './schema'
 
@@ -13,5 +13,5 @@ export const bigfloat = (): BigFloatSchema =>
 	createSchema({
 		type: 'N',
 		encode: value => value.toString(),
-		decode: value => new BigFloat(value),
+		decode: value => parse(value),
 	})

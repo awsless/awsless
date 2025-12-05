@@ -1,4 +1,4 @@
-import { AnyTable, PrimaryKey } from '@awsless/dynamodb'
+import { AnyTable, Infer, PrimaryKey } from '@awsless/dynamodb'
 import { array, BaseSchema, literal, object, optional, transform, union, unknown } from 'valibot'
 
 type EventName = 'MODIFY' | 'INSERT' | 'REMOVE'
@@ -17,8 +17,8 @@ export type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<
 	{
 		event: Lowercase<EventName>
 		keys: PrimaryKey<T>
-		old?: T['schema']['OUTPUT']
-		new?: T['schema']['OUTPUT']
+		old?: Infer<T>
+		new?: Infer<T>
 	}[]
 >
 
@@ -48,8 +48,8 @@ export const dynamoDbStream = <T extends AnyTable>(table: T) => {
 				const item = record as unknown as {
 					dynamodb: {
 						Keys: PrimaryKey<T>
-						OldImage: T['schema']['OUTPUT']
-						NewImage: T['schema']['OUTPUT']
+						OldImage: Infer<T>
+						NewImage: Infer<T>
 					}
 				}
 				return {

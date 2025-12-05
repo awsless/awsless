@@ -14,10 +14,12 @@ export {
 	// isViewableErrorString,
 	// isViewableErrorType,
 	// parseViewableErrorString,
-	isViewableErrorResponse,
-	toViewableErrorResponse,
+	// isViewableErrorResponse,
+	// toViewableErrorResponse,
 	ViewableError,
 } from './errors/viewable'
+export { ExpectedError } from './errors/expected'
+export { isErrorResponse, toErrorResponse, ErrorResponse } from './errors/response'
 // client
 export { lambdaClient } from './helpers/client'
 // mock

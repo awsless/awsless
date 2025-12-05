@@ -1,4 +1,4 @@
-import { BaseSchema, bigint as base, defaultArgs, ErrorMessage, Pipe, regex, string, transform, union } from 'valibot'
+import { bigint as base, BaseSchema, defaultArgs, ErrorMessage, Pipe, regex, string, transform, union } from 'valibot'
 
 export type BigIntSchema = BaseSchema<string | bigint, bigint>
 

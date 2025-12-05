@@ -22,7 +22,13 @@ export type FunctionError = {
 
 export type FunctionResult = FunctionSuccess | FunctionError
 
-export const response = (statusCode: number, results: GlobalError | FunctionResult[]): APIGatewayProxyResultV2 => {
+export type Response = {
+	headers?: Record<string, string>
+	statusCode: number
+	body: string
+}
+
+export const response = (statusCode: number, results: GlobalError | FunctionResult[]): Response => {
 	return {
 		headers: {
 			'content-type': 'application/json',

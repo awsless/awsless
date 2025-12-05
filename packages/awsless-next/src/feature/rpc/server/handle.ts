@@ -8,18 +8,19 @@ import {
 	INTERNAL_SERVER_ERROR,
 	INVALID_REQUEST,
 	ONE_FUNCTION_AT_A_TIME,
+	PERMISSION_ACCESS_DENIED,
 	TOO_MANY_REQUESTS,
 	UNAUTHORIZED,
 	UNKNOWN_ERROR,
 	UNKNOWN_FUNCTION_NAME,
 } from './error.js'
 import { lock, unlock } from './lock.js'
-import { FunctionResult, response } from './response.js'
-import { getFunctionName } from './schema.js'
+import { FunctionResult, Response, response } from './response.js'
+import { getFunctionDetails } from './schema.js'
 import { parseRequest } from './validate.js'
 import { buildViewerPayload } from './viewer.js'
 
-export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 	try {
 		// ----------------------------------------
 		// Generate a request ID
@@ -47,13 +48,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Log Request in cloudwatch for user monitoring purposes.
 
-		console.log({
-			lockKey: auth.lockKey,
-			authContext: auth.context,
-			requestId,
-			request: request.output.body,
-			ip: request.output.requestContext.http.sourceIp,
-		})
+		// console.log({
+		// 	lockKey: auth.lockKey,
+		// 	authContext: auth.context,
+		// 	requestId,
+		// 	request: request.output.body,
+		// 	ip: request.output.requestContext.http.sourceIp,
+		// })
 
 		// ----------------------------------------
 		// Lock the request if needed
@@ -76,16 +77,24 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		const result = await Promise.allSettled(
 			request.output.body.map(async (fn): Promise<FunctionResult> => {
-				const name = await getFunctionName(fn.name)
+				const details = await getFunctionDetails(fn.name)
 
-				if (!name) {
+				if (!details) {
 					return UNKNOWN_FUNCTION_NAME
+				}
+
+				if (details.permissions && details.permissions.length > 0) {
+					const deniedPermissions = details.permissions.filter(p => !auth.permissions?.includes(p))
+
+					if (deniedPermissions.length > 0) {
+						return PERMISSION_ACCESS_DENIED(deniedPermissions)
+					}
 				}
 
 				let data: unknown
 				try {
 					data = await invoke({
-						name,
+						name: details.function,
 						payload: {
 							...(fn.payload ?? {}),
 							...(auth.context ?? {}),

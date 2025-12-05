@@ -144,8 +144,19 @@ declare const THOUSAND: BigFloat;
 declare const MILLION: BigFloat;
 declare const BILLION: BigFloat;
 declare const TRILLION: BigFloat;
+declare const QUADRILLION: BigFloat;
+declare const QUINTILLION: BigFloat;
+declare const SEXTILLION: BigFloat;
+declare const SEPTILLION: BigFloat;
 
 declare const make: (n: IBigFloat) => BigFloat;
+/**
+ * Parses a string or numeric value into a BigFloat instance.
+ * @param {string | Numeric} n - The value to parse. Can be a numeric string or a Numeric type.
+ * @returns {BigFloat} A BigFloat representation of the input value.
+ * @throws {TypeError} If `n` cannot be parsed into a valid numeric value.
+ */
+declare const parse: (n: string | Numeric) => BigFloat;
 /**
  * Returns the fractional part of a number.
  * @param {Numeric} n - The number to extract the fraction from.
@@ -279,4 +290,4 @@ declare const max: (...numbers: Numeric[]) => BigFloat;
  */
 declare const clamp: (number: Numeric, min: Numeric, max: Numeric) => BigFloat;
 
-export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, type IBigFloat, MILLION, NINE, type Numeric, ONE, PRECISION, SEVEN, SIX, type StringNumericLiteral, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, clamp, cmp, div, eq, fact, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, make, max, min, mul, neg, pow, round, scientific, setPrecision, sqrt, string, sub };
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, type IBigFloat, MILLION, NINE, type Numeric, ONE, PRECISION, QUADRILLION, QUINTILLION, SEPTILLION, SEVEN, SEXTILLION, SIX, type StringNumericLiteral, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, clamp, cmp, div, eq, fact, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, make, max, min, mul, neg, parse, pow, round, scientific, setPrecision, sqrt, string, sub };

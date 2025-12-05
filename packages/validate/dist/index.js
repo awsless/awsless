@@ -73,7 +73,7 @@ function bigint2(arg1, arg2) {
 }
 
 // src/schema/date.ts
-import { defaultArgs as defaultArgs3, date as base2, string as string4, union as union3, transform as transform4 } from "valibot";
+import { date as base2, defaultArgs as defaultArgs3, string as string4, transform as transform4, union as union3 } from "valibot";
 function date(arg1, arg2) {
   const [error, pipe] = defaultArgs3(arg1, arg2);
   return union3(
@@ -98,32 +98,23 @@ var uuid = (error) => {
 };
 
 // src/schema/duration.ts
-import { Duration, parse as parse2 } from "@awsless/duration";
-import { defaultArgs as defaultArgs4, instance as instance2, regex as regex2, string as string6, transform as transform5, union as union4 } from "valibot";
+import { Duration } from "@awsless/duration";
+import { defaultArgs as defaultArgs4, instance as instance2 } from "valibot";
 function duration(arg1, arg2) {
   const [msg, pipe] = defaultArgs4(arg1, arg2);
   const error = msg ?? "Invalid duration";
-  return union4([
-    instance2(Duration, pipe),
-    transform5(
-      string6(error, [regex2(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?|weeks?)/, error)]),
-      (value) => {
-        return parse2(value);
-      },
-      pipe
-    )
-  ]);
+  return instance2(Duration, error, pipe);
 }
 
 // src/schema/aws/sqs-queue.ts
-import { array, object as object2, transform as transform6, union as union5, unknown } from "valibot";
+import { array, object as object2, transform as transform5, union as union4, unknown } from "valibot";
 var sqsQueue = (body) => {
   const schema = body ?? unknown();
-  return union5(
+  return union4(
     [
-      transform6(schema, (input) => [input]),
+      transform5(schema, (input) => [input]),
       array(schema),
-      transform6(
+      transform5(
         object2({
           Records: array(
             object2({
@@ -141,14 +132,14 @@ var sqsQueue = (body) => {
 };
 
 // src/schema/aws/sns-topic.ts
-import { array as array2, object as object3, transform as transform7, union as union6, unknown as unknown2 } from "valibot";
+import { array as array2, object as object3, transform as transform6, union as union5, unknown as unknown2 } from "valibot";
 var snsTopic = (body) => {
   const schema = body ?? unknown2();
-  return union6(
+  return union5(
     [
-      transform7(schema, (input) => [input]),
+      transform6(schema, (input) => [input]),
       array2(schema),
-      transform7(
+      transform6(
         object3({
           Records: array2(
             object3({
@@ -168,17 +159,17 @@ var snsTopic = (body) => {
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, literal, object as object4, optional, transform as transform8, union as union7, unknown as unknown3 } from "valibot";
+import { array as array3, literal, object as object4, optional, transform as transform7, union as union6, unknown as unknown3 } from "valibot";
 var dynamoDbStream = (table) => {
-  const marshall = () => transform8(unknown3(), (value) => table.unmarshall(value));
-  return transform8(
+  const marshall = () => transform7(unknown3(), (value) => table.unmarshall(value));
+  return transform7(
     object4(
       {
         Records: array3(
           object4({
             // For some reason picklist fails to build.
             // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
-            eventName: union7([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
+            eventName: union6([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
             dynamodb: object4({
               Keys: marshall(),
               OldImage: optional(marshall()),
@@ -211,13 +202,16 @@ function positive(error) {
 }
 
 // src/validation/precision.ts
-import { BigFloat as BigFloat3 } from "@awsless/big-float";
+import { parse as parse2 } from "@awsless/big-float";
 import { custom as custom3 } from "valibot";
 function precision(decimals, error) {
-  return custom3((input) => {
-    const big = new BigFloat3(input.toString());
-    return -big.exponent <= decimals;
-  }, error ?? `Invalid ${decimals} precision number`);
+  return custom3(
+    (input) => {
+      const big = parse2(input.toString());
+      return -big.exponent <= decimals;
+    },
+    error ?? `Invalid ${decimals} precision number`
+  );
 }
 
 // src/validation/unique.ts

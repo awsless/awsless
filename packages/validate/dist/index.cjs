@@ -19,8 +19,8 @@ var __reExport = (target, mod, secondTarget) => (__copyProps(target, mod, "defau
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   bigfloat: () => bigfloat,
   bigint: () => bigint2,
   date: () => date,
@@ -36,8 +36,8 @@ __export(src_exports, {
   unique: () => unique,
   uuid: () => uuid
 });
-module.exports = __toCommonJS(src_exports);
-__reExport(src_exports, require("valibot"), module.exports);
+module.exports = __toCommonJS(index_exports);
+__reExport(index_exports, require("valibot"), module.exports);
 
 // src/schema/json.ts
 var import_json = require("@awsless/json");
@@ -131,16 +131,7 @@ var import_valibot6 = require("valibot");
 function duration(arg1, arg2) {
   const [msg, pipe] = (0, import_valibot6.defaultArgs)(arg1, arg2);
   const error = msg ?? "Invalid duration";
-  return (0, import_valibot6.union)([
-    (0, import_valibot6.instance)(import_duration.Duration, pipe),
-    (0, import_valibot6.transform)(
-      (0, import_valibot6.string)(error, [(0, import_valibot6.regex)(/^[0-9]+ (milliseconds?|seconds?|minutes?|hours?|days?|weeks?)/, error)]),
-      (value) => {
-        return (0, import_duration.parse)(value);
-      },
-      pipe
-    )
-  ]);
+  return (0, import_valibot6.instance)(import_duration.Duration, error, pipe);
 }
 
 // src/schema/aws/sqs-queue.ts
@@ -242,10 +233,13 @@ function positive(error) {
 var import_big_float3 = require("@awsless/big-float");
 var import_valibot11 = require("valibot");
 function precision(decimals, error) {
-  return (0, import_valibot11.custom)((input) => {
-    const big = new import_big_float3.BigFloat(input.toString());
-    return -big.exponent <= decimals;
-  }, error ?? `Invalid ${decimals} precision number`);
+  return (0, import_valibot11.custom)(
+    (input) => {
+      const big = (0, import_big_float3.parse)(input.toString());
+      return -big.exponent <= decimals;
+    },
+    error ?? `Invalid ${decimals} precision number`
+  );
 }
 
 // src/validation/unique.ts

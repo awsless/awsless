@@ -1,6 +1,7 @@
 import { kebabCase } from 'change-case'
 
 export const APP = (process.env.APP ?? 'app') as 'app'
+export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
 export const STACK = (process.env.STACK ?? 'stack') as 'stack'
 export const IS_TEST = process.env.NODE_ENV === 'test'
 
@@ -74,3 +75,11 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		}) as `${typeof APP}--${T}--${N}`
 	}
 }
+
+// export const getEnv = (name: string) => {
+// 	if (name in process.env) {
+// 		return process.env[name]
+// 	}
+
+// 	throw new TypeError(`Env var not defined: ${name}`)
+// }

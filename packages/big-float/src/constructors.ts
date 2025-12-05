@@ -7,6 +7,16 @@ export const make = (n: IBigFloat): BigFloat => {
 }
 
 /**
+ * Parses a string or numeric value into a BigFloat instance.
+ * @param {string | Numeric} n - The value to parse. Can be a numeric string or a Numeric type.
+ * @returns {BigFloat} A BigFloat representation of the input value.
+ * @throws {TypeError} If `n` cannot be parsed into a valid numeric value.
+ */
+export const parse = (n: string | Numeric): BigFloat => {
+	return new BigFloat(n as Numeric)
+}
+
+/**
  * Returns the fractional part of a number.
  * @param {Numeric} n - The number to extract the fraction from.
  * @returns {BigFloat} The fractional part of `n`.

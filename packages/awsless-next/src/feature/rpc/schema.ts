@@ -38,7 +38,29 @@ export const RpcDefaultSchema = z
 	.describe(`Define the global RPC API's.`)
 	.optional()
 
+const PermissionsSchema = z
+	.union([
+		//
+		z.string().transform(v => [v]),
+		z.string().array(),
+	])
+	.default([])
+	.describe(
+		'Specifies a list of permissions that can be used inside your custom authorizer function to determine if the user has access to this specific RPC function.'
+	)
+
+const EntrySchema = z.union([
+	FunctionSchema.transform(props => ({
+		function: props,
+		permissions: [],
+	})),
+	z.object({
+		function: FunctionSchema,
+		permissions: PermissionsSchema,
+	}),
+])
+
 export const RpcSchema = z
-	.record(ResourceIdSchema, z.record(z.string(), FunctionSchema).describe('The queries for your global RPC API.'))
+	.record(ResourceIdSchema, z.record(z.string(), EntrySchema).describe('The queries for your global RPC API.'))
 	.describe('Define the schema in your stack for your global RPC API.')
 	.optional()

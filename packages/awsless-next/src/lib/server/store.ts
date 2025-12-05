@@ -1,8 +1,8 @@
 import { Body, deleteObject, getObject, headObject, putObject, StorageClass } from '@awsless/s3'
 import { createProxy } from '../proxy.js'
-import { bindPostfixedLocalResourceName } from './util.js'
+import { APP_ID, bindPostfixedLocalResourceName } from './util.js'
 
-export const getStoreName = bindPostfixedLocalResourceName('store', process.env.APP_ID!)
+export const getStoreName = bindPostfixedLocalResourceName('store', APP_ID)
 
 export interface StoreResources {}
 

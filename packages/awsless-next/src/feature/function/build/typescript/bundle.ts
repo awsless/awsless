@@ -90,6 +90,7 @@ export const bundleTypeScript = async ({
 	})
 
 	const hash = createHash('sha1')
+	// const sourceMap = new SourceMap()
 	const files: File[] = []
 
 	for (const item of result.output) {
@@ -103,6 +104,8 @@ export const bundleTypeScript = async ({
 		// const name = `${ base }.${ ext }`
 		const code = Buffer.from(item.code, 'utf8')
 		const map = item.map ? Buffer.from(item.map.toString(), 'utf8') : undefined
+
+		item.map?.version
 
 		hash.update(code)
 

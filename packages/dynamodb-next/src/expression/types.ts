@@ -18,8 +18,10 @@ import {
 	BooleanUpdateExpression,
 	ListUpdateExpression,
 	MapUpdateExpression,
+	MapWithRestUpdateExpression,
 	NumberUpdateExpression,
 	RootUpdateExpression,
+	RootWithRestUpdateExpression,
 	SetUpdateExpression,
 	StringUpdateExpression,
 	TupleUpdateExpression,
@@ -68,7 +70,7 @@ export type SetIfNotExistFunction<A extends AttributeType, T> = {
 	setIfNotExists(value: Path<A, T>): Fluent
 }
 
-export type DeleteFunction<T> = undefined extends T
+export type DeleteFunction<T = undefined> = undefined extends T
 	? {
 			/** Delete attribute value. */
 			delete(): Fluent
@@ -333,15 +335,35 @@ export type JsonExpression<T> = Expression<
 	JsonConditionExpression<T>
 >
 
+// export type MapExpression<
+// 	T,
+// 	P extends Record<string, AnySchema>,
+// 	// R extends AnySchema,
+// 	P_UPDATE extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Update'] },
+// 	P_CONDITION extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Condition'] },
+// > = Expression<
+// 	MapUpdateExpression<T, P_UPDATE>,
+// 	MapConditionExpression<T, P_CONDITION>,
+// 	RootUpdateExpression<T, P_UPDATE>,
+// 	RootConditionExpression<P_CONDITION>
+// >
+
 export type MapExpression<
 	T,
 	P extends Record<string, AnySchema>,
+	R extends AnySchema | undefined = undefined,
 	P_UPDATE extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Update'] },
-	P_CONDITION extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Condition'] },
+	P_CONDITION extends Record<string, any> = {
+		[K in keyof P]: P[K][symbol]['Expression']['Condition']
+	} & (R extends AnySchema ? Record<string, R[symbol]['Expression']['Condition']> : {}),
 > = Expression<
-	MapUpdateExpression<T, P_UPDATE>,
+	R extends AnySchema
+		? MapWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']>
+		: MapUpdateExpression<T, P_UPDATE>,
 	MapConditionExpression<T, P_CONDITION>,
-	RootUpdateExpression<T, P_UPDATE>,
+	R extends AnySchema
+		? RootWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']>
+		: RootUpdateExpression<T, P_UPDATE>,
 	RootConditionExpression<P_CONDITION>
 >
 

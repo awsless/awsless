@@ -1,4 +1,4 @@
-import { BigFloat } from '@awsless/big-float'
+import { BigFloat, parse } from '@awsless/big-float'
 import { ErrorMessage, custom } from 'valibot'
 
 // export function precision<T extends BigFloat | number>(decimals: number, error?: ErrorMessage) {
@@ -11,8 +11,11 @@ import { ErrorMessage, custom } from 'valibot'
 // }
 
 export function precision<T extends BigFloat | number>(decimals: number, error?: ErrorMessage) {
-	return custom<T>(input => {
-		const big = new BigFloat(input.toString())
-		return -big.exponent <= decimals
-	}, error ?? `Invalid ${decimals} precision number`)
+	return custom<T>(
+		input => {
+			const big = parse(input.toString())
+			return -big.exponent <= decimals
+		},
+		error ?? `Invalid ${decimals} precision number`
+	)
 }

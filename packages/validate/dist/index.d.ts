@@ -3,8 +3,8 @@ import { BaseSchema, SchemaWithTransform, StringSchema, Output, Pipe, ErrorMessa
 export * from 'valibot';
 import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
-import { DurationFormat, Duration } from '@awsless/duration';
-import { AnyTable, PrimaryKey } from '@awsless/dynamodb';
+import { Duration, DurationFormat } from '@awsless/duration';
+import { AnyTable, PrimaryKey, Infer } from '@awsless/dynamodb';
 
 type JsonSchema<T extends BaseSchema> = SchemaWithTransform<StringSchema, Output<T>>;
 declare const json: <T extends BaseSchema>(schema: T) => JsonSchema<T>;
@@ -36,7 +36,7 @@ type SqsQueueSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> 
         body: string | Input<S>;
     }[];
 }, Output<S>[]>;
-declare const sqsQueue: <S extends BaseSchema = UnknownSchema<unknown>>(body?: S) => SqsQueueSchema<S>;
+declare const sqsQueue: <S extends BaseSchema = UnknownSchema>(body?: S) => SqsQueueSchema<S>;
 
 type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> | Input<S>[] | {
     Records: {
@@ -45,7 +45,7 @@ type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> 
         };
     }[];
 }, Output<S>[]>;
-declare const snsTopic: <S extends BaseSchema = UnknownSchema<unknown>>(body?: S) => SnsTopicSchema<S>;
+declare const snsTopic: <S extends BaseSchema = UnknownSchema>(body?: S) => SnsTopicSchema<S>;
 
 type EventName = 'MODIFY' | 'INSERT' | 'REMOVE';
 type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
@@ -60,8 +60,8 @@ type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
 }, {
     event: Lowercase<EventName>;
     keys: PrimaryKey<T>;
-    old?: T['schema']['OUTPUT'];
-    new?: T['schema']['OUTPUT'];
+    old?: Infer<T>;
+    new?: Infer<T>;
 }[]>;
 declare const dynamoDbStream: <T extends AnyTable>(table: T) => DynamoDBStreamSchema<T>;
 
