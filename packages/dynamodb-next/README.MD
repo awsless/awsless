@@ -188,6 +188,7 @@ We provides the following schema types:
 | `updateItem`				| Update an item |
 | `deleteItem`				| Delete an item |
 | `getIndexItem`			| Get an item from a specific index |
+| `getIndexItems`			| Batch get items from a specific index |
 | `query`					| Query a list of items |
 | `scan`     				| Scan the table for items |
 | `getItems`				| Batch get items |
