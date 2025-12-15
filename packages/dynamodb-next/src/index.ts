@@ -63,7 +63,6 @@ export { putItems } from './command/put-items.js'
 export { deleteItems } from './command/delete-items.js'
 
 export { getIndexItem } from './command/get-index-item.js'
-export { getIndexItems } from './command/get-index-items.js'
 
 export { query } from './command/query.js'
 export { scan } from './command/scan.js'
