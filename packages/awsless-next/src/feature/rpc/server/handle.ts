@@ -1,5 +1,5 @@
 import { invoke, ViewableError } from '@awsless/lambda'
-import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
+import { APIGatewayProxyEventV2 } from 'aws-lambda'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
 import {

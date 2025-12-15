@@ -1,4 +1,15 @@
-import { Duration, DurationFormat, parse, toDays, toHours, toMilliSeconds, toMinutes, toSeconds, toWeeks } from '../src'
+import {
+	Duration,
+	DurationFormat,
+	parse,
+	toDays,
+	toHours,
+	toMilliSeconds,
+	toMinutes,
+	toSeconds,
+	toWeeks,
+	toYears,
+} from '../src'
 
 describe('Duration Parser', () => {
 	it('parse', () => {
@@ -41,6 +52,8 @@ describe('Duration Parser', () => {
 			['1 day', toDays, 1],
 			['1 weeks', toWeeks, 1],
 			['1 week', toWeeks, 1],
+			['1 years', toYears, 1],
+			['1 year', toYears, 1],
 
 			['999 day', toDays, 999],
 		]

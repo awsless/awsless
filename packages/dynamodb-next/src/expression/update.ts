@@ -49,6 +49,8 @@ export type MapWithRestUpdateExpression<T, P extends Record<string, any>, R> = {
 	BaseUpdateExpression<'M', T> &
 	SetPartialFunction<'M', T>
 
+export type VariantUpdateExpression<T> = BaseUpdateExpression<'M', T>
+
 export type ListUpdateExpression<T extends any[], L extends any[]> = {
 	at<K extends keyof L>(index: K): L[K] & DeleteFunction
 } & BaseUpdateExpression<'L', T> &

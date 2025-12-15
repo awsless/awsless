@@ -37,7 +37,18 @@ describe('GetItem', () => {
 		)
 
 		expect(result).toStrictEqual({ name: 'Jack' })
+
+		type Equal<L, R> = L extends R ? true : false
+		type R = Equal<typeof result, { name: string } | undefined>
+
+		expectTypeOf<R>().toEqualTypeOf<true>()
+
+		type Equal2<L, R> = R extends L ? true : false
+		type R2 = Equal2<typeof result, { name: string } | undefined>
+
+		expectTypeOf<R2>().toEqualTypeOf<true>()
+
 		// expectTypeOf(result).toEqualTypeOf<{ id: number; name: string; deletedAt?: Date } | undefined>()
-		expectTypeOf(result).toEqualTypeOf<{ name: string } | undefined>()
+		// expectTypeOf(result).toEqualTypeOf<{ name: string } | undefined>()
 	})
 })

@@ -19,6 +19,7 @@ export { bigfloat } from './schema/bigfloat.js'
 export { uint8array } from './schema/uint8-array.js'
 export { object } from './schema/object.js'
 export { record } from './schema/record.js'
+export { variant } from './schema/variant.js'
 export { array } from './schema/array.js'
 export { tuple } from './schema/tuple.js'
 export { date } from './schema/date.js'
@@ -47,7 +48,11 @@ export { BatchGetItemCommand, BatchWriteItemCommand } from '@aws-sdk/client-dyna
 
 // errors
 import './exception/transaction-canceled'
-export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb'
+export {
+	ConditionalCheckFailedException,
+	TransactionCanceledException,
+	TransactionConflictException,
+} from '@aws-sdk/client-dynamodb'
 
 // fluent
 export { Fluent, createFluent } from './expression/fluent.js'

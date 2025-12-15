@@ -12,7 +12,7 @@ declare module '@aws-sdk/client-dynamodb' {
 
 TransactionCanceledException.prototype.cancellationReasonAt = function (index: number): Code | undefined {
 	const reasons = this.CancellationReasons ?? []
-	return reasons[index]?.Code as Code
+	return reasons[index]?.Code as Code | undefined
 }
 
 /** Will return true if index has a conditional failure. */

@@ -1,5 +1,4 @@
 import { stringify } from '@awsless/json'
-import { APIGatewayProxyResultV2 } from 'aws-lambda'
 
 export type GlobalError = {
 	type: string

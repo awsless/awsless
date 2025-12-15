@@ -37,9 +37,12 @@ __export(index_exports, {
   toSafeMinutes: () => toSafeMinutes,
   toSafeSeconds: () => toSafeSeconds,
   toSafeWeeks: () => toSafeWeeks,
+  toSafeYears: () => toSafeYears,
   toSeconds: () => toSeconds,
   toWeeks: () => toWeeks,
-  weeks: () => weeks
+  toYears: () => toYears,
+  weeks: () => weeks,
+  years: () => years
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -49,10 +52,14 @@ var MINUTES = SECONDS * 60n;
 var HOURS = MINUTES * 60n;
 var DAYS = HOURS * 24n;
 var WEEKS = DAYS * 7n;
+var YEARS = DAYS * 365n;
 var Duration = class {
   constructor(value) {
     this.value = value;
   }
+};
+var years = (value) => {
+  return new Duration(BigInt(value) * YEARS);
 };
 var weeks = (value) => {
   return new Duration(BigInt(value) * WEEKS);
@@ -72,6 +79,9 @@ var seconds = (value) => {
 var milliSeconds = (value) => {
   return new Duration(BigInt(value));
 };
+var toYears = (duration) => {
+  return Number(toSafeYears(duration));
+};
 var toWeeks = (duration) => {
   return Number(toSafeWeeks(duration));
 };
@@ -89,6 +99,9 @@ var toSeconds = (duration) => {
 };
 var toMilliSeconds = (duration) => {
   return Number(toSafeMilliSeconds(duration));
+};
+var toSafeYears = (duration) => {
+  return duration.value / YEARS;
 };
 var toSafeWeeks = (duration) => {
   return duration.value / WEEKS;
@@ -126,6 +139,8 @@ var parse = (value) => {
       return days(number);
     } else if (unit.startsWith("week")) {
       return weeks(number);
+    } else if (unit.startsWith("year")) {
+      return years(number);
     }
   }
   throw new SyntaxError(`Invalid duration: ${value}`);
@@ -149,7 +164,10 @@ var parse = (value) => {
   toSafeMinutes,
   toSafeSeconds,
   toSafeWeeks,
+  toSafeYears,
   toSeconds,
   toWeeks,
-  weeks
+  toYears,
+  weeks,
+  years
 });

@@ -38,11 +38,11 @@ export class WeakCache<Key extends string | number | symbol, Value extends unkno
 		return defaultValue
 	}
 
-	has(key: Key) {
+	has(key: Key): boolean {
 		return typeof this.get(key) !== 'undefined'
 	}
 
-	delete(key: Key) {
+	delete(key: Key): boolean {
 		const ref = this.cache.get(key)
 
 		if (ref) {

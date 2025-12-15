@@ -24,6 +24,7 @@ import {
 	unknown,
 	updateItem,
 	uuid,
+	variant,
 } from '../src'
 
 describe('Infer', () => {
@@ -60,6 +61,10 @@ describe('Infer', () => {
 			record: record(string()),
 			partial: object({
 				key: string(),
+			}),
+			variant: variant('type', {
+				one: object({ one: number() }),
+				two: object({ two: number() }),
 			}),
 
 			sets: object({
@@ -108,6 +113,7 @@ describe('Infer', () => {
 			partial: {
 				key: string
 			}
+			variant: { type: 'one'; one: number } | { type: 'two'; two: number }
 			sets: {
 				string: Set<string>
 				number: Set<number>
@@ -237,6 +243,11 @@ describe('Infer', () => {
 					e.partial.setPartial({
 						key: 'foo',
 					}),
+
+					// variant
+					e.variant.set({ type: 'one', one: 1 }),
+					e.variant.set({ type: 'two', two: 1 }),
+					e.variant.setIfNotExists({ type: 'two', two: 1 }),
 
 					// sets
 					e.sets.number.set(new Set([1, 2, 3])),
@@ -438,6 +449,13 @@ describe('Infer', () => {
 					e.tupleRest.at(1).eq('test'),
 					e.tupleRest.at(2).eq(1),
 					e.tupleRest.at(3).eq(1),
+
+					// variant
+					e.variant.eq({ type: 'one', one: 1 }),
+					e.variant.nq({ type: 'two', two: 2 }),
+					e.variant.exists(),
+					e.variant.notExists(),
+					e.variant.type('M'),
 
 					// sets
 					e.sets.number.eq(new Set([1])),

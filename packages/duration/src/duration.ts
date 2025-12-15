@@ -3,12 +3,17 @@ const MINUTES = SECONDS * 60n
 const HOURS = MINUTES * 60n
 const DAYS = HOURS * 24n
 const WEEKS = DAYS * 7n
+const YEARS = DAYS * 365n
 
 export class Duration {
 	constructor(readonly value: bigint) {}
 }
 
 // factories
+
+export const years = (value: number | bigint) => {
+	return new Duration(BigInt(value) * YEARS)
+}
 
 export const weeks = (value: number | bigint) => {
 	return new Duration(BigInt(value) * WEEKS)
@@ -36,6 +41,10 @@ export const milliSeconds = (value: number | bigint) => {
 
 // transforms
 
+export const toYears = (duration: Duration) => {
+	return Number(toSafeYears(duration))
+}
+
 export const toWeeks = (duration: Duration) => {
 	return Number(toSafeWeeks(duration))
 }
@@ -61,6 +70,10 @@ export const toMilliSeconds = (duration: Duration) => {
 }
 
 // safe bigint transforms
+
+export const toSafeYears = (duration: Duration) => {
+	return duration.value / YEARS
+}
 
 export const toSafeWeeks = (duration: Duration) => {
 	return duration.value / WEEKS

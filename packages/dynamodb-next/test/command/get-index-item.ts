@@ -47,6 +47,15 @@ describe('getIndexItem', () => {
 		)
 
 		expect(result).toStrictEqual({ name: 'Jack' })
-		expectTypeOf(result).toEqualTypeOf<{ name: string } | undefined>()
+
+		type Equal<L, R> = L extends R ? true : false
+		type R = Equal<typeof result, { name: string } | undefined>
+
+		expectTypeOf<R>().toEqualTypeOf<true>()
+
+		type Equal2<L, R> = R extends L ? true : false
+		type R2 = Equal2<typeof result, { name: string } | undefined>
+
+		expectTypeOf<R2>().toEqualTypeOf<true>()
 	})
 })

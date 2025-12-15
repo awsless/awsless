@@ -61,7 +61,7 @@ type BaseSchema<A extends AttributeType, T = any, Exp extends Expression = Expre
 };
 
 type AnyMapSchema = BaseSchema<'M'>;
-type Infer$1<T extends AnyTable> = T['schema'][symbol]['Type'];
+type Infer$2<T extends AnyTable> = T['schema'][symbol]['Type'];
 type AnyTable<T extends AnyMapSchema = AnyMapSchema> = Table<T, any, any, any>;
 type IndexNames<T extends AnyTable> = Extract<keyof T['indexes'], string>;
 type TableIndex<Schema extends AnyMapSchema> = {
@@ -92,20 +92,20 @@ declare const define: <Schema extends AnyMapSchema, Hash extends Extract<keyof S
     indexes?: Indexes;
 }) => Table<Schema, Hash, Sort, Indexes>;
 
-type Key<T extends AnyTable, K extends keyof Infer$1<T>> = Required<Record<K, Infer$1<T>[K]>>;
+type Key<T extends AnyTable, K extends keyof Infer$2<T>> = Required<Record<K, Infer$2<T>[K]>>;
 type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>;
 type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key<T, T['sort']> : {};
 type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
 type QueryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & Partial<SortKey<T, I>>;
 
-interface Options {
+interface Options$1 {
     client?: DynamoDBClient;
 }
 
 type Transactable$1 = {
     transact(): TransactWriteItem;
 };
-type TransactWriteOptions$1 = Options & {
+type TransactWriteOptions$1 = Options$1 & {
     idempotantKey?: string;
 };
 declare const transactWrite: (items: Transactable$1[], options?: TransactWriteOptions$1) => Promise<void>;
@@ -126,6 +126,7 @@ type RootConditionExpression<R extends Record<string, any>> = {
 type MapConditionExpression<T, R extends Record<string, any>> = {
     at<K extends keyof R>(key: K): R[K];
 } & BaseConditionExpression<'M', T> & R;
+type VariantConditionExpression<T> = BaseConditionExpression<'M', T>;
 type ListConditionExpression<T, L extends any[]> = {
     at<K extends number>(key: K): L[K];
 } & BaseConditionExpression<'L', T> & ContainsFunction<'L', T>;
@@ -156,6 +157,7 @@ type MapWithRestUpdateExpression<T, P extends Record<string, any>, R> = {
     at<K extends keyof P>(key: K): P[K];
     at(key: string): R & DeleteFunction;
 } & P & BaseUpdateExpression<'M', T> & SetPartialFunction<'M', T>;
+type VariantUpdateExpression<T> = BaseUpdateExpression<'M', T>;
 type ListUpdateExpression<T extends any[], L extends any[]> = {
     at<K extends keyof L>(index: K): L[K] & DeleteFunction;
 } & BaseUpdateExpression<'L', T> & PushFunction<T>;
@@ -402,6 +404,7 @@ type MapExpression<T, P extends Record<string, AnySchema$1>, R extends AnySchema
 }, P_CONDITION extends Record<string, any> = {
     [K in keyof P]: P[K][symbol]['Expression']['Condition'];
 } & (R extends AnySchema$1 ? Record<string, R[symbol]['Expression']['Condition']> : {})> = Expression<R extends AnySchema$1 ? MapWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']> : MapUpdateExpression<T, P_UPDATE>, MapConditionExpression<T, P_CONDITION>, R extends AnySchema$1 ? RootWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']> : RootUpdateExpression<T, P_UPDATE>, RootConditionExpression<P_CONDITION>>;
+type VariantExpression<T> = Expression<VariantUpdateExpression<T>, VariantConditionExpression<T>>;
 type ListExpression<T extends any[], L extends AnySchema$1[]> = Expression<ListUpdateExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Update'];
 }>, ListConditionExpression<T, {
@@ -463,27 +466,37 @@ declare const bigfloat: () => BigFloatSchema;
 type Uint8ArraySchema = BaseSchema<'B', Uint8Array, BinaryExpression<Uint8Array>>;
 declare const uint8array: () => Uint8ArraySchema;
 
-type Properties = Record<string, AnySchema$1>;
+type Properties$1 = Record<string, AnySchema$1>;
 type KeyOf<T> = Extract<keyof T, string>;
 type IsOptional<T extends AnySchema$1> = undefined extends T[symbol]['Type'] ? true : false;
-type FilterOptional<T extends Properties> = {
+type FilterOptional<T extends Properties$1> = {
     [K in KeyOf<T> as IsOptional<T[K]> extends true ? K : never]?: T[K];
 };
-type FilterRequired<T extends Properties> = {
+type FilterRequired<T extends Properties$1> = {
     [K in KeyOf<T> as IsOptional<T[K]> extends true ? never : K]: T[K];
 };
-type Optinalize<T extends Properties> = FilterOptional<T> & FilterRequired<T>;
-type InferProps<S extends Properties, R extends AnySchema$1 | undefined = undefined> = {
+type Optinalize<T extends Properties$1> = FilterOptional<T> & FilterRequired<T>;
+type InferProps<S extends Properties$1, R extends AnySchema$1 | undefined = undefined> = {
     [K in keyof Optinalize<S>]: S[K][symbol]['Type'];
 } & (R extends AnySchema$1 ? {
     [key: string]: R[symbol]['Type'] | S[keyof S][symbol]['Type'];
 } : {});
-type ObjectSchema<T, P extends Properties, R extends AnySchema$1 | undefined = undefined> = BaseSchema<'M', T, MapExpression<T, P, R>>;
-declare const object: <P extends Properties, R extends AnySchema$1 | undefined = undefined>(props: P, rest?: R) => ObjectSchema<InferProps<P, R>, P, R>;
+type ObjectSchema<T, P extends Properties$1, R extends AnySchema$1 | undefined = undefined> = BaseSchema<'M', T, MapExpression<T, P, R>>;
+declare const object: <P extends Properties$1, R extends AnySchema$1 | undefined = undefined>(props: P, rest?: R) => ObjectSchema<InferProps<P, R>, P, R>;
 
-type Infer<S extends AnySchema$1> = Record<string, S[symbol]['Type']>;
-type RecordSchema<S extends AnySchema$1> = BaseSchema<'M', Infer<S>, MapExpression<Infer<S>, {}, S>>;
+type Infer$1<S extends AnySchema$1> = Record<string, S[symbol]['Type']>;
+type RecordSchema<S extends AnySchema$1> = BaseSchema<'M', Infer$1<S>, MapExpression<Infer$1<S>, {}, S>>;
 declare const record: <S extends AnySchema$1>(schema: S) => RecordSchema<S>;
+
+type Infer<K extends string, O extends Options<K>> = {
+    [Key in keyof O]: O[Key][symbol]['Type'] & Record<K, Key>;
+}[keyof O];
+type VariantSchema<K extends string, O extends Options<K>> = BaseSchema<'M', Infer<K, O>, VariantExpression<Infer<K, O>>>;
+type Properties = Record<string, AnySchema$1>;
+type Options<T extends string> = Record<string, ObjectSchema<any, Properties & {
+    [K in T]?: never;
+}>>;
+declare const variant: <K extends string, O extends Options<K>>(key: K, options: O) => VariantSchema<K, O>;
 
 type ArraySchema<T extends AnySchema$1> = BaseSchema<'L', T[symbol]['Type'][], ListExpression<T[symbol]['Type'][], T[]>>;
 declare const array: <S extends AnySchema$1>(schema: S) => ArraySchema<S>;
@@ -511,8 +524,8 @@ declare const ttl: () => TtlSchema;
 
 type StreamData<T extends AnyTable> = {
     Keys: PrimaryKey<T>;
-    OldImage?: Infer$1<T>;
-    NewImage?: Infer$1<T>;
+    OldImage?: Infer$2<T>;
+    NewImage?: Infer$2<T>;
 };
 type StreamRequest<T extends AnyTable> = {
     Records: {
@@ -528,7 +541,7 @@ declare const streamTable: <T extends AnyTable>(table: T, fn: (payload: StreamRe
 
 type SeedTable<T extends AnyTable> = {
     table: T;
-    items: Infer$1<T>[];
+    items: Infer$2<T>[];
 };
 type Tables = CreateTableCommandInput | CreateTableCommandInput[] | AnyTable | AnyTable[];
 type StartDynamoDBOptions<T extends Tables> = {
@@ -541,9 +554,9 @@ declare const mockDynamoDB: <T extends Tables>(configOrServer: StartDynamoDBOpti
 
 declare const migrate: (client: DynamoDBClient, tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTable | AnyTable[]) => Promise<_aws_sdk_client_dynamodb.CreateTableCommandOutput[]>;
 
-declare const seedTable: <T extends AnyTable>(table: T, items: Infer$1<T>[]) => {
+declare const seedTable: <T extends AnyTable>(table: T, items: Infer$2<T>[]) => {
     table: T;
-    items: Infer$1<T>[];
+    items: Infer$2<T>[];
 };
 declare const seed: (defs: ReturnType<typeof seedTable>[]) => Promise<void>;
 
@@ -566,12 +579,12 @@ declare module '@aws-sdk/client-dynamodb' {
 }
 
 type FilterByProjection<T extends AnyTable, P extends ProjectionExpression<T>> = {
-    [K in keyof Infer$1<T> & P[keyof P]]: Infer$1<T>[K];
+    [K in keyof Infer$2<T> & P[keyof P]]: Infer$2<T>[K];
 };
-type ProjectionExpression<T extends AnyTable> = Array<Extract<keyof Infer$1<T>, string>>;
-type ProjectionResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = undefined extends P ? Infer$1<T> : P extends ProjectionExpression<T> ? FilterByProjection<T, P> : Infer$1<T>;
+type ProjectionExpression<T extends AnyTable> = Array<Extract<keyof Infer$2<T>, string>>;
+type ProjectionResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = undefined extends P ? Infer$2<T> : P extends ProjectionExpression<T> ? FilterByProjection<T, P> : Infer$2<T>;
 
-declare const getItem: <T extends AnyTable, const P extends ProjectionExpression<T> | undefined>(table: T, key: PrimaryKey<T>, options?: Options & {
+declare const getItem: <T extends AnyTable, const P extends ProjectionExpression<T> | undefined>(table: T, key: PrimaryKey<T>, options?: Options$1 & {
     consistentRead?: boolean;
     select?: P;
 }) => {
@@ -586,10 +599,10 @@ declare const getItem: <T extends AnyTable, const P extends ProjectionExpression
 
 type UpdateReturnValue = 'NONE' | 'ALL_OLD' | 'UPDATED_OLD' | 'ALL_NEW' | 'UPDATED_NEW';
 type ReturnValue = 'NONE' | 'ALL_OLD';
-type UpdateReturnResponse<T extends AnyTable, R extends UpdateReturnValue> = UpdateReturnValue extends R ? void : R extends 'NONE' ? void : R extends 'ALL_NEW' ? Infer$1<T> : R extends 'ALL_OLD' ? Infer$1<T> | undefined : R extends 'UPDATED_NEW' ? Partial<Infer$1<T>> : Partial<Infer$1<T>> | undefined;
-type ReturnResponse<T extends AnyTable, R extends ReturnValue> = ReturnValue extends R ? void : R extends 'NONE' ? void : Infer$1<T> | undefined;
+type UpdateReturnResponse<T extends AnyTable, R extends UpdateReturnValue> = UpdateReturnValue extends R ? void : R extends 'NONE' ? void : R extends 'ALL_NEW' ? Infer$2<T> : R extends 'ALL_OLD' ? Infer$2<T> | undefined : R extends 'UPDATED_NEW' ? Partial<Infer$2<T>> : Partial<Infer$2<T>> | undefined;
+type ReturnResponse<T extends AnyTable, R extends ReturnValue> = ReturnValue extends R ? void : R extends 'NONE' ? void : Infer$2<T> | undefined;
 
-declare const putItem: <T extends AnyTable, R extends ReturnValue>(table: T, item: Infer$1<T>, options?: Options & {
+declare const putItem: <T extends AnyTable, R extends ReturnValue>(table: T, item: Infer$2<T>, options?: Options$1 & {
     return?: R;
     when?: ConditionExpression<T>;
 }) => {
@@ -599,7 +612,7 @@ declare const putItem: <T extends AnyTable, R extends ReturnValue>(table: T, ite
     };
 };
 
-type UpdateOptions<T extends AnyTable, R extends UpdateReturnValue> = Options & {
+type UpdateOptions<T extends AnyTable, R extends UpdateReturnValue> = Options$1 & {
     update: UpdateExpression<T>;
     when?: ConditionExpression<T>;
     return?: R;
@@ -613,7 +626,7 @@ declare const updateItem: <T extends AnyTable, R extends UpdateReturnValue>(tabl
     };
 };
 
-declare const deleteItem: <T extends AnyTable, R extends ReturnValue>(table: T, key: PrimaryKey<T>, options?: Options & {
+declare const deleteItem: <T extends AnyTable, R extends ReturnValue>(table: T, key: PrimaryKey<T>, options?: Options$1 & {
     return?: R;
     when?: ConditionExpression<T>;
 }) => {
@@ -627,7 +640,7 @@ type Thenable<T> = {
     then<Result1 = T, Result2 = never>(onfulfilled: (value: T) => Result1, onrejected?: (reason: any) => Result2): Promise<Result1 | Result2>;
 };
 
-type BatchGetOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, F extends boolean> = Options & {
+type BatchGetOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, F extends boolean> = Options$1 & {
     select?: P;
     consistentRead?: boolean;
     filterNonExistentItems?: F;
@@ -638,22 +651,22 @@ type BatchGetItem = {
 };
 declare const getItems: BatchGetItem;
 
-declare const putItems: <T extends AnyTable>(table: T, items: Infer$1<T>[], options?: Options) => Thenable<void>;
+declare const putItems: <T extends AnyTable>(table: T, items: Infer$2<T>[], options?: Options$1) => Thenable<void>;
 
-declare const deleteItems: <T extends AnyTable>(table: T, keys: PrimaryKey<T>[], options?: Options) => Thenable<void>;
+declare const deleteItems: <T extends AnyTable>(table: T, keys: PrimaryKey<T>[], options?: Options$1) => Thenable<void>;
 
-declare const getIndexItem: <T extends AnyTable, I extends IndexNames<T>, const P extends ProjectionExpression<T> | undefined = undefined>(table: T, index: I, key: PrimaryKey<T, I>, options?: Options & {
+declare const getIndexItem: <T extends AnyTable, I extends IndexNames<T>, const P extends ProjectionExpression<T> | undefined = undefined>(table: T, index: I, key: PrimaryKey<T, I>, options?: Options$1 & {
     select?: P;
 }) => Thenable<ProjectionResponse<T, P> | undefined>;
 
 type KeyConditionExpression<T extends AnyTable, I extends IndexNames<T> | undefined> = (e: Pick<T['schema'][symbol]['Expression']['Root']['Condition'], I extends IndexNames<T> ? T['indexes'][I]['sort'] : T['sort']>) => Fluent | Fluent[];
 
-type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
+type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$1 & {
     where?: KeyConditionExpression<T, I>;
     select?: P;
     index?: I;
     consistentRead?: boolean;
-    order?: 'asc' | 'desc';
+    sort?: 'asc' | 'desc';
     limit?: number;
     cursor?: string;
     disablePreciseCursor?: boolean;
@@ -674,7 +687,7 @@ declare const query: <T extends AnyTable, const P extends ProjectionExpression<T
     };
 };
 
-type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options & {
+type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$1 & {
     select?: P;
     index?: I;
     consistentRead?: boolean;
@@ -721,7 +734,7 @@ type Transactable = {
 type TransactReadResponse<T extends Transactable[]> = {
     [K in keyof T]: ReturnType<ReturnType<T[K]['transact']>['unmarshall']> | undefined;
 };
-type TransactWriteOptions = Options;
+type TransactWriteOptions = Options$1;
 declare const transactRead: <const T extends Transactable[]>(items: T, options?: TransactWriteOptions) => Promise<TransactReadResponse<T>>;
 
-export { type AnyTable, Fluent, type HashKey, type Infer$1 as Infer, type PrimaryKey, type SortKey, Table, type Transactable$1 as Transactable, any, array, bigfloat, bigint, boolean, conditionCheck, createFluent, date, define, deleteItem, deleteItems, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexItem, getItem, getItems, json, migrate, mockDynamoDB, number, object, optional, putItem, putItems, query, record, scan, seed, seedTable, set, streamTable, string, transactRead, transactWrite, ttl, tuple, uint8array, unknown, updateItem, uuid };
+export { type AnyTable, Fluent, type HashKey, type Infer$2 as Infer, type PrimaryKey, type SortKey, Table, type Transactable$1 as Transactable, any, array, bigfloat, bigint, boolean, conditionCheck, createFluent, date, define, deleteItem, deleteItems, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexItem, getItem, getItems, json, migrate, mockDynamoDB, number, object, optional, putItem, putItems, query, record, scan, seed, seedTable, set, streamTable, string, transactRead, transactWrite, ttl, tuple, uint8array, unknown, updateItem, uuid, variant };

@@ -59,7 +59,7 @@ describe('Query', () => {
 	})
 
 	it('should query list backwards', async () => {
-		const result = await query(posts, { userId: 1 }, { order: 'desc' })
+		const result = await query(posts, { userId: 1 }, { sort: 'desc' })
 
 		expect(result).toStrictEqual({
 			cursor: undefined,

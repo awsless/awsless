@@ -19,7 +19,7 @@ type QueryOptions<
 	select?: P
 	index?: I
 	consistentRead?: boolean
-	order?: 'asc' | 'desc'
+	sort?: 'asc' | 'desc'
 	limit?: number
 	cursor?: string
 	disablePreciseCursor?: boolean
@@ -51,7 +51,7 @@ export const query = <
 				])
 			),
 			ConsistentRead: options.consistentRead,
-			ScanIndexForward: options.order === 'desc' ? false : true,
+			ScanIndexForward: options.sort === 'desc' ? false : true,
 			Limit: limit ?? options.limit ?? 10,
 			ExclusiveStartKey: fromCursorString(cursor),
 			ProjectionExpression: buildProjectionExpression(attrs, options.select),

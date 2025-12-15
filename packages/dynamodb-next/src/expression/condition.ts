@@ -52,6 +52,8 @@ export type MapConditionExpression<T, R extends Record<string, any>> = {
 } & BaseConditionExpression<'M', T> &
 	R
 
+export type VariantConditionExpression<T> = BaseConditionExpression<'M', T>
+
 // export type RecordConditionExpression<T, C> =
 // 	// | LogicalConditionExpression<MapConditionExpression<T, R>>
 // 	| AndFunction<RecordConditionExpression<T, C>>

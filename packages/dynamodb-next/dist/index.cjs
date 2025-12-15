@@ -87,7 +87,8 @@ __export(index_exports, {
   uint8array: () => uint8array,
   unknown: () => unknown,
   updateItem: () => updateItem,
-  uuid: () => uuid
+  uuid: () => uuid,
+  variant: () => variant
 });
 module.exports = __toCommonJS(index_exports);
 
@@ -383,6 +384,44 @@ var record = (schema) => createSchema({
   },
   walk(_, ...rest) {
     return rest.length ? schema.walk?.(...rest) : schema;
+  }
+});
+
+// src/schema/variant.ts
+var variant = (key, options) => createSchema({
+  type: "M",
+  encode(input) {
+    const type = input[key];
+    if (!type) {
+      throw new TypeError(`Missing variant key: ${key}`);
+    }
+    const variant2 = options[type];
+    if (!variant2) {
+      throw new TypeError(`Unknown variant: ${type}`);
+    }
+    return {
+      ...variant2.encode(input),
+      [key]: {
+        S: type
+      }
+    };
+  },
+  decode(output) {
+    const type = output[key];
+    if (!type || !type.S) {
+      throw new TypeError(`Missing variant key: ${key}`);
+    }
+    const variant2 = options[type.S];
+    if (!variant2) {
+      throw new TypeError(`Unknown variant: ${type}`);
+    }
+    return {
+      ...variant2.decode(output),
+      [key]: type.S
+    };
+  },
+  walk() {
+    throw new TypeError(`Update & condition expressions are unsupported for a variant type`);
   }
 });
 
@@ -1399,7 +1438,7 @@ var query = (table, key, options = {}) => {
         ])
       ),
       ConsistentRead: options.consistentRead,
-      ScanIndexForward: options.order === "desc" ? false : true,
+      ScanIndexForward: options.sort === "desc" ? false : true,
       Limit: limit ?? options.limit ?? 10,
       ExclusiveStartKey: fromCursorString(cursor),
       ProjectionExpression: buildProjectionExpression(attrs, options.select),
@@ -1561,5 +1600,6 @@ var transactRead = async (items, options = {}) => {
   uint8array,
   unknown,
   updateItem,
-  uuid
+  uuid,
+  variant
 });

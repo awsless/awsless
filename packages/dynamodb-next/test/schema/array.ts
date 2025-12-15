@@ -44,7 +44,8 @@ describe('array', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.array.at(1).set(2),
+					// e.array.at(1).set(2),
+					e.array.push(2),
 				],
 				when: e => [
 					//

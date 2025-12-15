@@ -14,19 +14,6 @@ export const dynamoDBClient = /* @__PURE__ */ globalClient(() => {
 	})
 })
 
-// // Use default Https agent, but override the socket timeout
-// const requestHandler = new NodeHttpHandler({
-// 	connectionTimeout: 30000,
-// 	socketTimeout: 30000,
-//   });
-
-//   const options = {
-// 	region: AWS_REGION,
-// 	maxAttempts: 2,
-// 	requestHandler, // Use handler with alternate settings for timeouts
-//   };
-//   export const dynamodbClient = new DynamoDBClient(options);
-
 export const dynamoDBDocumentClient = /* @__PURE__ */ globalClient(() => {
 	return DynamoDBDocumentClient.from(dynamoDBClient(), {
 		marshallOptions: {

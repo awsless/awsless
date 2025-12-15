@@ -26,6 +26,7 @@ import {
 	unknown,
 	updateItem,
 	uuid,
+	variant,
 } from '../src'
 
 enum StringEnum {
@@ -91,6 +92,10 @@ describe('Schema', () => {
 					key: string(),
 				})
 			),
+			variant: variant('type', {
+				one: object({ one: number() }),
+				two: object({ two: number() }),
+			}),
 			any: any(),
 			sets: object({
 				// empty: stringSet(),
@@ -150,6 +155,10 @@ describe('Schema', () => {
 			key1: { key: '1' },
 			key2: { key: '1' },
 		},
+		variant: {
+			type: 'one',
+			one: 1,
+		},
 		any: { id: 1 },
 		sets: {
 			empty: new Set<string>(),
@@ -197,6 +206,7 @@ describe('Schema', () => {
 					object: { key: string }
 					objectRest: { key: string; [key: string]: number | string }
 					record: Record<string, { key: string }>
+					variant: { type: 'one'; one: number } | { type: 'two'; two: number }
 					any?: any
 					sets: {
 						empty: Set<string>
@@ -266,6 +276,10 @@ describe('Schema', () => {
 							key1: { key: '2' },
 							key2: { key: '2' },
 						},
+						variant: {
+							type: 'two',
+							two: 2,
+						},
 						any: { id: 2 },
 						sets: {
 							empty: new Set<string>(),
@@ -313,6 +327,10 @@ describe('Schema', () => {
 			record: {
 				key1: { key: '2' },
 				key2: { key: '2' },
+			},
+			variant: {
+				type: 'two',
+				two: 2,
 			},
 			any: { id: 2 },
 			sets: {

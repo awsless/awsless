@@ -11,6 +11,7 @@ import {
 	StringConditionExpression,
 	TupleWithRestConditionExpression,
 	UnknownConditionExpression,
+	VariantConditionExpression,
 } from './condition'
 import { Fluent } from './fluent'
 import {
@@ -27,6 +28,7 @@ import {
 	TupleUpdateExpression,
 	TupleWithRestUpdateExpression,
 	UnknownUpdateExpression,
+	VariantUpdateExpression,
 } from './update'
 
 // ------------------------------------------------------------
@@ -366,6 +368,8 @@ export type MapExpression<
 		: RootUpdateExpression<T, P_UPDATE>,
 	RootConditionExpression<P_CONDITION>
 >
+
+export type VariantExpression<T> = Expression<VariantUpdateExpression<T>, VariantConditionExpression<T>>
 
 // export type RecordExpression<T extends Record<string, any>, S extends AnySchema> = Expression<
 // 	// MapUpdateExpression<T, Record<string, S[symbol]['Expression']['Update']>>,

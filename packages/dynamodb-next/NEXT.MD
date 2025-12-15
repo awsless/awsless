@@ -99,12 +99,11 @@ await putItems(posts, [
 
 ```
 
-
 # Issues
+
 - $setPartial doesn't work for Record
 - $push should not be allowed for Tuple
 - the $eq comparitor isn't working well for Record.
-
 
 ```ts
 updateItem({
@@ -114,34 +113,34 @@ updateItem({
 		// Set a property to an other property.
 		e.id.set(e.userId),
 	],
-	when: e => e.or([
-		e.not(e.id.exists()),
-		e.userId.eq(1),
-		e.profile(1).age.eq(1),
-	])
+	when: e =>
+		e.or([
+			//
+			e.not(e.id.exists()),
+			e.userId.eq(1),
+			e.profile(1).age.eq(1),
+		]),
 })
 ```
 
-
 ```ts
-
 // Awsless v3
 updateItem({
 	update: (p, f) => [
+		//
 		f.set(p.userId, 1),
 		f.delete(p.profile),
-		f.set(p.id, p.userId)
+		f.set(p.id, p.userId),
 	],
-	when: (p, f) => f.or([
-		f.not(f.exists(p.id)),
-		f.eq(p.userId, 1),
-		f.eq(p.profile.age, 2)
-	])
+	when: (p, f) =>
+		f.or([
+			//
+			f.not(f.exists(p.id)),
+			f.eq(p.userId, 1),
+			f.eq(p.profile.age, 2),
+		]),
 })
-
 ```
-
-
 
 ```ts
 
