@@ -47,7 +47,7 @@ const RetryAttemptsSchema = z
 		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
 	)
 
-const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x'])
+const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x', 'nodejs24.x'])
 const ContainerRuntimeSchema = z.literal('container')
 const RuntimeSchema = NodeRuntimeSchema.or(ContainerRuntimeSchema)
 	.or(z.string())
@@ -302,7 +302,7 @@ export const FunctionsSchema = z
 
 export const FunctionDefaultSchema = z
 	.object({
-		runtime: RuntimeSchema.default('nodejs20.x'),
+		runtime: RuntimeSchema.default('nodejs24.x'),
 
 		// node
 		handler: HandlerSchema.default('index.default'),
