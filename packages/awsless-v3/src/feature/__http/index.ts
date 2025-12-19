@@ -1,4 +1,4 @@
-import { aws, Node } from '@awsless/formation'
+import { aws, Node } from '@terraforge/aws'
 import { camelCase, constantCase } from 'change-case'
 import { relative } from 'path'
 import { FileError } from '../../error.js'

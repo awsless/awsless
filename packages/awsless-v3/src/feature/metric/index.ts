@@ -1,4 +1,5 @@
-import { $, Group, Output } from '@awsless/formation'
+import { Group, Output } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -97,13 +98,13 @@ export const metricFeature = defineFeature({
 				const alarmProps = props.alarms![alarmId]!
 
 				let alarmAction: Output<string>
-				let alarmLambda: $.aws.lambda.Function | undefined
+				let alarmLambda: aws.lambda.Function | undefined
 
 				if (Array.isArray(alarmProps.trigger)) {
 					// ----------------------------------------
 					// create email sns trigger
 
-					const topic = new $.aws.sns.Topic(alarmGroup, 'alarm-trigger', {
+					const topic = new aws.sns.Topic(alarmGroup, 'alarm-trigger', {
 						name: formatLocalResourceName({
 							appName: ctx.app.name,
 							stackName: ctx.stack.name,
@@ -115,7 +116,7 @@ export const metricFeature = defineFeature({
 					alarmAction = topic.arn
 
 					for (const email of alarmProps.trigger) {
-						new $.aws.sns.TopicSubscription(alarmGroup, email, {
+						new aws.sns.TopicSubscription(alarmGroup, email, {
 							topicArn: topic.arn,
 							protocol: 'email',
 							endpoint: email,
@@ -133,7 +134,7 @@ export const metricFeature = defineFeature({
 
 				// ----------------------------------------
 
-				const alarm = new $.aws.cloudwatch.MetricAlarm(alarmGroup, 'alarm', {
+				const alarm = new aws.cloudwatch.MetricAlarm(alarmGroup, 'alarm', {
 					namespace,
 					metricName: kebabCase(id),
 					alarmName: formatLocalResourceName({
@@ -152,7 +153,7 @@ export const metricFeature = defineFeature({
 				})
 
 				if (alarmLambda) {
-					new $.aws.lambda.Permission(alarmGroup, 'permission', {
+					new aws.lambda.Permission(alarmGroup, 'permission', {
 						action: 'lambda:InvokeFunction',
 						principal: 'lambda.alarms.cloudwatch.amazonaws.com',
 						functionName: alarmLambda.functionName,

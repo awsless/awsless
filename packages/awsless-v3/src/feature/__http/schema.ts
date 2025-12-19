@@ -1,7 +1,7 @@
+import { aws } from '@terraforge/aws'
 import { z } from 'zod'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
-import { aws } from '@awsless/formation'
 
 export type Route = `${aws.elb.HttpRequestMethod} /${string}`
 

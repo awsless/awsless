@@ -1,6 +1,6 @@
 import { CloudWatchLogsClient, StartLiveTailCommand } from '@aws-sdk/client-cloudwatch-logs'
 import { log } from '@awsless/clui'
-import { $ } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
 import chalk from 'chalk'
 import chunk from 'chunk'
 import { Command as CliCommand } from 'commander'
@@ -57,8 +57,8 @@ export const logs = (program: CliCommand) => {
 					if (filters.find(f => wildstring.match(f, stack.name))) {
 						// Find all log groups inside our stacks
 						for (const resource of stack.resources) {
-							if (resource.$.type === 'aws_cloudwatch_log_group') {
-								const logGroup = resource as unknown as $.aws.cloudwatch.LogGroup
+							if (resource.type === 'aws_cloudwatch_log_group') {
+								const logGroup = resource as unknown as aws.cloudwatch.LogGroup
 
 								logGroupArns.push(await logGroup.arn)
 							}

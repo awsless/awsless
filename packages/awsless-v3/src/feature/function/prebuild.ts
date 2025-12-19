@@ -1,6 +1,7 @@
 import { days, seconds, toDays, toSeconds } from '@awsless/duration'
-import { $, Future, Group, Input, resolveInputs } from '@awsless/formation'
 import { mebibytes, toMebibytes } from '@awsless/size'
+import { aws } from '@terraforge/aws'
+import { Future, Group, Input, resolveInputs } from '@terraforge/core'
 import { pascalCase } from 'change-case'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
@@ -71,7 +72,7 @@ export const createPrebuildLambdaFunction = (
 		})
 	}
 
-	const code = new $.aws.s3.BucketObject(group, 'code', {
+	const code = new aws.s3.BucketObject(group, 'code', {
 		bucket: ctx.shared.get('function', 'bucket-name'),
 		key: `/lambda/${name}.zip`,
 		source: props.bundleFile,
@@ -79,7 +80,7 @@ export const createPrebuildLambdaFunction = (
 		// body: Asset.fromFile(props.bundleFile),
 	})
 
-	const role = new $.aws.iam.Role(group, 'role', {
+	const role = new aws.iam.Role(group, 'role', {
 		name: roleName,
 		assumeRolePolicy: JSON.stringify({
 			Version: '2012-10-17',
@@ -99,14 +100,14 @@ export const createPrebuildLambdaFunction = (
 
 	const addPermission = (...permissions: Permission[]) => {
 		statements.push(...permissions)
-		policy.$.attachDependencies(permissions)
+		// policy.attachDependencies(permissions)
 	}
 
 	ctx.onPermission(statement => {
 		addPermission(statement)
 	})
 
-	const policy = new $.aws.iam.RolePolicy(group, 'policy', {
+	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',
 		policy: new Future(async resolve => {
@@ -132,7 +133,7 @@ export const createPrebuildLambdaFunction = (
 		json: 'JSON',
 	}
 
-	const lambda = new $.aws.lambda.Function(group, `function`, {
+	const lambda = new aws.lambda.Function(group, `function`, {
 		functionName: name,
 		role: role.arn,
 		// code,
@@ -200,7 +201,7 @@ export const createPrebuildLambdaFunction = (
 	// Logging
 
 	if (props.log?.retention && props.log?.retention?.value > 0n) {
-		const logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
+		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
 			name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention ?? days(7)),
 		})
@@ -218,7 +219,7 @@ export const createPrebuildLambdaFunction = (
 		if (onLogArn && ctx.appConfig.defaults.onLog) {
 			const logFilter = ctx.appConfig.defaults.onLog.filter
 
-			new $.aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
+			new aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
 				name: 'log-subscription',
 				destinationArn: onLogArn,
 				logGroupName: logGroup.name,
@@ -231,14 +232,14 @@ export const createPrebuildLambdaFunction = (
 	// Warm up cron
 
 	if (props.warm) {
-		const rule = new $.aws.cloudwatch.EventRule(group, 'warm', {
+		const rule = new aws.cloudwatch.EventRule(group, 'warm', {
 			name: `${name}--warm`,
 			description: 'Lambda Warmer',
 			scheduleExpression: 'rate(5 minutes)',
 			isEnabled: true,
 		})
 
-		new $.aws.cloudwatch.EventTarget(group, 'warm', {
+		new aws.cloudwatch.EventTarget(group, 'warm', {
 			rule: rule.name,
 			targetId: 'warmer',
 			arn: lambda.arn,
@@ -248,7 +249,7 @@ export const createPrebuildLambdaFunction = (
 			}),
 		})
 
-		new $.aws.lambda.Permission(group, `warm`, {
+		new aws.lambda.Permission(group, `warm`, {
 			action: 'lambda:InvokeFunction',
 			principal: 'events.amazonaws.com',
 			functionName: lambda.functionName,

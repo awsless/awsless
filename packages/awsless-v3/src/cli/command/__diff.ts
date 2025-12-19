@@ -1,4 +1,5 @@
-import { aws, Stack, URN, WorkSpace } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
+import { Stack, URN, WorkSpace } from '@terraforge/core'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'

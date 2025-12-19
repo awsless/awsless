@@ -1,5 +1,6 @@
 import { camelCase, constantCase, kebabCase } from 'change-case'
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -59,7 +60,7 @@ export const routeFeature = defineFeature({
 				log: props.log,
 			})
 
-			const table = new $.aws.dynamodb.Table(group, 'schema', {
+			const table = new aws.dynamodb.Table(group, 'schema', {
 				name,
 				hashKey: 'query',
 				billingMode: 'PAY_PER_REQUEST',
@@ -89,7 +90,7 @@ export const routeFeature = defineFeature({
 
 				// we need a new way of forcing the lambda to update after the auth changed.
 
-				// new $.aws.lambda.SourceCodeUpdate(group, 'update', {
+				// new aws.lambda.SourceCodeUpdate(group, 'update', {
 				// 	functionName: lambda.name,
 				// 	version: Asset.fromFile(getBuildPath('function', auth.name, 'HASH')),
 				// 	architecture: 'arm64',
@@ -97,14 +98,14 @@ export const routeFeature = defineFeature({
 				// })
 			}
 
-			// const permission = new $.aws.lambda.Permission(group, 'permission', {
+			// const permission = new aws.lambda.Permission(group, 'permission', {
 			// 	principal: '*',
 			// 	action: 'lambda:InvokeFunctionUrl',
 			// 	functionName: result.lambda.functionName,
 			// 	// urlAuthType: 'none',
 			// })
 
-			const permission = new $.aws.lambda.Permission(group, 'permission', {
+			const permission = new aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',
 				action: 'lambda:InvokeFunctionUrl',
 				functionName: result.lambda.functionName,
@@ -112,7 +113,7 @@ export const routeFeature = defineFeature({
 				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 			})
 
-			const url = new $.aws.lambda.FunctionUrl(
+			const url = new aws.lambda.FunctionUrl(
 				group,
 				'url',
 				{
@@ -127,7 +128,7 @@ export const routeFeature = defineFeature({
 				{ dependsOn: [permission] }
 			)
 
-			const accessControl = new $.aws.cloudfront.OriginAccessControl(group, 'ssr-access', {
+			const accessControl = new aws.cloudfront.OriginAccessControl(group, 'ssr-access', {
 				name: `${name}-ssr`,
 				originAccessControlOriginType: 'lambda',
 				signingBehavior: 'always',
@@ -142,14 +143,14 @@ export const routeFeature = defineFeature({
 				? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 				: undefined
 
-			const cache = new $.aws.cloudfront.CachePolicy(group, 'cache', {
+			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
 				name,
 				minTtl: toSeconds(seconds(1)),
 				maxTtl: toSeconds(days(365)),
 				defaultTtl: toSeconds(days(1)),
 			})
 
-			const originRequest = new $.aws.cloudfront.OriginRequestPolicy(group, 'request', {
+			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
 				name,
 				headersConfig: {
 					headerBehavior: 'allExcept',
@@ -165,7 +166,7 @@ export const routeFeature = defineFeature({
 				},
 			})
 
-			const cdn = new $.aws.cloudfront.Distribution(group, 'cdn', {
+			const cdn = new aws.cloudfront.Distribution(group, 'cdn', {
 				tags: {
 					Name: name,
 				},
@@ -219,7 +220,7 @@ export const routeFeature = defineFeature({
 			if (props.domain) {
 				const fullDomainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-				new $.aws.route53.Record(group, 'record', {
+				new aws.route53.Record(group, 'record', {
 					zoneId: ctx.shared.entry('domain', `zone-id`, props.domain),
 					type: 'A',
 					name: fullDomainName,
@@ -257,7 +258,7 @@ export const routeFeature = defineFeature({
 					description: `${id} ${name}`,
 				})
 
-				new $.aws.dynamodb.TableItem(queryGroup, 'query', {
+				new aws.dynamodb.TableItem(queryGroup, 'query', {
 					tableName: table.name,
 					hashKey: table.hashKey,
 					rangeKey: table.rangeKey,

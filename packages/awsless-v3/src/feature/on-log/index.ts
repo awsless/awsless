@@ -1,6 +1,7 @@
 import { defineFeature } from '../../feature.js'
 import { createLambdaFunction } from '../function/util.js'
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 
 export const onLogFeature = defineFeature({
 	name: 'on-log',
@@ -20,7 +21,7 @@ export const onLogFeature = defineFeature({
 			ctx.appConfig.defaults.onLog.consumer
 		)
 
-		new $.aws.lambda.Permission(group, 'permission', {
+		new aws.lambda.Permission(group, 'permission', {
 			action: 'lambda:InvokeFunction',
 			principal: 'logs.amazonaws.com',
 			functionName: lambda.functionName,

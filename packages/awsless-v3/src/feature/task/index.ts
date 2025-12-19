@@ -1,4 +1,5 @@
-import { Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -7,7 +8,6 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
-import { $ } from '@awsless/formation'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -90,14 +90,14 @@ export const taskFeature = defineFeature({
 			resourceName: 'group',
 		})
 
-		new $.aws.scheduler.ScheduleGroup(group, 'group', {
+		new aws.scheduler.ScheduleGroup(group, 'group', {
 			name: scheduleGroupName,
 			tags: {
 				app: ctx.app.name,
 			},
 		})
 
-		const role = new $.aws.iam.Role(group, 'schedule', {
+		const role = new aws.iam.Role(group, 'schedule', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'task',

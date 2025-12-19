@@ -1,5 +1,6 @@
-import { $, Future, Group, Input, resolveInputs, Resource } from '@awsless/formation'
 import { generateFileHash } from '@awsless/ts-file-cache'
+import { aws } from '@terraforge/aws'
+import { Future, Group, Input, resolveInputs, Resource } from '@terraforge/core'
 import deepmerge from 'deepmerge'
 import { basename } from 'path'
 import { getBuildPath } from '../../build/index.js'
@@ -28,9 +29,9 @@ import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 // import { bundleCacheKey } from './build/bundle/__cache.js'
 // import { buildDockerImage } from './build/container/build.js'
 
-// type Function = $.aws.lambda.Function
-// type Policy = $.aws.iam.RolePolicy
-// type Code = $.aws.lambda.Code
+// type Function = aws.lambda.Function
+// type Policy = aws.iam.RolePolicy
+// type Code = aws.lambda.Code
 
 // type Statement = {
 // 	effect?: 'allow' | 'deny'
@@ -78,7 +79,7 @@ export const createLambdaFunction = (
 	// ctx.appConfig.defaults.function.log.retention
 
 	const props = deepmerge(ctx.appConfig.defaults.function, local)
-	let code: $.aws.s3.BucketObject
+	let code: aws.s3.BucketObject
 
 	// ------------------------------------------------------------
 	// Check if layer has been defined on the app level
@@ -120,7 +121,7 @@ export const createLambdaFunction = (
 		// 		}
 		// 	})
 		// })
-		// const image = new $.aws.ecr.Image(group, 'image', {
+		// const image = new aws.ecr.Image(group, 'image', {
 		// 	repository: ctx.shared.get('function-repository-name'),
 		// 	hash: Asset.fromFile(getBuildPath('function', name, 'HASH')),
 		// 	name: name,
@@ -174,14 +175,14 @@ export const createLambdaFunction = (
 			})
 		})
 
-		// new $.aws.s3.BucketObject(group, 'code', {
+		// new aws.s3.BucketObject(group, 'code', {
 		// 	bucket: ctx.shared.get('function', 'bucket-name'),
 		// 	key: `/lambda/${name}.map`,
 		// 	source: relativePath(getBuildPath('function', name, 'bundle.map')),
 		// 	sourceHash: $hash(getBuildPath('function', name, 'HASH')),
 		// })
 
-		code = new $.aws.s3.BucketObject(group, 'code', {
+		code = new aws.s3.BucketObject(group, 'code', {
 			bucket: ctx.shared.get('function', 'bucket-name'),
 			key: `/lambda/${name}.zip`,
 			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
@@ -208,7 +209,7 @@ export const createLambdaFunction = (
 			})
 		})
 
-		code = new $.aws.s3.BucketObject(group, 'code', {
+		code = new aws.s3.BucketObject(group, 'code', {
 			bucket: ctx.shared.get('function', 'bucket-name'),
 			key: `lambda/${name}.zip`,
 			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
@@ -218,7 +219,7 @@ export const createLambdaFunction = (
 
 	// ------------------------------------------------------------
 
-	const role = new $.aws.iam.Role(group, 'role', {
+	const role = new aws.iam.Role(group, 'role', {
 		name: shortName,
 		description: name,
 		assumeRolePolicy: JSON.stringify({
@@ -239,14 +240,14 @@ export const createLambdaFunction = (
 
 	const addPermission = (...permissions: Permission[]) => {
 		statements.push(...permissions)
-		policy.$.attachDependencies(permissions)
+		// policy.attachDependencies(permissions)
 	}
 
 	ctx.onPermission(statement => {
 		addPermission(statement)
 	})
 
-	// const document = $.aws.iam.getPolicyDocument({
+	// const document = aws.iam.getPolicyDocument({
 	// 	statement: statements.map(statement => ({
 	// 		effect: pascalCase(statement.effect ?? 'allow'),
 	// 		actions: statement.actions,
@@ -254,7 +255,7 @@ export const createLambdaFunction = (
 	// 	})),
 	// })
 
-	const policy = new $.aws.iam.RolePolicy(group, 'policy', {
+	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',
 		policy: new Future(async resolve => {
@@ -287,7 +288,7 @@ export const createLambdaFunction = (
 		}
 
 		dependsOn.push(
-			new $.aws.iam.RolePolicy(group, 'vpc-policy', {
+			new aws.iam.RolePolicy(group, 'vpc-policy', {
 				role: role.name,
 				name: 'lambda-vpc-policy',
 				policy: JSON.stringify({
@@ -318,7 +319,7 @@ export const createLambdaFunction = (
 		json: 'JSON',
 	}
 
-	const lambda = new $.aws.lambda.Function(
+	const lambda = new aws.lambda.Function(
 		group,
 		`function`,
 		{
@@ -394,7 +395,7 @@ export const createLambdaFunction = (
 
 	ctx.onEnv((name, value) => {
 		variables[name] = value
-		lambda.$.attachDependencies({ value })
+		// lambda.attachDependencies({ value })
 	})
 
 	// ctx.registerPolicy(policy)
@@ -414,7 +415,7 @@ export const createLambdaFunction = (
 	// Logging
 
 	if (props.log.retention!.value > 0n) {
-		const logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
+		const logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
 			// name: lambda.functionName.pipe(name => `/aws/lambda/${name}`),
 			name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention),
@@ -433,7 +434,7 @@ export const createLambdaFunction = (
 		if (onLogArn && ctx.appConfig.defaults.onLog) {
 			const logFilter = ctx.appConfig.defaults.onLog.filter
 
-			new $.aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
+			new aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
 				name: 'log-subscription',
 				destinationArn: onLogArn,
 				logGroupName: logGroup.name,
@@ -457,7 +458,7 @@ export const createLambdaFunction = (
 	// Warm up cron
 
 	if (props.warm) {
-		const scheduleRole = new $.aws.iam.Role(group, 'warm', {
+		const scheduleRole = new aws.iam.Role(group, 'warm', {
 			name: `${shortName}--warm`,
 			description: `${name} warmer`,
 			assumeRolePolicy: JSON.stringify({
@@ -491,7 +492,7 @@ export const createLambdaFunction = (
 			],
 		})
 
-		new $.aws.scheduler.Schedule(group, 'warm', {
+		new aws.scheduler.Schedule(group, 'warm', {
 			name: shortName,
 			groupName: ctx.shared.get('function', 'warm-group-name'),
 			description: `${name} warmer`,
@@ -507,14 +508,14 @@ export const createLambdaFunction = (
 			},
 		})
 
-		// const rule = new $.aws.cloudwatch.EventRule(group, 'warm', {
+		// const rule = new aws.cloudwatch.EventRule(group, 'warm', {
 		// 	name: `${shortName}--warm`,
 		// 	description: name,
 		// 	scheduleExpression: 'rate(5 minutes)',
 		// 	isEnabled: true,
 		// })
 
-		// new $.aws.cloudwatch.EventTarget(group, 'warm', {
+		// new aws.cloudwatch.EventTarget(group, 'warm', {
 		// 	rule: rule.name,
 		// 	targetId: 'warmer',
 		// 	arn: lambda.arn,
@@ -524,7 +525,7 @@ export const createLambdaFunction = (
 		// 	}),
 		// })
 
-		// new $.aws.lambda.Permission(group, `warm`, {
+		// new aws.lambda.Permission(group, `warm`, {
 		// 	action: 'lambda:InvokeFunction',
 		// 	principal: 'events.amazonaws.com',
 		// 	functionName: lambda.functionName,
@@ -567,7 +568,7 @@ export const createAsyncLambdaFunction = (
 
 	const onFailure = getGlobalOnFailure(ctx)
 
-	new $.aws.lambda.FunctionEventInvokeConfig(
+	new aws.lambda.FunctionEventInvokeConfig(
 		group,
 		'async',
 		{

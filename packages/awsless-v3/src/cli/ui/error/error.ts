@@ -1,5 +1,5 @@
 import { Cancelled as CancelledError, log } from '@awsless/clui'
-import { AppError, ResourceError } from '@awsless/formation'
+import { AppError, ResourceError } from '@terraforge/core'
 import { Cancelled, ConfigError, ExpectedError, FileError } from '../../../error.js'
 import { color } from '../style.js'
 import { wrap } from '../util.js'

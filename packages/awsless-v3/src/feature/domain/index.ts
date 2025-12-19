@@ -1,5 +1,6 @@
 import { minutes, toSeconds } from '@awsless/duration'
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 // import { formatGlobalResourceName } from '../../util/name.js'
 
@@ -14,7 +15,7 @@ export const domainFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'domain', 'mail')
 
-		new $.aws.ses.ConfigurationSet(group, 'config', {
+		new aws.ses.ConfigurationSet(group, 'config', {
 			name: ctx.app.name,
 			reputationMetricsEnabled: true,
 			sendingEnabled: true,
@@ -25,7 +26,7 @@ export const domainFeature = defineFeature({
 		for (const [id, props] of domains) {
 			const group = new Group(ctx.base, 'domain', id)
 
-			const zone = new $.aws.route53.Zone(ctx.zones, 'zone', {
+			const zone = new aws.route53.Zone(ctx.zones, 'zone', {
 				name: props.domain,
 				forceDestroy: true,
 			})
@@ -34,20 +35,20 @@ export const domainFeature = defineFeature({
 
 			ctx.shared.add('domain', `zone-id`, id, zone.id)
 
-			const certificate = new $.aws.acm.Certificate(group, 'local', {
+			const certificate = new aws.acm.Certificate(group, 'local', {
 				domainName: props.domain,
 				validationMethod: 'DNS',
 				keyAlgorithm: 'RSA_2048',
 				subjectAlternativeNames: [`*.${props.domain}`],
 			})
 
-			const option = (certificate: $.aws.acm.Certificate, index: number) => {
+			const option = (certificate: aws.acm.Certificate, index: number) => {
 				return certificate.domainValidationOptions.pipe(options => {
 					return options[index]!
 				})
 			}
 
-			const record1 = new $.aws.route53.Record(group, 'local-cert-1', {
+			const record1 = new aws.route53.Record(group, 'local-cert-1', {
 				zoneId: zone.id,
 				name: option(certificate, 0).pipe(r => r.resourceRecordName),
 				type: option(certificate, 0).pipe(r => r.resourceRecordType),
@@ -56,7 +57,7 @@ export const domainFeature = defineFeature({
 				allowOverwrite: true,
 			})
 
-			const record2 = new $.aws.route53.Record(group, 'local-cert-2', {
+			const record2 = new aws.route53.Record(group, 'local-cert-2', {
 				zoneId: zone.id,
 				name: option(certificate, 1).pipe(r => r.resourceRecordName),
 				type: option(certificate, 1).pipe(r => r.resourceRecordType),
@@ -65,7 +66,7 @@ export const domainFeature = defineFeature({
 				allowOverwrite: true,
 			})
 
-			const validation = new $.aws.acm.CertificateValidation(group, 'local', {
+			const validation = new aws.acm.CertificateValidation(group, 'local', {
 				certificateArn: certificate.arn,
 				validationRecordFqdns: [record1.fqdn, record2.fqdn],
 				// validationRecordFqdns: [record1.fqdn, record2.fqdn],
@@ -74,7 +75,7 @@ export const domainFeature = defineFeature({
 			ctx.shared.add('domain', `certificate-arn`, id, validation.certificateArn)
 
 			if (ctx.appConfig.region !== 'us-east-1') {
-				const globalCertificate = new $.aws.acm.Certificate(
+				const globalCertificate = new aws.acm.Certificate(
 					group,
 					'global',
 					{
@@ -88,7 +89,7 @@ export const domainFeature = defineFeature({
 					}
 				)
 
-				const record1 = new $.aws.route53.Record(group, 'global-cert-1', {
+				const record1 = new aws.route53.Record(group, 'global-cert-1', {
 					zoneId: zone.id,
 					name: option(globalCertificate, 0).pipe(r => r.resourceRecordName),
 					type: option(globalCertificate, 0).pipe(r => r.resourceRecordType),
@@ -97,7 +98,7 @@ export const domainFeature = defineFeature({
 					allowOverwrite: true,
 				})
 
-				const record2 = new $.aws.route53.Record(group, 'global-cert-2', {
+				const record2 = new aws.route53.Record(group, 'global-cert-2', {
 					zoneId: zone.id,
 					name: option(globalCertificate, 1).pipe(r => r.resourceRecordName),
 					type: option(globalCertificate, 1).pipe(r => r.resourceRecordType),
@@ -106,7 +107,7 @@ export const domainFeature = defineFeature({
 					allowOverwrite: true,
 				})
 
-				const globalValidation = new $.aws.acm.CertificateValidation(
+				const globalValidation = new aws.acm.CertificateValidation(
 					group,
 					'global',
 					{
@@ -129,11 +130,11 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Let SES verify our domain
 
-			const identity = new $.aws.ses.DomainIdentity(group, 'mail', {
+			const identity = new aws.ses.DomainIdentity(group, 'mail', {
 				domain: props.domain,
 			})
 
-			const verificationRecord = new $.aws.route53.Record(group, `verification`, {
+			const verificationRecord = new aws.route53.Record(group, `verification`, {
 				zoneId: zone.id,
 				name: `_amazonses.${props.domain}`,
 				type: 'TXT',
@@ -144,12 +145,12 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// DKIM
 
-			const dkim = new $.aws.ses.DomainDkim(group, 'dkim', {
+			const dkim = new aws.ses.DomainDkim(group, 'dkim', {
 				domain: props.domain,
 			})
 
 			for (let i = 0; i < 3; i++) {
-				new $.aws.route53.Record(group, `dkim-${i}`, {
+				new aws.route53.Record(group, `dkim-${i}`, {
 					zoneId: zone.id,
 					type: 'CNAME',
 					name: dkim.dkimTokens.pipe(t => `${t.at(i)}._domainkey`),
@@ -161,13 +162,13 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Mail from
 
-			const mailFrom = new $.aws.ses.DomainMailFrom(group, 'mail-from', {
+			const mailFrom = new aws.ses.DomainMailFrom(group, 'mail-from', {
 				domain: identity.domain,
 				mailFromDomain: `mail.${props.domain}`,
 				behaviorOnMxFailure: 'UseDefaultValue',
 			})
 
-			new $.aws.route53.Record(group, `MX`, {
+			new aws.route53.Record(group, `MX`, {
 				zoneId: zone.id,
 				name: mailFrom.mailFromDomain,
 				type: 'MX',
@@ -175,7 +176,7 @@ export const domainFeature = defineFeature({
 				records: [`10 feedback-smtp.${ctx.appConfig.region}.amazonses.com`],
 			})
 
-			new $.aws.route53.Record(group, `SPF`, {
+			new aws.route53.Record(group, `SPF`, {
 				zoneId: zone.id,
 				name: mailFrom.mailFromDomain,
 				type: 'TXT',
@@ -186,7 +187,7 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// DMARC
 
-			new $.aws.route53.Record(group, `DMARC`, {
+			new aws.route53.Record(group, `DMARC`, {
 				zoneId: zone.id,
 				name: `_dmarc.${props.domain}`,
 				type: 'TXT',
@@ -197,7 +198,7 @@ export const domainFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Listen for "bounce", "complaint", "reject", "renderingFailure" messages
 
-			// const topic = new $.aws.sns.Topic(group, 'topic', {
+			// const topic = new aws.sns.Topic(group, 'topic', {
 			// 	name: formatGlobalResourceName({
 			// 		appName: ctx.app.name,
 			// 		resourceType: 'domain',
@@ -205,16 +206,16 @@ export const domainFeature = defineFeature({
 			// 	}),
 			// })
 
-			// new $.aws.sns.TopicSubscription(group, 'subscription', {
+			// new aws.sns.TopicSubscription(group, 'subscription', {
 			// 	topicArn: topic.arn,
 			// 	protocol: 'EMAIL',
 			// 	endpoint: `info@${props.domain}`,
 			// 	endpointAutoConfirms: true,
 			// })
 
-			// // new $.aws.sns
+			// // new aws.sns
 
-			// new $.aws.ses.EventDestination(group, 'event', {
+			// new aws.ses.EventDestination(group, 'event', {
 			// 	configurationSetName: configurationSet.name,
 			// 	name: formatGlobalResourceName({
 			// 		appName: ctx.app.name,
@@ -234,7 +235,7 @@ export const domainFeature = defineFeature({
 			// 	return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
 			// })
 
-			const verification = new $.aws.ses.DomainIdentityVerification(
+			const verification = new aws.ses.DomainIdentityVerification(
 				group,
 				'mail',
 				{ domain: props.domain },
@@ -245,7 +246,7 @@ export const domainFeature = defineFeature({
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
-				new $.aws.route53.Record(group, `${name}-${record.type}`, {
+				new aws.route53.Record(group, `${name}-${record.type}`, {
 					zoneId: zone.id,
 					name,
 					ttl: toSeconds(record.ttl),

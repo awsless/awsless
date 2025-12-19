@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
+import { Group } from '@terraforge/core'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -54,7 +55,7 @@ export const cacheFeature = defineFeature({
 
 			// const retain = ctx.appConfig.removal === 'retain'
 
-			const subnetGroup = new $.aws.memorydb.SubnetGroup(
+			const subnetGroup = new aws.memorydb.SubnetGroup(
 				group,
 				'subnets',
 				{
@@ -67,7 +68,7 @@ export const cacheFeature = defineFeature({
 				}
 			)
 
-			const securityGroup = new $.aws.security.Group(
+			const securityGroup = new aws.security.Group(
 				group,
 				'security',
 				{
@@ -81,7 +82,7 @@ export const cacheFeature = defineFeature({
 				}
 			)
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'rule-ip-v4', {
+			new aws.vpc.SecurityGroupIngressRule(group, 'rule-ip-v4', {
 				securityGroupId: securityGroup.id,
 				description: `Allow ipv4 on port: ${props.port}`,
 				ipProtocol: 'tcp',
@@ -90,7 +91,7 @@ export const cacheFeature = defineFeature({
 				toPort: props.port,
 			})
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'rule-ip-v6', {
+			new aws.vpc.SecurityGroupIngressRule(group, 'rule-ip-v6', {
 				securityGroupId: securityGroup.id,
 				description: `Allow ipv6 on port: ${props.port}`,
 				ipProtocol: 'tcp',
@@ -99,7 +100,7 @@ export const cacheFeature = defineFeature({
 				toPort: props.port,
 			})
 
-			const cluster = new $.aws.memorydb.Cluster(
+			const cluster = new aws.memorydb.Cluster(
 				group,
 				'cluster',
 				{

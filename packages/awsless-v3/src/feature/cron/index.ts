@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
@@ -9,7 +10,7 @@ export const cronFeature = defineFeature({
 	onApp(ctx) {
 		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)
 		if (found) {
-			const group = new $.aws.scheduler.ScheduleGroup(ctx.base, 'cron', {
+			const group = new aws.scheduler.ScheduleGroup(ctx.base, 'cron', {
 				name: formatGlobalResourceName({
 					appName: ctx.app.name,
 					resourceType: 'cron',
@@ -36,7 +37,7 @@ export const cronFeature = defineFeature({
 				resourceName: shortId(id),
 			})
 
-			const scheduleRole = new $.aws.iam.Role(group, 'warm', {
+			const scheduleRole = new aws.iam.Role(group, 'warm', {
 				name,
 				description: `Cron ${ctx.stack.name} ${id}`,
 				assumeRolePolicy: JSON.stringify({
@@ -70,7 +71,7 @@ export const cronFeature = defineFeature({
 				],
 			})
 
-			new $.aws.scheduler.Schedule(group, 'warm', {
+			new aws.scheduler.Schedule(group, 'warm', {
 				name,
 				state: props.enabled ? 'ENABLED' : 'DISABLED',
 				groupName: ctx.shared.get('cron', 'group-name'),

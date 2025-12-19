@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../../feature.js'
 import { formatGlobalResourceName } from '../../../util/name.js'
@@ -29,9 +30,9 @@ export const pubsubFeature = defineFeature({
 
 			// ------------------------------------------------------
 
-			let loggingRole: $.aws.iam.Role | undefined
+			let loggingRole: aws.iam.Role | undefined
 			if (props.logLevel) {
-				loggingRole = new $.aws.iam.Role(group, 'logging-role', {
+				loggingRole = new aws.iam.Role(group, 'logging-role', {
 					name: shortId(`${name}-logging-role`),
 					assumeRolePolicy: JSON.stringify({
 						Version: '2012-10-17',
@@ -47,7 +48,7 @@ export const pubsubFeature = defineFeature({
 					}),
 				})
 
-				new $.aws.iam.RolePolicyAttachment(group, 'logs-policy', {
+				new aws.iam.RolePolicyAttachment(group, 'logs-policy', {
 					role: loggingRole.name,
 					policyArn: 'arn:aws:iam::aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs',
 				})
@@ -55,7 +56,7 @@ export const pubsubFeature = defineFeature({
 
 			// ------------------------------------------------------
 
-			const api = new $.aws.appsync.Api(group, 'api', {
+			const api = new aws.appsync.Api(group, 'api', {
 				name: shortName,
 				eventConfig: [
 					{
@@ -104,7 +105,7 @@ export const pubsubFeature = defineFeature({
 
 			const namespaces = props.namespaces ?? ['default']
 			for (const namespace of namespaces) {
-				new $.aws.appsync.ChannelNamespace(group, `namespace-${namespace}`, {
+				new aws.appsync.ChannelNamespace(group, `namespace-${namespace}`, {
 					name: namespace,
 					apiId: api.apiId,
 				})
@@ -113,7 +114,7 @@ export const pubsubFeature = defineFeature({
 			// ------------------------------------------------------
 			// Grant AppSync permission to invoke auth lambda
 
-			new $.aws.lambda.Permission(group, 'auth-permission', {
+			new aws.lambda.Permission(group, 'auth-permission', {
 				action: 'lambda:InvokeFunction',
 				principal: 'appsync.amazonaws.com',
 				functionName: authLambda.functionName,
@@ -128,17 +129,17 @@ export const pubsubFeature = defineFeature({
 				const zoneId = ctx.shared.entry('domain', `zone-id`, props.domain)
 				const certificateArn = ctx.shared.entry('domain', `certificate-arn`, props.domain)
 
-				const apiDomain = new $.aws.appsync.DomainName(group, 'domain', {
+				const apiDomain = new aws.appsync.DomainName(group, 'domain', {
 					domainName,
 					certificateArn,
 				})
 
-				new $.aws.appsync.DomainNameApiAssociation(group, 'domain-association', {
+				new aws.appsync.DomainNameApiAssociation(group, 'domain-association', {
 					apiId: api.apiArn,
 					domainName: apiDomain.domainName,
 				})
 
-				new $.aws.route53.Record(group, 'record', {
+				new aws.route53.Record(group, 'record', {
 					zoneId,
 					type: 'CNAME',
 					name: domainName,

@@ -1,5 +1,6 @@
 import { days, seconds, toSeconds } from '@awsless/duration'
-import { $, Input, Group } from '@awsless/formation'
+import { Input, Group, Future } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { glob } from 'glob'
 import { dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -13,7 +14,6 @@ import { directories } from '../../util/path.js'
 import { execCommand } from '../../util/exec.js'
 import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'crypto'
-import { Future } from '@awsless/formation'
 import { ImportKeys } from '../../formation/cloudfront-kvs.js'
 import { getCredentials } from '../../util/aws.js'
 
@@ -82,7 +82,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Server Side Rendering
 
-			let functionUrl: $.aws.lambda.FunctionUrl | undefined
+			let functionUrl: aws.lambda.FunctionUrl | undefined
 
 			if (props.ssr) {
 				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
@@ -93,7 +93,7 @@ export const siteFeature = defineFeature({
 					result.setEnvironment(name, value)
 				})
 
-				new $.aws.lambda.Permission(group, 'ssr-permission', {
+				new aws.lambda.Permission(group, 'ssr-permission', {
 					principal: 'cloudfront.amazonaws.com',
 					action: 'lambda:InvokeFunctionUrl',
 					functionName: result.lambda.functionName,
@@ -101,7 +101,7 @@ export const siteFeature = defineFeature({
 					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 				})
 
-				functionUrl = new $.aws.lambda.FunctionUrl(group, 'url', {
+				functionUrl = new aws.lambda.FunctionUrl(group, 'url', {
 					functionName: result.lambda.functionName,
 					authorizationType: 'AWS_IAM',
 				})
@@ -110,11 +110,11 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Static Assets
 
-			let kvs: $.aws.cloudfront.KeyValueStore | undefined
-			let bucket: $.aws.s3.Bucket | undefined
+			let kvs: aws.cloudfront.KeyValueStore | undefined
+			let bucket: aws.s3.Bucket | undefined
 
 			if (props.static) {
-				bucket = new $.aws.s3.Bucket(group, 'bucket', {
+				bucket = new aws.s3.Bucket(group, 'bucket', {
 					bucket: formatLocalResourceName({
 						appName: ctx.app.name,
 						stackName: ctx.stack.name,
@@ -158,7 +158,7 @@ export const siteFeature = defineFeature({
 				// ------------------------------------------------------------
 				// The Key Value Store for the static asset routes
 
-				kvs = new $.aws.cloudfront.KeyValueStore(group, 'kvs', {
+				kvs = new aws.cloudfront.KeyValueStore(group, 'kvs', {
 					name,
 					comment: 'Store for static assets',
 				})
@@ -181,7 +181,7 @@ export const siteFeature = defineFeature({
 						})
 
 						for (const file of files) {
-							const object = new $.aws.s3.BucketObject(group, file, {
+							const object = new aws.s3.BucketObject(group, file, {
 								bucket: bucket.bucket,
 								key: file,
 								cacheControl: getCacheControl(file),
@@ -202,7 +202,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Cache Policy
 
-			const cache = new $.aws.cloudfront.CachePolicy(group, 'cache', {
+			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
 				name,
 				minTtl: toSeconds(seconds(1)),
 				maxTtl: toSeconds(days(365)),
@@ -232,7 +232,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Origin Request Policy
 
-			const originRequest = new $.aws.cloudfront.OriginRequestPolicy(group, 'request', {
+			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
 				name,
 				headersConfig: {
 					headerBehavior: camelCase('all-except'),
@@ -251,7 +251,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Response Headers Policy
 
-			const responseHeaders = new $.aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
+			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
 				corsConfig: {
 					originOverride: props.cors?.override ?? false,
@@ -305,7 +305,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Viewer Request CloudFront Function
 
-			const viewerRequest = new $.aws.cloudfront.Function(group, 'viewer-request', {
+			const viewerRequest = new aws.cloudfront.Function(group, 'viewer-request', {
 				name: formatLocalResourceName({
 					appName: ctx.app.name,
 					stackName: ctx.stack.name,
@@ -322,7 +322,7 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// CDN
 
-			const distribution = new $.aws.cloudfront.Distribution(group, 'distribution', {
+			const distribution = new aws.cloudfront.Distribution(group, 'distribution', {
 				waitForDeployment: false,
 				comment: name,
 				enabled: true,
@@ -412,7 +412,7 @@ export const siteFeature = defineFeature({
 			})
 
 			if (bucket) {
-				new $.aws.s3.BucketPolicy(
+				new aws.s3.BucketPolicy(
 					group,
 					`policy`,
 					{
@@ -445,7 +445,7 @@ export const siteFeature = defineFeature({
 			}
 
 			if (domainName) {
-				new $.aws.route53.Record(group, `record`, {
+				new aws.route53.Record(group, `record`, {
 					zoneId: ctx.shared.entry('domain', 'zone-id', props.domain!),
 					type: 'A',
 					name: domainName,

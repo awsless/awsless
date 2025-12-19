@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction, createLambdaFunction } from '../function/util.js'
@@ -30,7 +31,7 @@ export const pubsubFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const authorizer = new $.aws.iot.Authorizer(group, 'authorizer', {
+			const authorizer = new aws.iot.Authorizer(group, 'authorizer', {
 				name,
 				authorizerFunctionArn: lambda.arn,
 				status: 'ACTIVE',
@@ -38,7 +39,7 @@ export const pubsubFeature = defineFeature({
 				enableCachingForHttp: false,
 			})
 
-			new $.aws.lambda.Permission(group, 'permission', {
+			new aws.lambda.Permission(group, 'permission', {
 				functionName: lambda.functionName,
 				action: 'lambda:InvokeFunction',
 				principal: 'iot.amazonaws.com',
@@ -47,14 +48,14 @@ export const pubsubFeature = defineFeature({
 
 			ctx.bind(`PUBSUB_${constantCase(id)}_AUTHORIZER`, name)
 
-			const endpoint = $.aws.iot.getEndpoint(group, 'endpoint', {
+			const endpoint = aws.iot.getEndpoint(group, 'endpoint', {
 				endpointType: 'iot:Data-ATS',
 			})
 
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-				new $.aws.iot.DomainConfiguration(group, 'domain', {
+				new aws.iot.DomainConfiguration(group, 'domain', {
 					name,
 					domainName,
 					serverCertificateArns: [ctx.shared.entry('domain', `certificate-arn`, props.domain)],
@@ -64,7 +65,7 @@ export const pubsubFeature = defineFeature({
 					// validationCertificate: ctx.shared.get(`global-certificate-${props.domain}-arn`),
 				})
 
-				new $.aws.route53.Record(group, 'record', {
+				new aws.route53.Record(group, 'record', {
 					zoneId: ctx.shared.entry('domain', `zone-id`, props.domain),
 					name: domainName,
 					type: 'CNAME',
@@ -93,7 +94,7 @@ export const pubsubFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new $.aws.iot.TopicRule(group, 'rule', {
+			const topic = new aws.iot.TopicRule(group, 'rule', {
 				name: name.replaceAll('-', '_'),
 				enabled: true,
 				sql: props.sql,
@@ -101,7 +102,7 @@ export const pubsubFeature = defineFeature({
 				lambda: [{ functionArn: lambda.arn }],
 			})
 
-			new $.aws.lambda.Permission(group, 'permission', {
+			new aws.lambda.Permission(group, 'permission', {
 				action: 'lambda:InvokeFunction',
 				principal: 'iot.amazonaws.com',
 				functionName: lambda.functionName,

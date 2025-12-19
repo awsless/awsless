@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -57,13 +58,13 @@ export const cacheFeature = defineFeature({
 			// const retain = ctx.appConfig.removal === 'retain'
 			// ---------------------------------------------------------------
 
-			const securityGroup = new $.aws.security.Group(group, 'security', {
+			const securityGroup = new aws.security.Group(group, 'security', {
 				name,
 				vpcId: ctx.shared.get('vpc', 'id'),
 				description: name,
 			})
 
-			const cache = new $.aws.elasticache.ServerlessCache(group, 'cache', {
+			const cache = new aws.elasticache.ServerlessCache(group, 'cache', {
 				name,
 				engine: 'valkey',
 				dailySnapshotTime: '02:00',
@@ -102,7 +103,7 @@ export const cacheFeature = defineFeature({
 			const masterHost = cache.endpoint.pipe(v => v.at(0)!.address)
 			const masterPort = cache.endpoint.pipe(v => v.at(0)!.port)
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v4', {
+			new aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v4', {
 				securityGroupId: securityGroup.id,
 				description: masterPort.pipe(port => `Allow ipv4 on port: ${port}`),
 				ipProtocol: 'tcp',
@@ -111,7 +112,7 @@ export const cacheFeature = defineFeature({
 				toPort: masterPort,
 			})
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v6', {
+			new aws.vpc.SecurityGroupIngressRule(group, 'master-rule-ip-v6', {
 				securityGroupId: securityGroup.id,
 				description: masterPort.pipe(port => `Allow ipv6 on port: ${port}`),
 				ipProtocol: 'tcp',
@@ -126,7 +127,7 @@ export const cacheFeature = defineFeature({
 			const slaveHost = cache.readerEndpoint.pipe(v => v.at(0)!.address)
 			const slavePort = cache.readerEndpoint.pipe(v => v.at(0)!.port)
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v4', {
+			new aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v4', {
 				securityGroupId: securityGroup.id,
 				description: slavePort.pipe(port => `Allow ipv4 on port: ${port}`),
 				ipProtocol: 'tcp',
@@ -135,7 +136,7 @@ export const cacheFeature = defineFeature({
 				toPort: slavePort,
 			})
 
-			new $.aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v6', {
+			new aws.vpc.SecurityGroupIngressRule(group, 'slave-rule-ip-v6', {
 				securityGroupId: securityGroup.id,
 				description: slavePort.pipe(port => `Allow ipv6 on port: ${port}`),
 				ipProtocol: 'tcp',

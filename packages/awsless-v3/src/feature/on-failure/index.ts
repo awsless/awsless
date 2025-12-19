@@ -2,7 +2,8 @@
 import { formatGlobalResourceName } from '../../util/name.js'
 import { defineFeature } from '../../feature.js'
 import { createLambdaFunction } from '../function/util.js'
-import { Group, $ } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
@@ -22,7 +23,7 @@ export const onFailureFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'on-failure', 'main')
 
-		const queue = new $.aws.sqs.Queue(group, 'on-failure', {
+		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'on-failure',
@@ -41,7 +42,7 @@ export const onFailureFeature = defineFeature({
 
 		const result = createLambdaFunction(group, ctx, 'on-failure', 'consumer', ctx.appConfig.defaults.onFailure)
 
-		new $.aws.lambda.EventSourceMapping(
+		new aws.lambda.EventSourceMapping(
 			group,
 			'on-failure',
 			{

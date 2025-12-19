@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -52,12 +53,12 @@ export const alertFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new $.aws.sns.Topic(group, 'topic', {
+			const topic = new aws.sns.Topic(group, 'topic', {
 				name,
 			})
 
 			for (const email of emails) {
-				new $.aws.sns.TopicSubscription(group, email, {
+				new aws.sns.TopicSubscription(group, email, {
 					topicArn: topic.arn,
 					protocol: 'email',
 					endpoint: email,

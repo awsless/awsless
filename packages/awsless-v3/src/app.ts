@@ -1,7 +1,8 @@
 // import { createDeploymentLine } from './util/deployment.js'
 // import { debug } from './cli/logger.js'
 // import { style } from './cli/style.js'
-import { $, App, Input, Stack } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
+import { App, Input, Stack } from '@terraforge/core'
 import { Builder } from './build/index.js'
 import { Command } from './command.js'
 import { AppConfig } from './config/app.js'
@@ -94,7 +95,7 @@ export const createApp = (props: CreateAppProps) => {
 	const tests: TestCase[] = []
 	const warnings: Warning[] = []
 	const builders: BuildTask[] = []
-	const domainZones: $.aws.route53.Zone[] = []
+	const domainZones: aws.route53.Zone[] = []
 
 	const readyListeners: OnReadyListener[] = []
 
@@ -113,11 +114,11 @@ export const createApp = (props: CreateAppProps) => {
 	const allStackPermissions: Record<string, Permission[]> = {}
 	const allStackPermissionCallbacks: Record<string, OnPermissionCallback[]> = {}
 
-	// const globalPolicies: $.aws.iam.RolePolicy[] = []
+	// const globalPolicies: aws.iam.RolePolicy[] = []
 	// const globalPoliciesListeners: OnPolicyListener[] = []
-	// const appPolicies: $.aws.iam.RolePolicy[] = []
+	// const appPolicies: aws.iam.RolePolicy[] = []
 	// const appPoliciesListeners: OnPolicyListener[] = []
-	// const allStackPolicies: Record<string, $.aws.iam.RolePolicy[]> = {}
+	// const allStackPolicies: Record<string, aws.iam.RolePolicy[]> = {}
 	// const allStackPolicyListeners: Record<string, OnPolicyListener[]> = {}
 
 	// ---------------------------------------------------------------
@@ -217,7 +218,7 @@ export const createApp = (props: CreateAppProps) => {
 		// stack.setTag('stack', stack.name)
 
 		// const stackPolicyListeners: OnPolicyListener[] = []
-		// const stackPolicies: $.aws.iam.RolePolicy[] = []
+		// const stackPolicies: aws.iam.RolePolicy[] = []
 
 		const localEnvListeners: OnEnvListener[] = []
 		const localEnv: BindEnv[] = []

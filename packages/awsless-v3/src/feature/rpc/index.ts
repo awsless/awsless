@@ -1,5 +1,6 @@
 import { camelCase, constantCase, kebabCase } from 'change-case'
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { FileError } from '../../error.js'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -116,7 +117,7 @@ export const rpcFeature = defineFeature({
 			// ------------------------------------------------------
 			// Create the schema table
 
-			const schemaTable = new $.aws.dynamodb.Table(group, 'schema', {
+			const schemaTable = new aws.dynamodb.Table(group, 'schema', {
 				name: formatGlobalResourceName({
 					appName: ctx.app.name,
 					resourceType: 'rpc-schema',
@@ -145,7 +146,7 @@ export const rpcFeature = defineFeature({
 			// ------------------------------------------------------
 			// Create the lock table
 
-			const lockTable = new $.aws.dynamodb.Table(group, 'lock', {
+			const lockTable = new aws.dynamodb.Table(group, 'lock', {
 				name: formatGlobalResourceName({
 					appName: ctx.app.name,
 					resourceType: 'rpc-lock',
@@ -198,7 +199,7 @@ export const rpcFeature = defineFeature({
 
 			// ------------------------------------------------------
 
-			const permission = new $.aws.lambda.Permission(group, 'permission', {
+			const permission = new aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',
 				action: 'lambda:InvokeFunctionUrl',
 				functionName: result.lambda.functionName,
@@ -206,7 +207,7 @@ export const rpcFeature = defineFeature({
 				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 			})
 
-			const url = new $.aws.lambda.FunctionUrl(
+			const url = new aws.lambda.FunctionUrl(
 				group,
 				'url',
 				{
@@ -226,7 +227,7 @@ export const rpcFeature = defineFeature({
 				{ dependsOn: [permission] }
 			)
 
-			const accessControl = new $.aws.cloudfront.OriginAccessControl(group, 'access', {
+			const accessControl = new aws.cloudfront.OriginAccessControl(group, 'access', {
 				name,
 				description: 'Policy for RPC Lambda Function URL',
 				originAccessControlOriginType: 'lambda',
@@ -242,14 +243,14 @@ export const rpcFeature = defineFeature({
 				? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 				: undefined
 
-			const cache = new $.aws.cloudfront.CachePolicy(group, 'cache', {
+			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
 				name,
 				minTtl: toSeconds(seconds(1)),
 				maxTtl: toSeconds(days(365)),
 				defaultTtl: toSeconds(days(1)),
 			})
 
-			const originRequest = new $.aws.cloudfront.OriginRequestPolicy(group, 'request', {
+			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
 				name,
 				headersConfig: {
 					headerBehavior: 'allExcept',
@@ -265,7 +266,7 @@ export const rpcFeature = defineFeature({
 				},
 			})
 
-			const cdn = new $.aws.cloudfront.Distribution(group, 'cdn', {
+			const cdn = new aws.cloudfront.Distribution(group, 'cdn', {
 				// tags: {
 				// 	Name: name,
 				// 	// Feature: ''
@@ -322,7 +323,7 @@ export const rpcFeature = defineFeature({
 			if (props.domain) {
 				const fullDomainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 
-				new $.aws.route53.Record(group, 'record', {
+				new aws.route53.Record(group, 'record', {
 					zoneId: ctx.shared.entry('domain', `zone-id`, props.domain),
 					type: 'A',
 					name: fullDomainName,
@@ -360,7 +361,7 @@ export const rpcFeature = defineFeature({
 					description: `${id} ${name}`,
 				})
 
-				new $.aws.dynamodb.TableItem(queryGroup, 'query', {
+				new aws.dynamodb.TableItem(queryGroup, 'query', {
 					tableName: table.name,
 					hashKey: table.hashKey,
 					rangeKey: table.rangeKey,

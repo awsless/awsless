@@ -1,5 +1,7 @@
 import { days, seconds } from '@awsless/duration'
-import { Asset, aws, Input, Node } from '@awsless/formation'
+import { Input } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
+import { Asset, Node } from '@terraforge/terraform'
 import { glob } from 'glob'
 import { join } from 'path'
 import { defineFeature } from '../../feature.js'

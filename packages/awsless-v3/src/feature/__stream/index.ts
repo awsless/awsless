@@ -1,4 +1,5 @@
-import { aws, Node } from '@awsless/formation'
+import { Node } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'

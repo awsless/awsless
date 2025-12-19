@@ -1,5 +1,5 @@
 import { log } from '@awsless/clui'
-import { ResourceError } from '@awsless/formation'
+import { ResourceError } from '@terraforge/core'
 import { capitalCase } from 'change-case'
 import { color } from '../style.js'
 import { wrap } from '../util.js'
