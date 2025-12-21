@@ -180,9 +180,9 @@ We provides the following schema types:
 - uuid
 - variant
 
-### Variant
+### Variant Schema Type
 
-When using variant types, we can't reliably reference the child properties of a specific variant in update or condition expressions. As a workaround, you could represent your variant's as optional object branches inside a single item shape:
+When using variant types, we can't reliably reference the child properties of a specific variant in an update or condition expression. As a workaround, you could represent your variant's as optional object branches inside a single item shape:
 
 ```ts
 object({
