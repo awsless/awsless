@@ -1,5 +1,5 @@
 import { log } from '@awsless/clui'
-import { Stack, URN } from '@awsless/formation'
+import { Stack, URN } from '@terraforge/core'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
@@ -42,12 +42,12 @@ export const resources = (program: Command) => {
 					}
 
 					log.step(chalk.magenta(stack.name))
-					log.message(stack.resources.map(resource => formatResource(stack, resource.$.urn)).join('\n'))
+					log.message(stack.resources.map(resource => formatResource(stack, resource.urn)).join('\n'))
 					// line('')
 
 					// for (const resource of stack.resources) {
-					// 	// log.message(formatResource(stack, resource.$.urn))
-					// 	line(formatResource(stack, resource.$.urn))
+					// 	// log.message(formatResource(stack, resource.urn))
+					// 	line(formatResource(stack, resource.urn))
 					// 	// resources.push([
 					// 	// 	chalk.magenta(stack.name),
 					// 	// 	// resource.type,

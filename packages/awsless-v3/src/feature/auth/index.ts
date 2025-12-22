@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -154,7 +155,7 @@ export const authFeature = defineFeature({
 
 			// props.username
 
-			const userPool = new $.aws.cognito.UserPool(
+			const userPool = new aws.cognito.UserPool(
 				group,
 				'user-pool',
 				{
@@ -194,7 +195,7 @@ export const authFeature = defineFeature({
 				}
 			)
 
-			const client = new $.aws.cognito.UserPoolClient(group, 'client', {
+			const client = new aws.cognito.UserPoolClient(group, 'client', {
 				userPoolId: userPool.id,
 				name,
 				idTokenValidity: toHours(props.validity.idToken),

@@ -1,5 +1,5 @@
 import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront' // ES Modules import
-import { createCustomProvider, createCustomResourceClass, Input, Output } from '@awsless/formation'
+import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 

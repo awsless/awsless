@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { LayerProps } from './schema.js'
@@ -11,7 +12,7 @@ export const layerFeature = defineFeature({
 	onBefore(ctx) {
 		const group = new Group(ctx.base, 'layer', 'asset')
 
-		const bucket = new $.aws.s3.Bucket(group, 'bucket', {
+		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			bucket: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'layer',
@@ -46,7 +47,7 @@ export const layerFeature = defineFeature({
 			const props = _props as LayerProps
 			const group = new Group(ctx.base, 'layer', id)
 
-			const zip = new $.aws.s3.BucketObject(group, 'zip', {
+			const zip = new aws.s3.BucketObject(group, 'zip', {
 				bucket: ctx.shared.get('layer', 'bucket-name'),
 				key: `/layer/${id}.zip`,
 				contentType: 'application/zip',
@@ -54,7 +55,7 @@ export const layerFeature = defineFeature({
 				sourceHash: $hash(props.file),
 			})
 
-			const layer = new $.aws.lambda.LayerVersion(
+			const layer = new aws.lambda.LayerVersion(
 				group,
 				'layer',
 				{

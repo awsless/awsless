@@ -1,5 +1,5 @@
 import { log } from '@awsless/clui'
-import { AppError } from '@awsless/formation'
+import { AppError } from '@terraforge/core'
 import { color } from '../style.js'
 // import { wrap } from '../util.js'
 import { logResourceError } from './stack-error.js'

@@ -1,7 +1,8 @@
 import { toDays, toSeconds } from '@awsless/duration'
-import { $, Future, Group, Input, OptionalInput, resolveInputs } from '@awsless/formation'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
+import { aws } from '@terraforge/aws'
+import { Future, Group, Input, OptionalInput, resolveInputs } from '@terraforge/core'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { join } from 'path'
@@ -64,7 +65,7 @@ export const createFargateTask = (
 		})
 	})
 
-	const code = new $.aws.s3.BucketObject(group, 'code', {
+	const code = new aws.s3.BucketObject(group, 'code', {
 		bucket: ctx.shared.get('instance', 'bucket-name'),
 		key: name,
 		source: relativePath(getBuildPath('instance', name, 'program')),
@@ -74,7 +75,7 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 	// Permissions
 
-	const executionRole = new $.aws.iam.Role(group, 'execution-role', {
+	const executionRole = new aws.iam.Role(group, 'execution-role', {
 		name: shortId(`${shortName}:execution-role`),
 		description: name,
 		assumeRolePolicy: JSON.stringify({
@@ -92,7 +93,7 @@ export const createFargateTask = (
 		managedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
 	})
 
-	const role = new $.aws.iam.Role(
+	const role = new aws.iam.Role(
 		group,
 		'task-role',
 		{
@@ -135,7 +136,7 @@ export const createFargateTask = (
 
 	const statements: Permission[] = []
 
-	const policy = new $.aws.iam.RolePolicy(group, 'policy', {
+	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'task-policy',
 		policy: new Future(async resolve => {
@@ -155,20 +156,20 @@ export const createFargateTask = (
 
 	// const addPermission = (...permissions: Permission[]) => {
 	// 	statements.push(...permissions)
-	// 	policy.$.attachDependencies(permissions)
+	// 	policy.attachDependencies(permissions)
 	// }
 
 	ctx.onPermission(statement => {
 		statements.push(statement)
-		policy.$.attachDependencies(statement)
+		// policy.attachDependencies(statement)
 	})
 
 	// ------------------------------------------------------------
 	// Logging
 
-	let logGroup: $.aws.cloudwatch.LogGroup | undefined
+	let logGroup: aws.cloudwatch.LogGroup | undefined
 	if (props.log.retention && props.log.retention.value > 0n) {
-		logGroup = new $.aws.cloudwatch.LogGroup(group, 'log', {
+		logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
 			// name: `/aws/ecs/${name}`,
 			name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention),
@@ -182,7 +183,7 @@ export const createFargateTask = (
 		if (onLogArn && ctx.appConfig.defaults.onLog) {
 			const logFilter = ctx.appConfig.defaults.onLog.filter
 
-			new $.aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
+			new aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
 				name: 'log-subscription',
 				destinationArn: onLogArn,
 				logGroupName: logGroup.name,
@@ -201,7 +202,7 @@ export const createFargateTask = (
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
 
-	const task = new $.aws.ecs.TaskDefinition(
+	const task = new aws.ecs.TaskDefinition(
 		group,
 		'task',
 		{
@@ -309,7 +310,7 @@ export const createFargateTask = (
 		}
 	)
 
-	const securityGroup = new $.aws.security.Group(group, 'security-group', {
+	const securityGroup = new aws.security.Group(group, 'security-group', {
 		name: name,
 		description: 'Security group for the instance',
 		vpcId: ctx.shared.get('vpc', 'id'),
@@ -317,7 +318,7 @@ export const createFargateTask = (
 		tags,
 	})
 
-	// new $.aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
+	// new aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
 	// 	securityGroupId: securityGroup.id,
 	// 	description: `Allow HTTP traffic on port 80 to the ${name} instance`,
 	// 	fromPort: 80,
@@ -327,7 +328,7 @@ export const createFargateTask = (
 	// 	tags,
 	// })
 
-	new $.aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
+	new aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
 		securityGroupId: securityGroup.id,
 		description: `Allow all outbound traffic from the ${name} instance`,
 		ipProtocol: '-1',
@@ -338,7 +339,7 @@ export const createFargateTask = (
 	const clusterName = ctx.shared.get('instance', 'cluster-name')
 	const clusterArn = ctx.shared.get('instance', 'cluster-arn')
 
-	const service = new $.aws.ecs.Service(group, 'service', {
+	const service = new aws.ecs.Service(group, 'service', {
 		name: name,
 		cluster: clusterArn,
 		taskDefinition: task.arn,
@@ -370,7 +371,7 @@ export const createFargateTask = (
 		propagateTags: 'SERVICE',
 	})
 
-	new $.aws.appautoscaling.Target(
+	new aws.appautoscaling.Target(
 		group,
 		'autoscaling-target',
 		{
@@ -392,7 +393,7 @@ export const createFargateTask = (
 
 	ctx.onEnv((name, value) => {
 		variables[name] = value
-		task.$.attachDependencies(value)
+		// task.attachDependencies(value)
 	})
 
 	// ------------------------------------------------------------

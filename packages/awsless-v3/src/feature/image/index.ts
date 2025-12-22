@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
 import { createLambdaFunction } from '../function/util'
@@ -38,7 +39,7 @@ export const imageFeature = defineFeature({
 			resourceName: 'sharp',
 		})
 
-		const zipFile = new $.aws.s3.BucketObject(group, 'layer', {
+		const zipFile = new aws.s3.BucketObject(group, 'layer', {
 			bucket: ctx.shared.get('layer', 'bucket-name'),
 			key: `/layer/${layerId}.zip`,
 			contentType: 'application/zip',
@@ -46,7 +47,7 @@ export const imageFeature = defineFeature({
 			sourceHash: $hash(path),
 		})
 
-		const layer = new $.aws.lambda.LayerVersion(group, 'layer', {
+		const layer = new aws.lambda.LayerVersion(group, 'layer', {
 			layerName: layerId,
 			description: 'sharp-arm.zip for the awsless image feature.',
 			compatibleArchitectures: ['arm64'],
@@ -84,10 +85,10 @@ export const imageFeature = defineFeature({
 				lambdaOrigin = createLambdaFunction(group, ctx, `origin`, id, props.origin.function)
 			}
 
-			let s3Origin: $.aws.s3.Bucket | undefined
+			let s3Origin: aws.s3.Bucket | undefined
 
 			if (props.origin.static) {
-				s3Origin = new $.aws.s3.Bucket(group, 'origin', {
+				s3Origin = new aws.s3.Bucket(group, 'origin', {
 					bucket: formatLocalResourceName({
 						appName: ctx.app.name,
 						stackName: ctx.stack.name,
@@ -101,7 +102,7 @@ export const imageFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Create the image cache
 
-			const cacheBucket = new $.aws.s3.Bucket(group, 'cache', {
+			const cacheBucket = new aws.s3.Bucket(group, 'cache', {
 				bucket: formatLocalResourceName({
 					appName: ctx.app.name,
 					stackName: ctx.stack.name,
@@ -148,7 +149,7 @@ export const imageFeature = defineFeature({
 				layers: [sharpLayerId],
 			})
 
-			const permission = new $.aws.lambda.Permission(group, 'permission', {
+			const permission = new aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',
 				action: 'lambda:InvokeFunctionUrl',
 				functionName: serverLambda.lambda.functionName,
@@ -156,7 +157,7 @@ export const imageFeature = defineFeature({
 				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 			})
 
-			const serverLambdaUrl = new $.aws.lambda.FunctionUrl(
+			const serverLambdaUrl = new aws.lambda.FunctionUrl(
 				group,
 				'url',
 				{
@@ -214,7 +215,7 @@ export const imageFeature = defineFeature({
 					})
 
 					for (const file of files) {
-						new $.aws.s3.BucketObject(group, `static-${file}`, {
+						new aws.s3.BucketObject(group, `static-${file}`, {
 							bucket: s3Origin.bucket,
 							key: file,
 							source: join(props.origin.static, file),
@@ -238,7 +239,7 @@ export const imageFeature = defineFeature({
 			// ------------------------------------------------------------
 			// CND + Invalidation
 
-			const s3AccessControl = new $.aws.cloudfront.OriginAccessControl(group, `s3`, {
+			const s3AccessControl = new aws.cloudfront.OriginAccessControl(group, `s3`, {
 				name: `${name}-s3`,
 				description: `Policy for the ${id} image cache in S3`,
 				originAccessControlOriginType: 's3',
@@ -246,7 +247,7 @@ export const imageFeature = defineFeature({
 				signingProtocol: 'sigv4',
 			})
 
-			const lambdaAccessControl = new $.aws.cloudfront.OriginAccessControl(group, 'lambda', {
+			const lambdaAccessControl = new aws.cloudfront.OriginAccessControl(group, 'lambda', {
 				name: `${name}-lambda`,
 				description: `Policy for the ${id} image lambda server function URL`,
 				originAccessControlOriginType: 'lambda',
@@ -254,12 +255,12 @@ export const imageFeature = defineFeature({
 				signingProtocol: 'sigv4',
 			})
 
-			const cache = new $.aws.cloudfront.CachePolicy(group, 'cache', {
+			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
 				name,
 				defaultTtl: toSeconds(days(365)),
 			})
 
-			const responseHeaders = new $.aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
+			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
 				corsConfig: {
 					originOverride: true,
@@ -272,7 +273,7 @@ export const imageFeature = defineFeature({
 				},
 			})
 
-			const distribution = new $.aws.cloudfront.Distribution(group, 'distribution', {
+			const distribution = new aws.cloudfront.Distribution(group, 'distribution', {
 				comment: name,
 				enabled: true,
 				aliases: domainName ? [domainName] : undefined,
@@ -345,7 +346,7 @@ export const imageFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Give the distribution the permissions to access the cache bucket
 
-			new $.aws.s3.BucketPolicy(
+			new aws.s3.BucketPolicy(
 				group,
 				`policy`,
 				{
@@ -380,7 +381,7 @@ export const imageFeature = defineFeature({
 			// Domain name records and endpoint binding
 
 			if (domainName) {
-				new $.aws.route53.Record(group, `record`, {
+				new aws.route53.Record(group, `record`, {
 					zoneId: ctx.shared.entry('domain', 'zone-id', props.domain!),
 					type: 'A',
 					name: domainName,

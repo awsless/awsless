@@ -1,4 +1,5 @@
-import { $, Output } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
+import { Output } from '@terraforge/core'
 
 type SharedState = {
 	vpc: {
@@ -51,7 +52,7 @@ type SharedEntries = {
 	}
 
 	rpc: {
-		'schema-table': $.aws.dynamodb.Table
+		'schema-table': aws.dynamodb.Table
 	}
 
 	layer: {

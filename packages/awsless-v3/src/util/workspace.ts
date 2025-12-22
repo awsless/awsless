@@ -1,12 +1,5 @@
-import {
-	App,
-	DynamoLockBackend,
-	enableDebug,
-	S3StateBackend,
-	StateBackend,
-	Terraform,
-	WorkSpace,
-} from '@awsless/formation'
+import { aws } from '@terraforge/aws'
+import { App, DynamoLockBackend, enableDebug, S3StateBackend, StateBackend, WorkSpace } from '@terraforge/core'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { homedir } from 'os'
 import { dirname, join } from 'path'
@@ -18,7 +11,7 @@ import { createLambdaProvider } from '../formation/lambda.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
 
-// $.aws.apigatewayv2.Api()
+// aws.apigatewayv2.Api()
 
 export const getStateBucketName = (region: Region, accountId: string) => {
 	return `awsless-state-${region}-${accountId}`
@@ -40,21 +33,21 @@ export const createWorkSpace = async (props: {
 		bucket: getStateBucketName(props.region, props.accountId),
 	})
 
-	const terraform = new Terraform({
-		providerLocation: join(homedir(), `.awsless/providers`),
-	})
+	// const terraform = new Terraform({
+	// 	providerLocation: join(homedir(), `.awsless/providers`),
+	// })
 
 	if (process.env.VERBOSE) {
 		enableDebug()
 	}
 
-	const aws = await terraform.install('hashicorp', 'aws', '6.9.0')
+	await aws.install()
 
 	// const __dirname = dirname(fileURLToPath(import.meta.url))
 	// await aws({}).generateTypes(join(__dirname, './formation.d.ts'))
 	// console.log(join(__dirname, './formation.d.ts'))
 
-	// // $.aws.cloudfrontkeyvaluestore.Key
+	// // aws.cloudfrontkeyvaluestore.Key
 
 	const workspace = new WorkSpace({
 		providers: [

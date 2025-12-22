@@ -1,4 +1,5 @@
-import { $, Output } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
+import { Output } from '@terraforge/core'
 import { contentType, lookup } from 'mime-types'
 import { extname } from 'path'
 
@@ -23,8 +24,8 @@ export const getContentType = (file: string) => {
 
 export const getViewerRequestFunctionCode = (
 	domain?: string,
-	bucket?: $.aws.s3.Bucket,
-	functionUrl?: $.aws.lambda.FunctionUrl,
+	bucket?: aws.s3.Bucket,
+	functionUrl?: aws.lambda.FunctionUrl,
 	basicAuth?: { username: string; password: string }
 ): Output<string> => {
 	return $resolve([bucket?.bucketRegionalDomainName, functionUrl?.functionUrl], (bucketDomain, lambdaUrl) => {

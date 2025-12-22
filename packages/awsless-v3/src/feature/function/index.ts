@@ -1,7 +1,8 @@
 // import { camelCase } from 'change-case'
 // import { relative } from 'path'
 // import { FunctionSchema } from './schema.js'
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -101,7 +102,7 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 		// Define the Bucket used to store the lambda function code.
 
-		const bucket = new $.aws.s3.Bucket(group, 'bucket', {
+		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			bucket: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'function',
@@ -118,7 +119,7 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 		// Define the ScheduleGroup for warmers
 
-		const warmGroup = new $.aws.scheduler.ScheduleGroup(group, 'warm', {
+		const warmGroup = new aws.scheduler.ScheduleGroup(group, 'warm', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'function',
@@ -131,7 +132,7 @@ export const functionFeature = defineFeature({
 		// ------------------------------------------------------
 		// Define the Repository used to store the container images.
 
-		// const repository = new $.aws.ecr.Repository(group, 'repository', {
+		// const repository = new aws.ecr.Repository(group, 'repository', {
 		// 	name: formatGlobalResourceName({
 		// 		appName: ctx.app.name,
 		// 		resourceType: 'function',
@@ -141,7 +142,7 @@ export const functionFeature = defineFeature({
 		// 	imageTagMutability: 'MUTABLE',
 		// })
 
-		// new $.aws.ecr.LifecyclePolicy(group, 'lifecycle', {
+		// new aws.ecr.LifecyclePolicy(group, 'lifecycle', {
 		// 	repository: repository.name,
 		// 	policy: JSON.stringify({
 		// 		rules: [

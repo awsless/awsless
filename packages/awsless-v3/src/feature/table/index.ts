@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -94,7 +95,7 @@ export const tableFeature = defineFeature({
 				}))
 			}
 
-			const table = new $.aws.dynamodb.Table(
+			const table = new aws.dynamodb.Table(
 				group,
 				'table',
 				{
@@ -146,7 +147,7 @@ export const tableFeature = defineFeature({
 
 				const onFailure = getGlobalOnFailure(ctx)
 
-				new $.aws.lambda.EventSourceMapping(
+				new aws.lambda.EventSourceMapping(
 					group,
 					id,
 					{

@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
@@ -65,7 +66,7 @@ export const topicFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const topic = new $.aws.sns.Topic(group, 'topic', {
+			const topic = new aws.sns.Topic(group, 'topic', {
 				name,
 			})
 
@@ -89,13 +90,13 @@ export const topicFeature = defineFeature({
 			const topicArn = ctx.shared.entry('topic', 'arn', id)
 			const { lambda } = createAsyncLambdaFunction(group, ctx, `topic`, id, props)
 
-			new $.aws.sns.TopicSubscription(group, id, {
+			new aws.sns.TopicSubscription(group, id, {
 				topicArn,
 				protocol: 'lambda',
 				endpoint: lambda.arn,
 			})
 
-			new $.aws.lambda.Permission(group, id, {
+			new aws.lambda.Permission(group, id, {
 				action: 'lambda:InvokeFunction',
 				principal: 'sns.amazonaws.com',
 				functionName: lambda.functionName,

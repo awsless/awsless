@@ -1,10 +1,10 @@
-import { Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
-import { $ } from '@awsless/formation'
 import { toGibibytes } from '@awsless/size'
 
 const typeGenCode = `
@@ -42,7 +42,7 @@ export const searchFeature = defineFeature({
 			const group = new Group(ctx.stack, 'search', id)
 			const name = `${ctx.app.name}-${shortId([ctx.app.name, ctx.stack.name, 'search', id].join('--'))}`
 
-			const openSearch = new $.aws.opensearch.Domain(
+			const openSearch = new aws.opensearch.Domain(
 				group,
 				'domain',
 				{

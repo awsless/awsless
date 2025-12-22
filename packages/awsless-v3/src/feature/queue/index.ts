@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { camelCase, constantCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { relative } from 'path'
@@ -95,7 +96,7 @@ export const queueFeature = defineFeature({
 
 			const onFailure = getGlobalOnFailure(ctx)
 
-			const queue = new $.aws.sqs.Queue(group, 'queue', {
+			const queue = new aws.sqs.Queue(group, 'queue', {
 				name,
 				delaySeconds: toSeconds(props.deliveryDelay),
 				visibilityTimeoutSeconds: toSeconds(props.visibilityTimeout),
@@ -115,7 +116,7 @@ export const queueFeature = defineFeature({
 
 				lambdaConsumer.setEnvironment('LOG_VIEWABLE_ERROR', '1')
 
-				new $.aws.lambda.EventSourceMapping(
+				new aws.lambda.EventSourceMapping(
 					group,
 					'event',
 					{

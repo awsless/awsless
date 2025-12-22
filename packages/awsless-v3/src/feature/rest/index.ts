@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { constantCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
@@ -17,12 +18,12 @@ export const restFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const api = new $.aws.apigatewayv2.Api(group, 'api', {
+			const api = new aws.apigatewayv2.Api(group, 'api', {
 				name,
 				protocolType: 'HTTP',
 			})
 
-			const stage = new $.aws.apigatewayv2.Stage(group, 'stage', {
+			const stage = new aws.apigatewayv2.Stage(group, 'stage', {
 				name: 'v1',
 				apiId: api.id,
 				autoDeploy: true,
@@ -35,7 +36,7 @@ export const restFeature = defineFeature({
 				const zoneId = ctx.shared.entry('domain', `zone-id`, props.domain)
 				const certificateArn = ctx.shared.entry('domain', `certificate-arn`, props.domain)
 
-				const domain = new $.aws.apigatewayv2.DomainName(group, 'domain', {
+				const domain = new aws.apigatewayv2.DomainName(group, 'domain', {
 					domainName,
 					domainNameConfiguration: {
 						certificateArn,
@@ -44,13 +45,13 @@ export const restFeature = defineFeature({
 					},
 				})
 
-				const mapping = new $.aws.apigatewayv2.ApiMapping(group, 'mapping', {
+				const mapping = new aws.apigatewayv2.ApiMapping(group, 'mapping', {
 					apiId: api.id,
 					domainName: domain.domainName,
 					stage: stage.name,
 				})
 
-				new $.aws.route53.Record(
+				new aws.route53.Record(
 					group,
 					'record',
 					{
@@ -90,13 +91,13 @@ export const restFeature = defineFeature({
 					description: `${id} ${routeKey}`,
 				})
 
-				const permission = new $.aws.lambda.Permission(group, 'permission', {
+				const permission = new aws.lambda.Permission(group, 'permission', {
 					action: 'lambda:InvokeFunction',
 					principal: 'apigateway.amazonaws.com',
 					functionName: lambda.functionName,
 				})
 
-				const integration = new $.aws.apigatewayv2.Integration(group, 'integration', {
+				const integration = new aws.apigatewayv2.Integration(group, 'integration', {
 					apiId,
 					description: `${id} ${routeKey}`,
 					integrationType: 'AWS_PROXY',
@@ -107,7 +108,7 @@ export const restFeature = defineFeature({
 					}),
 				})
 
-				new $.aws.apigatewayv2.Route(
+				new aws.apigatewayv2.Route(
 					group,
 					'route',
 					{

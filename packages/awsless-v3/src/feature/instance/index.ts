@@ -1,4 +1,5 @@
-import { $, Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature'
 import { formatGlobalResourceName } from '../../util/name'
 import { createFargateTask } from './util'
@@ -8,7 +9,7 @@ export const instanceFeature = defineFeature({
 	onBefore(ctx) {
 		const group = new Group(ctx.base, 'instance', 'asset')
 
-		const bucket = new $.aws.s3.Bucket(group, 'bucket', {
+		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			bucket: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'instance',
@@ -34,7 +35,7 @@ export const instanceFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'instance', 'cluster')
 
-		const cluster = new $.aws.ecs.Cluster(group, 'cluster', {
+		const cluster = new aws.ecs.Cluster(group, 'cluster', {
 			name: ctx.app.name,
 		})
 

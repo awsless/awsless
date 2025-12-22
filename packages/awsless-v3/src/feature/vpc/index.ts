@@ -1,5 +1,6 @@
 // import { ipv6CidrBlockFromString } from '@arcanyx/cidr-slicer'
-import { $, Group, Output } from '@awsless/formation'
+import { Group, Output } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 
 export const vpcFeature = defineFeature({
@@ -10,11 +11,11 @@ export const vpcFeature = defineFeature({
 		// A VPC is always a dual ipv4 and ipv6 VPC
 		// That's why we need to give it a ipv4 cidrBlock.
 
-		// const vpc = $.aws.$default.Vpc(group, 'vpc', {
+		// const vpc = aws.$default.Vpc(group, 'vpc', {
 		// 	''
 		// })
 
-		const vpc = new $.aws.Vpc(group, 'vpc', {
+		const vpc = new aws.Vpc(group, 'vpc', {
 			tags: {
 				Name: ctx.app.name,
 			},
@@ -23,32 +24,32 @@ export const vpcFeature = defineFeature({
 			enableDnsHostnames: true,
 		})
 
-		const privateRouteTable = new $.aws.route.Table(group, 'private', {
+		const privateRouteTable = new aws.route.Table(group, 'private', {
 			vpcId: vpc.id,
 			tags: {
 				Name: 'private',
 			},
 		})
 
-		const publicRouteTable = new $.aws.route.Table(group, 'public', {
+		const publicRouteTable = new aws.route.Table(group, 'public', {
 			vpcId: vpc.id,
 			tags: {
 				Name: 'public',
 			},
 		})
 
-		const gateway = new $.aws.internet.Gateway(group, 'gateway', {
+		const gateway = new aws.internet.Gateway(group, 'gateway', {
 			tags: {
 				Name: ctx.app.name,
 			},
 		})
 
-		const attachment = new $.aws.internet.GatewayAttachment(group, 'attachment', {
+		const attachment = new aws.internet.GatewayAttachment(group, 'attachment', {
 			vpcId: vpc.id,
 			internetGatewayId: gateway.id,
 		})
 
-		new $.aws.Route(group, 'route', {
+		new aws.Route(group, 'route', {
 			gatewayId: gateway.id,
 			routeTableId: publicRouteTable.id,
 			destinationCidrBlock: '0.0.0.0/0',
@@ -77,7 +78,7 @@ export const vpcFeature = defineFeature({
 			for (const i in zones) {
 				const index = Number(i) + 1
 				const id = `${type}-${index}`
-				const subnet = new $.aws.Subnet(group, id, {
+				const subnet = new aws.Subnet(group, id, {
 					tags: {
 						Name: `${ctx.app.name}--${type}-${index}`,
 					},
@@ -87,7 +88,7 @@ export const vpcFeature = defineFeature({
 					availabilityZone: ctx.appConfig.region + zones[i],
 				})
 
-				new $.aws.route.TableAssociation(group, id, {
+				new aws.route.TableAssociation(group, id, {
 					routeTableId: table.id,
 					subnetId: subnet.id,
 				})

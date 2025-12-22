@@ -1,4 +1,4 @@
-import { Group } from '@awsless/formation'
+import { Group } from '@terraforge/core'
 import { kebabCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -6,7 +6,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
-import { $ } from '@awsless/formation'
+import { aws } from '@terraforge/aws'
 import { glob } from 'glob'
 import { getCacheControl, getContentType } from './util.js'
 import { join } from 'path'
@@ -89,7 +89,7 @@ export const storeFeature = defineFeature({
 				postfix: ctx.appId,
 			})
 
-			const bucket = new $.aws.s3.Bucket(
+			const bucket = new aws.s3.Bucket(
 				group,
 				'store',
 				{
@@ -125,7 +125,7 @@ export const storeFeature = defineFeature({
 					})
 
 					for (const file of files) {
-						new $.aws.s3.BucketObject(group, file, {
+						new aws.s3.BucketObject(group, file, {
 							bucket: bucket.bucket,
 							key: file,
 							cacheControl: getCacheControl(file),
@@ -163,14 +163,14 @@ export const storeFeature = defineFeature({
 					description: `${id} event "${event}"`,
 				})
 
-				new $.aws.lambda.Permission(eventGroup, 'permission', {
+				new aws.lambda.Permission(eventGroup, 'permission', {
 					action: 'lambda:InvokeFunction',
 					principal: 's3.amazonaws.com',
 					functionName: lambda.functionName,
 					sourceArn: `arn:aws:s3:::${name}`,
 				})
 
-				new $.aws.s3.BucketNotification(eventGroup, 'notification', {
+				new aws.s3.BucketNotification(eventGroup, 'notification', {
 					bucket: bucket.bucket,
 					lambdaFunction: [
 						{

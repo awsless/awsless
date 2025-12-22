@@ -1,5 +1,5 @@
 import { LambdaClient, UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda'
-import { createCustomProvider, createCustomResourceClass, Input, OptionalInput, Output } from '@awsless/formation'
+import { createCustomProvider, createCustomResourceClass, Input, OptionalInput, Output } from '@terraforge/core'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials } from '../util/aws'
