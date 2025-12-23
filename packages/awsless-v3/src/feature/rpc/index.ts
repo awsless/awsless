@@ -101,16 +101,25 @@ export const rpcFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const result = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
-				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
-				memorySize: mebibytes(256),
-				timeout: props.timeout,
-				handler: 'index.default',
-				runtime: 'nodejs22.x',
-				warm: 3,
-				log: props.log,
-			})
+			const result = createPrebuildLambdaFunction(
+				group,
+				ctx,
+				'rpc',
+				id,
+				{
+					bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
+					bundleHash: join(__dirname, '/prebuild/rpc/HASH'),
+					memorySize: mebibytes(256),
+					timeout: props.timeout,
+					handler: 'index.default',
+					runtime: 'nodejs22.x',
+					warm: 3,
+					log: props.log,
+				},
+				{
+					isManagedInstance: true,
+				}
+			)
 
 			result.setEnvironment('TIMEOUT', toSeconds(props.timeout).toString())
 
@@ -356,10 +365,19 @@ export const rpcFeature = defineFeature({
 				const queryGroup = new Group(group, 'query', name)
 				const entryId = kebabCase(`${id}-${shortId(name)}`)
 
-				createLambdaFunction(queryGroup, ctx, `rpc`, entryId, {
-					...props.function,
-					description: `${id} ${name}`,
-				})
+				createLambdaFunction(
+					queryGroup,
+					ctx,
+					`rpc`,
+					entryId,
+					{
+						...props.function,
+						description: `${id} ${name}`,
+					},
+					{
+						isManagedInstance: true,
+					}
+				)
 
 				new aws.dynamodb.TableItem(queryGroup, 'query', {
 					tableName: table.name,

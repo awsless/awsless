@@ -116,6 +116,32 @@ export const functionFeature = defineFeature({
 
 		ctx.shared.set('function', 'bucket-name', bucket.bucket)
 
+		if (ctx.appConfig.defaults.function.isManagedInstance) {
+		}
+
+		const capacityProvider = new aws.lambda.CapacityProvider(group, 'capacity-provider', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'function',
+				resourceName: 'capacity-provider',
+			}),
+			instanceRequirements: [
+				{
+					allowedInstanceTypes: [],
+					architectures: ['arm64'],
+					excludedInstanceTypes: [],
+				},
+			],
+			vpcConfig: [
+				{
+					subnetIds: ctx.shared.get('vpc', 'public-subnets'),
+					securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
+				},
+			],
+		})
+
+		ctx.shared.set('function', 'capacity-provider-arn', capacityProvider.arn)
+
 		// ------------------------------------------------------
 		// Define the ScheduleGroup for warmers
 
@@ -178,7 +204,9 @@ export const functionFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
 			const group = new Group(ctx.stack, 'function', id)
-			createLambdaFunction(group, ctx, 'function', id, props)
+			createLambdaFunction(group, ctx, 'function', id, props, {
+				isManagedInstance: true,
+			})
 		}
 	},
 })

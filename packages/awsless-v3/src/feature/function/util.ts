@@ -46,7 +46,8 @@ export const createLambdaFunction = (
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: FunctionProps
+	local: FunctionProps,
+	options?: { isManagedInstance?: boolean }
 ) => {
 	let name: string
 	let shortName: string
@@ -374,6 +375,14 @@ export const createLambdaFunction = (
 				applicationLogLevel: props.log.format === 'json' ? props.log.level?.toUpperCase() : undefined,
 				systemLogLevel: props.log.format === 'json' ? props.log.system?.toUpperCase() : undefined,
 			},
+
+			capacityProviderConfig: options?.isManagedInstance
+				? {
+						lambdaManagedInstancesCapacityProviderConfig: {
+							capacityProviderArn: ctx.shared.get('function', 'capacity-provider-arn'),
+						},
+					}
+				: undefined,
 		},
 		{
 			dependsOn,

@@ -34,7 +34,9 @@ export const iconFeature = defineFeature({
 			let lambdaOrigin: ReturnType<typeof createLambdaFunction> | undefined = undefined
 
 			if (props.origin.function) {
-				lambdaOrigin = createLambdaFunction(group, ctx, 'origin', id, props.origin.function)
+				lambdaOrigin = createLambdaFunction(group, ctx, 'origin', id, props.origin.function, {
+					isManagedInstance: true,
+				})
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined
@@ -84,15 +86,24 @@ export const iconFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Create the icon server function
 
-			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'icon', id, {
-				bundleFile: join(__dirname, '/prebuild/icon/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/icon/HASH'),
-				memorySize: mebibytes(512),
-				timeout: seconds(10),
-				handler: 'index.default',
-				runtime: 'nodejs22.x',
-				log: props.log,
-			})
+			const serverLambda = createPrebuildLambdaFunction(
+				group,
+				ctx,
+				'icon',
+				id,
+				{
+					bundleFile: join(__dirname, '/prebuild/icon/bundle.zip'),
+					bundleHash: join(__dirname, '/prebuild/icon/HASH'),
+					memorySize: mebibytes(512),
+					timeout: seconds(10),
+					handler: 'index.default',
+					runtime: 'nodejs22.x',
+					log: props.log,
+				},
+				{
+					isManagedInstance: true,
+				}
+			)
 
 			const permission = new aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',
