@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.2.13",
+	"version": "0.2.14",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
