@@ -391,7 +391,7 @@ export const createLambdaFunction = (
 			capacityProviderConfig: shouldLambdaBeManagedInstance
 				? {
 						lambdaManagedInstancesCapacityProviderConfig: {
-							capacityProviderArn: ctx.shared.get('function', 'capacity-provider-arn'),
+							capacityProviderArn: ctx.shared.get('function', 'capacity-provider-arn-stepney'),
 						},
 					}
 				: undefined,

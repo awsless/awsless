@@ -165,7 +165,34 @@ export const functionFeature = defineFeature({
 			],
 		})
 
+		const capacityProvider2 = new aws.lambda.CapacityProvider(group, 'capacity-provider-2', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'function',
+				resourceName: 'capacity-provider-2',
+			}),
+			instanceRequirements: [
+				{
+					allowedInstanceTypes: undefined as unknown as string[],
+					architectures: ['arm64'],
+					excludedInstanceTypes: undefined as unknown as string[],
+				},
+			],
+			vpcConfig: [
+				{
+					subnetIds: ctx.shared.get('vpc', 'public-subnets'),
+					securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
+				},
+			],
+			permissionsConfig: [
+				{
+					capacityProviderOperatorRoleArn: capacityProviderRole.arn,
+				},
+			],
+		})
+
 		ctx.shared.set('function', 'capacity-provider-arn', capacityProvider.arn)
+		ctx.shared.set('function', 'capacity-provider-arn-stepney', capacityProvider2.arn)
 
 		// ------------------------------------------------------
 		// Define the ScheduleGroup for warmers
