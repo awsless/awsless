@@ -11,6 +11,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { createLambdaFunction } from './util.js'
+import { shortId } from '../../util/id.js'
 import deepmerge from 'deepmerge'
 
 const typeGenCode = `
@@ -116,8 +117,27 @@ export const functionFeature = defineFeature({
 
 		ctx.shared.set('function', 'bucket-name', bucket.bucket)
 
-		if (ctx.appConfig.defaults.function.isManagedInstance) {
-		}
+		const capacityProviderRole = new aws.iam.Role(group, 'role', {
+			name: shortId(`${ctx.app.name}:${ctx.appId}`),
+			description: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'function',
+				resourceName: 'capacity-provider-role',
+			}),
+			assumeRolePolicy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: 'sts:AssumeRole',
+						Principal: {
+							Service: ['lambda.amazonaws.com'],
+						},
+					},
+				],
+			}),
+			managedPolicyArns: ['arn:aws:iam::aws:policy/AWSLambdaManagedEC2ResourceOperator'],
+		})
 
 		const capacityProvider = new aws.lambda.CapacityProvider(group, 'capacity-provider', {
 			name: formatGlobalResourceName({
@@ -127,15 +147,20 @@ export const functionFeature = defineFeature({
 			}),
 			instanceRequirements: [
 				{
-					allowedInstanceTypes: [],
+					allowedInstanceTypes: undefined as unknown as string[],
 					architectures: ['arm64'],
-					excludedInstanceTypes: [],
+					excludedInstanceTypes: undefined as unknown as string[],
 				},
 			],
 			vpcConfig: [
 				{
 					subnetIds: ctx.shared.get('vpc', 'public-subnets'),
 					securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
+				},
+			],
+			permissionsConfig: [
+				{
+					capacityProviderOperatorRoleArn: capacityProviderRole.arn,
 				},
 			],
 		})

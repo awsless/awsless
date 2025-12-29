@@ -80,8 +80,6 @@ const WarmSchema = z
 	.max(10)
 	.describe('Specify how many functions you want to warm up each 5 minutes. You can specify a number from 0 to 10.')
 
-const isManagedInstanceSchema = z.boolean().describe('Enable Lambda Managed Instances for the function.')
-
 const VPCSchema = z.boolean().describe('Put the function inside your global VPC.')
 
 const MinifySchema = z.boolean().describe('Minify the function code.')
@@ -304,7 +302,6 @@ export const FunctionsSchema = z
 export const FunctionDefaultSchema = z
 	.object({
 		runtime: RuntimeSchema.default('nodejs24.x'),
-		isManagedInstance: isManagedInstanceSchema.default(true),
 		// node
 		handler: HandlerSchema.default('index.default'),
 		// build: BuildSchema.default({
