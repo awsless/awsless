@@ -82,7 +82,9 @@ export const imageFeature = defineFeature({
 			let lambdaOrigin: ReturnType<typeof createLambdaFunction> | undefined = undefined
 
 			if (props.origin.function) {
-				lambdaOrigin = createLambdaFunction(group, ctx, `origin`, id, props.origin.function)
+				lambdaOrigin = createLambdaFunction(group, ctx, `origin`, id, props.origin.function, {
+					isManagedInstance: true,
+				})
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined
@@ -138,16 +140,25 @@ export const imageFeature = defineFeature({
 				resourceName: 'sharp',
 			})
 
-			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'image', id, {
-				bundleFile: join(__dirname, '/prebuild/image/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/image/HASH'),
-				memorySize: mebibytes(512),
-				timeout: seconds(10),
-				handler: 'index.default',
-				runtime: 'nodejs22.x',
-				log: props.log,
-				layers: [sharpLayerId],
-			})
+			const serverLambda = createPrebuildLambdaFunction(
+				group,
+				ctx,
+				'image',
+				id,
+				{
+					bundleFile: join(__dirname, '/prebuild/image/bundle.zip'),
+					bundleHash: join(__dirname, '/prebuild/image/HASH'),
+					memorySize: mebibytes(512),
+					timeout: seconds(10),
+					handler: 'index.default',
+					runtime: 'nodejs22.x',
+					log: props.log,
+					layers: [sharpLayerId],
+				},
+				{
+					isManagedInstance: true,
+				}
+			)
 
 			const permission = new aws.lambda.Permission(group, 'permission', {
 				principal: 'cloudfront.amazonaws.com',

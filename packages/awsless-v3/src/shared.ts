@@ -22,6 +22,8 @@ type SharedState = {
 		'repository-name': Output<string>
 		'repository-url': Output<string>
 		'warm-group-name': Output<string>
+		'capacity-provider-arn': Output<string>
+		'capacity-provider-arn-stepney': Output<string>
 	}
 
 	cron: {

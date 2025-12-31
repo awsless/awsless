@@ -85,7 +85,9 @@ export const siteFeature = defineFeature({
 			let functionUrl: aws.lambda.FunctionUrl | undefined
 
 			if (props.ssr) {
-				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
+				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr, {
+					isManagedInstance: true,
+				})
 
 				versions.push(result.code.sourceHash)
 
