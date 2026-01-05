@@ -6,17 +6,13 @@ type StaticCredentials = {
 }
 
 export const fetchCredentials = async (profile: string): Promise<StaticCredentials> => {
-	let accessKeyId = await Bun.secrets.get({
-		service: `${profile}-aws-credentials`,
-		name: 'access-key',
-	})
-	let secretAccessKey = await Bun.secrets.get({
-		service: `${profile}-aws-credentials`,
-		name: 'secret-key',
+	let credentialsString = await Bun.secrets.get({
+		service: `${profile}`,
+		name: 'awsless',
 	})
 
-	if (!accessKeyId || !secretAccessKey) {
-		accessKeyId = await prompt.password({
+	if (!credentialsString) {
+		let accessKeyId = await prompt.password({
 			message: 'Enter your AWS access key ID',
 			mask: '*',
 			validate: (value: string) => {
@@ -33,7 +29,7 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 
 		log.success('Valid AWS access key ID')
 
-		secretAccessKey = await prompt.password({
+		let secretAccessKey = await prompt.password({
 			message: 'Enter your AWS secret access key',
 			mask: '*',
 			validate: (value: string) => {
@@ -51,28 +47,25 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 		log.success('Valid AWS secret access key')
 
 		log.task({
-			initialMessage: 'Saving AWS credentials in Bun secrets',
+			initialMessage: 'Saving AWS credentials ...',
 			successMessage: 'AWS credentials saved successfully',
 			errorMessage: 'Failed to save AWS credentials',
 			task: async () => {
 				await Bun.secrets.set({
-					service: `${profile}-aws-credentials`,
-					name: 'access-key',
-					value: accessKeyId!,
-				})
-				await Bun.secrets.set({
-					service: `${profile}-aws-credentials`,
-					name: 'secret-key',
-					value: secretAccessKey!,
+					service: `${profile}`,
+					name: 'awsless',
+					value: `${accessKeyId!}:${secretAccessKey!}`,
 				})
 			},
 		})
 
-		log.success('AWS credentials saved successfully')
+		credentialsString = `${accessKeyId}:${secretAccessKey}`
 	}
 
+	const credentials = credentialsString!.split(':')
+
 	return {
-		accessKeyId,
-		secretAccessKey,
+		accessKeyId: credentials[0]!,
+		secretAccessKey: credentials[1]!,
 	}
 }
