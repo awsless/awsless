@@ -1,4 +1,4 @@
-import { Cancelled, log, prompt } from '@awsless/clui'
+import { log, prompt } from '@awsless/clui'
 
 type StaticCredentials = {
 	accessKeyId: string
