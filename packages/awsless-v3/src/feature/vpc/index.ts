@@ -65,7 +65,6 @@ export const vpcFeature = defineFeature({
 		})
 
 		new aws.Route(group, 'routeIPv6', {
-			// gatewayId: egressOnlyInternetGateway.id,
 			routeTableId: privateRouteTable.id,
 			destinationIpv6CidrBlock: '::/0',
 			egressOnlyGatewayId: egressOnlyInternetGateway.id,
@@ -79,15 +78,6 @@ export const vpcFeature = defineFeature({
 		)
 
 		ctx.shared.set('vpc', 'security-group-id', vpc.defaultSecurityGroupId)
-
-		// new aws.vpc.SecurityGroupEgressRule(group, 'vpcDefaulEgresstSecurityGroup', {
-		// 	securityGroupId: vpc.defaultSecurityGroupId,
-		// 	description: 'Allow all outbound traffic',
-		// 	fromPort: 0,
-		// 	toPort: 65535,
-		// 	ipProtocol: '-1',
-		// 	cidrIpv6: '::/0',
-		// })
 
 		let block = 0n
 		const zones = ['a', 'b']
