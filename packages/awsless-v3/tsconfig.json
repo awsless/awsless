@@ -11,14 +11,14 @@
 		// "declaration": false,
 		"rootDir": ".",
 		// "preserveSymlinks": true,
-		// "types": [ "node" ],
+		"types": ["bun", "node"],
 		// "declaration": true,
 		// "removeComments": false,
 		// "esModuleInterop": true,
 		// "allowImportingTsExtensions": true,
 		"allowSyntheticDefaultImports": true,
-		"jsx": "react-jsx"
-	}
+		"jsx": "react-jsx",
+	},
 	// "ts-node": {
 	//     "esm": true,
 	// 	"experimentalSpecifierResolution": "node",
