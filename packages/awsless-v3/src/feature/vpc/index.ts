@@ -104,7 +104,7 @@ export const vpcFeature = defineFeature({
 					availabilityZone: ctx.appConfig.region + zones[i],
 					ipv6CidrBlock: vpc.ipv6CidrBlock.pipe((value: string) => {
 						const cidrParts = value.split('::')
-						let cidrBlock = cidrParts[0]?.substring(0, cidrParts[0].length - 1)
+						const cidrBlock = cidrParts[0]?.substring(0, cidrParts[0].length - 1)
 
 						return `${cidrBlock}${ipv6Identifier++}::/64`
 					}),
