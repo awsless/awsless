@@ -6,9 +6,10 @@ import { Region } from '../config/schema/region.js'
 
 export type Credentials = AwsCredentialIdentityProvider
 
-export const getCredentials = (profile: string): Credentials => {
-	return createCredentialChain(() => {
-		return fetchCredentials(profile)
+export const getCredentials = async (profile: string): Promise<Credentials> => {
+	const credentials = await fetchCredentials(profile)
+	return createCredentialChain(async () => {
+		return credentials
 	})
 }
 

@@ -13,7 +13,7 @@ export const test = (program: Command) => {
 		.action(async (stacks?: string[], options?: { filters?: string[] }) => {
 			await layout(`test ${stacks ?? ''}`, async props => {
 				const region = props.appConfig.region
-				const credentials = getCredentials(props.appConfig.profile)
+				const credentials = await getCredentials(props.appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
 				const { tests } = createApp({ ...props, accountId })

@@ -14,7 +14,7 @@ export const list = (program: Command) => {
 		.action(async () => {
 			await layout('config list', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
 				const { configs } = createApp({ appConfig, stackConfigs, accountId })

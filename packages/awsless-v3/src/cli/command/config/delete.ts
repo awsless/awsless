@@ -12,7 +12,7 @@ export const del = (program: Command) => {
 		.description('Delete a config value')
 		.action(async (name: string) => {
 			await layout('config delete', async ({ appConfig }) => {
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const params = new SsmStore({
 					credentials,
 					appConfig,

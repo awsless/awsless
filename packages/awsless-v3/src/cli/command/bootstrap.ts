@@ -9,7 +9,7 @@ export const bootstrap = (program: Command) => {
 		.description('Create the awsless bootstrap stack')
 		.action(async () => {
 			await layout('bootstrap', async ({ appConfig }) => {
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, appConfig.region)
 
 				await bootstrapAwsless({

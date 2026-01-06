@@ -17,7 +17,7 @@ export const resources = (program: Command) => {
 			await layout('resources', async ({ appConfig, stackConfigs }) => {
 				// ---------------------------------------------------
 				const region = appConfig.region
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })

@@ -27,7 +27,7 @@ export const run = (program: CliCommand) => {
 		.action(async (selected: string | undefined) => {
 			await layout(`run ${selected ?? ''}`, async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 				const { commands, appId } = createApp({ appConfig, stackConfigs, accountId })
 

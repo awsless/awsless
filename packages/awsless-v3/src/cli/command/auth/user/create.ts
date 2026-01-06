@@ -20,7 +20,7 @@ export const create = (program: Command) => {
 			await layout('auth user create', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
-				const credentials = getCredentials(profile)
+				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
 				if (Object.keys(appConfig.defaults.auth ?? {}).length === 0) {

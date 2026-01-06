@@ -7,53 +7,45 @@ type StaticCredentials = {
 
 export const fetchCredentials = async (profile: string): Promise<StaticCredentials> => {
 	let credentialsString = await Bun.secrets.get({
-		service: `${profile}`,
-		name: 'awsless',
+		service: 'awsless',
+		name: profile,
 	})
 
 	if (!credentialsString) {
-		let accessKeyId = await prompt.password({
+		const accessKeyId = await prompt.password({
 			message: 'Enter your AWS access key ID',
-			mask: '*',
 			validate: (value: string) => {
 				const AWS_ACCESS_KEY_ID_REGEX = /^(AKIA|ASIA|AROA|AIDA)[A-Z0-9]{16}$/
 
 				if (!AWS_ACCESS_KEY_ID_REGEX.test(value)) {
-					log.error('Invalid AWS access key ID')
-					process.exit(1)
+					return 'Invalid AWS access key ID'
 				}
 
-				return undefined
+				return
 			},
 		})
 
-		log.success('Valid AWS access key ID')
-
-		let secretAccessKey = await prompt.password({
+		const secretAccessKey = await prompt.password({
 			message: 'Enter your AWS secret access key',
-			mask: '*',
 			validate: (value: string) => {
 				const AWS_SECRET_ACCESS_KEY_REGEX = /^[A-Za-z0-9/+=]{40}$/
 
 				if (!AWS_SECRET_ACCESS_KEY_REGEX.test(value)) {
-					log.error('Invalid AWS secret access key')
-					process.exit(1)
+					return 'Invalid AWS secret access key'
 				}
 
-				return undefined
+				return
 			},
 		})
 
-		log.success('Valid AWS secret access key')
-
-		log.task({
+		await log.task({
 			initialMessage: 'Saving AWS credentials ...',
 			successMessage: 'AWS credentials saved successfully',
 			errorMessage: 'Failed to save AWS credentials',
 			task: async () => {
 				await Bun.secrets.set({
-					service: `${profile}`,
-					name: 'awsless',
+					service: 'awsless',
+					name: profile,
 					value: `${accessKeyId!}:${secretAccessKey!}`,
 				})
 			},
