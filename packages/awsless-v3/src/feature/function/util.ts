@@ -24,6 +24,7 @@ import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
 import { zipBundle } from './build/bundle/bundle.js'
+import { bundleTypeScriptWithBun } from './build/typescript/bun.js'
 import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 // import { Condition } from 'aws-lambda'
 // import { bundleCacheKey } from './build/bundle/__cache.js'
@@ -138,7 +139,7 @@ export const createLambdaFunction = (
 			return build(fingerprint, async write => {
 				const temp = await createTempFolder(`function--${name}`)
 
-				const bundle = await bundleTypeScript({
+				const bundle = await bundleTypeScriptWithRolldown({
 					file: fileCode.file,
 					external: [
 						...(fileCode.external ?? []),

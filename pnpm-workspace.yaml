@@ -3,6 +3,9 @@ minimumReleaseAgeExclude:
     - '@awsless/*'
     - '@terraforge/*'
     - typescript
+    - rolldown
+    - '@oxc-project/*'
+    - '@rolldown/*'
 
 packages:
     - 'packages/*'
