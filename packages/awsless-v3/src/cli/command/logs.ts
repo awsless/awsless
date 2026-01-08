@@ -22,7 +22,7 @@ export const logs = (program: CliCommand) => {
 			await layout(`logs`, async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
-				const credentials = getCredentials(profile)
+				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
 

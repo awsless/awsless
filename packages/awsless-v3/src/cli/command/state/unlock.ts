@@ -14,7 +14,7 @@ export const unlock = (program: Command) => {
 			await layout('state unlock', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
-				const credentials = getCredentials(profile)
+				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })

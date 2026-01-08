@@ -12,7 +12,7 @@ export const importTable = (program: Command) => {
 		.action(async () => {
 			await layout('table import', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })

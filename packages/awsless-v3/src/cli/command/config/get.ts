@@ -13,7 +13,7 @@ export const get = (program: Command) => {
 		.description('Get a config value')
 		.action(async (name: string) => {
 			await layout('config get', async ({ appConfig }) => {
-				const credentials = getCredentials(appConfig.profile)
+				const credentials = await getCredentials(appConfig.profile)
 				const params = new SsmStore({
 					credentials,
 					appConfig,
