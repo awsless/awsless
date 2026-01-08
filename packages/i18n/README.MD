@@ -57,9 +57,9 @@ import { lang } from '@awsless/i18n/svelte'
 
 const count = 1
 
-lang.t.get(`${count} count`, {
-  es: `${count} contar`,
-  jp: `${count} カウント`,
+lang.t.get(lang.s`${count} count`, {
+	es: lang.s`${count} contar`,
+	jp: lang.s`${count} カウント`,
 })
 ```
 
@@ -79,9 +79,9 @@ If you don't like the auto-generated translations by AI, you can safely change a
 
 ```json
 {
-  "${count} count": {
-    "es": "${count} contar",
-    "jp": "${count} カウント"
-  }
+	"${count} count": {
+		"es": "${count} contar",
+		"jp": "${count} カウント"
+	}
 }
 ```
