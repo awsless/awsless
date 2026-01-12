@@ -29,11 +29,13 @@ import { imageFeature } from './image/index.js'
 import { iconFeature } from './icon/index.js'
 import { instanceFeature } from './instance/index.js'
 import { metricFeature } from './metric/index.js'
+import { routerFeature } from './router/index.js'
 
 export const features = [
 	// 1
 	vpcFeature,
 	domainFeature,
+	routerFeature,
 	commandFeature,
 	layerFeature,
 

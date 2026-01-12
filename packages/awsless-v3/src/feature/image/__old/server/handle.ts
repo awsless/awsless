@@ -2,15 +2,7 @@ import { invoke } from '@awsless/lambda'
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
 import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
-import { parsePath, supportedExtensions } from './validate'
-
-const normalizeExtension = (extension: (typeof supportedExtensions)[number]) => {
-	if (extension === 'jpg') {
-		return 'jpeg'
-	}
-
-	return extension
-}
+import { parsePath } from './validate'
 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
@@ -23,30 +15,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const originalPath = request.output.originalPath!
 		const preset = request.output.preset!
 		const extension = request.output.extension!
-
-		// ----------------------------------------
-		// Get cached image from s3
-
-		if (process.env.IMAGE_CACHE_BUCKET) {
-			const cachedImage = await getObject({
-				bucket: process.env.IMAGE_CACHE_BUCKET,
-				key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
-			})
-
-			if (cachedImage) {
-				const cachedImageData = await cachedImage.body.transformToByteArray()
-
-				return {
-					statusCode: 200,
-					body: Buffer.from(cachedImageData).toString('base64'),
-					isBase64Encoded: true,
-					headers: {
-						'Content-Type': `image/${normalizeExtension(extension)}`,
-						'Cache-Control': 'public, max-age=31536000, immutable',
-					},
-				}
-			}
-		}
+		const version = request.output.version!
 
 		// ----------------------------------------
 		// Get the preset and extension configuration
@@ -60,6 +29,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const configs: {
 			presets: Record<string, ResizeOptions & { quality?: number }>
 			extensions: Record<string, JpegOptions | WebpOptions | PngOptions>
+			version?: number
 		} = JSON.parse(configsEnv)
 
 		const presetConfig = configs.presets?.[preset]
@@ -69,6 +39,14 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// If no preset or extension configuration is found we won't allow the transformation to proceed.
 
 		if (!presetConfig || !extensionConfig) {
+			return { statusCode: 404 }
+		}
+
+		// We can version in the path for cache busting.
+		// We don't want to allow any version due to DDoS attacks.
+
+		const maxVersion = configs.version ?? 0
+		if (version > maxVersion) {
 			return { statusCode: 404 }
 		}
 
@@ -123,7 +101,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 				fit: presetConfig.fit,
 				position: presetConfig.position,
 			})
-			[normalizeExtension(extension)]({ ...extensionConfig, quality: presetConfig.quality })
+			[extension]({ ...extensionConfig, quality: presetConfig.quality })
 			.toBuffer()
 
 		// ----------------------------------------

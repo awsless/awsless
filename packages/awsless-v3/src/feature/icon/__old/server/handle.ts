@@ -11,30 +11,6 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		const path = event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath
 
 		// ----------------------------------------
-		// Get cached svg from s3
-
-		if (process.env.ICON_CACHE_BUCKET) {
-			const cachedIcon = await getObject({
-				bucket: process.env.ICON_CACHE_BUCKET,
-				key: path,
-			})
-
-			if (cachedIcon) {
-				const cachedIconData = await cachedIcon.body.transformToByteArray()
-
-				return {
-					statusCode: 200,
-					body: Buffer.from(cachedIconData).toString('base64'),
-					isBase64Encoded: true,
-					headers: {
-						'Content-Type': 'image/svg+xml',
-						'Cache-Control': 'public, max-age=31536000, immutable',
-					},
-				}
-			}
-		}
-
-		// ----------------------------------------
 		// Get the icon configuration
 
 		const configsEnv = process.env.ICON_CONFIG

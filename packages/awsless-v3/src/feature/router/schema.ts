@@ -1,9 +1,6 @@
 import { z } from 'zod'
 import { DurationSchema } from '../../config/schema/duration.js'
-import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
-import { LocalEntrySchema } from '../../config/schema/local-entry.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
 
 const ErrorResponsePathSchema = z
 	.string()
@@ -46,84 +43,19 @@ const ErrorResponseSchema = z
 	])
 	.optional()
 
-export const SitesSchema = z
+export const RouteSchema = z.string().regex(/^\//, 'Route must start with a slash (/)')
+
+export const RouterDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
+			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
 			subDomain: z.string().optional(),
-
-			// bind: z
-			// 	.object({
-			// 		auth: z.array(ResourceIdSchema),
-			// 		graphql: z.array(ResourceIdSchema),
-			// 		// http: z.array(ResourceIdSchema),
-			// 		// rest: z.array(ResourceIdSchema),
-			// 	})
-			// 	.optional(),
-
-			build: z
-				.object({
-					command: z
-						.string()
-						.describe(
-							`Specifies the files and directories to generate the cache key for your custom build command.`
-						),
-					cacheKey: z
-						.union([LocalEntrySchema.transform(v => [v]), LocalEntrySchema.array()])
-						.describe(
-							`Specifies the files and directories to generate the cache key for your custom build command.`
-						),
-					configs: z.string().array().optional().describe('Define the config values for your build command.'),
-				})
-				.optional()
-				.describe(`Specifies the build process for sites that need a build step.`),
-
-			static: z
-				.union([LocalDirectorySchema, z.boolean()])
-				.optional()
-				.describe(
-					"Specifies the path to the static files directory. Additionally you can also pass `true` when you don't have local static files, but still want to make an S3 bucket."
-				),
-
-			ssr: FunctionSchema.optional().describe('Specifies the file that will render the site on the server.'),
-
-			// envPrefix: z.string().optional().describe('Specifies a prefix for all '),
-
-			// origin: z
-			// 	.enum(['ssr-first', 'static-first'])
-			// 	.default('static-first')
-			// 	.describe('Specifies the origin fallback ordering.'),
-
-			// bind: z.object({
-			// 	auth:
-			// 	h
-			// }).optional(),
-
-			// ssr: z.union([
-			// 	FunctionSchema.optional(),
-			// 	z.object({
-			// 		consumer: FunctionSchema.optional(),
-			// 		responseStreaming: z.boolean().default(false),
-			// 		build: z.string().optional(),
-			// 	}),
-			// ]),
 
 			geoRestrictions: z
 				.array(z.string().length(2).toUpperCase())
 				.default([])
 				.describe('Specifies a blacklist of countries that should be blocked.'),
-
-			// forwardHost: z
-			// 	.boolean()
-			// 	.default(false)
-			// 	.describe(
-			// 		[
-			// 			'Specify if the original `host` header should be forwarded to the SSR function.',
-			// 			'The original `host` header will be forwarded as `x-forwarded-host`.',
-			// 			'Keep in mind that this requires an extra CloudFront Function.',
-			// 		].join('\n')
-			// 	),
 
 			errors: z
 				.object({
@@ -166,51 +98,51 @@ export const SitesSchema = z
 				.optional()
 				.describe('Enable basic authentication for the site.'),
 
-			security: z
-				.object({
-					// contentSecurityPolicy: z.object({
-					// 	override: z.boolean().default(false),
-					// 	policy: z.string(),
-					// })
-					// contentSecurityPolicy?: {
-					// 	override?: boolean
-					// 	contentSecurityPolicy: string
-					// }
-					// contentTypeOptions?: {
-					// 	override?: boolean
-					// }
-					// frameOptions?: {
-					// 	override?: boolean
-					// 	frameOption?: 'deny' | 'same-origin'
-					// }
-					// referrerPolicy?: {
-					// 	override?: boolean
-					// 	referrerPolicy?: (
-					// 		'no-referrer' |
-					// 		'no-referrer-when-downgrade' |
-					// 		'origin' |
-					// 		'origin-when-cross-origin' |
-					// 		'same-origin' |
-					// 		'strict-origin' |
-					// 		'strict-origin-when-cross-origin' |
-					// 		'unsafe-url'
-					// 	)
-					// }
-					// strictTransportSecurity?: {
-					// 	maxAge?: Duration
-					// 	includeSubdomains?: boolean
-					// 	override?: boolean
-					// 	preload?: boolean
-					// }
-					// xssProtection?: {
-					// 	override?: boolean
-					// 	enable?: boolean
-					// 	modeBlock?: boolean
-					// 	reportUri?: string
-					// }
-				})
-				.optional()
-				.describe('Specify the security policy.'),
+			// security: z
+			// 	.object({
+			// 		contentSecurityPolicy: z.object({
+			// 			override: z.boolean().default(false),
+			// 			policy: z.string(),
+			// 		})
+			// 		contentSecurityPolicy?: {
+			// 			override?: boolean
+			// 			contentSecurityPolicy: string
+			// 		}
+			// 		contentTypeOptions?: {
+			// 			override?: boolean
+			// 		}
+			// 		frameOptions?: {
+			// 			override?: boolean
+			// 			frameOption?: 'deny' | 'same-origin'
+			// 		}
+			// 		referrerPolicy?: {
+			// 			override?: boolean
+			// 			referrerPolicy?: (
+			// 				'no-referrer' |
+			// 				'no-referrer-when-downgrade' |
+			// 				'origin' |
+			// 				'origin-when-cross-origin' |
+			// 				'same-origin' |
+			// 				'strict-origin' |
+			// 				'strict-origin-when-cross-origin' |
+			// 				'unsafe-url'
+			// 			)
+			// 		}
+			// 		strictTransportSecurity?: {
+			// 			maxAge?: Duration
+			// 			includeSubdomains?: boolean
+			// 			override?: boolean
+			// 			preload?: boolean
+			// 		}
+			// 		xssProtection?: {
+			// 			override?: boolean
+			// 			enable?: boolean
+			// 			modeBlock?: boolean
+			// 			reportUri?: string
+			// 		}
+			// 	})
+			// 	.optional()
+			// 	.describe('Specify the security policy.'),
 
 			cache: z
 				.object({
@@ -237,4 +169,20 @@ export const SitesSchema = z
 		})
 	)
 	.optional()
-	.describe('Define the sites in your stack.')
+	.describe(`Define the global Router. Backed by AWS CloudFront.`)
+
+// export const RouterDefaultSchema = z
+// 	.record(
+// 		ResourceIdSchema,
+// 		z.object({
+// 			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
+// 			subDomain: z.string().optional(),
+
+// 			geoRestrictions: z
+// 				.array(z.string().length(2).toUpperCase())
+// 				.default([])
+// 				.describe('Specifies a blacklist of countries that should be blocked.'),
+// 		})
+// 	)
+// 	.describe(`Define the global Router. Backed by AWS CloudFront.`)
+// 	.optional()
