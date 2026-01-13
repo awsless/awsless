@@ -24,9 +24,9 @@
 		}
 	},
 	"scripts": {
-		"bug": "deno run --unstable-sloppy-imports --allow-env ./demo/bug.ts",
-		"prompts": "deno run --unstable-sloppy-imports --allow-env ./demo/prompts.ts",
-		"logs": "deno run --unstable-sloppy-imports --allow-env ./demo/logs.ts",
+		"bug": "bun ./demo/bug.ts",
+		"prompts": "bun ./demo/prompts.ts",
+		"logs": "bun ./demo/logs.ts",
 		"test": "pnpm code test",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"

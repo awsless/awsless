@@ -33,7 +33,8 @@
 		"maxConcurrency": 2,
 		"singleThread": true,
 		"exclude": [
-			"test/aws/*"
+			"test/aws/*",
+			"**/__*/**"
 		]
 	},
 	"dependencies": {

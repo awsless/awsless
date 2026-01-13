@@ -1,7 +1,7 @@
 import { NativeAttributeBinary, marshallOptions, unmarshallOptions } from '@aws-sdk/util-dynamodb';
 import * as _aws_sdk_client_dynamodb from '@aws-sdk/client-dynamodb';
 import { AttributeValue, DynamoDBClient, TransactWriteItem, CreateTableCommandInput, UpdateItemCommandInput, TransactGetItem } from '@aws-sdk/client-dynamodb';
-export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
+export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, TransactionConflictException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { UUID } from 'node:crypto';
 import { BigFloat } from '@awsless/big-float';
 import { DynamoDBServer } from '@awsless/dynamodb-server';

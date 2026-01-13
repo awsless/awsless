@@ -3,25 +3,90 @@
 	"name": "stack",
 	// "depends": ["stack-2"],
 
-	"tests": "./test",
+	// "tests": "./test",
+	"tests": false,
 	// "configs": ["test"],
 
-	"metrics": {
-		"size": {
-			"type": "number",
-			"alarms": [
-				{
-					"where": "sum > 1",
-					"period": "1 minutes",
-					"trigger": "./metric/trigger.ts",
-					"minDataPoints": 1
-				}
-			]
+	// "metrics": {
+	// 	"size": {
+	// 		"type": "number",
+	// 		"alarms": [
+	// 			{
+	// 				"where": "sum > 1",
+	// 				"period": "1 minutes",
+	// 				"trigger": "./metric/trigger.ts",
+	// 				"minDataPoints": 1
+	// 			}
+	// 		]
+	// 	}
+	// },
+
+	// "functions": {
+	// 	// "log-metric": "./metric/log-metric.ts",
+	// 	"test": {
+	// 		"code": "./function.ts",
+	// 		"vpc": true
+	// 	}
+	// }
+
+	"sites": {
+		"test": {
+			"router": "main",
+			"path": "/",
+
+			"static": "./site",
+			"ssr": "./ssr.ts"
+		},
+		"test2": {
+			"router": "main",
+			"path": "/docs",
+			"static": "./site2"
+		}
+		// "test3": {
+		// 	"router": "main",
+		// 	"path": "/docs",
+		// 	"static": "./site2"
+		// }
+	},
+
+	"rpc": {
+		"main": {
+			"test": "./echo.ts"
 		}
 	},
 
-	"functions": {
-		"log-metric": "./metric/log-metric.ts"
+	"images": {
+		"avatars": {
+			"router": "main",
+			"path": "/images",
+			"origin": {
+				"static": "./image"
+			},
+			"extensions": {
+				"png": { "compressionLevel": 6 }
+			},
+			"presets": {
+				"lg": {
+					"width": 200
+				},
+				"md": {
+					"width": 100
+				},
+				"sm": {
+					"width": 50
+				}
+			}
+		}
+	},
+
+	"icons": {
+		"icons": {
+			"router": "main",
+			"path": "/icons",
+			"origin": {
+				"static": "./icon"
+			}
+		}
 	}
 
 	// "commands": {

@@ -11,12 +11,12 @@ import { layout } from '../../ui/complex/layout.js'
 
 export const clearCache = (program: Command) => {
 	program
-		.command('cache-clear')
+		.command('clear-cache')
 		.argument('[stack]', 'The stack name of the icon proxy')
 		.argument('[name]', 'The name of the icon proxy')
 		.description('Clears the cache of the icon proxy')
 		.action(async (stack: string | undefined, name: string | undefined) => {
-			await layout('icon cache-clear', async ({ appConfig, stackConfigs }) => {
+			await layout('icon clear-cache', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
 				const credentials = await getCredentials(profile)
@@ -81,8 +81,8 @@ export const clearCache = (program: Command) => {
 
 				await workspace.hydrate(app)
 
-				let distributionId: string | undefined
-				let cacheBucket: string | undefined
+				let distributionId: string
+				let cacheBucket: string
 				try {
 					distributionId = await shared.entry('icon', 'distribution-id', name)
 					cacheBucket = await shared.entry('icon', 'cache-bucket', name)
@@ -149,7 +149,7 @@ export const clearCache = (program: Command) => {
 									CallerReference: randomUUID(),
 									Paths: {
 										Quantity: 1,
-										Items: ['/*'],
+										Items: [shared.entry('icon', 'path', name!)],
 									},
 								},
 							})

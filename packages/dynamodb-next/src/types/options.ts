@@ -3,7 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 // import { ReturnValues } from '../expression/return'
 // import { AnyTable } from '../table'
 
-export interface Options {
+export type Options = {
 	client?: DynamoDBClient
 }
 

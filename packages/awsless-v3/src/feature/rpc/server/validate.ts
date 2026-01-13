@@ -7,6 +7,7 @@ import {
 	minLength,
 	object,
 	optional,
+	picklist,
 	record,
 	safeParse,
 	string,
@@ -17,6 +18,7 @@ import {
 export const requestSchema = object({
 	requestContext: object({
 		http: object({
+			method: literal('POST'),
 			userAgent: string(),
 			sourceIp: string(),
 		}),

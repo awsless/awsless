@@ -1,5 +1,6 @@
 import { aws } from '@terraforge/aws'
-import { Output } from '@terraforge/core'
+import { DataSource, Group, Input, Node, Output, Resource } from '@terraforge/core'
+import { Route } from './feature/router/route'
 
 type SharedState = {
 	vpc: {
@@ -73,11 +74,31 @@ type SharedEntries = {
 	image: {
 		'distribution-id': Output<string>
 		'cache-bucket': Output<string>
+		path: string
 	}
 
 	icon: {
 		'distribution-id': Output<string>
 		'cache-bucket': Output<string>
+		path: string
+	}
+
+	router: {
+		id: Output<string>
+		addRoutes: (
+			//
+			group: Group,
+			name: string,
+			routes: Record<string, Route>,
+			options?: { dependsOn?: Array<Resource | DataSource> }
+		) => void
+		addInvalidation: (
+			group: Group,
+			name: string,
+			paths: string[],
+			versions: Array<Input<string> | Input<string | undefined>>,
+			options?: { dependsOn?: Array<Resource | DataSource> }
+		) => void
 	}
 }
 

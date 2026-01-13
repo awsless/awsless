@@ -1,23 +1,20 @@
-import { integer, number, object, picklist, safeParse, string, transform } from '@awsless/validate'
+import { object, picklist, safeParse, string, transform } from '@awsless/validate'
 
-const supportedExtensions = ['jpeg', 'png', 'webp'] as const
+export const supportedExtensions = ['jpg', 'png', 'webp'] as const
 
 const schema = transform(
 	string(),
 	path => {
 		const cleanPath = path.startsWith('/') ? path.slice(1) : path
-		const [originalPath, options] = cleanPath.split('@')
+		const parts = cleanPath.split('/')
+		const options = parts.pop()
+		const originalPath = parts.join('/')
 
 		if (!originalPath || !options) {
 			return {}
 		}
 
-		let [preset, version, extension] = options.split('.')
-
-		if (!extension) {
-			extension = version
-			version = undefined
-		}
+		const [preset, extension] = options.split('.')
 
 		if (!preset || !extension) {
 			return {}
@@ -27,14 +24,12 @@ const schema = transform(
 			originalPath: originalPath,
 			preset: preset,
 			extension: extension as (typeof supportedExtensions)[number],
-			version: version ? parseInt(version, 10) : 0,
 		}
 	},
 	object({
 		originalPath: string(),
 		preset: string(),
 		extension: picklist(supportedExtensions),
-		version: number([integer()]),
 	})
 )
 

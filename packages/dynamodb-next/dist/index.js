@@ -969,7 +969,11 @@ TransactionCanceledException.prototype.conflictAt = function(index) {
 };
 
 // src/index.ts
-import { ConditionalCheckFailedException, TransactionCanceledException as TransactionCanceledException2 } from "@aws-sdk/client-dynamodb";
+import {
+  ConditionalCheckFailedException,
+  TransactionCanceledException as TransactionCanceledException2,
+  TransactionConflictException
+} from "@aws-sdk/client-dynamodb";
 
 // src/expression/fluent.ts
 var secret = Symbol("fluent");
@@ -1496,6 +1500,7 @@ export {
   TransactGetItemsCommand3 as TransactGetItemsCommand,
   TransactWriteItemsCommand4 as TransactWriteItemsCommand,
   TransactionCanceledException2 as TransactionCanceledException,
+  TransactionConflictException,
   UpdateItemCommand4 as UpdateItemCommand,
   any,
   array,

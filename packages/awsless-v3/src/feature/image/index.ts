@@ -4,11 +4,9 @@ import { defineFeature } from '../../feature'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
 import { createLambdaFunction } from '../function/util'
 import { join, dirname } from 'path'
-import { formatFullDomainName } from '../domain/util'
 import { createPrebuildLambdaFunction } from '../function/prebuild'
 import { mebibytes } from '@awsless/size'
-import { days, seconds, toDays, toSeconds } from '@awsless/duration'
-import { constantCase } from 'change-case'
+import { seconds, toDays } from '@awsless/duration'
 import { fileURLToPath } from 'url'
 import { glob } from 'glob'
 import { shortId } from '../../util/id'
@@ -69,12 +67,17 @@ export const imageFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.images ?? {})) {
 			const group = new Group(ctx.stack, 'image', id)
 
-			const name = formatLocalResourceName({
-				appName: ctx.app.name,
-				stackName: ctx.stack.name,
-				resourceType: 'image',
-				resourceName: id,
-			})
+			// const name = formatLocalResourceName({
+			// 	appName: ctx.app.name,
+			// 	stackName: ctx.stack.name,
+			// 	resourceType: 'image',
+			// 	resourceName: id,
+			// })
+
+			// const addInvalidation = ctx.shared.entry('router', 'addInvalidation', props.router)
+			const routerId = ctx.shared.entry('router', 'id', props.router)
+			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
+			const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
 
 			// ------------------------------------------------------------
 			// Create the image origins
@@ -157,6 +160,8 @@ export const imageFeature = defineFeature({
 				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 			})
 
+			// ------------------------------------------------------------
+
 			const serverLambdaUrl = new aws.lambda.FunctionUrl(
 				group,
 				'url',
@@ -166,6 +171,17 @@ export const imageFeature = defineFeature({
 				},
 				{ dependsOn: [permission] }
 			)
+
+			addRoutes(group, 'routes', {
+				[routeKey]: {
+					type: 'lambda',
+					domainName: serverLambdaUrl.functionUrl.pipe(url => url.split('/')[2]!),
+					rewrite: {
+						regex: `^${props.path}/(.*)$`,
+						to: '/$1',
+					},
+				},
+			})
 
 			serverLambda.addPermission({
 				actions: [
@@ -190,7 +206,6 @@ export const imageFeature = defineFeature({
 				JSON.stringify({
 					presets: props.presets,
 					extensions: props.extensions,
-					version: props.version,
 				})
 			)
 
@@ -226,180 +241,11 @@ export const imageFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Domain stuff
-
-			const domainName = props.domain
-				? formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-				: undefined
-
-			const certificateArn = props.domain
-				? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
-				: undefined
-
-			// ------------------------------------------------------------
-			// CND + Invalidation
-
-			const s3AccessControl = new aws.cloudfront.OriginAccessControl(group, `s3`, {
-				name: `${name}-s3`,
-				description: `Policy for the ${id} image cache in S3`,
-				originAccessControlOriginType: 's3',
-				signingBehavior: 'always',
-				signingProtocol: 'sigv4',
-			})
-
-			const lambdaAccessControl = new aws.cloudfront.OriginAccessControl(group, 'lambda', {
-				name: `${name}-lambda`,
-				description: `Policy for the ${id} image lambda server function URL`,
-				originAccessControlOriginType: 'lambda',
-				signingBehavior: 'always',
-				signingProtocol: 'sigv4',
-			})
-
-			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
-				name,
-				defaultTtl: toSeconds(days(365)),
-			})
-
-			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
-				name,
-				corsConfig: {
-					originOverride: true,
-					accessControlMaxAgeSec: toSeconds(days(365)),
-					accessControlAllowHeaders: { items: ['*'] },
-					accessControlAllowMethods: { items: ['ALL'] },
-					accessControlAllowOrigins: { items: ['*'] },
-					accessControlExposeHeaders: { items: ['*'] },
-					accessControlAllowCredentials: false,
-				},
-			})
-
-			const distribution = new aws.cloudfront.Distribution(group, 'distribution', {
-				comment: name,
-				enabled: true,
-				aliases: domainName ? [domainName] : undefined,
-				priceClass: 'PriceClass_All',
-				httpVersion: 'http2and3',
-				waitForDeployment: false,
-
-				restrictions: {
-					geoRestriction: {
-						restrictionType: 'none',
-						locations: [],
-					},
-				},
-
-				viewerCertificate: certificateArn
-					? {
-							sslSupportMethod: 'sni-only',
-							minimumProtocolVersion: 'TLSv1.2_2021',
-							acmCertificateArn: certificateArn,
-						}
-					: {
-							cloudfrontDefaultCertificate: true,
-						},
-
-				origin: [
-					{
-						originId: 'cache',
-						domainName: cacheBucket.bucketRegionalDomainName,
-						originAccessControlId: s3AccessControl.id,
-						s3OriginConfig: {
-							// is required to have an value for s3 origins when using origin access control
-							originAccessIdentity: '',
-						},
-					},
-
-					{
-						originId: 'server',
-						domainName: serverLambdaUrl.functionUrl.pipe(url => url.split('/')[2]!),
-						originAccessControlId: lambdaAccessControl.id,
-						customOriginConfig: {
-							originProtocolPolicy: 'https-only',
-							httpPort: 80,
-							httpsPort: 443,
-							originSslProtocols: ['TLSv1.2'],
-						},
-					},
-				],
-
-				originGroup: [
-					{
-						originId: 'group',
-						member: [{ originId: 'cache' }, { originId: 'server' }],
-						failoverCriteria: {
-							statusCodes: [403, 404],
-						},
-					},
-				],
-
-				defaultCacheBehavior: {
-					compress: true,
-					targetOriginId: 'group',
-					cachePolicyId: cache.id,
-					responseHeadersPolicyId: responseHeaders.id,
-					viewerProtocolPolicy: 'redirect-to-https',
-					allowedMethods: ['GET', 'HEAD'],
-					cachedMethods: ['GET', 'HEAD'],
-				},
-			})
-
-			// ------------------------------------------------------------
-			// Give the distribution the permissions to access the cache bucket
-
-			new aws.s3.BucketPolicy(
-				group,
-				`policy`,
-				{
-					bucket: cacheBucket.bucket,
-					policy: $resolve([cacheBucket.arn, distribution.id], (arn, id) => {
-						return JSON.stringify({
-							Version: '2012-10-17',
-							Statement: [
-								{
-									Effect: 'Allow',
-									Action: 's3:GetObject',
-									Resource: `${arn}/*`,
-									Principal: {
-										Service: 'cloudfront.amazonaws.com',
-									},
-									Condition: {
-										StringEquals: {
-											'AWS:SourceArn': `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`,
-										},
-									},
-								},
-							],
-						})
-					}),
-				},
-				{
-					dependsOn: [cacheBucket, distribution],
-				}
-			)
-
-			// ------------------------------------------------------------
 			// Domain name records and endpoint binding
 
-			if (domainName) {
-				new aws.route53.Record(group, `record`, {
-					zoneId: ctx.shared.entry('domain', 'zone-id', props.domain!),
-					type: 'A',
-					name: domainName,
-					alias: {
-						name: distribution.domainName,
-						zoneId: distribution.hostedZoneId,
-						evaluateTargetHealth: false,
-					},
-				})
-			}
-
-			ctx.bind(
-				`IMAGE_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`,
-				domainName ?? distribution.domainName
-			)
-
-			ctx.shared.add('image', 'distribution-id', id, distribution.id)
+			ctx.shared.add('image', 'distribution-id', id, routerId)
 			ctx.shared.add('image', 'cache-bucket', id, cacheBucket.bucket)
+			ctx.shared.add('image', 'path', id, routeKey)
 		}
 	},
 })

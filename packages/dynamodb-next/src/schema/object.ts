@@ -29,21 +29,6 @@ export const object = <P extends Properties, R extends AnySchema | undefined = u
 		encode: (input: Record<string, unknown>) => {
 			const result: Record<string, any> = {}
 
-			// for (const [key, value] of Object.entries(input)) {
-			// 	const schema = props[key] ?? rest
-
-			// 	if (!schema) {
-			// 		continue
-			// 		// throw new TypeError(`Unknown object schema key: ${key}`)
-			// 	}
-
-			// 	if (schema.filterIn(value)) {
-			// 		continue
-			// 	}
-
-			// 	result[key] = schema.marshall(value)
-			// }
-
 			for (const [key, schema] of Object.entries(props)) {
 				const value = input[key]
 
@@ -72,20 +57,6 @@ export const object = <P extends Properties, R extends AnySchema | undefined = u
 		},
 		decode: output => {
 			const result: Record<string, any> = {}
-
-			// for (const [key, value] of Object.entries(output)) {
-			// 	const schema = props[key] ?? rest
-
-			// 	if (!schema) {
-			// 		continue
-			// 	}
-
-			// 	if (schema.filterIn(value)) {
-			// 		continue
-			// 	}
-
-			// 	result[key] = schema.unmarshall(value)
-			// }
 
 			for (const [key, schema] of Object.entries(props)) {
 				const value = output[key]

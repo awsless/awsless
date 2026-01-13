@@ -3,6 +3,7 @@ import { DurationSchema } from '../../config/schema/duration.js'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema, LogSchema } from '../function/schema.js'
+import { RouteSchema } from '../router/schema.js'
 
 const transformationOptionsSchema = z.object({
 	width: z.number().int().positive().optional(),
@@ -26,8 +27,12 @@ export const ImagesSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
-			subDomain: z.string().optional(),
+			// domain: ResourceIdSchema.describe('The domain id to link your site with.').optional(),
+			// subDomain: z.string().optional(),
+
+			router: ResourceIdSchema.describe('The router id to link your image proxy.'),
+			path: RouteSchema.describe('The path inside the router to link your image proxy to.'),
+
 			log: LogSchema.optional(),
 			cacheDuration: DurationSchema.optional().describe('Cache duration of the cached images.'),
 
@@ -37,7 +42,7 @@ export const ImagesSchema = z
 
 			extensions: z
 				.object({
-					jpeg: z
+					jpg: z
 						.object({
 							mozjpeg: z.boolean().optional(),
 							progressive: z.boolean().optional(),
@@ -79,8 +84,6 @@ export const ImagesSchema = z
 				.describe(
 					'Specify the origin of your images. Image transformation will be applied from a base image. Base images can be loaded from a S3 bucket (that is synced from a local directory) or dynamicly from a lambda function.'
 				),
-
-			version: z.number().int().min(1).optional().describe('Version of the image configuration.'),
 		})
 	)
 	.optional()

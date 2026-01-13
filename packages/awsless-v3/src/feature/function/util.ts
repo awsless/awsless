@@ -365,7 +365,8 @@ export const createLambdaFunction = (
 			vpcConfig: props.vpc
 				? {
 						securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
-						subnetIds: ctx.shared.get('vpc', 'public-subnets'),
+						subnetIds: ctx.shared.get('vpc', 'private-subnets'),
+						ipv6AllowedForDualStack: true,
 					}
 				: undefined,
 

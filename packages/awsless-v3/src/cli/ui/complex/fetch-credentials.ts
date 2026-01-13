@@ -15,7 +15,7 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 		const accessKeyId = await prompt.password({
 			message: 'Enter your AWS access key ID',
 			validate: (value: string) => {
-				if (!validateCredentialKey('accessKeyId', value)) {
+				if (!validateAccessKeyId(value)) {
 					return 'Invalid AWS access key ID'
 				}
 
@@ -26,7 +26,7 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 		const secretAccessKey = await prompt.password({
 			message: 'Enter your AWS secret access key',
 			validate: (value: string) => {
-				if (!validateCredentialKey('secretAccessKey', value)) {
+				if (!validateSecretAccessKey(value)) {
 					return 'Invalid AWS secret access key'
 				}
 
@@ -54,8 +54,8 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 
 	if (
 		credentials.length !== 2 ||
-		!validateCredentialKey('accessKeyId', credentials[0]!) ||
-		!validateCredentialKey('secretAccessKey', credentials[1]!)
+		!validateAccessKeyId(credentials[0]!) ||
+		!validateSecretAccessKey(credentials[1]!)
 	) {
 		throw new Error('Invalid AWS credentials')
 	}
@@ -66,19 +66,18 @@ export const fetchCredentials = async (profile: string): Promise<StaticCredentia
 	}
 }
 
-const validateCredentialKey = (key: string, value: string) => {
+const validateAccessKeyId = (value: string) => {
 	if (!value) return false
 
 	const AWS_ACCESS_KEY_ID_REGEX = /^(AKIA|ASIA|AROA|AIDA)[A-Z0-9]{16}$/
+
+	return AWS_ACCESS_KEY_ID_REGEX.test(value)
+}
+
+const validateSecretAccessKey = (value: string) => {
+	if (!value) return false
+
 	const AWS_SECRET_ACCESS_KEY_REGEX = /^[A-Za-z0-9/+=]{40}$/
 
-	if (key === 'accessKeyId') {
-		return AWS_ACCESS_KEY_ID_REGEX.test(value)
-	}
-
-	if (key === 'secretAccessKey') {
-		return AWS_SECRET_ACCESS_KEY_REGEX.test(value)
-	}
-
-	return false
+	return AWS_SECRET_ACCESS_KEY_REGEX.test(value)
 }

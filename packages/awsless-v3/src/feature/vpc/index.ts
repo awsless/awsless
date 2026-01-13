@@ -22,6 +22,8 @@ export const vpcFeature = defineFeature({
 			cidrBlock: '10.0.0.0/16',
 			enableDnsSupport: true,
 			enableDnsHostnames: true,
+			ipv6CidrBlockNetworkBorderGroup: ctx.appConfig.region,
+			assignGeneratedIpv6CidrBlock: true,
 		})
 
 		const privateRouteTable = new aws.route.Table(group, 'private', {
@@ -44,6 +46,13 @@ export const vpcFeature = defineFeature({
 			},
 		})
 
+		const egressOnlyInternetGateway = new aws.egress.OnlyInternetGateway(group, 'egressOnlyInternetGateway', {
+			vpcId: vpc.id,
+			tags: {
+				Name: ctx.app.name,
+			},
+		})
+
 		const attachment = new aws.internet.GatewayAttachment(group, 'attachment', {
 			vpcId: vpc.id,
 			internetGatewayId: gateway.id,
@@ -53,6 +62,12 @@ export const vpcFeature = defineFeature({
 			gatewayId: gateway.id,
 			routeTableId: publicRouteTable.id,
 			destinationCidrBlock: '0.0.0.0/0',
+		})
+
+		new aws.Route(group, 'routeIPv6', {
+			routeTableId: privateRouteTable.id,
+			destinationIpv6CidrBlock: '::/0',
+			egressOnlyGatewayId: egressOnlyInternetGateway.id,
 		})
 
 		ctx.shared.set(
@@ -65,11 +80,12 @@ export const vpcFeature = defineFeature({
 		ctx.shared.set('vpc', 'security-group-id', vpc.defaultSecurityGroupId)
 
 		let block = 0n
-		const zones = ['a', 'b']
+		const zones = ['a', 'b', 'c']
 		const tables = {
 			private: privateRouteTable,
 			public: publicRouteTable,
 		}
+		let ipv6Identifier = 0
 
 		for (const [_type, table] of Object.entries(tables)) {
 			const type = _type as 'private' | 'public'
@@ -83,9 +99,15 @@ export const vpcFeature = defineFeature({
 						Name: `${ctx.app.name}--${type}-${index}`,
 					},
 					vpcId: vpc.id,
-					cidrBlock: `10.0.${block++}.0/24`,
+					cidrBlock: `10.0.${block}.0/20`,
 					mapPublicIpOnLaunch: type === 'public',
 					availabilityZone: ctx.appConfig.region + zones[i],
+					ipv6CidrBlock: vpc.ipv6CidrBlock.pipe((value: string) => {
+						const cidrParts = value.split('::')
+						const cidrBlock = cidrParts[0]?.substring(0, cidrParts[0].length - 1)
+
+						return `${cidrBlock}${ipv6Identifier++}::/64`
+					}),
 				})
 
 				new aws.route.TableAssociation(group, id, {
@@ -94,6 +116,7 @@ export const vpcFeature = defineFeature({
 				})
 
 				subnetIds.push(subnet.id)
+				block += 16n
 			}
 
 			ctx.shared.set('vpc', `${type}-subnets`, subnetIds)
