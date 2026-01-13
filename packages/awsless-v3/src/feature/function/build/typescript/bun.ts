@@ -77,7 +77,7 @@ export const bundleTypeScriptWithBun = async ({
 		log.info(`artifact.loader ::  ${artifact.loader} :: ${artifact.kind}`)
 
 		if (artifact.loader === 'js') {
-			const originalCode = Buffer.from(await artifact.arrayBuffer())
+			const originalCode = await artifact.text()
 
 			log.info(`Original code ${originalCode}`)
 
