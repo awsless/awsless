@@ -1,26 +1,47 @@
+<link rel="stylesheet" href="style.css" />
 
-<link rel="stylesheet" href="style.css">
-
-<h1>Static SITE is working!!! 3</h1>
+<h1>Static SITE is working!!!</h1>
 
 <button id="btn">Post Request</button>
 
 <button id="sign-btn">Signed Post Request</button>
 
-<script>
-	const sha256 = async (message) => {
-		const msgBuffer = new TextEncoder().encode(message);
-		const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-		const hashArray = Array.from(new Uint8Array(hashBuffer));
-		const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+<button id="rpc-btn">RPC Request</button>
 
-		return hashHex;
-	};
+<div class="image lg">
+	<img src="/images/wifi.png/lg.png" />
+</div>
+
+<div class="image md">
+	<img src="/images/wifi.png/md.png" />
+</div>
+
+<div class="image sm">
+	<img src="/images/wifi.png/sm.png" />
+</div>
+
+<div class="icon">
+	<img src="/icons/star.svg" />
+</div>
+
+<svg class="icon" viewBox="0 0 100 100">
+	<use href="/icons/star.svg" />
+</svg>
+
+<script>
+	const sha256 = async message => {
+		const msgBuffer = new TextEncoder().encode(message)
+		const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
+		const hashArray = Array.from(new Uint8Array(hashBuffer))
+		const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+
+		return hashHex
+	}
 
 	document.getElementById('btn').addEventListener('click', async () => {
 		const body = JSON.stringify({
-			"username":"info@jacksclub.io",
-			"password":"Doner123!"
+			username: 'info@jacksclub.io',
+			password: 'Doner123!',
 		})
 
 		const response = await fetch('/api', {
@@ -28,31 +49,54 @@
 			body,
 		})
 
-		console.log(response.status, response.statusText);
+		console.log(response.status, response.statusText)
 
 		const result = await response.text()
 
-		console.log(result);
+		console.log(result)
 	})
 
 	document.getElementById('sign-btn').addEventListener('click', async () => {
 		const body = JSON.stringify({
-			"username":"info@jacksclub.io",
-			"password":"Doner123!"
+			username: 'info@jacksclub.io',
+			password: 'Doner123!',
 		})
 
 		const response = await fetch('/api', {
 			method: 'POST',
 			headers: {
-				'x-amz-content-sha256': await sha256(body)
+				'x-amz-content-sha256': await sha256(body),
 			},
 			body,
 		})
 
-		console.log(response.status, response.statusText);
+		console.log(response.status, response.statusText)
 
 		const result = await response.text()
 
-		console.log(result);
+		console.log(result)
+	})
+
+	document.getElementById('rpc-btn').addEventListener('click', async () => {
+		const body = JSON.stringify([
+			{
+				name: 'test',
+				payload: { hello: 'world' },
+			},
+		])
+
+		const response = await fetch('/api', {
+			method: 'POST',
+			headers: {
+				'x-amz-content-sha256': await sha256(body),
+			},
+			body,
+		})
+
+		console.log(response.status, response.statusText)
+
+		const result = await response.text()
+
+		console.log(result)
 	})
 </script>

@@ -14,6 +14,7 @@ type UpdateOptions<T extends AnyTable, R extends UpdateReturnValue> = Options & 
 	when?: ConditionExpression<T>
 	return?: R
 }
+
 export const updateItem = <T extends AnyTable, R extends UpdateReturnValue>(
 	table: T,
 	key: PrimaryKey<T>,

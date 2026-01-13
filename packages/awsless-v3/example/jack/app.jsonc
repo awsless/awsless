@@ -6,6 +6,20 @@
 	// "protect": true,
 
 	"defaults": {
+		// "domains": {
+
+		// },
+		"router": {
+			"main": {
+				// "domain": "getblockalert.com"
+			}
+		},
+		"rpc": {
+			"main": {
+				"router": "main",
+				"path": "/api"
+			}
+		},
 		// "topics": ["topic"],
 		// "alerts": {
 		// 	"debug": "info@jacksclub.io"

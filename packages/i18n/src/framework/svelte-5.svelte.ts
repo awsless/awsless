@@ -1,12 +1,16 @@
 declare const $state: <T>(v: T) => T
 declare const $derived: { by: <T>(c: () => T) => T }
 
+type StringArgs = Array<string | number | { toString(): string }>
+
+type Translate = {
+	(template: TemplateStringsArray, ...args: StringArgs): string
+}
+
 let locale = $state('en')
 
-let t: {
-	(template: TemplateStringsArray, ...args: Array<string | number | { toString(): string }>): string
-} = $derived.by(() => {
-	const api = (template: TemplateStringsArray, ...args: Array<string | number | { toString(): string }>) => {
+let t: Translate = $derived.by(() => {
+	const api = (template: TemplateStringsArray, ...args: StringArgs) => {
 		return String.raw({ raw: template.raw }, ...args)
 	}
 

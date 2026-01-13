@@ -33,6 +33,7 @@ export type I18nPluginProps = {
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
+
 	return {
 		name: 'awsless/i18n',
 		enforce: 'pre',

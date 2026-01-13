@@ -80,7 +80,7 @@ export const vpcFeature = defineFeature({
 		ctx.shared.set('vpc', 'security-group-id', vpc.defaultSecurityGroupId)
 
 		let block = 0n
-		const zones = ['a', 'b']
+		const zones = ['a', 'b', 'c']
 		const tables = {
 			private: privateRouteTable,
 			public: publicRouteTable,

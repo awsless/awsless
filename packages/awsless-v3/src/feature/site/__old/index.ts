@@ -1,5 +1,5 @@
 import { days, seconds, toSeconds } from '@awsless/duration'
-import { Input, Group } from '@terraforge/core'
+import { Input, Group, Future } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { glob } from 'glob'
 import { dirname, join } from 'path'
@@ -7,14 +7,15 @@ import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
-import { getCacheControl, getContentType, getForwardHostFunctionCode } from './util.js'
+import { getCacheControl, getContentType, getViewerRequestFunctionCode } from './util.js'
 import { camelCase, constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
 import { execCommand } from '../../util/exec.js'
 import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'crypto'
-import { Future } from '@awsless/formation'
+import { ImportKeys } from '../../formation/cloudfront-kvs.js'
+import { getCredentials } from '../../util/aws.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -29,17 +30,40 @@ export const siteFeature = defineFeature({
 				resourceName: id,
 			})
 
+			// ------------------------------------------------------------
+			// Build your site
+
 			if (props.build) {
 				const buildProps = props.build
 				ctx.registerBuild('site', name, async build => {
 					const fingerprint = await generateCacheKey(buildProps.cacheKey)
 
 					return build(fingerprint, async write => {
+						const credentials = await getCredentials(ctx.appConfig.profile)()
+
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
+						const env: Record<string, string | undefined> = {
+							// Pass the app config name
+							APP: ctx.appConfig.name,
+
+							// Basic AWS info
+							AWS_REGION: ctx.appConfig.region,
+							AWS_ACCOUNT_ID: ctx.accountId,
+
+							// Give AWS access
+							AWS_ACCESS_KEY_ID: credentials.accessKeyId,
+							AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
+							AWS_SESSION_TOKEN: credentials.sessionToken,
+						}
+
+						for (const name of props.build?.configs ?? []) {
+							env[`CONFIG_${constantCase(name)}`] = name
+						}
 
 						await execCommand({
 							cwd,
 							command: buildProps.command,
+							env,
 						})
 
 						await write('HASH', fingerprint)
@@ -51,19 +75,19 @@ export const siteFeature = defineFeature({
 				})
 			}
 
-			const origins: aws.cloudfront.DistributionInput['origin'] = []
-			const originGroups: aws.cloudfront.DistributionInput['originGroup'] = []
+			// ------------------------------------------------------------
 
-			let bucket: aws.s3.Bucket
 			const versions: Array<Input<string> | Input<string | undefined>> = []
+
+			// ------------------------------------------------------------
+			// Server Side Rendering
+
+			let functionUrl: aws.lambda.FunctionUrl | undefined
 
 			if (props.ssr) {
 				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
 
 				versions.push(result.code.sourceHash)
-
-				// if ('versionId' in result.code) {
-				// }
 
 				ctx.onBind((name, value) => {
 					result.setEnvironment(name, value)
@@ -77,32 +101,17 @@ export const siteFeature = defineFeature({
 					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 				})
 
-				const url = new aws.lambda.FunctionUrl(group, 'url', {
+				functionUrl = new aws.lambda.FunctionUrl(group, 'url', {
 					functionName: result.lambda.functionName,
 					authorizationType: 'AWS_IAM',
 				})
-
-				const ssrAccessControl = new aws.cloudfront.OriginAccessControl(group, 'ssr-access', {
-					name: `${name}-ssr`,
-					originAccessControlOriginType: 'lambda',
-					signingBehavior: 'always',
-					signingProtocol: 'sigv4',
-				})
-
-				// ssrAccessControl.deletionPolicy = 'after-deployment'
-
-				origins.push({
-					originId: 'ssr',
-					domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
-					originAccessControlId: ssrAccessControl.id,
-					customOriginConfig: {
-						originProtocolPolicy: 'https-only',
-						httpPort: 80,
-						httpsPort: 443,
-						originSslProtocols: ['TLSv1.2'],
-					},
-				})
 			}
+
+			// ------------------------------------------------------------
+			// Static Assets
+
+			let kvs: aws.cloudfront.KeyValueStore | undefined
+			let bucket: aws.s3.Bucket | undefined
 
 			if (props.static) {
 				bucket = new aws.s3.Bucket(group, 'bucket', {
@@ -146,26 +155,30 @@ export const siteFeature = defineFeature({
 					],
 				})
 
-				// bucket.deletionPolicy = 'after-deployment'
+				// ------------------------------------------------------------
+				// The Key Value Store for the static asset routes
 
-				const accessControl = new aws.cloudfront.OriginAccessControl(group, `access`, {
+				kvs = new aws.cloudfront.KeyValueStore(group, 'kvs', {
 					name,
-					originAccessControlOriginType: 's3',
-					signingBehavior: 'always',
-					signingProtocol: 'sigv4',
+					comment: 'Store for static assets',
 				})
 
-				// accessControl.deletionPolicy = 'after-deployment'
+				const keys: { key: string; value: Input<string> }[] = []
+
+				new ImportKeys(group, 'keys', {
+					kvsArn: kvs.arn,
+					keys,
+				})
+
+				// ------------------------------------------------------------
+				// Get all static files
 
 				ctx.onReady(() => {
-					if (typeof props.static === 'string') {
+					if (typeof props.static === 'string' && bucket) {
 						const files = glob.sync('**', {
-							// cwd: join(directories.root, props.static),
 							cwd: props.static,
 							nodir: true,
 						})
-
-						// console.log(join(directories.root, props.static))
 
 						for (const file of files) {
 							const object = new aws.s3.BucketObject(group, file, {
@@ -177,37 +190,17 @@ export const siteFeature = defineFeature({
 								sourceHash: $hash(join(props.static, file)),
 							})
 
-							// console.log(file)
+							keys.push({ key: `/${file}`, value: 's3' })
 
 							versions.push(object.key)
 							versions.push(object.sourceHash)
 						}
 					}
 				})
-
-				origins.push({
-					originId: 'static',
-					domainName: bucket.bucketRegionalDomainName,
-					originAccessControlId: accessControl.id,
-					s3OriginConfig: {
-						// is required to have an value for s3 origins when using origin access control
-						originAccessIdentity: '',
-					},
-				})
 			}
 
-			if (props.ssr && props.static) {
-				originGroups.push({
-					originId: 'group',
-					member:
-						props.origin === 'ssr-first'
-							? [{ originId: 'ssr' }, { originId: 'static' }]
-							: [{ originId: 'static' }, { originId: 'ssr' }],
-					failoverCriteria: {
-						statusCodes: [403, 404],
-					},
-				})
-			}
+			// ------------------------------------------------------------
+			// Cache Policy
 
 			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
 				name,
@@ -236,6 +229,9 @@ export const siteFeature = defineFeature({
 				},
 			})
 
+			// ------------------------------------------------------------
+			// Origin Request Policy
+
 			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
 				name,
 				headersConfig: {
@@ -251,6 +247,9 @@ export const siteFeature = defineFeature({
 					queryStringBehavior: 'all',
 				},
 			})
+
+			// ------------------------------------------------------------
+			// Response Headers Policy
 
 			const responseHeaders = new aws.cloudfront.ResponseHeadersPolicy(group, 'response', {
 				name,
@@ -292,6 +291,9 @@ export const siteFeature = defineFeature({
 				},
 			})
 
+			// ------------------------------------------------------------
+			// Domain stuff
+
 			const domainName = props.domain
 				? formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 				: undefined
@@ -300,36 +302,29 @@ export const siteFeature = defineFeature({
 				? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 				: undefined
 
-			const associations: {
-				eventType: string
-				functionArn: Input<string>
-			}[] = []
+			// ------------------------------------------------------------
+			// Viewer Request CloudFront Function
 
-			if (props.forwardHost) {
-				const viewerRequest = new aws.cloudfront.Function(group, 'forward-host', {
-					name: formatLocalResourceName({
-						appName: ctx.app.name,
-						stackName: ctx.stack.name,
-						resourceType: 'site',
-						resourceName: 'forward-host',
-					}),
-					runtime: `cloudfront-js-2.0`,
-					comment: 'Forward the host header to the origin',
-					publish: true,
-					code: getForwardHostFunctionCode(),
-				})
+			const viewerRequest = new aws.cloudfront.Function(group, 'viewer-request', {
+				name: formatLocalResourceName({
+					appName: ctx.app.name,
+					stackName: ctx.stack.name,
+					resourceType: 'site',
+					resourceName: `request-${id}`,
+				}),
+				runtime: `cloudfront-js-2.0`,
+				comment: `Viewer Request - ${name}`,
+				publish: true,
+				code: getViewerRequestFunctionCode(domainName, bucket, functionUrl, props.basicAuth),
+				keyValueStoreAssociations: kvs ? [kvs.arn] : undefined,
+			})
 
-				associations.push({
-					eventType: 'viewer-request',
-					functionArn: viewerRequest.arn,
-				})
-			}
+			// ------------------------------------------------------------
+			// CDN
 
 			const distribution = new aws.cloudfront.Distribution(group, 'distribution', {
-				// name,
-				tags: {
-					Name: name,
-				},
+				waitForDeployment: false,
+				comment: name,
 				enabled: true,
 				aliases: domainName ? [domainName] : undefined,
 				priceClass: 'PriceClass_All',
@@ -344,8 +339,19 @@ export const siteFeature = defineFeature({
 							cloudfrontDefaultCertificate: true,
 						},
 
-				origin: origins,
-				originGroup: originGroups,
+				origin: [
+					{
+						originId: 'default',
+						domainName: 'placeholder.awsless.dev',
+						customOriginConfig: {
+							httpPort: 80,
+							httpsPort: 443,
+							originProtocolPolicy: 'http-only',
+							originReadTimeout: 20,
+							originSslProtocols: ['TLSv1.2'],
+						},
+					},
+				],
 				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
 					if (typeof item === 'string') {
 						return {
@@ -372,16 +378,19 @@ export const siteFeature = defineFeature({
 
 				defaultCacheBehavior: {
 					compress: true,
-					targetOriginId: props.ssr && props.static ? 'group' : props.ssr ? 'ssr' : 'static',
-					functionAssociation: associations,
+					targetOriginId: 'default',
+					functionAssociation: [
+						{
+							eventType: 'viewer-request',
+							functionArn: viewerRequest.arn,
+						},
+					],
 					originRequestPolicyId: originRequest.id,
 					cachePolicyId: cache.id,
 					responseHeadersPolicyId: responseHeaders.id,
 					viewerProtocolPolicy: 'redirect-to-https',
 					allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
 					cachedMethods: ['GET', 'HEAD'],
-					// cachedMethods: ['GET', 'HEAD', 'OPTIONS'],
-					// cachedMethods: [],
 				},
 			})
 
@@ -402,13 +411,13 @@ export const siteFeature = defineFeature({
 				}),
 			})
 
-			if (props.static) {
+			if (bucket) {
 				new aws.s3.BucketPolicy(
 					group,
 					`policy`,
 					{
-						bucket: bucket!.bucket,
-						policy: $resolve([bucket!.arn, distribution.id], (arn, id) => {
+						bucket: bucket.bucket,
+						policy: $resolve([bucket.arn, distribution.id], (arn, id) => {
 							return JSON.stringify({
 								Version: '2012-10-17',
 								Statement: [
@@ -430,7 +439,7 @@ export const siteFeature = defineFeature({
 						}),
 					},
 					{
-						dependsOn: [bucket!, distribution],
+						dependsOn: [bucket, distribution],
 					}
 				)
 			}
@@ -446,10 +455,8 @@ export const siteFeature = defineFeature({
 						evaluateTargetHealth: false,
 					},
 				})
-			}
 
-			if (domainName) {
-				ctx.bind(`SITE_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`, domainName)
+				// ctx.bind(`SITE_${constantCase(ctx.stack.name)}_${constantCase(id)}_ENDPOINT`, domainName)
 			}
 		}
 	},

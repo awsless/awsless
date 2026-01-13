@@ -1,4 +1,4 @@
-import { camelCase, constantCase, kebabCase } from 'change-case'
+import { camelCase, kebabCase } from 'change-case'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { FileError } from '../../error.js'
@@ -7,14 +7,13 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { formatFullDomainName } from '../domain/util.js'
 import { createLambdaFunction } from '../function/util.js'
 import { mebibytes } from '@awsless/size'
 import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'node:url'
 import { createPrebuildLambdaFunction } from '../function/prebuild.js'
-import { days, seconds, toSeconds } from '@awsless/duration'
+import { toSeconds } from '@awsless/duration'
 import { UpdateFunctionCode } from '../../formation/lambda.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -95,11 +94,11 @@ export const rpcFeature = defineFeature({
 			// ------------------------------------------------------
 			// Create the RPC lambda
 
-			const name = formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'rpc',
-				resourceName: id,
-			})
+			// const name = formatGlobalResourceName({
+			// 	appName: ctx.app.name,
+			// 	resourceType: 'rpc',
+			// 	resourceName: id,
+			// })
 
 			const result = createPrebuildLambdaFunction(group, ctx, 'rpc', id, {
 				bundleFile: join(__dirname, '/prebuild/rpc/bundle.zip'),
@@ -207,6 +206,8 @@ export const rpcFeature = defineFeature({
 				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
 			})
 
+			// ------------------------------------------------------
+
 			const url = new aws.lambda.FunctionUrl(
 				group,
 				'url',
@@ -227,118 +228,17 @@ export const rpcFeature = defineFeature({
 				{ dependsOn: [permission] }
 			)
 
-			const accessControl = new aws.cloudfront.OriginAccessControl(group, 'access', {
-				name,
-				description: 'Policy for RPC Lambda Function URL',
-				originAccessControlOriginType: 'lambda',
-				signingBehavior: 'always',
-				signingProtocol: 'sigv4',
-			})
+			// ------------------------------------------------------
+			// Add the RPC route to the router
 
-			const domainName = props.domain
-				? formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-				: undefined
+			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
 
-			const certificateArn = props.domain
-				? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
-				: undefined
-
-			const cache = new aws.cloudfront.CachePolicy(group, 'cache', {
-				name,
-				minTtl: toSeconds(seconds(1)),
-				maxTtl: toSeconds(days(365)),
-				defaultTtl: toSeconds(days(1)),
-			})
-
-			const originRequest = new aws.cloudfront.OriginRequestPolicy(group, 'request', {
-				name,
-				headersConfig: {
-					headerBehavior: 'allExcept',
-					headers: {
-						items: ['host'],
-					},
-				},
-				cookiesConfig: {
-					cookieBehavior: 'all',
-				},
-				queryStringsConfig: {
-					queryStringBehavior: 'all',
+			addRoutes(group, 'route', {
+				[props.path]: {
+					type: 'lambda',
+					domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
 				},
 			})
-
-			const cdn = new aws.cloudfront.Distribution(group, 'cdn', {
-				// tags: {
-				// 	Name: name,
-				// 	// Feature: ''
-				// },
-
-				waitForDeployment: false,
-				comment: name,
-				enabled: true,
-				aliases: domainName ? [domainName] : undefined,
-				priceClass: 'PriceClass_All',
-				httpVersion: 'http2and3',
-				viewerCertificate: certificateArn
-					? {
-							sslSupportMethod: 'sni-only',
-							minimumProtocolVersion: 'TLSv1.2_2021',
-							acmCertificateArn: certificateArn,
-						}
-					: {
-							cloudfrontDefaultCertificate: true,
-						},
-
-				origin: [
-					{
-						originId: 'default',
-						domainName: url.functionUrl.pipe(url => url.split('/')[2]!),
-						originAccessControlId: accessControl.id,
-						customOriginConfig: {
-							originProtocolPolicy: 'https-only',
-							httpPort: 80,
-							httpsPort: 443,
-							originSslProtocols: ['TLSv1.2'],
-						},
-					},
-				],
-
-				restrictions: {
-					geoRestriction: {
-						restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
-						locations: props.geoRestrictions,
-					},
-				},
-
-				defaultCacheBehavior: {
-					compress: true,
-					targetOriginId: 'default',
-					originRequestPolicyId: originRequest.id,
-					cachePolicyId: cache.id,
-					viewerProtocolPolicy: 'https-only',
-					allowedMethods: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'PATCH', 'POST', 'DELETE'],
-					cachedMethods: ['GET', 'HEAD'],
-				},
-			})
-
-			if (props.domain) {
-				const fullDomainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-
-				new aws.route53.Record(group, 'record', {
-					zoneId: ctx.shared.entry('domain', `zone-id`, props.domain),
-					type: 'A',
-					name: fullDomainName,
-					// alias: cdn.aliasTarget,
-					alias: {
-						name: cdn.domainName,
-						zoneId: cdn.hostedZoneId,
-						evaluateTargetHealth: false,
-					},
-				})
-
-				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, fullDomainName)
-			} else {
-				ctx.bind(`RPC_${constantCase(id)}_ENDPOINT`, cdn.domainName)
-			}
 		}
 	},
 	onStack(ctx) {

@@ -8,6 +8,7 @@ export type Credentials = AwsCredentialIdentityProvider
 
 export const getCredentials = async (profile: string): Promise<Credentials> => {
 	const credentials = await fetchCredentials(profile)
+
 	return createCredentialChain(async () => {
 		return credentials
 	})

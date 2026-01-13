@@ -5,7 +5,7 @@ export type BooleanSchema<T extends boolean = boolean> = BaseSchema<'BOOL', T, B
 
 export function boolean(): BooleanSchema
 export function boolean<T extends boolean>(): BooleanSchema<T>
-export function boolean(): BooleanSchema {
+export function boolean<T extends boolean>(): BooleanSchema<T> {
 	return createSchema({
 		type: 'BOOL',
 	})

@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import chunk from 'chunk'
+import promiseLimit from 'p-limit'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 
@@ -15,10 +16,10 @@ import '@aws-sdk/signature-v4-crt'
 type ImportKeysInput = {
 	kvsArn: Input<string>
 	keys: Input<
-		{
+		Input<{
 			key: Input<string>
 			value: Input<string>
-		}[]
+		}>[]
 	>
 }
 
@@ -43,8 +44,22 @@ type ProviderProps = {
 	region: Region
 }
 
+type ConcurrencyQueue = <T>(cb: () => Promise<T>) => Promise<T>
+
 export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) => {
 	const client = new CloudFrontKeyValueStoreClient({ profile, region })
+	const queues: Record<string, ConcurrencyQueue> = {}
+
+	const getConcurrencyQueue = (arn: string): ConcurrencyQueue => {
+		if (!queues[arn]) {
+			const queue = promiseLimit(1)
+			queues[arn] = <T>(cb: () => Promise<T>) => {
+				return queue(cb)
+			}
+		}
+		return queues[arn]
+	}
+
 	const validateInput = (state: unknown) => {
 		return z
 			.object({
@@ -81,44 +96,50 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 			  }
 		>
 	}): Promise<UpdateKeysCommandOutput | undefined> => {
-		const batches = chunk(props.mutations, 50)
+		const run = async () => {
+			const batches = chunk(props.mutations, 50)
 
-		let prev = await client.send(
-			new DescribeKeyValueStoreCommand({
-				KvsARN: props.arn,
-			})
-		)
-
-		let result: UpdateKeysCommandOutput | undefined
-		let ifMatch = prev.ETag
-
-		for (const mutations of batches) {
-			if (mutations.length === 0) {
-				continue
-			}
-
-			result = await client.send(
-				new UpdateKeysCommand({
+			let prev = await client.send(
+				new DescribeKeyValueStoreCommand({
 					KvsARN: props.arn,
-					IfMatch: ifMatch,
-					Puts: mutations
-						.filter(item => item.type === 'put')
-						.map(item => ({
-							Key: item.key,
-							Value: item.value,
-						})),
-					Deletes: mutations
-						.filter(item => item.type === 'delete')
-						.map(item => ({
-							Key: item.key,
-						})),
 				})
 			)
 
-			ifMatch = result.ETag
+			let result: UpdateKeysCommandOutput | undefined
+			let ifMatch = prev.ETag
+
+			for (const mutations of batches) {
+				if (mutations.length === 0) {
+					continue
+				}
+
+				result = await client.send(
+					new UpdateKeysCommand({
+						KvsARN: props.arn,
+						IfMatch: ifMatch,
+						Puts: mutations
+							.filter(item => item.type === 'put')
+							.map(item => ({
+								Key: item.key,
+								Value: item.value,
+							})),
+						Deletes: mutations
+							.filter(item => item.type === 'delete')
+							.map(item => ({
+								Key: item.key,
+							})),
+					})
+				)
+
+				ifMatch = result.ETag
+			}
+
+			return result
 		}
 
-		return result
+		const queue = getConcurrencyQueue(props.arn)
+
+		return queue(run)
 	}
 
 	return createCustomProvider('cloudfront-kvs', {
@@ -182,7 +203,7 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 				const proposedState = validateInput(props.proposedState)
 
 				const puts = proposedState.keys.filter(a => {
-					return !priorState.keys.find(b => a.key === b.key)
+					return !priorState.keys.find(b => a.key === b.key && a.value === b.value)
 				})
 
 				const deletes = priorState.keys.filter(a => {

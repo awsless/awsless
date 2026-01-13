@@ -5,7 +5,7 @@ export type StringSchema<T extends string = string> = BaseSchema<'S', T, StringE
 
 export function string(): StringSchema
 export function string<T extends string>(): StringSchema<T>
-export function string(): StringSchema {
+export function string<T extends string>(): StringSchema<T> {
 	return createSchema({
 		type: 'S',
 	})

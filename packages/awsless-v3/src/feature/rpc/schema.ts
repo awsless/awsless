@@ -4,6 +4,7 @@ import { minutes, seconds } from '@awsless/duration'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema, LogSchema } from '../function/schema.js'
+import { RouteSchema } from '../router/schema.js'
 
 // const AuthorizerTtl = DurationSchema.describe(
 // 	`The duration a response should be cached for. The maximum value is one hour. The Lambda function can override this by returning a ttl key in its response.`
@@ -23,16 +24,14 @@ export const RpcDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your RPC API with.').optional(),
-			subDomain: z.string().optional(),
+			// domain: ResourceIdSchema.describe('The domain id to link your RPC API with.').optional(),
+			// subDomain: z.string().optional(),
+			router: ResourceIdSchema.describe('The router id to link your RPC API with.'),
+			path: RouteSchema.describe('The path inside the router to link your RPC API to.'),
+
 			auth: FunctionSchema.optional(),
 			log: LogSchema.optional(),
 			timeout: TimeoutSchema.default('1 minutes'),
-
-			geoRestrictions: z
-				.array(z.string().length(2).toUpperCase())
-				.default([])
-				.describe('Specifies a blacklist of countries that should be blocked.'),
 		})
 	)
 	.describe(`Define the global RPC API's.`)
