@@ -11,7 +11,7 @@
 		// "declaration": false,
 		"rootDir": ".",
 		// "preserveSymlinks": true,
-		"types": ["bun", "node"],
+		"types": ["bun", "node", "vitest/globals"],
 		// "declaration": true,
 		// "removeComments": false,
 		// "esModuleInterop": true,
