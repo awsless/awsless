@@ -37,10 +37,12 @@ export const onFailureFeature = defineFeature({
 				resourceType: 'on-failure',
 				resourceName: 'failure',
 			}),
-			redrivePolicy: {
-				deadLetterTargetArn: deadletter.arn,
-				maxReceiveCount: 100,
-			},
+			redrivePolicy: $resolve([deadletter.arn], deadLetterTargetArn => {
+				return JSON.stringify({
+					deadLetterTargetArn,
+					maxReceiveCount: 100,
+				})
+			}),
 		})
 
 		ctx.shared.set('on-failure', 'queue-arn', queue.arn)
