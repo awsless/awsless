@@ -171,7 +171,15 @@ export const functionFeature = defineFeature({
 		// Give lambda access to all policies inside your app.
 
 		ctx.addGlobalPermission({
-			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync'],
+			actions: [
+				// Allow all lambda's to invoke any lambda inside your app.
+				'lambda:InvokeFunction',
+				'lambda:InvokeAsync',
+
+				// Allow listing and getting lambda info.
+				'lambda:ListFunctions',
+				'lambda:GetFunction',
+			],
 			resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
 		})
 	},

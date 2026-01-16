@@ -7,11 +7,13 @@
 
 	"defaults": {
 		// "domains": {
-
+		// 	"main": {
+		// 		"domain": "soft-bet.com"
+		// 	}
 		// },
 		"router": {
 			"main": {
-				// "domain": "getblockalert.com"
+				// "domain": "main"
 			}
 		},
 		"rpc": {

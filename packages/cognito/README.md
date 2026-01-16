@@ -20,41 +20,41 @@ pnpm install @awsless/cognito
 
 Depending on your use case you might want to use one of the following stores.
 
-- __MemoryStore__ - Mostly used for debugging and when you don't want to persist the login token.
+- **MemoryStore** - Mostly used for debugging and when you don't want to persist the login token.
 
-- __LocalStore__ - Used to store the login token on the client only.
+- **LocalStore** - Used to store the login token on the client only.
 
-- __CookieStore__ - The CookieStore is useful in scenarios like SSR, when you need access to the login token on the client as well as on the server.
+- **CookieStore** - The CookieStore is useful in scenarios like SSR, when you need access to the login token on the client as well as on the server.
 
 # Examples
 
 ## Setup
 
 ```js
-import { Client, LocalStore } from '@awsless/cognito';
+import { Client, LocalStore } from '@awsless/cognito'
 
 const client = new Client({
-  clientId: 'CLIENT_ID',
-  userPoolId: 'USER_POOL_ID',
-  store: new LocalStore()
-});
+	clientId: 'CLIENT_ID',
+	userPoolId: 'USER_POOL_ID',
+	store: new LocalStore(),
+})
 ```
 
 ## Sign Up
 
 ```js
-import { signUp, confirmSignUp } from '@awsless/cognito';
+import { signUp, confirmSignUp } from '@awsless/cognito'
 
 await signUp(client, {
-  email: 'EMAIL',
-  username: 'USER',
-  password: 'PASS',
-});
+	email: 'EMAIL',
+	username: 'USER',
+	password: 'PASS',
+})
 
 // Let the user fill in his confirmation code.
 await confirmSignUp(client, {
-  username: 'USER',
-  code: 'SIGN_UP_CONFIRMATION_CODE'
+	username: 'USER',
+	code: 'SIGN_UP_CONFIRMATION_CODE',
 })
 ```
 
@@ -62,39 +62,39 @@ await confirmSignUp(client, {
 
 ```js
 const session = await signIn(client, {
-  username: 'USER',
-  password: 'PASS',
-});
+	username: 'USER',
+	password: 'PASS',
+})
 
 // Log logged in user.
-console.log(session.user);
+console.log(session.user)
 ```
 
 ## Sign Out
 
 ```js
-await signOut(client);
+await signOut(client)
 ```
 
 ## Get Active Login Session
 
 ```js
-const session = await getSession(client);
+const session = await getSession(client)
 
 // Log access token
-console.log(session.accessToken.toString());
+console.log(session.accessToken.toString())
 
 // Log ID token
-console.log(session.idToken.toString());
+console.log(session.idToken.toString())
 ```
 
 ## Change Password
 
 ```js
 await changePassword(client, {
-  previousPassword: 'PREV_PASS',
-  proposedPassword: 'NEW_PASS',
-});
+	previousPassword: 'PREV_PASS',
+	proposedPassword: 'NEW_PASS',
+})
 ```
 
 ## Custom Cognito Call

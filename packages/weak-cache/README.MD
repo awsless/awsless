@@ -1,8 +1,6 @@
-
 # @awsless/weak-cache
 
 The @awsless/weak-cache package provides a fully typed simple cache that works with the JS garbage collector (GC). It uses weak references (and finalization registry) to allow GC to remove the cached data as part of the normal GC cycles, but still continue to provide cached access to the data as long as it still resides in memory and hasn't been collected.
-
 
 ## Setup
 
@@ -11,7 +9,6 @@ Install with (NPM):
 ```
 npm i @awsless/weak-cache
 ```
-
 
 ## Basic Usage
 
@@ -46,36 +43,43 @@ for(const [ key, value ] of cache) {
 
 ```
 
-
 ## API
 
 ### set(key, value)
+
 Sets or inserts the value into the cache, with the given key.
 
 ### get(key, defaultValue?)
+
 Returns the value referenced by the given key. If the value is no longer cached, will return undefined or the provided default value.
 
 ### has(key)
+
 Returns a boolean indicating whether the cache with the specified key exists or not and still resided in memory and hasn't been collected.
 
 ### delete(key)
+
 Delete the value referenced by the given key.
 
 ### clear()
+
 Clear the entire cache
 
 ### size
+
 Return the amount of cached items that still resided in memory and hasn't been collected.
 
 ### keys()
+
 Return a iterable with keys of the cache
 
 ### values()
+
 Return a iterable with values of the cache
 
 ### entries()
-Return a iterable with both keys and values of the cache
 
+Return a iterable with both keys and values of the cache
 
 ## License
 

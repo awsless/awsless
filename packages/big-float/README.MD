@@ -7,30 +7,34 @@ This package started out as a fork of `bigfloat-esnext` but with bug fixes and w
 We also added tests from the `big.js` package.
 
 # Basic usage
-```ts
-import { BigFloat, sqrt } from "@awsless/big-float";
 
-sqrt(new BigFloat(2)).toString()      // "1.4142"
+```ts
+import { BigFloat, sqrt } from '@awsless/big-float'
+
+sqrt(new BigFloat(2)).toString() // "1.4142"
 ```
 
 ### Change precision
-```ts
-import { sqrt, setPrecision } from "@awsless/big-float";
 
-sqrt(2).toString();     // "1.4142"
-setPrecision(10);
-sqrt(2).toString();     // "1.4142135623"
+```ts
+import { sqrt, setPrecision } from '@awsless/big-float'
+
+sqrt(2).toString() // "1.4142"
+setPrecision(10)
+sqrt(2).toString() // "1.4142135623"
 ```
 
 ### The bigfloat interface
+
 ```ts
 interface IBigFloat {
-  coefficient: bigint;
-  exponent: number;
+	coefficient: bigint
+	exponent: number
 }
 ```
 
 ### Available API
+
 ```ts
 import { BigFloat, type IBigFloat, type Numeric, setPrecision } from "@awsless/big-float";
 

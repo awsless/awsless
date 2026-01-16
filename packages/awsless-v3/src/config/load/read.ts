@@ -1,4 +1,3 @@
-import merge from 'deepmerge'
 import { readFile } from 'fs/promises'
 import JSON5 from 'json5'
 import { basename, dirname, extname, join } from 'path'
@@ -41,9 +40,5 @@ export const readConfigWithStage = async (file: string, stage?: string) => {
 	debug('Load env file:', color.info(stageFile))
 	const stageConfig = await readConfig(stageFile)
 
-	return merge(config, stageConfig, {
-		arrayMerge: (_, source) => {
-			return source
-		},
-	})
+	return stageConfig
 }
