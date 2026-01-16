@@ -261,7 +261,6 @@ const CodeSchema = z
 
 const FnSchema = z.object({
 	code: CodeSchema,
-
 	// node
 	handler: HandlerSchema.optional(),
 	// build: BuildSchema.optional(),
@@ -303,7 +302,6 @@ export const FunctionsSchema = z
 export const FunctionDefaultSchema = z
 	.object({
 		runtime: RuntimeSchema.default('nodejs24.x'),
-
 		// node
 		handler: HandlerSchema.default('index.default'),
 		// build: BuildSchema.default({

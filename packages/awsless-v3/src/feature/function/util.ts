@@ -13,7 +13,7 @@ import { zipFiles } from './build/zip.js'
 import { FunctionProps } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { toDays, toSeconds } from '@awsless/duration'
-import { toMebibytes } from '@awsless/size'
+import { gibibytes, mebibytes, Size, toGibibytes, toMebibytes } from '@awsless/size'
 import { pascalCase } from 'change-case'
 // import { hashElement } from 'folder-hash'
 // import { FileError } from '../../error.js'
@@ -47,7 +47,8 @@ export const createLambdaFunction = (
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: FunctionProps
+	local: FunctionProps,
+	options: { isManagedInstance: boolean } = { isManagedInstance: false }
 ) => {
 	let name: string
 	let shortName: string
@@ -320,6 +321,18 @@ export const createLambdaFunction = (
 		json: 'JSON',
 	}
 
+	let shouldLambdaBeManagedInstance = options.isManagedInstance
+
+	if (props.architecture !== ctx.appConfig.defaults.function.architecture) {
+		shouldLambdaBeManagedInstance = false
+	}
+
+	let lambdaManagedInstanceMemorySize = toMebibytes(props.memorySize)
+
+	if (lambdaManagedInstanceMemorySize < 2048) {
+		lambdaManagedInstanceMemorySize = toMebibytes(gibibytes(2))
+	}
+
 	const lambda = new aws.lambda.Function(
 		group,
 		`function`,
@@ -333,7 +346,7 @@ export const createLambdaFunction = (
 			runtime: props.runtime,
 			handler: props.handler,
 			timeout: toSeconds(props.timeout),
-			memorySize: toMebibytes(props.memorySize),
+			memorySize: shouldLambdaBeManagedInstance ? lambdaManagedInstanceMemorySize : toMebibytes(props.memorySize),
 			architectures: [props.architecture],
 
 			timeouts: {
@@ -376,6 +389,16 @@ export const createLambdaFunction = (
 				applicationLogLevel: props.log.format === 'json' ? props.log.level?.toUpperCase() : undefined,
 				systemLogLevel: props.log.format === 'json' ? props.log.system?.toUpperCase() : undefined,
 			},
+
+			capacityProviderConfig: shouldLambdaBeManagedInstance
+				? {
+						lambdaManagedInstancesCapacityProviderConfig: {
+							capacityProviderArn: ctx.shared.get('function', 'capacity-provider-arn-stepney'),
+						},
+					}
+				: undefined,
+			publish: shouldLambdaBeManagedInstance,
+			publishTo: shouldLambdaBeManagedInstance ? 'LATEST_PUBLISHED' : undefined,
 		},
 		{
 			dependsOn,
