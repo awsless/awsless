@@ -1,10 +1,8 @@
-// import commonjs from '@rollup/plugin-commonjs'
-import json from '@rollup/plugin-json'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
 import { rolldown } from 'rolldown'
 import natives from 'rollup-plugin-natives'
-import { minify as swcMinify } from 'rollup-plugin-swc3'
+import { importAsString } from 'rollup-plugin-string-import'
 import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
 
@@ -15,6 +13,7 @@ export type BundleTypeScriptProps = {
 	handler?: string
 	file: string
 	nativeDir?: string
+	importAsString?: string[]
 }
 
 export const bundleTypeScriptWithRolldown = async ({
@@ -23,6 +22,7 @@ export const bundleTypeScriptWithRolldown = async ({
 	file,
 	nativeDir,
 	external,
+	importAsString: importAsStringList,
 }: BundleTypeScriptProps) => {
 	const bundle = await rolldown({
 		input: file,
@@ -33,11 +33,9 @@ export const bundleTypeScriptWithRolldown = async ({
 			debugError(error.message)
 		},
 		treeshake: {
-			// preset: 'smallest',
 			moduleSideEffects: id => file === id,
 		},
 		plugins: [
-			// commonjs({ sourceMap: true }),
 			nodeResolve({ preferBuiltins: true }),
 			nativeDir
 				? natives({
@@ -46,23 +44,11 @@ export const bundleTypeScriptWithRolldown = async ({
 						sourcemap: true,
 					})
 				: undefined,
-			// swc({
-			// 	// minify,
-			// 	// module: true,
-			// 	jsc: {
-			// 		baseUrl: dirname(file),
-			// 		minify: { sourceMap: true },
-			// 	},
-			// 	sourceMaps: true,
-			// }),
-			minify
-				? swcMinify({
-						module: format === 'esm',
-						sourceMap: true,
-						compress: true,
+			importAsStringList
+				? importAsString({
+						include: importAsStringList,
 					})
 				: undefined,
-			json(),
 		],
 	})
 
@@ -71,9 +57,9 @@ export const bundleTypeScriptWithRolldown = async ({
 		format,
 		sourcemap: 'hidden',
 		exports: 'auto',
-		// manualChunks: {},
 		entryFileNames: `index.${ext}`,
 		chunkFileNames: `[name].${ext}`,
+		minify,
 	})
 
 	const hash = createHash('sha1')
@@ -86,8 +72,6 @@ export const bundleTypeScriptWithRolldown = async ({
 			continue
 		}
 
-		// const base = item.isEntry ? 'index' : item.name
-		// const name = `${ base }.${ ext }`
 		const code = Buffer.from(item.code, 'utf8')
 		const map = item.map ? Buffer.from(item.map.toString(), 'utf8') : undefined
 

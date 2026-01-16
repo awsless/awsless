@@ -23,12 +23,24 @@ export const onFailureFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'on-failure', 'main')
 
+		const deadletter = new aws.sqs.Queue(group, 'deadletter', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-failure',
+				resourceName: 'deadletter',
+			}),
+		})
+
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
 				resourceType: 'on-failure',
 				resourceName: 'failure',
 			}),
+			redrivePolicy: {
+				deadLetterTargetArn: deadletter.arn,
+				maxReceiveCount: 100,
+			},
 		})
 
 		ctx.shared.set('on-failure', 'queue-arn', queue.arn)
