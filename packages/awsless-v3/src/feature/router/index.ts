@@ -195,91 +195,107 @@ export const routerFeature = defineFeature({
 
 			// ------------------------------------------------------------
 			// CDN Distribution
+			const multiTenantDistribution = new aws.cloudfront.MultitenantDistribution(
+				group,
+				'multiTenantDistribution',
+				{
+					comment: name,
+					enabled: true,
+					httpVersion: 'http2and3',
+					viewerCertificate: certificateArn
+						? [
+								{
+									sslSupportMethod: 'sni-only',
+									minimumProtocolVersion: 'TLSv1.2_2021',
+									acmCertificateArn: certificateArn,
+								},
+							]
+						: [
+								{
+									cloudfrontDefaultCertificate: true,
+								},
+							],
 
-			const distribution = new aws.cloudfront.Distribution(group, 'distribution', {
-				waitForDeployment: false,
-				comment: name,
-				enabled: true,
-				aliases: domainName ? [domainName] : undefined,
-				priceClass: 'PriceClass_All',
-				httpVersion: 'http2and3',
-				viewerCertificate: certificateArn
-					? {
-							sslSupportMethod: 'sni-only',
-							minimumProtocolVersion: 'TLSv1.2_2021',
-							acmCertificateArn: certificateArn,
-						}
-					: {
-							cloudfrontDefaultCertificate: true,
-						},
-
-				origin: [
-					{
-						originId: 'default',
-						domainName: 'placeholder.awsless.dev',
-						customOriginConfig: {
-							httpPort: 80,
-							httpsPort: 443,
-							originProtocolPolicy: 'http-only',
-							originReadTimeout: 20,
-							originSslProtocols: ['TLSv1.2'],
-						},
-					},
-				],
-				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
-					if (typeof item === 'string') {
-						return {
-							errorCode: Number(errorCode),
-							responseCode: Number(errorCode),
-							responsePagePath: item,
-						}
-					}
-
-					return {
-						errorCode: Number(errorCode),
-						cacheMinTTL: item.minTTL ? toSeconds(item.minTTL) : undefined,
-						responseCode: item.statusCode ?? Number(errorCode),
-						responsePagePath: item.path,
-					}
-				}),
-
-				restrictions: {
-					geoRestriction: {
-						restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
-						locations: props.geoRestrictions,
-					},
-				},
-
-				// orderedCacheBehavior: [
-				// 	{
-				// 		pathPattern: '/images/*',
-
-				// 		allowedMethods: ['GET', 'HEAD'],
-				// 		cachedMethods: ['GET', 'HEAD'],
-				// 		targetOriginId: 'default',
-				// 		viewerProtocolPolicy: 'redirect-to-https',
-				// 	},
-				// ],
-
-				defaultCacheBehavior: {
-					compress: true,
-					targetOriginId: 'default',
-					functionAssociation: [
+					origin: [
 						{
-							eventType: 'viewer-request',
-							functionArn: viewerRequest.arn,
+							id: 'default',
+							domainName: 'placeholder.awsless.dev',
+							customOriginConfig: [
+								{
+									httpPort: 80,
+									httpsPort: 443,
+									originProtocolPolicy: 'http-only',
+									originReadTimeout: 20,
+									originSslProtocols: ['TLSv1.2'],
+								},
+							],
 						},
 					],
-					originRequestPolicyId: originRequest.id,
-					cachePolicyId: cache.id,
-					responseHeadersPolicyId: responseHeaders.id,
-					viewerProtocolPolicy: 'redirect-to-https',
-					allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-					cachedMethods: ['GET', 'HEAD'],
-				},
-			})
+					customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
+						if (typeof item === 'string') {
+							return {
+								errorCode: Number(errorCode),
+								responseCode: errorCode,
+								responsePagePath: item,
+							}
+						}
 
-			ctx.shared.add('router', 'id', id, distribution.id)
+						return {
+							errorCode: Number(errorCode),
+							errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
+							responseCode: item.statusCode?.toString() ?? errorCode,
+							responsePagePath: item.path,
+						}
+					}),
+
+					restrictions: [
+						{
+							geoRestriction: [
+								{
+									restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
+									items: props.geoRestrictions,
+								},
+							],
+						},
+					],
+
+					// orderedCacheBehavior: [
+					// 	{
+					// 		pathPattern: '/images/*',
+
+					// 		allowedMethods: ['GET', 'HEAD'],
+					// 		cachedMethods: ['GET', 'HEAD'],
+					// 		targetOriginId: 'default',
+					// 		viewerProtocolPolicy: 'redirect-to-https',
+					// 	},
+					// ],
+
+					defaultCacheBehavior: [
+						{
+							compress: true,
+							targetOriginId: 'default',
+							functionAssociation: [
+								{
+									eventType: 'viewer-request',
+									functionArn: viewerRequest.arn,
+								},
+							],
+							originRequestPolicyId: originRequest.id,
+							cachePolicyId: cache.id,
+							responseHeadersPolicyId: responseHeaders.id,
+							viewerProtocolPolicy: 'redirect-to-https',
+							allowedMethods: [
+								{
+									items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+									cachedMethods: ['GET', 'HEAD'],
+								},
+							],
+						},
+					],
+				}
+			)
+
+			ctx.shared.add('router', 'id', id, multiTenantDistribution.id)
 
 			// ------------------------------------------------------------
 			// Add Invalidation API
@@ -290,7 +306,7 @@ export const routerFeature = defineFeature({
 						group,
 						name,
 						{
-							distributionId: distribution.id,
+							distributionId: multiTenantDistribution.id,
 							paths,
 							version: new Future(resolve => {
 								$combine(...versions).then(versions => {
@@ -306,11 +322,7 @@ export const routerFeature = defineFeature({
 							}),
 						},
 						{
-							dependsOn: [
-								//
-								...(options?.dependsOn ?? []),
-								...importedRoutes,
-							],
+							dependsOn: [...(options?.dependsOn ?? []), ...importedRoutes],
 						}
 					)
 				})
@@ -320,20 +332,41 @@ export const routerFeature = defineFeature({
 			// Link to Route53
 
 			if (domainName) {
+				const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'router',
+						resourceName: id,
+						postfix: 'connection-group',
+					}),
+				})
+
+				new aws.cloudfront.DistributionTenant(group, `default-distribution-tenant`, {
+					name: 'default-tenant',
+					distributionId: multiTenantDistribution.id,
+					connectionGroupId: connectionGroup.id,
+					enabled: true,
+					domain: [
+						{
+							domain: domainName,
+						},
+					],
+				})
+
 				new aws.route53.Record(group, `record`, {
 					zoneId: ctx.shared.entry('domain', 'zone-id', props.domain!),
 					type: 'A',
 					name: domainName,
 					alias: {
-						name: distribution.domainName,
-						zoneId: distribution.hostedZoneId,
+						name: connectionGroup.routingEndpoint,
+						zoneId: 'Z2FDTNDATAQYW2',
 						evaluateTargetHealth: false,
 					},
 				})
 
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 			} else {
-				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, distribution.domainName)
+				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, multiTenantDistribution.domainName)
 			}
 		}
 	},
