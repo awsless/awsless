@@ -170,13 +170,100 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Domain stuff
 
-			const domainName = props.domain
-				? formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-				: undefined
+			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+			const certificateArn = ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 
-			const certificateArn = props.domain
-				? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
-				: undefined
+			// if (!props.domain) {
+			// 	const authority = new aws.acmpca.CertificateAuthority(
+			// 		group,
+			// 		'placeholder',
+			// 		{
+			// 			enabled: true,
+			// 			type: 'ROOT',
+			// 			usageMode: 'GENERAL_PURPOSE',
+			// 			certificateAuthorityConfiguration: {
+			// 				keyAlgorithm: 'RSA_4096',
+			// 				signingAlgorithm: 'SHA512WITHRSA',
+			// 				subject: {
+			// 					commonName: 'placeholder.awsless.dev',
+			// 				},
+			// 			},
+			// 		},
+			// 		{
+			// 			provider: 'global-aws',
+			// 		}
+			// 	)
+			// 	const privateCertificate = new aws.acmpca.Certificate(
+			// 		group,
+			// 		'placeholder',
+			// 		{
+			// 			certificateAuthorityArn: authority.arn,
+			// 			certificateSigningRequest: authority.certificateSigningRequest,
+			// 			signingAlgorithm: 'SHA512WITHRSA',
+			// 			templateArn: `arn:aws:acm-pca:::template/RootCACertificate/V1`,
+			// 			validity: {
+			// 				type: 'YEARS',
+			// 				value: '10',
+			// 			},
+			// 		},
+			// 		{
+			// 			provider: 'global-aws',
+			// 		}
+			// 	)
+
+			// 	// "ImportedCertificate": {
+			// 	//   "Type": "AWS::CertificateManager::Certificate",
+			// 	//   "Properties": {
+			// 	//     "CertificateBody": {"Fn::GetAtt": ["EndEntityCertificate", "Certificate"]},
+			// 	//     "CertificateChain": {"Fn::GetAtt": ["CAActivation", "CompleteCertificateChain"]},
+			// 	//     "PrivateKey": "[Private key content - handle securely]"
+			// 	//   }
+			// 	// }
+
+			// 	const permission = new aws.acmpca.Permission(
+			// 		group,
+			// 		'placeholder',
+			// 		{
+			// 			actions: ['IssueCertificate', 'GetCertificate', 'ListPermissions'],
+			// 			certificateAuthorityArn: authority.arn,
+			// 			principal: 'acm.amazonaws.com',
+			// 		},
+			// 		{
+			// 			provider: 'global-aws',
+			// 		}
+			// 	)
+
+			// 	const activation = new aws.acmpca.CertificateAuthorityCertificate(
+			// 		group,
+			// 		'placeholder',
+			// 		{
+			// 			certificateAuthorityArn: authority.arn,
+			// 			certificateChain: privateCertificate.certificateChain,
+			// 			certificate: privateCertificate.certificate,
+			// 		},
+			// 		{
+			// 			provider: 'global-aws',
+			// 		}
+			// 	)
+
+			// 	const certificate = new aws.acm.Certificate(
+			// 		group,
+			// 		'placeholder',
+			// 		{
+			// 			domainName: 'placeholder.awsless.dev',
+			// 			certificateAuthorityArn: authority.arn,
+			// 		},
+			// 		{
+			// 			dependsOn: [activation],
+			// 			provider: 'global-aws',
+			// 		}
+			// 	)
+
+			// 	certificateArn = certificate.arn.pipe(arn => {
+			// 		console.log(arn)
+			// 		return arn
+			// 	})
+			// }
 
 			// ------------------------------------------------------------
 			// Viewer Request CloudFront Function
@@ -195,107 +282,106 @@ export const routerFeature = defineFeature({
 
 			// ------------------------------------------------------------
 			// CDN Distribution
-			const multiTenantDistribution = new aws.cloudfront.MultitenantDistribution(
-				group,
-				'multiTenantDistribution',
-				{
-					comment: name,
-					enabled: true,
-					httpVersion: 'http2and3',
-					viewerCertificate: certificateArn
-						? [
-								{
-									sslSupportMethod: 'sni-only',
-									minimumProtocolVersion: 'TLSv1.2_2021',
-									acmCertificateArn: certificateArn,
-								},
-							]
-						: [
-								{
-									cloudfrontDefaultCertificate: true,
-								},
-							],
 
-					origin: [
-						{
-							id: 'default',
-							domainName: 'placeholder.awsless.dev',
-							customOriginConfig: [
-								{
-									httpPort: 80,
-									httpsPort: 443,
-									originProtocolPolicy: 'http-only',
-									originReadTimeout: 20,
-									originSslProtocols: ['TLSv1.2'],
-								},
-							],
-						},
-					],
-					customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
-						if (typeof item === 'string') {
-							return {
-								errorCode: Number(errorCode),
-								responseCode: errorCode,
-								responsePagePath: item,
-							}
-						}
+			const distribution = new aws.cloudfront.MultitenantDistribution(group, 'distribution', {
+				tags: {
+					name,
+				},
+				comment: name,
+				enabled: true,
+				httpVersion: 'http2and3',
+				viewerCertificate: certificateArn
+					? [
+							{
+								sslSupportMethod: 'sni-only',
+								minimumProtocolVersion: 'TLSv1.2_2021',
+								acmCertificateArn: certificateArn,
+							},
+						]
+					: [
+							{
+								cloudfrontDefaultCertificate: true,
+							},
+						],
 
+				origin: [
+					{
+						id: 'default',
+						domainName: 'placeholder.awsless.dev',
+						customOriginConfig: [
+							{
+								httpPort: 80,
+								httpsPort: 443,
+								originProtocolPolicy: 'http-only',
+								originReadTimeout: 20,
+								originSslProtocols: ['TLSv1.2'],
+							},
+						],
+					},
+				],
+				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
+					if (typeof item === 'string') {
 						return {
 							errorCode: Number(errorCode),
-							errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
-							responseCode: item.statusCode?.toString() ?? errorCode,
-							responsePagePath: item.path,
+							responseCode: errorCode,
+							responsePagePath: item,
 						}
-					}),
+					}
 
-					restrictions: [
-						{
-							geoRestriction: [
-								{
-									restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
-									items: props.geoRestrictions,
-								},
-							],
-						},
-					],
+					return {
+						errorCode: Number(errorCode),
+						errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
+						responseCode: item.statusCode?.toString() ?? errorCode,
+						responsePagePath: item.path,
+					}
+				}),
 
-					// orderedCacheBehavior: [
-					// 	{
-					// 		pathPattern: '/images/*',
+				restrictions: [
+					{
+						geoRestriction: [
+							{
+								restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
+								items: props.geoRestrictions,
+							},
+						],
+					},
+				],
 
-					// 		allowedMethods: ['GET', 'HEAD'],
-					// 		cachedMethods: ['GET', 'HEAD'],
-					// 		targetOriginId: 'default',
-					// 		viewerProtocolPolicy: 'redirect-to-https',
-					// 	},
-					// ],
+				// orderedCacheBehavior: [
+				// 	{
+				// 		pathPattern: '/images/*',
+				// 		allowedMethods: ['GET', 'HEAD'],
+				// 		cachedMethods: ['GET', 'HEAD'],
+				// 		targetOriginId: 'default',
+				// 		viewerProtocolPolicy: 'redirect-to-https',
+				// 	},
+				// ],
 
-					defaultCacheBehavior: [
-						{
-							compress: true,
-							targetOriginId: 'default',
-							functionAssociation: [
-								{
-									eventType: 'viewer-request',
-									functionArn: viewerRequest.arn,
-								},
-							],
-							originRequestPolicyId: originRequest.id,
-							cachePolicyId: cache.id,
-							responseHeadersPolicyId: responseHeaders.id,
-							viewerProtocolPolicy: 'redirect-to-https',
-							allowedMethods: [
-								{
-									items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-									cachedMethods: ['GET', 'HEAD'],
-								},
-							],
-						},
-					],
-				}
-			)
+				defaultCacheBehavior: [
+					{
+						compress: true,
+						targetOriginId: 'default',
+						functionAssociation: [
+							{
+								eventType: 'viewer-request',
+								functionArn: viewerRequest.arn,
+							},
+						],
+						originRequestPolicyId: originRequest.id,
+						cachePolicyId: cache.id,
+						responseHeadersPolicyId: responseHeaders.id,
+						viewerProtocolPolicy: 'redirect-to-https',
+						allowedMethods: [
+							{
+								items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+								cachedMethods: ['GET', 'HEAD'],
+							},
+						],
+					},
+				],
+			})
 
-			ctx.shared.add('router', 'id', id, multiTenantDistribution.id)
+			ctx.shared.add('router', 'id', id, distribution.id)
 
 			// ------------------------------------------------------------
 			// Add Invalidation API
@@ -306,7 +392,7 @@ export const routerFeature = defineFeature({
 						group,
 						name,
 						{
-							distributionId: multiTenantDistribution.id,
+							distributionId: distribution.id,
 							paths,
 							version: new Future(resolve => {
 								$combine(...versions).then(versions => {
@@ -331,43 +417,36 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Link to Route53
 
-			if (domainName) {
-				const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
-					name: formatGlobalResourceName({
-						appName: ctx.app.name,
-						resourceType: 'router',
-						resourceName: id,
-						postfix: 'connection-group',
-					}),
-				})
+			const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
+				name,
+			})
 
-				new aws.cloudfront.DistributionTenant(group, `default-distribution-tenant`, {
-					name: 'default-tenant',
-					distributionId: multiTenantDistribution.id,
-					connectionGroupId: connectionGroup.id,
-					enabled: true,
-					domain: [
-						{
-							domain: domainName,
-						},
-					],
-				})
+			new aws.cloudfront.DistributionTenant(group, `tenant`, {
+				name,
+				enabled: true,
+				distributionId: distribution.id,
+				connectionGroupId: connectionGroup.id,
+				domain: [{ domain: domainName }],
+				customizations: [{ certificate: [{ arn: certificateArn }] }],
+			})
 
-				new aws.route53.Record(group, `record`, {
-					zoneId: ctx.shared.entry('domain', 'zone-id', props.domain!),
-					type: 'A',
-					name: domainName,
-					alias: {
-						name: connectionGroup.routingEndpoint,
-						zoneId: 'Z2FDTNDATAQYW2',
-						evaluateTargetHealth: false,
-					},
-				})
+			new aws.route53.Record(group, `record`, {
+				zoneId: ctx.shared.entry('domain', 'zone-id', props.domain),
+				type: 'A',
+				name: domainName,
+				alias: {
+					name: connectionGroup.routingEndpoint,
+					zoneId: 'Z2FDTNDATAQYW2',
+					evaluateTargetHealth: false,
+				},
+			})
 
-				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
-			} else {
-				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, multiTenantDistribution.domainName)
-			}
+			ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
+
+			// if (domainName) {
+			// } else {
+			// 	ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, connectionGroup.routingEndpoint)
+			// }
 		}
 	},
 })

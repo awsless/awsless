@@ -1,5 +1,5 @@
 import { aws } from '@terraforge/aws'
-import { DataSource, Group, Input, Node, Output, Resource } from '@terraforge/core'
+import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Route } from './feature/router/route'
 
 type SharedState = {
@@ -152,16 +152,3 @@ export class SharedData {
 		return this
 	}
 }
-
-// export class SharedData {
-// 	protected data: Record<string, unknown> = {}
-
-// 	get<T>(key: string) {
-// 		return this.data[key] as T
-// 	}
-
-// 	set(key: string, value: unknown) {
-// 		this.data[key] = value
-// 		return this
-// 	}
-// }

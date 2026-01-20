@@ -1,9 +1,0 @@
-{
-	"$schema": "../../../dist/stack.json",
-	"name": "topic",
-	"topics": ["debug", "login"],
-	"subscribers": {
-		"login": "../function/simple.ts",
-		"debug": "info@jacksclub.io"
-	}
-}

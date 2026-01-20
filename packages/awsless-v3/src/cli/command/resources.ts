@@ -1,12 +1,14 @@
 import { log } from '@awsless/clui'
-import { Stack, URN } from '@terraforge/core'
+import { Resource } from '@awsless/formation'
+import { ResourceStatus, Stack, URN } from '@terraforge/core'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
 import { createApp } from '../../app.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
-import { color } from '../ui/style.js'
+import { color, icon } from '../ui/style.js'
 
 export const resources = (program: Command) => {
 	program
@@ -17,44 +19,89 @@ export const resources = (program: Command) => {
 			await layout('resources', async ({ appConfig, stackConfigs }) => {
 				// ---------------------------------------------------
 				const region = appConfig.region
-				const credentials = await getCredentials(appConfig.profile)
+				const profile = appConfig.profile
+				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
-				const { app } = createApp({ appConfig, stackConfigs, accountId })
+				const { app, ready } = createApp({ appConfig, stackConfigs, accountId })
 				// const resources: string[][] = []
 
-				const formatResource = (stack: Stack, urn: URN) => {
+				ready()
+
+				const { workspace } = await createWorkSpace({
+					credentials,
+					accountId,
+					profile,
+					region,
+				})
+
+				const resources = await workspace.status(app)
+
+				// const formatResource = (stack: Stack, urn: URN) => {
+				// 	return urn
+				// 		.replace(stack.urn + ':', '')
+				// 		.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
+				// 			return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
+				// 		})
+				// 		.replaceAll(':', color.dim(':'))
+				// }
+
+				const formatResource = (urn: URN) => {
 					return urn
-						.replace(stack.urn + ':', '')
+						.replace(app.urn + ':', '')
 						.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
 							return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
 						})
 						.replaceAll(':', color.dim(':'))
 				}
 
-				for (const stack of app.stacks) {
-					if (filters.length > 0) {
-						const found = filters.find(f => wildstring.match(f, stack.name))
-
-						if (!found) {
-							continue
-						}
+				const formatStatus = (status: ResourceStatus) => {
+					if (status === 'created') {
+						return color.success(status)
 					}
 
-					log.step(chalk.magenta(stack.name))
-					log.message(stack.resources.map(resource => formatResource(stack, resource.urn)).join('\n'))
-					// line('')
+					if (status === 'changed') {
+						return color.warning(status)
+					}
 
-					// for (const resource of stack.resources) {
-					// 	// log.message(formatResource(stack, resource.urn))
-					// 	line(formatResource(stack, resource.urn))
-					// 	// resources.push([
-					// 	// 	chalk.magenta(stack.name),
-					// 	// 	// resource.type,
-					// 	// 	formatResource(stack, resource.urn),
-					// 	// ])
-					// }
+					if (status === 'pending') {
+						return color.info(status)
+					}
+
+					return color.dim(status)
 				}
+
+				log.message(
+					resources
+						.map(r => {
+							return [
+								//
+								formatStatus(r.status),
+								color.dim(icon.arrow.right),
+								formatResource(r.urn),
+							].join(' ')
+						})
+						.join('\n')
+				)
+
+				// for (const stack of app.stacks) {
+				// 	if (filters.length > 0) {
+				// 		const found = filters.find(f => wildstring.match(f, stack.name))
+
+				// 		if (!found) {
+				// 			continue
+				// 		}
+				// 	}
+
+				// 	log.step(chalk.magenta(stack.name))
+				// 	log.message(
+				// 		stack.resources
+				// 			.map(resource => {
+				// 				return formatResource(stack, resource.urn)
+				// 			})
+				// 			.join('\n')
+				// 	)
+				// }
 			})
 		})
 }

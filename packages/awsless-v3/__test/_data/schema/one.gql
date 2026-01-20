@@ -1,4 +1,0 @@
-
-type Query {
-	one: AWSJSON
-}

@@ -213,7 +213,12 @@ export const tableFeature = defineFeature({
 
 			if (indexNames.length > 0) {
 				ctx.addStackPermission({
-					actions: ['dynamodb:Query'],
+					actions: [
+						'dynamodb:Query',
+
+						// Scanning on an index doesn't make any sense.
+						// 'dynamodb:Scan'
+					],
 					resources: indexNames.map(indexName => table.arn.pipe(arn => `${arn}/index/${indexName}`)),
 				})
 			}

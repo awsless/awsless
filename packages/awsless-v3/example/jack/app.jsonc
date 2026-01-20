@@ -6,14 +6,14 @@
 	// "protect": true,
 
 	"defaults": {
-		// "domains": {
-		// 	"main": {
-		// 		"domain": "soft-bet.com"
-		// 	}
-		// },
+		"domains": {
+			"main": {
+				"domain": "first-test.click"
+			}
+		},
 		"router": {
 			"main": {
-				// "domain": "main"
+				"domain": "main"
 			}
 		},
 		"rpc": {

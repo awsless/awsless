@@ -11,10 +11,6 @@ export const vpcFeature = defineFeature({
 		// A VPC is always a dual ipv4 and ipv6 VPC
 		// That's why we need to give it a ipv4 cidrBlock.
 
-		// const vpc = aws.$default.Vpc(group, 'vpc', {
-		// 	''
-		// })
-
 		const vpc = new aws.Vpc(group, 'vpc', {
 			tags: {
 				Name: ctx.app.name,
@@ -46,7 +42,7 @@ export const vpcFeature = defineFeature({
 			},
 		})
 
-		const egressOnlyInternetGateway = new aws.egress.OnlyInternetGateway(group, 'egressOnlyInternetGateway', {
+		const egressOnlyInternetGateway = new aws.egress.OnlyInternetGateway(group, 'gateway', {
 			vpcId: vpc.id,
 			tags: {
 				Name: ctx.app.name,
@@ -58,13 +54,13 @@ export const vpcFeature = defineFeature({
 			internetGatewayId: gateway.id,
 		})
 
-		new aws.Route(group, 'route', {
-			gatewayId: gateway.id,
+		new aws.Route(group, 'ipv4', {
 			routeTableId: publicRouteTable.id,
 			destinationCidrBlock: '0.0.0.0/0',
+			gatewayId: gateway.id,
 		})
 
-		new aws.Route(group, 'routeIPv6', {
+		new aws.Route(group, 'ipv6', {
 			routeTableId: privateRouteTable.id,
 			destinationIpv6CidrBlock: '::/0',
 			egressOnlyGatewayId: egressOnlyInternetGateway.id,

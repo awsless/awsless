@@ -49,7 +49,7 @@ export const RouterDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
+			domain: ResourceIdSchema.describe('The domain id to link your Router.'),
 			subDomain: z.string().optional(),
 
 			geoRestrictions: z

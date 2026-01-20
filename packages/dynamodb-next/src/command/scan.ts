@@ -3,17 +3,13 @@ import { client } from '../client.js'
 import { ExpressionAttributes } from '../expression/attributes.js'
 import { buildProjectionExpression, ProjectionExpression, ProjectionResponse } from '../expression/projection.js'
 import { fromCursorString, toCursorString } from '../helper/cursor.js'
-import { AnyTable, IndexNames } from '../table.js'
+import { AnyTable } from '../table.js'
 import { Options } from '../types/options.js'
 import { iterable, thenable } from './command.js'
 
-type ScanOptions<
-	T extends AnyTable,
-	P extends ProjectionExpression<T> | undefined,
-	I extends IndexNames<T> | undefined,
-> = Options & {
+type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = Options & {
 	select?: P
-	index?: I
+	// index?: I
 	consistentRead?: boolean
 	limit?: number
 	cursor?: string
@@ -25,19 +21,14 @@ type ScanResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefi
 	cursor?: string
 }
 
-export const scan = <
-	T extends AnyTable,
-	const P extends ProjectionExpression<T> | undefined = undefined,
-	I extends IndexNames<T> | undefined = undefined,
->(
+export const scan = <T extends AnyTable, const P extends ProjectionExpression<T> | undefined = undefined>(
 	table: T,
-	options: ScanOptions<T, P, I> = {}
+	options: ScanOptions<T, P> = {}
 ) => {
 	const execute = async (cursor?: string, limit?: number) => {
 		const attrs = new ExpressionAttributes(table)
 		const command = new ScanCommand({
 			TableName: table.name,
-			IndexName: options.index?.toString(),
 			ConsistentRead: options.consistentRead,
 			Limit: limit ?? options.limit ?? 10,
 			ExclusiveStartKey: fromCursorString(cursor),
