@@ -1,4 +1,4 @@
-import { days, Duration, DurationFormat, hours, milliSeconds, minutes, seconds, weeks } from '@awsless/duration'
+import { days, Duration, DurationFormat, hours, milliSeconds, minutes, seconds, weeks, years } from '@awsless/duration'
 import { duration, Input, Output, parse } from '../../src'
 import { testSchema } from '../_util'
 
@@ -11,6 +11,7 @@ testSchema('duration', {
 		days(1),
 		weeks(1),
 		days(999),
+		years(1),
 
 		// '1 millisecond',
 		// '1 milliseconds',

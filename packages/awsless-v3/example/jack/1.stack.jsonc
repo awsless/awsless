@@ -1,6 +1,6 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "stack",
+	"name": "feature-1",
 	// "depends": ["stack-2"],
 
 	// "tests": "./test",
@@ -24,8 +24,8 @@
 	// "functions": {
 	// 	// "log-metric": "./metric/log-metric.ts",
 	// 	"test": {
-	// 		"code": "./function.ts",
-	// 		"vpc": true
+	// 		"code": "./function.ts"
+	// 		// "vpc": true
 	// 	}
 	// }
 

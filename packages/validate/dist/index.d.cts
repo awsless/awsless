@@ -47,22 +47,41 @@ type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> 
 }, Output<S>[]>;
 declare const snsTopic: <S extends BaseSchema = UnknownSchema>(body?: S) => SnsTopicSchema<S>;
 
-type EventName = 'MODIFY' | 'INSERT' | 'REMOVE';
 type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
-    Records: {
-        eventName: EventName;
+    Records: Array<{
+        eventName: 'MODIFY';
         dynamodb: {
             Keys: unknown;
-            OldImage?: unknown;
-            NewImage?: unknown;
+            OldImage: unknown;
+            NewImage: unknown;
         };
-    }[];
-}, {
-    event: Lowercase<EventName>;
+    } | {
+        eventName: 'INSERT';
+        dynamodb: {
+            Keys: unknown;
+            NewImage: unknown;
+        };
+    } | {
+        eventName: 'REMOVE';
+        dynamodb: {
+            Keys: unknown;
+            OldImage: unknown;
+        };
+    }>;
+}, Array<{
+    event: 'modify';
     keys: PrimaryKey<T>;
-    old?: Infer<T>;
-    new?: Infer<T>;
-}[]>;
+    old: Infer<T>;
+    new: Infer<T>;
+} | {
+    event: 'insert';
+    keys: PrimaryKey<T>;
+    new: Infer<T>;
+} | {
+    event: 'remove';
+    keys: PrimaryKey<T>;
+    old: Infer<T>;
+}>>;
 declare const dynamoDbStream: <T extends AnyTable>(table: T) => DynamoDBStreamSchema<T>;
 
 declare function positive<T extends BigFloat | number>(error?: ErrorMessage): valibot.CustomValidation<T>;

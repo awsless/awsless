@@ -12,11 +12,11 @@ describe('DynamoDB Stream', () => {
 
 	const schema = dynamoDbStream(table)
 
-	it('should allow structured input', () => {
+	it('should allow insert payload', () => {
 		const result = parse(schema, {
 			Records: [
 				{
-					eventName: 'MODIFY',
+					eventName: 'INSERT',
 					dynamodb: {
 						Keys: { id: { N: '1' } },
 						NewImage: { id: { N: '1' }, name: { S: 'name' } },
@@ -27,13 +27,60 @@ describe('DynamoDB Stream', () => {
 
 		expect(result).toStrictEqual([
 			{
-				event: 'modify',
+				event: 'insert',
 				keys: { id: 1 },
 				new: { id: 1, name: 'name' },
-				old: undefined,
 			},
 		])
+	})
 
+	it('should allow modify payload', () => {
+		const result = parse(schema, {
+			Records: [
+				{
+					eventName: 'MODIFY',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						OldImage: { id: { N: '1' }, name: { S: 'hello' } },
+						NewImage: { id: { N: '1' }, name: { S: 'world' } },
+					},
+				},
+			],
+		})
+
+		expect(result).toStrictEqual([
+			{
+				event: 'modify',
+				keys: { id: 1 },
+				old: { id: 1, name: 'hello' },
+				new: { id: 1, name: 'world' },
+			},
+		])
+	})
+
+	it('should allow remove payload', () => {
+		const result = parse(schema, {
+			Records: [
+				{
+					eventName: 'REMOVE',
+					dynamodb: {
+						Keys: { id: { N: '1' } },
+						OldImage: { id: { N: '1' }, name: { S: 'name' } },
+					},
+				},
+			],
+		})
+
+		expect(result).toStrictEqual([
+			{
+				event: 'remove',
+				keys: { id: 1 },
+				old: { id: 1, name: 'name' },
+			},
+		])
+	})
+
+	it('should throw for invalid payload', () => {
 		expect(() =>
 			parse(schema, {
 				Records: [
@@ -50,29 +97,51 @@ describe('DynamoDB Stream', () => {
 
 	it('types', () => {
 		expectTypeOf<Input<typeof schema>>().toEqualTypeOf<{
-			Records: {
-				eventName: 'MODIFY' | 'REMOVE' | 'INSERT'
-				dynamodb: {
-					Keys: unknown
-					OldImage?: unknown
-					NewImage?: unknown
-				}
-			}[]
+			Records: Array<
+				| {
+						eventName: 'MODIFY'
+						dynamodb: {
+							Keys: unknown
+							OldImage: unknown
+							NewImage: unknown
+						}
+				  }
+				| {
+						eventName: 'INSERT'
+						dynamodb: {
+							Keys: unknown
+							NewImage: unknown
+						}
+				  }
+				| {
+						eventName: 'REMOVE'
+						dynamodb: {
+							Keys: unknown
+							OldImage: unknown
+						}
+				  }
+			>
 		}>()
 
 		expectTypeOf<Output<typeof schema>>().toEqualTypeOf<
-			{
-				event: Lowercase<'MODIFY' | 'REMOVE' | 'INSERT'>
-				keys: { id: number }
-				old?: {
-					id: number
-					name: string
-				}
-				new?: {
-					id: number
-					name: string
-				}
-			}[]
+			Array<
+				| {
+						event: 'modify'
+						keys: { id: number }
+						old: { id: number; name: string }
+						new: { id: number; name: string }
+				  }
+				| {
+						event: 'insert'
+						keys: { id: number }
+						new: { id: number; name: string }
+				  }
+				| {
+						event: 'remove'
+						keys: { id: number }
+						old: { id: number; name: string }
+				  }
+			>
 		>()
 	})
 })

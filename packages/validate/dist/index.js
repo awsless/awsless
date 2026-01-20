@@ -159,36 +159,54 @@ var snsTopic = (body) => {
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, literal, object as object4, optional, transform as transform7, union as union6, unknown as unknown3 } from "valibot";
+import { array as array3, literal, object as object4, transform as transform7, unknown as unknown3, variant } from "valibot";
 var dynamoDbStream = (table) => {
-  const marshall = () => transform7(unknown3(), (value) => table.unmarshall(value));
+  const unmarshall = () => transform7(unknown3(), (value) => table.unmarshall(value));
   return transform7(
     object4(
       {
         Records: array3(
-          object4({
-            // For some reason picklist fails to build.
-            // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
-            eventName: union6([literal("MODIFY"), literal("INSERT"), literal("REMOVE")]),
-            dynamodb: object4({
-              Keys: marshall(),
-              OldImage: optional(marshall()),
-              NewImage: optional(marshall())
+          variant("eventName", [
+            object4({
+              eventName: literal("MODIFY"),
+              dynamodb: object4({
+                Keys: unmarshall(),
+                OldImage: unmarshall(),
+                NewImage: unmarshall()
+              })
+            }),
+            object4({
+              eventName: literal("INSERT"),
+              dynamodb: object4({
+                Keys: unmarshall(),
+                NewImage: unmarshall()
+              })
+            }),
+            object4({
+              eventName: literal("REMOVE"),
+              dynamodb: object4({
+                Keys: unmarshall(),
+                OldImage: unmarshall()
+              })
             })
-          })
+          ])
         )
       },
       "Invalid DynamoDB Stream input"
     ),
     (input) => {
       return input.Records.map((record) => {
-        const item = record;
-        return {
+        const item = {
           event: record.eventName.toLowerCase(),
-          keys: item.dynamodb.Keys,
-          old: item.dynamodb.OldImage,
-          new: item.dynamodb.NewImage
+          keys: record.dynamodb.Keys
         };
+        if ("OldImage" in record.dynamodb) {
+          item.old = record.dynamodb.OldImage;
+        }
+        if ("NewImage" in record.dynamodb) {
+          item.new = record.dynamodb.NewImage;
+        }
+        return item;
       });
     }
   );

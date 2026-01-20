@@ -189,34 +189,52 @@ var snsTopic = (body) => {
 // src/schema/aws/dynamodb-stream.ts
 var import_valibot9 = require("valibot");
 var dynamoDbStream = (table) => {
-  const marshall = () => (0, import_valibot9.transform)((0, import_valibot9.unknown)(), (value) => table.unmarshall(value));
+  const unmarshall = () => (0, import_valibot9.transform)((0, import_valibot9.unknown)(), (value) => table.unmarshall(value));
   return (0, import_valibot9.transform)(
     (0, import_valibot9.object)(
       {
         Records: (0, import_valibot9.array)(
-          (0, import_valibot9.object)({
-            // For some reason picklist fails to build.
-            // eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
-            eventName: (0, import_valibot9.union)([(0, import_valibot9.literal)("MODIFY"), (0, import_valibot9.literal)("INSERT"), (0, import_valibot9.literal)("REMOVE")]),
-            dynamodb: (0, import_valibot9.object)({
-              Keys: marshall(),
-              OldImage: (0, import_valibot9.optional)(marshall()),
-              NewImage: (0, import_valibot9.optional)(marshall())
+          (0, import_valibot9.variant)("eventName", [
+            (0, import_valibot9.object)({
+              eventName: (0, import_valibot9.literal)("MODIFY"),
+              dynamodb: (0, import_valibot9.object)({
+                Keys: unmarshall(),
+                OldImage: unmarshall(),
+                NewImage: unmarshall()
+              })
+            }),
+            (0, import_valibot9.object)({
+              eventName: (0, import_valibot9.literal)("INSERT"),
+              dynamodb: (0, import_valibot9.object)({
+                Keys: unmarshall(),
+                NewImage: unmarshall()
+              })
+            }),
+            (0, import_valibot9.object)({
+              eventName: (0, import_valibot9.literal)("REMOVE"),
+              dynamodb: (0, import_valibot9.object)({
+                Keys: unmarshall(),
+                OldImage: unmarshall()
+              })
             })
-          })
+          ])
         )
       },
       "Invalid DynamoDB Stream input"
     ),
     (input) => {
       return input.Records.map((record) => {
-        const item = record;
-        return {
+        const item = {
           event: record.eventName.toLowerCase(),
-          keys: item.dynamodb.Keys,
-          old: item.dynamodb.OldImage,
-          new: item.dynamodb.NewImage
+          keys: record.dynamodb.Keys
         };
+        if ("OldImage" in record.dynamodb) {
+          item.old = record.dynamodb.OldImage;
+        }
+        if ("NewImage" in record.dynamodb) {
+          item.new = record.dynamodb.NewImage;
+        }
+        return item;
       });
     }
   );
