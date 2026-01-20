@@ -8,6 +8,7 @@ import { Region } from '../config/schema/region.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
 import { createCloudFrontProvider } from '../formation/cloudfront.js'
 import { createLambdaProvider } from '../formation/lambda.js'
+import { createNameServersProvider } from '../formation/ns-check.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
 
@@ -54,6 +55,7 @@ export const createWorkSpace = async (props: {
 			createLambdaProvider(props),
 			createCloudFrontProvider(props),
 			createCloudFrontKvsProvider(props),
+			createNameServersProvider(props),
 			aws(
 				{
 					profile: props.profile,

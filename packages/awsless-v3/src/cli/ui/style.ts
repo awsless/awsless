@@ -21,7 +21,7 @@ export const color = {
 	primary: chalk.bold.hex('#FF9000'),
 	// primary: chalk.bold.magentaBright,
 	// title: chalk.white,
-	// normal: chalk.white,
+	normal: chalk.reset.white,
 	label: chalk.reset.white.bold,
 	dim: chalk.dim,
 	line: chalk.black,

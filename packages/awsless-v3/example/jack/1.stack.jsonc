@@ -4,7 +4,7 @@
 	// "depends": ["stack-2"],
 
 	// "tests": "./test",
-	"tests": false,
+	"tests": false
 	// "configs": ["test"],
 
 	// "metrics": {
@@ -29,65 +29,65 @@
 	// 	}
 	// }
 
-	"sites": {
-		"test": {
-			"router": "main",
-			"path": "/",
+	// "sites": {
+	// 	"test": {
+	// 		"router": "main",
+	// 		"path": "/",
 
-			"static": "./site",
-			"ssr": "./ssr.ts"
-		},
-		"test2": {
-			"router": "main",
-			"path": "/docs",
-			"static": "./site2"
-		}
-		// "test3": {
-		// 	"router": "main",
-		// 	"path": "/docs",
-		// 	"static": "./site2"
-		// }
-	},
+	// 		"static": "./site",
+	// 		"ssr": "./ssr.ts"
+	// 	},
+	// 	"test2": {
+	// 		"router": "main",
+	// 		"path": "/docs",
+	// 		"static": "./site2"
+	// 	}
+	// 	// "test3": {
+	// 	// 	"router": "main",
+	// 	// 	"path": "/docs",
+	// 	// 	"static": "./site2"
+	// 	// }
+	// },
 
-	"rpc": {
-		"main": {
-			"test": "./echo.ts"
-		}
-	},
+	// "rpc": {
+	// 	"main": {
+	// 		"test": "./echo.ts"
+	// 	}
+	// },
 
-	"images": {
-		"avatars": {
-			"router": "main",
-			"path": "/images",
-			"origin": {
-				"static": "./image"
-			},
-			"extensions": {
-				"png": { "compressionLevel": 6 }
-			},
-			"presets": {
-				"lg": {
-					"width": 200
-				},
-				"md": {
-					"width": 100
-				},
-				"sm": {
-					"width": 50
-				}
-			}
-		}
-	},
+	// "images": {
+	// 	"avatars": {
+	// 		"router": "main",
+	// 		"path": "/images",
+	// 		"origin": {
+	// 			"static": "./image"
+	// 		},
+	// 		"extensions": {
+	// 			"png": { "compressionLevel": 6 }
+	// 		},
+	// 		"presets": {
+	// 			"lg": {
+	// 				"width": 200
+	// 			},
+	// 			"md": {
+	// 				"width": 100
+	// 			},
+	// 			"sm": {
+	// 				"width": 50
+	// 			}
+	// 		}
+	// 	}
+	// },
 
-	"icons": {
-		"icons": {
-			"router": "main",
-			"path": "/icons",
-			"origin": {
-				"static": "./icon"
-			}
-		}
-	}
+	// "icons": {
+	// 	"icons": {
+	// 		"router": "main",
+	// 		"path": "/icons",
+	// 		"origin": {
+	// 			"static": "./icon"
+	// 		}
+	// 	}
+	// }
 
 	// "commands": {
 	// 	"test": {

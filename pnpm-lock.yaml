@@ -544,7 +544,7 @@ importers:
         specifier: 3.329.0
         version: 3.329.0(aws-crt@1.26.2)
       '@aws-sdk/client-route-53':
-        specifier: ^3.369.0
+        specifier: ^3.782.0
         version: 3.782.0(aws-crt@1.26.2)
       '@aws-sdk/client-s3':
         specifier: ^3.369.0

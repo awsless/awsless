@@ -2,6 +2,7 @@ import { minutes, toSeconds } from '@awsless/duration'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
+import { NsCheck } from '../../formation/ns-check.js'
 // import { formatGlobalResourceName } from '../../util/name.js'
 
 export const domainFeature = defineFeature({
@@ -29,6 +30,10 @@ export const domainFeature = defineFeature({
 			const zone = new aws.route53.Zone(ctx.zones, 'zone', {
 				name: props.domain,
 				forceDestroy: true,
+			})
+
+			const nsCheck = new NsCheck(group, 'check', {
+				zoneId: zone.id,
 			})
 
 			ctx.registerDomainZone(zone)
@@ -66,11 +71,18 @@ export const domainFeature = defineFeature({
 				allowOverwrite: true,
 			})
 
-			const validation = new aws.acm.CertificateValidation(group, 'local', {
-				certificateArn: certificate.arn,
-				validationRecordFqdns: [record1.fqdn, record2.fqdn],
-				// validationRecordFqdns: [record1.fqdn, record2.fqdn],
-			})
+			const validation = new aws.acm.CertificateValidation(
+				group,
+				'local',
+				{
+					certificateArn: certificate.arn,
+					validationRecordFqdns: [record1.fqdn, record2.fqdn],
+					// validationRecordFqdns: [record1.fqdn, record2.fqdn],
+				},
+				{
+					dependsOn: [nsCheck],
+				}
+			)
 
 			ctx.shared.add('domain', `certificate-arn`, id, validation.certificateArn)
 
@@ -239,7 +251,7 @@ export const domainFeature = defineFeature({
 				group,
 				'mail',
 				{ domain: props.domain },
-				{ dependsOn: [identity, verificationRecord] }
+				{ dependsOn: [identity, verificationRecord, nsCheck] }
 			)
 
 			ctx.shared.add(`domain`, 'mail-arn', id, verification.arn)

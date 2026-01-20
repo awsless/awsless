@@ -8,20 +8,20 @@
 	"defaults": {
 		"domains": {
 			"main": {
-				"domain": "first-test.click"
+				"domain": "awsless.org"
 			}
 		},
-		"router": {
-			"main": {
-				"domain": "main"
-			}
-		},
-		"rpc": {
-			"main": {
-				"router": "main",
-				"path": "/api"
-			}
-		},
+		// "router": {
+		// 	"main": {
+		// 		"domain": "main"
+		// 	}
+		// },
+		// "rpc": {
+		// 	"main": {
+		// 		"router": "main",
+		// 		"path": "/api"
+		// 	}
+		// },
 		// "topics": ["topic"],
 		// "alerts": {
 		// 	"debug": "info@jacksclub.io"
