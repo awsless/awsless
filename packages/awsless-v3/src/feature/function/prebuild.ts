@@ -38,7 +38,8 @@ export const createPrebuildLambdaFunction = (
 	props: Omit<FunctionProps, 'code'> & {
 		bundleFile: string
 		bundleHash: string
-	}
+	},
+	options?: { isManagedInstance?: boolean }
 ) => {
 	let name: string
 	let roleName: string
@@ -173,6 +174,14 @@ export const createPrebuildLambdaFunction = (
 					? props.log.system?.toUpperCase()
 					: undefined,
 		},
+
+		capacityProviderConfig: options?.isManagedInstance
+			? {
+					lambdaManagedInstancesCapacityProviderConfig: {
+						capacityProviderArn: ctx.shared.get('function', 'capacity-provider-arn'),
+					},
+				}
+			: undefined,
 	})
 
 	// ------------------------------------------------------------

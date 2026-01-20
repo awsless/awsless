@@ -5,7 +5,7 @@ import { defineFeature } from '../../feature.js'
 
 export const vpcFeature = defineFeature({
 	name: 'vpc',
-	onApp(ctx) {
+	onBefore(ctx) {
 		const group = new Group(ctx.base, 'vpc', 'main')
 
 		// A VPC is always a dual ipv4 and ipv6 VPC

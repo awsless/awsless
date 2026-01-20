@@ -86,10 +86,19 @@ export const restFeature = defineFeature({
 				const group = new Group(restGroup, 'route', routeKey)
 				const apiId = ctx.shared.entry('rest', 'id', id)
 				const routeId = shortId(routeKey)
-				const { lambda } = createLambdaFunction(group, ctx, 'rest', `${id}-${routeId}`, {
-					...props,
-					description: `${id} ${routeKey}`,
-				})
+				const { lambda } = createLambdaFunction(
+					group,
+					ctx,
+					'rest',
+					`${id}-${routeId}`,
+					{
+						...props,
+						description: `${id} ${routeKey}`,
+					},
+					{
+						isManagedInstance: true,
+					}
+				)
 
 				const permission = new aws.lambda.Permission(group, 'permission', {
 					action: 'lambda:InvokeFunction',
