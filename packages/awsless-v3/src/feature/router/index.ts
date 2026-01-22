@@ -10,6 +10,7 @@ import { getViewerRequestFunctionCode } from './router-code.js'
 import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'node:crypto'
 import { ExpectedError } from '../../error.js'
+import { FunctionConfigurationFilterSensitiveLog } from '@aws-sdk/client-lambda'
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -280,6 +281,87 @@ export const routerFeature = defineFeature({
 				}),
 			})
 
+			const waf = new aws.wafv2.WebAcl(group, 'waf', {
+				name: `${name}-wafv2`,
+				scope: 'CLOUDFRONT',
+				defaultAction: {
+					allow: {},
+				},
+				description: 'AWS Managed Rules Rule Set',
+				rule: [
+					{
+						name: 'AWSManagedRulesAntiDDoSRuleGroup',
+						priority: 1,
+						statement: {
+							managedRuleGroupStatement: {
+								name: 'AWSManagedRulesAntiDDoSRuleSet',
+								vendorName: 'AWS',
+								managedRuleGroupConfigs: [
+									{
+										awsManagedRulesAntiDdosRuleSet: {
+											clientSideActionConfig: {
+												challenge: {
+													usageOfAction: 'ENABLED',
+													sensitivity: 'HIGH',
+													exemptUriRegularExpression: [
+														{
+															regexString: '^$',
+														},
+													],
+												},
+											},
+										},
+									},
+								],
+							},
+						},
+						overrideAction: {
+							none: {},
+						},
+						captchaConfig: {
+							immunityTimeProperty: {
+								immunityTime: 259200,
+							},
+						},
+						visibilityConfig: {
+							sampledRequestsEnabled: false,
+							cloudwatchMetricsEnabled: false,
+							metricName: 'AntiDDoSRuleSetMetric',
+						},
+					},
+					{
+						name: 'AWSManagedRulesBotControlRuleGroup',
+						priority: 2,
+						statement: {
+							managedRuleGroupStatement: {
+								name: 'AWSManagedRulesBotControlRuleSet',
+								vendorName: 'AWS',
+								managedRuleGroupConfigs: [
+									{
+										awsManagedRulesBotControlRuleSet: {
+											inspectionLevel: 'COMMON',
+										},
+									},
+								],
+							},
+						},
+						overrideAction: {
+							none: {},
+						},
+						visibilityConfig: {
+							sampledRequestsEnabled: true,
+							cloudwatchMetricsEnabled: true,
+							metricName: 'BotControlRuleSetMetric',
+						},
+					},
+				],
+				visibilityConfig: {
+					sampledRequestsEnabled: false,
+					cloudwatchMetricsEnabled: false,
+					metricName: 'AWSManagedRulesWebACL',
+				},
+			})
+
 			// ------------------------------------------------------------
 			// CDN Distribution
 
@@ -379,6 +461,7 @@ export const routerFeature = defineFeature({
 						],
 					},
 				],
+				webAclId: waf.arn,
 			})
 
 			ctx.shared.add('router', 'id', id, distribution.id)
