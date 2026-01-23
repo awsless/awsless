@@ -31,6 +31,7 @@ export const onLogFeature = defineFeature({
 
 		ctx.shared.set('on-log', 'consumer-arn', result.lambda.arn)
 
+		// Deny calling other functions to stop circular loop problems
 		result.addPermission({
 			effect: 'deny',
 			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage', 'sns:Publish'],

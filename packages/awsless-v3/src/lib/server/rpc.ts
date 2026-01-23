@@ -8,6 +8,6 @@ export type RpcAuthorizerResponse =
 			authorized: true
 			context?: unknown
 			lockKey?: string
-			permissions?: string[]
+			allowedFunctions?: string[]
 			ttl: Duration
 	  }
