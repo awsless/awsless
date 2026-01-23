@@ -5,7 +5,7 @@ export const schemaTable = define(process.env.SCHEMA_TABLE ?? 'schema', {
 	schema: object({
 		query: string(),
 		function: string(),
-		permissions: optional(array(string())),
+		// permissions: optional(array(string())),
 	}),
 })
 

@@ -1486,7 +1486,6 @@ var scan = (table, options = {}) => {
     const attrs = new ExpressionAttributes(table);
     const command = new import_client_dynamodb15.ScanCommand({
       TableName: table.name,
-      IndexName: options.index?.toString(),
       ConsistentRead: options.consistentRead,
       Limit: limit ?? options.limit ?? 10,
       ExclusiveStartKey: fromCursorString(cursor),

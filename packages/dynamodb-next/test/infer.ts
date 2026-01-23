@@ -57,11 +57,14 @@ describe('Infer', () => {
 
 			tuple: tuple([string(), number()]),
 			tupleRest: tuple([string(), string()], number()),
+
 			array: array(string()),
 			record: record(string()),
+
 			partial: object({
 				key: string(),
 			}),
+
 			variant: variant('type', {
 				one: object({ one: number() }),
 				two: object({ two: number() }),

@@ -279,7 +279,7 @@ export const createLambdaFunction = (
 	// ------------------------------------------------------------
 	// VPC
 
-	let dependsOn: Resource<any, any>[] = []
+	let dependsOn: Resource<any>[] = []
 	if (props.vpc) {
 		if (props.warm > 1) {
 			throw new FileError(

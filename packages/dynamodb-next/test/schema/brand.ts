@@ -19,7 +19,7 @@ describe('brand', () => {
 
 	const item: Infer<typeof blog> = {
 		id,
-		title: toBranded('title', 'title'),
+		title: toBranded('Title', 'title'),
 		intro: toBranded('Hello', 'intro'),
 		content: toBranded('Hi there', 'content'),
 	}
@@ -52,20 +52,20 @@ describe('brand', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.title.set(toBranded('other', 'title')),
+					e.title.set(toBranded('Other', 'title')),
 				],
 				when: e => [
 					//
-					e.title.eq(toBranded('title', 'title')),
+					e.title.eq(toBranded('Title', 'title')),
 				],
 			}
 		)
 
 		expect(result).toStrictEqual({
 			id,
-			title: 'other',
-			intro: 'intro',
-			content: 'content',
+			title: 'Other',
+			intro: 'Hello',
+			content: 'Hi there',
 		})
 	})
 })

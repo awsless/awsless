@@ -21,6 +21,21 @@ export type ReturnResponse<T extends AnyTable, R extends ReturnValue> = ReturnVa
 		? void
 		: Infer<T> | undefined
 
+// export const normalizeReturn = (value: Lowercase<UpdateReturnValue>): UpdateReturnValue => {
+// 	switch (value) {
+// 		case 'none':
+// 			return 'NONE'
+// 		case 'all_new':
+// 			return 'ALL_NEW'
+// 		case 'all_old':
+// 			return 'ALL_OLD'
+// 		case 'updated_new':
+// 			return 'UPDATED_NEW'
+// 		case 'updated_old':
+// 			return 'UPDATED_OLD'
+// 	}
+// }
+
 // export type PutReturnResponse<T extends AnyTable, R extends LimitedReturnValue> = LimitedReturnValue extends R
 // 	? void
 // 	: R extends 'NONE'

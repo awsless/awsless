@@ -4,19 +4,10 @@ import { defineFeature } from '../../feature.js'
 import { createLambdaFunction } from '../function/util.js'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { days, toSeconds } from '@awsless/duration'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
-	// onValidate(ctx) {
-	// 	// ----------------------------------------------------------------
-	// 	// Only allow a on-failure single listener
-
-	// 	const count = ctx.stackConfigs.filter(s => s.onFailure).length
-
-	// 	if (count > 1) {
-	// 		throw new TypeError('Only 1 onFailure configuration is allowed in your app.')
-	// 	}
-	// },
 	onApp(ctx) {
 		// ----------------------------------------------------------------
 		// Create a single on-failure queue to capture all failed jobs
@@ -29,6 +20,7 @@ export const onFailureFeature = defineFeature({
 				resourceType: 'on-failure',
 				resourceName: 'deadletter',
 			}),
+			messageRetentionSeconds: toSeconds(days(14)),
 		})
 
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
@@ -78,6 +70,12 @@ export const onFailureFeature = defineFeature({
 				'sqs:GetQueueAttributes',
 			],
 			resources: [queue.arn],
+		})
+
+		result.addPermission({
+			effect: 'deny',
+			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage', 'sns:Publish'],
+			resources: ['*'],
 		})
 	},
 })

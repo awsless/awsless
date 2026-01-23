@@ -98,9 +98,9 @@ type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined
 type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
 type QueryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & Partial<SortKey<T, I>>;
 
-interface Options$1 {
+type Options$1 = {
     client?: DynamoDBClient;
-}
+};
 
 type Transactable$1 = {
     transact(): TransactWriteItem;
@@ -687,9 +687,8 @@ declare const query: <T extends AnyTable, const P extends ProjectionExpression<T
     };
 };
 
-type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$1 & {
+type ScanOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined> = Options$1 & {
     select?: P;
-    index?: I;
     consistentRead?: boolean;
     limit?: number;
     cursor?: string;
@@ -699,7 +698,7 @@ type ScanResponse<T extends AnyTable, P extends ProjectionExpression<T> | undefi
     items: ProjectionResponse<T, P>[];
     cursor?: string;
 };
-declare const scan: <T extends AnyTable, const P extends ProjectionExpression<T> | undefined = undefined, I extends IndexNames<T> | undefined = undefined>(table: T, options?: ScanOptions<T, P, I>) => {
+declare const scan: <T extends AnyTable, const P extends ProjectionExpression<T> | undefined = undefined>(table: T, options?: ScanOptions<T, P>) => {
     then<Result1 = ScanResponse<T, P>, Result2 = never>(onfulfilled: (value: ScanResponse<T, P>) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
     [Symbol.asyncIterator](): {
         next(): Promise<{

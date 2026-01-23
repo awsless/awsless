@@ -12,7 +12,7 @@ export const onLogFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'on-log', 'main')
 
-		const { lambda } = createLambdaFunction(
+		const result = createLambdaFunction(
 			//
 			group,
 			ctx,
@@ -24,11 +24,17 @@ export const onLogFeature = defineFeature({
 		new aws.lambda.Permission(group, 'permission', {
 			action: 'lambda:InvokeFunction',
 			principal: 'logs.amazonaws.com',
-			functionName: lambda.functionName,
+			functionName: result.lambda.functionName,
 			// sourceArn: `arn:aws:logs:${ctx.appConfig.region}:${ctx.accountId}:log-group:/aws/*/${ctx.app.name}--*`,
 			sourceArn: `arn:aws:logs:${ctx.appConfig.region}:${ctx.accountId}:log-group:/aws/lambda/${ctx.app.name}--*`,
 		})
 
-		ctx.shared.set('on-log', 'consumer-arn', lambda.arn)
+		ctx.shared.set('on-log', 'consumer-arn', result.lambda.arn)
+
+		result.addPermission({
+			effect: 'deny',
+			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage', 'sns:Publish'],
+			resources: ['*'],
+		})
 	},
 })

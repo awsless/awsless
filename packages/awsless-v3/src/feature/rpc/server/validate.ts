@@ -46,7 +46,7 @@ const authResponseSchema = union([
 	object({
 		authorized: literal(true),
 		context: optional(record(unknown())),
-		permissions: optional(array(string()), []),
+		allowedFunctions: optional(array(string())),
 		lockKey: optional(string()),
 		ttl: duration(),
 	}),

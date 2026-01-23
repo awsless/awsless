@@ -53,7 +53,7 @@ export const createNameServersProvider = ({ profile, region }: ProviderProps) =>
 					throw new Error(
 						[
 							`Expected nameservers don't match for domain:`,
-							`${color.info(domainName)} ${color.normal.dim(icon.arrow.right)} ${color.normal.dim(state.zoneId)}`,
+							`${color.info(domainName)} ${color.normal.dim(icon.arrow.right)} ${color.normal(state.zoneId)}`,
 							``,
 							'Current:',
 							...resolvedNameServers.map(n => color.normal(n)),

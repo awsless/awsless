@@ -96,6 +96,19 @@ describe('Query', () => {
 		})
 	})
 
+	it('should support desc sort', async () => {
+		const result = await query(posts, { userId: 1 }, { sort: 'desc' })
+
+		expect(result).toStrictEqual({
+			cursor: undefined,
+			items: [
+				{ userId: 1, sortId: 3, id: 3 },
+				{ userId: 1, sortId: 2, id: 2 },
+				{ userId: 1, sortId: 1, id: 1 },
+			],
+		})
+	})
+
 	it('should query on sort key', async () => {
 		const result = await query(
 			posts,

@@ -34,13 +34,21 @@ export const ONE_FUNCTION_AT_A_TIME: GlobalError = {
 // 	message: 'Unauthorized',
 // }
 
-export const PERMISSION_ACCESS_DENIED = (permissions: string[]): FunctionError => ({
+// export const PERMISSION_ACCESS_DENIED = (permissions: string[]): FunctionError => ({
+// 	ok: false,
+// 	error: {
+// 		type: 'permission-access-denied',
+// 		message: `You don't have the following permissions: ${permissions.map(p => `"${p}"`).join(', ')}`,
+// 	},
+// })
+
+export const PERMISSION_ACCESS_DENIED: FunctionError = {
 	ok: false,
 	error: {
 		type: 'permission-access-denied',
-		message: `You don't have the following permissions: ${permissions.map(p => `"${p}"`).join(', ')}`,
+		message: `You do not have permissions to call this function.`,
 	},
-})
+}
 
 export const UNKNOWN_FUNCTION_NAME: FunctionError = {
 	ok: false,

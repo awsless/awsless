@@ -77,24 +77,29 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 
 		const result = await Promise.allSettled(
 			request.output.body.map(async (fn): Promise<FunctionResult> => {
-				const details = await getFunctionDetails(fn.name)
+				// ----------------------------------------
+				// Get function details
 
-				if (!details) {
+				const fnName = await getFunctionDetails(fn.name)
+
+				if (!fnName) {
 					return UNKNOWN_FUNCTION_NAME
 				}
 
-				if (details.permissions && details.permissions.length > 0) {
-					const deniedPermissions = details.permissions.filter(p => !auth.permissions?.includes(p))
+				// ----------------------------------------
+				// Check allowed fn permissions
 
-					if (deniedPermissions.length > 0) {
-						return PERMISSION_ACCESS_DENIED(deniedPermissions)
-					}
+				if (Array.isArray(auth.allowedFunctions) && !auth.allowedFunctions.includes(fn.name)) {
+					return PERMISSION_ACCESS_DENIED
 				}
+
+				// ----------------------------------------
+				// Invoke function
 
 				let data: unknown
 				try {
 					data = await invoke({
-						name: details.function,
+						name: fnName,
 						payload: {
 							...(fn.payload ?? {}),
 							...(auth.context ?? {}),

@@ -9,6 +9,10 @@ The `awsless/dynamodb` package provides a small and tree-shakable layer around a
 - **Query Builder** - Type safe & easy to use query expression builder.
 - **Testing** - We provide a local DynamoDB server and mock that will route all DynamoDB requests to your local DynamoDB server.
 
+## Recommended
+
+Make sure to enable `strict` mode inside your tsconfig file, to get the most benafit of the strong typing guarantees that this package has to offer.
+
 ## Setup
 
 Install with (NPM):

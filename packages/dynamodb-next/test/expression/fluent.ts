@@ -50,6 +50,12 @@ describe('Fluent Expression', () => {
 			value: [3],
 		})
 
+		assertExpression(e.record.at(1).lt(4), {
+			op: 'lt',
+			path: ['record', 1],
+			value: [4],
+		})
+
 		assertExpression(
 			e.and([
 				//
