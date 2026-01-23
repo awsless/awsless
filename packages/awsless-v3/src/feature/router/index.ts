@@ -10,7 +10,6 @@ import { getViewerRequestFunctionCode } from './router-code.js'
 import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'node:crypto'
 import { ExpectedError } from '../../error.js'
-import { FunctionConfigurationFilterSensitiveLog } from '@aws-sdk/client-lambda'
 
 export const routerFeature = defineFeature({
 	name: 'router',
@@ -174,98 +173,6 @@ export const routerFeature = defineFeature({
 			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
 			const certificateArn = ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
 
-			// if (!props.domain) {
-			// 	const authority = new aws.acmpca.CertificateAuthority(
-			// 		group,
-			// 		'placeholder',
-			// 		{
-			// 			enabled: true,
-			// 			type: 'ROOT',
-			// 			usageMode: 'GENERAL_PURPOSE',
-			// 			certificateAuthorityConfiguration: {
-			// 				keyAlgorithm: 'RSA_4096',
-			// 				signingAlgorithm: 'SHA512WITHRSA',
-			// 				subject: {
-			// 					commonName: 'placeholder.awsless.dev',
-			// 				},
-			// 			},
-			// 		},
-			// 		{
-			// 			provider: 'global-aws',
-			// 		}
-			// 	)
-			// 	const privateCertificate = new aws.acmpca.Certificate(
-			// 		group,
-			// 		'placeholder',
-			// 		{
-			// 			certificateAuthorityArn: authority.arn,
-			// 			certificateSigningRequest: authority.certificateSigningRequest,
-			// 			signingAlgorithm: 'SHA512WITHRSA',
-			// 			templateArn: `arn:aws:acm-pca:::template/RootCACertificate/V1`,
-			// 			validity: {
-			// 				type: 'YEARS',
-			// 				value: '10',
-			// 			},
-			// 		},
-			// 		{
-			// 			provider: 'global-aws',
-			// 		}
-			// 	)
-
-			// 	// "ImportedCertificate": {
-			// 	//   "Type": "AWS::CertificateManager::Certificate",
-			// 	//   "Properties": {
-			// 	//     "CertificateBody": {"Fn::GetAtt": ["EndEntityCertificate", "Certificate"]},
-			// 	//     "CertificateChain": {"Fn::GetAtt": ["CAActivation", "CompleteCertificateChain"]},
-			// 	//     "PrivateKey": "[Private key content - handle securely]"
-			// 	//   }
-			// 	// }
-
-			// 	const permission = new aws.acmpca.Permission(
-			// 		group,
-			// 		'placeholder',
-			// 		{
-			// 			actions: ['IssueCertificate', 'GetCertificate', 'ListPermissions'],
-			// 			certificateAuthorityArn: authority.arn,
-			// 			principal: 'acm.amazonaws.com',
-			// 		},
-			// 		{
-			// 			provider: 'global-aws',
-			// 		}
-			// 	)
-
-			// 	const activation = new aws.acmpca.CertificateAuthorityCertificate(
-			// 		group,
-			// 		'placeholder',
-			// 		{
-			// 			certificateAuthorityArn: authority.arn,
-			// 			certificateChain: privateCertificate.certificateChain,
-			// 			certificate: privateCertificate.certificate,
-			// 		},
-			// 		{
-			// 			provider: 'global-aws',
-			// 		}
-			// 	)
-
-			// 	const certificate = new aws.acm.Certificate(
-			// 		group,
-			// 		'placeholder',
-			// 		{
-			// 			domainName: 'placeholder.awsless.dev',
-			// 			certificateAuthorityArn: authority.arn,
-			// 		},
-			// 		{
-			// 			dependsOn: [activation],
-			// 			provider: 'global-aws',
-			// 		}
-			// 	)
-
-			// 	certificateArn = certificate.arn.pipe(arn => {
-			// 		console.log(arn)
-			// 		return arn
-			// 	})
-			// }
-
 			// ------------------------------------------------------------
 			// Viewer Request CloudFront Function
 
@@ -281,86 +188,127 @@ export const routerFeature = defineFeature({
 				}),
 			})
 
-			const waf = new aws.wafv2.WebAcl(group, 'waf', {
-				name: `${name}-wafv2`,
-				scope: 'CLOUDFRONT',
-				defaultAction: {
-					allow: {},
-				},
-				description: 'AWS Managed Rules Rule Set',
-				rule: [
-					{
-						name: 'AWSManagedRulesAntiDDoSRuleGroup',
-						priority: 1,
-						statement: {
-							managedRuleGroupStatement: {
-								name: 'AWSManagedRulesAntiDDoSRuleSet',
-								vendorName: 'AWS',
-								managedRuleGroupConfigs: [
-									{
-										awsManagedRulesAntiDdosRuleSet: {
-											clientSideActionConfig: {
-												challenge: {
-													usageOfAction: 'ENABLED',
-													sensitivity: 'HIGH',
-													exemptUriRegularExpression: [
-														{
-															regexString: '^$',
-														},
-													],
-												},
+			const wafSettingsConfig = props.waf
+
+			const wafRules: aws.wafv2.WebAclInput['rule'] = []
+
+			if (wafSettingsConfig?.rateLimiter) {
+				wafRules.push({
+					name: 'rateLimiter',
+					priority: 3,
+					statement: {
+						rateBasedStatement: {
+							limit: wafSettingsConfig.rateLimiter.limit,
+							aggregateKeyType: 'IP',
+							evaluationWindowSec: wafSettingsConfig.rateLimiter.window,
+						},
+					},
+					action: {
+						block: {},
+					},
+					visibilityConfig: {
+						sampledRequestsEnabled: true,
+						cloudwatchMetricsEnabled: wafSettingsConfig.rateLimiter.visibility,
+						metricName: `${name}-wafv2-rateLimiter`,
+					},
+				})
+			}
+
+			if (wafSettingsConfig?.botProtection) {
+				wafRules.push({
+					name: 'AWSManagedRulesBotControlRuleGroup',
+					priority: 2,
+					statement: {
+						managedRuleGroupStatement: {
+							name: 'AWSManagedRulesBotControlRuleSet',
+							vendorName: 'AWS',
+							managedRuleGroupConfigs: [
+								{
+									awsManagedRulesBotControlRuleSet: {
+										inspectionLevel: wafSettingsConfig.botProtection.inspectionLevel,
+									},
+								},
+							],
+						},
+					},
+					overrideAction: {
+						none: {},
+					},
+					visibilityConfig: {
+						sampledRequestsEnabled: true,
+						cloudwatchMetricsEnabled: wafSettingsConfig.botProtection.visibility,
+						metricName: `${name}-wafv2-BotControlRuleSetMetric`,
+					},
+				})
+			}
+
+			if (wafSettingsConfig?.ddosProtection) {
+				wafRules.push({
+					name: 'AWSManagedRulesAntiDDoSRuleGroup',
+					priority: 1,
+					statement: {
+						managedRuleGroupStatement: {
+							name: 'AWSManagedRulesAntiDDoSRuleSet',
+							vendorName: 'AWS',
+							managedRuleGroupConfigs: [
+								{
+									awsManagedRulesAntiDdosRuleSet: {
+										clientSideActionConfig: {
+											challenge: {
+												usageOfAction: 'ENABLED',
+												sensitivity: wafSettingsConfig.ddosProtection.sensitivity.challenge,
+												exemptUriRegularExpression: [
+													{
+														regexString: wafSettingsConfig.ddosProtection.exemptUriRegex,
+													},
+												],
 											},
 										},
+										sensitivityToBlock: wafSettingsConfig.ddosProtection.sensitivity.block,
 									},
-								],
-							},
-						},
-						overrideAction: {
-							none: {},
-						},
-						captchaConfig: {
-							immunityTimeProperty: {
-								immunityTime: 259200,
-							},
-						},
-						visibilityConfig: {
-							sampledRequestsEnabled: false,
-							cloudwatchMetricsEnabled: false,
-							metricName: 'AntiDDoSRuleSetMetric',
+								},
+							],
 						},
 					},
-					{
-						name: 'AWSManagedRulesBotControlRuleGroup',
-						priority: 2,
-						statement: {
-							managedRuleGroupStatement: {
-								name: 'AWSManagedRulesBotControlRuleSet',
-								vendorName: 'AWS',
-								managedRuleGroupConfigs: [
-									{
-										awsManagedRulesBotControlRuleSet: {
-											inspectionLevel: 'COMMON',
-										},
-									},
-								],
-							},
-						},
-						overrideAction: {
-							none: {},
-						},
-						visibilityConfig: {
-							sampledRequestsEnabled: true,
-							cloudwatchMetricsEnabled: true,
-							metricName: 'BotControlRuleSetMetric',
+					overrideAction: {
+						none: {},
+					},
+					visibilityConfig: {
+						sampledRequestsEnabled: true,
+						cloudwatchMetricsEnabled: wafSettingsConfig.ddosProtection.visibility,
+						metricName: `${name}-wafv2-AntiDDoSRuleSetMetric`,
+					},
+				})
+			}
+
+			let waf: aws.wafv2.WebAcl | undefined
+
+			if (wafRules.length && wafSettingsConfig) {
+				waf = new aws.wafv2.WebAcl(group, 'waf', {
+					name: `${name}-wafv2`,
+					scope: 'CLOUDFRONT',
+					defaultAction: {
+						allow: {},
+					},
+					description: 'AWS Managed Rules Rule Set',
+					rule: wafRules,
+					captchaConfig: {
+						immunityTimeProperty: {
+							immunityTime: toSeconds(wafSettingsConfig.captchaImmunityTime),
 						},
 					},
-				],
-				visibilityConfig: {
-					sampledRequestsEnabled: false,
-					cloudwatchMetricsEnabled: false,
-					metricName: 'AWSManagedRulesWebACL',
-				},
-			})
+					challengeConfig: {
+						immunityTimeProperty: {
+							immunityTime: toSeconds(wafSettingsConfig.challengeImmunityTime),
+						},
+					},
+					visibilityConfig: {
+						sampledRequestsEnabled: false,
+						cloudwatchMetricsEnabled: false,
+						metricName: `${name}-wafv2-AWSManagedRulesWebACL`,
+					},
+				})
+			}
 
 			// ------------------------------------------------------------
 			// CDN Distribution
@@ -371,7 +319,6 @@ export const routerFeature = defineFeature({
 				},
 				comment: name,
 				enabled: true,
-				httpVersion: 'http2and3',
 				viewerCertificate: certificateArn
 					? [
 							{
@@ -385,7 +332,6 @@ export const routerFeature = defineFeature({
 								cloudfrontDefaultCertificate: true,
 							},
 						],
-
 				origin: [
 					{
 						id: 'default',
@@ -428,17 +374,6 @@ export const routerFeature = defineFeature({
 						],
 					},
 				],
-
-				// orderedCacheBehavior: [
-				// 	{
-				// 		pathPattern: '/images/*',
-				// 		allowedMethods: ['GET', 'HEAD'],
-				// 		cachedMethods: ['GET', 'HEAD'],
-				// 		targetOriginId: 'default',
-				// 		viewerProtocolPolicy: 'redirect-to-https',
-				// 	},
-				// ],
-
 				defaultCacheBehavior: [
 					{
 						compress: true,
@@ -461,7 +396,7 @@ export const routerFeature = defineFeature({
 						],
 					},
 				],
-				webAclId: waf.arn,
+				webAclId: waf?.arn,
 			})
 
 			ctx.shared.add('router', 'id', id, distribution.id)
@@ -525,11 +460,6 @@ export const routerFeature = defineFeature({
 			})
 
 			ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
-
-			// if (domainName) {
-			// } else {
-			// 	ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, connectionGroup.routingEndpoint)
-			// }
 		}
 	},
 })

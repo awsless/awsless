@@ -1,5 +1,6 @@
+import { days, minutes } from '@awsless/duration'
 import { z } from 'zod'
-import { DurationSchema } from '../../config/schema/duration.js'
+import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 
 const ErrorResponsePathSchema = z
@@ -45,11 +46,83 @@ const ErrorResponseSchema = z
 
 export const RouteSchema = z.string().regex(/^\//, 'Route must start with a slash (/)')
 
+const VisibilitySchema = z.boolean().default(false).describe('Whether to enable CloudWatch metrics for the WAF rule.')
+
+const WafSettingsSchema = z
+	.object({
+		rateLimiter: z
+			.object({
+				limit: z
+					.number()
+					.min(10)
+					.max(2000000000)
+					.default(10)
+					.describe(
+						'The limit on requests during the specified evaluation window for a single aggregation instance for the rate-based rule.'
+					),
+				window: z
+					.union([z.literal(60), z.literal(120), z.literal(300), z.literal(600)])
+					.default(300)
+					.describe(
+						'The amount of time, in seconds, that AWS WAF should include in its request counts, looking back from the current time.'
+					),
+				visibility: VisibilitySchema,
+			})
+			.optional()
+			.describe(
+				'A rate-based rule counts incoming requests and rate limits requests when they are coming at too fast a rate.'
+			),
+		ddosProtection: z
+			.object({
+				sensitivity: z.object({
+					challenge: z
+						.enum(['LOW', 'MEDIUM', 'HIGH'])
+						.default('LOW')
+						.describe('The sensitivity level for challenge requests.'),
+					block: z
+						.enum(['LOW', 'MEDIUM', 'HIGH'])
+						.default('LOW')
+						.describe('The sensitivity level for block requests.'),
+				}),
+				exemptUriRegex: z.string().default('^$'),
+				visibility: VisibilitySchema,
+			})
+			.optional()
+			.describe(
+				'Provides protection against DDoS attacks targeting the application layer, also known as Layer 7 attacks. Uses 50 WCU.'
+			),
+		botProtection: z
+			.object({
+				inspectionLevel: z.enum(['COMMON', 'TARGETED']).default('COMMON'),
+				visibility: VisibilitySchema,
+			})
+			.optional()
+			.describe(
+				'Provides protection against automated bots that can consume excess resources, skew business metrics, cause downtime, or perform malicious activities. Bot Control provides additional visibility through Amazon CloudWatch and generates labels that you can use to control bot traffic to your applications. Uses 50 WCU.'
+			),
+		captchaImmunityTime: DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout duration is 1 minute')
+			.refine(durationMax(days(3)), 'Maximum timeout duration is 3 days')
+			.default('5 minutes')
+			.describe(
+				'The amount of time that a CAPTCHA timestamp is considered valid by AWS WAF. The default setting is 5 minutes.'
+			),
+		challengeImmunityTime: DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout duration is 1 minute')
+			.refine(durationMax(days(3)), 'Maximum timeout duration is 3 days')
+			.default('5 minutes')
+			.describe(
+				'The amount of time that a challenge timestamp is considered valid by AWS WAF. The default setting is 5 minutes.'
+			),
+	})
+	.describe(
+		"WAF settings for the router. Each rule consumes Web ACL capacity units (WCUs). The total WCUs for a web ACL can't exceed 5000. Using over 1500 WCUs affects your costs."
+	)
+
 export const RouterDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
 			domain: ResourceIdSchema.describe('The domain id to link your Router.'),
+			waf: WafSettingsSchema.optional(),
 			subDomain: z.string().optional(),
 
 			geoRestrictions: z
