@@ -549,6 +549,7 @@ type StartDynamoDBOptions<T extends Tables> = {
     stream?: Stream<AnyTable>[];
     timeout?: number;
     seed?: SeedTable<AnyTable>[];
+    engine?: 'speed' | 'correctness';
 };
 declare const mockDynamoDB: <T extends Tables>(configOrServer: StartDynamoDBOptions<T> | DynamoDBServer) => DynamoDBServer;
 
@@ -667,6 +668,8 @@ type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefi
     index?: I;
     consistentRead?: boolean;
     sort?: 'asc' | 'desc';
+    /** @deprecated */
+    order?: 'asc' | 'desc';
     limit?: number;
     cursor?: string;
     disablePreciseCursor?: boolean;

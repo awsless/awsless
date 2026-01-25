@@ -1,0 +1,36 @@
+export { DynamoDBServer, type DynamoDBServerConfig, type Engine } from './dynamodb-server.js'
+export { VirtualClock } from './clock.js'
+export {
+	DynamoDBError,
+	ValidationException,
+	ResourceNotFoundException,
+	ResourceInUseException,
+	ConditionalCheckFailedException,
+	TransactionCanceledException,
+	TransactionConflictException,
+	ProvisionedThroughputExceededException,
+	ItemCollectionSizeLimitExceededException,
+	InternalServerError,
+	SerializationException,
+	IdempotentParameterMismatchException,
+	type CancellationReason,
+} from './errors/index.js'
+export type {
+	AttributeValue,
+	AttributeMap,
+	KeySchemaElement,
+	AttributeDefinition,
+	Projection,
+	ProvisionedThroughput,
+	GlobalSecondaryIndex,
+	LocalSecondaryIndex,
+	StreamViewType,
+	StreamSpecification,
+	TimeToLiveSpecification,
+	TableDescription,
+	GlobalSecondaryIndexDescription,
+	LocalSecondaryIndexDescription,
+	StreamRecord,
+	StreamCallback,
+	ConsumedCapacity,
+} from './types.js'

@@ -1,0 +1,5 @@
+export { evaluateCondition, type ConditionContext } from './condition.js'
+export { parseKeyCondition, matchesKeyCondition, type KeyConditionContext, type ParsedKeyCondition } from './key-condition.js'
+export { applyProjection, applyIndexProjection } from './projection.js'
+export { applyUpdateExpression, type UpdateContext } from './update.js'
+export { parsePath, getValueAtPath, setValueAtPath, deleteValueAtPath, type PathSegment } from './path.js'

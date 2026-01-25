@@ -14,6 +14,7 @@ import {
 	UNKNOWN_ERROR,
 	UNKNOWN_FUNCTION_NAME,
 } from './error.js'
+import { invokeInternalFunction } from './internal/index.js'
 import { lock, unlock } from './lock.js'
 import { FunctionResult, Response, response } from './response.js'
 import { getFunctionDetails } from './schema.js'
@@ -48,13 +49,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Log Request in cloudwatch for user monitoring purposes.
 
-		// console.log({
-		// 	lockKey: auth.lockKey,
-		// 	authContext: auth.context,
-		// 	requestId,
-		// 	request: request.output.body,
-		// 	ip: request.output.requestContext.http.sourceIp,
-		// })
+		console.log({
+			requestId,
+			lockKey: auth.lockKey,
+			authContext: auth.context,
+			request: request.output.body,
+			ip: request.output.requestContext.http.sourceIp,
+		})
 
 		// ----------------------------------------
 		// Lock the request if needed
@@ -77,6 +78,13 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 
 		const result = await Promise.allSettled(
 			request.output.body.map(async (fn): Promise<FunctionResult> => {
+				// ----------------------------------------
+				// Check if the function is internal
+
+				if (fn.name.startsWith('$')) {
+					return invokeInternalFunction(fn.name.slice(1), fn.payload, auth)
+				}
+
 				// ----------------------------------------
 				// Get function details
 

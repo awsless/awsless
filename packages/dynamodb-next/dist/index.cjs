@@ -507,7 +507,7 @@ var serializeTable = (table) => {
         AttributeName: table.hash
       },
       table.sort ? {
-        KeyType: "SORT",
+        KeyType: "RANGE",
         AttributeName: table.sort
       } : void 0
     ]),
@@ -544,7 +544,7 @@ var serializeTable = (table) => {
           AttributeName: item.hash
         },
         item.sort ? {
-          KeyType: "SORT",
+          KeyType: "RANGE",
           AttributeName: item.sort
         } : void 0
       ])
@@ -961,12 +961,14 @@ var mockDynamoDB = (configOrServer) => {
   if (configOrServer instanceof import_dynamodb_server.DynamoDBServer) {
     server = configOrServer;
   } else {
-    server = new import_dynamodb_server.DynamoDBServer();
+    server = new import_dynamodb_server.DynamoDBServer({
+      engine: configOrServer.engine === "correctness" ? "java" : "memory"
+      // engine: 'java',
+    });
     if (typeof beforeAll !== "undefined") {
       beforeAll(async () => {
         const [port, releasePort] = await (0, import_request_port.requestPort)();
         await server.listen(port);
-        await server.wait();
         if (configOrServer.tables) {
           await migrate(server.getClient(), configOrServer.tables);
           if (configOrServer.seed) {
@@ -974,7 +976,7 @@ var mockDynamoDB = (configOrServer) => {
           }
         }
         return async () => {
-          await server.kill();
+          await server.stop();
           await releasePort();
         };
       }, configOrServer.timeout);
@@ -1439,7 +1441,7 @@ var query = (table, key, options = {}) => {
         ])
       ),
       ConsistentRead: options.consistentRead,
-      ScanIndexForward: options.sort === "desc" ? false : true,
+      ScanIndexForward: options.order ?? options.sort === "desc" ? false : true,
       Limit: limit ?? options.limit ?? 10,
       ExclusiveStartKey: fromCursorString(cursor),
       ProjectionExpression: buildProjectionExpression(attrs, options.select),

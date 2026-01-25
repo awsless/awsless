@@ -14,7 +14,19 @@ const cache = new WeakCache<
 	}
 >()
 
-export const authenticate = async (token?: string) => {
+export type Session =
+	| {
+			authorized: true
+			context?: Record<string, unknown>
+			allowedFunctions?: string[]
+			lockKey?: string
+	  }
+	| {
+			authorized: false
+			reason: string
+	  }
+
+export const authenticate = async (token?: string): Promise<Session> => {
 	// ------------------------------------------
 	// Ignore when no custom auth lambda is set.
 
@@ -90,6 +102,7 @@ export const authenticate = async (token?: string) => {
 	if (!result.output.authorized) {
 		return {
 			authorized: false,
+			reason: 'Invalid auth token',
 		}
 	}
 

@@ -43,6 +43,7 @@ export type StartDynamoDBOptions<T extends Tables> = {
 	stream?: Stream<AnyTable>[]
 	timeout?: number
 	seed?: SeedTable<AnyTable>[]
+	engine?: 'speed' | 'correctness'
 }
 
 export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(
@@ -53,14 +54,16 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(
 	if (configOrServer instanceof DynamoDBServer) {
 		server = configOrServer
 	} else {
-		server = new DynamoDBServer()
+		server = new DynamoDBServer({
+			engine: configOrServer.engine === 'correctness' ? 'java' : 'memory',
+			// engine: 'java',
+		})
 
 		if (typeof beforeAll !== 'undefined') {
 			beforeAll(async () => {
 				const [port, releasePort] = await requestPort()
 
 				await server.listen(port)
-				await server.wait()
 
 				if (configOrServer.tables) {
 					await migrate(server.getClient(), configOrServer.tables)
@@ -70,7 +73,7 @@ export const mockDynamoDB = /* @__PURE__ */ <T extends Tables>(
 				}
 
 				return async () => {
-					await server.kill()
+					await server.stop()
 					await releasePort()
 				}
 			}, configOrServer.timeout)

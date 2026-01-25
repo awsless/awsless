@@ -37,7 +37,7 @@ export const rpcFeature = defineFeature({
 				for (const [name, props] of Object.entries(stack.rpc?.[id] ?? {})) {
 					if ('file' in props.code) {
 						const relFile = relative(directories.types, props.code.file)
-						const varName = camelCase(`${stack.name}-${name}`)
+						const varName = camelCase(`${id}-${stack.name}-${name}`)
 
 						types.addImport(varName, relFile)
 						schema.addType(name, `Handle<typeof ${varName}>`)

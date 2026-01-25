@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/dynamodb",
-	"version": "0.2.15",
+	"version": "0.2.17",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -30,8 +30,6 @@
 	},
 	"vitest": {
 		"hookTimeout": 30000,
-		"maxConcurrency": 2,
-		"singleThread": true,
 		"exclude": [
 			"test/aws/*",
 			"**/__*/**"

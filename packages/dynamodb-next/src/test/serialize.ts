@@ -26,7 +26,7 @@ export const serializeTable = (table: AnyTable) => {
 			},
 			table.sort
 				? {
-						KeyType: 'SORT',
+						KeyType: 'RANGE',
 						AttributeName: table.sort,
 					}
 				: undefined,
@@ -72,7 +72,7 @@ export const serializeTable = (table: AnyTable) => {
 				},
 				item.sort
 					? {
-							KeyType: 'SORT',
+							KeyType: 'RANGE',
 							AttributeName: item.sort,
 						}
 					: undefined,
