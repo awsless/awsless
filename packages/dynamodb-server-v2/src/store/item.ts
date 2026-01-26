@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import type { AttributeMap, AttributeValue, KeySchemaElement } from '../types.js'
 
 export function extractKey(item: AttributeMap, keySchema: KeySchemaElement[]): AttributeMap {
@@ -73,26 +72,4 @@ export function deepClone<T>(obj: T): T {
 
 export function estimateItemSize(item: AttributeMap): number {
 	return JSON.stringify(item).length
-}
-
-/**
- * Extracts the raw value from an AttributeValue for hashing.
- * Returns just the value without type prefix.
- */
-function extractRawValue(value: AttributeValue): string {
-	if ('S' in value) return value.S
-	if ('N' in value) return value.N
-	if ('B' in value) return value.B
-	return serializeAttributeValue(value)
-}
-
-/**
- * Creates an MD5 hash for partition key ordering.
- * Uses the "Outliers" salt from dynalite to match Java DynamoDB Local ordering.
- */
-export function hashAttributeValue(value: AttributeValue): string {
-	const raw = extractRawValue(value)
-	return createHash('md5')
-		.update('Outliers' + raw)
-		.digest('hex')
 }

@@ -14,15 +14,7 @@ import type {
 	TableDescription,
 	TimeToLiveSpecification,
 } from '../types.js'
-import {
-	deepClone,
-	estimateItemSize,
-	extractKey,
-	getHashKey,
-	getRangeKey,
-	hashAttributeValue,
-	serializeKey,
-} from './item.js'
+import { deepClone, estimateItemSize, extractKey, getHashKey, getRangeKey, serializeKey } from './item.js'
 
 let sequenceCounter = 0
 
@@ -349,29 +341,7 @@ export class Table {
 	}
 
 	scan(limit?: number, exclusiveStartKey?: AttributeMap): { items: AttributeMap[]; lastEvaluatedKey?: AttributeMap } {
-		const hashAttr = this.getHashKeyName()
-		const rangeAttr = this.getRangeKeyName()
-
-		// Get all items and sort by hash of partition key (to simulate DynamoDB's internal ordering)
 		const allItems = Array.from(this.items.values()).map(item => deepClone(item))
-		allItems.sort((a, b) => {
-			// First sort by hash of the partition key (simulates DynamoDB's internal partitioning)
-			const hashA = a[hashAttr]
-			const hashB = b[hashAttr]
-			if (hashA && hashB) {
-				const hashCmp = hashAttributeValue(hashA).localeCompare(hashAttributeValue(hashB))
-				if (hashCmp !== 0) return hashCmp
-			}
-			// Then by range key if present (ascending order within partition)
-			if (rangeAttr) {
-				const rangeA = a[rangeAttr]
-				const rangeB = b[rangeAttr]
-				if (rangeA && rangeB) {
-					return this.compareAttributes(rangeA, rangeB)
-				}
-			}
-			return 0
-		})
 
 		// Find start index if exclusiveStartKey is provided
 		let startIdx = 0
@@ -570,7 +540,6 @@ export class Table {
 		}
 
 		const indexHashAttr = getHashKey(indexData.keySchema)
-		const indexRangeAttr = getRangeKey(indexData.keySchema)
 		const matchingItems: AttributeMap[] = []
 
 		for (const item of this.items.values()) {
@@ -578,26 +547,6 @@ export class Table {
 				matchingItems.push(deepClone(item))
 			}
 		}
-
-		// Sort by hash of index partition key (to simulate DynamoDB's internal ordering)
-		matchingItems.sort((a, b) => {
-			// First sort by hash of the index partition key
-			const hashA = a[indexHashAttr]
-			const hashB = b[indexHashAttr]
-			if (hashA && hashB) {
-				const hashCmp = hashAttributeValue(hashA).localeCompare(hashAttributeValue(hashB))
-				if (hashCmp !== 0) return hashCmp
-			}
-			// Then by index range key if present (ascending order within partition)
-			if (indexRangeAttr) {
-				const rangeA = a[indexRangeAttr]
-				const rangeB = b[indexRangeAttr]
-				if (rangeA && rangeB) {
-					return this.compareAttributes(rangeA, rangeB)
-				}
-			}
-			return 0
-		})
 
 		let startIdx = 0
 		if (exclusiveStartKey) {

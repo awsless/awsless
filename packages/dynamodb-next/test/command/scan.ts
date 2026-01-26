@@ -16,8 +16,8 @@ describe('Scan', () => {
 		expect(result).toStrictEqual({
 			cursor: undefined,
 			items: [
-				{ id: 2, name: '' },
 				{ id: 1, name: '' },
+				{ id: 2, name: '' },
 				{ id: 3, name: '' },
 			],
 		})
@@ -33,7 +33,7 @@ describe('Scan', () => {
 
 		expect(result).toStrictEqual({
 			cursor: undefined,
-			items: [{ id: 2 }, { id: 1 }, { id: 3 }],
+			items: [{ id: 1 }, { id: 2 }, { id: 3 }],
 		})
 	})
 
@@ -46,7 +46,7 @@ describe('Scan', () => {
 
 		expect(result1).toStrictEqual({
 			cursor: expect.any(String),
-			items: [{ id: 2, name: '' }],
+			items: [{ id: 1, name: '' }],
 		})
 
 		const result2 = await scan(users, {
@@ -56,7 +56,7 @@ describe('Scan', () => {
 
 		expect(result2).toStrictEqual({
 			cursor: expect.any(String),
-			items: [{ id: 1, name: '' }],
+			items: [{ id: 2, name: '' }],
 		})
 	})
 
@@ -97,8 +97,8 @@ describe('Scan', () => {
 		}
 
 		expect(items).toStrictEqual([
-			{ id: 2, name: '' },
 			{ id: 1, name: '' },
+			{ id: 2, name: '' },
 			{ id: 3, name: '' },
 		])
 	})
@@ -115,8 +115,8 @@ describe('Scan', () => {
 		}
 
 		expect(items).toStrictEqual([
-			{ id: 2, name: '' },
 			{ id: 1, name: '' },
+			{ id: 2, name: '' },
 			{ id: 3, name: '' },
 		])
 	})

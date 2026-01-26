@@ -28,7 +28,8 @@ export function createJavaServer(port: number, region: string): JavaServerInstan
 	const ping = async (): Promise<boolean> => {
 		const client = getClient()
 		try {
-			const response = await client.send(new ListTablesCommand({}))
+			const response = await client.send(new ListTablesCommand({}), { requestTimeout: 250 })
+
 			return Array.isArray(response.TableNames)
 		} catch {
 			return false

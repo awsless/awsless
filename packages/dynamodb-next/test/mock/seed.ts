@@ -60,12 +60,12 @@ describe('Mock Seed', () => {
 			cursor: undefined,
 			items: [
 				{
-					id: 2,
-					user: 'bar',
-				},
-				{
 					id: 1,
 					user: 'foo',
+				},
+				{
+					id: 2,
+					user: 'bar',
 				},
 			],
 		})

@@ -41,7 +41,7 @@ function createJavaServer(port, region) {
   const ping = async () => {
     const client = getClient();
     try {
-      const response = await client.send(new ListTablesCommand({}));
+      const response = await client.send(new ListTablesCommand({}), { requestTimeout: 250 });
       return Array.isArray(response.TableNames);
     } catch {
       return false;
@@ -838,7 +838,6 @@ function compareValues(a, b) {
 }
 
 // src/store/item.ts
-import { createHash } from "crypto";
 function extractKey(item, keySchema) {
   const key = {};
   for (const element of keySchema) {
@@ -888,16 +887,6 @@ function deepClone(obj) {
 }
 function estimateItemSize(item) {
   return JSON.stringify(item).length;
-}
-function extractRawValue(value) {
-  if ("S" in value) return value.S;
-  if ("N" in value) return value.N;
-  if ("B" in value) return value.B;
-  return serializeAttributeValue(value);
-}
-function hashAttributeValue(value) {
-  const raw = extractRawValue(value);
-  return createHash("md5").update("Outliers" + raw).digest("hex");
 }
 
 // src/expressions/key-condition.ts
@@ -2572,25 +2561,7 @@ var Table = class {
     return serializeKey(extractKey(item, keySchema), keySchema);
   }
   scan(limit, exclusiveStartKey) {
-    const hashAttr = this.getHashKeyName();
-    const rangeAttr = this.getRangeKeyName();
     const allItems = Array.from(this.items.values()).map((item) => deepClone(item));
-    allItems.sort((a, b) => {
-      const hashA = a[hashAttr];
-      const hashB = b[hashAttr];
-      if (hashA && hashB) {
-        const hashCmp = hashAttributeValue(hashA).localeCompare(hashAttributeValue(hashB));
-        if (hashCmp !== 0) return hashCmp;
-      }
-      if (rangeAttr) {
-        const rangeA = a[rangeAttr];
-        const rangeB = b[rangeAttr];
-        if (rangeA && rangeB) {
-          return this.compareAttributes(rangeA, rangeB);
-        }
-      }
-      return 0;
-    });
     let startIdx = 0;
     if (exclusiveStartKey) {
       const startKey = serializeKey(exclusiveStartKey, this.keySchema);
@@ -2735,29 +2706,12 @@ var Table = class {
       throw new Error(`Index ${indexName} not found`);
     }
     const indexHashAttr = getHashKey(indexData.keySchema);
-    const indexRangeAttr = getRangeKey(indexData.keySchema);
     const matchingItems = [];
     for (const item of this.items.values()) {
       if (item[indexHashAttr]) {
         matchingItems.push(deepClone(item));
       }
     }
-    matchingItems.sort((a, b) => {
-      const hashA = a[indexHashAttr];
-      const hashB = b[indexHashAttr];
-      if (hashA && hashB) {
-        const hashCmp = hashAttributeValue(hashA).localeCompare(hashAttributeValue(hashB));
-        if (hashCmp !== 0) return hashCmp;
-      }
-      if (indexRangeAttr) {
-        const rangeA = a[indexRangeAttr];
-        const rangeB = b[indexRangeAttr];
-        if (rangeA && rangeB) {
-          return this.compareAttributes(rangeA, rangeB);
-        }
-      }
-      return 0;
-    });
     let startIdx = 0;
     if (exclusiveStartKey) {
       const startKey = serializeKey(exclusiveStartKey, this.keySchema);

@@ -9,10 +9,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Java DynamoDB Engine', () => {
-	let server: DynamoDBServer
+	const server = new DynamoDBServer({ engine: 'java' })
 
 	beforeAll(async () => {
-		server = new DynamoDBServer({ engine: 'java' })
 		await server.listen(8123)
 	}, 30000) // Longer timeout for Java startup
 

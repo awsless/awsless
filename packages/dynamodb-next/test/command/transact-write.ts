@@ -36,7 +36,7 @@ describe('Transact Write', () => {
 		const result = await scan(users)
 		expect(result).toStrictEqual({
 			cursor: undefined,
-			items: [{ id: 2 }, { id: 1 }, { id: 3 }],
+			items: [{ id: 1 }, { id: 2 }, { id: 3 }],
 		})
 	})
 
@@ -51,8 +51,8 @@ describe('Transact Write', () => {
 		expect(result).toStrictEqual({
 			cursor: undefined,
 			items: [
-				{ id: 2, name: 'Test' },
 				{ id: 1, name: 'Test' },
+				{ id: 2, name: 'Test' },
 				{ id: 3, name: 'Test' },
 			],
 		})
