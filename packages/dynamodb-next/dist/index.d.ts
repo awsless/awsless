@@ -551,7 +551,7 @@ type StartDynamoDBOptions<T extends Tables> = {
     seed?: SeedTable<AnyTable>[];
     engine?: 'speed' | 'correctness';
 };
-declare const mockDynamoDB: <T extends Tables>(configOrServer: StartDynamoDBOptions<T> | DynamoDBServer) => DynamoDBServer;
+declare const mockDynamoDB: <T extends Tables>(configOrServer: StartDynamoDBOptions<T>) => DynamoDBServer;
 
 declare const migrate: (client: DynamoDBClient, tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTable | AnyTable[]) => Promise<_aws_sdk_client_dynamodb.CreateTableCommandOutput[]>;
 

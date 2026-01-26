@@ -143,17 +143,22 @@ export const buildConditionExpression = (
 		}
 
 		const param = (index: number) => {
-			const entry = value[index]
+			const arg = value[index]
 
-			if (entry instanceof Fluent) {
-				return attrs.path(getFluentPath(entry))
+			if (arg instanceof Fluent) {
+				return attrs.path(getFluentPath(arg))
 			}
 
-			return v(entry)
+			return v(arg)
 		}
 
 		switch (op) {
 			case 'eq':
+				const arg = value[0]
+				if (typeof arg === 'undefined' || (arg instanceof Set && arg.size === 0)) {
+					return `attribute_not_exists(${p})`
+				}
+
 				return `${p} = ${param(0)}`
 			case 'nq':
 				return `${p} <> ${param(0)}`

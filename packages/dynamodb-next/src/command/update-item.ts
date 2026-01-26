@@ -30,6 +30,8 @@ export const updateItem = <T extends AnyTable, R extends UpdateReturnValue>(
 		...attrs.attributes(),
 	})
 
+	// console.log('UPDATE ITEM', command.input)
+
 	return {
 		...transactable(() => ({
 			Update: command.input as UpdateItemCommandInput & {

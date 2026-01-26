@@ -24,6 +24,8 @@ export const putItem = <T extends AnyTable, R extends ReturnValue>(
 		...attrs.attributes(),
 	})
 
+	// console.log('PUT ITEM', command.input)
+
 	return {
 		...transactable(() => ({
 			Put: command.input,

@@ -1,12 +1,12 @@
-import { randomUUID, UUID } from 'crypto'
-import { array, define, getItem, Infer, mockDynamoDB, number, object, putItem, updateItem, uuid } from '../../src'
+import { randomUUID } from 'crypto'
+import { define, getItem, Infer, mockDynamoDB, number, object, putItem, string, updateItem } from '../../src'
 
-describe('array', () => {
+describe('number', () => {
 	const table = define('table', {
 		hash: 'id',
 		schema: object({
-			id: uuid(),
-			array: array(number()),
+			id: string(),
+			count: number(),
 		}),
 	})
 
@@ -15,7 +15,7 @@ describe('array', () => {
 	const id = randomUUID()
 	const item: Infer<typeof table> = {
 		id,
-		array: [1],
+		count: 0,
 	}
 
 	it('put', async () => {
@@ -28,54 +28,44 @@ describe('array', () => {
 		expectTypeOf(result).toEqualTypeOf<
 			| undefined
 			| {
-					id: UUID
-					array: number[]
+					id: string
+					count: number
 			  }
 		>()
 
 		expect(result).toStrictEqual(item)
 	})
 
-	it('update push', async () => {
+	it('update incr', async () => {
 		const result = await updateItem(
 			table,
 			{ id },
 			{
 				return: 'ALL_NEW',
-				update: e => [
-					//
-					// e.array.at(1).set(2),
-					e.array.push(2),
-				],
-				when: e => [
-					//
-					e.array.at(0).exists(),
-				],
+				update: e => [e.count.incr(10)],
+				when: e => [e.count.eq(0)],
 			}
 		)
 
 		expect(result).toStrictEqual({
 			id,
-			array: [1, 2],
+			count: 10,
 		})
 	})
 
-	it('update delete', async () => {
+	it('update decr', async () => {
 		const result = await updateItem(
 			table,
 			{ id },
 			{
 				return: 'ALL_NEW',
-				update: e => [
-					//
-					e.array.at(0).delete(),
-				],
+				update: e => [e.count.decr(5)],
 			}
 		)
 
 		expect(result).toStrictEqual({
 			id,
-			array: [2],
+			count: 5,
 		})
 	})
 })

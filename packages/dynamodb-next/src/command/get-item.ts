@@ -24,6 +24,8 @@ export const getItem = <T extends AnyTable, const P extends ProjectionExpression
 		...attrs.attributes(),
 	})
 
+	// console.log('GET ITEM', command.input)
+
 	return {
 		...transactable(() => ({
 			unmarshall: (item: Record<string, AttributeValue>): ProjectionResponse<T, P> => table.unmarshall(item),

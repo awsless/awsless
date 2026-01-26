@@ -78,8 +78,8 @@ export type BaseSchema<A extends AttributeType, T = any, Exp extends Expression 
 	marshall(value: T): AttributeInput<A> | undefined
 	unmarshall(value: AttributeOutput<A>): T
 
-	filterIn(value: T | undefined): boolean
-	filterOut(value: T | undefined): boolean
+	// filterIn(value: T | undefined): boolean
+	// filterOut(value: T | undefined): boolean
 
 	walk?(...path: Array<string | number>): AnySchema | undefined
 }
@@ -100,12 +100,12 @@ export const createSchema = <A extends AttributeType, T>(props: SchemaProps<A, T
 		unmarshall(value) {
 			return this.decode(value[props.type!])
 		},
-		filterIn(value) {
-			return typeof value === 'undefined'
-		},
-		filterOut(value) {
-			return typeof value === 'undefined'
-		},
+		// filterIn(value) {
+		// 	return typeof value === 'undefined'
+		// },
+		// filterOut(value) {
+		// 	return typeof value === 'undefined'
+		// },
 		...props,
 	}
 }

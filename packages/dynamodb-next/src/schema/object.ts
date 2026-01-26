@@ -32,11 +32,14 @@ export const object = <P extends Properties, R extends AnySchema | undefined = u
 			for (const [key, schema] of Object.entries(props)) {
 				const value = input[key]
 
-				if (schema.filterIn(value)) {
+				if (typeof value === 'undefined') {
 					continue
 				}
 
-				result[key] = schema.marshall(value)
+				const marshalled = schema.marshall(value)
+				if (typeof marshalled !== 'undefined') {
+					result[key] = marshalled
+				}
 			}
 
 			if (rest) {
@@ -45,11 +48,16 @@ export const object = <P extends Properties, R extends AnySchema | undefined = u
 						continue
 					}
 
-					if (rest.filterIn(value)) {
+					if (typeof value === 'undefined') {
 						continue
 					}
 
-					result[key] = rest.marshall(value)
+					const marshalled = rest.marshall(value)
+					if (typeof marshalled !== 'undefined') {
+						result[key] = marshalled
+					}
+
+					// result[key] = rest.marshall(value)
 				}
 			}
 
@@ -61,7 +69,7 @@ export const object = <P extends Properties, R extends AnySchema | undefined = u
 			for (const [key, schema] of Object.entries(props)) {
 				const value = output[key]
 
-				if (schema.filterOut(value)) {
+				if (typeof value === 'undefined') {
 					continue
 				}
 
@@ -74,7 +82,7 @@ export const object = <P extends Properties, R extends AnySchema | undefined = u
 						continue
 					}
 
-					if (rest.filterIn(value)) {
+					if (typeof value === 'undefined') {
 						continue
 					}
 

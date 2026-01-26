@@ -35,15 +35,23 @@ export const optional = <T extends AnySchema>(schema: T): OptionalSchema<T> => {
 		...schema,
 		marshall(value) {
 			if (typeof value === 'undefined') {
-				return undefined
+				return { NULL: true }
 			}
+
+			// if (typeof value === 'undefined') {
+			// 	return undefined
+			// }
 
 			return schema.marshall(value)
 		},
 		unmarshall(value) {
-			if (typeof value === 'undefined') {
+			if (value.NULL) {
 				return undefined
 			}
+
+			// if (typeof value === 'undefined') {
+			// 	return undefined
+			// }
 
 			return schema.unmarshall(value)
 		},

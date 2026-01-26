@@ -341,7 +341,26 @@ export class Table {
 	}
 
 	scan(limit?: number, exclusiveStartKey?: AttributeMap): { items: AttributeMap[]; lastEvaluatedKey?: AttributeMap } {
+		const hashAttr = this.getHashKeyName()
+		const rangeAttr = this.getRangeKeyName()
+
 		const allItems = Array.from(this.items.values()).map(item => deepClone(item))
+		allItems.sort((a, b) => {
+			const hashA = a[hashAttr]
+			const hashB = b[hashAttr]
+			if (hashA && hashB) {
+				const hashCmp = this.compareAttributes(hashA, hashB)
+				if (hashCmp !== 0) return hashCmp
+			}
+			if (rangeAttr) {
+				const rangeA = a[rangeAttr]
+				const rangeB = b[rangeAttr]
+				if (rangeA && rangeB) {
+					return this.compareAttributes(rangeA, rangeB)
+				}
+			}
+			return 0
+		})
 
 		// Find start index if exclusiveStartKey is provided
 		let startIdx = 0

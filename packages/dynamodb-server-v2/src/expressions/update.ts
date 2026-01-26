@@ -284,6 +284,22 @@ function resolveOperand(item: AttributeMap, operand: string, context: UpdateCont
 		return context.expressionAttributeValues?.[operand]
 	}
 
+	const ifNotExistsMatch = operand.match(/^if_not_exists\s*\(\s*([^,]+)\s*,\s*(.+)\s*\)$/i)
+	if (ifNotExistsMatch) {
+		const existing = resolveOperand(item, ifNotExistsMatch[1]!.trim(), context)
+		return existing !== undefined ? existing : resolveOperand(item, ifNotExistsMatch[2]!.trim(), context)
+	}
+
+	const listAppendMatch = operand.match(/^list_append\s*\(\s*([^,]+)\s*,\s*(.+)\s*\)$/i)
+	if (listAppendMatch) {
+		const list1 = resolveOperand(item, listAppendMatch[1]!.trim(), context)
+		const list2 = resolveOperand(item, listAppendMatch[2]!.trim(), context)
+		if (list1 && 'L' in list1 && list2 && 'L' in list2) {
+			return { L: [...list1.L, ...list2.L] }
+		}
+		return list1 && 'L' in list1 ? list1 : list2
+	}
+
 	const segments = parsePath(operand, context.expressionAttributeNames)
 	return getValueAtPath(item, segments)
 }

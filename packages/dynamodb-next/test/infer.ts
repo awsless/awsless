@@ -118,8 +118,8 @@ describe('Infer', () => {
 			}
 			variant: { type: 'one'; one: number } | { type: 'two'; two: number }
 			sets: {
-				string: Set<string>
-				number: Set<number>
+				string?: Set<string>
+				number?: Set<number>
 			}
 		}
 

@@ -1266,6 +1266,20 @@ function resolveOperand(item, operand, context) {
   if (operand.startsWith(":")) {
     return context.expressionAttributeValues?.[operand];
   }
+  const ifNotExistsMatch = operand.match(/^if_not_exists\s*\(\s*([^,]+)\s*,\s*(.+)\s*\)$/i);
+  if (ifNotExistsMatch) {
+    const existing = resolveOperand(item, ifNotExistsMatch[1].trim(), context);
+    return existing !== void 0 ? existing : resolveOperand(item, ifNotExistsMatch[2].trim(), context);
+  }
+  const listAppendMatch = operand.match(/^list_append\s*\(\s*([^,]+)\s*,\s*(.+)\s*\)$/i);
+  if (listAppendMatch) {
+    const list1 = resolveOperand(item, listAppendMatch[1].trim(), context);
+    const list2 = resolveOperand(item, listAppendMatch[2].trim(), context);
+    if (list1 && "L" in list1 && list2 && "L" in list2) {
+      return { L: [...list1.L, ...list2.L] };
+    }
+    return list1 && "L" in list1 ? list1 : list2;
+  }
   const segments = parsePath(operand, context.expressionAttributeNames);
   return getValueAtPath(item, segments);
 }
@@ -2561,7 +2575,25 @@ var Table = class {
     return serializeKey(extractKey(item, keySchema), keySchema);
   }
   scan(limit, exclusiveStartKey) {
+    const hashAttr = this.getHashKeyName();
+    const rangeAttr = this.getRangeKeyName();
     const allItems = Array.from(this.items.values()).map((item) => deepClone(item));
+    allItems.sort((a, b) => {
+      const hashA = a[hashAttr];
+      const hashB = b[hashAttr];
+      if (hashA && hashB) {
+        const hashCmp = this.compareAttributes(hashA, hashB);
+        if (hashCmp !== 0) return hashCmp;
+      }
+      if (rangeAttr) {
+        const rangeA = a[rangeAttr];
+        const rangeB = b[rangeAttr];
+        if (rangeA && rangeB) {
+          return this.compareAttributes(rangeA, rangeB);
+        }
+      }
+      return 0;
+    });
     let startIdx = 0;
     if (exclusiveStartKey) {
       const startKey = serializeKey(exclusiveStartKey, this.keySchema);
