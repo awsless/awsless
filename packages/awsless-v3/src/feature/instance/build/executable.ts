@@ -10,9 +10,10 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 
 	// const args = ['build', input, '--compile', '--target', target, '--outfile', filePath]
 
+	let result: Bun.BuildOutput
 	try {
 		// await exec(`bun ${args.join(' ')}`)
-		await Bun.build({
+		result = await Bun.build({
 			entrypoints: [input],
 			compile: {
 				target: target,
@@ -23,6 +24,10 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 		})
 	} catch (error) {
 		throw new Error(`Executable build failed: ${error instanceof Error ? error.message : JSON.stringify(error)}`)
+	}
+
+	if (!result.success) {
+		throw new Error(`Executable build failed: ${result.logs?.map(log => log.message).join('\n')}`)
 	}
 
 	const file = await readFile(filePath)
