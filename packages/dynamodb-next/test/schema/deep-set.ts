@@ -32,14 +32,16 @@ describe('set', () => {
 			| {
 					id: number
 					object: {
-						set?: Set<string>
+						set: Set<string>
 					}
 			  }
 		>()
 
 		expect(result).toStrictEqual({
 			id: 1,
-			object: {},
+			object: {
+				set: new Set(),
+			},
 		})
 	})
 
@@ -62,7 +64,9 @@ describe('set', () => {
 
 		expect(result).toStrictEqual({
 			id: 1,
-			object: {},
+			object: {
+				set: new Set(),
+			},
 		})
 	})
 
@@ -106,7 +110,9 @@ describe('set', () => {
 
 		expect(result).toStrictEqual({
 			id: 1,
-			object: {},
+			object: {
+				set: new Set(),
+			},
 		})
 	})
 })

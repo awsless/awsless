@@ -118,8 +118,8 @@ describe('Infer', () => {
 			}
 			variant: { type: 'one'; one: number } | { type: 'two'; two: number }
 			sets: {
-				string?: Set<string>
-				number?: Set<number>
+				string: Set<string>
+				number: Set<number>
 			}
 		}
 
@@ -418,7 +418,7 @@ describe('Infer', () => {
 					// array
 					e.array.eq(['test']),
 					e.array.nq(['test']),
-					e.array.contains(['test']),
+					e.array.contains('test'),
 					e.array.exists(),
 					e.array.notExists(),
 					e.array.type('L'),
@@ -429,7 +429,8 @@ describe('Infer', () => {
 					// tuple
 					e.tuple.eq(['test', 1]),
 					e.tuple.nq(['test', 1]),
-					e.tuple.contains(['test', 1]),
+					e.tuple.contains('test'),
+					e.tuple.contains(1),
 					e.tuple.exists(),
 					e.tuple.notExists(),
 					e.tuple.type('L'),
@@ -442,7 +443,7 @@ describe('Infer', () => {
 					// tuple with rest
 					e.tupleRest.eq(['test', 'test', 1, 2, 3]),
 					e.tupleRest.nq(['test', 'test', 1, 2, 3]),
-					e.tupleRest.contains(['test', 'test', 1, 2, 3]),
+					e.tupleRest.contains('test'),
 					e.tupleRest.exists(),
 					e.tupleRest.notExists(),
 					e.tupleRest.type('L'),
@@ -463,14 +464,14 @@ describe('Infer', () => {
 					// sets
 					e.sets.number.eq(new Set([1])),
 					e.sets.number.nq(new Set([1])),
-					e.sets.number.contains(new Set([1])),
+					e.sets.number.contains(1),
 					e.sets.number.exists(),
 					e.sets.number.notExists(),
 					e.sets.number.type('NS'),
 
 					e.sets.string.eq(new Set(['test'])),
 					e.sets.string.nq(new Set(['test'])),
-					e.sets.string.contains(new Set(['test'])),
+					e.sets.string.contains('test'),
 					e.sets.string.exists(),
 					e.sets.string.notExists(),
 					e.sets.string.type('SS'),

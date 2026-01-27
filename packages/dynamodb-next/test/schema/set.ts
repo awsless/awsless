@@ -27,12 +27,13 @@ describe('set', () => {
 			| undefined
 			| {
 					id: number
-					set?: Set<string>
+					set: Set<string>
 			  }
 		>()
 
 		expect(result).toStrictEqual({
 			id: 1,
+			set: new Set(),
 		})
 	})
 
@@ -55,6 +56,7 @@ describe('set', () => {
 
 		expect(result).toStrictEqual({
 			id: 1,
+			set: new Set(),
 		})
 	})
 
@@ -91,11 +93,16 @@ describe('set', () => {
 					//
 					e.set.remove(new Set(['hello'])),
 				],
+				when: e => [
+					//
+					e.set.contains('hello'),
+				],
 			}
 		)
 
 		expect(result).toStrictEqual({
 			id: 1,
+			set: new Set(),
 		})
 	})
 })

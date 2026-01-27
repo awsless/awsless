@@ -84,12 +84,12 @@ var createSchema = (props) => {
     unmarshall(value) {
       return this.decode(value[props.type]);
     },
-    filterIn(value) {
-      return typeof value === "undefined";
-    },
-    filterOut(value) {
-      return typeof value === "undefined";
-    },
+    // filterIn(value) {
+    // 	return typeof value === 'undefined'
+    // },
+    // filterOut(value) {
+    // 	return typeof value === 'undefined'
+    // },
     ...props
   };
 };
@@ -137,14 +137,12 @@ var unknown = (opts) => createSchema({
 var any = (opts) => unknown(opts);
 
 // src/schema/set.ts
+var SET_KEY = "__set__";
 var set = (schema) => {
   const type = `${schema.type}S`;
   return createSchema({
     type,
     encode(value) {
-      if (value.size === 0) {
-        return void 0;
-      }
       return Array.from(value).map((v) => {
         return schema.encode(v);
       });
@@ -156,14 +154,39 @@ var set = (schema) => {
         })
       );
     },
+    marshall(value) {
+      if (value.size === 0) {
+        return { M: {} };
+      }
+      return {
+        M: {
+          [SET_KEY]: {
+            [type]: this.encode(value)
+          }
+        }
+      };
+    },
     unmarshall(value) {
-      if (typeof value === "undefined") {
+      if ("M" in value) {
+        const map = value.M;
+        if (map[SET_KEY]) {
+          return this.decode(map[SET_KEY][type]);
+        }
         return /* @__PURE__ */ new Set();
       }
-      return this.decode(value[type]);
+      if (type in value) {
+        return this.decode(value[type]);
+      }
+      return /* @__PURE__ */ new Set();
     },
-    filterIn: (value) => typeof value === "undefined" || value.size === 0,
-    filterOut: () => false,
+    marshallInner(value) {
+      if (value.size === 0) {
+        return void 0;
+      }
+      return {
+        [type]: this.encode(value)
+      };
+    },
     walk: () => schema
   });
 };
@@ -225,20 +248,26 @@ var object = (props, rest) => createSchema({
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
       const value = input[key];
-      if (schema.filterIn(value)) {
+      if (typeof value === "undefined") {
         continue;
       }
-      result[key] = schema.marshall(value);
+      const marshalled = schema.marshall(value);
+      if (typeof marshalled !== "undefined") {
+        result[key] = marshalled;
+      }
     }
     if (rest) {
       for (const [key, value] of Object.entries(input)) {
         if (props[key]) {
           continue;
         }
-        if (rest.filterIn(value)) {
+        if (typeof value === "undefined") {
           continue;
         }
-        result[key] = rest.marshall(value);
+        const marshalled = rest.marshall(value);
+        if (typeof marshalled !== "undefined") {
+          result[key] = marshalled;
+        }
       }
     }
     return result;
@@ -247,7 +276,7 @@ var object = (props, rest) => createSchema({
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
       const value = output[key];
-      if (schema.filterOut(value)) {
+      if (typeof value === "undefined") {
         continue;
       }
       result[key] = schema.unmarshall(value);
@@ -257,7 +286,7 @@ var object = (props, rest) => createSchema({
         if (props[key]) {
           continue;
         }
-        if (rest.filterIn(value)) {
+        if (typeof value === "undefined") {
           continue;
         }
         result[key] = rest.unmarshall(value);
@@ -628,6 +657,24 @@ var ExpressionAttributes = class {
   value(value, path) {
     const marshalled = this.table.walk(...path).marshall(value);
     return this.raw(marshalled);
+  }
+  innerValue(value, path) {
+    const schema = this.table.walk(...path);
+    const marshalled = schema.marshallInner ? schema.marshallInner(value) : schema.marshall(value);
+    return this.raw(marshalled);
+  }
+  isSet(path) {
+    const schema = this.table.walk(...path);
+    const type = schema.type;
+    return type === "SS" || type === "NS" || type === "BS";
+  }
+  valueElement(value, path) {
+    const schema = this.table.walk(...path);
+    const elementSchema = schema.walk?.() ?? schema.walk?.(0);
+    if (elementSchema && typeof elementSchema.marshall === "function") {
+      return this.raw(elementSchema.marshall(value));
+    }
+    return this.raw(schema.marshall(value));
   }
   raw(value) {
     let key;
@@ -1058,16 +1105,22 @@ var buildConditionExpression = (attrs, builder) => {
       };
     }
     const param = (index) => {
-      const entry = value[index];
-      if (entry instanceof Fluent) {
-        return attrs.path(getFluentPath(entry));
+      const arg = value[index];
+      if (arg instanceof Fluent) {
+        return attrs.path(getFluentPath(arg));
       }
-      return v(entry);
+      return v(arg);
     };
     switch (op) {
       case "eq":
+        if (typeof value[0] === "undefined") {
+          return `attribute_not_exists(${p})`;
+        }
         return `${p} = ${param(0)}`;
       case "nq":
+        if (typeof value[0] === "undefined") {
+          return `attribute_exists(${p})`;
+        }
         return `${p} <> ${param(0)}`;
       case "lt":
         return `${p} < ${param(0)}`;
@@ -1086,8 +1139,14 @@ var buildConditionExpression = (attrs, builder) => {
           }
           return attrs.value(item, path);
         }).join(", ")})`;
-      case "contains":
-        return `contains(${p}, ${param(0)})`;
+      case "contains": {
+        const elemParam = attrs.valueElement(value[0], path);
+        if (attrs.isSet(path)) {
+          const innerPath = `${p}.${attrs.name(SET_KEY)}`;
+          return `contains(${innerPath}, ${elemParam})`;
+        }
+        return `contains(${p}, ${elemParam})`;
+      }
       case "startsWith":
         return `begins_with(${p}, ${param(0)})`;
       case "exists":
@@ -1136,8 +1195,7 @@ var shouldDelete = (value) => {
   return (
     // undefined value's should be deleted.
     typeof value === "undefined" || // null value's should be deleted.
-    value === null || // empty set's should be deleted.
-    value instanceof Set && value.size === 0
+    value === null
   );
 };
 var buildUpdateExpression = (attrs, builder) => {
@@ -1202,12 +1260,16 @@ var buildUpdateExpression = (attrs, builder) => {
       case "decr":
         set2.push(`${p} = if_not_exists(${p}, ${param(1, { N: "0" })}) - ${param(0)}`);
         break;
-      case "append":
-        add.push(`${p} ${param(0)}`);
+      case "append": {
+        const innerPath = `${p}.${attrs.name(SET_KEY)}`;
+        add.push(`${innerPath} ${attrs.innerValue(value[0], path)}`);
         break;
-      case "remove":
-        del.push(`${p} ${param(0)}`);
+      }
+      case "remove": {
+        const innerPath = `${p}.${attrs.name(SET_KEY)}`;
+        del.push(`${innerPath} ${attrs.innerValue(value[0], path)}`);
         break;
+      }
       default:
         throw new TypeError(`Unsupported operator: ${op}`);
     }

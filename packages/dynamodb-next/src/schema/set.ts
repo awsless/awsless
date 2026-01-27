@@ -3,10 +3,12 @@ import { BaseSchema, createSchema } from './schema'
 
 type AllowedSchema = BaseSchema<'S'> | BaseSchema<'N'> | BaseSchema<'B'>
 
+export const SET_KEY = '__set__'
+
 export type SetSchema<T extends AllowedSchema> = BaseSchema<
 	`${NonNullable<T['type']>}S`,
-	Set<T[symbol]['Type']> | undefined,
-	SetExpression<`${NonNullable<T['type']>}S`, Set<T[symbol]['Type']> | undefined>
+	Set<T[symbol]['Type']>,
+	SetExpression<`${NonNullable<T['type']>}S`, Set<T[symbol]['Type']>>
 >
 
 export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
@@ -15,22 +17,11 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 	return createSchema<`${NonNullable<S['type']>}S`, Set<S[symbol]['Type']>>({
 		type,
 		encode(value) {
-			// if (typeof value === 'undefined') {
-			// 	return null
-			// }
-			// if (value.size === 0) {
-			// 	return undefined as any
-			// }
-
 			return Array.from(value).map(v => {
 				return schema.encode(v) as any
 			})
 		},
 		decode(value) {
-			// if (typeof value === 'undefined') {
-			// 	return new Set()
-			// }
-
 			return new Set<S[symbol]['Type']>(
 				value.map(v => {
 					return schema.decode(v as any)
@@ -38,36 +29,43 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 			)
 		},
 		marshall(value) {
-			// if (value.size === 0) {
-			// 	return { M: { empty: { BOOL: true } } }
-			// }
-
 			if (value.size === 0) {
-				return undefined
+				return { M: {} } as any
+			}
+
+			return {
+				M: {
+					[SET_KEY]: {
+						[type]: this.encode!(value),
+					},
+				},
+			} as any
+		},
+		unmarshall(value: any) {
+			if ('M' in value) {
+				const map = value.M
+				if (map[SET_KEY]) {
+					return this.decode!(map[SET_KEY][type])
+				}
+				return new Set()
+			}
+
+			// Fallback for legacy data stored as raw sets
+			if (type in value) {
+				return this.decode!(value[type])
+			}
+
+			return new Set()
+		},
+		marshallInner(value) {
+			if (value.size === 0) {
+				return undefined as any
 			}
 
 			return {
 				[type]: this.encode!(value),
-			} as any
+			}
 		},
-		// unmarshall(value) {
-		// 	// if ('M' in value && typeof value.M === 'object' && value.M !== null && 'empty' in value.M) {
-		// 	// 	return new Set()
-		// 	// }
-
-		// 	if (typeof value === 'undefined') {
-		// 		return new Set()
-		// 	}
-
-		// 	return this.decode!(value[type])
-		// },
-
-		// 	return this.decode!(value[type])
-		// },
-		// filterIn: value => typeof value === 'undefined' || value.size === 0,
-		// filterOut: value => typeof value === 'undefined' || value.size === 0,
-		// filterIn: () => false,
-		// filterOut: () => false,
 		walk: () => schema,
 	})
 }

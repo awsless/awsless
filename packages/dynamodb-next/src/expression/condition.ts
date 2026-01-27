@@ -1,4 +1,5 @@
 import { AttributeType } from '../schema/schema'
+import { SET_KEY } from '../schema/set'
 import { AnyTable } from '../table'
 import { ExpressionAttributes } from './attributes'
 import { createFluent, Fluent, getFluentExpression, getFluentPath } from './fluent'
@@ -62,17 +63,21 @@ export type VariantConditionExpression<T> = BaseConditionExpression<'M', T>
 // 	| BaseConditionExpression<T>
 // 	| C
 
+type ElementOfList<T> = T extends (infer E)[] ? E : never
+type ElementOfSet<T> = T extends Set<infer E> ? E : never
+
 export type ListConditionExpression<T, L extends any[]> = {
 	at<K extends number>(key: K): L[K]
 } & BaseConditionExpression<'L', T> &
-	ContainsFunction<'L', T>
+	ContainsFunction<'L', ElementOfList<T>>
 
 export type TupleWithRestConditionExpression<T extends any[], L extends any[], R> = {
 	at<K extends number>(index: K): L[K] extends undefined ? R : L[K]
 } & BaseConditionExpression<'L', T> &
-	ContainsFunction<'L', T>
+	ContainsFunction<'L', ElementOfList<T>>
 
-export type SetConditionExpression<A extends AttributeType, T> = BaseConditionExpression<A, T> & ContainsFunction<A, T>
+export type SetConditionExpression<A extends AttributeType, T> = BaseConditionExpression<A, T> &
+	ContainsFunction<A, ElementOfSet<T>>
 
 export type StringConditionExpression<T> = BaseConditionExpression<'S', T> &
 	StartsWithFunction &
@@ -154,13 +159,16 @@ export const buildConditionExpression = (
 
 		switch (op) {
 			case 'eq':
-				const arg = value[0]
-				if (typeof arg === 'undefined' || (arg instanceof Set && arg.size === 0)) {
+				if (typeof value[0] === 'undefined') {
 					return `attribute_not_exists(${p})`
 				}
 
 				return `${p} = ${param(0)}`
 			case 'nq':
+				if (typeof value[0] === 'undefined') {
+					return `attribute_exists(${p})`
+				}
+
 				return `${p} <> ${param(0)}`
 			case 'lt':
 				return `${p} < ${param(0)}`
@@ -181,8 +189,15 @@ export const buildConditionExpression = (
 						return attrs.value(item, path)
 					})
 					.join(', ')})`
-			case 'contains':
-				return `contains(${p}, ${param(0)})`
+			case 'contains': {
+				const elemParam = attrs.valueElement(value[0], path)
+				if (attrs.isSet(path)) {
+					const innerPath = `${p}.${attrs.name(SET_KEY)}`
+					return `contains(${innerPath}, ${elemParam})`
+				}
+
+				return `contains(${p}, ${elemParam})`
+			}
 			case 'startsWith':
 				return `begins_with(${p}, ${param(0)})`
 			case 'exists':

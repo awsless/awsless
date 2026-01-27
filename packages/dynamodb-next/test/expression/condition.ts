@@ -3,9 +3,11 @@ import { buildConditionExpression } from '../../src/expression/condition'
 import { createFluent, Fluent } from '../../src/expression/fluent'
 
 describe('Condition Expression', () => {
+	const mockTable = { walk: () => ({ marshall: (v: any) => v }) } as any
+
 	const assert = (expectation: string, condition: Fluent | Fluent[]) => {
 		it(expectation, async () => {
-			const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+			const attrs = new ExpressionAttributes(mockTable)
 			const result = buildConditionExpression(attrs, () => condition)
 
 			expect(result).toBe(expectation)
@@ -71,7 +73,7 @@ describe('Condition Expression', () => {
 	})
 
 	it('should throw for unknown operations', () => {
-		const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+		const attrs = new ExpressionAttributes(mockTable)
 		expect(() => buildConditionExpression(attrs, e.id.unknown())).toThrow(TypeError)
 	})
 })

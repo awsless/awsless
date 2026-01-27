@@ -1,4 +1,5 @@
 import { AttributeType } from '../schema/schema'
+import { SET_KEY } from '../schema/set'
 import { AnyTable } from '../table'
 import { ExpressionAttributes } from './attributes'
 import { createFluent, Fluent, getFluentExpression, getFluentPath } from './fluent'
@@ -86,9 +87,7 @@ const shouldDelete = (value: unknown) => {
 		// undefined value's should be deleted.
 		typeof value === 'undefined' ||
 		// null value's should be deleted.
-		value === null ||
-		// empty set's should be deleted.
-		(value instanceof Set && value.size === 0)
+		value === null
 	)
 }
 
@@ -173,13 +172,17 @@ export const buildUpdateExpression = (
 				set.push(`${p} = if_not_exists(${p}, ${param(1, { N: '0' })}) - ${param(0)}`)
 				break
 
-			case 'append':
-				add.push(`${p} ${param(0)}`)
+			case 'append': {
+				const innerPath = `${p}.${attrs.name(SET_KEY)}`
+				add.push(`${innerPath} ${attrs.innerValue(value[0], path)}`)
 				break
+			}
 
-			case 'remove':
-				del.push(`${p} ${param(0)}`)
+			case 'remove': {
+				const innerPath = `${p}.${attrs.name(SET_KEY)}`
+				del.push(`${innerPath} ${attrs.innerValue(value[0], path)}`)
 				break
+			}
 
 			default:
 				throw new TypeError(`Unsupported operator: ${op}`)

@@ -52,6 +52,8 @@ export type SchemaProps<A extends AttributeType, T = any> = {
 	filterIn?(value: T | undefined): boolean
 	filterOut?(value: T | undefined): boolean
 
+	marshallInner?(value: T): AttributeInput<A> | undefined
+
 	walk?: (...path: Array<string | number>) => AnySchema | undefined
 }
 
@@ -78,6 +80,7 @@ export type BaseSchema<A extends AttributeType, T = any, Exp extends Expression 
 	marshall(value: T): AttributeInput<A> | undefined
 	unmarshall(value: AttributeOutput<A>): T
 
+	marshallInner?(value: T): AttributeInput<A> | undefined
 	// filterIn(value: T | undefined): boolean
 	// filterOut(value: T | undefined): boolean
 

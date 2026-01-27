@@ -5,9 +5,11 @@ import { buildUpdateExpression } from '../../src/expression/update'
 describe('Update Expression', () => {
 	const e = createFluent()
 
+	const mockTable = { walk: () => ({ marshall: (v: any) => v }) } as any
+
 	const assert = (expectation: string, update: any) => {
 		it(expectation, async () => {
-			const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+			const attrs = new ExpressionAttributes(mockTable)
 			const result = buildUpdateExpression(attrs, () => update)
 			expect(result).toBe(expectation)
 		})
@@ -24,7 +26,7 @@ describe('Update Expression', () => {
 	it('should throw when you try to set the root object', () => {
 		expect(() => {
 			const update = e.set({ id: 1, name: 1 })
-			const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+			const attrs = new ExpressionAttributes(mockTable)
 			buildUpdateExpression(attrs, () => update)
 		}).toThrow(TypeError)
 	})
@@ -63,7 +65,7 @@ describe('Update Expression', () => {
 		assert('REMOVE #n1', e.id.set())
 		assert('REMOVE #n1', e.id.set(null))
 		assert('REMOVE #n1', e.id.set(undefined))
-		assert('REMOVE #n1', e.id.set(new Set()))
+		assert('SET #n1 = :v1', e.id.set(new Set()))
 	})
 
 	describe('push', () => {
@@ -71,15 +73,15 @@ describe('Update Expression', () => {
 	})
 
 	describe('append', () => {
-		assert('ADD #n1 :v1', e.id.append(1))
+		assert('ADD #n1.#n2 :v1', e.id.append(1))
 	})
 
 	describe('remove', () => {
-		assert('DELETE #n1 :v1', e.id.remove(1))
+		assert('DELETE #n1.#n2 :v1', e.id.remove(1))
 	})
 
 	describe('combine', () => {
-		assert('ADD #n1 :v1 DELETE #n1 :v1', [
+		assert('ADD #n1.#n2 :v1 DELETE #n1.#n2 :v1', [
 			//
 			e.id.append(1),
 			e.id.remove(1),
@@ -87,7 +89,7 @@ describe('Update Expression', () => {
 	})
 
 	it('should throw for unknown operations', () => {
-		const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+		const attrs = new ExpressionAttributes(mockTable)
 		expect(() => buildUpdateExpression(attrs, e.id.unknown())).toThrow(TypeError)
 	})
 })

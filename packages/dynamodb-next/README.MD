@@ -184,7 +184,22 @@ We provides the following schema types:
 - uuid
 - variant
 
-### Variant Schema Type
+### `set` Schema Type
+
+DynamoDB has a limitation where a empty `set` can't be stored.
+Instead the empty `set` attribute will be removed.
+But with this limitation it's not possible to differentiate between a empty `set` and a undefined attribute.
+In order to overcome this limitation we store a `set` differently.
+Examples of the data structure:
+
+- Undefined set:
+  `undefined`
+- Empty set:
+  `{ M: {} }`
+- Set with items:
+  `{ M: { __SET__: { SS: ['item'] } } }`
+
+### `variant` Schema Type
 
 When using variant types, we can't reliably reference the child properties of a specific variant in an update or condition expression. As a workaround, you could represent your variant's as optional object branches inside a single item shape:
 

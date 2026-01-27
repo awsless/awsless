@@ -209,15 +209,15 @@ describe('Schema', () => {
 					variant: { type: 'one'; one: number } | { type: 'two'; two: number }
 					any?: any
 					sets: {
-						empty?: Set<string>
-						string?: Set<string>
-						json?: Set<{ n: bigint }>
-						uuid?: Set<UUID>
-						number?: Set<number>
-						bigint?: Set<bigint>
-						bigfloat?: Set<BigFloat>
-						date?: Set<Date>
-						binary?: Set<Uint8Array>
+						empty: Set<string>
+						string: Set<string>
+						json: Set<{ n: bigint }>
+						uuid: Set<UUID>
+						number: Set<number>
+						bigint: Set<bigint>
+						bigfloat: Set<BigFloat>
+						date: Set<Date>
+						binary: Set<Uint8Array>
 					}
 			  }
 		>()

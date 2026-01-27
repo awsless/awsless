@@ -25,8 +25,8 @@ export type OptionalSchema<T extends AnySchema> = BaseSchema<
 				? BooleanExpression<T[symbol]['Type'] | undefined>
 				: 'B' extends T['type']
 					? BinaryExpression<T[symbol]['Type'] | undefined>
-					: 'SS' | 'NS' | 'BN' extends T['type']
-						? SetExpression<T['type'], T[symbol]['Type'] | undefined>
+					: NonNullable<T['type']> extends 'SS' | 'NS' | 'BS'
+						? SetExpression<NonNullable<T['type']>, T[symbol]['Type'] | undefined>
 						: T[symbol]['Expression']
 >
 
@@ -35,23 +35,15 @@ export const optional = <T extends AnySchema>(schema: T): OptionalSchema<T> => {
 		...schema,
 		marshall(value) {
 			if (typeof value === 'undefined') {
-				return { NULL: true }
+				return undefined
 			}
-
-			// if (typeof value === 'undefined') {
-			// 	return undefined
-			// }
 
 			return schema.marshall(value)
 		},
 		unmarshall(value) {
-			if (value.NULL) {
+			if (typeof value === 'undefined') {
 				return undefined
 			}
-
-			// if (typeof value === 'undefined') {
-			// 	return undefined
-			// }
 
 			return schema.unmarshall(value)
 		},

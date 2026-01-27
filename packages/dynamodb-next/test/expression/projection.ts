@@ -2,9 +2,11 @@ import { ExpressionAttributes } from '../../src/expression/attributes'
 import { buildProjectionExpression } from '../../src/expression/projection'
 
 describe('Projection Expression', () => {
+	const mockTable = { walk: () => ({ marshall: (v: any) => v }) } as any
+
 	const assert = (expectation: string, projection: string[]) => {
 		it(expectation, async () => {
-			const attrs = new ExpressionAttributes({ walk: () => ({ marshall: v => v }) })
+			const attrs = new ExpressionAttributes(mockTable)
 			const result = buildProjectionExpression(attrs, projection)
 
 			expect(result).toBe(expectation)

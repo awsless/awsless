@@ -70,6 +70,10 @@ describe('array', () => {
 					//
 					e.array.at(0).delete(),
 				],
+				when: e => [
+					//
+					e.array.contains(1),
+				],
 			}
 		)
 

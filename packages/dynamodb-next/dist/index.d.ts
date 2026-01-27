@@ -55,8 +55,7 @@ type BaseSchema<A extends AttributeType, T = any, Exp extends Expression = Expre
     decode(value: AttributeOutputValue<A>): T;
     marshall(value: T): AttributeInput<A> | undefined;
     unmarshall(value: AttributeOutput<A>): T;
-    filterIn(value: T | undefined): boolean;
-    filterOut(value: T | undefined): boolean;
+    marshallInner?(value: T): AttributeInput<A> | undefined;
     walk?(...path: Array<string | number>): AnySchema$1 | undefined;
 };
 
@@ -127,13 +126,15 @@ type MapConditionExpression<T, R extends Record<string, any>> = {
     at<K extends keyof R>(key: K): R[K];
 } & BaseConditionExpression<'M', T> & R;
 type VariantConditionExpression<T> = BaseConditionExpression<'M', T>;
+type ElementOfList<T> = T extends (infer E)[] ? E : never;
+type ElementOfSet<T> = T extends Set<infer E> ? E : never;
 type ListConditionExpression<T, L extends any[]> = {
     at<K extends number>(key: K): L[K];
-} & BaseConditionExpression<'L', T> & ContainsFunction<'L', T>;
+} & BaseConditionExpression<'L', T> & ContainsFunction<'L', ElementOfList<T>>;
 type TupleWithRestConditionExpression<T extends any[], L extends any[], R> = {
     at<K extends number>(index: K): L[K] extends undefined ? R : L[K];
-} & BaseConditionExpression<'L', T> & ContainsFunction<'L', T>;
-type SetConditionExpression<A extends AttributeType, T> = BaseConditionExpression<A, T> & ContainsFunction<A, T>;
+} & BaseConditionExpression<'L', T> & ContainsFunction<'L', ElementOfList<T>>;
+type SetConditionExpression<A extends AttributeType, T> = BaseConditionExpression<A, T> & ContainsFunction<A, ElementOfSet<T>>;
 type StringConditionExpression<T> = BaseConditionExpression<'S', T> & StartsWithFunction & ContainsFunction<'S', string> & InFunction<'S', T>;
 type JsonConditionExpression<T> = BaseConditionExpression<'S', T>;
 type NumberConditionExpression<T> = BaseConditionExpression<'N', T> & GreaterThanFunction<T> & GreaterThanOrEqualFunction<T> & LessThanFunction<T> & LessThanOrEqualFunction<T> & BetweenFunction<T> & InFunction<'N', T>;
@@ -424,7 +425,7 @@ type SetExpression<A extends AttributeType, T> = Expression<SetUpdateExpression<
 type UnknownExpression<T> = Expression<UnknownUpdateExpression<T>, UnknownConditionExpression<T>>;
 type EnumExpression<T> = Expression<UnknownUpdateExpression<T>, UnknownConditionExpression<T>>;
 
-type OptionalSchema<T extends AnySchema$1> = BaseSchema<T['type'], T[symbol]['Type'] | undefined, 'S' extends T['type'] ? StringExpression<T[symbol]['Type'] | undefined> : 'N' extends T['type'] ? NumberExpression<T[symbol]['Type'] | undefined> : 'BOOL' extends T['type'] ? BooleanExpression<T[symbol]['Type'] | undefined> : 'B' extends T['type'] ? BinaryExpression<T[symbol]['Type'] | undefined> : 'SS' | 'NS' | 'BN' extends T['type'] ? SetExpression<T['type'], T[symbol]['Type'] | undefined> : T[symbol]['Expression']>;
+type OptionalSchema<T extends AnySchema$1> = BaseSchema<T['type'], T[symbol]['Type'] | undefined, 'S' extends T['type'] ? StringExpression<T[symbol]['Type'] | undefined> : 'N' extends T['type'] ? NumberExpression<T[symbol]['Type'] | undefined> : 'BOOL' extends T['type'] ? BooleanExpression<T[symbol]['Type'] | undefined> : 'B' extends T['type'] ? BinaryExpression<T[symbol]['Type'] | undefined> : NonNullable<T['type']> extends 'SS' | 'NS' | 'BS' ? SetExpression<NonNullable<T['type']>, T[symbol]['Type'] | undefined> : T[symbol]['Expression']>;
 declare const optional: <T extends AnySchema$1>(schema: T) => OptionalSchema<T>;
 
 type UnknownOptions = {
