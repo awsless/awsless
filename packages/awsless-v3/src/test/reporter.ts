@@ -19,6 +19,7 @@ export type FinishedEvent = {
 	errors: TestError[]
 	passed: number
 	failed: number
+	duration: bigint
 	logs: string[]
 }
 
@@ -29,6 +30,7 @@ export class CustomReporter implements Reporter {
 	private logs: string[] = []
 	private events: Record<string, undefined | ((event?: unknown) => void)> = {}
 	private cache?: string
+	private startTime?: bigint
 
 	on(event: 'start', cb: () => void): void
 	on(event: 'update', cb: (event: { tasks: Task[] }) => void): void
@@ -39,7 +41,12 @@ export class CustomReporter implements Reporter {
 
 	onInit(ctx: Vitest) {
 		this.ctx = ctx
+		this.startTime = process.hrtime.bigint()
 	}
+
+	// onTestRunStart(specifications: ReadonlyArray<TestSpecification>) {
+	// 	// specifications.
+	// }
 
 	onCollected() {
 		this.tasks = this.ctx?.state.getFiles()
@@ -94,7 +101,15 @@ export class CustomReporter implements Reporter {
 			})
 			.flat()
 
-		this.events.finished?.({ errors, passed, failed, logs: this.logs })
+		const event: FinishedEvent = {
+			errors,
+			passed,
+			failed,
+			duration: (this.startTime ?? 0n) - process.hrtime.bigint(),
+			logs: this.logs,
+		}
+
+		this.events.finished?.(event)
 	}
 
 	update() {

@@ -1,3 +1,4 @@
+import { cmp, parse } from '@awsless/big-float'
 import type {
 	AttributeDefinition,
 	AttributeMap,
@@ -623,7 +624,7 @@ export class Table {
 
 	private compareAttributes(a: AttributeMap[string], b: AttributeMap[string]): number {
 		if ('S' in a && 'S' in b) return a.S.localeCompare(b.S)
-		if ('N' in a && 'N' in b) return parseFloat(a.N) - parseFloat(b.N)
+		if ('N' in a && 'N' in b) return cmp(parse(a.N), parse(b.N))
 		if ('B' in a && 'B' in b) return a.B.localeCompare(b.B)
 		return 0
 	}

@@ -1432,6 +1432,7 @@ var toCursorString = (cursor) => {
 // src/command/query.ts
 var query = (table, key, options = {}) => {
   const execute = async (cursor, limit) => {
+    const sort = options.order ?? options.sort;
     const attrs = new ExpressionAttributes(table);
     const command = new QueryCommand2({
       TableName: table.name,
@@ -1444,7 +1445,7 @@ var query = (table, key, options = {}) => {
         ])
       ),
       ConsistentRead: options.consistentRead,
-      ScanIndexForward: options.order ?? options.sort === "desc" ? false : true,
+      ScanIndexForward: sort === "desc" ? false : true,
       Limit: limit ?? options.limit ?? 10,
       ExclusiveStartKey: fromCursorString(cursor),
       ProjectionExpression: buildProjectionExpression(attrs, options.select),

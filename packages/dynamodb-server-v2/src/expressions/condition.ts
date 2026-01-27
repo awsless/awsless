@@ -1,3 +1,4 @@
+import { cmp, parse } from '@awsless/big-float'
 import { ValidationException } from '../errors/index.js'
 import type { AttributeMap, AttributeValue } from '../types.js'
 import { getValueAtPath, parsePath } from './path.js'
@@ -155,7 +156,11 @@ function tokenize(expression: string): Token[] {
 	return tokens
 }
 
-export function evaluateCondition(expression: string | undefined, item: AttributeMap, context: ConditionContext): boolean {
+export function evaluateCondition(
+	expression: string | undefined,
+	item: AttributeMap,
+	context: ConditionContext
+): boolean {
 	if (!expression || expression.trim() === '') {
 		return true
 	}
@@ -374,7 +379,7 @@ export function evaluateCondition(expression: string | undefined, item: Attribut
 				if (!rightValue || !('N' in rightValue)) {
 					throw new ValidationException('Size comparison requires numeric operand')
 				}
-				return compareNumbers(size, parseFloat(rightValue.N), nextToken.value)
+				return compareNumbers(size, Number(rightValue.N), nextToken.value)
 			}
 
 			return size > 0
@@ -505,7 +510,7 @@ function compareValues(a: AttributeValue, b: AttributeValue): number {
 		return a.S.localeCompare(b.S)
 	}
 	if ('N' in a && 'N' in b) {
-		return parseFloat(a.N) - parseFloat(b.N)
+		return cmp(parse(a.N), parse(b.N))
 	}
 	if ('B' in a && 'B' in b) {
 		return a.B.localeCompare(b.B)

@@ -20,7 +20,7 @@ type QueryOptions<
 	index?: I
 	consistentRead?: boolean
 	sort?: 'asc' | 'desc'
-	/** @deprecated */
+	/** @deprecated Use `sort` instead */
 	order?: 'asc' | 'desc'
 	limit?: number
 	cursor?: string
@@ -42,6 +42,7 @@ export const query = <
 	options: QueryOptions<T, P, I> = {}
 ) => {
 	const execute = async (cursor?: string, limit?: number) => {
+		const sort = options.order ?? options.sort
 		const attrs = new ExpressionAttributes(table)
 		const command = new QueryCommand({
 			TableName: table.name,
@@ -53,7 +54,7 @@ export const query = <
 				])
 			),
 			ConsistentRead: options.consistentRead,
-			ScanIndexForward: (options.order ?? options.sort === 'desc') ? false : true,
+			ScanIndexForward: sort === 'desc' ? false : true,
 			Limit: limit ?? options.limit ?? 10,
 			ExclusiveStartKey: fromCursorString(cursor),
 			ProjectionExpression: buildProjectionExpression(attrs, options.select),

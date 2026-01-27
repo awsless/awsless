@@ -669,7 +669,7 @@ type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefi
     index?: I;
     consistentRead?: boolean;
     sort?: 'asc' | 'desc';
-    /** @deprecated */
+    /** @deprecated Use `sort` instead */
     order?: 'asc' | 'desc';
     limit?: number;
     cursor?: string;

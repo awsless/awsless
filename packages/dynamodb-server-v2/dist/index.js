@@ -251,6 +251,9 @@ function listTables(store, input) {
   };
 }
 
+// src/expressions/condition.ts
+import { cmp, parse } from "@awsless/big-float";
+
 // src/expressions/path.ts
 function parsePath(path, attributeNames) {
   const segments = [];
@@ -710,7 +713,7 @@ function evaluateCondition(expression, item, context) {
         if (!rightValue || !("N" in rightValue)) {
           throw new ValidationException("Size comparison requires numeric operand");
         }
-        return compareNumbers(size, parseFloat(rightValue.N), nextToken.value);
+        return compareNumbers(size, Number(rightValue.N), nextToken.value);
       }
       return size > 0;
     }
@@ -778,20 +781,20 @@ function evaluateCondition(expression, item, context) {
       }
       return false;
     }
-    const cmp = compareValues(left, right);
+    const cmp5 = compareValues(left, right);
     switch (op) {
       case "=":
-        return cmp === 0;
+        return cmp5 === 0;
       case "<>":
-        return cmp !== 0;
+        return cmp5 !== 0;
       case "<":
-        return cmp < 0;
+        return cmp5 < 0;
       case "<=":
-        return cmp <= 0;
+        return cmp5 <= 0;
       case ">":
-        return cmp > 0;
+        return cmp5 > 0;
       case ">=":
-        return cmp >= 0;
+        return cmp5 >= 0;
       default:
         return false;
     }
@@ -821,7 +824,7 @@ function compareValues(a, b) {
     return a.S.localeCompare(b.S);
   }
   if ("N" in a && "N" in b) {
-    return parseFloat(a.N) - parseFloat(b.N);
+    return cmp(parse(a.N), parse(b.N));
   }
   if ("B" in a && "B" in b) {
     return a.B.localeCompare(b.B);
@@ -837,7 +840,11 @@ function compareValues(a, b) {
   return aStr.localeCompare(bStr);
 }
 
+// src/expressions/key-condition.ts
+import { cmp as cmp3, parse as parse3 } from "@awsless/big-float";
+
 // src/store/item.ts
+import { cmp as cmp2, parse as parse2 } from "@awsless/big-float";
 function extractKey(item, keySchema) {
   const key = {};
   for (const element of keySchema) {
@@ -1009,21 +1016,21 @@ function matchesKeyCondition(item, condition) {
   return true;
 }
 function matchesRangeCondition(value, condition) {
-  const cmp = compareValues2(value, condition.value);
+  const cmp5 = compareValues2(value, condition.value);
   switch (condition.operator) {
     case "=":
-      return cmp === 0;
+      return cmp5 === 0;
     case "<":
-      return cmp < 0;
+      return cmp5 < 0;
     case "<=":
-      return cmp <= 0;
+      return cmp5 <= 0;
     case ">":
-      return cmp > 0;
+      return cmp5 > 0;
     case ">=":
-      return cmp >= 0;
+      return cmp5 >= 0;
     case "BETWEEN":
       if (!condition.value2) return false;
-      return cmp >= 0 && compareValues2(value, condition.value2) <= 0;
+      return cmp5 >= 0 && compareValues2(value, condition.value2) <= 0;
     case "begins_with":
       if ("S" in value && "S" in condition.value) {
         return value.S.startsWith(condition.value.S);
@@ -1047,7 +1054,7 @@ function compareValues2(a, b) {
     return a.S.localeCompare(b.S);
   }
   if ("N" in a && "N" in b) {
-    return parseFloat(a.N) - parseFloat(b.N);
+    return cmp3(parse3(a.N), parse3(b.N));
   }
   if ("B" in a && "B" in b) {
     return a.B.localeCompare(b.B);
@@ -1073,6 +1080,7 @@ function applyProjection(item, projectionExpression, expressionAttributeNames) {
 }
 
 // src/expressions/update.ts
+import { add, parse as parse4, string, sub } from "@awsless/big-float";
 function parseUpdateExpression(expression) {
   const actions = [];
   let remaining = expression.trim();
@@ -1307,15 +1315,13 @@ function applySetAction(item, action, context) {
     const left = resolveOperand(item, action.operands[0], context);
     const right = resolveOperand(item, action.operands[1], context);
     if (left && "N" in left && right && "N" in right) {
-      const result = parseFloat(left.N) + parseFloat(right.N);
-      value = { N: String(result) };
+      value = { N: string(add(parse4(left.N), parse4(right.N))) };
     }
   } else if (action.operation === "minus") {
     const left = resolveOperand(item, action.operands[0], context);
     const right = resolveOperand(item, action.operands[1], context);
     if (left && "N" in left && right && "N" in right) {
-      const result = parseFloat(left.N) - parseFloat(right.N);
-      value = { N: String(result) };
+      value = { N: string(sub(parse4(left.N), parse4(right.N))) };
     }
   } else {
     value = resolveOperand(item, action.value, context);
@@ -1337,8 +1343,7 @@ function applyAddAction(item, action, context) {
   }
   if ("N" in addValue) {
     if (existingValue && "N" in existingValue) {
-      const result = parseFloat(existingValue.N) + parseFloat(addValue.N);
-      setValueAtPath(item, segments, { N: String(result) });
+      setValueAtPath(item, segments, { N: string(add(parse4(existingValue.N), parse4(addValue.N))) });
     } else if (!existingValue) {
       setValueAtPath(item, segments, addValue);
     }
@@ -2313,6 +2318,7 @@ function createServer(store, port) {
 }
 
 // src/store/table.ts
+import { cmp as cmp4, parse as parse5 } from "@awsless/big-float";
 var sequenceCounter = 0;
 function generateSequenceNumber() {
   return String(++sequenceCounter).padStart(21, "0");
@@ -2632,8 +2638,8 @@ var Table = class {
         if (!aVal && !bVal) return 0;
         if (!aVal) return 1;
         if (!bVal) return -1;
-        const cmp = this.compareAttributes(aVal, bVal);
-        return options?.scanIndexForward === false ? -cmp : cmp;
+        const cmp5 = this.compareAttributes(aVal, bVal);
+        return options?.scanIndexForward === false ? -cmp5 : cmp5;
       });
     }
     let startIdx = 0;
@@ -2685,8 +2691,8 @@ var Table = class {
         if (!aVal && !bVal) return 0;
         if (!aVal) return 1;
         if (!bVal) return -1;
-        const cmp = this.compareAttributes(aVal, bVal);
-        return options?.scanIndexForward === false ? -cmp : cmp;
+        const cmp5 = this.compareAttributes(aVal, bVal);
+        return options?.scanIndexForward === false ? -cmp5 : cmp5;
       });
     }
     let startIdx = 0;
@@ -2789,7 +2795,7 @@ var Table = class {
   }
   compareAttributes(a, b) {
     if ("S" in a && "S" in b) return a.S.localeCompare(b.S);
-    if ("N" in a && "N" in b) return parseFloat(a.N) - parseFloat(b.N);
+    if ("N" in a && "N" in b) return cmp4(parse5(a.N), parse5(b.N));
     if ("B" in a && "B" in b) return a.B.localeCompare(b.B);
     return 0;
   }

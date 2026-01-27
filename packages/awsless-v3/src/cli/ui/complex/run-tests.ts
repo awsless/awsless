@@ -2,6 +2,7 @@ import { log } from '@awsless/clui'
 import chalk from 'chalk'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
+import hrtime from 'pretty-hrtime'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
 import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
@@ -13,7 +14,7 @@ import { task, wrap } from '../util.js'
 
 type StoredState = {
 	fingerprint: string
-	// duration: string
+	duration: number
 	errors: TestError[]
 	passed: number
 	failed: number
@@ -53,6 +54,12 @@ const formatResult = (props: { stack: string; cached: boolean; event: FinishedEv
 
 	if (props.event.failed > 0) {
 		line.push(color.error(`${props.event.failed} failed`))
+	}
+
+	if (props.event.duration > 0) {
+		// const [time, unit] = hrtime(props.event.duration, {}).split(' ')
+		// return color.attr(time) + color.attr.dim(unit)
+		// line.push(color.success(`${props.event.duration}`))
 	}
 
 	return line.join(` `)
@@ -121,30 +128,33 @@ export const runTest = async (
 ) => {
 	await mkdir(directories.test, { recursive: true })
 
-	const fingerprint = await fingerprintFromDirectory(dir)
 	const file = join(directories.test, `${stack}.json`)
-	const exists = await fileExist(file)
+	const fingerprint = await fingerprintFromDirectory(dir)
 
-	if (exists && !process.env.NO_CACHE) {
-		const raw = await readFile(file, { encoding: 'utf8' })
-		const data = JSON.parse(raw) as StoredState
+	if (!process.env.NO_CACHE) {
+		const exists = await fileExist(file)
 
-		if (data.fingerprint === fingerprint) {
-			log.step(
-				formatResult({
-					stack,
-					cached: true,
-					event: data,
-				})
-			)
+		if (exists) {
+			const raw = await readFile(file, { encoding: 'utf8' })
+			const data = JSON.parse(raw) as StoredState
 
-			if (opts.showLogs) {
-				logTestLogs(data)
+			if (data.fingerprint === fingerprint) {
+				log.step(
+					formatResult({
+						stack,
+						cached: true,
+						event: data,
+					})
+				)
+
+				if (opts.showLogs) {
+					logTestLogs(data)
+				}
+
+				logTestErrors(data)
+
+				return data.failed === 0
 			}
-
-			logTestErrors(data)
-
-			return data.failed === 0
 		}
 	}
 

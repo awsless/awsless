@@ -1,3 +1,4 @@
+import { add, parse, string, sub } from '@awsless/big-float'
 import { ValidationException } from '../errors/index.js'
 import type { AttributeMap, AttributeValue } from '../types.js'
 import { deleteValueAtPath, getValueAtPath, parsePath, setValueAtPath } from './path.js'
@@ -331,16 +332,14 @@ function applySetAction(item: AttributeMap, action: SetAction, context: UpdateCo
 		const right = resolveOperand(item, action.operands![1]!, context)
 
 		if (left && 'N' in left && right && 'N' in right) {
-			const result = parseFloat(left.N) + parseFloat(right.N)
-			value = { N: String(result) }
+			value = { N: string(add(parse(left.N), parse(right.N))) }
 		}
 	} else if (action.operation === 'minus') {
 		const left = resolveOperand(item, action.operands![0]!, context)
 		const right = resolveOperand(item, action.operands![1]!, context)
 
 		if (left && 'N' in left && right && 'N' in right) {
-			const result = parseFloat(left.N) - parseFloat(right.N)
-			value = { N: String(result) }
+			value = { N: string(sub(parse(left.N), parse(right.N))) }
 		}
 	} else {
 		value = resolveOperand(item, action.value, context)
@@ -367,8 +366,7 @@ function applyAddAction(item: AttributeMap, action: AddAction, context: UpdateCo
 
 	if ('N' in addValue) {
 		if (existingValue && 'N' in existingValue) {
-			const result = parseFloat(existingValue.N) + parseFloat(addValue.N)
-			setValueAtPath(item, segments, { N: String(result) })
+			setValueAtPath(item, segments, { N: string(add(parse(existingValue.N), parse(addValue.N))) })
 		} else if (!existingValue) {
 			setValueAtPath(item, segments, addValue)
 		}

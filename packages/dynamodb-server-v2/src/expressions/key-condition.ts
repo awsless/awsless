@@ -1,3 +1,4 @@
+import { cmp, parse } from '@awsless/big-float'
 import { ValidationException } from '../errors/index.js'
 import { getHashKey, getRangeKey } from '../store/item.js'
 import type { AttributeMap, AttributeValue, KeySchemaElement } from '../types.js'
@@ -209,7 +210,7 @@ function compareValues(a: AttributeValue, b: AttributeValue): number {
 		return a.S.localeCompare(b.S)
 	}
 	if ('N' in a && 'N' in b) {
-		return parseFloat(a.N) - parseFloat(b.N)
+		return cmp(parse(a.N), parse(b.N))
 	}
 	if ('B' in a && 'B' in b) {
 		return a.B.localeCompare(b.B)

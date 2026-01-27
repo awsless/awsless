@@ -1174,6 +1174,9 @@ importers:
       '@aws-sdk/lib-dynamodb':
         specifier: 3.363.0
         version: 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.862.0)
+      '@awsless/big-float':
+        specifier: workspace:^
+        version: link:../big-float
     devDependencies:
       '@types/bun':
         specifier: ^1.1.6

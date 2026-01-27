@@ -1,3 +1,4 @@
+import { cmp, parse } from '@awsless/big-float'
 import type { AttributeMap, AttributeValue, KeySchemaElement } from '../types.js'
 
 export function extractKey(item: AttributeMap, keySchema: KeySchemaElement[]): AttributeMap {
@@ -41,7 +42,7 @@ export function compareAttributeValues(a: AttributeValue, b: AttributeValue): nu
 		return a.S.localeCompare(b.S)
 	}
 	if ('N' in a && 'N' in b) {
-		return parseFloat(a.N) - parseFloat(b.N)
+		return cmp(parse(a.N), parse(b.N))
 	}
 	if ('B' in a && 'B' in b) {
 		return a.B.localeCompare(b.B)
