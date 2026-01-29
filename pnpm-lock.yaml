@@ -647,13 +647,13 @@ importers:
         version: 1.11.16
       '@terraforge/aws':
         specifier: ^6.28.0
-        version: 6.28.0(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.13(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8)))
+        version: 6.28.0(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.13(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8)))
       '@terraforge/core':
-        specifier: ^0.0.18
-        version: 0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8)
+        specifier: ^0.0.19
+        version: 0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8)
       '@terraforge/terraform':
         specifier: ^0.0.13
-        version: 0.0.13(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8))
+        version: 0.0.13(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8))
       '@types/aws-lambda':
         specifier: ^8.10.110
         version: 8.10.148
@@ -6379,8 +6379,8 @@ packages:
       '@terraforge/core': 0.0.11
       '@terraforge/terraform': 0.0.11
 
-  '@terraforge/core@0.0.18':
-    resolution: {integrity: sha512-v/5nMxSlwpTMmgPpdAy+eDh+W6beJ4v5QUdkDXOQcG0eBaKgObv7J+xkoDpMr0GIjks1WvcZcmtc4j4+7BQRYQ==}
+  '@terraforge/core@0.0.19':
+    resolution: {integrity: sha512-eGi8Edx66u7Xs7rHfdrloMfoVISBQ1lDJ0N9HGW44DlMEcGl/m5bhBtbgm6PNrLY+U5Te/GDx59HJ4bKnjPa5A==}
 
   '@terraforge/terraform@0.0.13':
     resolution: {integrity: sha512-ASS6pqFoeuB6t5FCWsWvGapcTDxSpPdFfeu54scalvScCMMWgXk7TmWxy54cVuCXJ82X32fmOwbxe9WnXgWAjw==}
@@ -18594,12 +18594,12 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
-  '@terraforge/aws@6.28.0(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.13(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8)))':
+  '@terraforge/aws@6.28.0(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.13(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8)))':
     dependencies:
-      '@terraforge/core': 0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8)
-      '@terraforge/terraform': 0.0.13(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8))
+      '@terraforge/core': 0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8)
+      '@terraforge/terraform': 0.0.13(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8))
 
-  '@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8)':
+  '@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8)':
     dependencies:
       '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.26.2)
       '@aws-sdk/client-s3': 3.782.0(aws-crt@1.26.2)
@@ -18616,11 +18616,11 @@ snapshots:
       - aws-crt
       - graphology-types
 
-  '@terraforge/terraform@0.0.13(@terraforge/core@0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8))':
+  '@terraforge/terraform@0.0.13(@terraforge/core@0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8))':
     dependencies:
       '@grpc/grpc-js': 1.12.6
       '@grpc/proto-loader': 0.7.15
-      '@terraforge/core': 0.0.18(aws-crt@1.26.2)(graphology-types@0.24.8)
+      '@terraforge/core': 0.0.19(aws-crt@1.26.2)(graphology-types@0.24.8)
       change-case: 5.4.4
       jszip: 3.10.1
       msgpackr: 1.11.8

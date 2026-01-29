@@ -8,14 +8,20 @@
 	"defaults": {
 		"domains": {
 			"main": {
-				"domain": "awsless.org"
+				"domain": "awsless.com"
 			}
 		},
-		// "router": {
-		// 	"main": {
-		// 		"domain": "main"
-		// 	}
-		// },
+		"router": {
+			"main": {
+				"domain": "main",
+				"waf": {
+					"rateLimiter": {
+						"limit": 10,
+						"window": "1 minute"
+					}
+				}
+			}
+		},
 		// "rpc": {
 		// 	"main": {
 		// 		"router": "main",

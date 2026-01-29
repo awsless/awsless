@@ -1,4 +1,4 @@
-import { days, minutes } from '@awsless/duration'
+import { days, minutes, parse } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
@@ -55,14 +55,20 @@ const WafSettingsSchema = z
 				limit: z
 					.number()
 					.min(10)
-					.max(2000000000)
+					.max(2_000_000_000)
 					.default(10)
 					.describe(
 						'The limit on requests during the specified evaluation window for a single aggregation instance for the rate-based rule.'
 					),
 				window: z
-					.union([z.literal(60), z.literal(120), z.literal(300), z.literal(600)])
-					.default(300)
+					.union([
+						z.literal('1 minute'),
+						z.literal('2 minutes'),
+						z.literal('5 minutes'),
+						z.literal('10 minutes'),
+					])
+					.default('5 minutes')
+					.transform(v => parse(v))
 					.describe(
 						'The amount of time, in seconds, that AWS WAF should include in its request counts, looking back from the current time.'
 					),
@@ -76,12 +82,14 @@ const WafSettingsSchema = z
 			.object({
 				sensitivity: z.object({
 					challenge: z
-						.enum(['LOW', 'MEDIUM', 'HIGH'])
-						.default('LOW')
+						.enum(['low', 'medium', 'high'])
+						.default('low')
+						.transform(v => v.toUpperCase())
 						.describe('The sensitivity level for challenge requests.'),
 					block: z
-						.enum(['LOW', 'MEDIUM', 'HIGH'])
-						.default('LOW')
+						.enum(['low', 'medium', 'high'])
+						.default('low')
+						.transform(v => v.toUpperCase())
 						.describe('The sensitivity level for block requests.'),
 				}),
 				exemptUriRegex: z.string().default('^$'),
@@ -93,7 +101,10 @@ const WafSettingsSchema = z
 			),
 		botProtection: z
 			.object({
-				inspectionLevel: z.enum(['COMMON', 'TARGETED']).default('COMMON'),
+				inspectionLevel: z
+					.enum(['common', 'targeted'])
+					.default('common')
+					.transform(v => v.toUpperCase()),
 				visibility: VisibilitySchema,
 			})
 			.optional()
@@ -121,9 +132,10 @@ export const RouterDefaultSchema = z
 	.record(
 		ResourceIdSchema,
 		z.object({
-			domain: ResourceIdSchema.describe('The domain id to link your Router.'),
-			waf: WafSettingsSchema.optional(),
+			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
 			subDomain: z.string().optional(),
+
+			waf: WafSettingsSchema.optional(),
 
 			geoRestrictions: z
 				.array(z.string().length(2).toUpperCase())

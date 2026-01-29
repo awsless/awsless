@@ -47,13 +47,28 @@ export const createNameServersProvider = ({ profile, region }: ProviderProps) =>
 
 				const nameServers = response.DelegationSet.NameServers
 				const domainName = response.HostedZone.Name.replace(/\.$/, '')
-				const resolvedNameServers = await resolveNs(domainName)
+				let resolvedNameServers: string[]
+				try {
+					resolvedNameServers = await resolveNs(domainName)
+				} catch (error) {
+					throw new Error(
+						[
+							`Failed to load the nameservers for:`,
+							`${color.normal(domainName)} ${color.normal.dim(icon.arrow.right)} ${color.normal(state.zoneId)}`,
+							'',
+							error instanceof Error ? error.message : '',
+							'',
+							color.warning(`Set expected nameservers:`),
+							...nameServers.map(n => color.normal(n)),
+						].join('\n')
+					)
+				}
 
 				if (!compareNameServers(nameServers, resolvedNameServers)) {
 					throw new Error(
 						[
 							`Expected nameservers don't match for domain:`,
-							`${color.info(domainName)} ${color.normal.dim(icon.arrow.right)} ${color.normal(state.zoneId)}`,
+							`${color.normal(domainName)} ${color.normal.dim(icon.arrow.right)} ${color.normal(state.zoneId)}`,
 							``,
 							'Current:',
 							...resolvedNameServers.map(n => color.normal(n)),

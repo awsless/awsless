@@ -168,12 +168,6 @@ export const routerFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Domain stuff
-
-			const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
-			const certificateArn = ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
-
-			// ------------------------------------------------------------
 			// Viewer Request CloudFront Function
 
 			const viewerRequest = new aws.cloudfront.Function(group, 'viewer-request', {
@@ -183,7 +177,7 @@ export const routerFeature = defineFeature({
 				publish: true,
 				keyValueStoreAssociations: [routeStore.arn],
 				code: getViewerRequestFunctionCode({
-					blockDirectAccess: !!domainName,
+					blockDirectAccess: !!props.domain,
 					basicAuth: props.basicAuth,
 				}),
 			})
@@ -200,7 +194,7 @@ export const routerFeature = defineFeature({
 						rateBasedStatement: {
 							limit: wafSettingsConfig.rateLimiter.limit,
 							aggregateKeyType: 'IP',
-							evaluationWindowSec: wafSettingsConfig.rateLimiter.window,
+							evaluationWindowSec: toSeconds(wafSettingsConfig.rateLimiter.window),
 						},
 					},
 					action: {
@@ -313,25 +307,30 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// CDN Distribution
 
+			// const certificateArn = props.domain
+			// 	? ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
+			// 	: undefined
+
 			const distribution = new aws.cloudfront.MultitenantDistribution(group, 'distribution', {
 				tags: {
 					name,
 				},
 				comment: name,
 				enabled: true,
-				viewerCertificate: certificateArn
-					? [
-							{
-								sslSupportMethod: 'sni-only',
-								minimumProtocolVersion: 'TLSv1.2_2021',
-								acmCertificateArn: certificateArn,
-							},
-						]
-					: [
-							{
-								cloudfrontDefaultCertificate: true,
-							},
-						],
+				viewerCertificate: [{ cloudfrontDefaultCertificate: true }],
+				// viewerCertificate: certificateArn
+				// 	? [
+				// 			{
+				// 				sslSupportMethod: 'sni-only',
+				// 				minimumProtocolVersion: 'TLSv1.2_2021',
+				// 				acmCertificateArn: certificateArn,
+				// 			},
+				// 		]
+				// 	: [
+				// 			{
+				// 				cloudfrontDefaultCertificate: true,
+				// 			},
+				// 		],
 				origin: [
 					{
 						id: 'default',
@@ -435,31 +434,37 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Link to Route53
 
-			const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
-				name,
-			})
+			if (props.domain) {
+				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
+				const certificateArn = ctx.shared.entry('domain', `global-certificate-arn`, props.domain)
+				const zoneId = ctx.shared.entry('domain', 'zone-id', props.domain)
 
-			new aws.cloudfront.DistributionTenant(group, `tenant`, {
-				name,
-				enabled: true,
-				distributionId: distribution.id,
-				connectionGroupId: connectionGroup.id,
-				domain: [{ domain: domainName }],
-				customizations: [{ certificate: [{ arn: certificateArn }] }],
-			})
+				const connectionGroup = new aws.cloudfront.ConnectionGroup(group, 'connection-group', {
+					name,
+				})
 
-			new aws.route53.Record(group, `record`, {
-				zoneId: ctx.shared.entry('domain', 'zone-id', props.domain),
-				type: 'A',
-				name: domainName,
-				alias: {
-					name: connectionGroup.routingEndpoint,
-					zoneId: 'Z2FDTNDATAQYW2',
-					evaluateTargetHealth: false,
-				},
-			})
+				new aws.cloudfront.DistributionTenant(group, `tenant`, {
+					name,
+					enabled: true,
+					distributionId: distribution.id,
+					connectionGroupId: connectionGroup.id,
+					domain: [{ domain: domainName }],
+					customizations: [{ certificate: [{ arn: certificateArn }] }],
+				})
 
-			ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
+				new aws.route53.Record(group, `record`, {
+					zoneId,
+					type: 'A',
+					name: domainName,
+					alias: {
+						name: connectionGroup.routingEndpoint,
+						zoneId: 'Z2FDTNDATAQYW2',
+						evaluateTargetHealth: false,
+					},
+				})
+
+				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
+			}
 		}
 	},
 })
