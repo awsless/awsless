@@ -1,5 +1,5 @@
 import { define, number, object, string } from '@awsless/dynamodb'
-import { Input, Output, ValiError, dynamoDbStream, parse } from '../../../src'
+import { InferInput, InferOutput, ValiError, dynamoDbStream, parse } from '../../../src'
 
 describe('DynamoDB Stream', () => {
 	const table = define('name', {
@@ -96,7 +96,7 @@ describe('DynamoDB Stream', () => {
 	})
 
 	it('types', () => {
-		expectTypeOf<Input<typeof schema>>().toEqualTypeOf<{
+		expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<{
 			Records: Array<
 				| {
 						eventName: 'MODIFY'
@@ -123,7 +123,7 @@ describe('DynamoDB Stream', () => {
 			>
 		}>()
 
-		expectTypeOf<Output<typeof schema>>().toEqualTypeOf<
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<
 			Array<
 				| {
 						event: 'modify'

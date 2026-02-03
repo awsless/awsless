@@ -1,18 +1,32 @@
-import { BaseSchema, Input, Output, UnknownSchema, array, object, transform, union, unknown } from 'valibot'
+import {
+	BaseSchema,
+	ErrorMessage,
+	GenericIssue,
+	GenericSchema,
+	InferInput,
+	InferOutput,
+	array,
+	object,
+	pipe,
+	transform,
+	union,
+} from 'valibot'
 import { json } from '../json'
 
-export type SqsQueueSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<
-	Input<S> | Input<S>[] | { Records: { body: string | Input<S> }[] },
-	Output<S>[]
+export type SqsQueueSchema<S extends GenericSchema> = BaseSchema<
+	InferInput<S> | InferInput<S>[] | { Records: { body: string | InferInput<S> }[] },
+	InferOutput<S>[],
+	GenericIssue
 >
 
-export const sqsQueue = <S extends BaseSchema = UnknownSchema>(body?: S): SqsQueueSchema<S> => {
-	const schema = body ?? unknown()
+export const sqsQueue = <S extends GenericSchema>(
+	schema: S,
+	message: ErrorMessage<GenericIssue> = 'Invalid SQS Queue payload'
+): SqsQueueSchema<S> => {
 	return union(
 		[
-			transform(schema, input => [input]),
-			array(schema),
-			transform(
+			// Prioritize the expected payload during production
+			pipe(
 				object({
 					Records: array(
 						object({
@@ -20,24 +34,15 @@ export const sqsQueue = <S extends BaseSchema = UnknownSchema>(body?: S): SqsQue
 						})
 					),
 				}),
-				input =>
-					input.Records.map(record => {
-						return (record as { body: unknown }).body
-					})
+				transform(v => v.Records.map(r => r.body))
 			),
+			// These are allowed during testing
+			pipe(
+				schema,
+				transform(v => [v])
+			),
+			array(schema),
 		],
-		'Invalid SQS Queue input'
+		message
 	)
 }
-
-// const n1 = sqsQueue()
-// const n2 = sqsQueue(object({ foo: string() }))
-
-// type N1_I = Input<typeof n1>
-// type N1_O = Output<typeof n1>
-
-// type N2_I = Input<typeof n2>
-// type N2_O = Output<typeof n2>
-
-// const lol1 = json(number())
-// const lol2 = parse(lol1, '')

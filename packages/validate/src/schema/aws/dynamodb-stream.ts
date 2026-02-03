@@ -1,57 +1,76 @@
 import { AnyTable, Infer, PrimaryKey } from '@awsless/dynamodb'
-import { array, BaseSchema, literal, object, transform, unknown, variant } from 'valibot'
+import {
+	array,
+	BaseSchema,
+	ErrorMessage,
+	GenericIssue,
+	literal,
+	object,
+	pipe,
+	transform,
+	unknown,
+	variant,
+} from 'valibot'
+
+type DynamoDBStreamInputRecord =
+	| {
+			eventName: 'MODIFY'
+			dynamodb: {
+				Keys: unknown
+				OldImage: unknown
+				NewImage: unknown
+			}
+	  }
+	| {
+			eventName: 'INSERT'
+			dynamodb: {
+				Keys: unknown
+				NewImage: unknown
+			}
+	  }
+	| {
+			eventName: 'REMOVE'
+			dynamodb: {
+				Keys: unknown
+				OldImage: unknown
+			}
+	  }
+
+type DynamoDBStreamOutputRecord<T extends AnyTable> =
+	| {
+			event: 'modify'
+			keys: PrimaryKey<T>
+			old: Infer<T>
+			new: Infer<T>
+	  }
+	| {
+			event: 'insert'
+			keys: PrimaryKey<T>
+			new: Infer<T>
+	  }
+	| {
+			event: 'remove'
+			keys: PrimaryKey<T>
+			old: Infer<T>
+	  }
 
 export type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<
-	{
-		Records: Array<
-			| {
-					eventName: 'MODIFY'
-					dynamodb: {
-						Keys: unknown
-						OldImage: unknown
-						NewImage: unknown
-					}
-			  }
-			| {
-					eventName: 'INSERT'
-					dynamodb: {
-						Keys: unknown
-						NewImage: unknown
-					}
-			  }
-			| {
-					eventName: 'REMOVE'
-					dynamodb: {
-						Keys: unknown
-						OldImage: unknown
-					}
-			  }
-		>
-	},
-	Array<
-		| {
-				event: 'modify'
-				keys: PrimaryKey<T>
-				old: Infer<T>
-				new: Infer<T>
-		  }
-		| {
-				event: 'insert'
-				keys: PrimaryKey<T>
-				new: Infer<T>
-		  }
-		| {
-				event: 'remove'
-				keys: PrimaryKey<T>
-				old: Infer<T>
-		  }
-	>
+	{ Records: DynamoDBStreamInputRecord[] },
+	DynamoDBStreamOutputRecord<T>[],
+	GenericIssue
 >
 
-export const dynamoDbStream = <T extends AnyTable>(table: T) => {
-	const unmarshall = () => transform(unknown(), value => table.unmarshall(value))
+export const dynamoDbStream = <T extends AnyTable>(
+	table: T,
+	message: ErrorMessage<GenericIssue> = 'Invalid DynamoDB Stream payload'
+): DynamoDBStreamSchema<T> => {
+	const unmarshall = () =>
+		pipe(
+			unknown(),
+			transform(v => table.unmarshall(v))
+		)
 
-	return transform(
+	return pipe(
 		object(
 			{
 				Records: array(
@@ -81,13 +100,13 @@ export const dynamoDbStream = <T extends AnyTable>(table: T) => {
 					])
 				),
 			},
-			'Invalid DynamoDB Stream input'
+			message
 		),
-		input => {
+		transform(input => {
 			return input.Records.map(record => {
 				const item: Record<string, any> = {
 					event: record.eventName.toLowerCase(),
-					keys: record.dynamodb.Keys as PrimaryKey<T>,
+					keys: record.dynamodb.Keys,
 				}
 
 				if ('OldImage' in record.dynamodb) {
@@ -98,8 +117,8 @@ export const dynamoDbStream = <T extends AnyTable>(table: T) => {
 					item.new = record.dynamodb.NewImage
 				}
 
-				return item
+				return item as DynamoDBStreamOutputRecord<T>
 			})
-		}
-	) as DynamoDBStreamSchema<T>
+		})
+	)
 }

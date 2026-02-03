@@ -1,4 +1,4 @@
-import { Input, Output, json, object, parse, string } from '../../src'
+import { InferInput, InferOutput, json, object, parse, string } from '../../src'
 import { testSchema } from '../_util'
 
 const schema = json(
@@ -16,8 +16,8 @@ testSchema('json', {
 })
 
 it('json types', () => {
-	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<string>()
-	expectTypeOf<Output<typeof schema>>().toEqualTypeOf<{
+	expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<string>()
+	expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<{
 		foo: string
 	}>()
 })

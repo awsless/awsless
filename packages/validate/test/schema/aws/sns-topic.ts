@@ -1,4 +1,4 @@
-import { array, Input, number, object, Output, parse, snsTopic, ValiError } from '../../../src'
+import { array, InferInput, InferOutput, number, object, parse, snsTopic, ValiError } from '../../../src'
 
 describe('SNS Topic', () => {
 	const schema = snsTopic(object({ id: number() }))
@@ -33,8 +33,7 @@ describe('SNS Topic', () => {
 	})
 
 	it('types', () => {
-		expectTypeOf<Output<typeof schema>>().toEqualTypeOf<{ id: number }[]>()
-		expectTypeOf<Input<typeof schema>>().toEqualTypeOf<
+		expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<
 			| { id: number }
 			| { id: number }[]
 			| {
@@ -45,5 +44,7 @@ describe('SNS Topic', () => {
 					}[]
 			  }
 		>()
+
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<{ id: number }[]>()
 	})
 })

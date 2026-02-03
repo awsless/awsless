@@ -1,10 +1,10 @@
-import { object, picklist, safeParse, string, transform } from '@awsless/validate'
+import { object, picklist, pipe, safeParse, string, transform } from '@awsless/validate'
 
 export const supportedExtensions = ['jpg', 'png', 'webp'] as const
 
-const schema = transform(
+const schema = pipe(
 	string(),
-	path => {
+	transform(path => {
 		const cleanPath = path.startsWith('/') ? path.slice(1) : path
 		const parts = cleanPath.split('/')
 		const options = parts.pop()
@@ -23,9 +23,9 @@ const schema = transform(
 		return {
 			originalPath: originalPath,
 			preset: preset,
-			extension: extension as (typeof supportedExtensions)[number],
+			extension: extension,
 		}
-	},
+	}),
 	object({
 		originalPath: string(),
 		preset: string(),

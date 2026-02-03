@@ -71,10 +71,13 @@ export type ListConditionExpression<T, L extends any[]> = {
 } & BaseConditionExpression<'L', T> &
 	ContainsFunction<'L', ElementOfList<T>>
 
+export type TupleConditionExpression<T extends any[], L extends any[]> = {
+	at<K extends number>(key: K): L[K]
+} & BaseConditionExpression<'L', T>
+
 export type TupleWithRestConditionExpression<T extends any[], L extends any[], R> = {
 	at<K extends number>(index: K): L[K] extends undefined ? R : L[K]
-} & BaseConditionExpression<'L', T> &
-	ContainsFunction<'L', ElementOfList<T>>
+} & BaseConditionExpression<'L', T>
 
 export type SetConditionExpression<A extends AttributeType, T> = BaseConditionExpression<A, T> &
 	ContainsFunction<A, ElementOfSet<T>>
@@ -83,6 +86,8 @@ export type StringConditionExpression<T> = BaseConditionExpression<'S', T> &
 	StartsWithFunction &
 	ContainsFunction<'S', string> &
 	InFunction<'S', T>
+
+export type UuidConditionExpression<T> = BaseConditionExpression<'S', T> & InFunction<'S', T>
 
 export type JsonConditionExpression<T> = BaseConditionExpression<'S', T>
 
@@ -190,7 +195,7 @@ export const buildConditionExpression = (
 					})
 					.join(', ')})`
 			case 'contains': {
-				const elemParam = attrs.valueElement(value[0], path)
+				const elemParam = attrs.elementValue(value[0], path)
 				if (attrs.isSet(path)) {
 					const innerPath = `${p}.${attrs.name(SET_KEY)}`
 					return `contains(${innerPath}, ${elemParam})`

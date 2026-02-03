@@ -7,7 +7,7 @@ import {
 	minLength,
 	object,
 	optional,
-	picklist,
+	pipe,
 	record,
 	safeParse,
 	string,
@@ -28,12 +28,15 @@ export const requestSchema = object({
 	// }),
 	headers: record(string(), string()),
 	body: json(
-		array(
-			object({
-				name: string([minLength(1), maxLength(64)]),
-				payload: optional(record(string(), unknown())),
-			}),
-			[minLength(1), maxLength(10)]
+		pipe(
+			array(
+				object({
+					name: pipe(string(), minLength(1), maxLength(64)),
+					payload: optional(record(string(), unknown())),
+				})
+			),
+			minLength(1),
+			maxLength(10)
 		)
 	),
 })
@@ -45,11 +48,12 @@ export const parseRequest = (body: unknown) => {
 const authResponseSchema = union([
 	object({
 		authorized: literal(true),
-		context: optional(record(unknown())),
+		context: optional(record(string(), unknown())),
 		allowedFunctions: optional(array(string())),
 		lockKey: optional(string()),
 		ttl: duration(),
 	}),
+
 	object({
 		authorized: literal(false),
 	}),

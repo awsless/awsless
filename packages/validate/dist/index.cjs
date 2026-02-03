@@ -22,8 +22,6 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var index_exports = {};
 __export(index_exports, {
   bigfloat: () => bigfloat,
-  bigint: () => bigint2,
-  date: () => date,
   duration: () => duration,
   dynamoDbStream: () => dynamoDbStream,
   json: () => json,
@@ -31,6 +29,7 @@ __export(index_exports, {
   minDuration: () => minDuration,
   positive: () => positive,
   precision: () => precision,
+  s3Event: () => s3Event,
   snsTopic: () => snsTopic,
   sqsQueue: () => sqsQueue,
   unique: () => unique,
@@ -42,16 +41,21 @@ __reExport(index_exports, require("valibot"), module.exports);
 // src/schema/json.ts
 var import_json = require("@awsless/json");
 var import_valibot = require("valibot");
-var json = (schema) => {
-  return (0, import_valibot.transform)(
-    (0, import_valibot.string)(),
-    (value) => {
+var json = (schema, message = "Invalid JSON") => {
+  return (0, import_valibot.pipe)(
+    (0, import_valibot.string)(message),
+    (0, import_valibot.rawTransform)((ctx) => {
+      let result;
       try {
-        return (0, import_json.parse)(value);
-      } catch (error) {
-        return null;
+        result = (0, import_json.parse)(ctx.dataset.value);
+      } catch (_error) {
+        ctx.addIssue({
+          message
+        });
+        return ctx.NEVER;
       }
-    },
+      return result;
+    }),
     schema
   );
 };
@@ -59,160 +63,127 @@ var json = (schema) => {
 // src/schema/bigfloat.ts
 var import_big_float = require("@awsless/big-float");
 var import_valibot2 = require("valibot");
-var make = (value) => new import_big_float.BigFloat(value);
-function bigfloat(arg1, arg2) {
-  const [msg, pipe] = (0, import_valibot2.defaultArgs)(arg1, arg2);
-  const error = msg ?? "Invalid bigfloat";
+function bigfloat(message = "Invalid bigfloat") {
   return (0, import_valibot2.union)(
     [
-      (0, import_valibot2.instance)(import_big_float.BigFloat, pipe),
-      (0, import_valibot2.transform)((0, import_valibot2.string)([(0, import_valibot2.custom)((input) => input !== "" && !isNaN(Number(input)), error)]), make, pipe),
-      (0, import_valibot2.transform)((0, import_valibot2.number)(), make, pipe),
-      (0, import_valibot2.transform)(
-        (0, import_valibot2.object)({
-          exponent: (0, import_valibot2.number)(),
-          coefficient: (0, import_valibot2.bigint)()
-        }),
-        make,
-        pipe
+      (0, import_valibot2.instance)(import_big_float.BigFloat),
+      (0, import_valibot2.pipe)(
+        (0, import_valibot2.string)(),
+        (0, import_valibot2.decimal)(),
+        (0, import_valibot2.transform)((v) => (0, import_big_float.parse)(v))
+      ),
+      (0, import_valibot2.pipe)(
+        (0, import_valibot2.bigint)(),
+        (0, import_valibot2.transform)((v) => (0, import_big_float.parse)(v))
+      ),
+      (0, import_valibot2.pipe)(
+        (0, import_valibot2.number)(),
+        (0, import_valibot2.transform)((v) => (0, import_big_float.parse)(v))
       )
     ],
-    error
-  );
-}
-
-// src/schema/bigint.ts
-var import_valibot3 = require("valibot");
-function bigint2(arg1, arg2) {
-  const [error, pipe] = (0, import_valibot3.defaultArgs)(arg1, arg2);
-  return (0, import_valibot3.union)(
-    [
-      (0, import_valibot3.bigint)(pipe),
-      (0, import_valibot3.transform)(
-        (0, import_valibot3.string)([(0, import_valibot3.regex)(/^-?[0-9]+$/)]),
-        (input) => {
-          return BigInt(input);
-        },
-        (0, import_valibot3.bigint)(pipe)
-      )
-    ],
-    error ?? "Invalid BigInt"
-  );
-}
-
-// src/schema/date.ts
-var import_valibot4 = require("valibot");
-function date(arg1, arg2) {
-  const [error, pipe] = (0, import_valibot4.defaultArgs)(arg1, arg2);
-  return (0, import_valibot4.union)(
-    [
-      (0, import_valibot4.date)(pipe),
-      (0, import_valibot4.transform)(
-        (0, import_valibot4.string)(),
-        (input) => {
-          return new Date(input);
-        },
-        (0, import_valibot4.date)(pipe)
-      )
-    ],
-    error ?? "Invalid date"
+    message
   );
 }
 
 // src/schema/uuid.ts
-var import_valibot5 = require("valibot");
-var uuid = (error) => {
-  return (0, import_valibot5.string)(error ?? "Invalid UUID", [(0, import_valibot5.uuid)()]);
+var import_valibot3 = require("valibot");
+var uuid = (message = "Invalid UUID") => {
+  return (0, import_valibot3.pipe)((0, import_valibot3.string)(message), (0, import_valibot3.uuid)(message));
 };
 
 // src/schema/duration.ts
 var import_duration = require("@awsless/duration");
-var import_valibot6 = require("valibot");
-function duration(arg1, arg2) {
-  const [msg, pipe] = (0, import_valibot6.defaultArgs)(arg1, arg2);
-  const error = msg ?? "Invalid duration";
-  return (0, import_valibot6.instance)(import_duration.Duration, error, pipe);
+var import_valibot4 = require("valibot");
+function duration(message = "Invalid duration") {
+  return (0, import_valibot4.instance)(import_duration.Duration, message);
 }
 
 // src/schema/aws/sqs-queue.ts
-var import_valibot7 = require("valibot");
-var sqsQueue = (body) => {
-  const schema = body ?? (0, import_valibot7.unknown)();
-  return (0, import_valibot7.union)(
+var import_valibot5 = require("valibot");
+var sqsQueue = (schema, message = "Invalid SQS Queue payload") => {
+  return (0, import_valibot5.union)(
     [
-      (0, import_valibot7.transform)(schema, (input) => [input]),
-      (0, import_valibot7.array)(schema),
-      (0, import_valibot7.transform)(
-        (0, import_valibot7.object)({
-          Records: (0, import_valibot7.array)(
-            (0, import_valibot7.object)({
+      // Prioritize the expected payload during production
+      (0, import_valibot5.pipe)(
+        (0, import_valibot5.object)({
+          Records: (0, import_valibot5.array)(
+            (0, import_valibot5.object)({
               body: json(schema)
             })
           )
         }),
-        (input) => input.Records.map((record) => {
-          return record.body;
-        })
-      )
+        (0, import_valibot5.transform)((v) => v.Records.map((r) => r.body))
+      ),
+      // These are allowed during testing
+      (0, import_valibot5.pipe)(
+        schema,
+        (0, import_valibot5.transform)((v) => [v])
+      ),
+      (0, import_valibot5.array)(schema)
     ],
-    "Invalid SQS Queue input"
+    message
   );
 };
 
 // src/schema/aws/sns-topic.ts
-var import_valibot8 = require("valibot");
-var snsTopic = (body) => {
-  const schema = body ?? (0, import_valibot8.unknown)();
-  return (0, import_valibot8.union)(
+var import_valibot6 = require("valibot");
+var snsTopic = (schema, message = "Invalid SNS Topic payload") => {
+  return (0, import_valibot6.union)(
     [
-      (0, import_valibot8.transform)(schema, (input) => [input]),
-      (0, import_valibot8.array)(schema),
-      (0, import_valibot8.transform)(
-        (0, import_valibot8.object)({
-          Records: (0, import_valibot8.array)(
-            (0, import_valibot8.object)({
-              Sns: (0, import_valibot8.object)({
+      // Prioritize the expected payload during production
+      (0, import_valibot6.pipe)(
+        (0, import_valibot6.object)({
+          Records: (0, import_valibot6.array)(
+            (0, import_valibot6.object)({
+              Sns: (0, import_valibot6.object)({
                 Message: json(schema)
               })
             })
           )
         }),
-        (input) => input.Records.map((record) => {
-          return record.Sns.Message;
-        })
-      )
+        (0, import_valibot6.transform)((v) => v.Records.map((r) => r.Sns.Message))
+      ),
+      // These are allowed during testing
+      (0, import_valibot6.pipe)(
+        schema,
+        (0, import_valibot6.transform)((v) => [v])
+      ),
+      (0, import_valibot6.array)(schema)
     ],
-    "Invalid SNS Topic input"
+    message
   );
 };
 
 // src/schema/aws/dynamodb-stream.ts
-var import_valibot9 = require("valibot");
-var dynamoDbStream = (table) => {
-  const unmarshall = () => (0, import_valibot9.transform)((0, import_valibot9.unknown)(), (value) => table.unmarshall(value));
-  return (0, import_valibot9.transform)(
-    (0, import_valibot9.object)(
+var import_valibot7 = require("valibot");
+var dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
+  const unmarshall = () => (0, import_valibot7.pipe)(
+    (0, import_valibot7.unknown)(),
+    (0, import_valibot7.transform)((v) => table.unmarshall(v))
+  );
+  return (0, import_valibot7.pipe)(
+    (0, import_valibot7.object)(
       {
-        Records: (0, import_valibot9.array)(
-          (0, import_valibot9.variant)("eventName", [
-            (0, import_valibot9.object)({
-              eventName: (0, import_valibot9.literal)("MODIFY"),
-              dynamodb: (0, import_valibot9.object)({
+        Records: (0, import_valibot7.array)(
+          (0, import_valibot7.variant)("eventName", [
+            (0, import_valibot7.object)({
+              eventName: (0, import_valibot7.literal)("MODIFY"),
+              dynamodb: (0, import_valibot7.object)({
                 Keys: unmarshall(),
                 OldImage: unmarshall(),
                 NewImage: unmarshall()
               })
             }),
-            (0, import_valibot9.object)({
-              eventName: (0, import_valibot9.literal)("INSERT"),
-              dynamodb: (0, import_valibot9.object)({
+            (0, import_valibot7.object)({
+              eventName: (0, import_valibot7.literal)("INSERT"),
+              dynamodb: (0, import_valibot7.object)({
                 Keys: unmarshall(),
                 NewImage: unmarshall()
               })
             }),
-            (0, import_valibot9.object)({
-              eventName: (0, import_valibot9.literal)("REMOVE"),
-              dynamodb: (0, import_valibot9.object)({
+            (0, import_valibot7.object)({
+              eventName: (0, import_valibot7.literal)("REMOVE"),
+              dynamodb: (0, import_valibot7.object)({
                 Keys: unmarshall(),
                 OldImage: unmarshall()
               })
@@ -220,9 +191,9 @@ var dynamoDbStream = (table) => {
           ])
         )
       },
-      "Invalid DynamoDB Stream input"
+      message
     ),
-    (input) => {
+    (0, import_valibot7.transform)((input) => {
       return input.Records.map((record) => {
         const item = {
           event: record.eventName.toLowerCase(),
@@ -236,34 +207,86 @@ var dynamoDbStream = (table) => {
         }
         return item;
       });
-    }
+    })
+  );
+};
+
+// src/schema/aws/s3-event.ts
+var import_valibot8 = require("valibot");
+var s3Event = () => {
+  const schema = (0, import_valibot8.object)({
+    event: (0, import_valibot8.string)(),
+    bucket: (0, import_valibot8.string)(),
+    key: (0, import_valibot8.string)(),
+    size: (0, import_valibot8.number)(),
+    eTag: (0, import_valibot8.string)(),
+    time: (0, import_valibot8.date)()
+  });
+  return (0, import_valibot8.union)(
+    [
+      // Prioritize the expected payload during production
+      (0, import_valibot8.pipe)(
+        (0, import_valibot8.object)({
+          Records: (0, import_valibot8.array)(
+            (0, import_valibot8.object)({
+              eventTime: (0, import_valibot8.pipe)((0, import_valibot8.string)(), (0, import_valibot8.toDate)()),
+              eventName: (0, import_valibot8.string)(),
+              s3: (0, import_valibot8.object)({
+                bucket: (0, import_valibot8.object)({
+                  name: (0, import_valibot8.string)()
+                }),
+                object: (0, import_valibot8.object)({
+                  key: (0, import_valibot8.string)(),
+                  size: (0, import_valibot8.number)(),
+                  eTag: (0, import_valibot8.string)()
+                })
+              })
+            })
+          )
+        }),
+        (0, import_valibot8.transform)((input) => {
+          return input.Records.map((record) => ({
+            event: record.eventName,
+            time: record.eventTime,
+            bucket: record.s3.bucket.name,
+            key: record.s3.object.key,
+            size: record.s3.object.size,
+            eTag: record.s3.object.eTag
+          }));
+        })
+      ),
+      // These are allowed during testing
+      (0, import_valibot8.pipe)(
+        schema,
+        (0, import_valibot8.transform)((v) => [v])
+      ),
+      (0, import_valibot8.array)(schema)
+    ],
+    "Invalid S3 Event payload"
   );
 };
 
 // src/validation/positive.ts
 var import_big_float2 = require("@awsless/big-float");
-var import_valibot10 = require("valibot");
-function positive(error) {
-  return (0, import_valibot10.custom)((input) => (0, import_big_float2.gt)(input, import_big_float2.ZERO), error ?? "Invalid positive number");
+var import_valibot9 = require("valibot");
+function positive(message = "Invalid positive number") {
+  return (0, import_valibot9.check)((input) => (0, import_big_float2.isPositive)(input), message);
 }
 
 // src/validation/precision.ts
 var import_big_float3 = require("@awsless/big-float");
-var import_valibot11 = require("valibot");
-function precision(decimals, error) {
-  return (0, import_valibot11.custom)(
-    (input) => {
-      const big = (0, import_big_float3.parse)(input.toString());
-      return -big.exponent <= decimals;
-    },
-    error ?? `Invalid ${decimals} precision number`
-  );
+var import_valibot10 = require("valibot");
+function precision(decimals, message = `Invalid ${decimals} precision number`) {
+  return (0, import_valibot10.check)((input) => {
+    const big = (0, import_big_float3.parse)(input.toString());
+    return -big.exponent <= decimals;
+  }, message);
 }
 
 // src/validation/unique.ts
-var import_valibot12 = require("valibot");
-function unique(compare = (a, b) => a === b, error) {
-  return (0, import_valibot12.custom)((input) => {
+var import_valibot11 = require("valibot");
+function unique(compare = (a, b) => a === b, message = "None unique array") {
+  return (0, import_valibot11.check)((input) => {
     for (const x in input) {
       for (const y in input) {
         if (x !== y && compare(input[x], input[y])) {
@@ -272,22 +295,20 @@ function unique(compare = (a, b) => a === b, error) {
       }
     }
     return true;
-  }, error ?? "None unique array");
+  }, message);
 }
 
 // src/validation/duration.ts
-var import_valibot13 = require("valibot");
-function minDuration(min, error) {
-  return (0, import_valibot13.custom)((input) => input.value >= min.value, error ?? "Invalid duration");
+var import_valibot12 = require("valibot");
+function minDuration(min, message = "Invalid duration") {
+  return (0, import_valibot12.check)((input) => input.value >= min.value, message);
 }
-function maxDuration(max, error) {
-  return (0, import_valibot13.custom)((input) => input.value <= max.value, error ?? "Invalid duration");
+function maxDuration(max, message = "Invalid duration") {
+  return (0, import_valibot12.check)((input) => input.value <= max.value, message);
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   bigfloat,
-  bigint,
-  date,
   duration,
   dynamoDbStream,
   json,
@@ -295,6 +316,7 @@ function maxDuration(max, error) {
   minDuration,
   positive,
   precision,
+  s3Event,
   snsTopic,
   sqsQueue,
   unique,

@@ -1,15 +1,16 @@
 import { NativeAttributeBinary } from '@aws-sdk/util-dynamodb'
 
-export type AnySchema = BaseSchema<any>
+export type GenericSchema = BaseSchema<any>
 
 export type MarshallInputTypes = {
 	S: string
 	N: string
 	B: NativeAttributeBinary
 	BOOL: boolean
+	NULL: true
 
 	M: Record<string, Partial<MarshallInputTypes>>
-	L: MarshallInputTypes[]
+	L: Partial<MarshallInputTypes>[]
 
 	SS: string[] | undefined
 	NS: string[] | undefined
@@ -21,9 +22,10 @@ export type MarshallOutputTypes = {
 	N: string
 	B: Uint8Array
 	BOOL: boolean
+	NULL: true
 
 	M: Record<string, Partial<MarshallOutputTypes>>
-	L: MarshallOutputTypes[]
+	L: Partial<MarshallOutputTypes>[]
 
 	SS: string[]
 	NS: string[]
@@ -43,18 +45,23 @@ export type AttributeOutput<T extends AttributeType = AttributeType> = Record<T,
 export type SchemaProps<A extends AttributeType, T = any> = {
 	type?: A
 
-	encode?(value: T): AttributeInputValue<A> | undefined
-	decode?(value: AttributeOutputValue<A>): T
+	// validate(value: T): boolean
 
-	marshall?(value: T): AttributeInput<A> | undefined
-	unmarshall?(value: AttributeOutput<A>): T
+	validateInput(value: T): boolean
+	validateOutput(value: AttributeOutput<A>): boolean
 
-	filterIn?(value: T | undefined): boolean
-	filterOut?(value: T | undefined): boolean
+	// encode?(value: T): AttributeInputValue<A>
+	// decode?(value: AttributeOutputValue<A>): T
 
-	marshallInner?(value: T): AttributeInput<A> | undefined
+	marshall(value: T): AttributeInput<A>
+	unmarshall(value: AttributeOutput<A>): T
 
-	walk?: (...path: Array<string | number>) => AnySchema | undefined
+	// filterIn?(value: T | undefined): boolean
+	// filterOut?(value: T | undefined): boolean
+
+	// marshallInner?(value: T): AttributeInput<A> | undefined
+
+	walk?(...path: Array<string | number>): GenericSchema | undefined
 }
 
 export type Expression<U = any, C = any, RU = any, RC = any> = {
@@ -74,41 +81,70 @@ export type BaseSchema<A extends AttributeType, T = any, Exp extends Expression 
 
 	readonly type?: A
 
-	encode(value: T): AttributeInputValue<A> | undefined
-	decode(value: AttributeOutputValue<A>): T
+	validateInput(value: T): boolean
+	validateOutput(value: AttributeOutput<A>): boolean
 
-	marshall(value: T): AttributeInput<A> | undefined
+	// encode(value: T): AttributeInputValue<A>
+	// decode(value: AttributeOutputValue<A>): T
+
+	marshall(value: T): AttributeInput<A>
 	unmarshall(value: AttributeOutput<A>): T
 
-	marshallInner?(value: T): AttributeInput<A> | undefined
+	// marshallInner?(value: T): AttributeInput<A> | undefined
 	// filterIn(value: T | undefined): boolean
 	// filterOut(value: T | undefined): boolean
 
-	walk?(...path: Array<string | number>): AnySchema | undefined
+	walk?(...path: Array<string | number>): GenericSchema | undefined
 }
 
 export const createSchema = <A extends AttributeType, T>(props: SchemaProps<A, T>): BaseSchema<A, T> => {
 	return {
-		encode(value) {
-			return value as AttributeInputValue<A>
-		},
-		decode(value) {
-			return value as T
-		},
-		marshall(value) {
-			return {
-				[props.type!]: this.encode(value),
-			} as AttributeInput<A>
-		},
-		unmarshall(value) {
-			return this.decode(value[props.type!])
-		},
+		// encode(value) {
+		// 	return value as AttributeInputValue<A>
+		// },
+		// decode(value) {
+		// 	return value as T
+		// },
+		// marshall(value) {
+		// 	return {
+		// 		[props.type!]: this.encode(value),
+		// 	} as AttributeInput<A>
+		// },
+		// unmarshall(value) {
+		// 	return this.decode(value[props.type!])
+		// },
+		// validate() {
+		// 	return true
+		// },
 		// filterIn(value) {
 		// 	return typeof value === 'undefined'
 		// },
 		// filterOut(value) {
 		// 	return typeof value === 'undefined'
 		// },
+		//
+		//
+		// walk() {
+		// 	throw new TypeError('There is no more path to walk')
+		// },
 		...props,
+		marshall(value) {
+			if (!props.validateInput(value)) {
+				throw new TypeError(
+					`Invalid marshall payload provided. Expected ${props.type}. Received ${typeof value}`
+				)
+			}
+
+			return props.marshall(value)
+		},
+		unmarshall(value) {
+			if (typeof value !== 'object' || !props.validateOutput(value)) {
+				throw new TypeError(
+					`Invalid unmarshall payload provided. Expected ${props.type}. Received ${typeof value}`
+				)
+			}
+
+			return props.unmarshall(value)
+		},
 	}
 }

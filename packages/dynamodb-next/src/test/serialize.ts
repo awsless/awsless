@@ -1,5 +1,5 @@
 import { CreateTableCommandInput } from '@aws-sdk/client-dynamodb'
-import { AnySchema } from '../schema/schema'
+import { GenericSchema } from '../schema/schema'
 import { AnyTable, TableIndex } from '../table'
 
 const filter = <L extends (unknown | undefined)[]>(list: L) => {
@@ -16,7 +16,7 @@ const unique = <L extends { AttributeName: string }[]>(list: L) => {
 }
 
 export const serializeTable = (table: AnyTable) => {
-	const indexes = Object.entries(table.indexes || {}) as [string, TableIndex<AnySchema>][]
+	const indexes = Object.entries(table.indexes || {}) as [string, TableIndex<GenericSchema>][]
 	const result: CreateTableCommandInput = {
 		TableName: table.name,
 		KeySchema: filter([

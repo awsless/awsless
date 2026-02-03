@@ -1,4 +1,5 @@
 import { AttributeValue } from '@aws-sdk/client-dynamodb'
+import { SET_KEY } from '../schema/set'
 import { AnyTable } from '../table'
 
 export type ExpressionAttributeNames = Record<string, string>
@@ -35,16 +36,17 @@ export class ExpressionAttributes {
 	}
 
 	value(value: any, path: Array<string | number>): string {
-		const marshalled = this.table.walk(...path).marshall(value)
+		const schema = this.table.walk(...path)
+		const marshalled = schema.marshall(value)
 
 		return this.raw(marshalled)
 	}
 
-	innerValue(value: any, path: Array<string | number>): string {
+	innerSetValue(value: any, path: Array<string | number>): string {
 		const schema = this.table.walk(...path)
-		const marshalled = schema.marshallInner ? schema.marshallInner(value) : schema.marshall(value)
+		const marshalled = schema.marshall(value)
 
-		return this.raw(marshalled)
+		return this.raw(marshalled.M[SET_KEY])
 	}
 
 	isSet(path: Array<string | number>): boolean {
@@ -54,12 +56,12 @@ export class ExpressionAttributes {
 		return type === 'SS' || type === 'NS' || type === 'BS'
 	}
 
-	valueElement(value: any, path: Array<string | number>): string {
+	elementValue(value: any, path: Array<string | number>): string {
 		const schema = this.table.walk(...path)
-		const elementSchema = schema.walk?.() ?? schema.walk?.(0)
+		const element = schema.walk?.()
 
-		if (elementSchema && typeof elementSchema.marshall === 'function') {
-			return this.raw(elementSchema.marshall(value))
+		if (element) {
+			return this.raw(element.marshall(value))
 		}
 
 		return this.raw(schema.marshall(value))

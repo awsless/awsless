@@ -6,23 +6,23 @@ import { InvokeCommand } from "@aws-sdk/client-lambda";
 import { fromUtf8, toUtf8 } from "@aws-sdk/util-utf8-node";
 import { parse, stringify } from "@awsless/json";
 
-// src/errors/viewable.ts
-var ViewableError = class extends Error {
-  constructor(type, message, data) {
+// src/errors/expected.ts
+var ExpectedError = class extends Error {
+  type = "expected";
+  constructor(message) {
     super(message);
-    this.type = type;
-    this.data = data;
   }
-  name = "ViewableError";
 };
-var isViewableErrorResponse = (response) => {
+
+// src/errors/response.ts
+var isErrorResponse = (response) => {
   return typeof response === "object" && response !== null && "__error__" in response && typeof response.__error__ === "object";
 };
-var toViewableErrorResponse = (error) => {
+var toErrorResponse = (error) => {
   return {
     __error__: {
       type: error.type,
-      data: error.data,
+      // name: error.name,
       message: error.message
     }
   };
@@ -36,7 +36,7 @@ var lambdaClient = globalClient(() => {
 });
 
 // src/commands/invoke.ts
-var isErrorResponse = (response) => {
+var isLambdaErrorResponse = (response) => {
   return typeof response === "object" && response !== null && typeof response.errorMessage === "string";
 };
 var invoke = async ({
@@ -55,27 +55,24 @@ var invoke = async ({
   });
   const result = await client.send(command);
   if (!result.Payload) {
-    return void 0;
+    return;
   }
   const json = toUtf8(result.Payload);
   if (!json) {
-    return void 0;
+    return;
   }
   const response = parse(json);
-  if (isViewableErrorResponse(response)) {
-    const e = response.__error__;
-    const error = reflectViewableErrors ? new ViewableError(e.type, e.message, e.data) : new Error(e.message);
-    error.metadata = {
-      functionName: name
-    };
-    throw error;
-  }
   if (isErrorResponse(response)) {
+    const e = response.__error__;
+    if (reflectViewableErrors) {
+      throw new ExpectedError(e.message);
+    } else {
+      throw new Error(e.message);
+    }
+  }
+  if (isLambdaErrorResponse(response)) {
     const error = new Error(response.errorMessage);
     error.name = response.errorType;
-    error.metadata = {
-      functionName: name
-    };
     throw error;
   }
   return response;
@@ -119,6 +116,18 @@ var createTimeoutWrap = async (context, log, callback) => {
 
 // src/errors/validation.ts
 import { ValiError } from "@awsless/validate";
+
+// src/errors/viewable.ts
+var ViewableError = class extends Error {
+  constructor(type, message, data) {
+    super(message);
+    this.type = type;
+    this.data = data;
+  }
+  name = "ViewableError";
+};
+
+// src/errors/validation.ts
 var ValidationError = class extends ViewableError {
   constructor(message, issues) {
     super("validation", message, {
@@ -127,7 +136,7 @@ var ValidationError = class extends ViewableError {
           key: path.key,
           type: path.type
         })),
-        reason: issue.reason,
+        // reason: issue.reason,
         message: issue.message,
         received: issue.received,
         expected: issue.expected
@@ -204,6 +213,26 @@ var mockLambda = (lambdas) => {
 import { parse as parse3, patch, stringify as stringify3, unpatch } from "@awsless/json";
 import { parse as valiParse } from "@awsless/validate";
 
+// src/context/global-context.ts
+var GlobalContext = class {
+  #store;
+  async run(store, callback) {
+    this.#store = store;
+    try {
+      const res = await callback();
+      return res;
+    } finally {
+      this.#store = void 0;
+    }
+  }
+  get() {
+    return this.#store;
+  }
+};
+
+// src/context/lambda-context.ts
+var eventContext = new GlobalContext();
+
 // src/helpers/error.ts
 var normalizeError = (maybeError) => {
   if (maybeError instanceof Error) {
@@ -235,7 +264,7 @@ var getWarmUpEvent = (event) => {
     concurrency: parseInt(String(event[concurrencyKey]), 10) || 3
   };
 };
-var warmUp = async (input, context) => {
+var warmUp = async (input) => {
   if (input.concurrency > concurrencyLimit) {
     throw new Error(`Warm up concurrency limit can't be greater than ${concurrencyLimit}`);
   }
@@ -243,7 +272,7 @@ var warmUp = async (input, context) => {
     return;
   }
   await invoke({
-    name: process.env.AWS_LAMBDA_FUNCTION_NAME || "",
+    name: process.env.AWS_LAMBDA_FUNCTION_NAME ?? "",
     // qualifier: '$LATEST',
     payload: {
       [warmerKey]: true,
@@ -267,45 +296,75 @@ var lambda = (options) => {
       );
     };
     const isTestEnv = process.env.NODE_ENV === "test";
+    const successCallbacks = [];
+    const failureCallbacks = [];
+    const finallyCallbacks = [];
     try {
       const warmUpEvent = getWarmUpEvent(event);
       if (warmUpEvent) {
-        await warmUp(warmUpEvent, context);
+        await warmUp(warmUpEvent);
         return void 0;
       }
       const result = await createTimeoutWrap(context, log, () => {
         return transformValidationErrors(() => {
-          const fixed = typeof event === "undefined" || isTestEnv ? event : patch(event);
-          const input = options.schema ? valiParse(options.schema, fixed) : fixed;
-          const extendedContext = { ...context ?? {}, event: fixed, log };
-          return options.handle(input, extendedContext);
+          const raw = typeof event === "undefined" || isTestEnv ? event : patch(event);
+          const input = options.schema ? valiParse(options.schema, raw) : raw;
+          const extendedContext = {
+            // ...(context ?? {}),
+            event: input,
+            context,
+            raw,
+            log,
+            onSuccess(cb) {
+              successCallbacks.push(cb);
+            },
+            onFailure(cb) {
+              failureCallbacks.push(cb);
+            },
+            onFinally(cb) {
+              finallyCallbacks.push(cb);
+            }
+          };
+          return eventContext.run(extendedContext, () => {
+            return options.handle(input, extendedContext);
+          });
         });
       });
+      await Promise.all(successCallbacks.map((cb) => cb(result)));
       if (isTestEnv) {
         return parse3(stringify3(result));
       }
       return unpatch(result);
     } catch (error) {
-      if (!(error instanceof ViewableError) || options.logViewableErrors) {
+      await Promise.all(failureCallbacks.map((cb) => cb(error)));
+      if (!(error instanceof ViewableError) && !(error instanceof ExpectedError) || options.logViewableErrors) {
         await log(error);
       }
-      if (error instanceof ViewableError && !isTestEnv) {
-        return toViewableErrorResponse(error);
+      if (!isTestEnv) {
+        if (error instanceof ViewableError) {
+          return toErrorResponse(error);
+        }
+        if (error instanceof ExpectedError) {
+          return toErrorResponse(error);
+        }
       }
       throw error;
+    } finally {
+      await Promise.all(finallyCallbacks.map((cb) => cb()));
     }
   };
 };
 export {
+  ExpectedError,
   LambdaClient3 as LambdaClient,
   TimeoutError,
   ValidationError,
   ViewableError,
   invoke,
-  isViewableErrorResponse,
+  isErrorResponse,
   lambda,
   lambdaClient,
   listFunctions,
   mockLambda,
-  toViewableErrorResponse
+  toErrorResponse
 };

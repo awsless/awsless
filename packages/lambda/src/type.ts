@@ -1,7 +1,7 @@
-import { BaseSchema, Input as InferInput, Output as InferOutput } from '@awsless/validate'
+import { GenericSchema, InferInput, InferOutput } from '@awsless/validate'
 import { Context as LambdaContext } from 'aws-lambda'
 
-export type Schema = BaseSchema | undefined
+export type Schema = GenericSchema | undefined
 export type Input<T extends Schema = undefined> = T extends undefined ? unknown : InferInput<RemoveUndefined<T>>
 export type Output<T extends Schema = undefined> = T extends undefined ? unknown : InferOutput<RemoveUndefined<T>>
 

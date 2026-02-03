@@ -9,14 +9,15 @@ export { DynamoDBServer } from '@awsless/dynamodb-server';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-type AnySchema$1 = BaseSchema<any>;
+type GenericSchema = BaseSchema<any>;
 type MarshallInputTypes = {
     S: string;
     N: string;
     B: NativeAttributeBinary;
     BOOL: boolean;
+    NULL: true;
     M: Record<string, Partial<MarshallInputTypes>>;
-    L: MarshallInputTypes[];
+    L: Partial<MarshallInputTypes>[];
     SS: string[] | undefined;
     NS: string[] | undefined;
     BS: NativeAttributeBinary[] | undefined;
@@ -26,8 +27,9 @@ type MarshallOutputTypes = {
     N: string;
     B: Uint8Array;
     BOOL: boolean;
+    NULL: true;
     M: Record<string, Partial<MarshallOutputTypes>>;
-    L: MarshallOutputTypes[];
+    L: Partial<MarshallOutputTypes>[];
     SS: string[];
     NS: string[];
     BS: Uint8Array[];
@@ -51,12 +53,11 @@ type BaseSchema<A extends AttributeType, T = any, Exp extends Expression = Expre
         Expression: Exp;
     };
     readonly type?: A;
-    encode(value: T): AttributeInputValue<A> | undefined;
-    decode(value: AttributeOutputValue<A>): T;
-    marshall(value: T): AttributeInput<A> | undefined;
+    validateInput(value: T): boolean;
+    validateOutput(value: AttributeOutput<A>): boolean;
+    marshall(value: T): AttributeInput<A>;
     unmarshall(value: AttributeOutput<A>): T;
-    marshallInner?(value: T): AttributeInput<A> | undefined;
-    walk?(...path: Array<string | number>): AnySchema$1 | undefined;
+    walk?(...path: Array<string | number>): GenericSchema | undefined;
 };
 
 type AnyMapSchema = BaseSchema<'M'>;
@@ -80,7 +81,7 @@ declare class Table<Schema extends AnyMapSchema, Hash extends Extract<keyof Sche
         schema: Schema;
         indexes?: Indexes;
     });
-    walk(...path: Array<string | number>): AnySchema$1 | Schema;
+    walk(...path: Array<string | number>): GenericSchema | Schema;
     marshall(item: Partial<Schema[symbol]['Type']>): Record<string, AttributeValue>;
     unmarshall(item: any): Schema[symbol]['Type'];
 }
@@ -131,11 +132,15 @@ type ElementOfSet<T> = T extends Set<infer E> ? E : never;
 type ListConditionExpression<T, L extends any[]> = {
     at<K extends number>(key: K): L[K];
 } & BaseConditionExpression<'L', T> & ContainsFunction<'L', ElementOfList<T>>;
+type TupleConditionExpression<T extends any[], L extends any[]> = {
+    at<K extends number>(key: K): L[K];
+} & BaseConditionExpression<'L', T>;
 type TupleWithRestConditionExpression<T extends any[], L extends any[], R> = {
     at<K extends number>(index: K): L[K] extends undefined ? R : L[K];
-} & BaseConditionExpression<'L', T> & ContainsFunction<'L', ElementOfList<T>>;
+} & BaseConditionExpression<'L', T>;
 type SetConditionExpression<A extends AttributeType, T> = BaseConditionExpression<A, T> & ContainsFunction<A, ElementOfSet<T>>;
 type StringConditionExpression<T> = BaseConditionExpression<'S', T> & StartsWithFunction & ContainsFunction<'S', string> & InFunction<'S', T>;
+type UuidConditionExpression<T> = BaseConditionExpression<'S', T> & InFunction<'S', T>;
 type JsonConditionExpression<T> = BaseConditionExpression<'S', T>;
 type NumberConditionExpression<T> = BaseConditionExpression<'N', T> & GreaterThanFunction<T> & GreaterThanOrEqualFunction<T> & LessThanFunction<T> & LessThanOrEqualFunction<T> & BetweenFunction<T> & InFunction<'N', T>;
 type BinaryConditionExpression<T> = BaseConditionExpression<'B', T> & InFunction<'B', T>;
@@ -161,14 +166,14 @@ type MapWithRestUpdateExpression<T, P extends Record<string, any>, R> = {
 type VariantUpdateExpression<T> = BaseUpdateExpression<'M', T>;
 type ListUpdateExpression<T extends any[], L extends any[]> = {
     at<K extends keyof L>(index: K): L[K] & DeleteFunction;
-} & BaseUpdateExpression<'L', T> & PushFunction<T>;
+} & BaseUpdateExpression<'L', T> & AppendFunction<T> & PrependFunction<T>;
 type TupleUpdateExpression<T extends any[], L extends any[]> = {
     at<K extends keyof L>(index: K): L[K];
 } & BaseUpdateExpression<'L', T>;
 type TupleWithRestUpdateExpression<T extends any[], L extends any[], R> = {
     at<K extends number>(index: K): L[K] extends undefined ? R & DeleteFunction : L[K];
 } & BaseUpdateExpression<'L', T>;
-type SetUpdateExpression<A extends AttributeType, T> = BaseUpdateExpression<A, T> & AppendFunction<A, T> & RemoveFunction<A, T>;
+type SetUpdateExpression<A extends AttributeType, T> = BaseUpdateExpression<A, T> & AddFunction<A, T> & RemoveFunction<A, T>;
 type UnknownUpdateExpression<T> = BaseUpdateExpression<AttributeType, T>;
 type BooleanUpdateExpression<T> = BaseUpdateExpression<'BOOL', T>;
 type BinaryUpdateExpression<T> = BaseUpdateExpression<'B', T>;
@@ -212,13 +217,21 @@ type DeleteFunction<T = undefined> = undefined extends T ? {
     /** Delete attribute value. */
     delete(): Fluent;
 } : {};
-type PushFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
+type AppendFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
     /**
-     * Push one or more elements to the end of the array.
+     * Append one or more elements to the end of the array.
      * @param {...NonNullable<T>} values - The elements to append to the array.
      */
-    push(...values: [I, ...I[]]): Fluent;
-    push(...values: [Path<AttributeType, I> | I, ...(Path<AttributeType, I> | I)[]]): Fluent;
+    append(...values: [I, ...I[]]): Fluent;
+    append(value: Path<AttributeType, I>): Fluent;
+};
+type PrependFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
+    /**
+     * Prepend one or more elements to the start of the array.
+     * @param {...NonNullable<T>} values - The elements to append to the array.
+     */
+    prepend(...values: [I, ...I[]]): Fluent;
+    prepend(value: Path<AttributeType, I>): Fluent;
 };
 type IncrementFunction<T, V = NonNullable<T>> = {
     /**
@@ -238,20 +251,21 @@ type DecrementFunction<T, V = NonNullable<T>> = {
     decr(value: V, defaultValue?: V): Fluent;
     decr(value: Path<'N'> | V, defaultValue?: Path<'N'> | V): Fluent;
 };
-type AppendFunction<A extends AttributeType, T, V = NonNullable<T>> = {
+type InnerSetValue<T> = T extends Set<infer R> ? R : never;
+type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
     /**
-     * Append elements to a Set.
-     * @param {V} value - The elements to add to the Set.
+     * Add elements to a Set.
+     * @param {...V} values - The elements to add to the Set.
      */
-    append(value: V): Fluent;
-    append(value: Path<A, T>): Fluent;
+    add(...values: [V, ...V[]]): Fluent;
+    add(value: Path<A, T>): Fluent;
 };
-type RemoveFunction<A extends AttributeType, T, V = NonNullable<T>> = {
+type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
     /**
      * Remove elements from a Set.
-     * @param {V} value - The elements to remove to the Set.
+     * @param {...V} values - The elements to remove to the Set.
      */
-    remove(value: V): Fluent;
+    remove(...values: [V, ...V[]]): Fluent;
     remove(value: Path<A, T>): Fluent;
 };
 type AndFunction = {
@@ -396,27 +410,28 @@ type TypeFunction<A extends AttributeType> = {
     type(value: A): Fluent;
 };
 type StringExpression<T> = Expression<StringUpdateExpression<T>, StringConditionExpression<T>>;
+type UuidExpression<T> = Expression<StringUpdateExpression<T>, UuidConditionExpression<T>>;
 type NumberExpression<T> = Expression<NumberUpdateExpression<T>, NumberConditionExpression<T>>;
 type BooleanExpression<T> = Expression<BooleanUpdateExpression<T>, BooleanConditionExpression<T>>;
 type BinaryExpression<T> = Expression<BinaryUpdateExpression<T>, BinaryConditionExpression<T>>;
 type JsonExpression<T> = Expression<StringUpdateExpression<T>, JsonConditionExpression<T>>;
-type MapExpression<T, P extends Record<string, AnySchema$1>, R extends AnySchema$1 | undefined = undefined, P_UPDATE extends Record<string, any> = {
+type MapExpression<T, P extends Record<string, GenericSchema>, R extends GenericSchema | undefined = undefined, P_UPDATE extends Record<string, any> = {
     [K in keyof P]: P[K][symbol]['Expression']['Update'];
 }, P_CONDITION extends Record<string, any> = {
     [K in keyof P]: P[K][symbol]['Expression']['Condition'];
-} & (R extends AnySchema$1 ? Record<string, R[symbol]['Expression']['Condition']> : {})> = Expression<R extends AnySchema$1 ? MapWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']> : MapUpdateExpression<T, P_UPDATE>, MapConditionExpression<T, P_CONDITION>, R extends AnySchema$1 ? RootWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']> : RootUpdateExpression<T, P_UPDATE>, RootConditionExpression<P_CONDITION>>;
+} & (R extends GenericSchema ? Record<string, R[symbol]['Expression']['Condition']> : {})> = Expression<R extends GenericSchema ? MapWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']> : MapUpdateExpression<T, P_UPDATE>, MapConditionExpression<T, P_CONDITION>, R extends GenericSchema ? RootWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']> : RootUpdateExpression<T, P_UPDATE>, RootConditionExpression<P_CONDITION>>;
 type VariantExpression<T> = Expression<VariantUpdateExpression<T>, VariantConditionExpression<T>>;
-type ListExpression<T extends any[], L extends AnySchema$1[]> = Expression<ListUpdateExpression<T, {
+type ListExpression<T extends any[], L extends GenericSchema[]> = Expression<ListUpdateExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Update'];
 }>, ListConditionExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Condition'];
 }>>;
-type TupleExpression<T extends any[], L extends AnySchema$1[]> = Expression<TupleUpdateExpression<T, {
+type TupleExpression<T extends any[], L extends GenericSchema[]> = Expression<TupleUpdateExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Update'];
-}>, ListConditionExpression<T, {
+}>, TupleConditionExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Condition'];
 }>>;
-type TupleWithRestExpression<T extends any[], L extends AnySchema$1[], R extends AnySchema$1> = Expression<TupleWithRestUpdateExpression<T, {
+type TupleWithRestExpression<T extends any[], L extends GenericSchema[], R extends GenericSchema> = Expression<TupleWithRestUpdateExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Update'];
 }, R[symbol]['Expression']['Update']>, TupleWithRestConditionExpression<T, {
     [K in keyof L]: L[K][symbol]['Expression']['Condition'];
@@ -425,8 +440,8 @@ type SetExpression<A extends AttributeType, T> = Expression<SetUpdateExpression<
 type UnknownExpression<T> = Expression<UnknownUpdateExpression<T>, UnknownConditionExpression<T>>;
 type EnumExpression<T> = Expression<UnknownUpdateExpression<T>, UnknownConditionExpression<T>>;
 
-type OptionalSchema<T extends AnySchema$1> = BaseSchema<T['type'], T[symbol]['Type'] | undefined, 'S' extends T['type'] ? StringExpression<T[symbol]['Type'] | undefined> : 'N' extends T['type'] ? NumberExpression<T[symbol]['Type'] | undefined> : 'BOOL' extends T['type'] ? BooleanExpression<T[symbol]['Type'] | undefined> : 'B' extends T['type'] ? BinaryExpression<T[symbol]['Type'] | undefined> : NonNullable<T['type']> extends 'SS' | 'NS' | 'BS' ? SetExpression<NonNullable<T['type']>, T[symbol]['Type'] | undefined> : T[symbol]['Expression']>;
-declare const optional: <T extends AnySchema$1>(schema: T) => OptionalSchema<T>;
+type OptionalSchema<T extends GenericSchema> = BaseSchema<T['type'], T[symbol]['Type'] | undefined, 'S' extends T['type'] ? StringExpression<T[symbol]['Type'] | undefined> : 'N' extends T['type'] ? NumberExpression<T[symbol]['Type'] | undefined> : 'BOOL' extends T['type'] ? BooleanExpression<T[symbol]['Type'] | undefined> : 'B' extends T['type'] ? BinaryExpression<T[symbol]['Type'] | undefined> : NonNullable<T['type']> extends 'SS' | 'NS' | 'BS' ? SetExpression<NonNullable<T['type']>, T[symbol]['Type'] | undefined> : T[symbol]['Expression']>;
+declare const optional: <T extends GenericSchema>(schema: T) => OptionalSchema<T>;
 
 type UnknownOptions = {
     marshall?: marshallOptions;
@@ -442,7 +457,7 @@ type AllowedSchema = BaseSchema<'S'> | BaseSchema<'N'> | BaseSchema<'B'>;
 type SetSchema<T extends AllowedSchema> = BaseSchema<`${NonNullable<T['type']>}S`, Set<T[symbol]['Type']>, SetExpression<`${NonNullable<T['type']>}S`, Set<T[symbol]['Type']>>>;
 declare const set: <S extends AllowedSchema>(schema: S) => SetSchema<S>;
 
-type UuidSchema = BaseSchema<'S', UUID, StringExpression<UUID>>;
+type UuidSchema = BaseSchema<'S', UUID, UuidExpression<UUID>>;
 declare const uuid: () => UuidSchema;
 
 type StringSchema<T extends string = string> = BaseSchema<'S', T, StringExpression<T>>;
@@ -467,9 +482,9 @@ declare const bigfloat: () => BigFloatSchema;
 type Uint8ArraySchema = BaseSchema<'B', Uint8Array, BinaryExpression<Uint8Array>>;
 declare const uint8array: () => Uint8ArraySchema;
 
-type Properties$1 = Record<string, AnySchema$1>;
+type Properties$1 = Record<string, GenericSchema>;
 type KeyOf<T> = Extract<keyof T, string>;
-type IsOptional<T extends AnySchema$1> = undefined extends T[symbol]['Type'] ? true : false;
+type IsOptional<T extends GenericSchema> = undefined extends T[symbol]['Type'] ? true : false;
 type FilterOptional<T extends Properties$1> = {
     [K in KeyOf<T> as IsOptional<T[K]> extends true ? K : never]?: T[K];
 };
@@ -477,38 +492,38 @@ type FilterRequired<T extends Properties$1> = {
     [K in KeyOf<T> as IsOptional<T[K]> extends true ? never : K]: T[K];
 };
 type Optinalize<T extends Properties$1> = FilterOptional<T> & FilterRequired<T>;
-type InferProps<S extends Properties$1, R extends AnySchema$1 | undefined = undefined> = {
+type InferProps<S extends Properties$1, R extends GenericSchema | undefined = undefined> = {
     [K in keyof Optinalize<S>]: S[K][symbol]['Type'];
-} & (R extends AnySchema$1 ? {
+} & (R extends GenericSchema ? {
     [key: string]: R[symbol]['Type'] | S[keyof S][symbol]['Type'];
 } : {});
-type ObjectSchema<T, P extends Properties$1, R extends AnySchema$1 | undefined = undefined> = BaseSchema<'M', T, MapExpression<T, P, R>>;
-declare const object: <P extends Properties$1, R extends AnySchema$1 | undefined = undefined>(props: P, rest?: R) => ObjectSchema<InferProps<P, R>, P, R>;
+type ObjectSchema<T, P extends Properties$1, R extends GenericSchema | undefined = undefined> = BaseSchema<'M', T, MapExpression<T, P, R>>;
+declare const object: <P extends Properties$1, R extends GenericSchema | undefined = undefined>(props: P, rest?: R) => ObjectSchema<InferProps<P, R>, P, R>;
 
-type Infer$1<S extends AnySchema$1> = Record<string, S[symbol]['Type']>;
-type RecordSchema<S extends AnySchema$1> = BaseSchema<'M', Infer$1<S>, MapExpression<Infer$1<S>, {}, S>>;
-declare const record: <S extends AnySchema$1>(schema: S) => RecordSchema<S>;
+type Infer$1<S extends GenericSchema> = Record<string, S[symbol]['Type']>;
+type RecordSchema<S extends GenericSchema> = BaseSchema<'M', Infer$1<S>, MapExpression<Infer$1<S>, {}, S>>;
+declare const record: <S extends GenericSchema>(schema: S) => RecordSchema<S>;
 
 type Infer<K extends string, O extends Options<K>> = {
     [Key in keyof O]: O[Key][symbol]['Type'] & Record<K, Key>;
 }[keyof O];
 type VariantSchema<K extends string, O extends Options<K>> = BaseSchema<'M', Infer<K, O>, VariantExpression<Infer<K, O>>>;
-type Properties = Record<string, AnySchema$1>;
+type Properties = Record<string, GenericSchema>;
 type Options<T extends string> = Record<string, ObjectSchema<any, Properties & {
     [K in T]?: never;
 }>>;
 declare const variant: <K extends string, O extends Options<K>>(key: K, options: O) => VariantSchema<K, O>;
 
-type ArraySchema<T extends AnySchema$1> = BaseSchema<'L', T[symbol]['Type'][], ListExpression<T[symbol]['Type'][], T[]>>;
-declare const array: <S extends AnySchema$1>(schema: S) => ArraySchema<S>;
+type ArraySchema<T extends GenericSchema> = BaseSchema<'L', T[symbol]['Type'][], ListExpression<T[symbol]['Type'][], T[]>>;
+declare const array: <S extends GenericSchema>(schema: S) => ArraySchema<S>;
 
-type Tuple<Entries extends AnySchema$1[]> = {
+type Tuple<Entries extends GenericSchema[]> = {
     -readonly [Key in keyof Entries]: Entries[Key][symbol]['Type'];
 };
-type TupleSchema<T extends any[], L extends AnySchema$1[]> = BaseSchema<'L', T, TupleExpression<T, L>>;
-type TupleWithRestSchema<T extends any[], L extends AnySchema$1[], R extends AnySchema$1> = BaseSchema<'L', T, TupleWithRestExpression<T, L, R>>;
-declare function tuple<const T extends AnySchema$1[]>(entries: T): TupleSchema<Tuple<T>, T>;
-declare function tuple<const T extends AnySchema$1[], const R extends AnySchema$1>(entries: T, rest: R): TupleWithRestSchema<[...Tuple<T>, ...Tuple<R[]>], T, R>;
+type TupleSchema<T extends any[], L extends GenericSchema[]> = BaseSchema<'L', T, TupleExpression<T, L>>;
+type TupleWithRestSchema<T extends any[], L extends GenericSchema[], R extends GenericSchema> = BaseSchema<'L', T, TupleWithRestExpression<T, L, R>>;
+declare function tuple<const T extends GenericSchema[]>(entries: T): TupleSchema<Tuple<T>, T>;
+declare function tuple<const T extends GenericSchema[], const R extends GenericSchema>(entries: T, rest: R): TupleWithRestSchema<[...Tuple<T>, ...Tuple<R[]>], T, R>;
 
 type DateSchema = BaseSchema<'N', Date, NumberExpression<Date>>;
 declare const date: () => DateSchema;

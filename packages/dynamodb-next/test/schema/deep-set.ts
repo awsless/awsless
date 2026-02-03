@@ -78,7 +78,7 @@ describe('set', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.object.set.append(new Set(['hello'])),
+					e.object.set.add('hello'),
 				],
 				when: e => [
 					//
@@ -103,7 +103,7 @@ describe('set', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.object.set.remove(new Set(['hello'])),
+					e.object.set.remove('hello'),
 				],
 			}
 		)

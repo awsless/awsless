@@ -9,9 +9,20 @@ export type BigFloatSchema = BaseSchema<
 	NumberExpression<BigFloat>
 >
 
+// export const bigfloat = (): BigFloatSchema =>
+// 	createSchema({
+// 		type: 'N',
+// 		encode: value => value.toString(),
+// 		decode: value => parse(value),
+// 		validate: value => value instanceof BigFloat,
+// 	})
+
 export const bigfloat = (): BigFloatSchema =>
 	createSchema({
 		type: 'N',
-		encode: value => value.toString(),
-		decode: value => parse(value),
+		marshall: value => ({ N: value.toString() }),
+		unmarshall: value => parse(value.N),
+		// validate: value => value instanceof BigFloat,
+		validateInput: value => value instanceof BigFloat,
+		validateOutput: value => !!('N' in value && typeof value.N === 'string'),
 	})

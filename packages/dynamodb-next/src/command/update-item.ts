@@ -21,11 +21,19 @@ export const updateItem = <T extends AnyTable, R extends UpdateReturnValue>(
 	options: UpdateOptions<T, R>
 ) => {
 	const attrs = new ExpressionAttributes(table)
+	const update = buildUpdateExpression(attrs, options.update)
+	const condition = buildConditionExpression(attrs, options.when)
+
+	// console.log('update', update)
+	// console.log('condition', condition)
+	// console.log('names', inspect(attrs.attributes().ExpressionAttributeNames, { colors: true, depth: 5 }))
+	// console.log('values', inspect(attrs.attributes().ExpressionAttributeValues, { colors: true, depth: 5 }))
+
 	const command = new UpdateItemCommand({
 		TableName: table.name,
 		Key: table.marshall(key),
-		UpdateExpression: buildUpdateExpression(attrs, options.update),
-		ConditionExpression: buildConditionExpression(attrs, options.when),
+		UpdateExpression: update,
+		ConditionExpression: condition,
 		ReturnValues: options.return,
 		...attrs.attributes(),
 	})

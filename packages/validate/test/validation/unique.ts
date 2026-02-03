@@ -1,4 +1,4 @@
-import { any, array, number, object, parse, unique } from '../../src'
+import { any, array, number, object, parse, pipe, unique } from '../../src'
 import { testSchema } from '../_util'
 
 testSchema('unique', {
@@ -20,7 +20,7 @@ testSchema('unique', {
 		[false, false],
 	],
 	validate: value => {
-		parse(array(any(), [unique()]), value)
+		parse(pipe(array(any()), unique()), value)
 	},
 })
 
@@ -28,6 +28,12 @@ testSchema('unique keyed', {
 	valid: [[{ key: 1 }, { key: 2 }]],
 	invalid: [[{ key: 1 }, { key: 1 }]],
 	validate: value => {
-		parse(array(object({ key: number() }), [unique((a, b) => a.key === b.key)]), value)
+		parse(
+			pipe(
+				array(object({ key: number() })),
+				unique((a, b) => a.key === b.key)
+			),
+			value
+		)
 	},
 })

@@ -4,7 +4,7 @@ export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
 import { AsyncReturnType } from 'type-fest';
-import { SchemaIssues, BaseSchema, Output as Output$1, Input as Input$1 } from '@awsless/validate';
+import { GenericIssue, GenericSchema, InferOutput, InferInput } from '@awsless/validate';
 import { Mock } from 'vitest';
 
 type InvokeOptions = {
@@ -47,19 +47,26 @@ declare class ViewableError extends Error {
     readonly name = "ViewableError";
     constructor(type: string, message: string, data?: unknown | undefined);
 }
-type ViewableErrorResponse = {
+
+declare class ValidationError extends ViewableError {
+    constructor(message: string, issues: GenericIssue[]);
+}
+
+declare class ExpectedError extends Error {
+    readonly type = "expected";
+    constructor(message: string);
+}
+
+type ErrorResponse = {
     __error__: {
         type: string;
         message: string;
-        data?: unknown;
     };
 };
-declare const isViewableErrorResponse: (response: unknown) => response is ViewableErrorResponse;
-declare const toViewableErrorResponse: (error: ViewableError) => ViewableErrorResponse;
-
-declare class ValidationError extends ViewableError {
-    constructor(message: string, issues: SchemaIssues);
-}
+declare const isErrorResponse: (response: unknown) => response is ErrorResponse;
+declare const toErrorResponse: (error: Error & {
+    type: string;
+}) => ErrorResponse;
 
 declare const lambdaClient: {
     (): LambdaClient;
@@ -71,13 +78,18 @@ type Lambdas = {
 };
 declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
 
-type Schema = BaseSchema | undefined;
-type Input<T extends Schema = undefined> = T extends undefined ? unknown : Input$1<RemoveUndefined<T>>;
-type Output<T extends Schema = undefined> = T extends undefined ? unknown : Output$1<RemoveUndefined<T>>;
+type Schema = GenericSchema | undefined;
+type Input<T extends Schema = undefined> = T extends undefined ? unknown : InferInput<RemoveUndefined<T>>;
+type Output<T extends Schema = undefined> = T extends undefined ? unknown : InferOutput<RemoveUndefined<T>>;
 type RemoveUndefined<T> = T extends undefined ? never : T;
-type Context = Context$1 & {
+type Context = {
+    readonly raw: unknown;
     readonly event: unknown;
+    readonly context?: Context$1;
     readonly log: Logger;
+    readonly onSuccess: (cb: (res: unknown) => void) => void;
+    readonly onFailure: (cb: (err: unknown) => void) => void;
+    readonly onFinally: (cb: () => void) => void;
 };
 type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R;
 type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>;
@@ -104,4 +116,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
-export { type Context, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, TimeoutError, ValidationError, ViewableError, invoke, isViewableErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toViewableErrorResponse };
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, TimeoutError, ValidationError, ViewableError, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

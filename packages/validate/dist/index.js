@@ -3,188 +3,179 @@ export * from "valibot";
 
 // src/schema/json.ts
 import { parse } from "@awsless/json";
-import { string, transform } from "valibot";
-var json = (schema) => {
-  return transform(
-    string(),
-    (value) => {
+import { pipe, rawTransform, string } from "valibot";
+var json = (schema, message = "Invalid JSON") => {
+  return pipe(
+    string(message),
+    rawTransform((ctx) => {
+      let result;
       try {
-        return parse(value);
-      } catch (error) {
-        return null;
+        result = parse(ctx.dataset.value);
+      } catch (_error) {
+        ctx.addIssue({
+          message
+        });
+        return ctx.NEVER;
       }
-    },
+      return result;
+    }),
     schema
   );
 };
 
 // src/schema/bigfloat.ts
-import { BigFloat } from "@awsless/big-float";
+import { BigFloat, parse as parse2 } from "@awsless/big-float";
 import {
   bigint,
-  custom,
-  defaultArgs,
+  decimal,
   instance,
   number,
-  object,
+  pipe as pipe2,
   string as string2,
-  transform as transform2,
+  transform,
   union
 } from "valibot";
-var make = (value) => new BigFloat(value);
-function bigfloat(arg1, arg2) {
-  const [msg, pipe] = defaultArgs(arg1, arg2);
-  const error = msg ?? "Invalid bigfloat";
+function bigfloat(message = "Invalid bigfloat") {
   return union(
     [
-      instance(BigFloat, pipe),
-      transform2(string2([custom((input) => input !== "" && !isNaN(Number(input)), error)]), make, pipe),
-      transform2(number(), make, pipe),
-      transform2(
-        object({
-          exponent: number(),
-          coefficient: bigint()
-        }),
-        make,
-        pipe
+      instance(BigFloat),
+      pipe2(
+        string2(),
+        decimal(),
+        transform((v) => parse2(v))
+      ),
+      pipe2(
+        bigint(),
+        transform((v) => parse2(v))
+      ),
+      pipe2(
+        number(),
+        transform((v) => parse2(v))
       )
     ],
-    error
-  );
-}
-
-// src/schema/bigint.ts
-import { bigint as base, defaultArgs as defaultArgs2, regex, string as string3, transform as transform3, union as union2 } from "valibot";
-function bigint2(arg1, arg2) {
-  const [error, pipe] = defaultArgs2(arg1, arg2);
-  return union2(
-    [
-      base(pipe),
-      transform3(
-        string3([regex(/^-?[0-9]+$/)]),
-        (input) => {
-          return BigInt(input);
-        },
-        base(pipe)
-      )
-    ],
-    error ?? "Invalid BigInt"
-  );
-}
-
-// src/schema/date.ts
-import { date as base2, defaultArgs as defaultArgs3, string as string4, transform as transform4, union as union3 } from "valibot";
-function date(arg1, arg2) {
-  const [error, pipe] = defaultArgs3(arg1, arg2);
-  return union3(
-    [
-      base2(pipe),
-      transform4(
-        string4(),
-        (input) => {
-          return new Date(input);
-        },
-        base2(pipe)
-      )
-    ],
-    error ?? "Invalid date"
+    message
   );
 }
 
 // src/schema/uuid.ts
-import { uuid as base3, string as string5 } from "valibot";
-var uuid = (error) => {
-  return string5(error ?? "Invalid UUID", [base3()]);
+import { uuid as base, pipe as pipe3, string as string3 } from "valibot";
+var uuid = (message = "Invalid UUID") => {
+  return pipe3(string3(message), base(message));
 };
 
 // src/schema/duration.ts
 import { Duration } from "@awsless/duration";
-import { defaultArgs as defaultArgs4, instance as instance2 } from "valibot";
-function duration(arg1, arg2) {
-  const [msg, pipe] = defaultArgs4(arg1, arg2);
-  const error = msg ?? "Invalid duration";
-  return instance2(Duration, error, pipe);
+import { instance as instance2 } from "valibot";
+function duration(message = "Invalid duration") {
+  return instance2(Duration, message);
 }
 
 // src/schema/aws/sqs-queue.ts
-import { array, object as object2, transform as transform5, union as union4, unknown } from "valibot";
-var sqsQueue = (body) => {
-  const schema = body ?? unknown();
-  return union4(
+import {
+  array,
+  object,
+  pipe as pipe4,
+  transform as transform2,
+  union as union2
+} from "valibot";
+var sqsQueue = (schema, message = "Invalid SQS Queue payload") => {
+  return union2(
     [
-      transform5(schema, (input) => [input]),
-      array(schema),
-      transform5(
-        object2({
+      // Prioritize the expected payload during production
+      pipe4(
+        object({
           Records: array(
-            object2({
+            object({
               body: json(schema)
             })
           )
         }),
-        (input) => input.Records.map((record) => {
-          return record.body;
-        })
-      )
+        transform2((v) => v.Records.map((r) => r.body))
+      ),
+      // These are allowed during testing
+      pipe4(
+        schema,
+        transform2((v) => [v])
+      ),
+      array(schema)
     ],
-    "Invalid SQS Queue input"
+    message
   );
 };
 
 // src/schema/aws/sns-topic.ts
-import { array as array2, object as object3, transform as transform6, union as union5, unknown as unknown2 } from "valibot";
-var snsTopic = (body) => {
-  const schema = body ?? unknown2();
-  return union5(
+import {
+  array as array2,
+  object as object2,
+  pipe as pipe5,
+  transform as transform3,
+  union as union3
+} from "valibot";
+var snsTopic = (schema, message = "Invalid SNS Topic payload") => {
+  return union3(
     [
-      transform6(schema, (input) => [input]),
-      array2(schema),
-      transform6(
-        object3({
+      // Prioritize the expected payload during production
+      pipe5(
+        object2({
           Records: array2(
-            object3({
-              Sns: object3({
+            object2({
+              Sns: object2({
                 Message: json(schema)
               })
             })
           )
         }),
-        (input) => input.Records.map((record) => {
-          return record.Sns.Message;
-        })
-      )
+        transform3((v) => v.Records.map((r) => r.Sns.Message))
+      ),
+      // These are allowed during testing
+      pipe5(
+        schema,
+        transform3((v) => [v])
+      ),
+      array2(schema)
     ],
-    "Invalid SNS Topic input"
+    message
   );
 };
 
 // src/schema/aws/dynamodb-stream.ts
-import { array as array3, literal, object as object4, transform as transform7, unknown as unknown3, variant } from "valibot";
-var dynamoDbStream = (table) => {
-  const unmarshall = () => transform7(unknown3(), (value) => table.unmarshall(value));
-  return transform7(
-    object4(
+import {
+  array as array3,
+  literal,
+  object as object3,
+  pipe as pipe6,
+  transform as transform4,
+  unknown,
+  variant
+} from "valibot";
+var dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
+  const unmarshall = () => pipe6(
+    unknown(),
+    transform4((v) => table.unmarshall(v))
+  );
+  return pipe6(
+    object3(
       {
         Records: array3(
           variant("eventName", [
-            object4({
+            object3({
               eventName: literal("MODIFY"),
-              dynamodb: object4({
+              dynamodb: object3({
                 Keys: unmarshall(),
                 OldImage: unmarshall(),
                 NewImage: unmarshall()
               })
             }),
-            object4({
+            object3({
               eventName: literal("INSERT"),
-              dynamodb: object4({
+              dynamodb: object3({
                 Keys: unmarshall(),
                 NewImage: unmarshall()
               })
             }),
-            object4({
+            object3({
               eventName: literal("REMOVE"),
-              dynamodb: object4({
+              dynamodb: object3({
                 Keys: unmarshall(),
                 OldImage: unmarshall()
               })
@@ -192,9 +183,9 @@ var dynamoDbStream = (table) => {
           ])
         )
       },
-      "Invalid DynamoDB Stream input"
+      message
     ),
-    (input) => {
+    transform4((input) => {
       return input.Records.map((record) => {
         const item = {
           event: record.eventName.toLowerCase(),
@@ -208,34 +199,86 @@ var dynamoDbStream = (table) => {
         }
         return item;
       });
-    }
+    })
+  );
+};
+
+// src/schema/aws/s3-event.ts
+import { array as array4, date, number as number2, object as object4, pipe as pipe7, string as string4, toDate, transform as transform5, union as union4 } from "valibot";
+var s3Event = () => {
+  const schema = object4({
+    event: string4(),
+    bucket: string4(),
+    key: string4(),
+    size: number2(),
+    eTag: string4(),
+    time: date()
+  });
+  return union4(
+    [
+      // Prioritize the expected payload during production
+      pipe7(
+        object4({
+          Records: array4(
+            object4({
+              eventTime: pipe7(string4(), toDate()),
+              eventName: string4(),
+              s3: object4({
+                bucket: object4({
+                  name: string4()
+                }),
+                object: object4({
+                  key: string4(),
+                  size: number2(),
+                  eTag: string4()
+                })
+              })
+            })
+          )
+        }),
+        transform5((input) => {
+          return input.Records.map((record) => ({
+            event: record.eventName,
+            time: record.eventTime,
+            bucket: record.s3.bucket.name,
+            key: record.s3.object.key,
+            size: record.s3.object.size,
+            eTag: record.s3.object.eTag
+          }));
+        })
+      ),
+      // These are allowed during testing
+      pipe7(
+        schema,
+        transform5((v) => [v])
+      ),
+      array4(schema)
+    ],
+    "Invalid S3 Event payload"
   );
 };
 
 // src/validation/positive.ts
-import { ZERO, gt } from "@awsless/big-float";
-import { custom as custom2 } from "valibot";
-function positive(error) {
-  return custom2((input) => gt(input, ZERO), error ?? "Invalid positive number");
+import { isPositive } from "@awsless/big-float";
+import { check } from "valibot";
+function positive(message = "Invalid positive number") {
+  return check((input) => isPositive(input), message);
 }
 
 // src/validation/precision.ts
-import { parse as parse2 } from "@awsless/big-float";
-import { custom as custom3 } from "valibot";
-function precision(decimals, error) {
-  return custom3(
-    (input) => {
-      const big = parse2(input.toString());
-      return -big.exponent <= decimals;
-    },
-    error ?? `Invalid ${decimals} precision number`
-  );
+import { parse as parse3 } from "@awsless/big-float";
+import { check as check2 } from "valibot";
+function precision(decimals, message = `Invalid ${decimals} precision number`) {
+  return check2((input) => {
+    const big = parse3(input.toString());
+    return -big.exponent <= decimals;
+  }, message);
 }
 
 // src/validation/unique.ts
-import { custom as custom4 } from "valibot";
-function unique(compare = (a, b) => a === b, error) {
-  return custom4((input) => {
+import { check as check3 } from "valibot";
+function unique(compare = (a, b) => a === b, message = "None unique array") {
+  return check3((input) => {
     for (const x in input) {
       for (const y in input) {
         if (x !== y && compare(input[x], input[y])) {
@@ -244,21 +287,19 @@ function unique(compare = (a, b) => a === b, error) {
       }
     }
     return true;
-  }, error ?? "None unique array");
+  }, message);
 }
 
 // src/validation/duration.ts
-import { custom as custom5 } from "valibot";
-function minDuration(min, error) {
-  return custom5((input) => input.value >= min.value, error ?? "Invalid duration");
+import { check as check4 } from "valibot";
+function minDuration(min, message = "Invalid duration") {
+  return check4((input) => input.value >= min.value, message);
 }
-function maxDuration(max, error) {
-  return custom5((input) => input.value <= max.value, error ?? "Invalid duration");
+function maxDuration(max, message = "Invalid duration") {
+  return check4((input) => input.value <= max.value, message);
 }
 export {
   bigfloat,
-  bigint2 as bigint,
-  date,
   duration,
   dynamoDbStream,
   json,
@@ -266,6 +307,7 @@ export {
   minDuration,
   positive,
   precision,
+  s3Event,
   snsTopic,
   sqsQueue,
   unique,

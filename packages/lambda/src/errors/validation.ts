@@ -1,16 +1,15 @@
-import { SchemaIssues, ValiError } from '@awsless/validate'
+import { GenericIssue, ValiError } from '@awsless/validate'
 import { ViewableError } from './viewable.js'
 
 export class ValidationError extends ViewableError {
-	constructor(message: string, issues: SchemaIssues) {
+	constructor(message: string, issues: GenericIssue[]) {
 		super('validation', message, {
 			issues: issues.map(issue => ({
 				path: issue.path?.map(path => ({
 					key: path.key,
 					type: path.type,
 				})),
-
-				reason: issue.reason,
+				// reason: issue.reason,
 				message: issue.message,
 				received: issue.received,
 				expected: issue.expected,

@@ -1,6 +1,6 @@
-import { testSchema } from '../_util'
-import { bigfloat, parse, Input, Output } from '../../src'
 import { BigFloat } from '@awsless/big-float'
+import { bigfloat, InferInput, InferOutput, parse } from '../../src'
+import { testSchema } from '../_util'
 
 testSchema('bigfloat', {
 	valid: [0, -1, 1, '0', '1', '-1', new BigFloat(1), new BigFloat('1')],
@@ -12,21 +12,8 @@ testSchema('bigfloat', {
 	},
 })
 
-it('bigfloat like', () => {
-	const result = parse(bigfloat(), { exponent: -5, coefficient: 10n })
-	expect(result.toString()).toStrictEqual('0.0001')
-})
-
 it('bigfloat types', () => {
 	const schema = bigfloat()
-	expectTypeOf<Output<typeof schema>>().toEqualTypeOf<BigFloat>()
-	expectTypeOf<Input<typeof schema>>().toEqualTypeOf<
-		| string
-		| number
-		| BigFloat
-		| {
-				exponent: number
-				coefficient: bigint
-		  }
-	>()
+	expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<BigFloat | string | bigint | number>()
+	expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<BigFloat>()
 })

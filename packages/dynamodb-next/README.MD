@@ -54,7 +54,7 @@ const post = await getItem(posts, { userId: 1, id: 1 }, {
 await updateItem(posts, { userId: 1, id: 1 }, {
 	update: e => [
 		e.title.set('Hi...'),
-		e.comments.push('Powerful query builder...'),
+		e.comments.append('Powerful query builder...'),
 	],
 	when: e => [
 		e.size(e.comments).eq(0)
@@ -192,7 +192,7 @@ But with this limitation it's not possible to differentiate between a empty `set
 In order to overcome this limitation we store a `set` differently.
 Examples of the data structure:
 
-- Undefined set:
+- Undefined attribute:
   `undefined`
 - Empty set:
   `{ M: {} }`
@@ -233,7 +233,7 @@ object({
 You can infer the item type of your table definition with the `Infer` utility type.
 
 ```ts
-import { define, type Infer, object, uuid, number, string, buffer } from '@awsless/dynamodb'
+import { define, type Infer, object, uuid, number, string, buffer, optional } from '@awsless/dynamodb'
 
 const posts = define('posts', {
 	hash: 'id',
@@ -241,7 +241,7 @@ const posts = define('posts', {
 		id: uuid(),
 		title: string(),
 		likes: number(),
-		data: buffer(),
+		data: optional(buffer()),
 	}),
 })
 
@@ -249,7 +249,7 @@ const posts = define('posts', {
   id: UUID,
   title: string,
   likes: number,
-  data: Buffer
+  data?: Buffer
 } */
 type Post = Infer<typeof posts>
 ```
@@ -286,10 +286,11 @@ await updateItem(
 | `setPartial`     | Partially update the object fields with the provided value. |
 | `setIfNotExists` | Set the attribute value only if it does not already exist.  |
 | `delete`         | Delete an attribute.                                        |
-| `push`           | Push one or more elements to the end of the array.          |
+| `append`         | Append one or more elements to the end of the array.        |
+| `prepend`        | Prepend one or more elements to the start of the array.     |
 | `incr`           | Increment a numeric value.                                  |
 | `decr`           | Decrement a numeric value.                                  |
-| `append`         | Append elements to a Set.                                   |
+| `add`            | Add elements to a Set.                                      |
 | `remove`         | Remove elements from a Set.                                 |
 
 # Condition Expression Builder
@@ -327,7 +328,7 @@ await putItem(
 | `notExists`  | Check if the attribute does not exist.                                                       |
 | `type`       | Check if the attribute is of the specified DynamoDB type.                                    |
 
-## Special Global Functions
+## Special Global Expression Functions
 
 | Type   | Description                                                       |
 | ------ | ----------------------------------------------------------------- |

@@ -4,12 +4,13 @@ import { AnyTable } from '../table'
 import { ExpressionAttributes } from './attributes'
 import { createFluent, Fluent, getFluentExpression, getFluentPath } from './fluent'
 import {
+	AddFunction,
 	AppendFunction,
 	DecrementFunction,
 	DeleteFunction,
 	IncrementFunction,
 	Path,
-	PushFunction,
+	PrependFunction,
 	RemoveFunction,
 	SetFunction,
 	SetIfNotExistFunction,
@@ -55,7 +56,8 @@ export type VariantUpdateExpression<T> = BaseUpdateExpression<'M', T>
 export type ListUpdateExpression<T extends any[], L extends any[]> = {
 	at<K extends keyof L>(index: K): L[K] & DeleteFunction
 } & BaseUpdateExpression<'L', T> &
-	PushFunction<T>
+	AppendFunction<T> &
+	PrependFunction<T>
 
 export type TupleUpdateExpression<T extends any[], L extends any[]> = {
 	at<K extends keyof L>(index: K): L[K]
@@ -66,7 +68,7 @@ export type TupleWithRestUpdateExpression<T extends any[], L extends any[], R> =
 } & BaseUpdateExpression<'L', T>
 
 export type SetUpdateExpression<A extends AttributeType, T> = BaseUpdateExpression<A, T> &
-	AppendFunction<A, T> &
+	AddFunction<A, T> &
 	RemoveFunction<A, T>
 
 export type UnknownUpdateExpression<T> = BaseUpdateExpression<AttributeType, T>
@@ -125,6 +127,22 @@ export const buildUpdateExpression = (
 			return attrs.raw(defaultRaw)
 		}
 
+		const listParam = (index: number) => {
+			if (value[index] instanceof Fluent) {
+				return attrs.path(getFluentPath(value[0]))
+			}
+
+			return attrs.value(value, path)
+		}
+
+		const innerSetParam = () => {
+			if (value[0] instanceof Fluent) {
+				return attrs.path(getFluentPath(value[0]))
+			}
+
+			return attrs.innerSetValue(new Set(value), path)
+		}
+
 		switch (op) {
 			case 'set':
 				if (path.length === 0) {
@@ -160,8 +178,14 @@ export const buildUpdateExpression = (
 				rem.push(p)
 				break
 
-			case 'push':
-				set.push(`${p} = list_append(${p}, ${attrs.value(value, path)})`)
+			// case 'push':
+			case 'append':
+				set.push(`${p} = list_append(${p}, ${listParam(0)})`)
+				break
+
+			// case 'unshift':
+			case 'prepend':
+				set.push(`${p} = list_append(${listParam(0)}, ${p})`)
 				break
 
 			case 'incr':
@@ -172,15 +196,15 @@ export const buildUpdateExpression = (
 				set.push(`${p} = if_not_exists(${p}, ${param(1, { N: '0' })}) - ${param(0)}`)
 				break
 
-			case 'append': {
+			case 'add': {
 				const innerPath = `${p}.${attrs.name(SET_KEY)}`
-				add.push(`${innerPath} ${attrs.innerValue(value[0], path)}`)
+				add.push(`${innerPath} ${innerSetParam()}`)
 				break
 			}
 
 			case 'remove': {
 				const innerPath = `${p}.${attrs.name(SET_KEY)}`
-				del.push(`${innerPath} ${attrs.innerValue(value[0], path)}`)
+				del.push(`${innerPath} ${innerSetParam()}`)
 				break
 			}
 

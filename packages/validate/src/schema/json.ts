@@ -1,18 +1,28 @@
 import { parse } from '@awsless/json'
-import { BaseSchema, Output, SchemaWithTransform, string, StringSchema, transform } from 'valibot'
+import { BaseSchema, ErrorMessage, GenericIssue, GenericSchema, InferOutput, pipe, rawTransform, string } from 'valibot'
 
-export type JsonSchema<T extends BaseSchema> = SchemaWithTransform<StringSchema, Output<T>>
+export type JsonSchema<T extends GenericSchema> = BaseSchema<string, InferOutput<T>, GenericIssue>
 
-export const json = <T extends BaseSchema>(schema: T): JsonSchema<T> => {
-	return transform(
-		string(),
-		value => {
+export const json = <T extends GenericSchema>(
+	schema: T,
+	message: ErrorMessage<GenericIssue> = 'Invalid JSON'
+): JsonSchema<T> => {
+	return pipe(
+		string(message),
+		rawTransform(ctx => {
+			let result: unknown
+
 			try {
-				return parse(value)
-			} catch (error) {
-				return null
+				result = parse(ctx.dataset.value)
+			} catch (_error) {
+				ctx.addIssue({
+					message,
+				})
+				return ctx.NEVER
 			}
-		},
+
+			return result
+		}),
 		schema
 	)
 }

@@ -1,4 +1,4 @@
-import { Input, number, object, Output, parse, sqsQueue, ValiError } from '../../../src'
+import { InferInput, InferOutput, number, object, parse, sqsQueue, ValiError } from '../../../src'
 
 describe('SQS Queue', () => {
 	const schema = sqsQueue(object({ id: number() }))
@@ -23,8 +23,8 @@ describe('SQS Queue', () => {
 	})
 
 	it('types', () => {
-		expectTypeOf<Output<typeof schema>>().toEqualTypeOf<{ id: number }[]>()
-		expectTypeOf<Input<typeof schema>>().toEqualTypeOf<
+		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<{ id: number }[]>()
+		expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<
 			| { id: number }
 			| { id: number }[]
 			| {

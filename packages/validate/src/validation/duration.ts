@@ -1,12 +1,12 @@
 import { Duration } from '@awsless/duration'
-import { ErrorMessage, custom } from 'valibot'
+import { CheckIssue, ErrorMessage, check } from 'valibot'
 
-export function minDuration<T extends Duration>(min: Duration, error?: ErrorMessage) {
-	return custom<T>(input => input.value >= min.value, error ?? 'Invalid duration')
+export function minDuration(min: Duration, message: ErrorMessage<CheckIssue<Duration>> = 'Invalid duration') {
+	return check<Duration, ErrorMessage<CheckIssue<Duration>>>(input => input.value >= min.value, message)
 }
 
-export function maxDuration<T extends Duration>(max: Duration, error?: ErrorMessage) {
-	return custom<T>(input => input.value <= max.value, error ?? 'Invalid duration')
+export function maxDuration(max: Duration, message: ErrorMessage<CheckIssue<Duration>> = 'Invalid duration') {
+	return check<Duration, ErrorMessage<CheckIssue<Duration>>>(input => input.value <= max.value, message)
 }
 
 // export function durationPrecision<T extends Duration>(

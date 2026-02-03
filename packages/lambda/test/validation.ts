@@ -1,10 +1,13 @@
-import { number, transform } from '@awsless/validate'
+import { number, pipe, transform } from '@awsless/validate'
 import { ValidationError, lambda } from '../src'
 
 describe('Validation', () => {
 	it('should validate input', async () => {
 		const handle = lambda({
-			schema: transform(number(), v => v.toString()),
+			schema: pipe(
+				number(),
+				transform(v => v.toString())
+			),
 			handle(input) {
 				expectTypeOf(input).toEqualTypeOf<string>()
 				expect(input).toBeTypeOf('string')

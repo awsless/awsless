@@ -1,8 +1,8 @@
 import { UUID } from 'crypto'
-import { uuid as base, BaseSchema, ErrorMessage, string } from 'valibot'
+import { uuid as base, BaseSchema, ErrorMessage, GenericIssue, pipe, string } from 'valibot'
 
-export type UuidSchema = BaseSchema<UUID, UUID>
+export type UuidSchema = BaseSchema<UUID, UUID, GenericIssue>
 
-export const uuid = (error?: ErrorMessage): UuidSchema => {
-	return string(error ?? 'Invalid UUID', [base()]) as UuidSchema
+export const uuid = (message: ErrorMessage<GenericIssue> = 'Invalid UUID'): UuidSchema => {
+	return pipe(string(message), base(message)) as UuidSchema
 }

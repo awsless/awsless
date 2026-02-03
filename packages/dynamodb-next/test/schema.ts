@@ -246,7 +246,7 @@ describe('Schema', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					e.setPartial({
-						id: '0-0-0-0-0',
+						id: '00000000-0000-0000-0000-000000000000',
 						number: 2,
 						string: '2',
 						string2: 'bar',
@@ -284,7 +284,7 @@ describe('Schema', () => {
 						sets: {
 							empty: new Set<string>(),
 							string: new Set(['2']),
-							uuid: new Set<UUID>(['0-0-0-0-0']),
+							uuid: new Set<UUID>(['00000000-0000-0000-0000-000000000000']),
 							json: new Set([{ n: 2n }]),
 							number: new Set([2]),
 							bigint: new Set([2n]),
@@ -298,7 +298,7 @@ describe('Schema', () => {
 		)
 
 		expect(result).toStrictEqual({
-			id: '0-0-0-0-0',
+			id: '00000000-0000-0000-0000-000000000000',
 			key: 1,
 			number: 2,
 			string: '2',
@@ -336,7 +336,7 @@ describe('Schema', () => {
 			sets: {
 				empty: new Set(),
 				string: new Set(['2']),
-				uuid: new Set(['0-0-0-0-0']),
+				uuid: new Set(['00000000-0000-0000-0000-000000000000']),
 				json: new Set([{ n: 2n }]),
 				number: new Set([2]),
 				bigint: new Set([2n]),

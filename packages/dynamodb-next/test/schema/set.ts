@@ -68,7 +68,7 @@ describe('set', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.set.append(new Set(['hello'])),
+					e.set.add('hello', 'world'),
 				],
 				when: e => [
 					//
@@ -79,7 +79,7 @@ describe('set', () => {
 
 		expect(result).toStrictEqual({
 			id: 1,
-			set: new Set(['hello']),
+			set: new Set(['hello', 'world']),
 		})
 	})
 
@@ -91,7 +91,7 @@ describe('set', () => {
 				return: 'ALL_NEW',
 				update: e => [
 					//
-					e.set.remove(new Set(['hello'])),
+					e.set.remove('hello', 'world'),
 				],
 				when: e => [
 					//

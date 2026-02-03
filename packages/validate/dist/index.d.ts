@@ -1,74 +1,60 @@
 import * as valibot from 'valibot';
-import { BaseSchema, SchemaWithTransform, StringSchema, Output, Pipe, ErrorMessage, UnknownSchema, Input } from 'valibot';
+import { GenericSchema, ErrorMessage, GenericIssue, BaseSchema, InferOutput, InferInput, CheckIssue } from 'valibot';
 export * from 'valibot';
 import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
-import { Duration, DurationFormat } from '@awsless/duration';
+import { Duration } from '@awsless/duration';
 import { AnyTable, PrimaryKey, Infer } from '@awsless/dynamodb';
 
-type JsonSchema<T extends BaseSchema> = SchemaWithTransform<StringSchema, Output<T>>;
-declare const json: <T extends BaseSchema>(schema: T) => JsonSchema<T>;
+type JsonSchema<T extends GenericSchema> = BaseSchema<string, InferOutput<T>, GenericIssue>;
+declare const json: <T extends GenericSchema>(schema: T, message?: ErrorMessage<GenericIssue>) => JsonSchema<T>;
 
-type BigFloatSchema = BaseSchema<string | number | BigFloat | {
-    exponent: number;
-    coefficient: bigint;
-}, BigFloat>;
-declare function bigfloat(pipe?: Pipe<BigFloat>): BigFloatSchema;
-declare function bigfloat(error?: ErrorMessage, pipe?: Pipe<BigFloat>): BigFloatSchema;
+type BigFloatSchema = BaseSchema<BigFloat | string | bigint | number, BigFloat, GenericIssue>;
+declare function bigfloat(message?: ErrorMessage<GenericIssue>): BigFloatSchema;
 
-type BigIntSchema = BaseSchema<string | bigint, bigint>;
-declare function bigint(pipe?: Pipe<bigint>): BigIntSchema;
-declare function bigint(error?: ErrorMessage, pipe?: Pipe<bigint>): BigIntSchema;
+type UuidSchema = BaseSchema<UUID, UUID, GenericIssue>;
+declare const uuid: (message?: ErrorMessage<GenericIssue>) => UuidSchema;
 
-type DateSchema = BaseSchema<string | Date, Date>;
-declare function date(pipe?: Pipe<Date>): DateSchema;
-declare function date(error?: ErrorMessage, pipe?: Pipe<Date>): DateSchema;
+type DurationSchema = BaseSchema<Duration, Duration, GenericIssue>;
+declare function duration(message?: ErrorMessage<GenericIssue>): DurationSchema;
 
-type UuidSchema = BaseSchema<UUID, UUID>;
-declare const uuid: (error?: ErrorMessage) => UuidSchema;
-
-type DurationSchema = BaseSchema<DurationFormat | Duration, Duration>;
-declare function duration(pipe?: Pipe<Duration>): DurationSchema;
-declare function duration(error?: ErrorMessage, pipe?: Pipe<Duration>): DurationSchema;
-
-type SqsQueueSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> | Input<S>[] | {
+type SqsQueueSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | InferInput<S>[] | {
     Records: {
-        body: string | Input<S>;
+        body: string | InferInput<S>;
     }[];
-}, Output<S>[]>;
-declare const sqsQueue: <S extends BaseSchema = UnknownSchema>(body?: S) => SqsQueueSchema<S>;
+}, InferOutput<S>[], GenericIssue>;
+declare const sqsQueue: <S extends GenericSchema>(schema: S, message?: ErrorMessage<GenericIssue>) => SqsQueueSchema<S>;
 
-type SnsTopicSchema<S extends BaseSchema = UnknownSchema> = BaseSchema<Input<S> | Input<S>[] | {
+type SnsTopicSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | InferInput<S>[] | {
     Records: {
         Sns: {
-            Message: string | Input<S>;
+            Message: string | InferInput<S>;
         };
     }[];
-}, Output<S>[]>;
-declare const snsTopic: <S extends BaseSchema = UnknownSchema>(body?: S) => SnsTopicSchema<S>;
+}, InferOutput<S>[], GenericIssue>;
+declare const snsTopic: <S extends GenericSchema>(schema: S, message?: ErrorMessage<GenericIssue>) => SnsTopicSchema<S>;
 
-type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
-    Records: Array<{
-        eventName: 'MODIFY';
-        dynamodb: {
-            Keys: unknown;
-            OldImage: unknown;
-            NewImage: unknown;
-        };
-    } | {
-        eventName: 'INSERT';
-        dynamodb: {
-            Keys: unknown;
-            NewImage: unknown;
-        };
-    } | {
-        eventName: 'REMOVE';
-        dynamodb: {
-            Keys: unknown;
-            OldImage: unknown;
-        };
-    }>;
-}, Array<{
+type DynamoDBStreamInputRecord = {
+    eventName: 'MODIFY';
+    dynamodb: {
+        Keys: unknown;
+        OldImage: unknown;
+        NewImage: unknown;
+    };
+} | {
+    eventName: 'INSERT';
+    dynamodb: {
+        Keys: unknown;
+        NewImage: unknown;
+    };
+} | {
+    eventName: 'REMOVE';
+    dynamodb: {
+        Keys: unknown;
+        OldImage: unknown;
+    };
+};
+type DynamoDBStreamOutputRecord<T extends AnyTable> = {
     event: 'modify';
     keys: PrimaryKey<T>;
     old: Infer<T>;
@@ -81,16 +67,34 @@ type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
     event: 'remove';
     keys: PrimaryKey<T>;
     old: Infer<T>;
-}>>;
-declare const dynamoDbStream: <T extends AnyTable>(table: T) => DynamoDBStreamSchema<T>;
+};
+type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
+    Records: DynamoDBStreamInputRecord[];
+}, DynamoDBStreamOutputRecord<T>[], GenericIssue>;
+declare const dynamoDbStream: <T extends AnyTable>(table: T, message?: ErrorMessage<GenericIssue>) => DynamoDBStreamSchema<T>;
 
-declare function positive<T extends BigFloat | number>(error?: ErrorMessage): valibot.CustomValidation<T>;
+type S3EventOutput = {
+    event: string;
+    time: Date;
+    bucket: string;
+    key: string;
+    size: number;
+    eTag: string;
+};
+type S3EventSchema = BaseSchema<S3EventOutput | S3EventOutput[] | {
+    Records: {
+        eventTime: string;
+    }[];
+}, S3EventOutput[], GenericIssue>;
+declare const s3Event: () => S3EventSchema;
 
-declare function precision<T extends BigFloat | number>(decimals: number, error?: ErrorMessage): valibot.CustomValidation<T>;
+declare function positive<T extends BigFloat | number>(message?: ErrorMessage<CheckIssue<T>>): valibot.CheckAction<T, ErrorMessage<CheckIssue<T>>>;
 
-declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) => boolean, error?: ErrorMessage): valibot.CustomValidation<T>;
+declare function precision<T extends BigFloat | number>(decimals: number, message?: ErrorMessage<CheckIssue<T>>): valibot.CheckAction<T, ErrorMessage<CheckIssue<T>>>;
 
-declare function minDuration<T extends Duration>(min: Duration, error?: ErrorMessage): valibot.CustomValidation<T>;
-declare function maxDuration<T extends Duration>(max: Duration, error?: ErrorMessage): valibot.CustomValidation<T>;
+declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) => boolean, message?: ErrorMessage<CheckIssue<T>>): valibot.CheckAction<T, ErrorMessage<CheckIssue<T>>>;
 
-export { type BigFloatSchema, type BigIntSchema, type DateSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, bigfloat, bigint, date, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, snsTopic, sqsQueue, unique, uuid };
+declare function minDuration(min: Duration, message?: ErrorMessage<CheckIssue<Duration>>): valibot.CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
+declare function maxDuration(max: Duration, message?: ErrorMessage<CheckIssue<Duration>>): valibot.CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
+
+export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, s3Event, snsTopic, sqsQueue, unique, uuid };

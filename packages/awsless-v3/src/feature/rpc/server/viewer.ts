@@ -1,4 +1,4 @@
-import { Output } from '@awsless/validate'
+import { InferOutput } from '@awsless/validate'
 import { requestSchema } from './validate'
 
 const toNumber = (value?: string) => {
@@ -42,7 +42,7 @@ export type Viewer = {
 	os?: 'ios' | 'android'
 }
 
-export const buildViewerPayload = (request: Output<typeof requestSchema>): Viewer => {
+export const buildViewerPayload = (request: InferOutput<typeof requestSchema>): Viewer => {
 	const http = request.requestContext.http
 
 	const getViewer = (name: string) => {

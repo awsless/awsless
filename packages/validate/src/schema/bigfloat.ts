@@ -1,52 +1,38 @@
-import { BigFloat } from '@awsless/big-float'
+import { BigFloat, parse } from '@awsless/big-float'
 import {
 	BaseSchema,
 	ErrorMessage,
-	Pipe,
+	GenericIssue,
 	bigint,
-	custom,
-	defaultArgs,
+	decimal,
 	instance,
 	number,
-	object,
+	pipe,
 	string,
 	transform,
 	union,
 } from 'valibot'
 
-const make = (value: any) => new BigFloat(value)
+export type BigFloatSchema = BaseSchema<BigFloat | string | bigint | number, BigFloat, GenericIssue>
 
-export type BigFloatSchema = BaseSchema<
-	| string
-	| number
-	| BigFloat
-	| {
-			exponent: number
-			coefficient: bigint
-	  },
-	BigFloat
->
-
-export function bigfloat(pipe?: Pipe<BigFloat>): BigFloatSchema
-export function bigfloat(error?: ErrorMessage, pipe?: Pipe<BigFloat>): BigFloatSchema
-export function bigfloat(arg1?: ErrorMessage | Pipe<BigFloat>, arg2?: Pipe<BigFloat>): BigFloatSchema {
-	const [msg, pipe] = defaultArgs(arg1, arg2)
-	const error = msg ?? 'Invalid bigfloat'
-
+export function bigfloat(message: ErrorMessage<GenericIssue> = 'Invalid bigfloat'): BigFloatSchema {
 	return union(
 		[
-			instance(BigFloat, pipe),
-			transform(string([custom(input => input !== '' && !isNaN(Number(input)), error)]), make, pipe),
-			transform(number(), make, pipe),
-			transform(
-				object({
-					exponent: number(),
-					coefficient: bigint(),
-				}),
-				make,
-				pipe
+			instance(BigFloat),
+			pipe(
+				string(),
+				decimal(),
+				transform(v => parse(v))
+			),
+			pipe(
+				bigint(),
+				transform(v => parse(v))
+			),
+			pipe(
+				number(),
+				transform(v => parse(v))
 			),
 		],
-		error
+		message
 	)
 }

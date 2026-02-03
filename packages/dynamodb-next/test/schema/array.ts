@@ -1,12 +1,24 @@
 import { randomUUID, UUID } from 'crypto'
-import { array, define, getItem, Infer, mockDynamoDB, number, object, putItem, updateItem, uuid } from '../../src'
+import {
+	array,
+	define,
+	getItem,
+	Infer,
+	mockDynamoDB,
+	number,
+	object,
+	optional,
+	putItem,
+	updateItem,
+	uuid,
+} from '../../src'
 
 describe('array', () => {
 	const table = define('table', {
 		hash: 'id',
 		schema: object({
 			id: uuid(),
-			array: array(number()),
+			array: array(optional(number())),
 		}),
 	})
 
@@ -15,7 +27,7 @@ describe('array', () => {
 	const id = randomUUID()
 	const item: Infer<typeof table> = {
 		id,
-		array: [1],
+		array: [1, undefined],
 	}
 
 	it('put', async () => {
@@ -29,7 +41,7 @@ describe('array', () => {
 			| undefined
 			| {
 					id: UUID
-					array: number[]
+					array: (number | undefined)[]
 			  }
 		>()
 
@@ -45,7 +57,7 @@ describe('array', () => {
 				update: e => [
 					//
 					// e.array.at(1).set(2),
-					e.array.push(2),
+					e.array.append(2),
 				],
 				when: e => [
 					//
@@ -56,7 +68,7 @@ describe('array', () => {
 
 		expect(result).toStrictEqual({
 			id,
-			array: [1, 2],
+			array: [1, undefined, 2],
 		})
 	})
 
@@ -79,7 +91,7 @@ describe('array', () => {
 
 		expect(result).toStrictEqual({
 			id,
-			array: [2],
+			array: [undefined, 2],
 		})
 	})
 })

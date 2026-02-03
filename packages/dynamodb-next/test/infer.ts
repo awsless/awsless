@@ -177,16 +177,16 @@ describe('Infer', () => {
 					// date
 					e.date.set(new Date()),
 					e.date.setIfNotExists(new Date()),
-					// e.date.incr(new Date()),
-					// e.date.decr(new Date()),
+					e.date.incr(new Date()),
+					e.date.decr(new Date()),
 
 					// string
 					e.string.set('test'),
 					e.string.setIfNotExists('test'),
 
 					// uuid
-					e.uuid.set('0-0-0-0-0'),
-					e.uuid.setIfNotExists('0-0-0-0-0'),
+					e.uuid.set('00000000-0000-0000-0000-000000000000'),
+					e.uuid.setIfNotExists('00000000-0000-0000-0000-000000000000'),
 
 					// narrow string
 					e.stringNarrow.set('open'),
@@ -221,19 +221,17 @@ describe('Infer', () => {
 
 					// array
 					e.array.set(['test']),
-					e.array.push('test'),
-					e.array.push(e.array.at(0)),
+					e.array.append('test'),
+					e.array.append(e.array.at(0)),
+					e.array.prepend('test'),
+					e.array.prepend(e.array.at(0)),
 					e.array.at(0).set('test'),
 					e.array.at(1).set('test'),
 
 					// tuple
 					e.tuple.set(['test', 1]),
-					// e.tuple.push(['test', 1]),
 					e.tuple.at(0).set('test'),
 					e.tuple.at(1).set(1),
-					// e.tuple.at(2).set(1),
-					// e.tuple.push(1),
-					// e.tuple.push('test'),
 
 					// tuple with rest
 					e.tupleRest.set(['foo', 'bar', 1, 2, 3]),
@@ -254,15 +252,15 @@ describe('Infer', () => {
 
 					// sets
 					e.sets.number.set(new Set([1, 2, 3])),
-					e.sets.number.append(new Set([1])),
-					e.sets.number.remove(new Set([1])),
-					e.sets.number.append(e.sets.number),
+					e.sets.number.add(1),
+					e.sets.number.remove(1),
+					e.sets.number.add(e.sets.number),
 					e.sets.number.remove(e.sets.number),
 
 					e.sets.string.set(new Set(['test'])),
-					e.sets.string.append(new Set(['test'])),
-					e.sets.string.remove(new Set(['test'])),
-					e.sets.string.append(e.sets.string),
+					e.sets.string.add('test'),
+					e.sets.string.remove('test'),
+					e.sets.string.add(e.sets.string),
 					e.sets.string.remove(e.sets.string),
 				],
 
@@ -354,11 +352,11 @@ describe('Infer', () => {
 					e.string.type('S'),
 
 					// uuid
-					e.uuid.eq('0-0-0-0-0'),
-					e.uuid.nq('0-0-0-0-0'),
-					e.uuid.in(['0-0-0-0-0']),
-					e.uuid.contains('-0-'),
-					e.uuid.startsWith('0-'),
+					e.uuid.eq('00000000-0000-0000-0000-000000000000'),
+					e.uuid.nq('00000000-0000-0000-0000-000000000000'),
+					e.uuid.in(['00000000-0000-0000-0000-000000000000']),
+					// e.uuid.contains('-0-'),
+					// e.uuid.startsWith('0-'),
 					e.uuid.exists(),
 					e.uuid.notExists(),
 					e.uuid.type('S'),
@@ -422,20 +420,16 @@ describe('Infer', () => {
 					e.array.exists(),
 					e.array.notExists(),
 					e.array.type('L'),
-
-					// array[0]
 					e.array.at(0).eq('test'),
 
 					// tuple
 					e.tuple.eq(['test', 1]),
 					e.tuple.nq(['test', 1]),
-					e.tuple.contains('test'),
-					e.tuple.contains(1),
+					// e.tuple.contains('test'),
+					// e.tuple.contains(1),
 					e.tuple.exists(),
 					e.tuple.notExists(),
 					e.tuple.type('L'),
-
-					// tuple[0]
 					e.tuple.at(0).eq('test'),
 					e.tuple.at(1).eq(1),
 					// e.tuple.at(2).eq(1),
@@ -443,7 +437,7 @@ describe('Infer', () => {
 					// tuple with rest
 					e.tupleRest.eq(['test', 'test', 1, 2, 3]),
 					e.tupleRest.nq(['test', 'test', 1, 2, 3]),
-					e.tupleRest.contains('test'),
+					// e.tupleRest.contains('test'),
 					e.tupleRest.exists(),
 					e.tupleRest.notExists(),
 					e.tupleRest.type('L'),

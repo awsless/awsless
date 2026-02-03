@@ -1,4 +1,4 @@
-import { AnySchema, AttributeType, Expression } from '../schema/schema'
+import { AttributeType, Expression, GenericSchema } from '../schema/schema'
 import {
 	BinaryConditionExpression,
 	BooleanConditionExpression,
@@ -9,8 +9,10 @@ import {
 	RootConditionExpression,
 	SetConditionExpression,
 	StringConditionExpression,
+	TupleConditionExpression,
 	TupleWithRestConditionExpression,
 	UnknownConditionExpression,
+	UuidConditionExpression,
 	VariantConditionExpression,
 } from './condition'
 import { Fluent } from './fluent'
@@ -79,13 +81,22 @@ export type DeleteFunction<T = undefined> = undefined extends T
 		}
 	: {}
 
-export type PushFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
+export type AppendFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
 	/**
-	 * Push one or more elements to the end of the array.
+	 * Append one or more elements to the end of the array.
 	 * @param {...NonNullable<T>} values - The elements to append to the array.
 	 */
-	push(...values: [I, ...I[]]): Fluent
-	push(...values: [Path<AttributeType, I> | I, ...(Path<AttributeType, I> | I)[]]): Fluent
+	append(...values: [I, ...I[]]): Fluent
+	append(value: Path<AttributeType, I>): Fluent
+}
+
+export type PrependFunction<T extends any[] | undefined, I = NonNullable<T>[number]> = {
+	/**
+	 * Prepend one or more elements to the start of the array.
+	 * @param {...NonNullable<T>} values - The elements to append to the array.
+	 */
+	prepend(...values: [I, ...I[]]): Fluent
+	prepend(value: Path<AttributeType, I>): Fluent
 }
 
 export type IncrementFunction<T, V = NonNullable<T>> = {
@@ -108,21 +119,23 @@ export type DecrementFunction<T, V = NonNullable<T>> = {
 	decr(value: Path<'N'> | V, defaultValue?: Path<'N'> | V): Fluent
 }
 
-export type AppendFunction<A extends AttributeType, T, V = NonNullable<T>> = {
+type InnerSetValue<T> = T extends Set<infer R> ? R : never
+
+export type AddFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
 	/**
-	 * Append elements to a Set.
-	 * @param {V} value - The elements to add to the Set.
+	 * Add elements to a Set.
+	 * @param {...V} values - The elements to add to the Set.
 	 */
-	append(value: V): Fluent
-	append(value: Path<A, T>): Fluent
+	add(...values: [V, ...V[]]): Fluent
+	add(value: Path<A, T>): Fluent
 }
 
-export type RemoveFunction<A extends AttributeType, T, V = NonNullable<T>> = {
+export type RemoveFunction<A extends AttributeType, T, V = InnerSetValue<NonNullable<T>>> = {
 	/**
 	 * Remove elements from a Set.
-	 * @param {V} value - The elements to remove to the Set.
+	 * @param {...V} values - The elements to remove to the Set.
 	 */
-	remove(value: V): Fluent
+	remove(...values: [V, ...V[]]): Fluent
 	remove(value: Path<A, T>): Fluent
 }
 
@@ -313,6 +326,12 @@ export type StringExpression<T> = Expression<
 	StringConditionExpression<T>
 >
 
+export type UuidExpression<T> = Expression<
+	//
+	StringUpdateExpression<T>,
+	UuidConditionExpression<T>
+>
+
 export type NumberExpression<T> = Expression<
 	//
 	NumberUpdateExpression<T>,
@@ -339,8 +358,8 @@ export type JsonExpression<T> = Expression<
 
 // export type MapExpression<
 // 	T,
-// 	P extends Record<string, AnySchema>,
-// 	// R extends AnySchema,
+// 	P extends Record<string, GenericSchema>,
+// 	// R extends GenericSchema,
 // 	P_UPDATE extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Update'] },
 // 	P_CONDITION extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Condition'] },
 // > = Expression<
@@ -352,18 +371,18 @@ export type JsonExpression<T> = Expression<
 
 export type MapExpression<
 	T,
-	P extends Record<string, AnySchema>,
-	R extends AnySchema | undefined = undefined,
+	P extends Record<string, GenericSchema>,
+	R extends GenericSchema | undefined = undefined,
 	P_UPDATE extends Record<string, any> = { [K in keyof P]: P[K][symbol]['Expression']['Update'] },
 	P_CONDITION extends Record<string, any> = {
 		[K in keyof P]: P[K][symbol]['Expression']['Condition']
-	} & (R extends AnySchema ? Record<string, R[symbol]['Expression']['Condition']> : {}),
+	} & (R extends GenericSchema ? Record<string, R[symbol]['Expression']['Condition']> : {}),
 > = Expression<
-	R extends AnySchema
+	R extends GenericSchema
 		? MapWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']>
 		: MapUpdateExpression<T, P_UPDATE>,
 	MapConditionExpression<T, P_CONDITION>,
-	R extends AnySchema
+	R extends GenericSchema
 		? RootWithRestUpdateExpression<T, P_UPDATE, R[symbol]['Expression']['Update']>
 		: RootUpdateExpression<T, P_UPDATE>,
 	RootConditionExpression<P_CONDITION>
@@ -371,7 +390,7 @@ export type MapExpression<
 
 export type VariantExpression<T> = Expression<VariantUpdateExpression<T>, VariantConditionExpression<T>>
 
-// export type RecordExpression<T extends Record<string, any>, S extends AnySchema> = Expression<
+// export type RecordExpression<T extends Record<string, any>, S extends GenericSchema> = Expression<
 // 	// MapUpdateExpression<T, Record<string, S[symbol]['Expression']['Update']>>,
 // 	// MapConditionExpression<T, Record<string, S[symbol]['Expression']['Condition']>>,
 // 	// Record<string, S[symbol]['Expression']['Projection']>
@@ -381,18 +400,18 @@ export type VariantExpression<T> = Expression<VariantUpdateExpression<T>, Varian
 // 	Record<string, S[symbol]['Expression']['Projection']>
 // >
 
-export type ListExpression<T extends any[], L extends AnySchema[]> = Expression<
+export type ListExpression<T extends any[], L extends GenericSchema[]> = Expression<
 	ListUpdateExpression<T, { [K in keyof L]: L[K][symbol]['Expression']['Update'] }>,
 	// ListUpdateExpression<T, L[number][symbol]['Expression']['Update'][]>,
 	ListConditionExpression<T, { [K in keyof L]: L[K][symbol]['Expression']['Condition'] }>
 >
 
-export type TupleExpression<T extends any[], L extends AnySchema[]> = Expression<
+export type TupleExpression<T extends any[], L extends GenericSchema[]> = Expression<
 	TupleUpdateExpression<T, { [K in keyof L]: L[K][symbol]['Expression']['Update'] }>,
-	ListConditionExpression<T, { [K in keyof L]: L[K][symbol]['Expression']['Condition'] }>
+	TupleConditionExpression<T, { [K in keyof L]: L[K][symbol]['Expression']['Condition'] }>
 >
 
-export type TupleWithRestExpression<T extends any[], L extends AnySchema[], R extends AnySchema> = Expression<
+export type TupleWithRestExpression<T extends any[], L extends GenericSchema[], R extends GenericSchema> = Expression<
 	TupleWithRestUpdateExpression<
 		T,
 		{ [K in keyof L]: L[K][symbol]['Expression']['Update'] },

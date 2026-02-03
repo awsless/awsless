@@ -65,7 +65,7 @@ describe('variant', () => {
 			{
 				return: 'ALL_NEW',
 				update: e => [
-					e.list.push({
+					e.list.append({
 						type: 'two',
 						bar: 3,
 					}),

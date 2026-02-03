@@ -5,16 +5,16 @@ import {
 	SetExpression,
 	StringExpression,
 } from '../expression/types'
-import { AnySchema, BaseSchema, createSchema } from './schema'
+import { BaseSchema, createSchema, GenericSchema } from './schema'
 
-// export type OptionalSchema<T extends AnySchema> = T & {
+// export type OptionalSchema<T extends GenericSchema> = T & {
 // 	[key: symbol]: {
 // 		Input: T[symbol]['Input'] | undefined
 // 		Output: T[symbol]['Output'] | undefined
 // 	}
 // }
 
-export type OptionalSchema<T extends AnySchema> = BaseSchema<
+export type OptionalSchema<T extends GenericSchema> = BaseSchema<
 	T['type'],
 	T[symbol]['Type'] | undefined,
 	'S' extends T['type']
@@ -30,22 +30,43 @@ export type OptionalSchema<T extends AnySchema> = BaseSchema<
 						: T[symbol]['Expression']
 >
 
-export const optional = <T extends AnySchema>(schema: T): OptionalSchema<T> => {
+export const optional = <T extends GenericSchema>(schema: T): OptionalSchema<T> => {
 	return createSchema({
 		...schema,
 		marshall(value) {
 			if (typeof value === 'undefined') {
-				return undefined
+				return { NULL: true }
 			}
 
 			return schema.marshall(value)
 		},
 		unmarshall(value) {
-			if (typeof value === 'undefined') {
+			if (typeof value === 'undefined' || value.NULL) {
 				return undefined
 			}
 
 			return schema.unmarshall(value)
+		},
+		// validate(value) {
+		// 	if (typeof value === 'undefined') {
+		// 		return true
+		// 	}
+
+		// 	return schema.validate(value)
+		// },
+		validateInput(value) {
+			if (typeof value === 'undefined') {
+				return true
+			}
+
+			return schema.validateInput(value)
+		},
+		validateOutput(value) {
+			if (typeof value === 'undefined' || value.NULL) {
+				return true
+			}
+
+			return schema.validateOutput(value)
 		},
 	})
 }

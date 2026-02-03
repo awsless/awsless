@@ -9,8 +9,33 @@ export type UnknownOptions = {
 
 export type UnknownSchema = BaseSchema<AttributeType, unknown, UnknownExpression<unknown>>
 
+// export const unknown = (opts?: UnknownOptions): UnknownSchema =>
+// 	createSchema({
+// 		marshall(value) {
+// 			// if (typeof value === 'undefined') {
+// 			// 	return
+// 			// }
+
+// 			return marshall(
+// 				{ value },
+// 				{
+// 					removeUndefinedValues: true,
+// 					...(opts?.marshall ?? {}),
+// 				}
+// 			).value as Record<AttributeType, any>
+// 		},
+// 		unmarshall(value) {
+// 			if (typeof value === 'undefined') {
+// 				return
+// 			}
+
+// 			return unmarshall({ value: value as any }, opts?.unmarshall).value
+// 		},
+// 	})
+
 export const unknown = (opts?: UnknownOptions): UnknownSchema =>
 	createSchema({
+		// validate: () => true,
 		marshall(value) {
 			// if (typeof value === 'undefined') {
 			// 	return
@@ -31,4 +56,6 @@ export const unknown = (opts?: UnknownOptions): UnknownSchema =>
 
 			return unmarshall({ value: value as any }, opts?.unmarshall).value
 		},
+		validateInput: () => true,
+		validateOutput: () => true,
 	})

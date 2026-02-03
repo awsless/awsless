@@ -165,27 +165,51 @@ var transactWrite = async (items, options = {}) => {
 // src/schema/schema.ts
 var createSchema = (props) => {
   return {
-    encode(value) {
-      return value;
-    },
-    decode(value) {
-      return value;
-    },
-    marshall(value) {
-      return {
-        [props.type]: this.encode(value)
-      };
-    },
-    unmarshall(value) {
-      return this.decode(value[props.type]);
-    },
+    // encode(value) {
+    // 	return value as AttributeInputValue<A>
+    // },
+    // decode(value) {
+    // 	return value as T
+    // },
+    // marshall(value) {
+    // 	return {
+    // 		[props.type!]: this.encode(value),
+    // 	} as AttributeInput<A>
+    // },
+    // unmarshall(value) {
+    // 	return this.decode(value[props.type!])
+    // },
+    // validate() {
+    // 	return true
+    // },
     // filterIn(value) {
     // 	return typeof value === 'undefined'
     // },
     // filterOut(value) {
     // 	return typeof value === 'undefined'
     // },
-    ...props
+    //
+    //
+    // walk() {
+    // 	throw new TypeError('There is no more path to walk')
+    // },
+    ...props,
+    marshall(value) {
+      if (!props.validateInput(value)) {
+        throw new TypeError(
+          `Invalid marshall payload provided. Expected ${props.type}. Received ${typeof value}`
+        );
+      }
+      return props.marshall(value);
+    },
+    unmarshall(value) {
+      if (typeof value !== "object" || !props.validateOutput(value)) {
+        throw new TypeError(
+          `Invalid unmarshall payload provided. Expected ${props.type}. Received ${typeof value}`
+        );
+      }
+      return props.unmarshall(value);
+    }
   };
 };
 
@@ -195,15 +219,33 @@ var optional = (schema) => {
     ...schema,
     marshall(value) {
       if (typeof value === "undefined") {
-        return void 0;
+        return { NULL: true };
       }
       return schema.marshall(value);
     },
     unmarshall(value) {
-      if (typeof value === "undefined") {
+      if (typeof value === "undefined" || value.NULL) {
         return void 0;
       }
       return schema.unmarshall(value);
+    },
+    // validate(value) {
+    // 	if (typeof value === 'undefined') {
+    // 		return true
+    // 	}
+    // 	return schema.validate(value)
+    // },
+    validateInput(value) {
+      if (typeof value === "undefined") {
+        return true;
+      }
+      return schema.validateInput(value);
+    },
+    validateOutput(value) {
+      if (typeof value === "undefined" || value.NULL) {
+        return true;
+      }
+      return schema.validateOutput(value);
     }
   });
 };
@@ -211,6 +253,7 @@ var optional = (schema) => {
 // src/schema/unknown.ts
 var import_util_dynamodb = require("@aws-sdk/util-dynamodb");
 var unknown = (opts) => createSchema({
+  // validate: () => true,
   marshall(value) {
     return (0, import_util_dynamodb.marshall)(
       { value },
@@ -225,7 +268,9 @@ var unknown = (opts) => createSchema({
       return;
     }
     return (0, import_util_dynamodb.unmarshall)({ value }, opts?.unmarshall).value;
-  }
+  },
+  validateInput: () => true,
+  validateOutput: () => true
 });
 
 // src/schema/any.ts
@@ -235,20 +280,22 @@ var any = (opts) => unknown(opts);
 var SET_KEY = "__set__";
 var set = (schema) => {
   const type = `${schema.type}S`;
+  const encode = (value) => {
+    return Array.from(value).map((v) => {
+      const marshalled = schema.marshall(v);
+      return marshalled[schema.type];
+    });
+  };
+  const decode = (value) => {
+    return new Set(
+      value.map((v) => {
+        return schema.unmarshall({ [schema.type]: v });
+      })
+    );
+  };
   return createSchema({
     type,
-    encode(value) {
-      return Array.from(value).map((v) => {
-        return schema.encode(v);
-      });
-    },
-    decode(value) {
-      return new Set(
-        value.map((v) => {
-          return schema.decode(v);
-        })
-      );
-    },
+    // validate: value => value instanceof Set,
     marshall(value) {
       if (value.size === 0) {
         return { M: {} };
@@ -256,7 +303,7 @@ var set = (schema) => {
       return {
         M: {
           [SET_KEY]: {
-            [type]: this.encode(value)
+            [type]: encode(value)
           }
         }
       };
@@ -265,43 +312,65 @@ var set = (schema) => {
       if ("M" in value) {
         const map = value.M;
         if (map[SET_KEY]) {
-          return this.decode(map[SET_KEY][type]);
+          return decode(map[SET_KEY][type]);
         }
         return /* @__PURE__ */ new Set();
       }
       if (type in value) {
-        return this.decode(value[type]);
+        return decode(value[type]);
       }
       return /* @__PURE__ */ new Set();
     },
-    marshallInner(value) {
-      if (value.size === 0) {
-        return void 0;
-      }
-      return {
-        [type]: this.encode(value)
-      };
-    },
+    // marshallInner(value) {
+    // 	if (value.size === 0) {
+    // 		return undefined as any
+    // 	}
+    // 	return {
+    // 		[type]: encode(value),
+    // 	}
+    // },
+    // validate: value => value instanceof Set,
+    validateInput: (value) => value instanceof Set,
+    validateOutput: (value) => !!("M" in value && (SET_KEY in value.M ? type in value.M[SET_KEY] && Array.isArray(value.M[SET_KEY][type]) : true)),
     walk: () => schema
   });
 };
 
 // src/schema/uuid.ts
+var regex = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 var uuid = () => createSchema({
-  type: "S"
+  type: "S",
+  marshall: (value) => ({ S: value }),
+  unmarshall: (value) => value.S,
+  // validate: value => typeof value === 'string',
+  // validate: value => typeof value === 'string' && regex.test(value),
+  validateInput: (value) => typeof value === "string" && regex.test(value),
+  validateOutput: (value) => !!("S" in value && typeof value.S === "string" && regex.test(value.S))
 });
 
 // src/schema/string.ts
 function string() {
   return createSchema({
-    type: "S"
+    type: "S",
+    marshall: (value) => ({ S: value }),
+    unmarshall: (value) => value.S,
+    // validate: value => typeof value === 'string',
+    validateInput: (value) => typeof value === "string",
+    validateOutput: (value) => {
+      return !!("S" in value && typeof value.S === "string");
+    }
   });
 }
 
 // src/schema/boolean.ts
 function boolean() {
   return createSchema({
-    type: "BOOL"
+    type: "BOOL",
+    marshall: (value) => ({ BOOL: value }),
+    unmarshall: (value) => value.BOOL,
+    // validate: value => typeof value === 'boolean',
+    validateInput: (value) => typeof value === "boolean",
+    validateOutput: (value) => !!("BOOL" in value && typeof value.BOOL === "boolean")
   });
 }
 
@@ -309,8 +378,11 @@ function boolean() {
 function number() {
   return createSchema({
     type: "N",
-    encode: (value) => value.toString(),
-    decode: (value) => Number(value)
+    marshall: (value) => ({ N: value.toString() }),
+    unmarshall: (value) => Number(value.N),
+    // validate: value => typeof value === 'number',
+    validateInput: (value) => typeof value === "number",
+    validateOutput: (value) => !!("N" in value && typeof value.N === "string")
   });
 }
 
@@ -318,8 +390,11 @@ function number() {
 function bigint() {
   return createSchema({
     type: "N",
-    encode: (value) => value.toString(),
-    decode: (value) => BigInt(value)
+    marshall: (value) => ({ N: value.toString() }),
+    unmarshall: (value) => BigInt(value.N),
+    // validate: value => typeof value === 'bigint',
+    validateInput: (value) => typeof value === "bigint",
+    validateOutput: (value) => !!("N" in value && typeof value.N === "string")
   });
 }
 
@@ -327,19 +402,28 @@ function bigint() {
 var import_big_float = require("@awsless/big-float");
 var bigfloat = () => createSchema({
   type: "N",
-  encode: (value) => value.toString(),
-  decode: (value) => (0, import_big_float.parse)(value)
+  marshall: (value) => ({ N: value.toString() }),
+  unmarshall: (value) => (0, import_big_float.parse)(value.N),
+  // validate: value => value instanceof BigFloat,
+  validateInput: (value) => value instanceof import_big_float.BigFloat,
+  validateOutput: (value) => !!("N" in value && typeof value.N === "string")
 });
 
 // src/schema/uint8-array.ts
+var import_types = require("util/types");
 var uint8array = () => createSchema({
-  type: "B"
+  type: "B",
+  marshall: (value) => ({ B: value }),
+  unmarshall: (value) => value.B,
+  // validate: value => value instanceof Uint8Array,
+  validateInput: (value) => value instanceof Uint8Array,
+  validateOutput: (value) => !!("B" in value && (0, import_types.isUint8Array)(value.B))
 });
 
 // src/schema/object.ts
 var object = (props, rest) => createSchema({
   type: "M",
-  encode: (input) => {
+  marshall: (input) => {
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
       const value = input[key];
@@ -347,9 +431,10 @@ var object = (props, rest) => createSchema({
         continue;
       }
       const marshalled = schema.marshall(value);
-      if (typeof marshalled !== "undefined") {
-        result[key] = marshalled;
+      if (typeof marshalled === "undefined" || marshalled.NULL) {
+        continue;
       }
+      result[key] = marshalled;
     }
     if (rest) {
       for (const [key, value] of Object.entries(input)) {
@@ -360,24 +445,25 @@ var object = (props, rest) => createSchema({
           continue;
         }
         const marshalled = rest.marshall(value);
-        if (typeof marshalled !== "undefined") {
-          result[key] = marshalled;
+        if (marshalled.NULL) {
+          continue;
         }
+        result[key] = marshalled;
       }
     }
-    return result;
+    return { M: result };
   },
-  decode: (output) => {
+  unmarshall: (output) => {
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
-      const value = output[key];
+      const value = output.M[key];
       if (typeof value === "undefined") {
         continue;
       }
       result[key] = schema.unmarshall(value);
     }
     if (rest) {
-      for (const [key, value] of Object.entries(output)) {
+      for (const [key, value] of Object.entries(output.M)) {
         if (props[key]) {
           continue;
         }
@@ -389,6 +475,9 @@ var object = (props, rest) => createSchema({
     }
     return result;
   },
+  // validate: value => typeof value === 'object' && value !== null,
+  validateInput: (value) => typeof value === "object" && value !== null,
+  validateOutput: (value) => !!("M" in value && typeof value.M === "object" && value !== null),
   walk(path, ...next) {
     const type = props[path] ?? rest;
     return next.length ? type?.walk?.(...next) : type;
@@ -398,20 +487,26 @@ var object = (props, rest) => createSchema({
 // src/schema/record.ts
 var record = (schema) => createSchema({
   type: "M",
-  encode(input) {
+  marshall(input) {
     const result = {};
     for (const [key, value] of Object.entries(input)) {
+      const marshalled = schema.marshall(value);
+      if (marshalled.NULL) {
+        continue;
+      }
       result[key] = schema.marshall(value);
     }
-    return result;
+    return { M: result };
   },
-  decode(output) {
+  unmarshall(output) {
     const result = {};
-    for (const [key, value] of Object.entries(output)) {
+    for (const [key, value] of Object.entries(output.M)) {
       result[key] = schema.unmarshall(value);
     }
     return result;
   },
+  validateInput: (value) => typeof value === "object" && value !== null,
+  validateOutput: (value) => !!("M" in value && typeof value.M === "object" && value !== null),
   walk(_, ...rest) {
     return rest.length ? schema.walk?.(...rest) : schema;
   }
@@ -420,7 +515,7 @@ var record = (schema) => createSchema({
 // src/schema/variant.ts
 var variant = (key, options) => createSchema({
   type: "M",
-  encode(input) {
+  marshall(input) {
     const type = input[key];
     if (!type) {
       throw new TypeError(`Missing variant key: ${key}`);
@@ -430,14 +525,16 @@ var variant = (key, options) => createSchema({
       throw new TypeError(`Unknown variant: ${type}`);
     }
     return {
-      ...variant2.encode(input),
-      [key]: {
-        S: type
+      M: {
+        ...variant2.marshall(input).M,
+        [key]: {
+          S: type
+        }
       }
     };
   },
-  decode(output) {
-    const type = output[key];
+  unmarshall(output) {
+    const type = output.M[key];
     if (!type || !type.S) {
       throw new TypeError(`Missing variant key: ${key}`);
     }
@@ -446,10 +543,13 @@ var variant = (key, options) => createSchema({
       throw new TypeError(`Unknown variant: ${type}`);
     }
     return {
-      ...variant2.decode(output),
+      ...variant2.unmarshall(output),
       [key]: type.S
     };
   },
+  // validate: value => typeof value === 'object' && value !== null,
+  validateInput: (value) => typeof value === "object" && value !== null,
+  validateOutput: (value) => !!("M" in value && typeof value.M === "object" && value !== null),
   walk() {
     throw new TypeError(`Update & condition expressions are unsupported for a variant type`);
   }
@@ -458,19 +558,23 @@ var variant = (key, options) => createSchema({
 // src/schema/array.ts
 var array = (schema) => createSchema({
   type: "L",
-  encode: (value) => value.map((item) => schema.marshall(item)),
-  decode: (value) => value.map((item) => schema.unmarshall(item)),
-  walk(_, ...rest) {
-    return rest.length ? schema.walk?.(...rest) : schema;
-  }
+  marshall: (value) => ({ L: value.map((item) => schema.marshall(item)) }),
+  unmarshall: (value) => value.L.map((item) => schema.unmarshall(item)),
+  // validate: value => Array.isArray(value),
+  validateInput: (value) => Array.isArray(value),
+  validateOutput: (value) => "L" in value && Array.isArray(value.L),
+  walk: (_, ...rest) => rest.length ? schema.walk?.(...rest) : schema
 });
 
 // src/schema/tuple.ts
 function tuple(entries, rest) {
   return createSchema({
     type: "L",
-    encode: (value) => value.map((item, i) => (entries[i] ?? rest)?.marshall(item)),
-    decode: (value) => value.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)),
+    marshall: (value) => ({ L: value.map((item, i) => (entries[i] ?? rest)?.marshall(item)) }),
+    unmarshall: (value) => value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)),
+    // validate: value => Array.isArray(value),
+    validateInput: (value) => Array.isArray(value),
+    validateOutput: (value) => !!("L" in value && Array.isArray(value.L)),
     walk(path, ...restPath) {
       const schema = entries[path] ?? rest;
       return restPath.length ? schema?.walk?.(...restPath) : schema;
@@ -481,8 +585,11 @@ function tuple(entries, rest) {
 // src/schema/date.ts
 var date = () => createSchema({
   type: "N",
-  encode: (value) => String(value.getTime()),
-  decode: (value) => new Date(Number(value))
+  marshall: (value) => ({ N: String(value.getTime()) }),
+  unmarshall: (value) => new Date(Number(value.N)),
+  // validate: value => value instanceof Date,
+  validateInput: (value) => value instanceof Date,
+  validateOutput: (value) => !!("N" in value && typeof value.N === "string")
 });
 
 // src/schema/enum.ts
@@ -494,15 +601,20 @@ function enum_(_) {
 var import_json = require("@awsless/json");
 var json = () => createSchema({
   type: "S",
-  encode: (value) => (0, import_json.stringify)(value),
-  decode: (value) => (0, import_json.parse)(value)
+  marshall: (value) => ({ S: (0, import_json.stringify)(value) }),
+  unmarshall: (value) => (0, import_json.parse)(value.S),
+  validateInput: () => true,
+  validateOutput: (value) => !!("S" in value && typeof value.S === "string")
 });
 
 // src/schema/ttl.ts
 var ttl = () => createSchema({
   type: "N",
-  encode: (value) => String(Math.floor(value.getTime() / 1e3)),
-  decode: (value) => new Date(Number(value) * 1e3)
+  marshall: (value) => ({ N: String(Math.floor(value.getTime() / 1e3)) }),
+  unmarshall: (value) => new Date(Number(value.N) * 1e3),
+  // validate: value => value instanceof Date,
+  validateInput: (value) => value instanceof Date,
+  validateOutput: (value) => !!("N" in value && typeof value.N === "string")
 });
 
 // src/test/mock.ts
@@ -718,24 +830,25 @@ var ExpressionAttributes = class {
     return this.#names.get(key);
   }
   value(value, path) {
-    const marshalled = this.table.walk(...path).marshall(value);
+    const schema = this.table.walk(...path);
+    const marshalled = schema.marshall(value);
     return this.raw(marshalled);
   }
-  innerValue(value, path) {
+  innerSetValue(value, path) {
     const schema = this.table.walk(...path);
-    const marshalled = schema.marshallInner ? schema.marshallInner(value) : schema.marshall(value);
-    return this.raw(marshalled);
+    const marshalled = schema.marshall(value);
+    return this.raw(marshalled.M[SET_KEY]);
   }
   isSet(path) {
     const schema = this.table.walk(...path);
     const type = schema.type;
     return type === "SS" || type === "NS" || type === "BS";
   }
-  valueElement(value, path) {
+  elementValue(value, path) {
     const schema = this.table.walk(...path);
-    const elementSchema = schema.walk?.() ?? schema.walk?.(0);
-    if (elementSchema && typeof elementSchema.marshall === "function") {
-      return this.raw(elementSchema.marshall(value));
+    const element = schema.walk?.();
+    if (element) {
+      return this.raw(element.marshall(value));
     }
     return this.raw(schema.marshall(value));
   }
@@ -1199,7 +1312,7 @@ var buildConditionExpression = (attrs, builder) => {
           return attrs.value(item, path);
         }).join(", ")})`;
       case "contains": {
-        const elemParam = attrs.valueElement(value[0], path);
+        const elemParam = attrs.elementValue(value[0], path);
         if (attrs.isSet(path)) {
           const innerPath = `${p}.${attrs.name(SET_KEY)}`;
           return `contains(${innerPath}, ${elemParam})`;
@@ -1280,6 +1393,18 @@ var buildUpdateExpression = (attrs, builder) => {
       }
       return attrs.raw(defaultRaw);
     };
+    const listParam = (index) => {
+      if (value[index] instanceof Fluent) {
+        return attrs.path(getFluentPath(value[0]));
+      }
+      return attrs.value(value, path);
+    };
+    const innerSetParam = () => {
+      if (value[0] instanceof Fluent) {
+        return attrs.path(getFluentPath(value[0]));
+      }
+      return attrs.innerSetValue(new Set(value), path);
+    };
     switch (op) {
       case "set":
         if (path.length === 0) {
@@ -1310,8 +1435,13 @@ var buildUpdateExpression = (attrs, builder) => {
       case "delete":
         rem.push(p);
         break;
-      case "push":
-        set2.push(`${p} = list_append(${p}, ${attrs.value(value, path)})`);
+      // case 'push':
+      case "append":
+        set2.push(`${p} = list_append(${p}, ${listParam(0)})`);
+        break;
+      // case 'unshift':
+      case "prepend":
+        set2.push(`${p} = list_append(${listParam(0)}, ${p})`);
         break;
       case "incr":
         set2.push(`${p} = if_not_exists(${p}, ${param(1, { N: "0" })}) + ${param(0)}`);
@@ -1319,14 +1449,14 @@ var buildUpdateExpression = (attrs, builder) => {
       case "decr":
         set2.push(`${p} = if_not_exists(${p}, ${param(1, { N: "0" })}) - ${param(0)}`);
         break;
-      case "append": {
+      case "add": {
         const innerPath = `${p}.${attrs.name(SET_KEY)}`;
-        add.push(`${innerPath} ${attrs.innerValue(value[0], path)}`);
+        add.push(`${innerPath} ${innerSetParam()}`);
         break;
       }
       case "remove": {
         const innerPath = `${p}.${attrs.name(SET_KEY)}`;
-        del.push(`${innerPath} ${attrs.innerValue(value[0], path)}`);
+        del.push(`${innerPath} ${innerSetParam()}`);
         break;
       }
       default:
@@ -1346,11 +1476,13 @@ var buildUpdateExpression = (attrs, builder) => {
 // src/command/update-item.ts
 var updateItem = (table, key, options) => {
   const attrs = new ExpressionAttributes(table);
+  const update = buildUpdateExpression(attrs, options.update);
+  const condition = buildConditionExpression(attrs, options.when);
   const command = new import_client_dynamodb10.UpdateItemCommand({
     TableName: table.name,
     Key: table.marshall(key),
-    UpdateExpression: buildUpdateExpression(attrs, options.update),
-    ConditionExpression: buildConditionExpression(attrs, options.when),
+    UpdateExpression: update,
+    ConditionExpression: condition,
     ReturnValues: options.return,
     ...attrs.attributes()
   });
