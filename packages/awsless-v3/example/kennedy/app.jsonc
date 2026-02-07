@@ -29,12 +29,17 @@
 			"log": {
 				"retention": "1 week"
 			}
-		}
+		},
 		// "onLog": {
 		// 	"filter": ["error"],
 		// 	"consumer": "./log-parser.ts"
 		// }
-		// "layers": {}
+		"layers": {
+			"test": {
+				"file": "./layer/2.zip",
+				"architecture": "x86_64"
+			}
+		}
 		// "pubsub": {
 		// 	"test": {
 		// 		"auth": "./function.ts"

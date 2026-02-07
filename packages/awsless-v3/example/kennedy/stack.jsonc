@@ -1,26 +1,37 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"tests": "./test",
+	"tests": false,
 	// "stores": {
 	// 	"test": {
 	// 		"static": "./static"
 	// 	}
 	// },
-	"queues": {
-		"test": true
-	},
-	"instances": {
-		"test": "./instance/server.ts"
-	},
-	"tables": {
-		"test": {
-			"hash": "id"
+	"functions": {
+		// "test": "./function.ts",
+		"layer": {
+			"code": {
+				"file": "./layer/function.ts",
+				"external": ["test"]
+			},
+			"layers": ["test"],
+			"architecture": "x86_64",
+			"memorySize": "3000 MB",
+			"timeout": "1 minute"
 		}
 	}
-	// "functions": {
-	// 	"test": "./function.ts"
+	// "queues": {
+	// 	"test": true
+	// },
+	// "instances": {
+	// 	"test": "./instance/server.ts"
+	// },
+	// "tables": {
+	// 	"test": {
+	// 		"hash": "id"
+	// 	}
 	// }
+
 	// "tasks": {
 	// 	"test": "./function.ts"
 	// }
