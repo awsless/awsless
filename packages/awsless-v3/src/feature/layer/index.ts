@@ -19,6 +19,9 @@ export const layerFeature = defineFeature({
 				resourceName: 'assets',
 				postfix: ctx.appId,
 			}),
+			versioning: {
+				enabled: true,
+			},
 			forceDestroy: true,
 		})
 
@@ -77,9 +80,11 @@ export const layerFeature = defineFeature({
 						return name
 					}),
 					sourceCodeHash: $hash(props.file),
+					skipDestroy: true,
 				},
 				{
 					dependsOn: [zip],
+					replaceOnChanges: ['sourceCodeHash'],
 				}
 			)
 
