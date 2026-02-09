@@ -235,21 +235,31 @@ var list = (title, data) => {
   );
 };
 var task = async (opts) => {
-  let last;
+  let initialMessage = opts.initialMessage;
+  let successMessage = opts.successMessage;
+  let errorMessage = opts.errorMessage;
   const spin = (0, import_prompts3.spinner)();
   spin.start(opts.initialMessage);
   const stop = (message3, code) => {
-    spin.stop(truncate(message3 ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code);
+    spin.stop(truncate(message3 ?? initialMessage, process.stdout.columns - 6 - endMargin), code);
   };
   try {
-    const result = await opts.task((m) => {
-      spin.message(truncate(m, process.stdout.columns - 6 - endMargin));
-      last = m;
+    const result = await opts.task({
+      updateMessage(m) {
+        spin.message(truncate(m, process.stdout.columns - 6 - endMargin));
+        initialMessage = m;
+      },
+      updateSuccessMessage(m) {
+        successMessage = m;
+      },
+      updateErrorMessage(m) {
+        errorMessage = m;
+      }
     });
-    stop(opts.successMessage);
+    stop(successMessage);
     return result;
   } catch (error3) {
-    stop(opts.errorMessage, 2);
+    stop(errorMessage, 2);
     throw error3;
   }
 };

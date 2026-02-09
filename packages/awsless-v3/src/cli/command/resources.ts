@@ -35,25 +35,25 @@ export const resources = (program: Command) => {
 					region,
 				})
 
-				const resources = await workspace.status(app)
+				const stacks = await workspace.status(app)
 
-				// const formatResource = (stack: Stack, urn: URN) => {
-				// 	return urn
-				// 		.replace(stack.urn + ':', '')
-				// 		.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
-				// 			return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
-				// 		})
-				// 		.replaceAll(':', color.dim(':'))
-				// }
-
-				const formatResource = (urn: URN) => {
+				const formatResource = (stackUrn: URN, urn: URN) => {
 					return urn
-						.replace(app.urn + ':', '')
+						.replace(stackUrn + ':', '')
 						.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
 							return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
 						})
 						.replaceAll(':', color.dim(':'))
 				}
+
+				// const formatResource = (urn: URN) => {
+				// 	return urn
+				// 		.replace(app.urn + ':', '')
+				// 		.replace(/\{([a-z0-9\-\s\/\.\@\_]+)\}/gi, (_, v) => {
+				// 			return `${color.dim('{')}${color.warning(v)}${color.dim('}')}`
+				// 		})
+				// 		.replaceAll(':', color.dim(':'))
+				// }
 
 				const formatStatus = (status: ResourceStatus) => {
 					if (status === 'created') {
@@ -71,18 +71,47 @@ export const resources = (program: Command) => {
 					return color.dim(status)
 				}
 
-				log.message(
-					resources
-						.map(r => {
-							return [
-								//
-								formatStatus(r.status),
-								color.dim(icon.arrow.right),
-								formatResource(r.urn),
-							].join(' ')
-						})
-						.join('\n')
-				)
+				// log.message(
+				// 	resources
+				// 		.map(r => {
+				// 			return [
+				// 				//
+				// 				formatStatus(r.),
+				// 				color.dim(icon.arrow.right),
+				// 				formatResource(r.urn),
+				// 			].join(' ')
+				// 		})
+				// 		.join('\n')
+				// )
+				//
+				for (const stack of stacks) {
+					if (filters.length > 0) {
+						const found = filters.find(f => wildstring.match(f, stack.name))
+
+						if (!found) {
+							continue
+						}
+					}
+
+					log.step(chalk.magenta(stack.name))
+
+					if (stack.resources.length) {
+						log.message(
+							stack.resources
+								.map(r => {
+									return [
+										//
+										formatStatus(r.status),
+										color.dim(icon.arrow.right),
+										formatResource(stack.urn, r.urn),
+									].join(' ')
+								})
+								.join('\n')
+						)
+					} else {
+						log.message(color.line(`(empty)`))
+					}
+				}
 
 				// for (const stack of app.stacks) {
 				// 	if (filters.length > 0) {

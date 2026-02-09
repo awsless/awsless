@@ -37,7 +37,7 @@ program.on('option:skip-prompt', () => {
 })
 
 program.on('option:no-cache', () => {
-	process.env.NO_CACHE = program.opts().noCache ? '1' : undefined
+	process.env.NO_CACHE = program.opts().cache === false ? '1' : undefined
 })
 
 commands.forEach(fn => fn(program))

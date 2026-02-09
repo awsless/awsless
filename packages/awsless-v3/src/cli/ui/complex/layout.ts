@@ -18,7 +18,7 @@ type Options = {
 
 export const layout = async (command: string, cb: (options: Options) => Promise<string | void>) => {
 	console.log()
-	log.intro(`${logo()} ${color.dim(command)}`)
+	log.intro(`${logo()} ${color.line(command)}`)
 
 	try {
 		const options = program.optsWithGlobals() as ProgramOptions

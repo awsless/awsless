@@ -36,7 +36,14 @@ export const logError = (error: unknown) => {
 		)
 	} else if (typeof error === 'string') {
 		log.error(color.error(error))
+	} else if (Array.isArray(error)) {
+		error.map(logError)
 	} else {
-		log.error(color.error('Unknown error!'))
+		try {
+			const strError = JSON.stringify(error)
+			log.error(color.error(strError))
+		} catch {
+			log.error(color.error('Unknown error!'))
+		}
 	}
 }

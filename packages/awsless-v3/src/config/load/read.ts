@@ -1,5 +1,4 @@
 import { readFile } from 'fs/promises'
-import JSON5 from 'json5'
 import { basename, dirname, extname, join } from 'path'
 import { debug } from '../../cli/debug.js'
 import { color } from '../../cli/ui/style.js'
@@ -9,7 +8,7 @@ import { fileExist } from '../../util/path.js'
 export const readConfig = async (file: string) => {
 	try {
 		const json = await readFile(file, 'utf8')
-		const data = JSON5.parse(json) as object
+		const data = Bun.JSON5.parse(json) as object
 
 		return data
 	} catch (error) {

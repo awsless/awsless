@@ -1,10 +1,10 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "feature-1",
+	"name": "feature-2",
 	// "depends": ["stack-2"],
 
-	// "tests": "./test",
-	"tests": false,
+	"tests": "./test",
+	// "tests": false,
 	"configs": ["test"],
 
 	// "metrics": {
@@ -20,6 +20,13 @@
 	// 		]
 	// 	}
 	// },
+	//
+	"commands": {
+		"test": {
+			"description": "Hello",
+			"file": "./command.ts"
+		}
+	},
 
 	"functions": {
 		// "log-metric": "./metric/log-metric.ts",

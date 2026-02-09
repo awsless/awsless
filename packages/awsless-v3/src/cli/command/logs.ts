@@ -89,7 +89,7 @@ export const logs = (program: CliCommand) => {
 				const streams = await log.task({
 					initialMessage: 'Connecting to the log stream...',
 					errorMessage: 'Failed to connect to the log stream.',
-					async task(update) {
+					async task(ctx) {
 						const result = await Promise.all(
 							chunk(logGroupArns, 10).map(async arns => {
 								const command = new StartLiveTailCommand({
@@ -108,7 +108,7 @@ export const logs = (program: CliCommand) => {
 							})
 						)
 
-						update(
+						ctx.updateMessage(
 							`Connected to ${result.length} log stream${plural(result.length)} for ${logGroupArns.length} function${plural(logGroupArns.length)}.`
 						)
 

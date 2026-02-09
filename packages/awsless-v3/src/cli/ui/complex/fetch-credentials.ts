@@ -1,17 +1,29 @@
 import { log, prompt } from '@awsless/clui'
+import { ExpectedError } from '../../../error'
+import { color } from '../style'
 
 type StaticCredentials = {
 	accessKeyId: string
 	secretAccessKey: string
 }
 
+const assertBunSecretFeature = () => {
+	if (!('secrets' in Bun)) {
+		throw new ExpectedError(`Your current version of Bun doesn't support the Bun.secrets API. Please upgrade.`)
+	}
+}
+
 export const fetchCredentials = async (profile: string): Promise<StaticCredentials> => {
+	assertBunSecretFeature()
+
 	let credentialsString = await Bun.secrets.get({
 		service: 'awsless',
 		name: profile,
 	})
 
 	if (!credentialsString) {
+		log.warning(`You haven't configured AWS credentials for the ${color.info(profile)} profile.`)
+
 		const accessKeyId = await prompt.password({
 			message: 'Enter your AWS access key ID',
 			validate: (value: string) => {

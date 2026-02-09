@@ -1,10 +1,15 @@
 import { randomUUID } from 'crypto'
 import { string } from 'zod'
+import { Config } from '../../src/server'
+
+const id = randomUUID()
 
 export default async (event: unknown) => {
-	console.log(process.env.AWS_LAMBDA_FUNCTION_NAME, randomUUID())
+	// console.log(Config.TEST)
 
-	string()
+	// console.log(process.env.AWS_LAMBDA_FUNCTION_NAME, randomUUID())
+
+	// string()
 
 	// throw new Error('My Own Error')
 
@@ -16,5 +21,5 @@ export default async (event: unknown) => {
 	// 	body: JSON.stringify(randomUUID()),
 	// })
 
-	return event
+	return id
 }
