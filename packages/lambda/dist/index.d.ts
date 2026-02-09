@@ -4,8 +4,8 @@ export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
 import { AsyncReturnType } from 'type-fest';
-import { GenericIssue, GenericSchema, InferOutput, InferInput } from '@awsless/validate';
 import { Mock } from 'vitest';
+import { GenericSchema, InferOutput, InferInput } from '@awsless/validate';
 
 type InvokeOptions = {
     client?: LambdaClient;
@@ -41,20 +41,20 @@ declare class TimeoutError extends Error {
     constructor(remainingTime: number);
 }
 
+declare class ExpectedError extends Error {
+    readonly type: string;
+    constructor(type: string, message: string);
+}
+
+declare class ValidationError extends ExpectedError {
+    constructor(message: string);
+}
+
 declare class ViewableError extends Error {
     readonly type: string;
     readonly data?: unknown | undefined;
     readonly name = "ViewableError";
     constructor(type: string, message: string, data?: unknown | undefined);
-}
-
-declare class ValidationError extends ViewableError {
-    constructor(message: string, issues: GenericIssue[]);
-}
-
-declare class ExpectedError extends Error {
-    readonly type = "expected";
-    constructor(message: string);
 }
 
 type ErrorResponse = {

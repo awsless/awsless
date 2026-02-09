@@ -382,6 +382,10 @@ export const createLambdaFunction = (
 		}
 	)
 
+	if ('addFunction' in ctx) {
+		ctx.addFunction(lambda)
+	}
+
 	// new aws.lambda.SourceCodeUpdate(group, 'update', {
 	// 	functionName: lambda.name,
 	// 	version: Asset.fromFile(getBuildPath('function', name, 'HASH')),

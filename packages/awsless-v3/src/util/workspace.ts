@@ -1,7 +1,6 @@
 import { aws } from '@terraforge/aws'
 import { App, DynamoLockBackend, enableDebug, S3StateBackend, StateBackend, WorkSpace } from '@terraforge/core'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
-import { homedir } from 'os'
 import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
 import { Region } from '../config/schema/region.js'

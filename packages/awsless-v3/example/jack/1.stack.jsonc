@@ -4,8 +4,8 @@
 	// "depends": ["stack-2"],
 
 	// "tests": "./test",
-	"tests": false
-	// "configs": ["test"],
+	"tests": false,
+	"configs": ["test"],
 
 	// "metrics": {
 	// 	"size": {
@@ -21,13 +21,10 @@
 	// 	}
 	// },
 
-	// "functions": {
-	// 	// "log-metric": "./metric/log-metric.ts",
-	// 	"test": {
-	// 		"code": "./function.ts"
-	// 		// "vpc": true
-	// 	}
-	// }
+	"functions": {
+		// "log-metric": "./metric/log-metric.ts",
+		"test": "./function.ts"
+	}
 
 	// "sites": {
 	// 	"test": {

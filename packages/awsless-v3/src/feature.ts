@@ -79,6 +79,8 @@ export type StackContext = AppContext & {
 
 	// onStackPolicy: OnPolicy
 	addStackPermission: OnPermissionCallback
+
+	addFunction: (lambda: aws.lambda.Function) => void
 }
 
 export type BeforeContext = {

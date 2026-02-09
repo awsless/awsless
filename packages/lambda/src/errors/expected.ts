@@ -1,7 +1,10 @@
 export class ExpectedError extends Error {
-	readonly type = 'expected'
+	// readonly type = 'expected'
 
-	constructor(message: string) {
+	constructor(
+		readonly type: string,
+		message: string
+	) {
 		super(message)
 	}
 }
