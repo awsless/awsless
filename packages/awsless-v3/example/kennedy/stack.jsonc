@@ -1,29 +1,29 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"tests": "./test",
+	"tests": false,
+	"functions": {
+		"test": "./function.ts"
+	},
+	"tasks": {
+		"test": "./function.ts"
+	},
+	"queues": {
+		"test": true
+	}
+	// "tables": {
+	// 	"test": {
+	// 		"hash": "id"
+	// 	}
+	// },
 	// "stores": {
 	// 	"test": {
 	// 		"static": "./static"
 	// 	}
 	// },
-	"queues": {
-		"test": true
-	},
-	"instances": {
-		"test": "./instance/server.ts"
-	},
-	"tables": {
-		"test": {
-			"hash": "id"
-		}
-	}
-	// "functions": {
-	// 	"test": "./function.ts"
-	// }
-	// "tasks": {
-	// 	"test": "./function.ts"
-	// }
+	// "instances": {
+	// 	"test": "./instance/server.ts"
+	// },
 	// "images": {
 	// 	"test": {
 	// 		"cacheDuration": "7 days",

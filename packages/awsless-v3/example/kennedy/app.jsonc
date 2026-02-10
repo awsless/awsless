@@ -29,7 +29,8 @@
 			"log": {
 				"retention": "1 week"
 			}
-		}
+		},
+		"onFailure": "./on-failure/handle.ts"
 		// "onLog": {
 		// 	"filter": ["error"],
 		// 	"consumer": "./log-parser.ts"

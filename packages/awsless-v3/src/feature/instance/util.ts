@@ -2,7 +2,7 @@ import { toDays, toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
-import { Future, Group, Input, OptionalInput, resolveInputs } from '@terraforge/core'
+import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
 import { join } from 'path'
@@ -135,11 +135,12 @@ export const createFargateTask = (
 	)
 
 	const statements: Permission[] = []
+	const statementDeps: Set<any> = new Set()
 
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'task-policy',
-		policy: new Future(async resolve => {
+		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
 			resolve(
 				JSON.stringify({
@@ -154,14 +155,15 @@ export const createFargateTask = (
 		}),
 	})
 
-	// const addPermission = (...permissions: Permission[]) => {
-	// 	statements.push(...permissions)
-	// 	policy.attachDependencies(permissions)
-	// }
+	const addPermission = (...permissions: Permission[]) => {
+		statements.push(...permissions)
+		for (const dep of findInputDeps(permissions)) {
+			statementDeps.add(dep)
+		}
+	}
 
 	ctx.onPermission(statement => {
-		statements.push(statement)
-		// policy.attachDependencies(statement)
+		addPermission(statement)
 	})
 
 	// ------------------------------------------------------------
@@ -201,6 +203,7 @@ export const createFargateTask = (
 	}
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
+	const variableDeps: Set<any> = new Set()
 
 	const task = new aws.ecs.TaskDefinition(
 		group,
@@ -218,7 +221,7 @@ export const createFargateTask = (
 				operatingSystemFamily: 'LINUX',
 			},
 			trackLatest: true,
-			containerDefinitions: new Future<string>(async resolve => {
+			containerDefinitions: new Output<string>(variableDeps, async (resolve: (value: string) => void) => {
 				const data = await resolveInputs(variables)
 
 				const { s3Bucket, s3Key } = await resolveInputs({
@@ -393,7 +396,9 @@ export const createFargateTask = (
 
 	ctx.onEnv((name, value) => {
 		variables[name] = value
-		// task.attachDependencies(value)
+		for (const dep of findInputDeps([value])) {
+			variableDeps.add(dep)
+		}
 	})
 
 	// ------------------------------------------------------------
