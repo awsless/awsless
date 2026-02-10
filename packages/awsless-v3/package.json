@@ -166,7 +166,9 @@
 		"zod-to-json-schema": "^3.24.3"
 	},
 	"devDependencies": {
+		"@hono/node-server": "1.19.9",
 		"@node-rs/bcrypt": "^1.10.5",
+		"hono": "4.11.7",
 		"sharp": "^0.34.2"
 	}
 }

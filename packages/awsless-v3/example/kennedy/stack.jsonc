@@ -1,7 +1,7 @@
 {
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
-	"tests": "./test",
+	"tests": false,
 	// "stores": {
 	// 	"test": {
 	// 		"static": "./static"
