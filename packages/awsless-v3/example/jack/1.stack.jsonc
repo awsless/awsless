@@ -3,8 +3,8 @@
 	"name": "feature-2",
 	// "depends": ["stack-2"],
 
-	"tests": "./test",
-	// "tests": false,
+	// "tests": "./test",
+	"tests": false,
 	"configs": ["test"],
 
 	// "metrics": {
@@ -30,7 +30,13 @@
 
 	"functions": {
 		// "log-metric": "./metric/log-metric.ts",
-		"test": "./function.ts"
+		"test": "./function.ts",
+		"test2": "./function.ts",
+		"test3": "./function.ts",
+		"test4": "./function.ts",
+		"test5": "./function.ts",
+		"test6": "./function.ts",
+		"test7": "./function.ts"
 	}
 
 	// "sites": {

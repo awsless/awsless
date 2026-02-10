@@ -199,6 +199,10 @@ export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) 
 				}
 			},
 			async updateResource(props) {
+				if (props.priorState.kvsArn !== props.proposedState.kvsArn) {
+					throw new Error(`kvsArn can't be changed.`)
+				}
+
 				const priorState = validateInput(props.priorState)
 				const proposedState = validateInput(props.proposedState)
 

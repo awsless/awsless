@@ -13,6 +13,8 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 	const __dirname = dirname(fileURLToPath(import.meta.url))
 	const startTime = process.hrtime.bigint()
 
+	process.noDeprecation = true
+
 	const vitest = await startVitest(
 		'test',
 		props.filters,

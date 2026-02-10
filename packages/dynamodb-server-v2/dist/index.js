@@ -598,6 +598,25 @@ function evaluateCondition(expression, item, context) {
     }
     throw new ValidationException(`Unexpected token: ${token.type}`);
   }
+  function parseSizeValue() {
+    consume("FUNCTION");
+    consume("LPAREN");
+    const pathToken = consume("PATH");
+    consume("RPAREN");
+    const segments = parsePath(pathToken.value, context.expressionAttributeNames);
+    const value = getValueAtPath(item, segments);
+    let size = 0;
+    if (value) {
+      if ("S" in value) size = value.S.length;
+      else if ("B" in value) size = value.B.length;
+      else if ("SS" in value) size = value.SS.length;
+      else if ("NS" in value) size = value.NS.length;
+      else if ("BS" in value) size = value.BS.length;
+      else if ("L" in value) size = value.L.length;
+      else if ("M" in value) size = Object.keys(value.M).length;
+    }
+    return size;
+  }
   function parseFunction() {
     const funcToken = consume("FUNCTION");
     consume("LPAREN");
@@ -694,26 +713,31 @@ function evaluateCondition(expression, item, context) {
       consume("RPAREN");
       const segments = parsePath(pathToken.value, context.expressionAttributeNames);
       const value = getValueAtPath(item, segments);
-      if (!value) {
-        return false;
-      }
       let size = 0;
-      if ("S" in value) size = value.S.length;
-      else if ("B" in value) size = value.B.length;
-      else if ("SS" in value) size = value.SS.length;
-      else if ("NS" in value) size = value.NS.length;
-      else if ("BS" in value) size = value.BS.length;
-      else if ("L" in value) size = value.L.length;
-      else if ("M" in value) size = Object.keys(value.M).length;
+      if (value) {
+        if ("S" in value) size = value.S.length;
+        else if ("B" in value) size = value.B.length;
+        else if ("SS" in value) size = value.SS.length;
+        else if ("NS" in value) size = value.NS.length;
+        else if ("BS" in value) size = value.BS.length;
+        else if ("L" in value) size = value.L.length;
+        else if ("M" in value) size = Object.keys(value.M).length;
+      }
       const nextToken = current();
       if (nextToken?.type === "COMPARATOR") {
         consume("COMPARATOR");
-        const rightToken = consume("VALUE");
-        const rightValue = resolveValue(rightToken.value);
-        if (!rightValue || !("N" in rightValue)) {
-          throw new ValidationException("Size comparison requires numeric operand");
+        let rightNum;
+        if (current()?.type === "FUNCTION" && current()?.value === "size") {
+          rightNum = parseSizeValue();
+        } else {
+          const rightToken = consume();
+          const rightValue = resolveOperand2(rightToken);
+          if (!rightValue || !("N" in rightValue)) {
+            throw new ValidationException("Size comparison requires numeric operand");
+          }
+          rightNum = Number(rightValue.N);
         }
-        return compareNumbers(size, Number(rightValue.N), nextToken.value);
+        return compareNumbers(size, rightNum, nextToken.value);
       }
       return size > 0;
     }

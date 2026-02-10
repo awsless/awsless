@@ -14,7 +14,7 @@ import { layout } from '../ui/complex/layout.js'
 // import { task } from '../ui/util.js'
 
 // @ts-ignore
-import { tsImport } from 'tsx/esm/api'
+// import { tsImport } from 'tsx/esm/api'
 
 export const run = (program: CliCommand) => {
 	program
@@ -74,21 +74,21 @@ export const run = (program: CliCommand) => {
 
 				// delete require.cache[command.file]
 
-				let module: any
+				// let module: any
 
-				try {
-					module = await tsImport(command.file, {
-						parentURL: import.meta.url,
-					})
-				} catch (error) {
-					if (typeof error === 'object' && error !== null && 'message' in error) {
-						throw error.message
-					}
+				// try {
+				// 	module = await tsImport(command.file, {
+				// 		parentURL: import.meta.url,
+				// 	})
+				// } catch (error) {
+				// 	if (typeof error === 'object' && error !== null && 'message' in error) {
+				// 		throw error.message
+				// 	}
 
-					throw new ExpectedError(`Failed to import: ${command.file}`)
-				}
+				// 	throw new ExpectedError(`Failed to import: ${command.file}`)
+				// }
 
-				// const module = await import(command.file)
+				const module = await import(command.file)
 
 				// console.log('after')
 

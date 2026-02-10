@@ -139,7 +139,7 @@ export const createLambdaFunction = (
 			return build(fingerprint, async write => {
 				const temp = await createTempFolder(`function--${name}`)
 
-				const bundle = await bundleTypeScript({
+				const bundle = await bundleTypeScriptWithRolldown({
 					file: fileCode.file,
 					external: [
 						...(fileCode.external ?? []),

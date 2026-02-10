@@ -4,6 +4,8 @@ import { Config } from '../../src/server'
 
 const id = randomUUID()
 
+const unused = 'ABSSOJHAISUHDUISADHUIASHDUIHASIUDHIUASDHAI'
+
 export default async (event: unknown) => {
 	// console.log(Config.TEST)
 

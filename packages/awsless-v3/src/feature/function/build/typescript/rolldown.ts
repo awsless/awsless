@@ -68,6 +68,7 @@ export const bundleTypeScriptWithRolldown = async ({
 	for (const item of result.output) {
 		// For now we ignore asset chunks...
 		// I don't know what to do with assets yet.
+
 		if (item.type !== 'chunk') {
 			continue
 		}

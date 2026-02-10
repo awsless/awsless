@@ -29,12 +29,12 @@ export const onFailureFeature = defineFeature({
 				resourceType: 'on-failure',
 				resourceName: 'failure',
 			}),
-			redrivePolicy: $resolve([deadletter.arn], deadLetterTargetArn =>
-				JSON.stringify({
+			redrivePolicy: deadletter.arn.pipe(deadLetterTargetArn => {
+				return JSON.stringify({
 					deadLetterTargetArn,
 					maxReceiveCount: 100,
 				})
-			),
+			}),
 		})
 
 		ctx.shared.set('on-failure', 'queue-arn', queue.arn)
@@ -72,6 +72,7 @@ export const onFailureFeature = defineFeature({
 			resources: [queue.arn],
 		})
 
+		// Deny calling other functions to stop circular loop problems
 		result.addPermission({
 			effect: 'deny',
 			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage', 'sns:Publish'],

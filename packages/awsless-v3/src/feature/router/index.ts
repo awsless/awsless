@@ -48,7 +48,7 @@ export const routerFeature = defineFeature({
 
 				const importKeys = new ImportKeys(
 					group,
-					name,
+					[id, name].join('-'),
 					{
 						kvsArn: routeStore.arn,
 						keys: $resolve([routes], routes => {
