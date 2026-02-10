@@ -32,8 +32,6 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 		throw new ExpectedError(`Executable build failed:\n${result.logs?.map(log => log.message).join('\n')}`)
 	}
 
-	console.log(result, 'result')
-
 	const file = await readFile(filePath)
 
 	return {
