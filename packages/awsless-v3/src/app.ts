@@ -92,6 +92,7 @@ export const createApp = (props: CreateAppProps) => {
 	// const siteFunctions: aws.lambda.Function[] = []
 	const commands: Command[] = []
 	const configs = new Set<string>()
+	const functionsByConfig: Record<string, aws.lambda.Function[]> = {}
 	const tests: TestCase[] = []
 	const warnings: Warning[] = []
 	const builders: BuildTask[] = []
@@ -261,6 +262,12 @@ export const createApp = (props: CreateAppProps) => {
 				},
 				addWarning(props) {
 					warnings.push(props)
+				},
+				addFunction(lambda) {
+					for (const configName of stackConfig.configs ?? []) {
+						functionsByConfig[configName] ??= []
+						functionsByConfig[configName].push(lambda)
+					}
 				},
 				// onGlobalPolicy(callback) {
 				// 	globalPoliciesListeners.push(callback)
@@ -454,6 +461,7 @@ export const createApp = (props: CreateAppProps) => {
 		binds,
 		shared,
 		configs,
+		functionsByConfig,
 		warnings,
 		builders,
 		commands,

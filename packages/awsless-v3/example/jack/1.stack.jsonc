@@ -1,11 +1,11 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "feature-1",
+	"name": "feature-2",
 	// "depends": ["stack-2"],
 
-	// "tests": "./test",
-	"tests": false
-	// "configs": ["test"],
+	"tests": "./test",
+	// "tests": false,
+	"configs": ["test"],
 
 	// "metrics": {
 	// 	"size": {
@@ -20,14 +20,18 @@
 	// 		]
 	// 	}
 	// },
+	//
+	"commands": {
+		"test": {
+			"description": "Hello",
+			"file": "./command.ts"
+		}
+	},
 
-	// "functions": {
-	// 	// "log-metric": "./metric/log-metric.ts",
-	// 	"test": {
-	// 		"code": "./function.ts"
-	// 		// "vpc": true
-	// 	}
-	// }
+	"functions": {
+		// "log-metric": "./metric/log-metric.ts",
+		"test": "./function.ts"
+	}
 
 	// "sites": {
 	// 	"test": {

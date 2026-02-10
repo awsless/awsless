@@ -1,25 +1,26 @@
 import { log } from '@awsless/clui'
-import chalk from 'chalk'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
-import hrtime from 'pretty-hrtime'
+// import hrtime from 'pretty-hrtime'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
 import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
-import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
-import { startTest } from '../../../test/start.js'
+// import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
+import { parse, stringify } from '@awsless/json'
+import { ExpectedError } from '../../../error.js'
+import { startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
 import { color, icon } from '../style.js'
-import { task, wrap } from '../util.js'
+// import { task, wrap } from '../util.js'
 
 type StoredState = {
 	fingerprint: string
-	duration: number
-	errors: TestError[]
-	passed: number
-	failed: number
-	logs: string[]
-}
+	// duration: number
+	// errors: TestError[]
+	// passed: number
+	// failed: number
+	// logs: string[]
+} & TestResponse
 
 // const formatFileName = (path?: string) => {
 // 	if (!path) {
@@ -41,43 +42,61 @@ type StoredState = {
 // 	return `${start}${name}${style.placeholder(ext)}`
 // }
 
-const formatResult = (props: { stack: string; cached: boolean; event: FinishedEvent }) => {
-	const line: string[] = [`Test ${chalk.magenta(props.stack)}`]
+const formatResult = (props: { stack: string; cached: boolean; event: TestResponse }) => {
+	const line: string[] = [`Test ${color.info(props.stack)}`, color.dim(icon.arrow.right)]
+	const stats: string[] = []
 
 	if (props.cached) {
 		line.push(color.warning(`(from cache)`))
 	}
 
 	if (props.event.passed > 0) {
-		line.push(color.success(`${props.event.passed} passed`))
+		stats.push(color.success(`${props.event.passed} passed`))
+	}
+
+	if (props.event.skipped > 0) {
+		stats.push(color.warning(`${props.event.skipped} skipped`))
 	}
 
 	if (props.event.failed > 0) {
-		line.push(color.error(`${props.event.failed} failed`))
+		stats.push(color.error(`${props.event.failed} failed`))
 	}
 
-	if (props.event.duration > 0) {
+	if (props.event.duration > 0n) {
 		// const [time, unit] = hrtime(props.event.duration, {}).split(' ')
 		// return color.attr(time) + color.attr.dim(unit)
 		// line.push(color.success(`${props.event.duration}`))
 	}
 
+	line.push(stats.join(color.line.dim(` ${icon.dot} `)))
+
 	return line.join(` `)
 }
 
-const logTestLogs = (event: FinishedEvent) => {
-	if (event.logs.length > 0) {
-		log.message(color.info.bold.inverse(' LOGS '), color.dim(icon.dot))
-		log.message(event.logs.map(log => wrap(log, { hard: true })).join('\n'))
+const logTestLogs = (event: TestResponse) => {
+	for (const test of event.tests) {
+		if (test.logs.length > 0) {
+			log.message(
+				[
+					color.info.bold.inverse(' LOGS '),
+					color.dim(icon.arrow.right),
+					formatFileName(test),
+					color.dim(icon.arrow.right),
+					color.dim(test.name),
+				].join(' '),
+				color.line(icon.dot)
+			)
+			log.message(test.logs.map(log => log.text).join('\n'))
+		}
 	}
 }
 
-const formatFileName = (error: TestError) => {
-	const name = [error.file]
+const formatFileName = (test: TestEntry, error?: TestError) => {
+	const name = [test.file]
 
 	// console.log(error)
 
-	const loc = error.location
+	const loc = error?.location
 
 	if (loc) {
 		if (typeof loc.line === 'number') {
@@ -92,30 +111,38 @@ const formatFileName = (error: TestError) => {
 	return name.join('')
 }
 
-const logTestErrors = (event: FinishedEvent) => {
-	event.errors.forEach((error, i) => {
-		const [message, ...comment] = error.message.split('//')
-		const errorMessage = [
-			color.error.bold(error.type + ':'),
-			message,
-			comment.length > 0 ? color.dim(`//${comment}`) : '',
-		].join(' ')
+const logTestError = (index: number, event: TestResponse, test: TestEntry, error: TestError) => {
+	const [message, ...comment] = error.message.split('//')
+	const errorMessage = [
+		color.error.bold(error.type + ':'),
+		message,
+		comment.length > 0 ? color.dim(`//${comment}`) : '',
+	].join(' ')
 
-		log.error(
-			[
-				//
-				color.error.inverse.bold(` FAIL `),
-				color.dim(`(${i + 1}/${event.errors.length})`),
-				color.dim(icon.arrow.right),
-				formatFileName(error),
-				color.dim(icon.arrow.right),
-				// `\n${color.label.inverse.bold(` TEST `)}`,
-				color.dim(error.test),
-				[`\n\n`, errorMessage, ...(error.diff ? ['\n\n', error.diff] : [])].join(''),
-				// error.test,
-			].join(' ')
-		)
-	})
+	log.error(
+		[
+			//
+			color.error.inverse.bold(` FAIL `),
+			color.dim(`(${index}/${event.errors.length + event.failed})`),
+			color.dim(icon.arrow.right),
+			formatFileName(test, error),
+			color.dim(icon.arrow.right),
+			// `\n${color.label.inverse.bold(` TEST `)}`,
+			color.dim(test.name),
+			[`\n\n`, errorMessage, ...(error.diff ? ['\n\n', error.diff] : [])].join(''),
+			// error.test,
+		].join(' ')
+	)
+}
+
+const logTestErrors = (event: TestResponse) => {
+	let i = 0
+
+	for (const test of event.tests) {
+		for (const error of test.errors) {
+			logTestError(++i, event, test, error)
+		}
+	}
 }
 
 export const runTest = async (
@@ -136,7 +163,7 @@ export const runTest = async (
 
 		if (exists) {
 			const raw = await readFile(file, { encoding: 'utf8' })
-			const data = JSON.parse(raw) as StoredState
+			const data = parse(raw) as StoredState
 
 			if (data.fingerprint === fingerprint) {
 				log.step(
@@ -158,36 +185,29 @@ export const runTest = async (
 		}
 	}
 
-	const reporter = new CustomReporter()
+	const result = await log.task({
+		initialMessage: `Run tests for the ${color.info(stack)} stack`,
+		errorMessage: `Running tests for the ${color.info(stack)} stack failed`,
+		async task(ctx) {
+			const result = await startTest({
+				dir,
+				filters,
+			})
 
-	const result = await task(`Run tests for ${stack} stack`, async update => {
-		let result: FinishedEvent
+			if (result.errors.length > 0) {
+				throw result.errors.map(error => new ExpectedError(error.message))
+			}
 
-		reporter.on('update', ({ tasks }) => {
-			update(
-				[
-					//
+			ctx.updateSuccessMessage(
+				formatResult({
 					stack,
-					icon.arrow.right,
-					tasks.at(-1)?.name,
-					// tasks.map(t => t.name).join(` ${icon.arrow.right} `),
-				].join(' ')
+					cached: false,
+					event: result,
+				})
 			)
-		})
 
-		reporter.on('finished', event => {
-			result = event
-
-			update(formatResult({ event, stack, cached: false }))
-		})
-
-		await startTest({
-			reporter,
-			dir,
-			filters,
-		})
-
-		return result!
+			return result
+		},
 	})
 
 	if (opts.showLogs) {
@@ -198,13 +218,16 @@ export const runTest = async (
 
 	await writeFile(
 		file,
-		JSON.stringify({
+		stringify({
 			...result,
 			fingerprint,
 		})
 	)
 
-	return result.errors.length === 0
+	// console.log(result)
+	// console.log(result.errors.length === 0 && result.failed === 0)
+
+	return result.errors.length === 0 && result.failed === 0
 }
 
 export const runTests = async (

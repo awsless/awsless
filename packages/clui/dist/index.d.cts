@@ -54,7 +54,11 @@ type TaskOptions<T> = {
     initialMessage: string;
     errorMessage?: string;
     successMessage?: string;
-    task: (updateMessage: (message: string) => void) => Promise<T>;
+    task: (context: {
+        updateMessage: (message: string) => void;
+        updateErrorMessage: (message: string) => void;
+        updateSuccessMessage: (message: string) => void;
+    }) => Promise<T>;
 };
 declare const task: <T>(opts: TaskOptions<T>) => Promise<T>;
 declare const table: (props: {

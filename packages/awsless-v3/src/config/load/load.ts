@@ -47,6 +47,13 @@ export const loadStackConfigs = async (options: ProgramOptions) => {
 	debug('Load stacks config files')
 
 	const ext = '{json,jsonc,json5}'
+
+	// const glob = new Bun.Glob(`**/{stack.${ext},*.stack.${ext}}`);
+	// glob.scan({
+	// 	''
+	// 	'cwd': directories.root,
+	// })
+
 	const stackFiles = await glob([`**/stack.${ext}`, `**/*.stack.${ext}`], {
 		ignore: ['**/node_modules/**', '**/dist/**'],
 		cwd: directories.root,

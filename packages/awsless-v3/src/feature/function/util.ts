@@ -1,6 +1,6 @@
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
-import { Future, Group, Input, resolveInputs, Resource } from '@terraforge/core'
+import { findInputDeps, Group, Input, Output, resolveInputs, Resource } from '@terraforge/core'
 import deepmerge from 'deepmerge'
 import { basename } from 'path'
 import { getBuildPath } from '../../build/index.js'
@@ -238,10 +238,13 @@ export const createLambdaFunction = (
 	})
 
 	const statements: Permission[] = []
+	const statementDeps: Set<any> = new Set()
 
 	const addPermission = (...permissions: Permission[]) => {
 		statements.push(...permissions)
-		// policy.attachDependencies(permissions)
+		for (const dep of findInputDeps(permissions)) {
+			statementDeps.add(dep)
+		}
 	}
 
 	ctx.onPermission(statement => {
@@ -259,7 +262,7 @@ export const createLambdaFunction = (
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',
-		policy: new Future(async resolve => {
+		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
 
 			resolve(
@@ -381,6 +384,10 @@ export const createLambdaFunction = (
 			dependsOn,
 		}
 	)
+
+	if ('addFunction' in ctx) {
+		ctx.addFunction(lambda)
+	}
 
 	// new aws.lambda.SourceCodeUpdate(group, 'update', {
 	// 	functionName: lambda.name,

@@ -2,39 +2,28 @@
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
 	"tests": false,
+	"functions": {
+		"test": "./function.ts"
+	},
+	"tasks": {
+		"test": "./function.ts"
+	},
+	"queues": {
+		"test": true
+	}
+	// "tables": {
+	// 	"test": {
+	// 		"hash": "id"
+	// 	}
+	// },
 	// "stores": {
 	// 	"test": {
 	// 		"static": "./static"
 	// 	}
 	// },
-	"functions": {
-		// "test": "./function.ts",
-		"layer": {
-			"code": {
-				"file": "./layer/function.ts",
-				"external": ["test"]
-			},
-			"layers": ["test"],
-			"architecture": "x86_64",
-			"memorySize": "3000 MB",
-			"timeout": "1 minute"
-		}
-	}
-	// "queues": {
-	// 	"test": true
-	// },
 	// "instances": {
 	// 	"test": "./instance/server.ts"
 	// },
-	// "tables": {
-	// 	"test": {
-	// 		"hash": "id"
-	// 	}
-	// }
-
-	// "tasks": {
-	// 	"test": "./function.ts"
-	// }
 	// "images": {
 	// 	"test": {
 	// 		"cacheDuration": "7 days",

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { ExpectedError } from '../../../error'
 // import { exec } from 'promisify-child-process'
 
 export const buildExecutable = async (input: string, outputPath: string, architecture: 'x86_64' | 'arm64') => {
@@ -20,14 +21,15 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 				outfile: filePath,
 			},
 			target: 'bun',
-			bytecode: true,
 		})
 	} catch (error) {
-		throw new Error(`Executable build failed: ${error instanceof Error ? error.message : JSON.stringify(error)}`)
+		throw new ExpectedError(
+			`Executable build failed: ${error instanceof Error ? error.message : JSON.stringify(error)}`
+		)
 	}
 
 	if (!result.success) {
-		throw new Error(`Executable build failed: ${result.logs?.map(log => log.message).join('\n')}`)
+		throw new ExpectedError(`Executable build failed:\n${result.logs?.map(log => log.message).join('\n')}`)
 	}
 
 	const file = await readFile(filePath)

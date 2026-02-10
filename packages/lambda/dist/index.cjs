@@ -43,9 +43,10 @@ var import_json = require("@awsless/json");
 
 // src/errors/expected.ts
 var ExpectedError = class extends Error {
-  type = "expected";
-  constructor(message) {
+  // readonly type = 'expected'
+  constructor(type, message) {
     super(message);
+    this.type = type;
   }
 };
 
@@ -100,7 +101,7 @@ var invoke = async ({
   if (isErrorResponse(response)) {
     const e = response.__error__;
     if (reflectViewableErrors) {
-      throw new ExpectedError(e.message);
+      throw new ExpectedError(e.type, e.message);
     } else {
       throw new Error(e.message);
     }
@@ -151,6 +152,21 @@ var createTimeoutWrap = async (context, log, callback) => {
 
 // src/errors/validation.ts
 var import_validate = require("@awsless/validate");
+var ValidationError = class extends ExpectedError {
+  constructor(message) {
+    super("validation", message);
+  }
+};
+var transformValidationErrors = async (callback) => {
+  try {
+    return await callback();
+  } catch (error) {
+    if (error instanceof import_validate.ValiError) {
+      throw new ValidationError(error.message);
+    }
+    throw error;
+  }
+};
 
 // src/errors/viewable.ts
 var ViewableError = class extends Error {
@@ -160,34 +176,6 @@ var ViewableError = class extends Error {
     this.data = data;
   }
   name = "ViewableError";
-};
-
-// src/errors/validation.ts
-var ValidationError = class extends ViewableError {
-  constructor(message, issues) {
-    super("validation", message, {
-      issues: issues.map((issue) => ({
-        path: issue.path?.map((path) => ({
-          key: path.key,
-          type: path.type
-        })),
-        // reason: issue.reason,
-        message: issue.message,
-        received: issue.received,
-        expected: issue.expected
-      }))
-    });
-  }
-};
-var transformValidationErrors = async (callback) => {
-  try {
-    return await callback();
-  } catch (error) {
-    if (error instanceof import_validate.ValiError) {
-      throw new ValidationError(error.message, error.issues);
-    }
-    throw error;
-  }
 };
 
 // src/helpers/mock.ts

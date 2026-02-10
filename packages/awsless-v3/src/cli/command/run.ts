@@ -67,9 +67,30 @@ export const run = (program: CliCommand) => {
 				// ---------------------------------------------------
 				// Import the command
 
-				const module = await tsImport(command.file, {
-					parentURL: import.meta.url,
-				})
+				// console.log('before')
+				// console.log(process.cwd())
+				// console.log(command.file)
+				// console.log(require.cache)
+
+				// delete require.cache[command.file]
+
+				let module: any
+
+				try {
+					module = await tsImport(command.file, {
+						parentURL: import.meta.url,
+					})
+				} catch (error) {
+					if (typeof error === 'object' && error !== null && 'message' in error) {
+						throw error.message
+					}
+
+					throw new ExpectedError(`Failed to import: ${command.file}`)
+				}
+
+				// const module = await import(command.file)
+
+				// console.log('after')
 
 				const handler: CommandHandler | undefined = module[command.handler]
 

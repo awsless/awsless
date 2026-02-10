@@ -1,7 +1,7 @@
 import { days, seconds, toDays, toSeconds } from '@awsless/duration'
 import { mebibytes, toMebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
-import { Future, Group, Input, resolveInputs } from '@terraforge/core'
+import { Group, Input, Output, findInputDeps, resolveInputs } from '@terraforge/core'
 import { pascalCase } from 'change-case'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
@@ -97,10 +97,13 @@ export const createPrebuildLambdaFunction = (
 	})
 
 	const statements: Permission[] = []
+	const statementDeps: Set<any> = new Set()
 
 	const addPermission = (...permissions: Permission[]) => {
 		statements.push(...permissions)
-		// policy.attachDependencies(permissions)
+		for (const dep of findInputDeps(permissions)) {
+			statementDeps.add(dep)
+		}
 	}
 
 	ctx.onPermission(statement => {
@@ -110,7 +113,7 @@ export const createPrebuildLambdaFunction = (
 	const policy = new aws.iam.RolePolicy(group, 'policy', {
 		role: role.name,
 		name: 'lambda-policy',
-		policy: new Future(async resolve => {
+		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
 
 			resolve(

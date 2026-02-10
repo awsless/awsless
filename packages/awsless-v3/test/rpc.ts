@@ -18,11 +18,14 @@ describe('RPC server', () => {
 		permission: (): RpcAuthorizerResponse => {
 			return unpatch({
 				authorized: true,
-				permissions: ['read'],
+				allowedFunctions: ['read'],
 				ttl: hours(1),
 			})
 		},
-		echo: event => {
+		echo: async event => {
+			// add a delay in order to test the locking feature.
+			await new Promise(r => setTimeout(r, 100))
+
 			return event
 		},
 	})
@@ -38,12 +41,12 @@ describe('RPC server', () => {
 				{
 					query: 'read',
 					function: 'echo',
-					permissions: ['read'],
+					// permissions: ['read'],
 				},
 				{
 					query: 'write',
 					function: 'echo',
-					permissions: ['write'],
+					// permissions: ['write'],
 				},
 			]),
 		],
@@ -53,6 +56,7 @@ describe('RPC server', () => {
 		return {
 			requestContext: {
 				http: {
+					method: 'POST',
 					userAgent: '',
 					sourceIp: '',
 				},
@@ -72,12 +76,16 @@ describe('RPC server', () => {
 				Array.from({ length: 10 }).map(async () => {
 					const response = await handle(createRequest([{ name: 'echo' }]))
 
+					// console.log(response);
+
 					return response.statusCode
 				})
 			)
 
 			const errors = results.filter(n => n === 429)
 			const successes = results.filter(n => n === 200)
+
+			// console.log(successes, errors)
 
 			expect(errors.length).toBe(9)
 			expect(successes.length).toBe(1)
@@ -90,6 +98,8 @@ describe('RPC server', () => {
 
 			const result = await handle(createRequest([{ name: 'write' }], 'token-2'))
 
+			// console.log(result)
+
 			expect(result.statusCode).toBe(200)
 			expect(JSON.parse(result.body)[0].ok).toBe(false)
 		})
@@ -98,6 +108,8 @@ describe('RPC server', () => {
 			process.env.AUTH = 'permission'
 
 			const result = await handle(createRequest([{ name: 'read' }], 'token-2'))
+
+			// console.log(result)
 
 			expect(result.statusCode).toBe(200)
 			expect(JSON.parse(result.body)[0].ok).toBe(true)

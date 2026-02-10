@@ -271,8 +271,8 @@ await updateItem(
 			// Update the title attribute.
 			e.title.set('Hi...'),
 
-			// Push a new comment onto the comments array attribute.
-			e.comments.push('Powerful query builder...'),
+			// Append a new comment onto the comments array attribute.
+			e.comments.append('Powerful query builder...'),
 		],
 	}
 )

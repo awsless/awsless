@@ -4,8 +4,8 @@ import { capitalCase } from 'change-case'
 import wildstring from 'wildstring'
 import { BuildTask } from '../../../app.js'
 import { build, Metadata } from '../../../build/index.js'
+import { ExpectedError } from '../../../error.js'
 import { directories } from '../../../util/path.js'
-import { logError } from '../error/error.js'
 
 export const buildAssets = async (builders: BuildTask[], stackFilters: string[], showResult = false) => {
 	if (builders.length === 0) {
@@ -40,9 +40,11 @@ export const buildAssets = async (builders: BuildTask[], stackFilters: string[],
 					})
 					results.push({ ...builder, result })
 				} catch (error) {
-					// update(`Build failed for: ${builder.type} ${builder.name}`)
-					logError(new Error(`Build failed for: ${builder.type} ${builder.name}`))
-					throw error
+					throw [
+						//
+						new ExpectedError(`Build failed for: ${builder.type} ${builder.name}`),
+						error,
+					]
 				}
 			}
 		},

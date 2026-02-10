@@ -47,7 +47,7 @@ export const invoke: Invoke = async ({
 		const e = response.__error__
 
 		if (reflectViewableErrors) {
-			throw new ExpectedError(e.message)
+			throw new ExpectedError(e.type, e.message)
 		} else {
 			throw new Error(e.message)
 		}

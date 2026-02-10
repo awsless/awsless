@@ -58,28 +58,43 @@ type TaskOptions<T> = {
 	initialMessage: string
 	errorMessage?: string
 	successMessage?: string
-	task: (updateMessage: (message: string) => void) => Promise<T>
+	task: (context: {
+		updateMessage: (message: string) => void
+		updateErrorMessage: (message: string) => void
+		updateSuccessMessage: (message: string) => void
+	}) => Promise<T>
 }
 
 export const task = async <T>(opts: TaskOptions<T>): Promise<T> => {
-	let last: string | undefined
+	let initialMessage = opts.initialMessage
+	let successMessage = opts.successMessage
+	let errorMessage = opts.errorMessage
+
 	const spin = spinner()
 	spin.start(opts.initialMessage)
 
 	const stop = (message?: string, code?: number) => {
-		spin.stop(ansi.truncate(message ?? last ?? opts.initialMessage, process.stdout.columns - 6 - endMargin), code)
+		spin.stop(ansi.truncate(message ?? initialMessage, process.stdout.columns - 6 - endMargin), code)
 	}
 
 	try {
-		const result = await opts.task(m => {
-			spin.message(ansi.truncate(m, process.stdout.columns - 6 - endMargin))
-			last = m
+		const result = await opts.task({
+			updateMessage(m) {
+				spin.message(ansi.truncate(m, process.stdout.columns - 6 - endMargin))
+				initialMessage = m
+			},
+			updateSuccessMessage(m) {
+				successMessage = m
+			},
+			updateErrorMessage(m) {
+				errorMessage = m
+			},
 		})
 
-		stop(opts.successMessage)
+		stop(successMessage)
 		return result
 	} catch (error) {
-		stop(opts.errorMessage, 2)
+		stop(errorMessage, 2)
 		throw error
 	}
 }
