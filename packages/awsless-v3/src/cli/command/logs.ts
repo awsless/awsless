@@ -38,18 +38,6 @@ export const logs = (program: CliCommand) => {
 				// ---------------------------------------------------
 				// Find log groups
 
-				// const stackNames = app.stacks
-				// 	.filter(stack => {
-				// 		return !!filters.find(f => wildstring.match(f, stack.name))
-				// 	})
-				// 	.map(s => s.name)
-
-				// console.log(
-				// 	app.stacks.map(s => s.name),
-				// 	filters,
-				// 	stackNames
-				// )
-
 				const logGroupArns: string[] = []
 
 				for (const stack of app.stacks) {
@@ -64,8 +52,6 @@ export const logs = (program: CliCommand) => {
 					}
 				}
 
-				// console.log(logGroupArns)
-
 				// ---------------------------------------------------
 				// Start Live Tail session
 
@@ -74,14 +60,14 @@ export const logs = (program: CliCommand) => {
 					region,
 				})
 
-				const abort = new AbortController()
+				const controller = new AbortController()
 
 				process.once('exit', () => {
-					abort.abort()
+					controller.abort()
 				})
 
 				process.once('SIGINT', () => {
-					abort.abort()
+					controller.abort()
 				})
 
 				const streams = await log.task({
@@ -95,7 +81,7 @@ export const logs = (program: CliCommand) => {
 								})
 
 								const response = await client.send(command, {
-									abortSignal: abort.signal,
+									abortSignal: controller.signal,
 								})
 
 								if (!response.responseStream) {

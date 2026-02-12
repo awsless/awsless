@@ -26,7 +26,10 @@ export const dev = (program: Command) => {
 				// We should give features the opportunity to watch for files aswell.
 
 				// idle forever...
-				await new Promise(() => {})
+				await new Promise<void>(resolve => {
+					process.once('exit', resolve)
+					process.once('SIGINT', resolve)
+				})
 			})
 		})
 }

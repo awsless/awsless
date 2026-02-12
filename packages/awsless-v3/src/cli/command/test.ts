@@ -19,7 +19,6 @@ export const test = (program: Command) => {
 				const { tests } = createApp({ ...props, accountId })
 
 				if (tests.length === 0) {
-					// log.warn('No tests found.')
 					return 'No tests found.'
 				}
 

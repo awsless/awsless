@@ -4,7 +4,7 @@ import { capitalCase } from 'change-case'
 import { color } from '../style.js'
 import { wrap } from '../util.js'
 
-const formatOperation = (operation: string) => {
+const formatOperation = (operation: ResourceError['operation']) => {
 	const value = ` ${capitalCase(operation)} `
 
 	switch (operation) {
@@ -12,12 +12,12 @@ const formatOperation = (operation: string) => {
 		case 'import':
 			return color.success.bold.inverse(value)
 		case 'update':
+		case 'replace':
 			return color.warning.bold.inverse(value)
 		case 'delete':
 			return color.error.bold.inverse(value)
-		case 'heal':
-			return color.warning.bold.inverse(value)
 		case 'get':
+		case 'resolve':
 			return color.info.bold.inverse(value)
 	}
 

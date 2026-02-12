@@ -4,9 +4,10 @@ import { join } from 'path'
 // import hrtime from 'pretty-hrtime'
 import wildstring from 'wildstring'
 import { TestCase } from '../../../app.js'
-import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
+// import { fingerprintFromDirectory } from '../../../build/__fingerprint.js'
 // import { CustomReporter, FinishedEvent, TestError } from '../../../test/reporter.js'
 import { parse, stringify } from '@awsless/json'
+import { generateFolderHash, loadWorkspace, Workspace } from '@awsless/ts-file-cache'
 import { ExpectedError } from '../../../error.js'
 import { startTest, TestEntry, TestError, TestResponse } from '../../../test/start.js'
 import { directories, fileExist } from '../../../util/path.js'
@@ -149,6 +150,7 @@ export const runTest = async (
 	stack: string,
 	dir: string,
 	filters: string[],
+	workspace: Workspace,
 	opts: {
 		showLogs: boolean
 	}
@@ -156,7 +158,7 @@ export const runTest = async (
 	await mkdir(directories.test, { recursive: true })
 
 	const file = join(directories.test, `${stack}.json`)
-	const fingerprint = await fingerprintFromDirectory(dir)
+	const fingerprint = await generateFolderHash(workspace, dir)
 
 	if (!process.env.NO_CACHE) {
 		const exists = await fileExist(file)
@@ -238,6 +240,8 @@ export const runTests = async (
 		showLogs: boolean
 	}
 ) => {
+	const workspace = await loadWorkspace(directories.root)
+
 	for (const test of tests) {
 		if (stackFilters && stackFilters.length > 0) {
 			const found = stackFilters.find(f => wildstring.match(f, test.stackName))
@@ -248,7 +252,7 @@ export const runTests = async (
 		}
 
 		for (const path of test.paths) {
-			const result = await runTest(test.name, path, testFilters, opts)
+			const result = await runTest(test.name, path, testFilters, workspace, opts)
 
 			if (!result) {
 				return false

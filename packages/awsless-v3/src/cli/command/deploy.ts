@@ -102,20 +102,6 @@ export const deploy = (program: Command) => {
 					region,
 				})
 
-				// for (const stack of app.stacks) {
-				// 	console.log('stack:', stack.name)
-				// 	console.log(
-				// 		'deps:',
-				// 		[...stack.dependencies].map(s => s.name)
-				// 	)
-				// }
-
-				// await task('Deploying the hosted-zones to AWS', async update => {
-				// 	await workspace.deploy(app, { filters: ['zones'] })
-
-				// 	update('Done deploying the hosted-zones to AWS.')
-				// })
-
 				await log.task({
 					initialMessage: 'Deploying the stacks to AWS',
 					successMessage: 'Done deploying the stacks to AWS.',

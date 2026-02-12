@@ -1,6 +1,5 @@
 import { log } from '@awsless/clui'
-import { Resource } from '@awsless/formation'
-import { ResourceStatus, Stack, URN } from '@terraforge/core'
+import { ResourceStatus, URN } from '@terraforge/core'
 import chalk from 'chalk'
 import { Command } from 'commander'
 import wildstring from 'wildstring'
