@@ -37,9 +37,11 @@
 		// 		"domain": "getblockalert.com"
 		// 	}
 		// },
-		// "auth": {
-		// 	"users": {}
-		// },
+		"auth": {
+			"users": {
+				"groups": ["admin", "support", "marketing"]
+			}
+		},
 		// "pubsub": {
 		// 	"admin": {
 		// 		// "domain": "main",

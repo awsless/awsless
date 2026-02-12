@@ -1,4 +1,4 @@
-import { camelCase, kebabCase } from 'change-case'
+import { camelCase, constantCase, kebabCase } from 'change-case'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { FileError } from '../../error.js'
@@ -181,6 +181,14 @@ export const rpcFeature = defineFeature({
 				const auth = createLambdaFunction(authGroup, ctx, 'rpc', `${id}-auth`, props.auth)
 
 				result.setEnvironment('AUTH', auth.name)
+
+				for (const [authId, userPoolId] of ctx.shared.list('auth', 'user-pool-id')) {
+					auth.setEnvironment(`AUTH_${constantCase(authId.toString())}_USER_POOL_ID`, userPoolId)
+				}
+
+				for (const [authId, clientId] of ctx.shared.list('auth', 'client-id')) {
+					auth.setEnvironment(`AUTH_${constantCase(authId.toString())}_CLIENT_ID`, clientId)
+				}
 
 				// we need a new way of forcing the lambda to update after the auth changed.
 

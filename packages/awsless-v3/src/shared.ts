@@ -104,19 +104,16 @@ type SharedEntries = {
 
 export class SharedData {
 	protected data = new Map<string, any>()
-	protected entries = new Map<string, any>()
+	protected entries = new Map<string, Map<string | number, any>>()
 
-	#get(key: string) {
+	get<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): SharedState[F][K] {
+		const key = `${feature}/${name.toString()}`
+
 		if (!this.data.has(key)) {
 			throw new TypeError(`Shared data not found: ${key}`)
 		}
 
 		return this.data.get(key)
-	}
-
-	get<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): SharedState[F][K] {
-		const key = `${feature}/${name.toString()}`
-		return this.#get(key)
 	}
 
 	has<F extends keyof SharedState, K extends keyof SharedState[F]>(feature: F, name: K): boolean {
@@ -137,8 +134,15 @@ export class SharedData {
 		name: K,
 		entry: number | string
 	): SharedEntries[F][K] {
-		const key = `${feature}/${name.toString()}/${entry}`
-		return this.#get(key)
+		const key = `${feature}/${name.toString()}`
+		const entries = this.entries.get(key)
+		const value = entries?.get(entry)
+
+		if (typeof value === 'undefined') {
+			throw new TypeError(`Shared data not found: ${key}`)
+		}
+
+		return value
 	}
 
 	add<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(
@@ -147,8 +151,25 @@ export class SharedData {
 		entry: number | string,
 		value: SharedEntries[F][K]
 	) {
-		const key = `${feature}/${name.toString()}/${entry}`
-		this.data.set(key, value)
+		const key = `${feature}/${name.toString()}`
+
+		if (!this.entries.has(key)) {
+			this.entries.set(key, new Map())
+		}
+
+		const entries = this.entries.get(key)!
+		entries.set(entry, value)
+
 		return this
+	}
+
+	list<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(
+		feature: F,
+		name: K
+	): MapIterator<[string | number, SharedEntries[F][K]]> {
+		const key = `${feature}/${name.toString()}`
+		const entries = this.entries.get(key) ?? new Map()
+
+		return entries.entries()
 	}
 }

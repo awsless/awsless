@@ -1,7 +1,7 @@
-import nodeResolve from '@rollup/plugin-node-resolve'
+// import nodeResolve from '@rollup/plugin-node-resolve'
 import { createHash } from 'crypto'
 import { rolldown } from 'rolldown'
-import natives from 'rollup-plugin-natives'
+// import natives from 'rollup-plugin-natives'
 import { importAsString } from 'rollup-plugin-string-import'
 import { debugError } from '../../../../cli/debug.js'
 import { File } from '../zip.js'
@@ -26,6 +26,7 @@ export const bundleTypeScriptWithRolldown = async ({
 }: BundleTypeScriptProps) => {
 	const bundle = await rolldown({
 		input: file,
+		platform: 'node',
 		external: importee => {
 			return importee.startsWith('@aws-sdk') || importee.startsWith('aws-sdk') || external?.includes(importee)
 		},
@@ -36,14 +37,14 @@ export const bundleTypeScriptWithRolldown = async ({
 			moduleSideEffects: id => file === id,
 		},
 		plugins: [
-			nodeResolve({ preferBuiltins: true }),
-			nativeDir
-				? natives({
-						copyTo: nativeDir,
-						targetEsm: format === 'esm',
-						sourcemap: true,
-					})
-				: undefined,
+			// nodeResolve({ preferBuiltins: true }),
+			// nativeDir
+			// 	? natives({
+			// 			copyTo: nativeDir,
+			// 			targetEsm: format === 'esm',
+			// 			sourcemap: true,
+			// 		})
+			// 	: undefined,
 			importAsStringList
 				? importAsString({
 						include: importAsStringList,

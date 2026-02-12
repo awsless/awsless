@@ -1,11 +1,9 @@
 import {
-	AdminAddUserToGroupCommand,
-	AdminCreateUserCommand,
-	AdminSetUserPasswordCommand,
+	AdminDeleteUserCommand,
 	CognitoIdentityProviderClient,
-	UsernameExistsException,
+	UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider'
-import { log, prompt } from '@awsless/clui'
+import { Cancelled, log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 import { createApp } from '../../../../app.js'
 import { ExpectedError } from '../../../../error.js'
@@ -13,12 +11,12 @@ import { getAccountId, getCredentials } from '../../../../util/aws.js'
 import { createWorkSpace } from '../../../../util/workspace.js'
 import { layout } from '../../../ui/complex/layout.js'
 
-export const create = (program: Command) => {
+export const del = (program: Command) => {
 	program
-		.command('create')
-		.description('Create an user in your userpool')
+		.command('delete')
+		.description('Delete an user from your userpool')
 		.action(async () => {
-			await layout('auth user create', async ({ appConfig, stackConfigs }) => {
+			await layout('auth user delete', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
 				const credentials = await getCredentials(profile)
@@ -36,8 +34,6 @@ export const create = (program: Command) => {
 						value: name,
 					})),
 				})
-
-				const props = appConfig.defaults.auth[name]!
 
 				const userPoolId = await log.task({
 					initialMessage: 'Loading auth userpool...',
@@ -74,46 +70,13 @@ export const create = (program: Command) => {
 					},
 				})
 
-				const password = await prompt.password({
-					message: 'Password:',
-					validate(value) {
-						if (!value) {
-							return 'Required'
-						}
-
-						if (value.length < props.password.minLength) {
-							return `Min length is ${props.password.minLength}`
-						}
-
-						if (props.password.lowercase && value.toUpperCase() === value) {
-							return `Should include lowercase characters`
-						}
-
-						if (props.password.uppercase && value.toLowerCase() === value) {
-							return `Should include uppercase characters`
-						}
-
-						if (props.password.numbers && !/\d/.test(value)) {
-							return `Should include numbers`
-						}
-
-						if (props.password.symbols && !/[ `!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/.test(value)) {
-							return `Should include symbols`
-						}
-
-						return
-					},
+				const confirm = await prompt.confirm({
+					message: 'Are you sure you want to delete this user?',
+					initialValue: false,
 				})
 
-				let groups: string[] = []
-				if (props.groups.length > 0) {
-					groups = await prompt.multiSelect({
-						message: 'Groups:',
-						required: false,
-						options: props.groups.map(g => ({
-							value: g,
-						})),
-					})
+				if (!confirm) {
+					throw new Cancelled()
 				}
 
 				const client = new CognitoIdentityProviderClient({
@@ -122,50 +85,26 @@ export const create = (program: Command) => {
 				})
 
 				await log.task({
-					initialMessage: 'Creating user...',
-					successMessage: 'User created.',
-					errorMessage: 'Failed creating user.',
+					initialMessage: 'Deleting user...',
+					successMessage: 'User deleted.',
+					errorMessage: 'Failed deleting user.',
 					async task() {
 						try {
 							await client.send(
-								new AdminCreateUserCommand({
+								new AdminDeleteUserCommand({
 									UserPoolId: userPoolId,
 									Username: username,
-									TemporaryPassword: password,
 								})
 							)
 						} catch (error) {
-							if (error instanceof UsernameExistsException) {
-								throw new ExpectedError('User already exists')
+							if (error instanceof UserNotFoundException) {
+								throw new ExpectedError(`User doesn't exist`)
 							}
 
 							throw error
 						}
-
-						await client.send(
-							new AdminSetUserPasswordCommand({
-								UserPoolId: userPoolId,
-								Username: username,
-								Password: password,
-								Permanent: true,
-							})
-						)
-
-						if (groups.length > 0) {
-							for (const group of groups) {
-								await client.send(
-									new AdminAddUserToGroupCommand({
-										UserPoolId: userPoolId,
-										Username: username,
-										GroupName: group,
-									})
-								)
-							}
-						}
 					},
 				})
-
-				// return 'User created.'
 			})
 		})
 }

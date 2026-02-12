@@ -67,13 +67,6 @@ export const run = (program: CliCommand) => {
 				// ---------------------------------------------------
 				// Import the command
 
-				// console.log('before')
-				// console.log(process.cwd())
-				// console.log(command.file)
-				// console.log(require.cache)
-
-				// delete require.cache[command.file]
-
 				// let module: any
 
 				// try {
@@ -89,8 +82,6 @@ export const run = (program: CliCommand) => {
 				// }
 
 				const module = await import(command.file)
-
-				// console.log('after')
 
 				const handler: CommandHandler | undefined = module[command.handler]
 
@@ -111,26 +102,11 @@ export const run = (program: CliCommand) => {
 				// ---------------------------------------------------
 				// Run command
 
-				// const result = await task('Running', update => {
-				// 	const options = new CommandOptions(program.args)
-
-				// 	return handler(options, {
-				// 		region,
-				// 		credentials,
-				// 		accountId,
-				// 		update,
-				// 	})
-				// })
-
-				// const options = new CommandOptions(program.args)
-
 				await handler({
 					region,
 					credentials,
 					accountId,
 				})
-
-				return
 			})
 		})
 }

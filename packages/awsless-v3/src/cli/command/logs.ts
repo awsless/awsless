@@ -57,10 +57,8 @@ export const logs = (program: CliCommand) => {
 					if (filters.find(f => wildstring.match(f, stack.name))) {
 						// Find all log groups inside our stacks
 						for (const resource of stack.resources) {
-							if (resource.type === 'aws_cloudwatch_log_group') {
-								const logGroup = resource as unknown as aws.cloudwatch.LogGroup
-
-								logGroupArns.push(await logGroup.arn)
+							if (resource instanceof aws.cloudwatch.LogGroup) {
+								logGroupArns.push(await resource.arn)
 							}
 						}
 					}

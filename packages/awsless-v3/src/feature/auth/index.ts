@@ -213,6 +213,13 @@ export const authFeature = defineFeature({
 				preventUserExistenceErrors: 'ENABLED',
 			})
 
+			for (const name of props.groups) {
+				new aws.cognito.UserGroup(group, name, {
+					name,
+					userPoolId: userPool.id,
+				})
+			}
+
 			ctx.bind(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
 			ctx.bind(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
 

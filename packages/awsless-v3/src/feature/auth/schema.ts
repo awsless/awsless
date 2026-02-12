@@ -62,6 +62,13 @@ export const AuthDefaultSchema = z
 
 			// secret: z.boolean().default(false).describe('Specifies whether you want to generate a client secret.'),
 
+			groups: z
+				//
+				.string()
+				.array()
+				.default([])
+				.describe('Specifies a list of groups that a user can belong to.'),
+
 			username: z
 				.object({
 					// emailAlias: z.boolean().default(true).describe('Allow the user email to be used as username.'),
