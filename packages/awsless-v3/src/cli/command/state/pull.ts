@@ -16,7 +16,7 @@ export const pull = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { state } = await createWorkSpace({ credentials, region, accountId, profile })
+				const { state } = await createWorkSpace({ credentials, region, accountId })
 
 				await pullRemoteState(app, state)
 

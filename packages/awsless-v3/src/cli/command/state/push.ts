@@ -18,7 +18,7 @@ export const push = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { state } = await createWorkSpace({ credentials, region, accountId, profile })
+				const { state } = await createWorkSpace({ credentials, region, accountId })
 
 				const ok = await prompt.confirm({
 					message: 'Pushing up the local state might corrupt your remote state. Are you sure?',

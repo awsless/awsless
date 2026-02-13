@@ -20,7 +20,7 @@ export const getStateBucketName = (region: Region, accountId: string) => {
 export const createWorkSpace = async (props: {
 	credentials: Credentials
 	accountId: string
-	profile: string
+	// profile: string
 	region: Region
 }) => {
 	const lock = new DynamoLockBackend({
@@ -48,6 +48,9 @@ export const createWorkSpace = async (props: {
 	// console.log(join(__dirname, './formation.d.ts'))
 
 	// // aws.cloudfrontkeyvaluestore.Key
+	//
+
+	const cred = await props.credentials()
 
 	const workspace = new WorkSpace({
 		providers: [
@@ -57,7 +60,11 @@ export const createWorkSpace = async (props: {
 			createNameServersProvider(props),
 			aws(
 				{
-					profile: props.profile,
+					accessKey: cred.accessKeyId,
+					secretKey: cred.secretAccessKey,
+					// token: cred.sessionToken,
+
+					// profile: props.profile,
 					region: props.region,
 					maxRetries: 5,
 				}
@@ -67,7 +74,11 @@ export const createWorkSpace = async (props: {
 			),
 			aws(
 				{
-					profile: props.profile,
+					accessKey: cred.accessKeyId,
+					secretKey: cred.secretAccessKey,
+					// token: cred.sessionToken,
+
+					// profile: props.profile,
 					region: 'us-east-1',
 					maxRetries: 5,
 				},

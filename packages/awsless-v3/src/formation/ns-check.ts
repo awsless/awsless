@@ -4,6 +4,7 @@ import { resolveNs } from 'node:dns/promises'
 import { z } from 'zod'
 import { color, icon } from '../cli/ui/style'
 import { Region } from '../config/schema/region'
+import { Credentials } from '../util/aws'
 
 type NsCheckInput = {
 	zoneId: Input<string>
@@ -12,12 +13,12 @@ type NsCheckInput = {
 export const NsCheck = createCustomResourceClass<NsCheckInput, {}>('nameservers', 'check')
 
 type ProviderProps = {
-	profile: string
+	credentials: Credentials
 	region: Region
 }
 
-export const createNameServersProvider = ({ profile, region }: ProviderProps) => {
-	const client = new Route53Client({ profile, region })
+export const createNameServersProvider = ({ credentials, region }: ProviderProps) => {
+	const client = new Route53Client({ credentials, region })
 
 	return createCustomProvider('nameservers', {
 		check: {

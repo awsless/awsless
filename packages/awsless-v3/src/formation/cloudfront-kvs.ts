@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { Region } from '../config/schema/region'
 
 import '@aws-sdk/signature-v4-crt'
+import { Credentials } from '../util/aws'
 
 type ImportKeysInput = {
 	kvsArn: Input<string>
@@ -40,14 +41,14 @@ type ImportKeysOutput = {
 export const ImportKeys = createCustomResourceClass<ImportKeysInput, ImportKeysOutput>('cloudfront-kvs', 'import-keys')
 
 type ProviderProps = {
-	profile: string
+	credentials: Credentials
 	region: Region
 }
 
 type ConcurrencyQueue = <T>(cb: () => Promise<T>) => Promise<T>
 
-export const createCloudFrontKvsProvider = ({ profile, region }: ProviderProps) => {
-	const client = new CloudFrontKeyValueStoreClient({ profile, region })
+export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderProps) => {
+	const client = new CloudFrontKeyValueStoreClient({ credentials, region })
 	const queues: Record<string, ConcurrencyQueue> = {}
 
 	const getConcurrencyQueue = (arn: string): ConcurrencyQueue => {

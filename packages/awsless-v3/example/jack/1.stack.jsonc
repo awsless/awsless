@@ -31,12 +31,12 @@
 	"functions": {
 		// "log-metric": "./metric/log-metric.ts",
 		"test": "./function.ts",
-		"test2": "./function.ts",
-		"test3": "./function.ts",
-		"test4": "./function.ts",
-		"test5": "./function.ts",
-		"test6": "./function.ts",
-		"test7": "./function.ts"
+		"test2": "./function.ts"
+		// "test3": "./function.ts",
+		// "test4": "./function.ts",
+		// "test5": "./function.ts",
+		// "test6": "./function.ts",
+		// "test7": "./function.ts"
 	}
 
 	// "sites": {

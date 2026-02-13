@@ -29,7 +29,6 @@ export const logs = (program: CliCommand) => {
 				const { workspace } = await createWorkSpace({
 					credentials,
 					accountId,
-					profile,
 					region,
 				})
 

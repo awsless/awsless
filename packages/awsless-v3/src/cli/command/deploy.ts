@@ -98,7 +98,6 @@ export const deploy = (program: Command) => {
 				const { workspace, state } = await createWorkSpace({
 					credentials,
 					accountId,
-					profile,
 					region,
 				})
 

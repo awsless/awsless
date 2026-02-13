@@ -2,6 +2,7 @@ import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-clo
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
+import { Credentials } from '../util/aws'
 
 type InvalidationInput = {
 	distributionId: Input<string>
@@ -19,12 +20,12 @@ export const Invalidation = createCustomResourceClass<InvalidationInput, Invalid
 )
 
 type ProviderProps = {
-	profile: string
+	credentials: Credentials
 	region: Region
 }
 
-export const createCloudFrontProvider = ({ profile, region }: ProviderProps) => {
-	const cloudFront = new CloudFrontClient({ profile, region })
+export const createCloudFrontProvider = ({ credentials, region }: ProviderProps) => {
+	const cloudFront = new CloudFrontClient({ credentials, region })
 
 	return createCustomProvider('cloudfront', {
 		invalidation: {

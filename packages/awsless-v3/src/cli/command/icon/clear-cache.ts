@@ -75,7 +75,6 @@ export const clearCache = (program: Command) => {
 				const { workspace } = await createWorkSpace({
 					credentials,
 					accountId,
-					profile,
 					region,
 				})
 

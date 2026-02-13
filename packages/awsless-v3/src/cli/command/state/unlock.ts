@@ -18,7 +18,7 @@ export const unlock = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { lock } = await createWorkSpace({ credentials, region, accountId, profile })
+				const { lock } = await createWorkSpace({ credentials, region, accountId })
 				const isLocked = await lock.locked(app.urn)
 
 				if (!isLocked) {

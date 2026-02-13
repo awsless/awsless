@@ -74,7 +74,6 @@ export const del = (program: Command) => {
 				const { workspace, state } = await createWorkSpace({
 					credentials,
 					accountId,
-					profile,
 					region,
 				})
 
