@@ -45,21 +45,30 @@ export const imageFeature = defineFeature({
 			sourceHash: $hash(path),
 		})
 
-		const layer = new aws.lambda.LayerVersion(group, 'layer', {
-			layerName: layerId,
-			description: 'sharp-arm.zip for the awsless image feature.',
-			compatibleArchitectures: ['arm64'],
-			s3Bucket: zipFile.bucket,
-			s3ObjectVersion: zipFile.versionId,
-			s3Key: zipFile.key.pipe(name => {
-				if (name.startsWith('/')) {
-					return name.substring(1)
-				}
+		const layer = new aws.lambda.LayerVersion(
+			group,
+			'layer',
+			{
+				layerName: layerId,
+				description: 'sharp-arm.zip for the awsless image feature.',
+				compatibleArchitectures: ['arm64'],
+				s3Bucket: zipFile.bucket,
+				s3ObjectVersion: zipFile.versionId,
+				s3Key: zipFile.key.pipe(name => {
+					if (name.startsWith('/')) {
+						return name.substring(1)
+					}
 
-				return name
-			}),
-			sourceCodeHash: $hash(path),
-		})
+					return name
+				}),
+				sourceCodeHash: $hash(path),
+				skipDestroy: true,
+			},
+			{
+				dependsOn: [zipFile],
+				replaceOnChanges: ['sourceCodeHash', 's3ObjectVersion'],
+			}
+		)
 
 		ctx.shared.add('layer', 'arn', layerId, layer.arn)
 	},
