@@ -1,13 +1,11 @@
 import { log } from '@awsless/clui'
 import { constantCase } from 'change-case'
-import { spawn } from 'child_process'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { createWorkSpace } from '../../util/workspace.js'
 import { layout } from '../ui/complex/layout.js'
 import { color } from '../ui/style.js'
-// import { list, wrap } from '../ui/util.js'
 
 export const bind = (program: Command) => {
 	program
@@ -21,7 +19,7 @@ export const bind = (program: Command) => {
 			await layout('bind', async ({ appConfig, stackConfigs }) => {
 				const region = appConfig.region
 				const profile = appConfig.profile
-				const credentials = await getCredentials(appConfig.profile)
+				const credentials = await getCredentials(profile)
 				const accountId = await getAccountId(credentials, region)
 
 				const { app, binds } = createApp({ appConfig, stackConfigs, accountId })
@@ -64,7 +62,9 @@ export const bind = (program: Command) => {
 				const command = commands.join(' ')
 				const freshCred = await credentials()
 
-				spawn(command, {
+				console.log('')
+
+				const instance = Bun.spawn([command], {
 					env: {
 						// Pass the process env vars
 						...process.env,
@@ -87,9 +87,13 @@ export const bind = (program: Command) => {
 						AWS_SECRET_ACCESS_KEY: freshCred.secretAccessKey,
 						AWS_SESSION_TOKEN: freshCred.sessionToken,
 					},
-					stdio: 'inherit',
-					shell: true,
+					stdout: 'inherit',
+					stderr: 'inherit',
 				})
+
+				await instance.exited
+
+				process.exit(0)
 
 				return
 			})

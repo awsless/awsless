@@ -177,8 +177,8 @@ export const functionFeature = defineFeature({
 				'lambda:InvokeAsync',
 
 				// Allow listing and getting lambda info.
-				'lambda:ListFunctions',
-				'lambda:GetFunction',
+				// 'lambda:ListFunctions',
+				// 'lambda:GetFunction',
 			],
 			resources: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*`],
 		})
