@@ -28,6 +28,13 @@
 		}
 	},
 
+	"crons": {
+		"test": {
+			"schedule": "5 minutes",
+			"consumer": "./function.ts"
+		}
+	},
+
 	"functions": {
 		// "log-metric": "./metric/log-metric.ts",
 		"test": "./function.ts",
@@ -37,27 +44,30 @@
 		// "test5": "./function.ts",
 		// "test6": "./function.ts",
 		// "test7": "./function.ts"
+	},
+
+	"sites": {
+		"test": {
+			"router": "main",
+			"path": "/",
+			"build": {
+				"command": "pnpm test",
+				"cacheKey": "./1.stack.jsonc"
+			},
+			"static": "./site",
+			"ssr": "./ssr.ts"
+		}
+		// "test2": {
+		// 	"router": "main",
+		// 	"path": "/docs",
+		// 	"static": "./site2"
+		// }
+		// "test3": {
+		// 	"router": "main",
+		// 	"path": "/docs",
+		// 	"static": "./site2"
+		// }
 	}
-
-	// "sites": {
-	// 	"test": {
-	// 		"router": "main",
-	// 		"path": "/",
-
-	// 		"static": "./site",
-	// 		"ssr": "./ssr.ts"
-	// 	},
-	// 	"test2": {
-	// 		"router": "main",
-	// 		"path": "/docs",
-	// 		"static": "./site2"
-	// 	}
-	// 	// "test3": {
-	// 	// 	"router": "main",
-	// 	// 	"path": "/docs",
-	// 	// 	"static": "./site2"
-	// 	// }
-	// },
 
 	// "rpc": {
 	// 	"main": {

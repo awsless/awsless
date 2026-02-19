@@ -1,27 +1,27 @@
-import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
 import { lstat, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 export const generateCacheKey = async (directories: string[]) => {
 	const files = await listAllFiles(directories)
+	const sortedFiles = files.toSorted()
 	const hashes: Record<string, string> = {}
 
-	for (const file of files) {
+	for (const file of sortedFiles) {
 		hashes[file] = await createHashFromFile(file)
 	}
 
-	return createHash('md5').update(JSON.stringify(hashes)).digest('hex')
+	return Bun.MD5.hash(JSON.stringify(hashes), 'hex')
 }
 
-const createHashFromFile = (file: string) => {
-	return new Promise<string>(resolve => {
-		const hash = createHash('md5')
-		const stream = createReadStream(file)
+const createHashFromFile = async (filePath: string) => {
+	const hasher = new Bun.MD5()
+	const stream = Bun.file(filePath).stream()
 
-		stream.on('data', data => hash.update(data))
-		stream.on('end', () => resolve(hash.digest('hex')))
-	})
+	for await (const chunk of stream) {
+		hasher.update(chunk)
+	}
+
+	return hasher.digest('hex')
 }
 
 const listAllFiles = async (list: string[]) => {
@@ -35,7 +35,7 @@ const listAllFiles = async (list: string[]) => {
 				withFileTypes: true,
 			})
 
-			files.push(...dirents.filter(d => d.isFile()).map(file => join(file.path, file.name)))
+			files.push(...dirents.filter(d => d.isFile()).map(file => join(file.parentPath, file.name)))
 		} else if (stat.isFile()) {
 			files.push(entry)
 		}

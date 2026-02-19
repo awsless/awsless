@@ -117,10 +117,10 @@ var Table = class {
     return result;
   }
   marshall(item) {
-    return this.schema.marshall(item).M;
+    return this.schema.marshall(item, ["item"]).M;
   }
   unmarshall(item) {
-    return this.schema.unmarshall({ M: item });
+    return this.schema.unmarshall({ M: item }, ["item"]);
   }
 };
 var define = (name, options) => new Table(name, options);
@@ -194,40 +194,43 @@ var createSchema = (props) => {
     // 	throw new TypeError('There is no more path to walk')
     // },
     ...props,
-    marshall(value) {
+    marshall(value, path) {
       if (!props.validateInput(value)) {
-        throw new TypeError(
-          `Invalid marshall payload provided. Expected ${props.type}. Received ${typeof value}`
-        );
+        throw new InvalidPayloadError("marshall", props, path, value);
       }
-      return props.marshall(value);
+      return props.marshall(value, path);
     },
-    unmarshall(value) {
+    unmarshall(value, path) {
       if (typeof value !== "object" || !props.validateOutput(value)) {
-        throw new TypeError(
-          `Invalid unmarshall payload provided. Expected ${props.type}. Received ${typeof value}`
-        );
+        throw new InvalidPayloadError("unmarshall", props, path, value);
       }
-      return props.unmarshall(value);
+      return props.unmarshall(value, path);
     }
   };
+};
+var InvalidPayloadError = class extends TypeError {
+  constructor(type, schema, path, value) {
+    super(
+      `Invalid ${type} payload provided for "${path.join(".")}". Expected ${schema.name}. Received ${typeof value}`
+    );
+  }
 };
 
 // src/schema/optional.ts
 var optional = (schema) => {
   return createSchema({
     ...schema,
-    marshall(value) {
+    marshall(value, path) {
       if (typeof value === "undefined") {
         return { NULL: true };
       }
-      return schema.marshall(value);
+      return schema.marshall(value, path);
     },
-    unmarshall(value) {
+    unmarshall(value, path) {
       if (typeof value === "undefined" || value.NULL) {
         return void 0;
       }
-      return schema.unmarshall(value);
+      return schema.unmarshall(value, path);
     },
     // validate(value) {
     // 	if (typeof value === 'undefined') {
@@ -253,6 +256,7 @@ var optional = (schema) => {
 // src/schema/unknown.ts
 var import_util_dynamodb = require("@aws-sdk/util-dynamodb");
 var unknown = (opts) => createSchema({
+  name: "unknown",
   // validate: () => true,
   marshall(value) {
     return (0, import_util_dynamodb.marshall)(
@@ -280,44 +284,45 @@ var any = (opts) => unknown(opts);
 var SET_KEY = "__set__";
 var set = (schema) => {
   const type = `${schema.type}S`;
-  const encode = (value) => {
+  const encode = (value, path) => {
     return Array.from(value).map((v) => {
-      const marshalled = schema.marshall(v);
+      const marshalled = schema.marshall(v, path);
       return marshalled[schema.type];
     });
   };
-  const decode = (value) => {
+  const decode = (value, path) => {
     return new Set(
       value.map((v) => {
-        return schema.unmarshall({ [schema.type]: v });
+        return schema.unmarshall({ [schema.type]: v }, path);
       })
     );
   };
   return createSchema({
+    name: "set",
     type,
     // validate: value => value instanceof Set,
-    marshall(value) {
+    marshall(value, path) {
       if (value.size === 0) {
         return { M: {} };
       }
       return {
         M: {
           [SET_KEY]: {
-            [type]: encode(value)
+            [type]: encode(value, path)
           }
         }
       };
     },
-    unmarshall(value) {
+    unmarshall(value, path) {
       if ("M" in value) {
         const map = value.M;
         if (map[SET_KEY]) {
-          return decode(map[SET_KEY][type]);
+          return decode(map[SET_KEY][type], path);
         }
         return /* @__PURE__ */ new Set();
       }
       if (type in value) {
-        return decode(value[type]);
+        return decode(value[type], path);
       }
       return /* @__PURE__ */ new Set();
     },
@@ -339,6 +344,7 @@ var set = (schema) => {
 // src/schema/uuid.ts
 var regex = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 var uuid = () => createSchema({
+  name: "uuid",
   type: "S",
   marshall: (value) => ({ S: value }),
   unmarshall: (value) => value.S,
@@ -351,6 +357,7 @@ var uuid = () => createSchema({
 // src/schema/string.ts
 function string() {
   return createSchema({
+    name: "string",
     type: "S",
     marshall: (value) => ({ S: value }),
     unmarshall: (value) => value.S,
@@ -365,6 +372,7 @@ function string() {
 // src/schema/boolean.ts
 function boolean() {
   return createSchema({
+    name: "boolean",
     type: "BOOL",
     marshall: (value) => ({ BOOL: value }),
     unmarshall: (value) => value.BOOL,
@@ -377,6 +385,7 @@ function boolean() {
 // src/schema/number.ts
 function number() {
   return createSchema({
+    name: "number",
     type: "N",
     marshall: (value) => ({ N: value.toString() }),
     unmarshall: (value) => Number(value.N),
@@ -389,6 +398,7 @@ function number() {
 // src/schema/bigint.ts
 function bigint() {
   return createSchema({
+    name: "bigint",
     type: "N",
     marshall: (value) => ({ N: value.toString() }),
     unmarshall: (value) => BigInt(value.N),
@@ -401,6 +411,7 @@ function bigint() {
 // src/schema/bigfloat.ts
 var import_big_float = require("@awsless/big-float");
 var bigfloat = () => createSchema({
+  name: "bigfloat",
   type: "N",
   marshall: (value) => ({ N: value.toString() }),
   unmarshall: (value) => (0, import_big_float.parse)(value.N),
@@ -412,6 +423,7 @@ var bigfloat = () => createSchema({
 // src/schema/uint8-array.ts
 var import_types = require("util/types");
 var uint8array = () => createSchema({
+  name: "uint8array",
   type: "B",
   marshall: (value) => ({ B: value }),
   unmarshall: (value) => value.B,
@@ -422,15 +434,16 @@ var uint8array = () => createSchema({
 
 // src/schema/object.ts
 var object = (props, rest) => createSchema({
+  name: "object",
   type: "M",
-  marshall: (input) => {
+  marshall: (input, path) => {
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
       const value = input[key];
       if (typeof value === "undefined") {
         continue;
       }
-      const marshalled = schema.marshall(value);
+      const marshalled = schema.marshall(value, [...path, key]);
       if (typeof marshalled === "undefined" || marshalled.NULL) {
         continue;
       }
@@ -444,7 +457,7 @@ var object = (props, rest) => createSchema({
         if (typeof value === "undefined") {
           continue;
         }
-        const marshalled = rest.marshall(value);
+        const marshalled = rest.marshall(value, [...path, key]);
         if (marshalled.NULL) {
           continue;
         }
@@ -453,14 +466,14 @@ var object = (props, rest) => createSchema({
     }
     return { M: result };
   },
-  unmarshall: (output) => {
+  unmarshall: (output, path) => {
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
       const value = output.M[key];
       if (typeof value === "undefined") {
         continue;
       }
-      result[key] = schema.unmarshall(value);
+      result[key] = schema.unmarshall(value, [...path, key]);
     }
     if (rest) {
       for (const [key, value] of Object.entries(output.M)) {
@@ -470,7 +483,7 @@ var object = (props, rest) => createSchema({
         if (typeof value === "undefined") {
           continue;
         }
-        result[key] = rest.unmarshall(value);
+        result[key] = rest.unmarshall(value, [...path, key]);
       }
     }
     return result;
@@ -486,22 +499,23 @@ var object = (props, rest) => createSchema({
 
 // src/schema/record.ts
 var record = (schema) => createSchema({
+  name: "record",
   type: "M",
-  marshall(input) {
+  marshall(input, path) {
     const result = {};
     for (const [key, value] of Object.entries(input)) {
-      const marshalled = schema.marshall(value);
+      const marshalled = schema.marshall(value, [...path, key]);
       if (marshalled.NULL) {
         continue;
       }
-      result[key] = schema.marshall(value);
+      result[key] = schema.marshall(value, [...path, key]);
     }
     return { M: result };
   },
-  unmarshall(output) {
+  unmarshall(output, path) {
     const result = {};
     for (const [key, value] of Object.entries(output.M)) {
-      result[key] = schema.unmarshall(value);
+      result[key] = schema.unmarshall(value, [...path, key]);
     }
     return result;
   },
@@ -514,8 +528,9 @@ var record = (schema) => createSchema({
 
 // src/schema/variant.ts
 var variant = (key, options) => createSchema({
+  name: "variant",
   type: "M",
-  marshall(input) {
+  marshall(input, path) {
     const type = input[key];
     if (!type) {
       throw new TypeError(`Missing variant key: ${key}`);
@@ -526,14 +541,14 @@ var variant = (key, options) => createSchema({
     }
     return {
       M: {
-        ...variant2.marshall(input).M,
+        ...variant2.marshall(input, path).M,
         [key]: {
           S: type
         }
       }
     };
   },
-  unmarshall(output) {
+  unmarshall(output, path) {
     const type = output.M[key];
     if (!type || !type.S) {
       throw new TypeError(`Missing variant key: ${key}`);
@@ -543,7 +558,7 @@ var variant = (key, options) => createSchema({
       throw new TypeError(`Unknown variant: ${type}`);
     }
     return {
-      ...variant2.unmarshall(output),
+      ...variant2.unmarshall(output, path),
       [key]: type.S
     };
   },
@@ -557,9 +572,10 @@ var variant = (key, options) => createSchema({
 
 // src/schema/array.ts
 var array = (schema) => createSchema({
+  name: "array",
   type: "L",
-  marshall: (value) => ({ L: value.map((item) => schema.marshall(item)) }),
-  unmarshall: (value) => value.L.map((item) => schema.unmarshall(item)),
+  marshall: (value, path) => ({ L: value.map((item, i) => schema.marshall(item, [...path, i])) }),
+  unmarshall: (value, path) => value.L.map((item, i) => schema.unmarshall(item, [...path, i])),
   // validate: value => Array.isArray(value),
   validateInput: (value) => Array.isArray(value),
   validateOutput: (value) => "L" in value && Array.isArray(value.L),
@@ -569,9 +585,12 @@ var array = (schema) => createSchema({
 // src/schema/tuple.ts
 function tuple(entries, rest) {
   return createSchema({
+    name: "tuple",
     type: "L",
-    marshall: (value) => ({ L: value.map((item, i) => (entries[i] ?? rest)?.marshall(item)) }),
-    unmarshall: (value) => value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)),
+    marshall: (value, path) => ({
+      L: value.map((item, i) => (entries[i] ?? rest)?.marshall(item, [...path, i]))
+    }),
+    unmarshall: (value, path) => value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item, [...path, i])),
     // validate: value => Array.isArray(value),
     validateInput: (value) => Array.isArray(value),
     validateOutput: (value) => !!("L" in value && Array.isArray(value.L)),
@@ -584,6 +603,7 @@ function tuple(entries, rest) {
 
 // src/schema/date.ts
 var date = () => createSchema({
+  name: "date",
   type: "N",
   marshall: (value) => ({ N: String(value.getTime()) }),
   unmarshall: (value) => new Date(Number(value.N)),
@@ -600,6 +620,7 @@ function enum_(_) {
 // src/schema/json.ts
 var import_json = require("@awsless/json");
 var json = () => createSchema({
+  name: "json",
   type: "S",
   marshall: (value) => ({ S: (0, import_json.stringify)(value) }),
   unmarshall: (value) => (0, import_json.parse)(value.S),
@@ -609,6 +630,7 @@ var json = () => createSchema({
 
 // src/schema/ttl.ts
 var ttl = () => createSchema({
+  name: "ttl",
   type: "N",
   marshall: (value) => ({ N: String(Math.floor(value.getTime() / 1e3)) }),
   unmarshall: (value) => new Date(Number(value.N) * 1e3),
@@ -831,12 +853,12 @@ var ExpressionAttributes = class {
   }
   value(value, path) {
     const schema = this.table.walk(...path);
-    const marshalled = schema.marshall(value);
+    const marshalled = schema.marshall(value, path);
     return this.raw(marshalled);
   }
   innerSetValue(value, path) {
     const schema = this.table.walk(...path);
-    const marshalled = schema.marshall(value);
+    const marshalled = schema.marshall(value, path);
     return this.raw(marshalled.M[SET_KEY]);
   }
   isSet(path) {
@@ -848,9 +870,9 @@ var ExpressionAttributes = class {
     const schema = this.table.walk(...path);
     const element = schema.walk?.();
     if (element) {
-      return this.raw(element.marshall(value));
+      return this.raw(element.marshall(value, path));
     }
-    return this.raw(schema.marshall(value));
+    return this.raw(schema.marshall(value, path));
   }
   raw(value) {
     let key;

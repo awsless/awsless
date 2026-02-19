@@ -13,6 +13,7 @@ export type TtlSchema = BaseSchema<'N', Date, NumberExpression<Date>>
 
 export const ttl = (): TtlSchema =>
 	createSchema({
+		name: 'ttl',
 		type: 'N',
 		marshall: value => ({ N: String(Math.floor(value.getTime() / 1000)) }),
 		unmarshall: value => new Date(Number(value.N) * 1000),

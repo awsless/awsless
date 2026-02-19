@@ -105,8 +105,9 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 	rest?: R
 ): ObjectSchema<InferProps<P, R>, P, R> =>
 	createSchema<'M', InferProps<P, R>>({
+		name: 'object',
 		type: 'M',
-		marshall: (input: Record<string, unknown>) => {
+		marshall: (input: Record<string, unknown>, path) => {
 			const result: Record<string, Partial<MarshallInputTypes>> = {}
 
 			for (const [key, schema] of Object.entries(props)) {
@@ -116,7 +117,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 					continue
 				}
 
-				const marshalled = schema.marshall(value)
+				const marshalled = schema.marshall(value, [...path, key])
 
 				if (typeof marshalled === 'undefined' || marshalled.NULL) {
 					continue
@@ -135,7 +136,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 						continue
 					}
 
-					const marshalled = rest.marshall(value)
+					const marshalled = rest.marshall(value, [...path, key])
 
 					if (marshalled.NULL) {
 						continue
@@ -149,7 +150,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 
 			return { M: result }
 		},
-		unmarshall: output => {
+		unmarshall: (output, path) => {
 			const result: Record<string, any> = {}
 
 			for (const [key, schema] of Object.entries(props)) {
@@ -159,7 +160,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 					continue
 				}
 
-				result[key] = schema.unmarshall(value!)
+				result[key] = schema.unmarshall(value, [...path, key])
 			}
 
 			if (rest) {
@@ -172,7 +173,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 						continue
 					}
 
-					result[key] = rest.unmarshall(value)
+					result[key] = rest.unmarshall(value, [...path, key])
 				}
 			}
 

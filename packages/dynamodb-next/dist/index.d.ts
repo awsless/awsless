@@ -52,11 +52,12 @@ type BaseSchema<A extends AttributeType, T = any, Exp extends Expression = Expre
         Type: T;
         Expression: Exp;
     };
+    readonly name: string;
     readonly type?: A;
     validateInput(value: T): boolean;
     validateOutput(value: AttributeOutput<A>): boolean;
-    marshall(value: T): AttributeInput<A>;
-    unmarshall(value: AttributeOutput<A>): T;
+    marshall(value: T, path: Array<string | number>): AttributeInput<A>;
+    unmarshall(value: AttributeOutput<A>, path: Array<string | number>): T;
     walk?(...path: Array<string | number>): GenericSchema | undefined;
 };
 

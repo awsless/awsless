@@ -18,6 +18,7 @@ export function number(): NumberSchema
 export function number<T extends number>(): NumberSchema<T>
 export function number<T extends number>(): NumberSchema {
 	return createSchema({
+		name: 'number',
 		type: 'N',
 		marshall: value => ({ N: value.toString() }),
 		unmarshall: value => Number(value.N) as T,

@@ -16,6 +16,7 @@ export function string(): StringSchema
 export function string<T extends string>(): StringSchema<T>
 export function string<T extends string>(): StringSchema<T> {
 	return createSchema({
+		name: 'string',
 		type: 'S',
 		marshall: value => ({ S: value }),
 		unmarshall: value => value.S as T,

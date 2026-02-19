@@ -65,9 +65,10 @@ type Options<T extends string> = Record<
 
 export const variant = <K extends string, O extends Options<K>>(key: K, options: O): VariantSchema<K, O> =>
 	createSchema({
+		name: 'variant',
 		type: 'M',
 
-		marshall(input) {
+		marshall(input, path) {
 			const type = input[key]
 			if (!type) {
 				throw new TypeError(`Missing variant key: ${key}`)
@@ -80,14 +81,14 @@ export const variant = <K extends string, O extends Options<K>>(key: K, options:
 
 			return {
 				M: {
-					...variant.marshall(input).M,
+					...variant.marshall(input, path).M,
 					[key]: {
 						S: type,
 					},
 				},
 			}
 		},
-		unmarshall(output) {
+		unmarshall(output, path) {
 			const type = output.M[key]
 			if (!type || !type.S) {
 				throw new TypeError(`Missing variant key: ${key}`)
@@ -99,7 +100,7 @@ export const variant = <K extends string, O extends Options<K>>(key: K, options:
 			}
 
 			return {
-				...variant.unmarshall(output),
+				...variant.unmarshall(output, path),
 				[key]: type.S,
 			}
 		},

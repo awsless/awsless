@@ -33,19 +33,19 @@ export type OptionalSchema<T extends GenericSchema> = BaseSchema<
 export const optional = <T extends GenericSchema>(schema: T): OptionalSchema<T> => {
 	return createSchema({
 		...schema,
-		marshall(value) {
+		marshall(value, path) {
 			if (typeof value === 'undefined') {
 				return { NULL: true }
 			}
 
-			return schema.marshall(value)
+			return schema.marshall(value, path)
 		},
-		unmarshall(value) {
+		unmarshall(value, path) {
 			if (typeof value === 'undefined' || value.NULL) {
 				return undefined
 			}
 
-			return schema.unmarshall(value)
+			return schema.unmarshall(value, path)
 		},
 		// validate(value) {
 		// 	if (typeof value === 'undefined') {

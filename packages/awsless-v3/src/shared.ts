@@ -83,6 +83,10 @@ type SharedEntries = {
 		path: string
 	}
 
+	// cron: {
+
+	// }
+
 	router: {
 		id: Output<string>
 		addRoutes: (

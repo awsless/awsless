@@ -73,27 +73,29 @@ export type SetSchema<T extends AllowedSchema> = BaseSchema<
 export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 	const type = `${schema.type}S` as `${NonNullable<S['type']>}S`
 
-	const encode = (value: Set<S[symbol]['Type']>) => {
+	const encode = (value: Set<S[symbol]['Type']>, path: Array<string | number>) => {
 		return Array.from(value).map(v => {
-			const marshalled: any = schema.marshall(v)
+			const marshalled: any = schema.marshall(v, path)
 			return marshalled[schema.type!]
 		})
 	}
 
 	const decode = (
-		value: Array<AttributeOutputValue<'S'> & AttributeOutputValue<'N'> & AttributeOutputValue<'B'>>
+		value: Array<AttributeOutputValue<'S'> & AttributeOutputValue<'N'> & AttributeOutputValue<'B'>>,
+		path: Array<string | number>
 	) => {
 		return new Set<S[symbol]['Type']>(
 			value.map(v => {
-				return schema.unmarshall({ [schema.type!]: v } as any)
+				return schema.unmarshall({ [schema.type!]: v } as any, path)
 			})
 		)
 	}
 
 	return createSchema<`${NonNullable<S['type']>}S`, Set<S[symbol]['Type']>>({
+		name: 'set',
 		type,
 		// validate: value => value instanceof Set,
-		marshall(value) {
+		marshall(value, path) {
 			if (value.size === 0) {
 				return { M: {} } as any
 			}
@@ -101,16 +103,16 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 			return {
 				M: {
 					[SET_KEY]: {
-						[type]: encode(value),
+						[type]: encode(value, path),
 					},
 				},
 			} as any
 		},
-		unmarshall(value) {
+		unmarshall(value, path) {
 			if ('M' in value) {
 				const map = value.M as any
 				if (map[SET_KEY]) {
-					return decode(map[SET_KEY][type])
+					return decode(map[SET_KEY][type], path)
 				}
 
 				return new Set()
@@ -118,7 +120,7 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 
 			// Fallback for legacy data stored as raw sets
 			if (type in value) {
-				return decode(value[type] as any)
+				return decode(value[type] as any, path)
 			}
 
 			return new Set()

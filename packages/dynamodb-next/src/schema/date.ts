@@ -13,6 +13,7 @@ export type DateSchema = BaseSchema<'N', Date, NumberExpression<Date>>
 
 export const date = (): DateSchema =>
 	createSchema({
+		name: 'date',
 		type: 'N',
 		marshall: value => ({ N: String(value.getTime()) }),
 		unmarshall: value => new Date(Number(value.N)),

@@ -38,27 +38,28 @@ export type RecordSchema<S extends GenericSchema> = BaseSchema<
 
 export const record = <S extends GenericSchema>(schema: S): RecordSchema<S> =>
 	createSchema({
+		name: 'record',
 		type: 'M',
-		marshall(input) {
+		marshall(input, path) {
 			const result: Record<string, AttributeInput<any>> = {}
 
 			for (const [key, value] of Object.entries(input)) {
-				const marshalled = schema.marshall(value)
+				const marshalled = schema.marshall(value, [...path, key])
 
 				if (marshalled.NULL) {
 					continue
 				}
 
-				result[key] = schema.marshall(value)
+				result[key] = schema.marshall(value, [...path, key])
 			}
 
 			return { M: result }
 		},
-		unmarshall(output) {
+		unmarshall(output, path) {
 			const result: Infer<S> = {}
 
 			for (const [key, value] of Object.entries(output.M)) {
-				result[key] = schema.unmarshall(value)
+				result[key] = schema.unmarshall(value, [...path, key])
 			}
 
 			return result

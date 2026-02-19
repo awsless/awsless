@@ -18,6 +18,7 @@ export function bigint(): BigIntSchema
 export function bigint<T extends bigint>(): BigIntSchema<T>
 export function bigint<T extends bigint>(): BigIntSchema<T> {
 	return createSchema({
+		name: 'bigint',
 		type: 'N',
 		marshall: value => ({ N: value.toString() }),
 		unmarshall: value => BigInt(value.N) as T,

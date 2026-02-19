@@ -1,5 +1,6 @@
 minimumReleaseAge: 8640
 minimumReleaseAgeExclude:
+    - '@types/bun'
     - '@awsless/*'
     - '@terraforge/*'
     - typescript

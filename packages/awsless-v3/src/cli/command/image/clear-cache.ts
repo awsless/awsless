@@ -1,10 +1,11 @@
-import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront'
+// import { CloudFrontClient, CreateInvalidationForDistributionTenantCommand } from '@aws-sdk/client-cloudfront'
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3'
 import { Cancelled, log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
-import { randomUUID } from 'crypto'
+// import { randomUUID } from 'crypto'
 import { createApp } from '../../../app.js'
 import { ExpectedError } from '../../../error.js'
+import { createInvalidationForDistributionTenants } from '../../../formation/cloudfront.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
 import { createWorkSpace } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
@@ -97,10 +98,10 @@ export const clearCache = (program: Command) => {
 					region,
 				})
 
-				const cloudFrontClient = new CloudFrontClient({
-					credentials,
-					region: 'us-east-1',
-				})
+				// const cloudFrontClient = new CloudFrontClient({
+				// 	credentials,
+				// 	region: 'us-east-1',
+				// })
 
 				let totalDeleted = 0
 
@@ -141,18 +142,25 @@ export const clearCache = (program: Command) => {
 							}
 						}
 
-						await cloudFrontClient.send(
-							new CreateInvalidationCommand({
-								DistributionId: distributionId,
-								InvalidationBatch: {
-									CallerReference: randomUUID(),
-									Paths: {
-										Quantity: 1,
-										Items: [shared.entry('image', 'path', name!)],
-									},
-								},
-							})
-						)
+						await createInvalidationForDistributionTenants({
+							credentials,
+							region,
+							distributionId,
+							paths: [shared.entry('image', 'path', name!)],
+						})
+
+						// await cloudFrontClient.send(
+						// 	new CreateInvalidationForDistributionTenantCommand({
+						// 		Id: distributionId,
+						// 		InvalidationBatch: {
+						// 			CallerReference: randomUUID(),
+						// 			Paths: {
+						// 				Quantity: 1,
+						// 				Items: [shared.entry('image', 'path', name!)],
+						// 			},
+						// 		},
+						// 	})
+						// )
 					},
 				})
 

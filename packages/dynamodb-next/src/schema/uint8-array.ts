@@ -17,6 +17,7 @@ export type Uint8ArraySchema = BaseSchema<
 
 export const uint8array = (): Uint8ArraySchema =>
 	createSchema({
+		name: 'uint8array',
 		type: 'B',
 		marshall: value => ({ B: value }),
 		unmarshall: value => value.B,

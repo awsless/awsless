@@ -40,9 +40,13 @@ export function tuple<const T extends GenericSchema[], const R extends GenericSc
 	rest?: R
 ): TupleSchema<Tuple<T>, T> {
 	return createSchema({
+		name: 'tuple',
 		type: 'L',
-		marshall: value => ({ L: value.map((item, i) => (entries[i] ?? rest)?.marshall(item) as MarshallInputTypes) }),
-		unmarshall: value => value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item)) as Tuple<T>,
+		marshall: (value, path) => ({
+			L: value.map((item, i) => (entries[i] ?? rest)?.marshall(item, [...path, i]) as MarshallInputTypes),
+		}),
+		unmarshall: (value, path) =>
+			value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item, [...path, i])) as Tuple<T>,
 		// validate: value => Array.isArray(value),
 		validateInput: value => Array.isArray(value),
 		validateOutput: value => !!('L' in value && Array.isArray(value.L)),

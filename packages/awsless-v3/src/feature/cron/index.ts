@@ -37,6 +37,8 @@ export const cronFeature = defineFeature({
 				resourceName: shortId(id),
 			})
 
+			// ctx.shared.add('cron', ctx.stack.name, id, name)
+
 			const scheduleRole = new aws.iam.Role(group, 'warm', {
 				name,
 				description: `Cron ${ctx.stack.name} ${id}`,

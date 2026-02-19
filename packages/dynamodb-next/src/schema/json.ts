@@ -13,6 +13,7 @@ export type JsonSchema<T = unknown> = BaseSchema<'S', T, JsonExpression<T>>
 
 export const json = <T = unknown>(): JsonSchema<T> =>
 	createSchema({
+		name: 'json',
 		type: 'S',
 		marshall: value => ({ S: stringify(value) }),
 		unmarshall: value => parse(value.S) as T,

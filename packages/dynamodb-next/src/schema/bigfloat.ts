@@ -19,6 +19,7 @@ export type BigFloatSchema = BaseSchema<
 
 export const bigfloat = (): BigFloatSchema =>
 	createSchema({
+		name: 'bigfloat',
 		type: 'N',
 		marshall: value => ({ N: value.toString() }),
 		unmarshall: value => parse(value.N),

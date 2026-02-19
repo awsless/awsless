@@ -19,9 +19,10 @@ export type ArraySchema<T extends GenericSchema> = BaseSchema<
 
 export const array = <S extends GenericSchema>(schema: S): ArraySchema<S> =>
 	createSchema({
+		name: 'array',
 		type: 'L',
-		marshall: value => ({ L: value.map(item => schema.marshall(item)) }),
-		unmarshall: value => value.L.map(item => schema.unmarshall(item)),
+		marshall: (value, path) => ({ L: value.map((item, i) => schema.marshall(item, [...path, i])) }),
+		unmarshall: (value, path) => value.L.map((item, i) => schema.unmarshall(item, [...path, i])),
 		// validate: value => Array.isArray(value),
 		validateInput: value => Array.isArray(value),
 		validateOutput: value => 'L' in value && Array.isArray(value.L),

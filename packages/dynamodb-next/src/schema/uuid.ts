@@ -14,6 +14,7 @@ const regex = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
 
 export const uuid = (): UuidSchema =>
 	createSchema({
+		name: 'uuid',
 		type: 'S',
 		marshall: value => ({ S: value }),
 		unmarshall: value => value.S as UUID,

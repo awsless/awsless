@@ -1,4 +1,5 @@
 import { log } from '@awsless/clui'
+import chalk from 'chalk'
 import { constantCase } from 'change-case'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
@@ -59,12 +60,15 @@ export const bind = (program: Command) => {
 					return 'No command to execute.'
 				}
 
-				const command = commands.join(' ')
+				// const command = commands.join(' ')
 				const freshCred = await credentials()
 
+				console.log(chalk.black(`│`))
+				console.log(chalk.black(`└  ${chalk.yellow(commands.join(' '))}`))
 				console.log('')
 
-				const instance = Bun.spawn([command], {
+				const instance = Bun.spawn(commands, {
+					// cwd: process.cwd(),
 					env: {
 						// Pass the process env vars
 						...process.env,
@@ -95,7 +99,7 @@ export const bind = (program: Command) => {
 
 				process.exit(0)
 
-				return
+				// return
 			})
 		})
 }

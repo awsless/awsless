@@ -1,4 +1,4 @@
-import { invoke, ViewableError } from '@awsless/lambda'
+import { ExpectedError, invoke, ViewableError } from '@awsless/lambda'
 import { APIGatewayProxyEventV2 } from 'aws-lambda'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
@@ -116,7 +116,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 						},
 					})
 				} catch (error) {
-					if (error instanceof ViewableError) {
+					if (error instanceof ViewableError || error instanceof ExpectedError) {
 						return EXPECTED_ERROR(error)
 					} else {
 						console.error(error)

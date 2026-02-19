@@ -407,7 +407,7 @@ export const routerFeature = defineFeature({
 				ctx.onReady(() => {
 					new Invalidation(
 						group,
-						name,
+						[id, name].join('-'),
 						{
 							distributionId: distribution.id,
 							paths,

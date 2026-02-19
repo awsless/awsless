@@ -35,6 +35,7 @@ export type UnknownSchema = BaseSchema<AttributeType, unknown, UnknownExpression
 
 export const unknown = (opts?: UnknownOptions): UnknownSchema =>
 	createSchema({
+		name: 'unknown',
 		// validate: () => true,
 		marshall(value) {
 			// if (typeof value === 'undefined') {

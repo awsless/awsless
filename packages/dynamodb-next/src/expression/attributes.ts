@@ -37,14 +37,14 @@ export class ExpressionAttributes {
 
 	value(value: any, path: Array<string | number>): string {
 		const schema = this.table.walk(...path)
-		const marshalled = schema.marshall(value)
+		const marshalled = schema.marshall(value, path)
 
 		return this.raw(marshalled)
 	}
 
 	innerSetValue(value: any, path: Array<string | number>): string {
 		const schema = this.table.walk(...path)
-		const marshalled = schema.marshall(value)
+		const marshalled = schema.marshall(value, path)
 
 		return this.raw(marshalled.M[SET_KEY])
 	}
@@ -61,10 +61,10 @@ export class ExpressionAttributes {
 		const element = schema.walk?.()
 
 		if (element) {
-			return this.raw(element.marshall(value))
+			return this.raw(element.marshall(value, path))
 		}
 
-		return this.raw(schema.marshall(value))
+		return this.raw(schema.marshall(value, path))
 	}
 
 	raw(value: any): string {

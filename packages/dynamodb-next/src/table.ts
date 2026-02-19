@@ -57,11 +57,11 @@ export class Table<
 	}
 
 	marshall(item: Partial<Schema[symbol]['Type']>) {
-		return this.schema.marshall(item)!.M as Record<string, AttributeValue>
+		return this.schema.marshall(item, ['item'])!.M as Record<string, AttributeValue>
 	}
 
 	unmarshall(item: any): Schema[symbol]['Type'] {
-		return this.schema.unmarshall({ M: item })
+		return this.schema.unmarshall({ M: item }, ['item'])
 	}
 }
 

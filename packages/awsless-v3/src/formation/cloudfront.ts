@@ -1,5 +1,10 @@
-import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront' // ES Modules import
-import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
+import {
+	CloudFrontClient,
+	CreateInvalidationForDistributionTenantCommand,
+	ListDistributionTenantsCommand,
+} from '@aws-sdk/client-cloudfront' // ES Modules import
+import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
+import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials } from '../util/aws'
@@ -11,7 +16,7 @@ type InvalidationInput = {
 }
 
 type InvalidationOutput = {
-	id: Output<string>
+	// id: Output<string>
 }
 
 export const Invalidation = createCustomResourceClass<InvalidationInput, InvalidationOutput>(
@@ -24,37 +29,68 @@ type ProviderProps = {
 	region: Region
 }
 
-export const createCloudFrontProvider = ({ credentials, region }: ProviderProps) => {
-	const cloudFront = new CloudFrontClient({ credentials, region })
-
+export const createCloudFrontProvider = (props: ProviderProps) => {
 	return createCustomProvider('cloudfront', {
 		invalidation: {
-			async updateResource(props) {
+			async updateResource(input) {
 				const state = z
 					.object({
 						distributionId: z.string(),
 						paths: z.string().array().min(1),
 					})
-					.parse(props.proposedState)
+					.parse(input.proposedState)
 
-				const result = await cloudFront.send(
-					new CreateInvalidationCommand({
-						DistributionId: state.distributionId,
-						InvalidationBatch: {
-							Paths: {
-								Quantity: state.paths.length,
-								Items: state.paths,
-							},
-							CallerReference: props.idempotantToken,
-						},
-					})
-				)
-
-				return {
+				await createInvalidationForDistributionTenants({
+					...props,
 					...state,
-					id: result.Invalidation?.Id,
-				}
+				})
+
+				return {}
 			},
 		},
 	})
+}
+
+export const createInvalidationForDistributionTenants = async ({
+	distributionId,
+	credentials,
+	region,
+	paths,
+}: {
+	credentials: Credentials
+	region: Region
+	distributionId: string
+	paths: string[]
+}) => {
+	const client = new CloudFrontClient({ credentials, region })
+
+	let cursor: string | undefined
+	do {
+		const result = await client.send(
+			new ListDistributionTenantsCommand({
+				AssociationFilter: {
+					DistributionId: distributionId,
+				},
+				MaxItems: 10,
+				Marker: cursor,
+			})
+		)
+
+		cursor = result.NextMarker
+
+		for (const tenant of result.DistributionTenantList ?? []) {
+			await client.send(
+				new CreateInvalidationForDistributionTenantCommand({
+					Id: tenant.Id,
+					InvalidationBatch: {
+						Paths: {
+							Quantity: paths.length,
+							Items: paths,
+						},
+						CallerReference: randomUUID(),
+					},
+				})
+			)
+		}
+	} while (cursor)
 }

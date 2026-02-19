@@ -15,6 +15,7 @@ import { domain } from './domain/index.js'
 import { logs } from './logs.js'
 import { image } from './image/index.js'
 import { icon } from './icon/index.js'
+import { cron } from './cron/index.js'
 
 export const commands = [
 	bootstrap,
@@ -35,6 +36,7 @@ export const commands = [
 	resources,
 	config,
 	test,
+	cron,
 	image,
 	icon,
 ]

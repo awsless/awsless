@@ -18,6 +18,7 @@ export type BufferSchema = BaseSchema<
 
 export const buffer = (): BufferSchema =>
 	createSchema({
+		name: 'buffer',
 		type: 'B',
 		marshall: value => ({ B: value }),
 		unmarshall: value => Buffer.from(value.B),

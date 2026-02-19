@@ -9,9 +9,9 @@ import { getCacheControl, getContentType } from './util.js'
 import { constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
-import { execCommand } from '../../util/exec.js'
 import { getCredentials } from '../../util/aws.js'
 import { Route } from '../router/route.js'
+import { ExpectedError } from '../../error.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -45,6 +45,8 @@ export const siteFeature = defineFeature({
 
 						const cwd = join(directories.root, dirname(ctx.stackConfig.file))
 						const env: Record<string, string | undefined> = {
+							...process.env,
+
 							// Pass the app config name
 							APP: ctx.appConfig.name,
 
@@ -58,15 +60,37 @@ export const siteFeature = defineFeature({
 							AWS_SESSION_TOKEN: credentials.sessionToken,
 						}
 
+						// Add the config values for just the site.
+
 						for (const name of props.build?.configs ?? []) {
 							env[`CONFIG_${constantCase(name)}`] = name
 						}
 
-						await execCommand({
+						for (const name of ctx.stackConfig.configs ?? []) {
+							env[`CONFIG_${constantCase(name)}`] = name
+						}
+
+						const instance = Bun.spawn(buildProps.command.split(' '), {
 							cwd,
-							command: buildProps.command,
 							env,
+							// stdout: 'inherit',
+							// stderr: 'inherit',
 						})
+
+						await instance.exited
+
+						if (instance.exitCode !== null && instance.exitCode > 0) {
+							// const error = instance.stderr
+							// throw new ExpectedError(await instance.stderr?.text() ?? '')
+							console.log(instance.stderr)
+							throw new Error('Site build failed')
+						}
+
+						// await execCommand({
+						// 	cwd,
+						// 	command: buildProps.command,
+						// 	env,
+						// })
 
 						await write('HASH', fingerprint)
 
