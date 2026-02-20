@@ -1,23 +1,23 @@
 import { AttributeValue } from '@aws-sdk/client-dynamodb'
 import { BaseSchema } from './schema/schema'
 
-type AnyMapSchema = BaseSchema<'M'>
+type GenericMapSchema = BaseSchema<'M'>
 
 export type Infer<T extends AnyTable> = T['schema'][symbol]['Type']
 
-export type AnyTable<T extends AnyMapSchema = AnyMapSchema> = Table<T, any, any, any>
+export type AnyTable<T extends GenericMapSchema = GenericMapSchema> = Table<T, any, any, any>
 
 export type IndexNames<T extends AnyTable> = Extract<keyof T['indexes'], string>
 
-export type TableIndex<Schema extends AnyMapSchema> = {
+export type TableIndex<Schema extends GenericMapSchema> = {
 	hash: Extract<keyof Schema[symbol]['Type'], string>
 	sort?: Extract<keyof Schema[symbol]['Type'], string> | undefined
 }
 
-type TableIndexes<Schema extends AnyMapSchema> = Record<string, TableIndex<Schema>>
+type TableIndexes<Schema extends GenericMapSchema> = Record<string, TableIndex<Schema>>
 
 export class Table<
-	Schema extends AnyMapSchema,
+	Schema extends GenericMapSchema,
 	Hash extends Extract<keyof Schema[symbol]['Type'], string>,
 	Sort extends Extract<keyof Schema[symbol]['Type'], string> | undefined,
 	Indexes extends TableIndexes<Schema> | undefined,
@@ -152,7 +152,7 @@ export const define = <
 	// 	Array<string | number>,
 	// 	boolean
 	// >,
-	Schema extends AnyMapSchema,
+	Schema extends GenericMapSchema,
 	Hash extends Extract<keyof Schema[symbol]['Type'], string>,
 	Sort extends Extract<keyof Schema[symbol]['Type'], string> | undefined,
 	Indexes extends TableIndexes<Schema> | undefined,

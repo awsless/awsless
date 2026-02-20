@@ -128,14 +128,27 @@ export const tableFeature = defineFeature({
 				}
 			)
 
-			// await table.name
-
 			// --------------------------------------------------------
-			// Deletion protection
+			// Send table info to every lambda
 
-			// if (deletionProtection) {
-			// 	table.deletionPolicy = 'retain'
-			// }
+			// ctx.addEnv(
+			// 	`TABLE_${constantCase(id)}`,
+			// 	JSON.stringify({
+			// 		hash: props.hash,
+			// 		sort: props.sort,
+			// 		indexes: Object.fromEntries(
+			// 			Object.entries(props.indexes ?? {}).map(([indexName, indexProps]) => {
+			// 				return [
+			// 					indexName,
+			// 					{
+			// 						hash: indexProps.hash,
+			// 						sort: indexProps.sort,
+			// 					},
+			// 				]
+			// 			})
+			// 		),
+			// 	})
+			// )
 
 			// --------------------------------------------------------
 			// Stream support

@@ -97,7 +97,10 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 				// ----------------------------------------
 				// Check allowed fn permissions
 
-				if (Array.isArray(auth.allowedFunctions) && !auth.allowedFunctions.includes(fn.name)) {
+				if (
+					Array.isArray(auth.allowedFunctions) &&
+					(!auth.allowedFunctions.includes(fn.name) || !auth.allowedFunctions.includes('*'))
+				) {
 					return PERMISSION_ACCESS_DENIED
 				}
 
