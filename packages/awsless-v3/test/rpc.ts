@@ -109,7 +109,7 @@ describe('RPC server', () => {
 
 			const result = await handle(createRequest([{ name: 'read' }], 'token-2'))
 
-			// console.log(result)
+			console.log(result)
 
 			expect(result.statusCode).toBe(200)
 			expect(JSON.parse(result.body)[0].ok).toBe(true)

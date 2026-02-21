@@ -1,4 +1,4 @@
-import { BigFloat, eq, mul } from '@awsless/big-float'
+import { BigFloat, eq, mul, parse } from '@awsless/big-float'
 import { safeNumberParse, safeNumberStringify } from '../src'
 
 describe('Safe number JSON', () => {
@@ -15,7 +15,7 @@ describe('Safe number JSON', () => {
 
 	it('parse', () => {
 		const result = safeNumberParse('1', {
-			parse: v => new BigFloat(v),
+			parse: v => parse(v),
 		})
 
 		expect(result).toStrictEqual(ONE)
@@ -32,7 +32,7 @@ describe('Safe number JSON', () => {
 		})
 
 		const result = safeNumberParse(json, {
-			parse: v => new BigFloat(v),
+			parse: v => parse(v),
 		})
 
 		expect(eq(result.value, complex.value)).toBeTruthy()

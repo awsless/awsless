@@ -1,11 +1,15 @@
 import { baseTypes, SerializableTypes } from './type'
 
-export const parse = (json: string, types: SerializableTypes = {}) => {
+type Options = {
+	types?: SerializableTypes
+}
+
+export const parse = (json: string, options?: Options) => {
 	const replacements: [any, string, unknown][] = []
 
 	const result = JSON.parse(
 		json,
-		createReviver(types, (target, key, value) => {
+		createReviver(options?.types, (target, key, value) => {
 			replacements.push([target, key, value])
 		})
 	)

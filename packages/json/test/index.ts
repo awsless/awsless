@@ -93,12 +93,12 @@ describe('JSON', () => {
 		})
 
 		it('parse', () => {
-			const result = parse(stringify(complex))
+			const result = parse(stringify(complex, { preserveUndefinedValues: true }))
 			expect(result).toStrictEqual(complex)
 		})
 
 		it('patch', () => {
-			const broken = JSON.parse(stringify(complex))
+			const broken = JSON.parse(stringify(complex, { preserveUndefinedValues: true }))
 			expect(broken).not.toStrictEqual(complex)
 
 			const fixed = patch(broken)
@@ -126,6 +126,14 @@ describe('JSON', () => {
 				input: new Set([1, 2, 3]),
 				output: '{"$set":[1,2,3]}',
 			},
+			array: {
+				input: [1, 2, 3],
+				output: '[1,2,3]',
+			},
+			object: {
+				input: { a: 1 },
+				output: '{"a":1}',
+			},
 			date: {
 				input: new Date('2025-01-01'),
 				output: '{"$date":"2025-01-01T00:00:00.000Z"}',
@@ -133,6 +141,18 @@ describe('JSON', () => {
 			regexp: {
 				input: /[0-9]/m,
 				output: '{"$regexp":["[0-9]","m"]}',
+			},
+			string: {
+				input: 'hello',
+				output: '"hello"',
+			},
+			boolean: {
+				input: true,
+				output: 'true',
+			},
+			number: {
+				input: 1.5,
+				output: '1.5',
 			},
 			bigint: {
 				input: 1n,
@@ -205,13 +225,13 @@ describe('JSON', () => {
 		const value = new Custom('HELLO')
 
 		it('stringify', () => {
-			const result = stringify(value, { $custom })
+			const result = stringify(value, { types: { $custom } })
 			expect(result).toBe('{"$custom":"HELLO"}')
 		})
 
 		it('parse', () => {
-			const json = stringify(value, { $custom })
-			const result = parse(json, { $custom })
+			const json = stringify(value, { types: { $custom } })
+			const result = parse(json, { types: { $custom } })
 			expect(result).toStrictEqual(value)
 		})
 	})

@@ -1,6 +1,6 @@
 import { $mockdate, parse, setGlobalTypes, stringify } from '../src'
 
-describe('global', () => {
+describe('global types', () => {
 	describe('mockdate', () => {
 		it('setGlobalTypes', () => {
 			setGlobalTypes({

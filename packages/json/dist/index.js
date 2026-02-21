@@ -1,8 +1,8 @@
 // src/type/bigfloat.ts
-import { BigFloat } from "@awsless/big-float";
+import { BigFloat, parse } from "@awsless/big-float";
 var $bigfloat = {
   is: (v) => v instanceof BigFloat,
-  parse: (v) => new BigFloat(v),
+  parse: (v) => parse(v),
   stringify: (v) => v.toString()
 };
 
@@ -110,11 +110,11 @@ var baseTypes = {
 };
 
 // src/parse.ts
-var parse = (json, types = {}) => {
+var parse2 = (json, options) => {
   const replacements = [];
   const result = JSON.parse(
     json,
-    createReviver(types, (target, key, value) => {
+    createReviver(options?.types, (target, key, value) => {
       replacements.push([target, key, value]);
     })
   );
@@ -139,12 +139,10 @@ var createReviver = (types = {}, registerReplacement) => {
           const stringified = original[typeName];
           if ("parse" in type) {
             return type.parse(stringified);
-          } else if (registerReplacement) {
-            const result = type.replace(stringified);
-            registerReplacement(this, key, result);
-            return result;
           } else {
-            return type.replace(stringified);
+            const result = type.replace(stringified);
+            registerReplacement?.(this, key, result);
+            return result;
           }
         }
       }
@@ -154,16 +152,19 @@ var createReviver = (types = {}, registerReplacement) => {
 };
 
 // src/stringify.ts
-var stringify = (value, types = {}) => {
-  return JSON.stringify(value, createReplacer(types));
+var stringify = (value, options) => {
+  return JSON.stringify(value, createReplacer(options));
 };
-var createReplacer = (types = {}) => {
-  types = {
+var createReplacer = (options) => {
+  const types = {
     ...baseTypes,
-    ...types
+    ...options?.types
   };
   return function(key, value) {
     const original = this[key];
+    if (!options?.preserveUndefinedValues && key && typeof original === "undefined" && typeof this === "object" && !Array.isArray(this)) {
+      return value;
+    }
     for (const [typeName, type] of Object.entries(types)) {
       if (type.is(original)) {
         return {
@@ -177,7 +178,7 @@ var createReplacer = (types = {}) => {
 
 // src/patch.ts
 var patch = (value, types = {}) => {
-  return parse(JSON.stringify(value), types);
+  return parse2(JSON.stringify(value), types);
 };
 var unpatch = (value, types = {}) => {
   return JSON.parse(stringify(value, types));
@@ -186,13 +187,6 @@ var unpatch = (value, types = {}) => {
 // src/global.ts
 var setGlobalTypes = (types) => {
   Object.assign(baseTypes, types);
-};
-
-// src/type/mockdate.ts
-var $mockdate = {
-  is: (v) => typeof v === "object" && v !== null && "toISOString" in v && typeof v.toISOString === "function" && "getTime" in v && typeof v.getTime === "function" && "toUTCString" in v && typeof v.toUTCString === "function",
-  parse: (v) => new Date(v),
-  stringify: (v) => v.toISOString()
 };
 
 // src/safe-number/parse.ts
@@ -225,13 +219,32 @@ var createSafeNumberReplacer = (props) => {
     return value;
   };
 };
+
+// src/type/mockdate.ts
+var $mockdate = {
+  is: (v) => typeof v === "object" && v !== null && "toISOString" in v && typeof v.toISOString === "function" && "getTime" in v && typeof v.getTime === "function" && "toUTCString" in v && typeof v.toUTCString === "function",
+  parse: (v) => new Date(v),
+  stringify: (v) => v.toISOString()
+};
 export {
+  $bigfloat,
+  $bigint,
+  $binary,
+  $date,
+  $duration,
+  $infinity,
+  $map,
   $mockdate,
+  $nan,
+  $regexp,
+  $set,
+  $undefined,
+  $url,
   createReplacer,
   createReviver,
   createSafeNumberReplacer,
   createSafeNumberReviver,
-  parse,
+  parse2 as parse,
   patch,
   safeNumberParse,
   safeNumberStringify,

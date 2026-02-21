@@ -1,7 +1,6 @@
-
 # @awsless/duration
 
-The @awsless/duration package provides utility functions for handling & readable duration values in API's.
+The @awsless/duration package provides utility functions for handling readable duration values in API's.
 
 ## The Problem
 
@@ -30,7 +29,7 @@ Imagine providing the API an `ttl` of 1 week.
 
 ```ts
 api({
-	ttl: 60 * 60 * 24 * 7
+	ttl: 60 * 60 * 24 * 7,
 })
 ```
 
@@ -39,7 +38,7 @@ api({
 ### Defining your API
 
 ```ts
-import { toSeconds, Duration } from '@awsless/duration';
+import { toSeconds, Duration } from '@awsless/duration'
 
 type Props = {
 	ttl: Duration
@@ -55,7 +54,7 @@ const api = (props: Props) => {
 ### Consuming your API
 
 ```ts
-import { weeks } from '@awsless/duration';
+import { weeks } from '@awsless/duration'
 
 // Even tho the ttl is used in seconds, we can still pass in any duration unit we want.
 api({ ttl: weeks(1) })
@@ -66,7 +65,7 @@ api({ ttl: weeks(1) })
 We also expose an `parse` function to parse a string representation of a duration value.
 
 ```ts
-import { parse } from '@awsless/duration';
+import { parse } from '@awsless/duration'
 
 const duration = parse('1 day')
 ```

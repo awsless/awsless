@@ -1,18 +1,19 @@
-
 # @awsless/json
 
 The `@awsless/json` package adds support for more JavaScript native types to JSON.
 
 Features:
- - Lightweight / Using the JS native JSON parser.
- - JSON backwards compatible.
- - No precision loss.
- - Includes support for basic JS types.
- - Extendable.
+
+- Lightweight / Using the JS native JSON parser.
+- JSON backwards compatible.
+- No precision loss.
+- Includes support for basic JS types.
+- Extendable.
 
 ## The Problem
 
 JSON doesn't have support for types like:
+
 - `undefined`
 - `NaN`
 - `Infinity`
@@ -33,7 +34,7 @@ Additionally, the native `JSON.parse/stringify` functions do not address the pot
 ## Basic Usage
 
 ```ts
-import { parse, stringify } from '@awsless/json';
+import { parse, stringify } from '@awsless/json'
 
 // The output will be {"$bigint":"1"}
 const json = stringify(1n)
@@ -47,7 +48,7 @@ const value = parse(json)
 In some situations, you may not have control over the JSON parser being used. In these instances, your JSON can still be parsed, but the output may be incorrect. We can correct the inaccurate output by using the `patch` function.
 
 ```ts
-import { stringify, patch } from '@awsless/json';
+import { stringify, patch } from '@awsless/json'
 
 const json = stringify(1n)
 
@@ -63,7 +64,7 @@ const fixed = patch(broken)
 We let you extend JSON to support your own custom types.
 
 ```ts
-import { parse, stringify, Serializable, setGlobalTypes } from '@awsless/json';
+import { parse, stringify, Serializable, setGlobalTypes } from '@awsless/json'
 
 class Custom {
 	readonly value
@@ -80,14 +81,33 @@ const $custom: Serializable<Custom, string> = {
 }
 
 // Stringify your custom type.
-const json = stringify(new Custom('example'), { $custom })
+const json = stringify(new Custom('example'), {
+	types: { $custom },
+})
 
 // Parse the json with your custom type.
-const value = parse(json, { $custom })
+const value = parse(json, {
+	types: { $custom },
+})
 
 // Additionally, you can globally add your own extensions.
 setGlobalTypes({ $custom })
+```
 
+## Preserve undefined object properties
+
+The native `JSON.stringify` will strip undefined object properties to generate smaller JSON output. We do the same thing but we have a special option to opt out of this behavior if correctness is important to you.
+
+```ts
+const input = { key: undefined }
+
+const smallerJson = stringify(input, {
+	preserveUndefinedValues: true,
+}) // {}
+
+const moreCorrectJson = stringify(input, {
+	preserveUndefinedValues: true,
+}) // {"key":{"$undefined":0}}
 ```
 
 ## Precision Loss
@@ -95,12 +115,11 @@ setGlobalTypes({ $custom })
 When using the native `JSON.parse/stringify` functions you could lose precision when parsing native numbers. And you don't always have the ability to extend JSON with your own custom types. For example when you’re communicating with a third-party API. For this reason, we have 2 utility functions that will parse the native JSON number type to your own precision-safe alternative.
 
 > [!NOTE]
-> These utility functions will only work in environments that support `JSON.rawJSON`
-> https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/rawJSON#browser_compatibility
+> These utility functions will only work in environments that support `JSON.rawJSON` > https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/rawJSON#browser_compatibility
 
 ```ts
-import { safeNumberParse, safeNumberStringify } from '@awsless/json';
-import { BigFloat, eq } from '@awsless/big-float';
+import { safeNumberParse, safeNumberStringify } from '@awsless/json'
+import { BigFloat, eq } from '@awsless/big-float'
 
 const one = new BigFloat(1)
 
