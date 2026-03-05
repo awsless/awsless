@@ -23,7 +23,7 @@ export function string<T extends string>(): StringSchema<T> {
 		// validate: value => typeof value === 'string',
 		validateInput: value => typeof value === 'string',
 		validateOutput: value => {
-			return !!('S' in value && typeof value.S === 'string')
+			return !!(typeof value === 'object' && 'S' in value && typeof value.S === 'string')
 		},
 	})
 }

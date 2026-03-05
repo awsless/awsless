@@ -4,6 +4,8 @@ export const APP = (process.env.APP ?? 'app') as 'app'
 export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
 export const STACK = (process.env.STACK ?? 'stack') as 'stack'
 export const IS_TEST = process.env.NODE_ENV === 'test'
+export const REGION = process.env.AWS_REGION
+export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
 
 // const bindResourceName = (
 // 	resourceType: string,

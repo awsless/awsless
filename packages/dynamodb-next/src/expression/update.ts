@@ -1,5 +1,5 @@
 import { AttributeType } from '../schema/schema'
-import { SET_KEY } from '../schema/set'
+// import { SET_KEY } from '../schema/set'
 import { AnyTable } from '../table'
 import { ExpressionAttributes } from './attributes'
 import { createFluent, Fluent, getFluentExpression, getFluentPath } from './fluent'
@@ -89,7 +89,9 @@ const shouldDelete = (value: unknown) => {
 		// undefined value's should be deleted.
 		typeof value === 'undefined' ||
 		// null value's should be deleted.
-		value === null
+		value === null ||
+		// empty set's should be deleted
+		(value instanceof Set && value.size === 0)
 	)
 }
 
@@ -117,7 +119,7 @@ export const buildUpdateExpression = (
 			const v = value[index]
 
 			if (v instanceof Fluent) {
-				return attrs.path(getFluentPath(value[0]))
+				return attrs.path(getFluentPath(v))
 			}
 
 			if (typeof v !== 'undefined') {
@@ -127,8 +129,8 @@ export const buildUpdateExpression = (
 			return attrs.raw(defaultRaw)
 		}
 
-		const listParam = (index: number) => {
-			if (value[index] instanceof Fluent) {
+		const listParam = () => {
+			if (value[0] instanceof Fluent) {
 				return attrs.path(getFluentPath(value[0]))
 			}
 
@@ -140,7 +142,8 @@ export const buildUpdateExpression = (
 				return attrs.path(getFluentPath(value[0]))
 			}
 
-			return attrs.innerSetValue(new Set(value), path)
+			return attrs.value(new Set(value), path)
+			// return attrs.innerSetValue(new Set(value), path)
 		}
 
 		switch (op) {
@@ -159,7 +162,7 @@ export const buildUpdateExpression = (
 			case 'setPartial':
 				for (const [k, v] of Object.entries(value[0])) {
 					if (shouldDelete(v)) {
-						rem.push(k)
+						rem.push(attrs.path([...path, k]))
 					} else {
 						set.push(`${attrs.path([...path, k])} = ${attrs.value(v, [...path, k])}`)
 					}
@@ -180,12 +183,12 @@ export const buildUpdateExpression = (
 
 			// case 'push':
 			case 'append':
-				set.push(`${p} = list_append(${p}, ${listParam(0)})`)
+				set.push(`${p} = list_append(${p}, ${listParam()})`)
 				break
 
 			// case 'unshift':
 			case 'prepend':
-				set.push(`${p} = list_append(${listParam(0)}, ${p})`)
+				set.push(`${p} = list_append(${listParam()}, ${p})`)
 				break
 
 			case 'incr':
@@ -197,14 +200,14 @@ export const buildUpdateExpression = (
 				break
 
 			case 'add': {
-				const innerPath = `${p}.${attrs.name(SET_KEY)}`
-				add.push(`${innerPath} ${innerSetParam()}`)
+				// const innerPath = `${p}.${attrs.name(SET_KEY)}`
+				add.push(`${p} ${innerSetParam()}`)
 				break
 			}
 
 			case 'remove': {
-				const innerPath = `${p}.${attrs.name(SET_KEY)}`
-				del.push(`${innerPath} ${innerSetParam()}`)
+				// const innerPath = `${p}.${attrs.name(SET_KEY)}`
+				del.push(`${p} ${innerSetParam()}`)
 				break
 			}
 

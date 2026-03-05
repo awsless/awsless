@@ -3,7 +3,7 @@ import { AttributeOutputValue, BaseSchema, createSchema } from './schema'
 
 type AllowedSchema = BaseSchema<'S'> | BaseSchema<'N'> | BaseSchema<'B'>
 
-export const SET_KEY = '__set__'
+// export const SET_KEY = '__set__'
 
 export type SetSchema<T extends AllowedSchema> = BaseSchema<
 	`${NonNullable<T['type']>}S`,
@@ -70,6 +70,71 @@ export type SetSchema<T extends AllowedSchema> = BaseSchema<
 // 	})
 // }
 
+// export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
+// 	const type = `${schema.type}S` as `${NonNullable<S['type']>}S`
+
+// 	const encode = (value: Set<S[symbol]['Type']>, path: Array<string | number>) => {
+// 		return Array.from(value).map(v => {
+// 			const marshalled: any = schema.marshall(v, path)
+// 			return marshalled[schema.type!]
+// 		})
+// 	}
+
+// 	const decode = (
+// 		value: Array<AttributeOutputValue<'S'> & AttributeOutputValue<'N'> & AttributeOutputValue<'B'>>,
+// 		path: Array<string | number>
+// 	) => {
+// 		return new Set<S[symbol]['Type']>(
+// 			value.map(v => {
+// 				return schema.unmarshall({ [schema.type!]: v } as any, path)
+// 			})
+// 		)
+// 	}
+
+// 	return createSchema<`${NonNullable<S['type']>}S`, Set<S[symbol]['Type']>>({
+// 		name: 'set',
+// 		type,
+// 		// validate: value => value instanceof Set,
+// 		marshall(value, path) {
+// 			if (value.size === 0) {
+// 				return { M: {} } as any
+// 			}
+
+// 			return {
+// 				M: {
+// 					[SET_KEY]: {
+// 						[type]: encode(value, path),
+// 					},
+// 				},
+// 			} as any
+// 		},
+// 		unmarshall(value, path) {
+// 			if ('M' in value) {
+// 				const map = value.M as any
+// 				if (map[SET_KEY]) {
+// 					return decode(map[SET_KEY][type], path)
+// 				}
+
+// 				return new Set()
+// 			}
+
+// 			// Fallback for legacy data stored as raw sets
+// 			if (type in value) {
+// 				return decode(value[type] as any, path)
+// 			}
+
+// 			return new Set()
+// 		},
+// 		validateInput: value => value instanceof Set,
+// 		validateOutput: (value: any) =>
+// 			!!(
+// 				'M' in value &&
+// 				(SET_KEY in value.M ? type in value.M[SET_KEY] && Array.isArray(value.M[SET_KEY][type]) : true)
+// 			),
+// 		walk: () => schema,
+// 	})
+// }
+
 export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 	const type = `${schema.type}S` as `${NonNullable<S['type']>}S`
 
@@ -94,53 +159,40 @@ export const set = <S extends AllowedSchema>(schema: S): SetSchema<S> => {
 	return createSchema<`${NonNullable<S['type']>}S`, Set<S[symbol]['Type']>>({
 		name: 'set',
 		type,
-		// validate: value => value instanceof Set,
 		marshall(value, path) {
 			if (value.size === 0) {
-				return { M: {} } as any
+				return undefined
 			}
 
 			return {
-				M: {
-					[SET_KEY]: {
-						[type]: encode(value, path),
-					},
-				},
+				[type]: encode(value, path),
 			} as any
 		},
 		unmarshall(value, path) {
-			if ('M' in value) {
-				const map = value.M as any
-				if (map[SET_KEY]) {
-					return decode(map[SET_KEY][type], path)
-				}
-
+			if (typeof value === 'undefined') {
 				return new Set()
 			}
 
-			// Fallback for legacy data stored as raw sets
 			if (type in value) {
 				return decode(value[type] as any, path)
 			}
 
 			return new Set()
 		},
-		// marshallInner(value) {
-		// 	if (value.size === 0) {
-		// 		return undefined as any
-		// 	}
-
-		// 	return {
-		// 		[type]: encode(value),
-		// 	}
-		// },
-		// validate: value => value instanceof Set,
 		validateInput: value => value instanceof Set,
-		validateOutput: (value: any) =>
-			!!(
-				'M' in value &&
-				(SET_KEY in value.M ? type in value.M[SET_KEY] && Array.isArray(value.M[SET_KEY][type]) : true)
-			),
+		validateOutput(value) {
+			if (typeof value === 'undefined') {
+				return true
+			}
+
+			if (type in value && Array.isArray(value[type])) {
+				return true
+			}
+
+			return false
+
+			// !!(type in value ? Array.isArray(value[type]) : true),
+		},
 		walk: () => schema,
 	})
 }

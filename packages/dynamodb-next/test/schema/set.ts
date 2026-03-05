@@ -22,6 +22,7 @@ describe('set', () => {
 
 	it('get', async () => {
 		const result = await getItem(table, { id: 1 })
+		console.log(result)
 
 		expectTypeOf(result).toEqualTypeOf<
 			| undefined
@@ -103,6 +104,25 @@ describe('set', () => {
 		expect(result).toStrictEqual({
 			id: 1,
 			set: new Set(),
+		})
+	})
+
+	it('addend to none existed set', async () => {
+		const result = await updateItem(
+			table,
+			{ id: 2 },
+			{
+				return: 'ALL_NEW',
+				update: e => [
+					//
+					e.set.add('new'),
+				],
+			}
+		)
+
+		expect(result).toStrictEqual({
+			id: 2,
+			set: new Set(['new']),
 		})
 	})
 })

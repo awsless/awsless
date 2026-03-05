@@ -1,27 +1,15 @@
 import { ExpressionAttributes } from '../../src/expression/attributes'
 import { createFluent } from '../../src/expression/fluent'
 import { buildUpdateExpression } from '../../src/expression/update'
-import { SET_KEY } from '../../src/schema/set'
+// import { SET_KEY } from '../../src/schema/set'
 
 describe('Update Expression', () => {
 	const e = createFluent()
 
 	const mockTable = {
-		walk: (path: string) => {
-			if (path === 'set') {
-				return {
-					marshall: (v: any) => ({
-						M: {
-							[SET_KEY]: v,
-						},
-					}),
-				}
-			} else {
-				return {
-					marshall: (v: any) => v,
-				}
-			}
-		},
+		walk: () => ({
+			marshall: (v: any) => v,
+		}),
 	} as any
 
 	const assert = (expectation: string, update: any) => {
@@ -82,7 +70,8 @@ describe('Update Expression', () => {
 		assert('REMOVE #n1', e.id.set())
 		assert('REMOVE #n1', e.id.set(null))
 		assert('REMOVE #n1', e.id.set(undefined))
-		assert('SET #n1 = :v1', e.id.set(new Set()))
+		assert('REMOVE #n1', e.id.set(new Set()))
+		// assert('SET #n1 = :v1', e.id.set(new Set()))
 	})
 
 	describe('append', () => {
@@ -94,15 +83,15 @@ describe('Update Expression', () => {
 	})
 
 	describe('add', () => {
-		assert('ADD #n1.#n2 :v1', e.set.add(new Set([1])))
+		assert('ADD #n1 :v1', e.set.add(new Set([1])))
 	})
 
 	describe('remove', () => {
-		assert('DELETE #n1.#n2 :v1', e.set.remove(new Set([1])))
+		assert('DELETE #n1 :v1', e.set.remove(new Set([1])))
 	})
 
 	describe('combine', () => {
-		assert('ADD #n1.#n2 :v1 DELETE #n1.#n2 :v1', [
+		assert('ADD #n1 :v1 DELETE #n1 :v1', [
 			//
 			e.set.add(1),
 			e.set.remove(1),

@@ -320,7 +320,11 @@ var lambda = (options) => {
       });
       await Promise.all(successCallbacks.map((cb) => cb(result)));
       if (isTestEnv) {
-        return parse3(stringify3(result));
+        return parse3(
+          stringify3(result, {
+            preserveUndefinedValues: true
+          })
+        );
       }
       return unpatch(result);
     } catch (error) {

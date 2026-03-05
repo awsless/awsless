@@ -18,5 +18,5 @@ export const json = <T = unknown>(): JsonSchema<T> =>
 		marshall: value => ({ S: stringify(value) }),
 		unmarshall: value => parse(value.S) as T,
 		validateInput: () => true,
-		validateOutput: value => !!('S' in value && typeof value.S === 'string'),
+		validateOutput: value => !!(typeof value === 'object' && 'S' in value && typeof value.S === 'string'),
 	})

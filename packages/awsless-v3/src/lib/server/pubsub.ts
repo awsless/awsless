@@ -8,6 +8,10 @@ export const getPubSubTopic = <N extends string>(name: N) => {
 	return `${APP}/pubsub/${name}` as const
 }
 
+// export const decodePubSubTopic = <N extends string>(name: N) => {
+// 	return `${APP}/pubsub/${name}` as const
+// }
+
 export { QoS }
 
 export type PublishOptions = {

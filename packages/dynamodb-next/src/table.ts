@@ -42,6 +42,14 @@ export class Table<
 		this.indexes = opt.indexes as Indexes
 	}
 
+	get keys() {
+		if (this.sort) {
+			return [this.hash, this.sort]
+		}
+
+		return [this.hash]
+	}
+
 	walk(...path: Array<string | number>) {
 		if (path.length === 0) {
 			return this.schema
@@ -57,11 +65,13 @@ export class Table<
 	}
 
 	marshall(item: Partial<Schema[symbol]['Type']>) {
-		return this.schema.marshall(item, ['item'])!.M as Record<string, AttributeValue>
+		return this.schema.marshall(item, [])!.M as Record<string, AttributeValue>
 	}
 
-	unmarshall(item: any): Schema[symbol]['Type'] {
-		return this.schema.unmarshall({ M: item }, ['item'])
+	unmarshall(item: any, projection?: string[]): Schema[symbol]['Type'] {
+		// console.log('table.unmarshall', projection)
+
+		return this.schema.unmarshall({ M: item }, [], projection)
 	}
 }
 

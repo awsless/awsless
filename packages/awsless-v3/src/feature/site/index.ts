@@ -11,7 +11,6 @@ import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
 import { getCredentials } from '../../util/aws.js'
 import { Route } from '../router/route.js'
-import { ExpectedError } from '../../error.js'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -73,6 +72,8 @@ export const siteFeature = defineFeature({
 						const instance = Bun.spawn(buildProps.command.split(' '), {
 							cwd,
 							env,
+							stdout: 'ignore',
+							stderr: 'ignore',
 							// stdout: 'inherit',
 							// stderr: 'inherit',
 						})

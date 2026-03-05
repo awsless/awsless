@@ -115,7 +115,11 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			await Promise.all(successCallbacks.map(cb => cb(result)))
 
 			if (isTestEnv) {
-				return parse(stringify(result))
+				return parse(
+					stringify(result, {
+						preserveUndefinedValues: true,
+					})
+				)
 			}
 
 			return unpatch(result)

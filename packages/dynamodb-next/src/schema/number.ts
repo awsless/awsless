@@ -23,7 +23,7 @@ export function number<T extends number>(): NumberSchema {
 		marshall: value => ({ N: value.toString() }),
 		unmarshall: value => Number(value.N) as T,
 		// validate: value => typeof value === 'number',
-		validateInput: value => typeof value === 'number',
-		validateOutput: value => !!('N' in value && typeof value.N === 'string'),
+		validateInput: value => typeof value === 'number' && !isNaN(value) && isFinite(value),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
 	})
 }

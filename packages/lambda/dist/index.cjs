@@ -351,7 +351,11 @@ var lambda = (options) => {
       });
       await Promise.all(successCallbacks.map((cb) => cb(result)));
       if (isTestEnv) {
-        return (0, import_json3.parse)((0, import_json3.stringify)(result));
+        return (0, import_json3.parse)(
+          (0, import_json3.stringify)(result, {
+            preserveUndefinedValues: true
+          })
+        );
       }
       return (0, import_json3.unpatch)(result);
     } catch (error) {

@@ -79,7 +79,7 @@ export const pipeStream = (streams: Stream<AnyTable>[], command: any, send: <T>(
 			send,
 			getKey: (command, table) => {
 				const key = getPrimaryKey(table, command.input.Item!)
-				return table.unmarshall(key)
+				return table.unmarshall(key, table.keys)
 			},
 		})
 	}
@@ -90,7 +90,7 @@ export const pipeStream = (streams: Stream<AnyTable>[], command: any, send: <T>(
 			command,
 			send,
 			getKey: (command, table) => {
-				return table.unmarshall(command.input.Key!)
+				return table.unmarshall(command.input.Key!, table.keys)
 			},
 		})
 	}
@@ -109,9 +109,9 @@ export const pipeStream = (streams: Stream<AnyTable>[], command: any, send: <T>(
 						items: items.map(item => {
 							if (item.PutRequest) {
 								const key = getPrimaryKey(stream.table, item.PutRequest.Item)
-								return { key: stream.table.unmarshall(key) }
+								return { key: stream.table.unmarshall(key, stream.table.keys) }
 							} else if (item.DeleteRequest) {
-								return { key: stream.table.unmarshall(item.DeleteRequest.Key!) }
+								return { key: stream.table.unmarshall(item.DeleteRequest.Key!, stream.table.keys) }
 							}
 							return
 						}),
@@ -139,7 +139,7 @@ export const pipeStream = (streams: Stream<AnyTable>[], command: any, send: <T>(
 
 					return {
 						...stream,
-						items: [{ key: stream.table.unmarshall(marshall) }],
+						items: [{ key: stream.table.unmarshall(marshall, stream.table.keys) }],
 					}
 				})
 			},

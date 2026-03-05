@@ -138,7 +138,7 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 
 					const marshalled = rest.marshall(value, [...path, key])
 
-					if (marshalled.NULL) {
+					if (typeof value === 'undefined' || marshalled.NULL) {
 						continue
 					}
 
@@ -150,17 +150,27 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 
 			return { M: result }
 		},
-		unmarshall: (output, path) => {
+		unmarshall: (output, path, projection) => {
 			const result: Record<string, any> = {}
+
+			// console.log('object.unmarshall', projection)
 
 			for (const [key, schema] of Object.entries(props)) {
 				const value = output.M[key]
 
-				if (typeof value === 'undefined') {
+				if (projection && !projection.includes(key)) {
 					continue
 				}
 
-				result[key] = schema.unmarshall(value, [...path, key])
+				// if (typeof value === 'undefined') {
+				// 	continue
+				// }
+
+				const unmarshalled = schema.unmarshall(value!, [...path, key])
+
+				if (typeof unmarshalled !== 'undefined') {
+					result[key] = unmarshalled
+				}
 			}
 
 			if (rest) {
@@ -169,11 +179,19 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 						continue
 					}
 
-					if (typeof value === 'undefined') {
+					if (projection && !projection.includes(key)) {
 						continue
 					}
 
-					result[key] = rest.unmarshall(value, [...path, key])
+					// if (typeof value === 'undefined') {
+					// 	continue
+					// }
+
+					const unmarshalled = rest.unmarshall(value, [...path, key])
+
+					if (typeof unmarshalled !== 'undefined') {
+						result[key] = unmarshalled
+					}
 				}
 			}
 
@@ -181,7 +199,8 @@ export const object = <P extends Properties, R extends GenericSchema | undefined
 		},
 		// validate: value => typeof value === 'object' && value !== null,
 		validateInput: value => typeof value === 'object' && value !== null,
-		validateOutput: value => !!('M' in value && typeof value.M === 'object' && value !== null),
+		validateOutput: value =>
+			!!(typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null),
 		walk(path, ...next) {
 			const type = props[path] ?? rest
 

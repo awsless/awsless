@@ -106,6 +106,12 @@ var Table = class {
   sort;
   schema;
   indexes;
+  get keys() {
+    if (this.sort) {
+      return [this.hash, this.sort];
+    }
+    return [this.hash];
+  }
   walk(...path) {
     if (path.length === 0) {
       return this.schema;
@@ -117,10 +123,10 @@ var Table = class {
     return result;
   }
   marshall(item) {
-    return this.schema.marshall(item, ["item"]).M;
+    return this.schema.marshall(item, []).M;
   }
-  unmarshall(item) {
-    return this.schema.unmarshall({ M: item }, ["item"]);
+  unmarshall(item, projection) {
+    return this.schema.unmarshall({ M: item }, [], projection);
   }
 };
 var define = (name, options) => new Table(name, options);
@@ -200,11 +206,11 @@ var createSchema = (props) => {
       }
       return props.marshall(value, path);
     },
-    unmarshall(value, path) {
-      if (typeof value !== "object" || !props.validateOutput(value)) {
-        throw new InvalidPayloadError("unmarshall", props, path, value);
+    unmarshall(value, path, projection) {
+      if ((typeof value === "object" && value !== null || typeof value === "undefined") && props.validateOutput(value)) {
+        return props.unmarshall(value, path, projection);
       }
-      return props.unmarshall(value, path);
+      throw new InvalidPayloadError("unmarshall", props, path, value);
     }
   };
 };
@@ -230,7 +236,11 @@ var optional = (schema) => {
       if (typeof value === "undefined" || value.NULL) {
         return void 0;
       }
-      return schema.unmarshall(value, path);
+      const output = schema.unmarshall(value, path);
+      if (output instanceof Set && output.size === 0) {
+        return void 0;
+      }
+      return output;
     },
     // validate(value) {
     // 	if (typeof value === 'undefined') {
@@ -281,7 +291,6 @@ var unknown = (opts) => createSchema({
 var any = (opts) => unknown(opts);
 
 // src/schema/set.ts
-var SET_KEY = "__set__";
 var set = (schema) => {
   const type = `${schema.type}S`;
   const encode = (value, path) => {
@@ -300,25 +309,16 @@ var set = (schema) => {
   return createSchema({
     name: "set",
     type,
-    // validate: value => value instanceof Set,
     marshall(value, path) {
       if (value.size === 0) {
-        return { M: {} };
+        return void 0;
       }
       return {
-        M: {
-          [SET_KEY]: {
-            [type]: encode(value, path)
-          }
-        }
+        [type]: encode(value, path)
       };
     },
     unmarshall(value, path) {
-      if ("M" in value) {
-        const map = value.M;
-        if (map[SET_KEY]) {
-          return decode(map[SET_KEY][type], path);
-        }
+      if (typeof value === "undefined") {
         return /* @__PURE__ */ new Set();
       }
       if (type in value) {
@@ -326,17 +326,16 @@ var set = (schema) => {
       }
       return /* @__PURE__ */ new Set();
     },
-    // marshallInner(value) {
-    // 	if (value.size === 0) {
-    // 		return undefined as any
-    // 	}
-    // 	return {
-    // 		[type]: encode(value),
-    // 	}
-    // },
-    // validate: value => value instanceof Set,
     validateInput: (value) => value instanceof Set,
-    validateOutput: (value) => !!("M" in value && (SET_KEY in value.M ? type in value.M[SET_KEY] && Array.isArray(value.M[SET_KEY][type]) : true)),
+    validateOutput(value) {
+      if (typeof value === "undefined") {
+        return true;
+      }
+      if (type in value && Array.isArray(value[type])) {
+        return true;
+      }
+      return false;
+    },
     walk: () => schema
   });
 };
@@ -351,7 +350,7 @@ var uuid = () => createSchema({
   // validate: value => typeof value === 'string',
   // validate: value => typeof value === 'string' && regex.test(value),
   validateInput: (value) => typeof value === "string" && regex.test(value),
-  validateOutput: (value) => !!("S" in value && typeof value.S === "string" && regex.test(value.S))
+  validateOutput: (value) => !!(typeof value === "object" && "S" in value && typeof value.S === "string" && regex.test(value.S))
 });
 
 // src/schema/string.ts
@@ -364,7 +363,7 @@ function string() {
     // validate: value => typeof value === 'string',
     validateInput: (value) => typeof value === "string",
     validateOutput: (value) => {
-      return !!("S" in value && typeof value.S === "string");
+      return !!(typeof value === "object" && "S" in value && typeof value.S === "string");
     }
   });
 }
@@ -378,7 +377,7 @@ function boolean() {
     unmarshall: (value) => value.BOOL,
     // validate: value => typeof value === 'boolean',
     validateInput: (value) => typeof value === "boolean",
-    validateOutput: (value) => !!("BOOL" in value && typeof value.BOOL === "boolean")
+    validateOutput: (value) => !!(typeof value === "object" && "BOOL" in value && typeof value.BOOL === "boolean")
   });
 }
 
@@ -390,8 +389,8 @@ function number() {
     marshall: (value) => ({ N: value.toString() }),
     unmarshall: (value) => Number(value.N),
     // validate: value => typeof value === 'number',
-    validateInput: (value) => typeof value === "number",
-    validateOutput: (value) => !!("N" in value && typeof value.N === "string")
+    validateInput: (value) => typeof value === "number" && !isNaN(value) && isFinite(value),
+    validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
   });
 }
 
@@ -404,7 +403,7 @@ function bigint() {
     unmarshall: (value) => BigInt(value.N),
     // validate: value => typeof value === 'bigint',
     validateInput: (value) => typeof value === "bigint",
-    validateOutput: (value) => !!("N" in value && typeof value.N === "string")
+    validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
   });
 }
 
@@ -417,7 +416,7 @@ var bigfloat = () => createSchema({
   unmarshall: (value) => (0, import_big_float.parse)(value.N),
   // validate: value => value instanceof BigFloat,
   validateInput: (value) => value instanceof import_big_float.BigFloat,
-  validateOutput: (value) => !!("N" in value && typeof value.N === "string")
+  validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
 });
 
 // src/schema/uint8-array.ts
@@ -429,7 +428,7 @@ var uint8array = () => createSchema({
   unmarshall: (value) => value.B,
   // validate: value => value instanceof Uint8Array,
   validateInput: (value) => value instanceof Uint8Array,
-  validateOutput: (value) => !!("B" in value && (0, import_types.isUint8Array)(value.B))
+  validateOutput: (value) => !!(typeof value === "object" && "B" in value && (0, import_types.isUint8Array)(value.B))
 });
 
 // src/schema/object.ts
@@ -458,7 +457,7 @@ var object = (props, rest) => createSchema({
           continue;
         }
         const marshalled = rest.marshall(value, [...path, key]);
-        if (marshalled.NULL) {
+        if (typeof value === "undefined" || marshalled.NULL) {
           continue;
         }
         result[key] = marshalled;
@@ -466,31 +465,37 @@ var object = (props, rest) => createSchema({
     }
     return { M: result };
   },
-  unmarshall: (output, path) => {
+  unmarshall: (output, path, projection) => {
     const result = {};
     for (const [key, schema] of Object.entries(props)) {
       const value = output.M[key];
-      if (typeof value === "undefined") {
+      if (projection && !projection.includes(key)) {
         continue;
       }
-      result[key] = schema.unmarshall(value, [...path, key]);
+      const unmarshalled = schema.unmarshall(value, [...path, key]);
+      if (typeof unmarshalled !== "undefined") {
+        result[key] = unmarshalled;
+      }
     }
     if (rest) {
       for (const [key, value] of Object.entries(output.M)) {
         if (props[key]) {
           continue;
         }
-        if (typeof value === "undefined") {
+        if (projection && !projection.includes(key)) {
           continue;
         }
-        result[key] = rest.unmarshall(value, [...path, key]);
+        const unmarshalled = rest.unmarshall(value, [...path, key]);
+        if (typeof unmarshalled !== "undefined") {
+          result[key] = unmarshalled;
+        }
       }
     }
     return result;
   },
   // validate: value => typeof value === 'object' && value !== null,
   validateInput: (value) => typeof value === "object" && value !== null,
-  validateOutput: (value) => !!("M" in value && typeof value.M === "object" && value !== null),
+  validateOutput: (value) => !!(typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null),
   walk(path, ...next) {
     const type = props[path] ?? rest;
     return next.length ? type?.walk?.(...next) : type;
@@ -508,7 +513,7 @@ var record = (schema) => createSchema({
       if (marshalled.NULL) {
         continue;
       }
-      result[key] = schema.marshall(value, [...path, key]);
+      result[key] = marshalled;
     }
     return { M: result };
   },
@@ -520,7 +525,7 @@ var record = (schema) => createSchema({
     return result;
   },
   validateInput: (value) => typeof value === "object" && value !== null,
-  validateOutput: (value) => !!("M" in value && typeof value.M === "object" && value !== null),
+  validateOutput: (value) => !!(typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null),
   walk(_, ...rest) {
     return rest.length ? schema.walk?.(...rest) : schema;
   }
@@ -564,7 +569,7 @@ var variant = (key, options) => createSchema({
   },
   // validate: value => typeof value === 'object' && value !== null,
   validateInput: (value) => typeof value === "object" && value !== null,
-  validateOutput: (value) => !!("M" in value && typeof value.M === "object" && value !== null),
+  validateOutput: (value) => !!(typeof value === "object" && "M" in value && typeof value.M === "object" && value.M !== null),
   walk() {
     throw new TypeError(`Update & condition expressions are unsupported for a variant type`);
   }
@@ -578,7 +583,7 @@ var array = (schema) => createSchema({
   unmarshall: (value, path) => value.L.map((item, i) => schema.unmarshall(item, [...path, i])),
   // validate: value => Array.isArray(value),
   validateInput: (value) => Array.isArray(value),
-  validateOutput: (value) => "L" in value && Array.isArray(value.L),
+  validateOutput: (value) => typeof value === "object" && "L" in value && Array.isArray(value.L),
   walk: (_, ...rest) => rest.length ? schema.walk?.(...rest) : schema
 });
 
@@ -593,7 +598,7 @@ function tuple(entries, rest) {
     unmarshall: (value, path) => value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item, [...path, i])),
     // validate: value => Array.isArray(value),
     validateInput: (value) => Array.isArray(value),
-    validateOutput: (value) => !!("L" in value && Array.isArray(value.L)),
+    validateOutput: (value) => !!(typeof value === "object" && "L" in value && Array.isArray(value.L)),
     walk(path, ...restPath) {
       const schema = entries[path] ?? rest;
       return restPath.length ? schema?.walk?.(...restPath) : schema;
@@ -608,8 +613,8 @@ var date = () => createSchema({
   marshall: (value) => ({ N: String(value.getTime()) }),
   unmarshall: (value) => new Date(Number(value.N)),
   // validate: value => value instanceof Date,
-  validateInput: (value) => value instanceof Date,
-  validateOutput: (value) => !!("N" in value && typeof value.N === "string")
+  validateInput: (value) => value instanceof Date && !isNaN(value.getTime()),
+  validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
 });
 
 // src/schema/enum.ts
@@ -625,7 +630,7 @@ var json = () => createSchema({
   marshall: (value) => ({ S: (0, import_json.stringify)(value) }),
   unmarshall: (value) => (0, import_json.parse)(value.S),
   validateInput: () => true,
-  validateOutput: (value) => !!("S" in value && typeof value.S === "string")
+  validateOutput: (value) => !!(typeof value === "object" && "S" in value && typeof value.S === "string")
 });
 
 // src/schema/ttl.ts
@@ -635,8 +640,8 @@ var ttl = () => createSchema({
   marshall: (value) => ({ N: String(Math.floor(value.getTime() / 1e3)) }),
   unmarshall: (value) => new Date(Number(value.N) * 1e3),
   // validate: value => value instanceof Date,
-  validateInput: (value) => value instanceof Date,
-  validateOutput: (value) => !!("N" in value && typeof value.N === "string")
+  validateInput: (value) => value instanceof Date && !isNaN(value.getTime()),
+  validateOutput: (value) => !!(typeof value === "object" && "N" in value && typeof value.N === "string")
 });
 
 // src/test/mock.ts
@@ -856,16 +861,16 @@ var ExpressionAttributes = class {
     const marshalled = schema.marshall(value, path);
     return this.raw(marshalled);
   }
-  innerSetValue(value, path) {
-    const schema = this.table.walk(...path);
-    const marshalled = schema.marshall(value, path);
-    return this.raw(marshalled.M[SET_KEY]);
-  }
-  isSet(path) {
-    const schema = this.table.walk(...path);
-    const type = schema.type;
-    return type === "SS" || type === "NS" || type === "BS";
-  }
+  // innerSetValue(value: any, path: Array<string | number>): string {
+  // 	const schema = this.table.walk(...path)
+  // 	const marshalled = schema.marshall(value, path)
+  // 	return this.raw(marshalled.M[SET_KEY])
+  // }
+  // isSet(path: Array<string | number>): boolean {
+  // 	const schema = this.table.walk(...path)
+  // 	const type = schema.type
+  // 	return type === 'SS' || type === 'NS' || type === 'BS'
+  // }
   elementValue(value, path) {
     const schema = this.table.walk(...path);
     const element = schema.walk?.();
@@ -939,13 +944,13 @@ var getItem = (table, key, options = {}) => {
   });
   return {
     ...transactable(() => ({
-      unmarshall: (item) => table.unmarshall(item),
+      unmarshall: (item) => table.unmarshall(item, options.select),
       input: { Get: command.input }
     })),
     ...thenable(async () => {
       const result = await client(options).send(command);
       if (result.Item) {
-        return table.unmarshall(result.Item);
+        return table.unmarshall(result.Item, options.select);
       }
     })
   };
@@ -993,7 +998,7 @@ var pipeStream = (streams, command, send) => {
       send,
       getKey: (command2, table) => {
         const key = getPrimaryKey(table, command2.input.Item);
-        return table.unmarshall(key);
+        return table.unmarshall(key, table.keys);
       }
     });
   }
@@ -1003,7 +1008,7 @@ var pipeStream = (streams, command, send) => {
       command,
       send,
       getKey: (command2, table) => {
-        return table.unmarshall(command2.input.Key);
+        return table.unmarshall(command2.input.Key, table.keys);
       }
     });
   }
@@ -1020,9 +1025,9 @@ var pipeStream = (streams, command, send) => {
             items: items.map((item) => {
               if (item.PutRequest) {
                 const key = getPrimaryKey(stream.table, item.PutRequest.Item);
-                return { key: stream.table.unmarshall(key) };
+                return { key: stream.table.unmarshall(key, stream.table.keys) };
               } else if (item.DeleteRequest) {
-                return { key: stream.table.unmarshall(item.DeleteRequest.Key) };
+                return { key: stream.table.unmarshall(item.DeleteRequest.Key, stream.table.keys) };
               }
               return;
             })
@@ -1045,7 +1050,7 @@ var pipeStream = (streams, command, send) => {
           const marshall2 = keyed ? keyed.Key : getPrimaryKey(stream.table, item.Put.Item);
           return {
             ...stream,
-            items: [{ key: stream.table.unmarshall(marshall2) }]
+            items: [{ key: stream.table.unmarshall(marshall2, stream.table.keys) }]
           };
         });
       }
@@ -1206,13 +1211,20 @@ var import_client_dynamodb21 = require("@aws-sdk/client-dynamodb");
 var import_client_dynamodb8 = require("@aws-sdk/client-dynamodb");
 import_client_dynamodb8.TransactionCanceledException.prototype.cancellationReasonAt = function(index) {
   const reasons = this.CancellationReasons ?? [];
-  return reasons[index]?.Code;
+  const reason = reasons[index];
+  if (!reason) {
+    throw new Error(`Cancellation reason index is out of bounds: ${index}`);
+  }
+  return reason.Code;
 };
 import_client_dynamodb8.TransactionCanceledException.prototype.conditionFailedAt = function(index) {
   return this.cancellationReasonAt(index) === "ConditionalCheckFailed";
 };
 import_client_dynamodb8.TransactionCanceledException.prototype.conflictAt = function(index) {
   return this.cancellationReasonAt(index) === "TransactionConflict";
+};
+import_client_dynamodb8.TransactionCanceledException.prototype.validationErrorAt = function(index) {
+  return this.cancellationReasonAt(index) === "ValidationError";
 };
 
 // src/index.ts
@@ -1290,7 +1302,7 @@ var buildConditionExpression = (attrs, builder) => {
     if (k1 === "size" && k2 instanceof Fluent) {
       p = `size(${attrs.path(getFluentPath(k2))})`;
       v = (value2) => {
-        return attrs.raw({ N: value2 });
+        return attrs.raw({ N: String(value2) });
       };
     } else {
       p = attrs.path(path);
@@ -1307,7 +1319,7 @@ var buildConditionExpression = (attrs, builder) => {
     };
     switch (op) {
       case "eq":
-        if (typeof value[0] === "undefined") {
+        if (typeof value[0] === "undefined" || value[0] instanceof Set && value[0].size === 0) {
           return `attribute_not_exists(${p})`;
         }
         return `${p} = ${param(0)}`;
@@ -1335,10 +1347,6 @@ var buildConditionExpression = (attrs, builder) => {
         }).join(", ")})`;
       case "contains": {
         const elemParam = attrs.elementValue(value[0], path);
-        if (attrs.isSet(path)) {
-          const innerPath = `${p}.${attrs.name(SET_KEY)}`;
-          return `contains(${innerPath}, ${elemParam})`;
-        }
         return `contains(${p}, ${elemParam})`;
       }
       case "startsWith":
@@ -1389,7 +1397,8 @@ var shouldDelete = (value) => {
   return (
     // undefined value's should be deleted.
     typeof value === "undefined" || // null value's should be deleted.
-    value === null
+    value === null || // empty set's should be deleted
+    value instanceof Set && value.size === 0
   );
 };
 var buildUpdateExpression = (attrs, builder) => {
@@ -1408,15 +1417,15 @@ var buildUpdateExpression = (attrs, builder) => {
     const param = (index, defaultRaw) => {
       const v = value[index];
       if (v instanceof Fluent) {
-        return attrs.path(getFluentPath(value[0]));
+        return attrs.path(getFluentPath(v));
       }
       if (typeof v !== "undefined") {
         return attrs.value(v, path);
       }
       return attrs.raw(defaultRaw);
     };
-    const listParam = (index) => {
-      if (value[index] instanceof Fluent) {
+    const listParam = () => {
+      if (value[0] instanceof Fluent) {
         return attrs.path(getFluentPath(value[0]));
       }
       return attrs.value(value, path);
@@ -1425,7 +1434,7 @@ var buildUpdateExpression = (attrs, builder) => {
       if (value[0] instanceof Fluent) {
         return attrs.path(getFluentPath(value[0]));
       }
-      return attrs.innerSetValue(new Set(value), path);
+      return attrs.value(new Set(value), path);
     };
     switch (op) {
       case "set":
@@ -1441,7 +1450,7 @@ var buildUpdateExpression = (attrs, builder) => {
       case "setPartial":
         for (const [k, v] of Object.entries(value[0])) {
           if (shouldDelete(v)) {
-            rem.push(k);
+            rem.push(attrs.path([...path, k]));
           } else {
             set2.push(`${attrs.path([...path, k])} = ${attrs.value(v, [...path, k])}`);
           }
@@ -1459,11 +1468,11 @@ var buildUpdateExpression = (attrs, builder) => {
         break;
       // case 'push':
       case "append":
-        set2.push(`${p} = list_append(${p}, ${listParam(0)})`);
+        set2.push(`${p} = list_append(${p}, ${listParam()})`);
         break;
       // case 'unshift':
       case "prepend":
-        set2.push(`${p} = list_append(${listParam(0)}, ${p})`);
+        set2.push(`${p} = list_append(${listParam()}, ${p})`);
         break;
       case "incr":
         set2.push(`${p} = if_not_exists(${p}, ${param(1, { N: "0" })}) + ${param(0)}`);
@@ -1472,13 +1481,11 @@ var buildUpdateExpression = (attrs, builder) => {
         set2.push(`${p} = if_not_exists(${p}, ${param(1, { N: "0" })}) - ${param(0)}`);
         break;
       case "add": {
-        const innerPath = `${p}.${attrs.name(SET_KEY)}`;
-        add.push(`${innerPath} ${innerSetParam()}`);
+        add.push(`${p} ${innerSetParam()}`);
         break;
       }
       case "remove": {
-        const innerPath = `${p}.${attrs.name(SET_KEY)}`;
-        del.push(`${innerPath} ${innerSetParam()}`);
+        del.push(`${p} ${innerSetParam()}`);
         break;
       }
       default:
@@ -1570,7 +1577,7 @@ var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
       response = [
         //
         ...response,
-        ...(result.Responses?.[table.name] ?? []).map((item) => table.unmarshall(item))
+        ...(result.Responses?.[table.name] ?? []).map((item) => table.unmarshall(item, options.select))
       ];
     }
     const list = keys.map((key) => {
@@ -1666,7 +1673,7 @@ var query = (table, key, options = {}) => {
     });
     const result = await client(options).send(command);
     return {
-      items: result.Items?.map((item) => table.unmarshall(item)) ?? [],
+      items: result.Items?.map((item) => table.unmarshall(item, options.select)) ?? [],
       cursor: toCursorString(result.LastEvaluatedKey)
     };
   };
@@ -1713,7 +1720,7 @@ var scan = (table, options = {}) => {
     });
     const result = await client(options).send(command);
     return {
-      items: result.Items?.map((item) => table.unmarshall(item)) || [],
+      items: result.Items?.map((item) => table.unmarshall(item, options.select)) || [],
       cursor: toCursorString(result.LastEvaluatedKey)
     };
   };
@@ -1754,7 +1761,8 @@ var transactRead = async (items, options = {}) => {
     TransactItems: transactItems.map((item) => item.input)
   });
   const result = await client(options).send(command);
-  return result.Responses.map((res, i) => {
+  const responses = result.Responses ?? [];
+  return responses.map((res, i) => {
     if (res.Item) {
       return transactItems[i].unmarshall(res.Item);
     }

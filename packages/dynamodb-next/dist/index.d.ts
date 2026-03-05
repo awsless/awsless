@@ -55,22 +55,22 @@ type BaseSchema<A extends AttributeType, T = any, Exp extends Expression = Expre
     readonly name: string;
     readonly type?: A;
     validateInput(value: T): boolean;
-    validateOutput(value: AttributeOutput<A>): boolean;
+    validateOutput(value: AttributeOutput<A> | undefined): boolean;
     marshall(value: T, path: Array<string | number>): AttributeInput<A>;
-    unmarshall(value: AttributeOutput<A>, path: Array<string | number>): T;
+    unmarshall(value: AttributeOutput<A>, path: Array<string | number>, projection?: string[]): T;
     walk?(...path: Array<string | number>): GenericSchema | undefined;
 };
 
-type AnyMapSchema = BaseSchema<'M'>;
+type GenericMapSchema = BaseSchema<'M'>;
 type Infer$2<T extends AnyTable> = T['schema'][symbol]['Type'];
-type AnyTable<T extends AnyMapSchema = AnyMapSchema> = Table<T, any, any, any>;
+type AnyTable<T extends GenericMapSchema = GenericMapSchema> = Table<T, any, any, any>;
 type IndexNames<T extends AnyTable> = Extract<keyof T['indexes'], string>;
-type TableIndex<Schema extends AnyMapSchema> = {
+type TableIndex<Schema extends GenericMapSchema> = {
     hash: Extract<keyof Schema[symbol]['Type'], string>;
     sort?: Extract<keyof Schema[symbol]['Type'], string> | undefined;
 };
-type TableIndexes<Schema extends AnyMapSchema> = Record<string, TableIndex<Schema>>;
-declare class Table<Schema extends AnyMapSchema, Hash extends Extract<keyof Schema[symbol]['Type'], string>, Sort extends Extract<keyof Schema[symbol]['Type'], string> | undefined, Indexes extends TableIndexes<Schema> | undefined> {
+type TableIndexes<Schema extends GenericMapSchema> = Record<string, TableIndex<Schema>>;
+declare class Table<Schema extends GenericMapSchema, Hash extends Extract<keyof Schema[symbol]['Type'], string>, Sort extends Extract<keyof Schema[symbol]['Type'], string> | undefined, Indexes extends TableIndexes<Schema> | undefined> {
     readonly name: string;
     readonly hash: Hash;
     readonly sort: Sort;
@@ -82,11 +82,12 @@ declare class Table<Schema extends AnyMapSchema, Hash extends Extract<keyof Sche
         schema: Schema;
         indexes?: Indexes;
     });
+    get keys(): (Hash | NonNullable<Sort>)[];
     walk(...path: Array<string | number>): GenericSchema | Schema;
     marshall(item: Partial<Schema[symbol]['Type']>): Record<string, AttributeValue>;
-    unmarshall(item: any): Schema[symbol]['Type'];
+    unmarshall(item: any, projection?: string[]): Schema[symbol]['Type'];
 }
-declare const define: <Schema extends AnyMapSchema, Hash extends Extract<keyof Schema[symbol]["Type"], string>, Sort extends Extract<keyof Schema[symbol]["Type"], string> | undefined, Indexes extends TableIndexes<Schema> | undefined>(name: string, options: {
+declare const define: <Schema extends GenericMapSchema, Hash extends Extract<keyof Schema[symbol]["Type"], string>, Sort extends Extract<keyof Schema[symbol]["Type"], string> | undefined, Indexes extends TableIndexes<Schema> | undefined>(name: string, options: {
     hash: Hash;
     sort?: Sort;
     schema: Schema;
@@ -587,11 +588,15 @@ declare const dynamoDBDocumentClient: {
     set(client: DynamoDBDocumentClient): void;
 };
 
-type Code = 'ConditionalCheckFailed' | 'TransactionConflict';
+type Code = 'None' | 'ThrottlingError' | 'ValidationError' | 'TransactionConflict' | 'ConditionalCheckFailed' | 'ItemCollectionSizeLimitExceeded' | 'ProvisionedThroughputExceeded';
 declare module '@aws-sdk/client-dynamodb' {
     interface TransactionCanceledException {
         cancellationReasonAt: (index: number) => Code | undefined;
+        /** Will return true if index has a validation error. */
+        validationErrorAt: (index: number) => boolean;
+        /** Will return true if index has a conditional check failure. */
         conditionFailedAt: (index: number) => boolean;
+        /** Will return true if index has a transaction conflict. */
         conflictAt: (index: number) => boolean;
     }
 }
@@ -756,4 +761,4 @@ type TransactReadResponse<T extends Transactable[]> = {
 type TransactWriteOptions = Options$1;
 declare const transactRead: <const T extends Transactable[]>(items: T, options?: TransactWriteOptions) => Promise<TransactReadResponse<T>>;
 
-export { type AnyTable, Fluent, type HashKey, type Infer$2 as Infer, type PrimaryKey, type SortKey, Table, type Transactable$1 as Transactable, any, array, bigfloat, bigint, boolean, conditionCheck, createFluent, date, define, deleteItem, deleteItems, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexItem, getItem, getItems, json, migrate, mockDynamoDB, number, object, optional, putItem, putItems, query, record, scan, seed, seedTable, set, streamTable, string, transactRead, transactWrite, ttl, tuple, uint8array, unknown, updateItem, uuid, variant };
+export { type AnySchema, type AnyTable, type ArraySchema, type BigFloatSchema, type BigIntSchema, type BooleanSchema, type DateSchema, type EnumSchema, Fluent, type HashKey, type Infer$2 as Infer, type JsonSchema, type NumberSchema, type ObjectSchema, type PrimaryKey, type RecordSchema, type SetSchema, type SortKey, type StringSchema, Table, type Transactable$1 as Transactable, type TtlSchema, type TupleSchema, type TupleWithRestSchema, type Uint8ArraySchema, type UnknownSchema, type UuidSchema, type VariantSchema, any, array, bigfloat, bigint, boolean, conditionCheck, createFluent, date, define, deleteItem, deleteItems, dynamoDBClient, dynamoDBDocumentClient, enum_, getIndexItem, getItem, getItems, json, migrate, mockDynamoDB, number, object, optional, putItem, putItems, query, record, scan, seed, seedTable, set, streamTable, string, transactRead, transactWrite, ttl, tuple, uint8array, unknown, updateItem, uuid, variant };

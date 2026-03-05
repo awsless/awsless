@@ -25,6 +25,6 @@ export const array = <S extends GenericSchema>(schema: S): ArraySchema<S> =>
 		unmarshall: (value, path) => value.L.map((item, i) => schema.unmarshall(item, [...path, i])),
 		// validate: value => Array.isArray(value),
 		validateInput: value => Array.isArray(value),
-		validateOutput: value => 'L' in value && Array.isArray(value.L),
+		validateOutput: value => typeof value === 'object' && 'L' in value && Array.isArray(value.L),
 		walk: (_, ...rest) => (rest.length ? schema.walk?.(...rest) : schema),
 	})

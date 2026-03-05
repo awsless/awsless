@@ -18,6 +18,6 @@ export const date = (): DateSchema =>
 		marshall: value => ({ N: String(value.getTime()) }),
 		unmarshall: value => new Date(Number(value.N)),
 		// validate: value => value instanceof Date,
-		validateInput: value => value instanceof Date,
-		validateOutput: value => !!('N' in value && typeof value.N === 'string'),
+		validateInput: value => value instanceof Date && !isNaN(value.getTime()),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
 	})

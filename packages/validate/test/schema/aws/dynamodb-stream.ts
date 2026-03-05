@@ -80,6 +80,21 @@ describe('DynamoDB Stream', () => {
 		])
 	})
 
+	it('should throw for invalid key schema', () => {
+		expect(() =>
+			parse(schema, {
+				Records: [
+					{
+						eventName: 'INSERT',
+						dynamodb: {
+							Keys: { unknown: { N: '1' } },
+						},
+					},
+				],
+			})
+		).toThrow(TypeError)
+	})
+
 	it('should throw for invalid payload', () => {
 		expect(() =>
 			parse(schema, {
@@ -97,51 +112,23 @@ describe('DynamoDB Stream', () => {
 
 	it('types', () => {
 		expectTypeOf<InferInput<typeof schema>>().toEqualTypeOf<{
-			Records: Array<
-				| {
-						eventName: 'MODIFY'
-						dynamodb: {
-							Keys: unknown
-							OldImage: unknown
-							NewImage: unknown
-						}
-				  }
-				| {
-						eventName: 'INSERT'
-						dynamodb: {
-							Keys: unknown
-							NewImage: unknown
-						}
-				  }
-				| {
-						eventName: 'REMOVE'
-						dynamodb: {
-							Keys: unknown
-							OldImage: unknown
-						}
-				  }
-			>
+			Records: Array<{
+				eventName: 'INSERT' | 'MODIFY' | 'REMOVE'
+				dynamodb: {
+					Keys: unknown
+					OldImage?: unknown
+					NewImage?: unknown
+				}
+			}>
 		}>()
 
 		expectTypeOf<InferOutput<typeof schema>>().toEqualTypeOf<
-			Array<
-				| {
-						event: 'modify'
-						keys: { id: number }
-						old: { id: number; name: string }
-						new: { id: number; name: string }
-				  }
-				| {
-						event: 'insert'
-						keys: { id: number }
-						new: { id: number; name: string }
-				  }
-				| {
-						event: 'remove'
-						keys: { id: number }
-						old: { id: number; name: string }
-				  }
-			>
+			Array<{
+				event: 'modify' | 'insert' | 'remove'
+				keys: { id: number }
+				old?: { id: number; name: string }
+				new?: { id: number; name: string }
+			}>
 		>()
 	})
 })

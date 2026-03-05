@@ -50,7 +50,7 @@ export const record = <S extends GenericSchema>(schema: S): RecordSchema<S> =>
 					continue
 				}
 
-				result[key] = schema.marshall(value, [...path, key])
+				result[key] = marshalled
 			}
 
 			return { M: result }
@@ -65,7 +65,8 @@ export const record = <S extends GenericSchema>(schema: S): RecordSchema<S> =>
 			return result
 		},
 		validateInput: value => typeof value === 'object' && value !== null,
-		validateOutput: value => !!('M' in value && typeof value.M === 'object' && value !== null),
+		validateOutput: value =>
+			!!(typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null),
 		walk(_, ...rest) {
 			return rest.length ? schema.walk?.(...rest) : schema
 		},

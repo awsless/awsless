@@ -35,38 +35,18 @@ type SnsTopicSchema<S extends GenericSchema> = BaseSchema<InferInput<S> | InferI
 declare const snsTopic: <S extends GenericSchema>(schema: S, message?: ErrorMessage<GenericIssue>) => SnsTopicSchema<S>;
 
 type DynamoDBStreamInputRecord = {
-    eventName: 'MODIFY';
+    eventName: 'INSERT' | 'MODIFY' | 'REMOVE';
     dynamodb: {
         Keys: unknown;
-        OldImage: unknown;
-        NewImage: unknown;
-    };
-} | {
-    eventName: 'INSERT';
-    dynamodb: {
-        Keys: unknown;
-        NewImage: unknown;
-    };
-} | {
-    eventName: 'REMOVE';
-    dynamodb: {
-        Keys: unknown;
-        OldImage: unknown;
+        OldImage?: unknown;
+        NewImage?: unknown;
     };
 };
 type DynamoDBStreamOutputRecord<T extends AnyTable> = {
-    event: 'modify';
+    event: 'insert' | 'modify' | 'remove';
     keys: PrimaryKey<T>;
-    old: Infer<T>;
-    new: Infer<T>;
-} | {
-    event: 'insert';
-    keys: PrimaryKey<T>;
-    new: Infer<T>;
-} | {
-    event: 'remove';
-    keys: PrimaryKey<T>;
-    old: Infer<T>;
+    old?: Infer<T>;
+    new?: Infer<T>;
 };
 type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<{
     Records: DynamoDBStreamInputRecord[];

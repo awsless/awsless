@@ -25,8 +25,9 @@ export const transactRead = async <const T extends Transactable[]>(
 	})
 
 	const result = await client(options).send(command)
+	const responses = result.Responses ?? []
 
-	return result.Responses!.map((res, i) => {
+	return responses.map((res, i) => {
 		if (res.Item) {
 			return transactItems[i]!.unmarshall(res.Item)
 		}

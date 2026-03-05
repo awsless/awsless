@@ -26,7 +26,7 @@ export type BrandSchema<S extends AnySchema, B extends BrandName> = BaseSchema<
 				? BooleanExpression<Brand<S[symbol]['Type'], B>>
 				: 'B' extends S['type']
 					? BinaryExpression<Brand<S[symbol]['Type'], B>>
-					: 'SS' | 'NS' | 'BN' extends S['type']
+					: 'SS' | 'NS' | 'BS' extends S['type']
 						? SetExpression<S['type'], Brand<S[symbol]['Type'], B>>
 						: S[symbol]['Expression']
 >

@@ -24,5 +24,5 @@ export const buffer = (): BufferSchema =>
 		unmarshall: value => Buffer.from(value.B),
 		// validate: value => Buffer.isBuffer(value),
 		validateInput: value => Buffer.isBuffer(value),
-		validateOutput: value => !!('B' in value && isUint8Array(value.B)),
+		validateOutput: value => !!(typeof value === 'object' && 'B' in value && isUint8Array(value.B)),
 	})

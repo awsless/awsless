@@ -24,6 +24,6 @@ export function bigint<T extends bigint>(): BigIntSchema<T> {
 		unmarshall: value => BigInt(value.N) as T,
 		// validate: value => typeof value === 'bigint',
 		validateInput: value => typeof value === 'bigint',
-		validateOutput: value => !!('N' in value && typeof value.N === 'string'),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
 	})
 }

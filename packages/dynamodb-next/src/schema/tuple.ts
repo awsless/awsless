@@ -49,7 +49,7 @@ export function tuple<const T extends GenericSchema[], const R extends GenericSc
 			value.L.map((item, i) => (entries[i] ?? rest)?.unmarshall(item, [...path, i])) as Tuple<T>,
 		// validate: value => Array.isArray(value),
 		validateInput: value => Array.isArray(value),
-		validateOutput: value => !!('L' in value && Array.isArray(value.L)),
+		validateOutput: value => !!(typeof value === 'object' && 'L' in value && Array.isArray(value.L)),
 		walk(path, ...restPath) {
 			const schema = entries[path as number] ?? rest
 			return restPath.length ? schema?.walk?.(...restPath) : schema

@@ -3,6 +3,7 @@ import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/c
 import { Cancelled, log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
 // import { randomUUID } from 'crypto'
+import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { createApp } from '../../../app.js'
 import { ExpectedError } from '../../../error.js'
 import { createInvalidationForDistributionTenants } from '../../../formation/cloudfront.js'
@@ -98,10 +99,10 @@ export const clearCache = (program: Command) => {
 					region,
 				})
 
-				// const cloudFrontClient = new CloudFrontClient({
-				// 	credentials,
-				// 	region: 'us-east-1',
-				// })
+				const cloudFrontClient = new CloudFrontClient({
+					credentials,
+					region,
+				})
 
 				let totalDeleted = 0
 
@@ -142,9 +143,7 @@ export const clearCache = (program: Command) => {
 							}
 						}
 
-						await createInvalidationForDistributionTenants({
-							credentials,
-							region,
+						await createInvalidationForDistributionTenants(cloudFrontClient, {
 							distributionId,
 							paths: [shared.entry('icon', 'path', name!)],
 						})

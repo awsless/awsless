@@ -18,6 +18,6 @@ export const ttl = (): TtlSchema =>
 		marshall: value => ({ N: String(Math.floor(value.getTime() / 1000)) }),
 		unmarshall: value => new Date(Number(value.N) * 1000),
 		// validate: value => value instanceof Date,
-		validateInput: value => value instanceof Date,
-		validateOutput: value => !!('N' in value && typeof value.N === 'string'),
+		validateInput: value => value instanceof Date && !isNaN(value.getTime()),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
 	})

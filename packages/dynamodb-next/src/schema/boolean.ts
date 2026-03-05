@@ -22,6 +22,6 @@ export function boolean<T extends boolean>(): BooleanSchema<T> {
 		unmarshall: value => value.BOOL as T,
 		// validate: value => typeof value === 'boolean',
 		validateInput: value => typeof value === 'boolean',
-		validateOutput: value => !!('BOOL' in value && typeof value.BOOL === 'boolean'),
+		validateOutput: value => !!(typeof value === 'object' && 'BOOL' in value && typeof value.BOOL === 'boolean'),
 	})
 }

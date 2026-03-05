@@ -48,14 +48,14 @@ export type SchemaProps<A extends AttributeType, T = any> = {
 
 	// validate(value: T): boolean
 
-	validateInput(value: T): boolean
-	validateOutput(value: AttributeOutput<A>): boolean
+	validateInput(value: unknown): boolean
+	validateOutput(value: AttributeOutput<A> | undefined): boolean
 
 	// encode?(value: T): AttributeInputValue<A>
 	// decode?(value: AttributeOutputValue<A>): T
 
 	marshall(value: T, path: Array<string | number>): AttributeInput<A>
-	unmarshall(value: AttributeOutput<A>, path: Array<string | number>): T
+	unmarshall(value: AttributeOutput<A>, path: Array<string | number>, projection?: string[]): T
 
 	// filterIn?(value: T | undefined): boolean
 	// filterOut?(value: T | undefined): boolean
@@ -84,13 +84,13 @@ export type BaseSchema<A extends AttributeType, T = any, Exp extends Expression 
 	readonly type?: A
 
 	validateInput(value: T): boolean
-	validateOutput(value: AttributeOutput<A>): boolean
+	validateOutput(value: AttributeOutput<A> | undefined): boolean
 
 	// encode(value: T): AttributeInputValue<A>
 	// decode(value: AttributeOutputValue<A>): T
 
 	marshall(value: T, path: Array<string | number>): AttributeInput<A>
-	unmarshall(value: AttributeOutput<A>, path: Array<string | number>): T
+	unmarshall(value: AttributeOutput<A>, path: Array<string | number>, projection?: string[]): T
 
 	// marshallInner?(value: T): AttributeInput<A> | undefined
 	// filterIn(value: T | undefined): boolean
@@ -137,17 +137,20 @@ export const createSchema = <A extends AttributeType, T>(props: SchemaProps<A, T
 
 			return props.marshall(value, path)
 		},
-		unmarshall(value, path) {
-			if (typeof value !== 'object' || !props.validateOutput(value)) {
-				throw new InvalidPayloadError('unmarshall', props, path, value)
+		unmarshall(value, path, projection) {
+			if (
+				((typeof value === 'object' && value !== null) || typeof value === 'undefined') &&
+				props.validateOutput(value)
+			) {
+				return props.unmarshall(value, path, projection)
 			}
 
-			return props.unmarshall(value, path)
+			throw new InvalidPayloadError('unmarshall', props, path, value)
 		},
 	}
 }
 
-class InvalidPayloadError extends TypeError {
+export class InvalidPayloadError extends TypeError {
 	constructor(type: string, schema: GenericSchema, path: Array<string | number>, value: unknown) {
 		super(
 			`Invalid ${type} payload provided for "${path.join('.')}". Expected ${schema.name}. Received ${typeof value}`

@@ -157,6 +157,10 @@ var snsTopic = (schema, message = "Invalid SNS Topic payload") => {
 // src/schema/aws/dynamodb-stream.ts
 var import_valibot7 = require("valibot");
 var dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
+  const unmarshallKeys = () => (0, import_valibot7.pipe)(
+    (0, import_valibot7.unknown)(),
+    (0, import_valibot7.transform)((v) => table.unmarshall(v, table.keys))
+  );
   const unmarshall = () => (0, import_valibot7.pipe)(
     (0, import_valibot7.unknown)(),
     (0, import_valibot7.transform)((v) => table.unmarshall(v))
@@ -165,30 +169,14 @@ var dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
     (0, import_valibot7.object)(
       {
         Records: (0, import_valibot7.array)(
-          (0, import_valibot7.variant)("eventName", [
-            (0, import_valibot7.object)({
-              eventName: (0, import_valibot7.literal)("MODIFY"),
-              dynamodb: (0, import_valibot7.object)({
-                Keys: unmarshall(),
-                OldImage: unmarshall(),
-                NewImage: unmarshall()
-              })
-            }),
-            (0, import_valibot7.object)({
-              eventName: (0, import_valibot7.literal)("INSERT"),
-              dynamodb: (0, import_valibot7.object)({
-                Keys: unmarshall(),
-                NewImage: unmarshall()
-              })
-            }),
-            (0, import_valibot7.object)({
-              eventName: (0, import_valibot7.literal)("REMOVE"),
-              dynamodb: (0, import_valibot7.object)({
-                Keys: unmarshall(),
-                OldImage: unmarshall()
-              })
+          (0, import_valibot7.object)({
+            eventName: (0, import_valibot7.picklist)(["MODIFY", "INSERT", "REMOVE"]),
+            dynamodb: (0, import_valibot7.object)({
+              Keys: unmarshallKeys(),
+              OldImage: (0, import_valibot7.optional)(unmarshall()),
+              NewImage: (0, import_valibot7.optional)(unmarshall())
             })
-          ])
+          })
         )
       },
       message

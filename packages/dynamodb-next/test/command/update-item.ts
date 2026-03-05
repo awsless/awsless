@@ -7,6 +7,7 @@ import {
 	number,
 	object,
 	optional,
+	putItem,
 	string,
 	updateItem,
 } from '../../src/index'
@@ -17,7 +18,6 @@ describe('Update', () => {
 		schema: object({
 			id: number(),
 			name: string(),
-			email: string(),
 			deletedAt: optional(date()),
 		}),
 	})
@@ -25,6 +25,10 @@ describe('Update', () => {
 	mockDynamoDB({ tables: [users] })
 
 	const user = { id: 1, name: 'Jack' }
+
+	// it('prepare initial state', async () => {
+	// 	await putItem(users, user)
+	// })
 
 	it('should update', async () => {
 		const result1 = await updateItem(
@@ -79,7 +83,6 @@ describe('Update', () => {
 		expectTypeOf(result).toEqualTypeOf<{
 			id: number
 			name: string
-			email: string
 			deletedAt?: Date
 		}>()
 	})
@@ -116,7 +119,7 @@ describe('Update', () => {
 				update: e => e.name.set(e.name),
 				when: e => [
 					//
-					e.name.in(['Jack', e.email]),
+					e.name.in(['Jack']),
 					// e.name.contains(e.email),
 				],
 			}

@@ -39,6 +39,24 @@ const hasLockTable = async (client: DynamoDB) => {
 	}
 }
 
+const hasActivityLogTable = async (client: DynamoDB) => {
+	try {
+		const result = await client.send(
+			new DescribeTableCommand({
+				TableName: 'awsless-logs',
+			})
+		)
+
+		return !!result.Table
+	} catch (error) {
+		if (error instanceof ResourceNotFoundException) {
+			return false
+		}
+
+		throw error
+	}
+}
+
 const hasStateBucket = async (client: S3Client, region: Region, accountId: string) => {
 	try {
 		const result = await client.send(
@@ -74,6 +92,35 @@ const createLockTable = (client: DynamoDB) => {
 				{
 					AttributeName: 'urn',
 					AttributeType: ScalarAttributeType.S,
+				},
+			],
+		})
+	)
+}
+
+const createActivityLogTable = (client: DynamoDB) => {
+	return client.send(
+		new CreateTableCommand({
+			TableName: 'awsless-logs',
+			BillingMode: BillingMode.PAY_PER_REQUEST,
+			KeySchema: [
+				{
+					AttributeName: 'urn',
+					KeyType: KeyType.HASH,
+				},
+				{
+					AttributeName: 'date',
+					KeyType: KeyType.RANGE,
+				},
+			],
+			AttributeDefinitions: [
+				{
+					AttributeName: 'urn',
+					AttributeType: ScalarAttributeType.S,
+				},
+				{
+					AttributeName: 'date',
+					AttributeType: ScalarAttributeType.N,
 				},
 			],
 		})
@@ -120,13 +167,14 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 	const dynamo = new DynamoDB(props)
 	const s3 = new S3Client(props)
 
-	const [table, bucket] = await Promise.all([
+	const [lockTable, logTable, stateBucket] = await Promise.all([
 		//
 		hasLockTable(dynamo),
+		hasActivityLogTable(dynamo),
 		hasStateBucket(s3, props.region, props.accountId),
 	])
 
-	if (!table || !bucket) {
+	if (!lockTable || !stateBucket || !logTable) {
 		log.warning(`Awsless hasn't been bootstrapped yet.`)
 
 		if (!process.env.SKIP_PROMPT) {
@@ -144,11 +192,15 @@ export const bootstrapAwsless = async (props: { region: Region; credentials: Cre
 			successMessage: 'Done deploying the bootstrap stack.',
 			errorMessage: 'Failed to bootstrap Awsless.',
 			async task() {
-				if (!table) {
+				if (!lockTable) {
 					await createLockTable(dynamo)
 				}
 
-				if (!bucket) {
+				if (!logTable) {
+					await createActivityLogTable(dynamo)
+				}
+
+				if (!stateBucket) {
 					await createStateBucket(s3, props.region, props.accountId)
 				}
 			},

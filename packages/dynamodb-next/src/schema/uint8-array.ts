@@ -23,5 +23,5 @@ export const uint8array = (): Uint8ArraySchema =>
 		unmarshall: value => value.B,
 		// validate: value => value instanceof Uint8Array,
 		validateInput: value => value instanceof Uint8Array,
-		validateOutput: value => !!('B' in value && isUint8Array(value.B)),
+		validateOutput: value => !!(typeof value === 'object' && 'B' in value && isUint8Array(value.B)),
 	})

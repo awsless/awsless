@@ -4,55 +4,29 @@ import {
 	BaseSchema,
 	ErrorMessage,
 	GenericIssue,
-	literal,
 	object,
+	optional,
+	picklist,
 	pipe,
 	transform,
 	unknown,
-	variant,
 } from 'valibot'
 
-type DynamoDBStreamInputRecord =
-	| {
-			eventName: 'MODIFY'
-			dynamodb: {
-				Keys: unknown
-				OldImage: unknown
-				NewImage: unknown
-			}
-	  }
-	| {
-			eventName: 'INSERT'
-			dynamodb: {
-				Keys: unknown
-				NewImage: unknown
-			}
-	  }
-	| {
-			eventName: 'REMOVE'
-			dynamodb: {
-				Keys: unknown
-				OldImage: unknown
-			}
-	  }
+type DynamoDBStreamInputRecord = {
+	eventName: 'INSERT' | 'MODIFY' | 'REMOVE'
+	dynamodb: {
+		Keys: unknown
+		OldImage?: unknown
+		NewImage?: unknown
+	}
+}
 
-type DynamoDBStreamOutputRecord<T extends AnyTable> =
-	| {
-			event: 'modify'
-			keys: PrimaryKey<T>
-			old: Infer<T>
-			new: Infer<T>
-	  }
-	| {
-			event: 'insert'
-			keys: PrimaryKey<T>
-			new: Infer<T>
-	  }
-	| {
-			event: 'remove'
-			keys: PrimaryKey<T>
-			old: Infer<T>
-	  }
+type DynamoDBStreamOutputRecord<T extends AnyTable> = {
+	event: 'insert' | 'modify' | 'remove'
+	keys: PrimaryKey<T>
+	old?: Infer<T>
+	new?: Infer<T>
+}
 
 export type DynamoDBStreamSchema<T extends AnyTable> = BaseSchema<
 	{ Records: DynamoDBStreamInputRecord[] },
@@ -64,6 +38,12 @@ export const dynamoDbStream = <T extends AnyTable>(
 	table: T,
 	message: ErrorMessage<GenericIssue> = 'Invalid DynamoDB Stream payload'
 ): DynamoDBStreamSchema<T> => {
+	const unmarshallKeys = () =>
+		pipe(
+			unknown(),
+			transform(v => table.unmarshall(v, table.keys))
+		)
+
 	const unmarshall = () =>
 		pipe(
 			unknown(),
@@ -74,30 +54,14 @@ export const dynamoDbStream = <T extends AnyTable>(
 		object(
 			{
 				Records: array(
-					variant('eventName', [
-						object({
-							eventName: literal('MODIFY'),
-							dynamodb: object({
-								Keys: unmarshall(),
-								OldImage: unmarshall(),
-								NewImage: unmarshall(),
-							}),
+					object({
+						eventName: picklist(['MODIFY', 'INSERT', 'REMOVE']),
+						dynamodb: object({
+							Keys: unmarshallKeys(),
+							OldImage: optional(unmarshall()),
+							NewImage: optional(unmarshall()),
 						}),
-						object({
-							eventName: literal('INSERT'),
-							dynamodb: object({
-								Keys: unmarshall(),
-								NewImage: unmarshall(),
-							}),
-						}),
-						object({
-							eventName: literal('REMOVE'),
-							dynamodb: object({
-								Keys: unmarshall(),
-								OldImage: unmarshall(),
-							}),
-						}),
-					])
+					})
 				),
 			},
 			message

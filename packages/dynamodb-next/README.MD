@@ -11,7 +11,7 @@ The `awsless/dynamodb` package provides a small and tree-shakable layer around a
 
 ## Recommended
 
-Make sure to enable `strict` mode inside your tsconfig file, to get the most benafit of the strong typing guarantees that this package has to offer.
+Make sure to enable `strict` mode inside your tsconfig file, to get the most benefit of the strong typing guarantees that this package has to offer.
 
 ## Setup
 
@@ -188,16 +188,9 @@ We provides the following schema types:
 
 DynamoDB has a limitation where a empty `set` can't be stored.
 Instead the empty `set` attribute will be removed.
-But with this limitation it's not possible to differentiate between a empty `set` and a undefined attribute.
-In order to overcome this limitation we store a `set` differently.
-Examples of the data structure:
-
-- Undefined attribute:
-  `undefined`
-- Empty set:
-  `{ M: {} }`
-- Set with items:
-  `{ M: { __SET__: { SS: ['item'] } } }`
+But with this limitation it's not possible to differentiate between an empty `set` and an undefined attribute.
+Because of this limitation we will always return an empty `set` by default.
+For an optional `set` we will return `undefined` if the set is empty.
 
 ### `variant` Schema Type
 

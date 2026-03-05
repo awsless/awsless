@@ -1,5 +1,5 @@
 import { AttributeType } from '../schema/schema'
-import { SET_KEY } from '../schema/set'
+// import { SET_KEY } from '../schema/set'
 import { AnyTable } from '../table'
 import { ExpressionAttributes } from './attributes'
 import { createFluent, Fluent, getFluentExpression, getFluentPath } from './fluent'
@@ -143,7 +143,7 @@ export const buildConditionExpression = (
 		if (k1 === 'size' && k2 instanceof Fluent) {
 			p = `size(${attrs.path(getFluentPath(k2))})`
 			v = value => {
-				return attrs.raw({ N: value })
+				return attrs.raw({ N: String(value) })
 			}
 		} else {
 			p = attrs.path(path)
@@ -164,7 +164,7 @@ export const buildConditionExpression = (
 
 		switch (op) {
 			case 'eq':
-				if (typeof value[0] === 'undefined') {
+				if (typeof value[0] === 'undefined' || (value[0] instanceof Set && value[0].size === 0)) {
 					return `attribute_not_exists(${p})`
 				}
 
@@ -196,10 +196,10 @@ export const buildConditionExpression = (
 					.join(', ')})`
 			case 'contains': {
 				const elemParam = attrs.elementValue(value[0], path)
-				if (attrs.isSet(path)) {
-					const innerPath = `${p}.${attrs.name(SET_KEY)}`
-					return `contains(${innerPath}, ${elemParam})`
-				}
+				// if (attrs.isSet(path)) {
+				// 	const innerPath = `${p}.${attrs.name(SET_KEY)}`
+				// 	return `contains(${innerPath}, ${elemParam})`
+				// }
 
 				return `contains(${p}, ${elemParam})`
 			}

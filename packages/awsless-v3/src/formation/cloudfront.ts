@@ -1,7 +1,9 @@
 import {
 	CloudFrontClient,
+	CreateDistributionCommand,
 	CreateInvalidationForDistributionTenantCommand,
 	ListDistributionTenantsCommand,
+	UpdateDistributionCommand,
 } from '@aws-sdk/client-cloudfront' // ES Modules import
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import { randomUUID } from 'crypto'
@@ -30,7 +32,94 @@ type ProviderProps = {
 }
 
 export const createCloudFrontProvider = (props: ProviderProps) => {
+	const client = new CloudFrontClient(props)
+
 	return createCustomProvider('cloudfront', {
+		// distribution: {
+		// 	async createResource(input) {
+		// 		// tags: {
+		// 		// 	name,
+		// 		// },
+		// 		// comment: name,
+		// 		// enabled: true,
+		// 		// viewerCertificate: [{ cloudfrontDefaultCertificate: true }],
+		// 		// origin: [
+		// 		// 	{
+		// 		// 		id: 'default',
+		// 		// 		domainName: 'placeholder.awsless.dev',
+		// 		// 		customOriginConfig: [
+		// 		// 			{
+		// 		// 				httpPort: 80,
+		// 		// 				httpsPort: 443,
+		// 		// 				originProtocolPolicy: 'http-only',
+		// 		// 				originReadTimeout: 20,
+		// 		// 				originSslProtocols: ['TLSv1.2'],
+		// 		// 			},
+		// 		// 		],
+		// 		// 	},
+		// 		// ],
+		// 		// customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
+		// 		// 	if (typeof item === 'string') {
+		// 		// 		return {
+		// 		// 			errorCode: Number(errorCode),
+		// 		// 			responseCode: errorCode,
+		// 		// 			responsePagePath: item,
+		// 		// 		}
+		// 		// 	}
+		// 		// 	return {
+		// 		// 		errorCode: Number(errorCode),
+		// 		// 		errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
+		// 		// 		responseCode: item.statusCode?.toString() ?? errorCode,
+		// 		// 		responsePagePath: item.path,
+		// 		// 	}
+		// 		// }),
+		// 		// restrictions: [
+		// 		// 	{
+		// 		// 		geoRestriction: [
+		// 		// 			{
+		// 		// 				restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
+		// 		// 				items: props.geoRestrictions,
+		// 		// 			},
+		// 		// 		],
+		// 		// 	},
+		// 		// ],
+		// 		// defaultCacheBehavior: [
+		// 		// 	{
+		// 		// 		compress: true,
+		// 		// 		targetOriginId: 'default',
+		// 		// 		functionAssociation: [
+		// 		// 			{
+		// 		// 				eventType: 'viewer-request',
+		// 		// 				functionArn: viewerRequest.arn,
+		// 		// 			},
+		// 		// 		],
+		// 		// 		originRequestPolicyId: originRequest.id,
+		// 		// 		cachePolicyId: cache.id,
+		// 		// 		responseHeadersPolicyId: responseHeaders.id,
+		// 		// 		viewerProtocolPolicy: 'redirect-to-https',
+		// 		// 		allowedMethods: [
+		// 		// 			{
+		// 		// 				items: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+		// 		// 				cachedMethods: ['GET', 'HEAD'],
+		// 		// 			},
+		// 		// 		],
+		// 		// 	},
+		// 		// ],
+		// 		// 	webAclId: waf?.arn,
+		// 		// client.send(
+		// 		// 	new CreateDistributionCommand({
+		// 		// 		DistributionConfig: {
+		// 		// 			Enabled: true,
+		// 		// 			ConnectionMode: 'tenant-only',
+		// 		// 			''
+		// 		// 		},
+		// 		// 	})
+		// 		// )
+		// 		// new UpdateDistributionCommand({
+		// 		// 	'Id'
+		// 		// })
+		// 	},
+		// },
 		invalidation: {
 			async updateResource(input) {
 				const state = z
@@ -40,10 +129,7 @@ export const createCloudFrontProvider = (props: ProviderProps) => {
 					})
 					.parse(input.proposedState)
 
-				await createInvalidationForDistributionTenants({
-					...props,
-					...state,
-				})
+				await createInvalidationForDistributionTenants(client, state)
 
 				return {}
 			},
@@ -51,25 +137,19 @@ export const createCloudFrontProvider = (props: ProviderProps) => {
 	})
 }
 
-export const createInvalidationForDistributionTenants = async ({
-	distributionId,
-	credentials,
-	region,
-	paths,
-}: {
-	credentials: Credentials
-	region: Region
-	distributionId: string
-	paths: string[]
-}) => {
-	const client = new CloudFrontClient({ credentials, region })
-
+export const createInvalidationForDistributionTenants = async (
+	client: CloudFrontClient,
+	props: {
+		distributionId: string
+		paths: string[]
+	}
+) => {
 	let cursor: string | undefined
 	do {
 		const result = await client.send(
 			new ListDistributionTenantsCommand({
 				AssociationFilter: {
-					DistributionId: distributionId,
+					DistributionId: props.distributionId,
 				},
 				MaxItems: 10,
 				Marker: cursor,
@@ -84,8 +164,8 @@ export const createInvalidationForDistributionTenants = async ({
 					Id: tenant.Id,
 					InvalidationBatch: {
 						Paths: {
-							Quantity: paths.length,
-							Items: paths,
+							Quantity: props.paths.length,
+							Items: props.paths,
 						},
 						CallerReference: randomUUID(),
 					},

@@ -52,6 +52,7 @@ export {
 	ConditionalCheckFailedException,
 	TransactionCanceledException,
 	TransactionConflictException,
+	DynamoDBServiceException,
 } from '@aws-sdk/client-dynamodb'
 
 // fluent

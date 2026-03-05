@@ -105,6 +105,7 @@ describe('Schema', () => {
 				// binary: binarySet(),
 
 				empty: set(string()),
+				optional: optional(set(string())),
 				string: set(string()),
 				uuid: set(uuid()),
 				json: set(json<{ n: bigint }>()),
@@ -210,6 +211,7 @@ describe('Schema', () => {
 					any?: any
 					sets: {
 						empty: Set<string>
+						optional?: Set<string>
 						string: Set<string>
 						json: Set<{ n: bigint }>
 						uuid: Set<UUID>

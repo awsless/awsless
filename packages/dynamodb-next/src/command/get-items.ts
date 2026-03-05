@@ -59,7 +59,7 @@ export const getItems: BatchGetItem = <T extends AnyTable, P extends ProjectionE
 			response = [
 				//
 				...response,
-				...(result.Responses?.[table.name] ?? []).map(item => table.unmarshall(item)),
+				...(result.Responses?.[table.name] ?? []).map(item => table.unmarshall(item, options.select)),
 			]
 		}
 

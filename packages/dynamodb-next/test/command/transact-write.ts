@@ -112,7 +112,14 @@ describe('Transact Write', () => {
 			if (error instanceof TransactionCanceledException) {
 				expect(error.conditionFailedAt(0)).toBe(false)
 				expect(error.conditionFailedAt(1)).toBe(true)
-				expect(error.conditionFailedAt(2)).toBe(false)
+
+				expect(() => {
+					error.conditionFailedAt(2)
+				}).toThrow(Error)
+
+				expect(() => {
+					error.conditionFailedAt(999)
+				}).toThrow(Error)
 			} else {
 				throw error
 			}

@@ -66,7 +66,7 @@ describe('optional set', () => {
 
 		expect(result).toStrictEqual({
 			id: 1,
-			set: new Set(),
+			// set: new Set(),
 		})
 	})
 
@@ -109,7 +109,7 @@ describe('optional set', () => {
 
 		expect(result).toStrictEqual({
 			id: 1,
-			set: new Set(),
+			// set: new Set(),
 		})
 	})
 

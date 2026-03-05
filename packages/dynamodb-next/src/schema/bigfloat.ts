@@ -25,5 +25,5 @@ export const bigfloat = (): BigFloatSchema =>
 		unmarshall: value => parse(value.N),
 		// validate: value => value instanceof BigFloat,
 		validateInput: value => value instanceof BigFloat,
-		validateOutput: value => !!('N' in value && typeof value.N === 'string'),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
 	})

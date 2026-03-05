@@ -21,5 +21,6 @@ export const uuid = (): UuidSchema =>
 		// validate: value => typeof value === 'string',
 		// validate: value => typeof value === 'string' && regex.test(value),
 		validateInput: value => typeof value === 'string' && regex.test(value),
-		validateOutput: value => !!('S' in value && typeof value.S === 'string' && regex.test(value.S)),
+		validateOutput: value =>
+			!!(typeof value === 'object' && 'S' in value && typeof value.S === 'string' && regex.test(value.S)),
 	})

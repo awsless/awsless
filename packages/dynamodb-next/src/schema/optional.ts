@@ -36,6 +36,7 @@ export const optional = <T extends GenericSchema>(schema: T): OptionalSchema<T> 
 		marshall(value, path) {
 			if (typeof value === 'undefined') {
 				return { NULL: true }
+				// return undefined
 			}
 
 			return schema.marshall(value, path)
@@ -45,7 +46,13 @@ export const optional = <T extends GenericSchema>(schema: T): OptionalSchema<T> 
 				return undefined
 			}
 
-			return schema.unmarshall(value, path)
+			const output = schema.unmarshall(value, path)
+
+			if (output instanceof Set && output.size === 0) {
+				return undefined
+			}
+
+			return output
 		},
 		// validate(value) {
 		// 	if (typeof value === 'undefined') {

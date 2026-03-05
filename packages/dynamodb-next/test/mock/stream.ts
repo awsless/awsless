@@ -20,11 +20,17 @@ describe('Mock Stream', () => {
 			id: number(),
 			name: string(),
 		}),
+		indexes: {
+			byName: {
+				hash: 'name',
+			},
+		},
 	})
 
 	const process = vitest.fn()
 
 	mockDynamoDB({
+		engine: 'correctness',
 		tables: [users],
 		stream: [streamTable(users, process)],
 	})

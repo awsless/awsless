@@ -59,6 +59,7 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 			// },
 		},
 		{
+			logLevel: 'silent',
 			plugins: [
 				// @ts-ignore
 				commonjs({ sourceMap: true }),

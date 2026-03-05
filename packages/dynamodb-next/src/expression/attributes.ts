@@ -1,5 +1,5 @@
 import { AttributeValue } from '@aws-sdk/client-dynamodb'
-import { SET_KEY } from '../schema/set'
+// import { SET_KEY } from '../schema/set'
 import { AnyTable } from '../table'
 
 export type ExpressionAttributeNames = Record<string, string>
@@ -42,19 +42,19 @@ export class ExpressionAttributes {
 		return this.raw(marshalled)
 	}
 
-	innerSetValue(value: any, path: Array<string | number>): string {
-		const schema = this.table.walk(...path)
-		const marshalled = schema.marshall(value, path)
+	// innerSetValue(value: any, path: Array<string | number>): string {
+	// 	const schema = this.table.walk(...path)
+	// 	const marshalled = schema.marshall(value, path)
 
-		return this.raw(marshalled.M[SET_KEY])
-	}
+	// 	return this.raw(marshalled.M[SET_KEY])
+	// }
 
-	isSet(path: Array<string | number>): boolean {
-		const schema = this.table.walk(...path)
-		const type = schema.type
+	// isSet(path: Array<string | number>): boolean {
+	// 	const schema = this.table.walk(...path)
+	// 	const type = schema.type
 
-		return type === 'SS' || type === 'NS' || type === 'BS'
-	}
+	// 	return type === 'SS' || type === 'NS' || type === 'BS'
+	// }
 
 	elementValue(value: any, path: Array<string | number>): string {
 		const schema = this.table.walk(...path)

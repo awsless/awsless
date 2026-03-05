@@ -28,14 +28,15 @@ export const getItem = <T extends AnyTable, const P extends ProjectionExpression
 
 	return {
 		...transactable(() => ({
-			unmarshall: (item: Record<string, AttributeValue>): ProjectionResponse<T, P> => table.unmarshall(item),
+			unmarshall: (item: Record<string, AttributeValue>): ProjectionResponse<T, P> =>
+				table.unmarshall(item, options.select),
 			input: { Get: command.input },
 		})),
 		...thenable<ProjectionResponse<T, P> | undefined>(async () => {
 			const result = await client(options).send(command)
 
 			if (result.Item) {
-				return table.unmarshall(result.Item)
+				return table.unmarshall(result.Item, options.select)
 			}
 		}),
 	}

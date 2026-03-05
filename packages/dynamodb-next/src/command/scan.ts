@@ -39,7 +39,7 @@ export const scan = <T extends AnyTable, const P extends ProjectionExpression<T>
 		const result = await client(options).send(command)
 
 		return {
-			items: result.Items?.map(item => table.unmarshall(item)) || [],
+			items: result.Items?.map(item => table.unmarshall(item, options.select)) || [],
 			cursor: toCursorString(result.LastEvaluatedKey),
 		}
 	}

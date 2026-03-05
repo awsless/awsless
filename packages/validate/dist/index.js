@@ -141,14 +141,18 @@ var snsTopic = (schema, message = "Invalid SNS Topic payload") => {
 // src/schema/aws/dynamodb-stream.ts
 import {
   array as array3,
-  literal,
   object as object3,
+  optional,
+  picklist,
   pipe as pipe6,
   transform as transform4,
-  unknown,
-  variant
+  unknown
 } from "valibot";
 var dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
+  const unmarshallKeys = () => pipe6(
+    unknown(),
+    transform4((v) => table.unmarshall(v, table.keys))
+  );
   const unmarshall = () => pipe6(
     unknown(),
     transform4((v) => table.unmarshall(v))
@@ -157,30 +161,14 @@ var dynamoDbStream = (table, message = "Invalid DynamoDB Stream payload") => {
     object3(
       {
         Records: array3(
-          variant("eventName", [
-            object3({
-              eventName: literal("MODIFY"),
-              dynamodb: object3({
-                Keys: unmarshall(),
-                OldImage: unmarshall(),
-                NewImage: unmarshall()
-              })
-            }),
-            object3({
-              eventName: literal("INSERT"),
-              dynamodb: object3({
-                Keys: unmarshall(),
-                NewImage: unmarshall()
-              })
-            }),
-            object3({
-              eventName: literal("REMOVE"),
-              dynamodb: object3({
-                Keys: unmarshall(),
-                OldImage: unmarshall()
-              })
+          object3({
+            eventName: picklist(["MODIFY", "INSERT", "REMOVE"]),
+            dynamodb: object3({
+              Keys: unmarshallKeys(),
+              OldImage: optional(unmarshall()),
+              NewImage: optional(unmarshall())
             })
-          ])
+          })
         )
       },
       message
