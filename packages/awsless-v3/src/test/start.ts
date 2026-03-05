@@ -28,6 +28,11 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 			globals: true,
 			reporters: [new NullReporter()],
+			typecheck: {
+				enabled: true,
+				include: ['**/*.{js,jsx,ts,tsx}'],
+				checker: 'tsc',
+			},
 			// reporters: 'json',
 			// typecheck: {
 			// 	checker: 'tsc',
