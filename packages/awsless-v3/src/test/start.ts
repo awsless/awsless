@@ -28,11 +28,14 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 			exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
 			globals: true,
 			reporters: [new NullReporter()],
-			typecheck: {
-				enabled: true,
-				include: ['**/*.{js,jsx,ts,tsx}'],
-				checker: 'tsc',
-			},
+			// isolate: false,
+			// typecheck: {
+			// 	enabled: true,
+			// 	only: false,
+			// 	exclude: ['**/_*', '**/_*/**', ...configDefaults.exclude],
+			// 	include: ['**/*.{js,jsx,ts,tsx}'],
+			// 	checker: 'tsc',
+			// },
 			// reporters: 'json',
 			// typecheck: {
 			// 	checker: 'tsc',
@@ -92,9 +95,13 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 	const tests: TestEntry[] = []
 	const modules = vitest.state.getTestModules()
 
+	// console.log(vitest.
+
 	for (const module of modules) {
 		for (const test of module.children.allTests()) {
 			const result = test.result()
+
+			// console.log(result)
 
 			switch (result.state) {
 				case 'pending':
