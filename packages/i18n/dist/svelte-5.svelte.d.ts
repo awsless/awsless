@@ -1,3 +1,9 @@
+type StringArgs = Array<string | number | {
+    toString(): string;
+}>;
+type Translate = {
+    (template: TemplateStringsArray, ...args: StringArgs): string;
+};
 declare const lang: {
     /** Get the current locale.
      *
@@ -12,9 +18,7 @@ declare const lang: {
      * @example
      * lang.t`Hello world!`
      */
-    readonly t: (template: TemplateStringsArray, ...args: Array<string | number | {
-        toString(): string;
-    }>) => string;
+    readonly t: Translate;
 };
 
 export { lang };

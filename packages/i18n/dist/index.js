@@ -4,8 +4,10 @@ import MagicString from "magic-string";
 // src/cache.ts
 import { readFile, stat, writeFile } from "fs/promises";
 import { join } from "path";
-var loadCache = async (cwd) => {
-  const file = join(cwd, "i18n.json");
+var GENERATED_CACHE_FILE = "i18n.generated.json";
+var OVERRIDE_CACHE_FILE = "i18n.json";
+var loadFile = async (cwd, fileName) => {
+  const file = join(cwd, fileName);
   try {
     await stat(file);
   } catch (error) {
@@ -14,8 +16,23 @@ var loadCache = async (cwd) => {
   const data = await readFile(file, "utf8");
   return new Cache(JSON.parse(data));
 };
+var loadGeneratedCache = async (cwd) => {
+  return loadFile(cwd, GENERATED_CACHE_FILE);
+};
+var loadOverrideCache = async (cwd) => {
+  return loadFile(cwd, OVERRIDE_CACHE_FILE);
+};
 var saveCache = async (cwd, cache) => {
-  await writeFile(join(cwd, "i18n.json"), JSON.stringify(cache.toJSON(), void 0, 2) + "\n");
+  await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), void 0, 2) + "\n");
+};
+var mergeCaches = (...caches) => {
+  const merged = new Cache();
+  for (const cache of caches) {
+    for (const item of cache.entries()) {
+      merged.replace(item.source, item.locale, item.translation);
+    }
+  }
+  return merged;
 };
 var Cache = class {
   constructor(data = {}) {
@@ -28,6 +45,12 @@ var Cache = class {
     if (typeof this.data[source][locale] === "undefined") {
       this.data[source][locale] = translation;
     }
+  }
+  replace(source, locale, translation) {
+    if (!this.data[source]) {
+      this.data[source] = {};
+    }
+    this.data[source][locale] = translation;
   }
   get(source, locale) {
     return this.data[source]?.[locale];
@@ -171,6 +194,7 @@ var findTranslatable = async (cwd) => {
 // src/vite.ts
 var i18n = (props) => {
   let cache;
+  let generatedCache;
   return {
     name: "awsless/i18n",
     enforce: "pre",
@@ -178,18 +202,21 @@ var i18n = (props) => {
       const cwd = process.cwd();
       this.info("Finding all translatable text...");
       const sourceTexts = await findTranslatable(cwd);
-      cache = await loadCache(cwd);
-      removeUnusedTranslations(cache, sourceTexts, props.locales);
+      generatedCache = await loadGeneratedCache(cwd);
+      const overrideCache = await loadOverrideCache(cwd);
+      removeUnusedTranslations(generatedCache, sourceTexts, props.locales);
+      cache = mergeCaches(generatedCache, overrideCache);
       const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales);
       if (newSourceTexts.length > 0) {
         this.info(`Translating ${newSourceTexts.length} new texts.`);
         const translations = await props.translate(props.default ?? "en", newSourceTexts);
         this.info(`Translated ${translations.length} texts.`);
         for (const item of translations) {
-          cache.set(item.source, item.locale, item.translation);
+          generatedCache.set(item.source, item.locale, item.translation);
         }
       }
-      await saveCache(cwd, cache);
+      cache = mergeCaches(generatedCache, overrideCache);
+      await saveCache(cwd, generatedCache);
       this.info(`Translating done.`);
     },
     transform(code) {

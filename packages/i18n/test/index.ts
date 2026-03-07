@@ -1,7 +1,7 @@
 import { build } from 'vite'
 import { i18n, ai } from '../src'
 import { resolve } from 'path'
-import { mkdtemp, readFile } from 'fs/promises'
+import { mkdtemp, readFile, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { Cache, loadCache, saveCache } from '../src/cache'
@@ -76,7 +76,7 @@ describe('i18n', () => {
 
 		await saveCache(cwd, cache)
 
-		const file = await readFile(resolve(cwd, 'i18n.json'), 'utf8')
+		const file = await readFile(resolve(cwd, 'i18n.generated.json'), 'utf8')
 
 		expect(file).toBe(
 			'{\n' +
@@ -90,6 +90,42 @@ describe('i18n', () => {
 				'  }\n' +
 				'}\n'
 		)
+	})
+
+	it('prefers translations from i18n.json over i18n.generated.json', async () => {
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
+
+		await writeFile(
+			resolve(cwd, 'i18n.generated.json'),
+			JSON.stringify(
+				{
+					greeting: {
+						fr: 'bonjour-generated',
+						jp: 'こんにちは-generated',
+					},
+				},
+				undefined,
+				2
+			)
+		)
+
+		await writeFile(
+			resolve(cwd, 'i18n.json'),
+			JSON.stringify(
+				{
+					greeting: {
+						fr: 'bonjour-override',
+					},
+				},
+				undefined,
+				2
+			)
+		)
+
+		const cache = await loadCache(cwd)
+
+		expect(cache.get('greeting', 'fr')).toBe('bonjour-override')
+		expect(cache.get('greeting', 'jp')).toBe('こんにちは-generated')
 	})
 
 	// it('Skip adding translations if they are the same', async () => {

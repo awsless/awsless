@@ -1,6 +1,6 @@
 import MagicString from 'magic-string'
 import { Plugin } from 'vite'
-import { Cache, loadCache, saveCache } from './cache'
+import { Cache, loadGeneratedCache, loadOverrideCache, mergeCaches, saveCache } from './cache'
 import { findNewTranslations, removeUnusedTranslations } from './diff'
 import { findTranslatable } from './find'
 
@@ -33,6 +33,7 @@ export type I18nPluginProps = {
 
 export const i18n = (props: I18nPluginProps): Plugin => {
 	let cache: Cache
+	let generatedCache: Cache
 
 	return {
 		name: 'awsless/i18n',
@@ -43,10 +44,13 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 			this.info('Finding all translatable text...')
 			const sourceTexts = await findTranslatable(cwd)
 
-			cache = await loadCache(cwd)
+			generatedCache = await loadGeneratedCache(cwd)
+			const overrideCache = await loadOverrideCache(cwd)
 
 			// Clean up the unused transations from the cache
-			removeUnusedTranslations(cache, sourceTexts, props.locales)
+			removeUnusedTranslations(generatedCache, sourceTexts, props.locales)
+
+			cache = mergeCaches(generatedCache, overrideCache)
 
 			const newSourceTexts = findNewTranslations(cache, sourceTexts, props.locales)
 
@@ -58,11 +62,13 @@ export const i18n = (props: I18nPluginProps): Plugin => {
 				this.info(`Translated ${translations.length} texts.`)
 
 				for (const item of translations) {
-					cache.set(item.source, item.locale, item.translation)
+					generatedCache.set(item.source, item.locale, item.translation)
 				}
 			}
 
-			await saveCache(cwd, cache)
+			cache = mergeCaches(generatedCache, overrideCache)
+
+			await saveCache(cwd, generatedCache)
 
 			this.info(`Translating done.`)
 		},

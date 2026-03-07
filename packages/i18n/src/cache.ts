@@ -1,8 +1,11 @@
 import { readFile, stat, writeFile } from 'fs/promises'
 import { join } from 'path'
 
-export const loadCache = async (cwd: string): Promise<Cache> => {
-	const file = join(cwd, 'i18n.json')
+const GENERATED_CACHE_FILE = 'i18n.generated.json'
+const OVERRIDE_CACHE_FILE = 'i18n.json'
+
+const loadFile = async (cwd: string, fileName: string): Promise<Cache> => {
+	const file = join(cwd, fileName)
 
 	try {
 		await stat(file)
@@ -14,8 +17,32 @@ export const loadCache = async (cwd: string): Promise<Cache> => {
 	return new Cache(JSON.parse(data))
 }
 
+export const loadGeneratedCache = async (cwd: string) => {
+	return loadFile(cwd, GENERATED_CACHE_FILE)
+}
+
+export const loadOverrideCache = async (cwd: string) => {
+	return loadFile(cwd, OVERRIDE_CACHE_FILE)
+}
+
+export const loadCache = async (cwd: string): Promise<Cache> => {
+	return mergeCaches(await loadGeneratedCache(cwd), await loadOverrideCache(cwd))
+}
+
 export const saveCache = async (cwd: string, cache: Cache) => {
-	await writeFile(join(cwd, 'i18n.json'), JSON.stringify(cache.toJSON(), undefined, 2) + '\n')
+	await writeFile(join(cwd, GENERATED_CACHE_FILE), JSON.stringify(cache.toJSON(), undefined, 2) + '\n')
+}
+
+export const mergeCaches = (...caches: Cache[]) => {
+	const merged = new Cache()
+
+	for (const cache of caches) {
+		for (const item of cache.entries()) {
+			merged.replace(item.source, item.locale, item.translation)
+		}
+	}
+
+	return merged
 }
 
 export class Cache {
@@ -29,6 +56,14 @@ export class Cache {
 		if (typeof this.data[source][locale] === 'undefined') {
 			this.data[source][locale] = translation
 		}
+	}
+
+	replace(source: string, locale: string, translation: string) {
+		if (!this.data[source]) {
+			this.data[source] = {}
+		}
+
+		this.data[source][locale] = translation
 	}
 
 	get(source: string, locale: string) {

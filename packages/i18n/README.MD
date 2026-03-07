@@ -73,9 +73,9 @@ lang.locale = 'jp'
 
 ## Changing the AI-generated text
 
-A `i18n.json` file with all the translations will be generated in the root of your project the first time you run a build. We use this file as a cache to not translate any text that has already been translated before.
+A `i18n.generated.json` file with the auto-generated translations will be created in the root of your project the first time you run a build. We use this file as a cache to not translate any text that has already been translated before.
 
-If you don't like the auto-generated translations by AI, you can safely change any of the ai generated translations here.
+If you want to overwrite an AI-generated translation, create or edit `i18n.json`. Any translation in `i18n.json` takes precedence over the generated cache during build time.
 
 ```json
 {
