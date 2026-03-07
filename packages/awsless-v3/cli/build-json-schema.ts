@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { ZodSchema } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import { AppSchema } from '../src/config/app.js'
+import { createStagePatchJsonSchema, type JsonSchema } from '../src/config/stage-patch-json-schema.js'
 import { StackSchema } from '../src/config/stack.js'
 
 type GenerateProps = {
@@ -19,13 +20,13 @@ const generateJsonSchema = (props: GenerateProps) => {
 		markdownDescription: true,
 		pipeStrategy: 'input',
 		$refStrategy: 'none',
-	}) as {
-		title?: string
-	}
+	}) as JsonSchema
 
 	appendDefaults(schema)
 	schema.title = props.title
 	writeFileSync(file, JSON.stringify(schema))
+
+	return schema
 }
 
 const appendDefaults = (object: unknown) => {
@@ -48,14 +49,24 @@ const appendDefaults = (object: unknown) => {
 	}
 }
 
-generateJsonSchema({
+const appSchema = generateJsonSchema({
 	schema: AppSchema,
 	name: 'app',
 	title: 'Awsless App Config',
 })
 
-generateJsonSchema({
+const stackSchema = generateJsonSchema({
 	schema: StackSchema,
 	name: 'stack',
 	title: 'Awsless Stack Config',
 })
+
+writeFileSync(
+	join(process.cwd(), 'dist/app.stage.json'),
+	JSON.stringify(createStagePatchJsonSchema(appSchema, 'Awsless App Stage Patch Config'))
+)
+
+writeFileSync(
+	join(process.cwd(), 'dist/stack.stage.json'),
+	JSON.stringify(createStagePatchJsonSchema(stackSchema, 'Awsless Stack Stage Patch Config'))
+)

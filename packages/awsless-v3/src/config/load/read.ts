@@ -3,7 +3,9 @@ import { basename, dirname, extname, join } from 'path'
 import { debug } from '../../cli/debug.js'
 import { color } from '../../cli/ui/style.js'
 import { FileError } from '../../error.js'
+import { StagePatchSchema, applyStagePatch } from '../stage-patch.js'
 import { fileExist } from '../../util/path.js'
+import { validateConfig } from './validate.js'
 
 export const readConfig = async (file: string) => {
 	try {
@@ -20,11 +22,19 @@ export const readConfig = async (file: string) => {
 	}
 }
 
+type ConfigSource = {
+	file: string
+	data: object
+}
+
 export const readConfigWithStage = async (file: string, stage?: string) => {
 	const config = await readConfig(file)
 
 	if (!stage) {
-		return config
+		return {
+			file,
+			data: config,
+		} satisfies ConfigSource
 	}
 
 	const ext = extname(file)
@@ -33,11 +43,18 @@ export const readConfigWithStage = async (file: string, stage?: string) => {
 	const stageFileExists = await fileExist(stageFile)
 
 	if (!stageFileExists) {
-		return config
+		return {
+			file,
+			data: config,
+		} satisfies ConfigSource
 	}
 
 	debug('Load env file:', color.info(stageFile))
 	const stageConfig = await readConfig(stageFile)
+	const patch = await validateConfig(StagePatchSchema, stageFile, stageConfig)
 
-	return stageConfig
+	return {
+		file: stageFile,
+		data: applyStagePatch(config, patch, stageFile) as object,
+	} satisfies ConfigSource
 }

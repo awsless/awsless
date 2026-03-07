@@ -15,7 +15,7 @@ export const loadCache = async (cwd: string): Promise<Cache> => {
 }
 
 export const saveCache = async (cwd: string, cache: Cache) => {
-	await writeFile(join(cwd, 'i18n.json'), JSON.stringify(cache, undefined, 2))
+	await writeFile(join(cwd, 'i18n.json'), JSON.stringify(cache.toJSON(), undefined, 2) + '\n')
 }
 
 export class Cache {
@@ -58,6 +58,17 @@ export class Cache {
 	}
 
 	toJSON() {
-		return this.data
+		return Object.fromEntries(
+			Object.entries(this.data)
+				.sort(([left], [right]) => left.localeCompare(right))
+				.map(([source, locales]) => {
+					return [
+						source,
+						Object.fromEntries(
+							Object.entries(locales).sort(([left], [right]) => left.localeCompare(right))
+						),
+					]
+				})
+		)
 	}
 }

@@ -15,7 +15,7 @@ var loadCache = async (cwd) => {
   return new Cache(JSON.parse(data));
 };
 var saveCache = async (cwd, cache) => {
-  await writeFile(join(cwd, "i18n.json"), JSON.stringify(cache, void 0, 2));
+  await writeFile(join(cwd, "i18n.json"), JSON.stringify(cache.toJSON(), void 0, 2) + "\n");
 };
 var Cache = class {
   constructor(data = {}) {
@@ -51,7 +51,16 @@ var Cache = class {
     }
   }
   toJSON() {
-    return this.data;
+    return Object.fromEntries(
+      Object.entries(this.data).sort(([left], [right]) => left.localeCompare(right)).map(([source, locales]) => {
+        return [
+          source,
+          Object.fromEntries(
+            Object.entries(locales).sort(([left], [right]) => left.localeCompare(right))
+          )
+        ];
+      })
+    );
   }
 };
 

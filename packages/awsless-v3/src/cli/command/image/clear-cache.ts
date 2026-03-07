@@ -101,7 +101,7 @@ export const clearCache = (program: Command) => {
 
 				const cloudFrontClient = new CloudFrontClient({
 					credentials,
-					region: 'us-east-1',
+					region,
 				})
 
 				let totalDeleted = 0

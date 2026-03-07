@@ -1,8 +1,10 @@
 import { build } from 'vite'
 import { i18n, ai } from '../src'
 import { resolve } from 'path'
+import { mkdtemp, readFile } from 'fs/promises'
+import { tmpdir } from 'os'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
-import { loadCache } from '../src/cache'
+import { Cache, loadCache, saveCache } from '../src/cache'
 import { openai } from '@ai-sdk/openai'
 
 describe('i18n', () => {
@@ -61,6 +63,33 @@ describe('i18n', () => {
 				expect(translated).toBeTypeOf('string')
 			}
 		}
+	})
+
+	it('writes the cache in a stable order', async () => {
+		const cwd = await mkdtemp(resolve(tmpdir(), 'awsless-i18n-'))
+		const cache = new Cache()
+
+		cache.set('zulu', 'jp', 'zulu-jp')
+		cache.set('alpha', 'jp', 'alpha-jp')
+		cache.set('alpha', 'fr', 'alpha-fr')
+		cache.set('zulu', 'fr', 'zulu-fr')
+
+		await saveCache(cwd, cache)
+
+		const file = await readFile(resolve(cwd, 'i18n.json'), 'utf8')
+
+		expect(file).toBe(
+			'{\n' +
+				'  "alpha": {\n' +
+				'    "fr": "alpha-fr",\n' +
+				'    "jp": "alpha-jp"\n' +
+				'  },\n' +
+				'  "zulu": {\n' +
+				'    "fr": "zulu-fr",\n' +
+				'    "jp": "zulu-jp"\n' +
+				'  }\n' +
+				'}\n'
+		)
 	})
 
 	// it('Skip adding translations if they are the same', async () => {

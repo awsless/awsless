@@ -31,7 +31,7 @@ export const loadAppConfig = async (options: ProgramOptions): Promise<AppConfig>
 
 	debug('Validate app config file')
 
-	const app = await validateConfig(AppSchema, appFileName, appConfig)
+	const app = await validateConfig(AppSchema, appConfig.file, appConfig.data)
 
 	// debug('Load credentials', style.info(app.profile))
 	// const credentials = getCredentials(app.profile)
@@ -73,7 +73,7 @@ export const loadStackConfigs = async (options: ProgramOptions) => {
 
 		setLocalBasePath(join(directories.root, dirname(file)))
 
-		const stack = await validateConfig(StackSchema, file, stackConfig)
+		const stack = await validateConfig(StackSchema, stackConfig.file, stackConfig.data)
 
 		stacks.push({
 			...stack,

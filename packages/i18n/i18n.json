@@ -1,12 +1,4 @@
 {
-  "Hello ${1} world": {
-    "fr": "Bonjour ${1} monde",
-    "jp": "こんにちは${1}世界"
-  },
-  "Right now it's ${new Date()}.": {
-    "fr": "En ce moment, il est ${new Date()}.",
-    "jp": "現在の時刻は${new Date()}です。"
-  },
   "": {
     "fr": "",
     "jp": ""
@@ -14,6 +6,18 @@
   "head": {
     "fr": "tête",
     "jp": "ヘッド"
+  },
+  "Hello ${1} world": {
+    "fr": "Bonjour ${1} monde",
+    "jp": "こんにちは${1}世界"
+  },
+  "Loading...": {
+    "fr": "Chargement...",
+    "jp": "読み込み中..."
+  },
+  "Right now it's ${new Date()}.": {
+    "fr": "En ce moment, il est ${new Date()}.",
+    "jp": "現在の時刻は${new Date()}です。"
   },
   "test": {
     "fr": "test",
@@ -26,10 +30,6 @@
   "the number is ${1}": {
     "fr": "le nombre est ${1}",
     "jp": "数値は${1}です"
-  },
-  "Loading...": {
-    "fr": "Chargement...",
-    "jp": "読み込み中..."
   },
   "Title": {
     "fr": "Titre",

@@ -69,6 +69,12 @@
 		// }
 	}
 
+	// "tables": {
+	// 	"new-table-old": {
+	// 		"hash": "hello"
+	// 	}
+	// }
+
 	// "rpc": {
 	// 	"main": {
 	// 		"test": "./echo.ts"

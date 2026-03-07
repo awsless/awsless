@@ -72,8 +72,10 @@ export const siteFeature = defineFeature({
 						const instance = Bun.spawn(buildProps.command.split(' '), {
 							cwd,
 							env,
-							stdout: 'ignore',
-							stderr: 'ignore',
+							stdout: 'pipe',
+							stderr: 'pipe',
+							// stdout: 'ignore',
+							// stderr: ''
 							// stdout: 'inherit',
 							// stderr: 'inherit',
 						})
@@ -83,7 +85,12 @@ export const siteFeature = defineFeature({
 						if (instance.exitCode !== null && instance.exitCode > 0) {
 							// const error = instance.stderr
 							// throw new ExpectedError(await instance.stderr?.text() ?? '')
-							console.log(instance.stderr)
+
+							// console.log('')
+							// console.log(await instance.stderr.text())
+							// // console.log('')
+							// // console.log(await instance.stdout.text())
+							// console.log('')
 							throw new Error('Site build failed')
 						}
 

@@ -1,0 +1,10 @@
+{
+	"$schema": "../../dist/app.stage.json",
+	"operations": [
+		{
+			"op": "replace",
+			"path": "/defaults/function/log/retention",
+			"value": "3 days",
+		},
+	],
+}
