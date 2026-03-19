@@ -22,6 +22,6 @@ export const dynamoDBDocumentClient = /* @__PURE__ */ globalClient(() => {
 	})
 })
 
-export const client = (options: Options) => {
+export const getClient = (options: Options) => {
 	return options.client || dynamoDBClient()
 }

@@ -1,5 +1,6 @@
 import { ResourceNotFoundException, ValidationException } from '../errors/index.js'
 import { applyProjection, evaluateCondition, matchesKeyCondition, parseKeyCondition } from '../expressions/index.js'
+import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { TableStore } from '../store/index.js'
 import type { AttributeMap, AttributeValue, ConsumedCapacity } from '../types.js'
 
@@ -56,9 +57,10 @@ export function query(store: TableStore, input: QueryInput): QueryOutput {
 	let lastEvaluatedKey: AttributeMap | undefined
 
 	if (input.IndexName) {
+		const hashValues = Object.fromEntries(keyCondition.hashConditions.map(condition => [condition.key, condition.value]))
 		const result = table.queryIndex(
 			input.IndexName,
-			{ [keyCondition.hashKey]: keyCondition.hashValue },
+			hashValues,
 			{
 				scanIndexForward: input.ScanIndexForward,
 				exclusiveStartKey: input.ExclusiveStartKey,
@@ -67,8 +69,9 @@ export function query(store: TableStore, input: QueryInput): QueryOutput {
 		items = result.items
 		lastEvaluatedKey = result.lastEvaluatedKey
 	} else {
+		const hashValues = Object.fromEntries(keyCondition.hashConditions.map(condition => [condition.key, condition.value]))
 		const result = table.queryByHashKey(
-			{ [keyCondition.hashKey]: keyCondition.hashValue },
+			hashValues,
 			{
 				scanIndexForward: input.ScanIndexForward,
 				exclusiveStartKey: input.ExclusiveStartKey,
@@ -97,24 +100,11 @@ export function query(store: TableStore, input: QueryInput): QueryOutput {
 		items = items.slice(0, input.Limit)
 		if (items.length > 0) {
 			const lastItem = items[items.length - 1]!
-			lastEvaluatedKey = {}
-			const hashKey = table.getHashKeyName()
-			const rangeKey = table.getRangeKeyName()
-			if (lastItem[hashKey]) {
-				lastEvaluatedKey[hashKey] = lastItem[hashKey]
-			}
-			if (rangeKey && lastItem[rangeKey]) {
-				lastEvaluatedKey[rangeKey] = lastItem[rangeKey]
-			}
+			lastEvaluatedKey = extractKey(lastItem, table.keySchema)
 			if (input.IndexName) {
 				const indexKeySchema = table.getIndexKeySchema(input.IndexName)
 				if (indexKeySchema) {
-					for (const key of indexKeySchema) {
-						const attrValue = lastItem[key.AttributeName]
-						if (attrValue) {
-							lastEvaluatedKey[key.AttributeName] = attrValue
-						}
-					}
+					lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexKeySchema, table.keySchema))
 				}
 			}
 		}

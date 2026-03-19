@@ -1,6 +1,13 @@
 import { AnyTable, IndexNames, Infer } from '../table'
 
-type Key<T extends AnyTable, K extends keyof Infer<T>> = Required<Record<K, Infer<T>[K]>>
+// type Key<T extends AnyTable, K extends keyof Infer<T>> = Required<Record<K, Infer<T>[K]>>
+
+type Key<T extends AnyTable, K extends keyof Infer<T> | (keyof Infer<T>)[]> = K extends keyof Infer<T>
+	? Required<Record<K, Infer<T>[K]>>
+	: K extends (keyof Infer<T>)[]
+		? // Use a mapped type to preserve specific types for each key
+			{ [P in K[number]]: Required<Infer<T>[P]> }
+		: never
 
 export type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> =
 	I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>

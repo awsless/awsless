@@ -99,8 +99,8 @@ export const searchFeature = defineFeature({
 					}),
 				},
 				{
-					import: ctx.import ? name : undefined,
 					retainOnDelete: ctx.appConfig.removal === 'retain',
+					import: ctx.import ? name : undefined,
 				}
 			)
 

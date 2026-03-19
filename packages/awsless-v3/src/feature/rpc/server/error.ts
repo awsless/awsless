@@ -26,7 +26,12 @@ export const TOO_MANY_REQUESTS: GlobalError = {
 
 export const ONE_FUNCTION_AT_A_TIME: GlobalError = {
 	type: 'one-function-at-a-time',
-	message: 'Only one function is allowed to be called at a time.',
+	message: 'Only one locked function is allowed to be called at a time.',
+}
+
+export const NO_LOCK_KEY_PROVIDED: GlobalError = {
+	type: 'no-lock-key-provided',
+	message: 'Your trying to call a locked function without providing a `lockKey`.',
 }
 
 // export const UNAUTHORIZED: GlobalError = {

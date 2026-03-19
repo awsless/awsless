@@ -64,38 +64,46 @@ export const cacheFeature = defineFeature({
 				description: name,
 			})
 
-			const cache = new aws.elasticache.ServerlessCache(group, 'cache', {
-				name,
-				engine: 'valkey',
-				dailySnapshotTime: '02:00',
-				majorEngineVersion: '8',
-				snapshotRetentionLimit: props.snapshotRetentionLimit,
-				securityGroupIds: [securityGroup.id],
-				subnetIds: ctx.shared.get('vpc', 'private-subnets'),
-				cacheUsageLimits: [
-					{
-						dataStorage:
-							props.minStorage || props.maxStorage
-								? [
-										{
-											minimum: props.minStorage && toGibibytes(props.minStorage),
-											maximum: props.maxStorage && toGibibytes(props.maxStorage),
-											unit: 'GB',
-										},
-									]
-								: [],
-						ecpuPerSecond:
-							props.minECPU || props.maxECPU
-								? [
-										{
-											minimum: props.minECPU,
-											maximum: props.maxECPU,
-										},
-									]
-								: [],
-					},
-				],
-			})
+			const cache = new aws.elasticache.ServerlessCache(
+				group,
+				'cache',
+				{
+					name,
+					engine: 'valkey',
+					dailySnapshotTime: '02:00',
+					majorEngineVersion: '8',
+					snapshotRetentionLimit: props.snapshotRetentionLimit,
+					securityGroupIds: [securityGroup.id],
+					subnetIds: ctx.shared.get('vpc', 'private-subnets'),
+					cacheUsageLimits: [
+						{
+							dataStorage:
+								props.minStorage || props.maxStorage
+									? [
+											{
+												minimum: props.minStorage && toGibibytes(props.minStorage),
+												maximum: props.maxStorage && toGibibytes(props.maxStorage),
+												unit: 'GB',
+											},
+										]
+									: [],
+							ecpuPerSecond:
+								props.minECPU || props.maxECPU
+									? [
+											{
+												minimum: props.minECPU,
+												maximum: props.maxECPU,
+											},
+										]
+									: [],
+						},
+					],
+				},
+				{
+					retainOnDelete: ctx.appConfig.removal === 'retain',
+					import: ctx.import ? name : undefined,
+				}
+			)
 
 			// ---------------------------------------------------------------
 			// Open up the SecurityGroup for ipv4 & ipv6 for the master node

@@ -4,9 +4,67 @@ import { defineFeature } from '../../feature.js'
 import { createAsyncLambdaFunction } from '../function/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { shortId } from '../../util/id.js'
+import { TypeFile } from '../../type-gen/file.js'
+import { TypeObject } from '../../type-gen/object.js'
+import { camelCase } from 'change-case'
+import { relative } from 'node:path'
+import { directories } from '../../util/path.js'
+
+const typeGenCode = `
+import { InvokeOptions } from '@awsless/lambda'
+import type { Mock } from 'vitest'
+
+type Func = (...args: any[]) => any
+
+type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'reflectViewableErrors'>
+
+type Invoke<N extends string, F extends Func> = unknown extends Parameters<F>[0] ? InvokeWithoutPayload<N, F> : InvokeWithPayload<N, F>
+
+type InvokeWithPayload<Name extends string, F extends Func> = {
+	readonly name: Name
+	(payload: Parameters<F>[0], options?: Options): Promise<void>
+}
+
+type InvokeWithoutPayload<Name extends string, F extends Func> = {
+	readonly name: Name
+	(payload?: Parameters<F>[0], options?: Options): Promise<void>
+}
+`
 
 export const cronFeature = defineFeature({
 	name: 'cron',
+	async onTypeGen(ctx) {
+		const types = new TypeFile('@awsless/awsless')
+		const resources = new TypeObject(1)
+
+		for (const stack of ctx.stackConfigs) {
+			const resource = new TypeObject(2)
+
+			for (const [name, props] of Object.entries(stack.crons || {})) {
+				const varName = camelCase(`${stack.name}-${name}`)
+				const funcName = formatLocalResourceName({
+					appName: ctx.appConfig.name,
+					stackName: stack.name,
+					resourceType: 'cron',
+					resourceName: name,
+				})
+
+				if ('file' in props.consumer.code) {
+					const relFile = relative(directories.types, props.consumer.code.file)
+
+					types.addImport(varName, relFile)
+					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				}
+			}
+
+			resources.addType(stack.name, resource)
+		}
+
+		types.addCode(typeGenCode)
+		types.addInterface('CronResources', resources)
+
+		await ctx.write('cron.d.ts', types, true)
+	},
 	onApp(ctx) {
 		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)
 		if (found) {
@@ -36,8 +94,6 @@ export const cronFeature = defineFeature({
 				resourceType: 'cron',
 				resourceName: shortId(id),
 			})
-
-			// ctx.shared.add('cron', ctx.stack.name, id, name)
 
 			const scheduleRole = new aws.iam.Role(group, 'warm', {
 				name,
@@ -83,7 +139,7 @@ export const cronFeature = defineFeature({
 				target: {
 					arn: lambda.arn,
 					roleArn: scheduleRole.arn,
-					input: JSON.stringify(props.payload),
+					input: JSON.stringify(props.payload) ?? '{}',
 				},
 			})
 		}

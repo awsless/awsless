@@ -146,12 +146,18 @@ export const TablesSchema = z
 				.record(
 					z.string(),
 					z.object({
-						hash: KeySchema.describe(
-							'Specifies the name of the partition / hash key that makes up the primary key for the global secondary index.'
-						),
-						sort: KeySchema.optional().describe(
-							'Specifies the name of the range / sort key that makes up the primary key for the global secondary index.'
-						),
+						hash: z
+							.union([KeySchema.transform(v => [v]), KeySchema.array()])
+							.describe(
+								'Specifies the name of the partition / hash key that makes up the primary key for the global secondary index.'
+							),
+
+						sort: z
+							.union([KeySchema.transform(v => [v]), KeySchema.array()])
+							.optional()
+							.describe(
+								'Specifies the name of the range / sort key that makes up the primary key for the global secondary index.'
+							),
 
 						projection: z
 							.enum(['all', 'keys-only'])

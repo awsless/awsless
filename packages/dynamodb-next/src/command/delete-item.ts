@@ -1,5 +1,5 @@
 import { DeleteItemCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client.js'
+import { getClient } from '../client.js'
 import { ExpressionAttributes } from '../expression/attributes.js'
 import { buildConditionExpression, ConditionExpression } from '../expression/condition.js'
 import { ReturnResponse, ReturnValue } from '../expression/return.js'
@@ -16,6 +16,7 @@ export const deleteItem = <T extends AnyTable, R extends ReturnValue>(
 		when?: ConditionExpression<T>
 	} = {}
 ) => {
+	const client = getClient(options)
 	const attrs = new ExpressionAttributes(table)
 	const command = new DeleteItemCommand({
 		TableName: table.name,
@@ -28,7 +29,7 @@ export const deleteItem = <T extends AnyTable, R extends ReturnValue>(
 	return {
 		...transactable(() => ({ Delete: command.input })),
 		...thenable<ReturnResponse<T, R>>(async () => {
-			const result = await client(options).send(command)
+			const result = await client.send(command)
 
 			if (result.Attributes) {
 				return table.unmarshall(result.Attributes)

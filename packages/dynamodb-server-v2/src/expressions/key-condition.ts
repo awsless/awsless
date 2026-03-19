@@ -1,6 +1,6 @@
 import { cmp, parse } from '@awsless/big-float'
 import { ValidationException } from '../errors/index.js'
-import { getHashKey, getRangeKey } from '../store/item.js'
+import { getHashKeys, getRangeKeys } from '../store/item.js'
 import type { AttributeMap, AttributeValue, KeySchemaElement } from '../types.js'
 
 export interface KeyConditionContext {
@@ -17,6 +17,37 @@ export interface ParsedKeyCondition {
 		value: AttributeValue
 		value2?: AttributeValue
 	}
+	hashConditions: Array<{
+		key: string
+		value: AttributeValue
+	}>
+	rangeConditions: Array<{
+		key: string
+		operator: '=' | '<' | '<=' | '>' | '>=' | 'BETWEEN' | 'begins_with'
+		value: AttributeValue
+		value2?: AttributeValue
+	}>
+}
+
+function stripOuterParens(expression: string): string {
+	let normalized = expression.trim()
+	while (normalized.startsWith('(') && normalized.endsWith(')')) {
+		let depth = 0
+		let balanced = true
+		for (let index = 0; index < normalized.length - 1; index++) {
+			if (normalized[index] === '(') depth++
+			else if (normalized[index] === ')') depth--
+			if (depth === 0) {
+				balanced = false
+				break
+			}
+		}
+		if (!balanced) {
+			break
+		}
+		normalized = normalized.slice(1, -1).trim()
+	}
+	return normalized
 }
 
 export function parseKeyCondition(
@@ -24,8 +55,10 @@ export function parseKeyCondition(
 	keySchema: KeySchemaElement[],
 	context: KeyConditionContext
 ): ParsedKeyCondition {
-	const hashKeyName = getHashKey(keySchema)
-	const rangeKeyName = getRangeKey(keySchema)
+	const hashKeyNames = getHashKeys(keySchema)
+	const rangeKeyNames = getRangeKeys(keySchema)
+	const hashKeyName = hashKeyNames[0]
+	const rangeKeyName = rangeKeyNames[0]
 
 	const resolvedNames = context.expressionAttributeNames || {}
 	const resolvedValues = context.expressionAttributeValues || {}
@@ -52,36 +85,18 @@ export function parseKeyCondition(
 		throw new ValidationException(`Invalid value reference: ${ref}`)
 	}
 
-	// Strip balanced outer parentheses from the entire expression
-	function stripOuterParens(expr: string): string {
-		let s = expr.trim()
-		while (s.startsWith('(') && s.endsWith(')')) {
-			// Check if the parens are balanced (the opening paren matches the closing one)
-			let depth = 0
-			let balanced = true
-			for (let i = 0; i < s.length - 1; i++) {
-				if (s[i] === '(') depth++
-				else if (s[i] === ')') depth--
-				if (depth === 0) {
-					// Found a closing paren before the end, so outer parens don't match
-					balanced = false
-					break
-				}
-			}
-			if (balanced) {
-				s = s.slice(1, -1).trim()
-			} else {
-				break
-			}
-		}
-		return s
-	}
-
 	const normalizedExpression = stripOuterParens(expression)
-	const parts = normalizedExpression.split(/\s+AND\s+/i)
+	const parts = flattenKeyConditions(normalizedExpression)
 
-	let hashValue: AttributeValue | undefined
-	let rangeCondition: ParsedKeyCondition['rangeCondition']
+	const hashConditions = new Map<string, AttributeValue>()
+	const rangeConditions = new Map<
+		string,
+		{
+			operator: '=' | '<' | '<=' | '>' | '>=' | 'BETWEEN' | 'begins_with'
+			value: AttributeValue
+			value2?: AttributeValue
+		}
+	>()
 
 	for (const part of parts) {
 		const trimmed = stripOuterParens(part)
@@ -91,8 +106,8 @@ export function parseKeyCondition(
 			const attrName = resolveName(beginsWithMatch[1]!)
 			const value = resolveValue(beginsWithMatch[2]!)
 
-			if (attrName === rangeKeyName) {
-				rangeCondition = { operator: 'begins_with', value }
+			if (rangeKeyNames.includes(attrName)) {
+				rangeConditions.set(attrName, { operator: 'begins_with', value })
 			} else {
 				throw new ValidationException(`begins_with can only be used on sort key`)
 			}
@@ -105,8 +120,8 @@ export function parseKeyCondition(
 			const value1 = resolveValue(betweenMatch[2]!)
 			const value2 = resolveValue(betweenMatch[3]!)
 
-			if (attrName === rangeKeyName) {
-				rangeCondition = { operator: 'BETWEEN', value: value1, value2 }
+			if (rangeKeyNames.includes(attrName)) {
+				rangeConditions.set(attrName, { operator: 'BETWEEN', value: value1, value2 })
 			} else {
 				throw new ValidationException(`BETWEEN can only be used on sort key`)
 			}
@@ -119,13 +134,13 @@ export function parseKeyCondition(
 			const operator = comparisonMatch[2]! as '=' | '<' | '<=' | '>' | '>='
 			const value = resolveValue(comparisonMatch[3]!)
 
-			if (attrName === hashKeyName) {
+			if (hashKeyNames.includes(attrName)) {
 				if (operator !== '=') {
-					throw new ValidationException(`Hash key condition must use = operator`)
+					throw new ValidationException(`Partition key condition must use = operator`)
 				}
-				hashValue = value
-			} else if (attrName === rangeKeyName) {
-				rangeCondition = { operator, value }
+				hashConditions.set(attrName, value)
+			} else if (rangeKeyNames.includes(attrName)) {
+				rangeConditions.set(attrName, { operator, value })
 			} else {
 				throw new ValidationException(`Key condition references unknown attribute: ${attrName}`)
 			}
@@ -135,34 +150,143 @@ export function parseKeyCondition(
 		throw new ValidationException(`Invalid key condition expression: ${trimmed}`)
 	}
 
-	if (!hashValue) {
-		throw new ValidationException(`Key condition must specify hash key equality`)
+	for (const key of hashKeyNames) {
+		if (!hashConditions.has(key)) {
+			throw new ValidationException(`Key condition must specify equality for partition key ${key}`)
+		}
 	}
 
+	let lastSortKeyIndex = -1
+	for (const [index, key] of rangeKeyNames.entries()) {
+		const condition = rangeConditions.get(key)
+		if (!condition) {
+			if (lastSortKeyIndex !== -1) {
+				throw new ValidationException(`Sort key conditions must reference a contiguous prefix of the key schema`)
+			}
+			continue
+		}
+
+		if (index > 0 && !rangeConditions.has(rangeKeyNames[index - 1]!)) {
+			throw new ValidationException(`Sort key conditions must reference a contiguous prefix of the key schema`)
+		}
+
+		if (lastSortKeyIndex !== -1) {
+			const previous = rangeConditions.get(rangeKeyNames[lastSortKeyIndex]!)
+			if (previous && previous.operator !== '=') {
+				throw new ValidationException(`Only the last sort key condition can use a range operator`)
+			}
+		}
+
+		lastSortKeyIndex = index
+	}
+
+	const orderedHashConditions = hashKeyNames.map(key => ({
+		key,
+		value: hashConditions.get(key)!,
+	}))
+
+	const orderedRangeConditions = rangeKeyNames
+		.filter(key => rangeConditions.has(key))
+		.map(key => {
+			const condition = rangeConditions.get(key)!
+			return {
+				key,
+				operator: condition.operator,
+				value: condition.value,
+				value2: condition.value2,
+			}
+		})
+
 	return {
-		hashKey: hashKeyName,
-		hashValue,
+		hashKey: hashKeyName!,
+		hashValue: hashConditions.get(hashKeyName!)!,
 		rangeKey: rangeKeyName,
-		rangeCondition,
+		rangeCondition: orderedRangeConditions[0]
+			? {
+					operator: orderedRangeConditions[0].operator,
+					value: orderedRangeConditions[0].value,
+					value2: orderedRangeConditions[0].value2,
+				}
+			: undefined,
+		hashConditions: orderedHashConditions,
+		rangeConditions: orderedRangeConditions,
 	}
 }
 
 export function matchesKeyCondition(item: AttributeMap, condition: ParsedKeyCondition): boolean {
-	const itemHashValue = item[condition.hashKey]
-	if (!itemHashValue || !attributeEquals(itemHashValue, condition.hashValue)) {
-		return false
+	for (const hashCondition of condition.hashConditions) {
+		const itemHashValue = item[hashCondition.key]
+		if (!itemHashValue || !attributeEquals(itemHashValue, hashCondition.value)) {
+			return false
+		}
 	}
 
-	if (condition.rangeCondition && condition.rangeKey) {
-		const itemRangeValue = item[condition.rangeKey]
+	for (const rangeCondition of condition.rangeConditions) {
+		const itemRangeValue = item[rangeCondition.key]
 		if (!itemRangeValue) {
 			return false
 		}
 
-		return matchesRangeCondition(itemRangeValue, condition.rangeCondition)
+		if (!matchesRangeCondition(itemRangeValue, rangeCondition)) {
+			return false
+		}
 	}
 
 	return true
+}
+
+function flattenKeyConditions(expression: string): string[] {
+	const normalized = stripOuterParens(expression)
+	const parts = splitTopLevelAndConditions(normalized)
+
+	if (parts.length === 1) {
+		return [normalized]
+	}
+
+	return parts.flatMap(part => flattenKeyConditions(part))
+}
+
+function splitTopLevelAndConditions(expression: string): string[] {
+	const parts: string[] = []
+	let depth = 0
+	let segmentStart = 0
+	let betweenPending = false
+
+	for (let index = 0; index < expression.length; index++) {
+		const char = expression[index]
+		if (char === '(') {
+			depth++
+			continue
+		}
+		if (char === ')') {
+			depth--
+			continue
+		}
+		if (depth !== 0) {
+			continue
+		}
+
+		if (/^BETWEEN\b/i.test(expression.slice(index))) {
+			betweenPending = true
+			index += 'BETWEEN'.length - 1
+			continue
+		}
+
+		if (/^\s+AND\s+/i.test(expression.slice(index))) {
+			if (betweenPending) {
+				betweenPending = false
+				continue
+			}
+
+			parts.push(expression.slice(segmentStart, index).trim())
+			const andMatch = expression.slice(index).match(/^\s+AND\s+/i)!
+			index += andMatch[0].length - 1
+			segmentStart = index + 1
+		}
+	}
+
+	parts.push(expression.slice(segmentStart).trim())
+	return parts.filter(Boolean)
 }
 
 function matchesRangeCondition(

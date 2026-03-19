@@ -60,17 +60,18 @@ var dynamoDBDocumentClient = /* @__PURE__ */ globalClient(() => {
     }
   });
 });
-var client = (options) => {
+var getClient = (options) => {
   return options.client || dynamoDBClient();
 };
 
 // src/command/transact-write.ts
 var transactWrite = async (items, options = {}) => {
+  const client = getClient(options);
   const command = new TransactWriteItemsCommand({
     ClientRequestToken: options.idempotantKey,
     TransactItems: items.map((item) => item.transact())
   });
-  await client(options).send(command);
+  await client.send(command);
 };
 
 // src/schema/schema.ts
@@ -107,7 +108,7 @@ var createSchema = (props) => {
     ...props,
     marshall(value, path) {
       if (!props.validateInput(value)) {
-        throw new InvalidPayloadError("marshall", props, path, value);
+        throw new InvalidPayloadError("marshall", props, path, typeof value);
       }
       return props.marshall(value, path);
     },
@@ -115,14 +116,19 @@ var createSchema = (props) => {
       if ((typeof value === "object" && value !== null || typeof value === "undefined") && props.validateOutput(value)) {
         return props.unmarshall(value, path, projection);
       }
-      throw new InvalidPayloadError("unmarshall", props, path, value);
+      const valueType = typeof value === "object" && value !== null ? Object.keys(value)[0] ?? typeof value : typeof value;
+      throw new InvalidPayloadError("unmarshall", props, path, valueType);
     }
   };
 };
 var InvalidPayloadError = class extends TypeError {
   constructor(type, schema, path, value) {
     super(
-      `Invalid ${type} payload provided for "${path.join(".")}". Expected ${schema.name}. Received ${typeof value}`
+      [
+        `Invalid ${type} payload provided for "${path.join(".")}".`,
+        `Expected schema type ${schema.name}`,
+        `Received type ${typeof value}`
+      ].join("\n")
     );
   }
 };
@@ -589,6 +595,9 @@ import { CreateTableCommand } from "@aws-sdk/client-dynamodb";
 var filter = (list) => {
   return list.filter((item) => !!item);
 };
+var toArray = (list) => {
+  return list ? Array.isArray(list) ? list : [list] : [];
+};
 var unique = (list) => {
   const unique2 = {};
   list.forEach((item) => {
@@ -621,14 +630,24 @@ var serializeTable = (table) => {
           AttributeType: table.schema.walk?.(table.sort).type
         } : void 0,
         ...indexes.map(([_, item]) => [
-          {
-            AttributeName: item.hash,
-            AttributeType: table.schema.walk?.(item.hash).type
-          },
-          item.sort ? {
-            AttributeName: item.sort,
-            AttributeType: table.schema.walk?.(item.sort).type
-          } : void 0
+          ...toArray(item.hash).map((hash) => ({
+            AttributeName: hash,
+            AttributeType: table.schema.walk?.(hash).type
+          })),
+          ...toArray(item.sort).map((sort) => ({
+            AttributeName: sort,
+            AttributeType: table.schema.walk?.(sort).type
+          }))
+          // {
+          // 	AttributeName: item.hash,
+          // 	AttributeType: table.schema.walk?.(item.hash)!.type,
+          // },
+          // item.sort
+          // 	? {
+          // 			AttributeName: item.sort,
+          // 			AttributeType: table.schema.walk?.(item.sort)!.type,
+          // 		}
+          // 	: undefined,
         ]).flat()
       ])
     )
@@ -637,29 +656,41 @@ var serializeTable = (table) => {
     result.GlobalSecondaryIndexes = indexes.map(([name, item]) => ({
       Projection: { ProjectionType: "ALL" },
       IndexName: name,
-      KeySchema: filter([
-        {
+      KeySchema: [
+        ...toArray(item.hash).map((hash) => ({
           KeyType: "HASH",
-          AttributeName: item.hash
-        },
-        item.sort ? {
+          AttributeName: hash
+        })),
+        ...toArray(item.sort).map((sort) => ({
           KeyType: "RANGE",
-          AttributeName: item.sort
-        } : void 0
-      ])
+          AttributeName: sort
+        }))
+      ]
+      // KeySchema: filter([
+      // 	{
+      // 		KeyType: 'HASH',
+      // 		AttributeName: item.hash,
+      // 	},
+      // 	item.sort
+      // 		? {
+      // 				KeyType: 'RANGE',
+      // 				AttributeName: item.sort,
+      // 			}
+      // 		: undefined,
+      // ]),
     }));
   }
   return result;
 };
 
 // src/test/migrate.ts
-var migrate = (client2, tables) => {
+var migrate = (client, tables) => {
   return Promise.all(
     [tables].flat().map((table) => {
       if (table instanceof Table) {
         table = serializeTable(table);
       }
-      return client2.send(
+      return client.send(
         new CreateTableCommand({
           ...table,
           BillingMode: "PAY_PER_REQUEST"
@@ -685,7 +716,6 @@ var migrate = (client2, tables) => {
 
 // src/command/put-items.ts
 import { BatchWriteItemCommand } from "@aws-sdk/client-dynamodb";
-import chunk from "chunk";
 
 // src/command/command.ts
 var thenable = (callback) => {
@@ -726,25 +756,23 @@ var iterable = (cursor, callback) => ({
 
 // src/command/put-items.ts
 var putItems = (table, items, options = {}) => {
+  const client = getClient(options);
   return thenable(async () => {
-    await Promise.all(
-      chunk(items, 25).map(async (items2) => {
-        let unprocessedItems = {
-          [table.name]: items2.map((item) => ({
-            PutRequest: {
-              Item: table.marshall(item)
-            }
-          }))
-        };
-        while (unprocessedItems?.[table.name]?.length) {
-          const command = new BatchWriteItemCommand({
-            RequestItems: unprocessedItems
-          });
-          const result = await client(options).send(command);
-          unprocessedItems = result.UnprocessedItems;
+    const unprocessedItems = items.map((item) => ({
+      PutRequest: {
+        Item: table.marshall(item)
+      }
+    }));
+    while (unprocessedItems.length) {
+      const command = new BatchWriteItemCommand({
+        RequestItems: {
+          [table.name]: unprocessedItems.splice(0, 25)
         }
-      })
-    );
+      });
+      const result = await client.send(command);
+      const resultUnprocessedItems = result.UnprocessedItems?.[table.name] ?? [];
+      unprocessedItems.push(...resultUnprocessedItems);
+    }
   });
 };
 
@@ -872,6 +900,7 @@ var buildProjectionExpression = (attrs, projection) => {
 // src/command/get-item.ts
 var getItem = (table, key, options = {}) => {
   const attrs = new ExpressionAttributes(table);
+  const client = getClient(options);
   const command = new GetItemCommand({
     TableName: table.name,
     Key: table.marshall(key),
@@ -885,7 +914,7 @@ var getItem = (table, key, options = {}) => {
       input: { Get: command.input }
     })),
     ...thenable(async () => {
-      const result = await client(options).send(command);
+      const result = await client.send(command);
       if (result.Item) {
         return table.unmarshall(result.Item, options.select);
       }
@@ -1108,7 +1137,7 @@ var mockDynamoDB = (configOrServer) => {
       }, configOrServer.timeout);
     }
   }
-  const client2 = server.getClient();
+  const client = server.getClient();
   const documentClient = server.getDocumentClient();
   const processStream = (command, send) => {
     if (!(configOrServer instanceof DynamoDBServer) && configOrServer.stream) {
@@ -1118,10 +1147,10 @@ var mockDynamoDB = (configOrServer) => {
   };
   const clientSend = (command) => {
     return processStream(command, () => {
-      if (client2.__proto__.send.wrappedMethod) {
-        return client2.__proto__.send.wrappedMethod.call(client2, command);
+      if (client.__proto__.send.wrappedMethod) {
+        return client.__proto__.send.wrappedMethod.call(client, command);
       }
-      return client2.send(command);
+      return client.send(command);
     });
   };
   const documentClientSend = (command) => {
@@ -1168,7 +1197,8 @@ TransactionCanceledException.prototype.validationErrorAt = function(index) {
 import {
   ConditionalCheckFailedException,
   TransactionCanceledException as TransactionCanceledException2,
-  TransactionConflictException
+  TransactionConflictException,
+  DynamoDBServiceException
 } from "@aws-sdk/client-dynamodb";
 
 // src/expression/fluent.ts
@@ -1308,6 +1338,7 @@ var buildConditionExpression = (attrs, builder) => {
 
 // src/command/put-item.ts
 var putItem = (table, item, options = {}) => {
+  const client = getClient(options);
   const attrs = new ExpressionAttributes(table);
   const command = new PutItemCommand3({
     TableName: table.name,
@@ -1321,7 +1352,7 @@ var putItem = (table, item, options = {}) => {
       Put: command.input
     })),
     ...thenable(async () => {
-      const result = await client(options).send(command);
+      const result = await client.send(command);
       if (result.Attributes) {
         return table.unmarshall(result.Attributes);
       }
@@ -1445,6 +1476,7 @@ var buildUpdateExpression = (attrs, builder) => {
 
 // src/command/update-item.ts
 var updateItem = (table, key, options) => {
+  const client = getClient(options);
   const attrs = new ExpressionAttributes(table);
   const update = buildUpdateExpression(attrs, options.update);
   const condition = buildConditionExpression(attrs, options.when);
@@ -1461,7 +1493,7 @@ var updateItem = (table, key, options) => {
       Update: command.input
     })),
     ...thenable(async () => {
-      const result = await client(options).send(command);
+      const result = await client.send(command);
       if (result.Attributes) {
         return table.unmarshall(result.Attributes);
       }
@@ -1473,6 +1505,7 @@ var updateItem = (table, key, options) => {
 // src/command/delete-item.ts
 import { DeleteItemCommand as DeleteItemCommand3 } from "@aws-sdk/client-dynamodb";
 var deleteItem = (table, key, options = {}) => {
+  const client = getClient(options);
   const attrs = new ExpressionAttributes(table);
   const command = new DeleteItemCommand3({
     TableName: table.name,
@@ -1484,7 +1517,7 @@ var deleteItem = (table, key, options = {}) => {
   return {
     ...transactable(() => ({ Delete: command.input })),
     ...thenable(async () => {
-      const result = await client(options).send(command);
+      const result = await client.send(command);
       if (result.Attributes) {
         return table.unmarshall(result.Attributes);
       }
@@ -1496,9 +1529,10 @@ var deleteItem = (table, key, options = {}) => {
 // src/command/get-items.ts
 import { BatchGetItemCommand as BatchGetItemCommand2 } from "@aws-sdk/client-dynamodb";
 var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
+  const client = getClient(options);
   return thenable(async () => {
-    let response = [];
-    let unprocessedKeys = keys.map((key) => table.marshall(key));
+    const response = [];
+    const unprocessedKeys = keys.map((key) => table.marshall(key));
     const attrs = new ExpressionAttributes(table);
     const projection = buildProjectionExpression(attrs, options.select);
     const attributes = attrs.attributeNames();
@@ -1506,20 +1540,20 @@ var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
       const command = new BatchGetItemCommand2({
         RequestItems: {
           [table.name]: {
-            Keys: unprocessedKeys,
+            Keys: unprocessedKeys.splice(0, 100),
             ConsistentRead: options.consistentRead,
             ProjectionExpression: projection,
             ...attributes
           }
         }
       });
-      const result = await client(options).send(command);
-      unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || [];
-      response = [
-        //
-        ...response,
-        ...(result.Responses?.[table.name] ?? []).map((item) => table.unmarshall(item, options.select))
-      ];
+      const result = await client.send(command);
+      const resultUnprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys ?? [];
+      const resultProcessedItems = (result.Responses?.[table.name] ?? []).map(
+        (item) => table.unmarshall(item, options.select)
+      );
+      unprocessedKeys.push(...resultUnprocessedKeys);
+      response.push(...resultProcessedItems);
     }
     const list = keys.map((key) => {
       return response.find((item) => {
@@ -1541,27 +1575,24 @@ var getItems = (table, keys, options = { filterNonExistentItems: false }) => {
 
 // src/command/delete-items.ts
 import { BatchWriteItemCommand as BatchWriteItemCommand4 } from "@aws-sdk/client-dynamodb";
-import chunk2 from "chunk";
 var deleteItems = (table, keys, options = {}) => {
+  const client = getClient(options);
   return thenable(async () => {
-    await Promise.all(
-      chunk2(keys, 25).map(async (items) => {
-        let unprocessedItems = {
-          [table.name]: items.map((item) => ({
-            DeleteRequest: {
-              Key: table.marshall(item)
-            }
-          }))
-        };
-        while (unprocessedItems?.[table.name]?.length) {
-          const command = new BatchWriteItemCommand4({
-            RequestItems: unprocessedItems
-          });
-          const result = await client(options).send(command);
-          unprocessedItems = result.UnprocessedItems;
+    const unprocessedItems = keys.map((key) => ({
+      DeleteRequest: {
+        Key: table.marshall(key)
+      }
+    }));
+    while (unprocessedItems.length) {
+      const command = new BatchWriteItemCommand4({
+        RequestItems: {
+          [table.name]: unprocessedItems.splice(0, 25)
         }
-      })
-    );
+      });
+      const result = await client.send(command);
+      const resultUnprocessedItems = result.UnprocessedItems?.[table.name] ?? [];
+      unprocessedItems.push(...resultUnprocessedItems);
+    }
   });
 };
 
@@ -1592,27 +1623,25 @@ var toCursorString = (cursor) => {
 
 // src/command/query.ts
 var query = (table, key, options = {}) => {
+  const client = getClient(options);
   const execute = async (cursor, limit) => {
     const sort = options.order ?? options.sort;
     const attrs = new ExpressionAttributes(table);
     const command = new QueryCommand2({
       TableName: table.name,
       IndexName: options.index,
-      KeyConditionExpression: buildConditionExpression(
-        attrs,
-        (e) => e.and([
-          ...Object.entries(key).map(([k, v]) => e(k).eq(v)),
-          ...options.where ? [options.where(e)] : []
-        ])
-      ),
+      KeyConditionExpression: buildConditionExpression(attrs, (e) => [
+        ...Object.entries(key).map(([k, v]) => e(k).eq(v)),
+        ...options.where ? [options.where(e)] : []
+      ]),
       ConsistentRead: options.consistentRead,
       ScanIndexForward: sort === "desc" ? false : true,
-      Limit: limit ?? options.limit ?? 10,
       ExclusiveStartKey: fromCursorString(cursor),
       ProjectionExpression: buildProjectionExpression(attrs, options.select),
+      Limit: limit ?? options.limit ?? 10,
       ...attrs.attributes()
     });
-    const result = await client(options).send(command);
+    const result = await client.send(command);
     return {
       items: result.Items?.map((item) => table.unmarshall(item, options.select)) ?? [],
       cursor: toCursorString(result.LastEvaluatedKey)
@@ -1649,6 +1678,7 @@ var getIndexItem = (table, index, key, options) => {
 // src/command/scan.ts
 import { ScanCommand as ScanCommand2 } from "@aws-sdk/client-dynamodb";
 var scan = (table, options = {}) => {
+  const client = getClient(options);
   const execute = async (cursor, limit) => {
     const attrs = new ExpressionAttributes(table);
     const command = new ScanCommand2({
@@ -1659,7 +1689,7 @@ var scan = (table, options = {}) => {
       ProjectionExpression: buildProjectionExpression(attrs, options.select),
       ...attrs.attributes()
     });
-    const result = await client(options).send(command);
+    const result = await client.send(command);
     return {
       items: result.Items?.map((item) => table.unmarshall(item, options.select)) || [],
       cursor: toCursorString(result.LastEvaluatedKey)
@@ -1701,7 +1731,8 @@ var transactRead = async (items, options = {}) => {
   const command = new TransactGetItemsCommand2({
     TransactItems: transactItems.map((item) => item.input)
   });
-  const result = await client(options).send(command);
+  const client = getClient(options);
+  const result = await client.send(command);
   const responses = result.Responses ?? [];
   return responses.map((res, i) => {
     if (res.Item) {
@@ -1717,6 +1748,7 @@ export {
   DynamoDBClient4 as DynamoDBClient,
   DynamoDBDocumentClient3 as DynamoDBDocumentClient,
   DynamoDBServer2 as DynamoDBServer,
+  DynamoDBServiceException,
   Fluent,
   GetItemCommand3 as GetItemCommand,
   PutItemCommand4 as PutItemCommand,

@@ -37,7 +37,10 @@
 
 	"functions": {
 		// "log-metric": "./metric/log-metric.ts",
-		"test": "./function.ts",
+		"test": {
+			"code": "./function.ts",
+			"timeout": "15 seconds"
+		},
 		"test2": "./function.ts"
 		// "test3": "./function.ts",
 		// "test4": "./function.ts",

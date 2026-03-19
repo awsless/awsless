@@ -1,5 +1,5 @@
-import { BatchGetItemCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client'
+import { AttributeValue, BatchGetItemCommand } from '@aws-sdk/client-dynamodb'
+import { getClient } from '../client'
 import { ExpressionAttributes } from '../expression/attributes'
 import { buildProjectionExpression, ProjectionExpression, ProjectionResponse } from '../expression/projection'
 import { AnyTable } from '../table'
@@ -27,14 +27,18 @@ type BatchGetItem = {
 	): Thenable<ProjectionResponse<T, P>[]>
 }
 
+type UnprocessedKeys = Record<string, AttributeValue>[]
+
 export const getItems: BatchGetItem = <T extends AnyTable, P extends ProjectionExpression<T> | undefined = undefined>(
 	table: T,
 	keys: PrimaryKey<T>[],
 	options: BatchGetOptions<T, P, boolean> = { filterNonExistentItems: false }
 ) => {
+	const client = getClient(options)
+
 	return thenable<Array<ProjectionResponse<T, P> | undefined>>(async () => {
-		let response: (ProjectionResponse<T, P> | undefined)[] = []
-		let unprocessedKeys: any[] = keys.map(key => table.marshall(key))
+		const response: (ProjectionResponse<T, P> | undefined)[] = []
+		const unprocessedKeys: UnprocessedKeys = keys.map(key => table.marshall(key))
 
 		const attrs = new ExpressionAttributes(table)
 		const projection = buildProjectionExpression(attrs, options.select)
@@ -44,7 +48,7 @@ export const getItems: BatchGetItem = <T extends AnyTable, P extends ProjectionE
 			const command = new BatchGetItemCommand({
 				RequestItems: {
 					[table.name]: {
-						Keys: unprocessedKeys,
+						Keys: unprocessedKeys.splice(0, 100),
 						ConsistentRead: options.consistentRead,
 						ProjectionExpression: projection,
 						...attributes,
@@ -52,15 +56,15 @@ export const getItems: BatchGetItem = <T extends AnyTable, P extends ProjectionE
 				},
 			})
 
-			const result = await client(options).send(command)
+			const result = await client.send(command)
 
-			unprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys || []
+			const resultUnprocessedKeys = result.UnprocessedKeys?.[table.name]?.Keys ?? []
+			const resultProcessedItems = (result.Responses?.[table.name] ?? []).map(item =>
+				table.unmarshall(item, options.select)
+			)
 
-			response = [
-				//
-				...response,
-				...(result.Responses?.[table.name] ?? []).map(item => table.unmarshall(item, options.select)),
-			]
+			unprocessedKeys.push(...resultUnprocessedKeys)
+			response.push(...resultProcessedItems)
 		}
 
 		const list = keys.map(key => {

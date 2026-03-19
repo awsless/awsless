@@ -1,43 +1,38 @@
 import { BatchWriteItemCommand } from '@aws-sdk/client-dynamodb'
-import chunk from 'chunk'
-import { client } from '../client'
+import { getClient } from '../client'
 import { AnyTable } from '../table'
 import { PrimaryKey } from '../types/key'
 import { Options } from '../types/options'
 import { thenable } from './command'
 
-type UnprocessedItems =
-	| {
-			[key: string]: {
-				DeleteRequest: {
-					Key: any
-				}
-			}[]
-	  }
-	| undefined
+type UnprocessedItems = {
+	DeleteRequest: {
+		Key: any
+	}
+}[]
 
 export const deleteItems = <T extends AnyTable>(table: T, keys: PrimaryKey<T>[], options: Options = {}) => {
+	const client = getClient(options)
+
 	return thenable(async () => {
-		await Promise.all(
-			chunk(keys, 25).map(async items => {
-				let unprocessedItems: UnprocessedItems = {
-					[table.name]: items.map(item => ({
-						DeleteRequest: {
-							Key: table.marshall(item),
-						},
-					})),
-				}
+		const unprocessedItems: UnprocessedItems = keys.map(key => ({
+			DeleteRequest: {
+				Key: table.marshall(key),
+			},
+		}))
 
-				while (unprocessedItems?.[table.name]?.length) {
-					const command = new BatchWriteItemCommand({
-						RequestItems: unprocessedItems,
-					})
-
-					const result = await client(options).send(command)
-
-					unprocessedItems = result.UnprocessedItems as UnprocessedItems
-				}
+		while (unprocessedItems.length) {
+			const command = new BatchWriteItemCommand({
+				RequestItems: {
+					[table.name]: unprocessedItems.splice(0, 25),
+				},
 			})
-		)
+
+			const result = await client.send(command)
+
+			const resultUnprocessedItems = (result.UnprocessedItems?.[table.name] as UnprocessedItems) ?? []
+
+			unprocessedItems.push(...resultUnprocessedItems)
+		}
 	})
 }

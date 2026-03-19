@@ -77,9 +77,13 @@ export const tableFeature = defineFeature({
 					[
 						props.hash,
 						props.sort,
-						...Object.values(props.indexes ?? {}).map(index => [index.hash, index.sort]),
+						...Object.values(props.indexes ?? {}).map(index => [
+							//
+							index.hash,
+							index.sort,
+						]),
 					]
-						.flat()
+						.flat(2)
 						.filter(v => !!v) as string[]
 				)
 
@@ -116,9 +120,17 @@ export const tableFeature = defineFeature({
 					},
 					globalSecondaryIndex: Object.entries(props.indexes ?? {}).map(([name, index]) => ({
 						name: name,
-						hashKey: index.hash,
-						rangeKey: index.sort,
 						projectionType: constantCase(index.projection),
+						keySchema: [
+							...index.hash.map(name => ({
+								keyType: 'HASH',
+								attributeName: name,
+							})),
+							...(index.sort ?? []).map(name => ({
+								keyType: 'RANGE',
+								attributeName: name,
+							})),
+						],
 					})),
 					deletionProtectionEnabled: ctx.appConfig.removal === 'retain',
 				},
@@ -156,7 +168,7 @@ export const tableFeature = defineFeature({
 			if (props.stream) {
 				const result = createLambdaFunction(group, ctx, 'table', id, props.stream.consumer)
 
-				result.setEnvironment('LOG_VIEWABLE_ERROR', '1')
+				result.setEnvironment('THROW_EXPECTED_ERRORS', '1')
 
 				const onFailure = getGlobalOnFailure(ctx)
 

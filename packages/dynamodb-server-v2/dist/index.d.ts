@@ -218,6 +218,8 @@ declare class Table {
     getIndexKeySchema(indexName: string): KeySchemaElement[] | undefined;
     private attributeEquals;
     private compareAttributes;
+    private compareByKeySchema;
+    private queryBySchema;
     getAllItems(): AttributeMap[];
     clear(): void;
     onStreamRecord(callback: StreamCallback): () => void;

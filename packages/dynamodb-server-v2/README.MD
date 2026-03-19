@@ -9,6 +9,7 @@ A local DynamoDB server for testing and development. Provides both a fast in-mem
 - **DynamoDB Streams** - Support for stream callbacks on item changes
 - **TTL Support** - Time-to-live expiration for items
 - **GSI/LSI Support** - Global and Local Secondary Index support
+- **Multi Key for GSI Support** - Multi-key support for Global Secondary Indexes
 
 ## Setup
 
@@ -21,13 +22,13 @@ npm i @awsless/dynamodb-server
 ## Basic Usage
 
 ```ts
-import { DynamoDBServer } from "@awsless/dynamodb-server"
+import { DynamoDBServer } from '@awsless/dynamodb-server'
 
 // Create a server with the fast in-memory engine (default)
 const server = new DynamoDBServer()
 
 // Or use the Java engine for full compatibility
-const server = new DynamoDBServer({ engine: "java" })
+const server = new DynamoDBServer({ engine: 'java' })
 
 // Start the server
 await server.listen(8000)
@@ -49,7 +50,7 @@ await server.stop()
 The in-memory engine is optimized for speed and is perfect for unit tests. It implements the core DynamoDB operations without requiring Java.
 
 ```ts
-const server = new DynamoDBServer({ engine: "memory" })
+const server = new DynamoDBServer({ engine: 'memory' })
 ```
 
 ### Java Engine
@@ -57,24 +58,24 @@ const server = new DynamoDBServer({ engine: "memory" })
 The Java engine uses AWS DynamoDB Local for full compatibility with DynamoDB behavior. Requires Java to be installed.
 
 ```ts
-const server = new DynamoDBServer({ engine: "java" })
+const server = new DynamoDBServer({ engine: 'java' })
 ```
 
 ## Configuration Options
 
 ```ts
 const server = new DynamoDBServer({
-  // Engine type: "memory" (default) or "java"
-  engine: "memory",
+	// Engine type: "memory" (default) or "java"
+	engine: 'memory',
 
-  // Hostname to bind to (default: "localhost")
-  hostname: "localhost",
+	// Hostname to bind to (default: "localhost")
+	hostname: 'localhost',
 
-  // Port to listen on (default: auto-assigned)
-  port: 8000,
+	// Port to listen on (default: auto-assigned)
+	port: 8000,
 
-  // AWS region (default: "us-east-1")
-  region: "us-east-1",
+	// AWS region (default: "us-east-1")
+	region: 'us-east-1',
 })
 ```
 
@@ -83,11 +84,11 @@ const server = new DynamoDBServer({
 You can subscribe to item changes using stream callbacks:
 
 ```ts
-const unsubscribe = server.onStreamRecord("my-table", record => {
-  console.log("Stream event:", record.eventName) // INSERT, MODIFY, or REMOVE
-  console.log("Keys:", record.dynamodb.Keys)
-  console.log("New Image:", record.dynamodb.NewImage)
-  console.log("Old Image:", record.dynamodb.OldImage)
+const unsubscribe = server.onStreamRecord('my-table', record => {
+	console.log('Stream event:', record.eventName) // INSERT, MODIFY, or REMOVE
+	console.log('Keys:', record.dynamodb.Keys)
+	console.log('New Image:', record.dynamodb.NewImage)
+	console.log('Old Image:', record.dynamodb.OldImage)
 })
 
 // Unsubscribe when done
@@ -97,50 +98,50 @@ unsubscribe()
 ## Testing with Vitest/Jest
 
 ```ts
-import { DynamoDBServer } from "@awsless/dynamodb-server"
-import { CreateTableCommand } from "@aws-sdk/client-dynamodb"
-import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb"
+import { DynamoDBServer } from '@awsless/dynamodb-server'
+import { CreateTableCommand } from '@aws-sdk/client-dynamodb'
+import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb'
 
-describe("My DynamoDB Tests", () => {
-  const server = new DynamoDBServer()
+describe('My DynamoDB Tests', () => {
+	const server = new DynamoDBServer()
 
-  beforeAll(async () => {
-    await server.listen()
+	beforeAll(async () => {
+		await server.listen()
 
-    // Create your tables
-    await server.getClient().send(
-      new CreateTableCommand({
-        TableName: "users",
-        KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-        AttributeDefinitions: [{ AttributeName: "id", AttributeType: "N" }],
-        BillingMode: "PAY_PER_REQUEST",
-      })
-    )
-  })
+		// Create your tables
+		await server.getClient().send(
+			new CreateTableCommand({
+				TableName: 'users',
+				KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+				AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'N' }],
+				BillingMode: 'PAY_PER_REQUEST',
+			})
+		)
+	})
 
-  afterAll(async () => {
-    await server.stop()
-  })
+	afterAll(async () => {
+		await server.stop()
+	})
 
-  it("should store and retrieve items", async () => {
-    const client = server.getDocumentClient()
+	it('should store and retrieve items', async () => {
+		const client = server.getDocumentClient()
 
-    await client.send(
-      new PutCommand({
-        TableName: "users",
-        Item: { id: 1, name: "John" },
-      })
-    )
+		await client.send(
+			new PutCommand({
+				TableName: 'users',
+				Item: { id: 1, name: 'John' },
+			})
+		)
 
-    const result = await client.send(
-      new GetCommand({
-        TableName: "users",
-        Key: { id: 1 },
-      })
-    )
+		const result = await client.send(
+			new GetCommand({
+				TableName: 'users',
+				Key: { id: 1 },
+			})
+		)
 
-    expect(result.Item).toEqual({ id: 1, name: "John" })
-  })
+		expect(result.Item).toEqual({ id: 1, name: 'John' })
+	})
 })
 ```
 

@@ -1,5 +1,5 @@
 import { TransactWriteItem, TransactWriteItemsCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client'
+import { getClient } from '../client'
 import { Options } from '../types/options'
 
 export type Transactable = {
@@ -11,10 +11,11 @@ type TransactWriteOptions = Options & {
 }
 
 export const transactWrite = async (items: Transactable[], options: TransactWriteOptions = {}): Promise<void> => {
+	const client = getClient(options)
 	const command = new TransactWriteItemsCommand({
 		ClientRequestToken: options.idempotantKey,
 		TransactItems: items.map(item => item.transact()),
 	})
 
-	await client(options).send(command)
+	await client.send(command)
 }

@@ -1,5 +1,5 @@
 import { UpdateItemCommand, UpdateItemCommandInput } from '@aws-sdk/client-dynamodb'
-import { client } from '../client.js'
+import { getClient } from '../client.js'
 import { ExpressionAttributes } from '../expression/attributes.js'
 import { buildConditionExpression, ConditionExpression } from '../expression/condition.js'
 import { UpdateReturnResponse, UpdateReturnValue } from '../expression/return.js'
@@ -20,6 +20,7 @@ export const updateItem = <T extends AnyTable, R extends UpdateReturnValue>(
 	key: PrimaryKey<T>,
 	options: UpdateOptions<T, R>
 ) => {
+	const client = getClient(options)
 	const attrs = new ExpressionAttributes(table)
 	const update = buildUpdateExpression(attrs, options.update)
 	const condition = buildConditionExpression(attrs, options.when)
@@ -47,7 +48,7 @@ export const updateItem = <T extends AnyTable, R extends UpdateReturnValue>(
 			},
 		})),
 		...thenable<UpdateReturnResponse<T, R>>(async () => {
-			const result = await client(options).send(command)
+			const result = await client.send(command)
 
 			if (result.Attributes) {
 				return table.unmarshall(result.Attributes)

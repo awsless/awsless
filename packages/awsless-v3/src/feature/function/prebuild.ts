@@ -8,7 +8,7 @@ import { join } from 'path'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
-import { bundleTypeScript } from './build/typescript/bundle.js'
+// import { bundleTypeScript } from './build/typescript/bundle.js'
 import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 import { zipFiles } from './build/zip.js'
 import { FunctionProps } from './schema.js'
@@ -18,7 +18,7 @@ import { FunctionProps } from './schema.js'
 // type Code = aws.lambda.Code
 
 export const prebuild = async (file: string, output: string, external: string[] = []) => {
-	const bundle = await bundleTypeScript({
+	const bundle = await bundleTypeScriptWithRolldown({
 		file,
 		minify: true,
 		external,

@@ -57,9 +57,17 @@ function validateAndCreate(store: TableStore, input: CreateTableInput) {
 		}
 	}
 
+	if (input.GlobalSecondaryIndexes) {
+		for (const gsi of input.GlobalSecondaryIndexes) {
+			validateSecondaryIndexKeySchema(gsi.IndexName, gsi.KeySchema, definedAttrs, true)
+		}
+	}
+
 	if (input.LocalSecondaryIndexes) {
 		const tableHashKey = hashKeys[0]!.AttributeName
 		for (const lsi of input.LocalSecondaryIndexes) {
+			validateSecondaryIndexKeySchema(lsi.IndexName, lsi.KeySchema, definedAttrs, false)
+
 			const lsiHashKey = lsi.KeySchema.find(k => k.KeyType === 'HASH')
 			if (!lsiHashKey || lsiHashKey.AttributeName !== tableHashKey) {
 				throw new ValidationException(
@@ -86,4 +94,57 @@ function validateAndCreate(store: TableStore, input: CreateTableInput) {
 export function createTable(store: TableStore, input: CreateTableInput): CreateTableOutput {
 	const tableDescription = validateAndCreate(store, input)
 	return { TableDescription: tableDescription }
+}
+
+function validateSecondaryIndexKeySchema(
+	indexName: string,
+	keySchema: KeySchemaElement[],
+	definedAttrs: Set<string>,
+	isGlobal: boolean
+) {
+	if (!keySchema.length) {
+		throw new ValidationException(`Index ${indexName} must define a key schema`)
+	}
+
+	const hashKeys = keySchema.filter(k => k.KeyType === 'HASH')
+	const rangeKeys = keySchema.filter(k => k.KeyType === 'RANGE')
+	const maxHashKeys = isGlobal ? 4 : 1
+	const maxRangeKeys = isGlobal ? 4 : 1
+
+	if (hashKeys.length === 0 || hashKeys.length > maxHashKeys) {
+		throw new ValidationException(
+			isGlobal
+				? `Global secondary index ${indexName} must have between 1 and 4 partition key attributes`
+				: `Local secondary index ${indexName} must have exactly one hash key`
+		)
+	}
+
+	if (rangeKeys.length > maxRangeKeys) {
+		throw new ValidationException(
+			isGlobal
+				? `Global secondary index ${indexName} can have at most 4 sort key attributes`
+				: `Local secondary index ${indexName} can have at most one range key`
+		)
+	}
+
+	if (isGlobal && hashKeys.length + rangeKeys.length > 8) {
+		throw new ValidationException(`Global secondary index ${indexName} can have at most 8 key attributes`)
+	}
+
+	let seenRange = false
+	for (const keyElement of keySchema) {
+		if (!definedAttrs.has(keyElement.AttributeName)) {
+			throw new ValidationException(
+				`Attribute ${keyElement.AttributeName} is specified in index ${indexName} but not in AttributeDefinitions`
+			)
+		}
+
+		if (keyElement.KeyType === 'RANGE') {
+			seenRange = true
+		} else if (seenRange) {
+			throw new ValidationException(
+				`Index ${indexName} must list all partition key attributes before sort key attributes`
+			)
+		}
+	}
 }

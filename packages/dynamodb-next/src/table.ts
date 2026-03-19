@@ -10,8 +10,8 @@ export type AnyTable<T extends GenericMapSchema = GenericMapSchema> = Table<T, a
 export type IndexNames<T extends AnyTable> = Extract<keyof T['indexes'], string>
 
 export type TableIndex<Schema extends GenericMapSchema> = {
-	hash: Extract<keyof Schema[symbol]['Type'], string>
-	sort?: Extract<keyof Schema[symbol]['Type'], string> | undefined
+	hash: Extract<keyof Schema[symbol]['Type'], string> | Extract<keyof Schema[symbol]['Type'], string>[]
+	sort?: Extract<keyof Schema[symbol]['Type'], string> | Extract<keyof Schema[symbol]['Type'], string>[] | undefined
 }
 
 type TableIndexes<Schema extends GenericMapSchema> = Record<string, TableIndex<Schema>>

@@ -62,9 +62,33 @@ export function getHashKey(keySchema: KeySchemaElement[]): string {
 	return hash.AttributeName
 }
 
+export function getHashKeys(keySchema: KeySchemaElement[]): string[] {
+	return keySchema.filter(k => k.KeyType === 'HASH').map(k => k.AttributeName)
+}
+
 export function getRangeKey(keySchema: KeySchemaElement[]): string | undefined {
 	const range = keySchema.find(k => k.KeyType === 'RANGE')
 	return range?.AttributeName
+}
+
+export function getRangeKeys(keySchema: KeySchemaElement[]): string[] {
+	return keySchema.filter(k => k.KeyType === 'RANGE').map(k => k.AttributeName)
+}
+
+export function hasCompleteKey(item: AttributeMap, keySchema: KeySchemaElement[]): boolean {
+	return keySchema.every(element => Boolean(item[element.AttributeName]))
+}
+
+export function mergeKeySchemas(...schemas: KeySchemaElement[][]): KeySchemaElement[] {
+	const merged: KeySchemaElement[] = []
+	for (const schema of schemas) {
+		for (const element of schema) {
+			if (!merged.some(existing => existing.AttributeName === element.AttributeName)) {
+				merged.push(element)
+			}
+		}
+	}
+	return merged
 }
 
 export function deepClone<T>(obj: T): T {

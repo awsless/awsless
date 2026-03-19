@@ -1,7 +1,7 @@
 import { NativeAttributeBinary, marshallOptions, unmarshallOptions } from '@aws-sdk/util-dynamodb';
 import * as _aws_sdk_client_dynamodb from '@aws-sdk/client-dynamodb';
 import { AttributeValue, DynamoDBClient, TransactWriteItem, CreateTableCommandInput, UpdateItemCommandInput, TransactGetItem } from '@aws-sdk/client-dynamodb';
-export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, TransactionConflictException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
+export { BatchGetItemCommand, BatchWriteItemCommand, ConditionalCheckFailedException, DeleteItemCommand, DynamoDBClient, DynamoDBServiceException, GetItemCommand, PutItemCommand, QueryCommand, ScanCommand, TransactGetItemsCommand, TransactWriteItemsCommand, TransactionCanceledException, TransactionConflictException, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { UUID } from 'node:crypto';
 import { BigFloat } from '@awsless/big-float';
 import { DynamoDBServer } from '@awsless/dynamodb-server';
@@ -66,8 +66,8 @@ type Infer$2<T extends AnyTable> = T['schema'][symbol]['Type'];
 type AnyTable<T extends GenericMapSchema = GenericMapSchema> = Table<T, any, any, any>;
 type IndexNames<T extends AnyTable> = Extract<keyof T['indexes'], string>;
 type TableIndex<Schema extends GenericMapSchema> = {
-    hash: Extract<keyof Schema[symbol]['Type'], string>;
-    sort?: Extract<keyof Schema[symbol]['Type'], string> | undefined;
+    hash: Extract<keyof Schema[symbol]['Type'], string> | Extract<keyof Schema[symbol]['Type'], string>[];
+    sort?: Extract<keyof Schema[symbol]['Type'], string> | Extract<keyof Schema[symbol]['Type'], string>[] | undefined;
 };
 type TableIndexes<Schema extends GenericMapSchema> = Record<string, TableIndex<Schema>>;
 declare class Table<Schema extends GenericMapSchema, Hash extends Extract<keyof Schema[symbol]['Type'], string>, Sort extends Extract<keyof Schema[symbol]['Type'], string> | undefined, Indexes extends TableIndexes<Schema> | undefined> {
@@ -94,7 +94,9 @@ declare const define: <Schema extends GenericMapSchema, Hash extends Extract<key
     indexes?: Indexes;
 }) => Table<Schema, Hash, Sort, Indexes>;
 
-type Key<T extends AnyTable, K extends keyof Infer$2<T>> = Required<Record<K, Infer$2<T>[K]>>;
+type Key<T extends AnyTable, K extends keyof Infer$2<T> | (keyof Infer$2<T>)[]> = K extends keyof Infer$2<T> ? Required<Record<K, Infer$2<T>[K]>> : K extends (keyof Infer$2<T>)[] ? {
+    [P in K[number]]: Required<Infer$2<T>[P]>;
+} : never;
 type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>;
 type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = I extends IndexNames<T> ? T['indexes'][I]['sort'] extends string ? Key<T, T['indexes'][I]['sort']> : {} : T['sort'] extends string ? Key<T, T['sort']> : {};
 type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> & SortKey<T, I>;
@@ -682,7 +684,8 @@ declare const getIndexItem: <T extends AnyTable, I extends IndexNames<T>, const 
     select?: P;
 }) => Thenable<ProjectionResponse<T, P> | undefined>;
 
-type KeyConditionExpression<T extends AnyTable, I extends IndexNames<T> | undefined> = (e: Pick<T['schema'][symbol]['Expression']['Root']['Condition'], I extends IndexNames<T> ? T['indexes'][I]['sort'] : T['sort']>) => Fluent | Fluent[];
+type KeysToUnion<K extends string | string[]> = K extends string ? K : K[keyof K];
+type KeyConditionExpression<T extends AnyTable, I extends IndexNames<T> | undefined> = (e: Pick<T['schema'][symbol]['Expression']['Root']['Condition'], I extends IndexNames<T> ? KeysToUnion<T['indexes'][I]['sort']> : T['sort']>) => Fluent | Fluent[];
 
 type QueryOptions<T extends AnyTable, P extends ProjectionExpression<T> | undefined, I extends IndexNames<T> | undefined> = Options$1 & {
     where?: KeyConditionExpression<T, I>;

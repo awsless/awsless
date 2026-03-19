@@ -62,6 +62,30 @@ export const RpcDefaultSchema = z
 // ])
 
 export const RpcSchema = z
-	.record(ResourceIdSchema, z.record(z.string(), FunctionSchema).describe('The queries for your global RPC API.'))
+	.record(
+		ResourceIdSchema,
+		z
+			.record(
+				z.string(),
+				z.union([
+					FunctionSchema.transform(f => ({
+						function: f,
+						lock: false,
+					})),
+					z.object({
+						function: FunctionSchema.describe('The RPC function to execute.'),
+						lock: z
+							.boolean()
+							.describe(
+								[
+									'Specify if the function should be locked on the `lockKey` returned from the auth function.',
+									'An example would be returning the user ID as `lockKey`.',
+								].join('\n')
+							),
+					}),
+				])
+			)
+			.describe('The queries for your global RPC API.')
+	)
 	.describe('Define the schema in your stack for your global RPC API.')
 	.optional()

@@ -516,12 +516,6 @@ importers:
 
   packages/awsless-v3:
     dependencies:
-      '@arcanyx/cidr-slicer':
-        specifier: ^0.3.0
-        version: 0.3.0
-      '@aws-appsync/utils':
-        specifier: ^1.5.0
-        version: 1.12.0
       '@aws-sdk/client-cloudformation':
         specifier: ^3.369.0
         version: 3.782.0(aws-crt@1.26.2)
@@ -579,9 +573,6 @@ importers:
       '@awsless/dynamodb':
         specifier: workspace:^
         version: link:../dynamodb-next
-      '@awsless/graphql':
-        specifier: workspace:^
-        version: link:../graphql
       '@awsless/iot':
         specifier: workspace:^
         version: link:../iot
@@ -630,30 +621,15 @@ importers:
       '@clack/prompts':
         specifier: ^0.7.0
         version: 0.7.0
-      '@graphql-tools/merge':
-        specifier: ^9.0.0
-        version: 9.0.24(graphql@16.10.0)
-      '@rollup/plugin-commonjs':
-        specifier: ^25.0.5
-        version: 25.0.8(rollup@4.52.4)
-      '@rollup/plugin-json':
-        specifier: ^6.0.1
-        version: 6.1.0(rollup@4.52.4)
-      '@rollup/plugin-node-resolve':
-        specifier: ^15.2.3
-        version: 15.3.1(rollup@4.52.4)
-      '@swc/core':
-        specifier: ^1.3.70
-        version: 1.11.16
       '@terraforge/aws':
-        specifier: ^6.28.0
-        version: 6.28.0(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.14(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8)))
+        specifier: ^6.35.1
+        version: 6.35.1(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.30(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8)))
       '@terraforge/core':
-        specifier: ^0.0.22
-        version: 0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8)
+        specifier: ^0.0.37
+        version: 0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8)
       '@terraforge/terraform':
-        specifier: ^0.0.14
-        version: 0.0.14(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8))
+        specifier: ^0.0.30
+        version: 0.0.30(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8))
       '@types/aws-lambda':
         specifier: ^8.10.110
         version: 8.10.148
@@ -663,30 +639,18 @@ importers:
       '@types/chunk':
         specifier: ^0.0.0
         version: 0.0.0
-      '@types/decompress':
-        specifier: ^4.2.4
-        version: 4.2.7
       '@types/folder-hash':
         specifier: ^4.0.4
         version: 4.0.4
       '@types/mime-types':
         specifier: ^2.1.2
         version: 2.1.4
-      '@types/minimist':
-        specifier: ^1.2.5
-        version: 1.2.5
       '@types/play-sound':
         specifier: ^1.1.2
         version: 1.1.2
       '@types/pretty-hrtime':
         specifier: ^1.0.1
         version: 1.0.3
-      '@types/promise-dag':
-        specifier: ^1.0.4
-        version: 1.0.4
-      '@types/rollup-plugin-natives':
-        specifier: ^0.7.5
-        version: 0.7.5
       '@types/uuid':
         specifier: ^9.0.0
         version: 9.0.8
@@ -726,21 +690,12 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
-      decompress:
-        specifier: ^4.2.1
-        version: 4.2.1
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
-      event-iterator:
-        specifier: ^2.0.0
-        version: 2.0.0
       fast-json-patch:
         specifier: ^3.1.1
         version: 3.1.1
-      fastq:
-        specifier: ^1.16.0
-        version: 1.19.1
       filesize:
         specifier: ^10.0.7
         version: 10.1.6
@@ -750,9 +705,6 @@ importers:
       glob:
         specifier: ^10.3.9
         version: 10.4.5
-      graphql:
-        specifier: ^16.7.1
-        version: 16.10.0
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -762,72 +714,36 @@ importers:
       mime-types:
         specifier: ^2.1.35
         version: 2.1.35
-      minimist:
-        specifier: ^1.2.8
-        version: 1.2.8
-      node-docker-api:
-        specifier: ^1.1.22
-        version: 1.1.22
       p-limit:
         specifier: 7.2.0
         version: 7.2.0
-      parse-imports:
-        specifier: ^1.1.2
-        version: 1.2.0
-      parse-static-imports:
-        specifier: ^1.1.0
-        version: 1.1.0
       play-sound:
         specifier: ^1.1.6
         version: 1.1.6
       pretty-hrtime:
         specifier: ^1.0.3
         version: 1.0.3
-      promise-dag:
-        specifier: ^1.0.0
-        version: 1.0.0
-      promisify-child-process:
-        specifier: ^4.1.2
-        version: 4.1.2
       rolldown:
         specifier: 1.0.0-rc.3
         version: 1.0.0-rc.3
-      rollup:
-        specifier: ^4.18.0
-        version: 4.52.4
-      rollup-plugin-natives:
-        specifier: ^0.7.8
-        version: 0.7.8(rollup@4.52.4)
-      rollup-plugin-replace:
-        specifier: ^2.2.0
-        version: 2.2.0
       rollup-plugin-string-import:
         specifier: 1.2.6
         version: 1.2.6(rollup@4.52.4)
-      rollup-plugin-swc3:
-        specifier: ^0.11.2
-        version: 0.11.2(@swc/core@1.11.16)(rollup@4.52.4)
       svgo:
         specifier: ^4.0.0
         version: 4.0.0
       svgstore:
         specifier: ^3.0.1
         version: 3.0.1
-      tsx:
-        specifier: ^4.15.5
-        version: 4.19.3
       type-fest:
         specifier: ^4.20.1
         version: 4.39.1
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
-      vite:
-        specifier: ^5.0.0
-        version: 5.4.17(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)
       vitest:
-        specifier: ^4.0.18
-        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1)
+        specifier: ^4.1.0
+        version: 4.1.0(@opentelemetry/api@1.9.0)(@types/node@25.2.3)(vite@7.1.9(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1))
       wildstring:
         specifier: ^1.0.9
         version: 1.0.9
@@ -6557,6 +6473,9 @@ packages:
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==}
 
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
   '@sveltejs/acorn-typescript@1.0.8':
     resolution: {integrity: sha512-esgN+54+q0NjB0Y/4BomT9samII7jGwNy/2a3wNZbT2A2RpmXsXwUt24LvLhx6jUq2gVk4cWEvcRO6MFQbOfNA==}
     peerDependencies:
@@ -6652,20 +6571,20 @@ packages:
   '@swc/types@0.1.21':
     resolution: {integrity: sha512-2YEtj5HJVbKivud9N4bpPBAyZhj4S2Ipe5LkUG94alTpr7in/GU/EARgPAd3BwU+YOmFVJC2+kjqhGRi3r0ZpQ==}
 
-  '@terraforge/aws@6.28.0':
-    resolution: {integrity: sha512-LhJ1Y+D6CX2tQFxn9pb7H3JSD+6D4kfTfaF3z+S7INGKodLLmDCwjpFRJPBLtmJyP9gRkD7/KSFnK7BxAsqz0g==}
+  '@terraforge/aws@6.35.1':
+    resolution: {integrity: sha512-+6fzEwh1HuXjHXH+SImBpkog+ZGBX6PVpu0IoehnJWhEJ5+oYyMIE0PLoP5M4rfqgcY1mihYw2Cw39PCeWu3Pg==}
     peerDependencies:
-      '@terraforge/core': 0.0.11
-      '@terraforge/terraform': 0.0.11
+      '@terraforge/core': 0.0.19
+      '@terraforge/terraform': 0.0.14
 
-  '@terraforge/core@0.0.22':
-    resolution: {integrity: sha512-Ax3HaHyz0ipvV9zT/BEAzug+y1pbFvEWCqvW548aNJWA4kfJ0HQTF+r32bLHOkNkON4vBT5zO4Qk8SF7WpUDaA==}
+  '@terraforge/core@0.0.37':
+    resolution: {integrity: sha512-9z6AWpSViL6x1MoKDYBYJirSMS/bvc8/k1PSwrmlY1GBJQ131sAgkKcvhHmGGsH7gQCzEZOLfdhzYfjgURIwYg==}
 
-  '@terraforge/terraform@0.0.14':
-    resolution: {integrity: sha512-cblSDQAcmpS9zOas+2/JbSmLUGrCxPEMmFVFF4TyaUk2oHJlQf9WP8m/AIvtRMib5hddySpWKfvTRldBXhFDhw==}
+  '@terraforge/terraform@0.0.30':
+    resolution: {integrity: sha512-B0P2blrhB3PLF3c5wj/B7rrWH39COqQxAn5mudDGj/Xui50TGLN09cSevelbvOUhuHAFxs5ueet81gC2M/o8oA==}
     hasBin: true
     peerDependencies:
-      '@terraforge/core': 0.0.11
+      '@terraforge/core': 0.0.19
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
@@ -6838,14 +6757,14 @@ packages:
   '@vitest/expect@1.6.1':
     resolution: {integrity: sha512-jXL+9+ZNIJKruofqXuuTClf44eSpcHlgj3CiuNihUF3Ioujtmc0zIa3UJOW5RjDK1YLBJZnWBlPuqhYycLioog==}
 
-  '@vitest/expect@4.0.18':
-    resolution: {integrity: sha512-8sCWUyckXXYvx4opfzVY03EOiYVxyNrHS5QxX3DAIi5dpJAAkyJezHCP77VMX4HKA2LDT/Jpfo8i2r5BE3GnQQ==}
+  '@vitest/expect@4.1.0':
+    resolution: {integrity: sha512-EIxG7k4wlWweuCLG9Y5InKFwpMEOyrMb6ZJ1ihYu02LVj/bzUwn2VMU+13PinsjRW75XnITeFrQBMH5+dLvCDA==}
 
-  '@vitest/mocker@4.0.18':
-    resolution: {integrity: sha512-HhVd0MDnzzsgevnOWCBj5Otnzobjy5wLBe4EdeeFGv8luMsGcYqDuFRMcttKWZA5vVO8RFjexVovXvAM4JoJDQ==}
+  '@vitest/mocker@4.1.0':
+    resolution: {integrity: sha512-evxREh+Hork43+Y4IOhTo+h5lGmVRyjqI739Rz4RlUPqwrkFFDF6EMvOOYjTx4E8Tl6gyCLRL8Mu7Ry12a13Tw==}
     peerDependencies:
       msw: ^2.4.9
-      vite: ^6.0.0 || ^7.0.0-0
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0-0
     peerDependenciesMeta:
       msw:
         optional: true
@@ -6858,8 +6777,8 @@ packages:
   '@vitest/pretty-format@3.2.4':
     resolution: {integrity: sha512-IVNZik8IVRJRTr9fxlitMKeJeXFFFN0JaB9PHPGQ8NKQbGpfjlTx9zO4RefN8gp7eqjNy8nyK3NZmBzOPeIxtA==}
 
-  '@vitest/pretty-format@4.0.18':
-    resolution: {integrity: sha512-P24GK3GulZWC5tz87ux0m8OADrQIUVDPIjjj65vBXYG17ZeU3qD7r+MNZ1RNv4l8CGU2vtTRqixrOi9fYk/yKw==}
+  '@vitest/pretty-format@4.1.0':
+    resolution: {integrity: sha512-3RZLZlh88Ib0J7NQTRATfc/3ZPOnSUn2uDBUoGNn5T36+bALixmzphN26OUD3LRXWkJu4H0s5vvUeqBiw+kS0A==}
 
   '@vitest/runner@0.30.1':
     resolution: {integrity: sha512-W62kT/8i0TF1UBCNMRtRMOBWJKRnNyv9RrjIgdUryEe0wNpGZvvwPDLuzYdxvgSckzjp54DSpv1xUbv4BQ0qVA==}
@@ -6876,8 +6795,8 @@ packages:
   '@vitest/runner@3.1.4':
     resolution: {integrity: sha512-djTeF1/vt985I/wpKVFBMWUlk/I7mb5hmD5oP8K9ACRmVXgKTae3TUOtXAEBfslNKPzUQvnKhNd34nnRSYgLNQ==}
 
-  '@vitest/runner@4.0.18':
-    resolution: {integrity: sha512-rpk9y12PGa22Jg6g5M3UVVnTS7+zycIGk9ZNGN+m6tZHKQb7jrP7/77WfZy13Y/EUDd52NDsLRQhYKtv7XfPQw==}
+  '@vitest/runner@4.1.0':
+    resolution: {integrity: sha512-Duvx2OzQ7d6OjchL+trw+aSrb9idh7pnNfxrklo14p3zmNL4qPCDeIJAK+eBKYjkIwG96Bc6vYuxhqDXQOWpoQ==}
 
   '@vitest/snapshot@0.30.1':
     resolution: {integrity: sha512-fJZqKrE99zo27uoZA/azgWyWbFvM1rw2APS05yB0JaLwUIg9aUtvvnBf4q7JWhEcAHmSwbrxKFgyBUga6tq9Tw==}
@@ -6888,8 +6807,8 @@ packages:
   '@vitest/snapshot@1.6.1':
     resolution: {integrity: sha512-WvidQuWAzU2p95u8GAKlRMqMyN1yOJkGHnx3M1PL9Raf7AQ1kwLKg04ADlCa3+OXUZE7BceOhVZiuWAbzCKcUQ==}
 
-  '@vitest/snapshot@4.0.18':
-    resolution: {integrity: sha512-PCiV0rcl7jKQjbgYqjtakly6T1uwv/5BQ9SwBLekVg/EaYeQFPiXcgrC2Y7vDMA8dM1SUEAEV82kgSQIlXNMvA==}
+  '@vitest/snapshot@4.1.0':
+    resolution: {integrity: sha512-0Vy9euT1kgsnj1CHttwi9i9o+4rRLEaPRSOJ5gyv579GJkNpgJK+B4HSv/rAWixx2wdAFci1X4CEPjiu2bXIMg==}
 
   '@vitest/spy@0.30.1':
     resolution: {integrity: sha512-YfJeIf37GvTZe04ZKxzJfnNNuNSmTEGnla2OdL60C8od16f3zOfv9q9K0nNii0NfjDJRt/CVN/POuY5/zTS+BA==}
@@ -6900,8 +6819,8 @@ packages:
   '@vitest/spy@1.6.1':
     resolution: {integrity: sha512-MGcMmpGkZebsMZhbQKkAf9CX5zGvjkBTqf8Zx3ApYWXr3wG+QvEu2eXWfnIIWYSJExIp4V9FCKDEeygzkYrXMw==}
 
-  '@vitest/spy@4.0.18':
-    resolution: {integrity: sha512-cbQt3PTSD7P2OARdVW3qWER5EGq7PHlvE+QfzSC0lbwO+xnt7+XH06ZzFjFRgzUX//JmpxrCu92VdwvEPlWSNw==}
+  '@vitest/spy@4.1.0':
+    resolution: {integrity: sha512-pz77k+PgNpyMDv2FV6qmk5ZVau6c3R8HC8v342T2xlFxQKTrSeYw9waIJG8KgV9fFwAtTu4ceRzMivPTH6wSxw==}
 
   '@vitest/utils@0.30.1':
     resolution: {integrity: sha512-/c8Xv2zUVc+rnNt84QF0Y0zkfxnaGhp87K2dYJMLtLOIckPzuxLVzAtFCicGFdB4NeBHNzTRr1tNn7rCtQcWFA==}
@@ -6921,8 +6840,8 @@ packages:
   '@vitest/utils@3.2.4':
     resolution: {integrity: sha512-fB2V0JFrQSMsCo9HiSq3Ezpdv4iYaXRG1Sx8edX3MwxfyNn83mKiGzOcH+Fkxt4MHxr3y42fQi1oeAInqgX2QA==}
 
-  '@vitest/utils@4.0.18':
-    resolution: {integrity: sha512-msMRKLMVLWygpK3u2Hybgi4MNjcYJvwTb0Ru09+fOyCXIgT5raYP041DRRdiJiI3k/2U6SEbAETB3YtBrUkCFA==}
+  '@vitest/utils@4.1.0':
+    resolution: {integrity: sha512-XfPXT6a8TZY3dcGY8EdwsBulFCIw+BeeX0RZn2x/BtiY/75YGh8FeWGG8QISN/WhaqSrE2OrlDgtF8q5uhOTmw==}
 
   '@whatwg-node/promise-helpers@1.3.0':
     resolution: {integrity: sha512-486CouizxHXucj8Ky153DDragfkMcHtVEToF5Pn/fInhUUSiCmt9Q4JVBa6UK5q4RammFBtGQ4C9qhGlXU9YbA==}
@@ -7685,6 +7604,9 @@ packages:
 
   es-module-lexer@1.7.0:
     resolution: {integrity: sha512-jEQoCwk8hyb2AZziIOLhDqpm5+2ww5uIE6lkO/6jcOCusfk6LhMHpXXfBLXTZ7Ydyt0j4VoUQv6uGNYbdW+kBA==}
+
+  es-module-lexer@2.0.0:
+    resolution: {integrity: sha512-5POEcUuZybH7IdmGsD8wlf0AI55wMecM9rVBTI/qEAy2c1kTOm3DjFYjrBdI2K3BaJjJYfYFeRtM0t9ssnRuxw==}
 
   es-object-atoms@1.1.1:
     resolution: {integrity: sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==}
@@ -9687,14 +9609,14 @@ packages:
   standard-as-callback@2.1.0:
     resolution: {integrity: sha512-qoRRSyROncaz1z0mvYqIE4lCd9p2R90i6GxW3uZv5ucSu8tU7B5HXUP1gG8pVZsYNVaXjk8ClXHPttLyxAL48A==}
 
-  std-env@3.10.0:
-    resolution: {integrity: sha512-5GS12FdOZNliM5mAOxFRg7Ir0pWz8MdpYm6AY6VPkGpbA7ZzmbzNcBJQ0GPvvyWgcY7QAhCgf9Uy89I03faLkg==}
-
   std-env@3.8.1:
     resolution: {integrity: sha512-vj5lIj3Mwf9D79hBkltk5qmkFI+biIKWS2IBxEyEU3AX1tUf7AoL8nSazCOiiqQsGKIq01SClsKEzweu34uwvA==}
 
   std-env@3.9.0:
     resolution: {integrity: sha512-UGvjygr6F6tpH7o2qyqR6QYpwraIjKSdtzyBdyytFOHmPZY917kwdwLG0RbOjWOnKmnm3PeHjaoLLMie7kPLQw==}
+
+  std-env@4.0.0:
+    resolution: {integrity: sha512-zUMPtQ/HBY3/50VbpkupYHbRroTRZJPRLvreamgErJVys0ceuzMkD44J/QjqhHjOzK42GQ3QZIeFG1OYfOtKqQ==}
 
   stream-browserify@3.0.0:
     resolution: {integrity: sha512-H73RAHsVBapbim0tU2JwwOiXUj+fikfiaoYAKHF3VJfA0pe2BCzkhAHBlLG6REzE+2WNZcxOXjK7lkso+9euLA==}
@@ -10370,20 +10292,21 @@ packages:
       jsdom:
         optional: true
 
-  vitest@4.0.18:
-    resolution: {integrity: sha512-hOQuK7h0FGKgBAas7v0mSAsnvrIgAvWmRFjmzpJ7SwFHH3g1k2u37JtYwOwmEKhK6ZO3v9ggDBBm0La1LCK4uQ==}
+  vitest@4.1.0:
+    resolution: {integrity: sha512-YbDrMF9jM2Lqc++2530UourxZHmkKLxrs4+mYhEwqWS97WJ7wOYEkcr+QfRgJ3PW9wz3odRijLZjHEaRLTNbqw==}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^20.0.0 || ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 4.0.18
-      '@vitest/browser-preview': 4.0.18
-      '@vitest/browser-webdriverio': 4.0.18
-      '@vitest/ui': 4.0.18
+      '@vitest/browser-playwright': 4.1.0
+      '@vitest/browser-preview': 4.1.0
+      '@vitest/browser-webdriverio': 4.1.0
+      '@vitest/ui': 4.1.0
       happy-dom: '*'
       jsdom: '*'
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0-0
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -19446,6 +19369,8 @@ snapshots:
 
   '@standard-schema/spec@1.0.0': {}
 
+  '@standard-schema/spec@1.1.0': {}
+
   '@sveltejs/acorn-typescript@1.0.8(acorn@8.15.0)':
     dependencies:
       acorn: 8.15.0
@@ -19525,12 +19450,12 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
-  '@terraforge/aws@6.28.0(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.14(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8)))':
+  '@terraforge/aws@6.35.1(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8))(@terraforge/terraform@0.0.30(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8)))':
     dependencies:
-      '@terraforge/core': 0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8)
-      '@terraforge/terraform': 0.0.14(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8))
+      '@terraforge/core': 0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8)
+      '@terraforge/terraform': 0.0.30(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8))
 
-  '@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8)':
+  '@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8)':
     dependencies:
       '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.26.2)
       '@aws-sdk/client-s3': 3.782.0(aws-crt@1.26.2)
@@ -19547,11 +19472,11 @@ snapshots:
       - aws-crt
       - graphology-types
 
-  '@terraforge/terraform@0.0.14(@terraforge/core@0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8))':
+  '@terraforge/terraform@0.0.30(@terraforge/core@0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8))':
     dependencies:
       '@grpc/grpc-js': 1.12.6
       '@grpc/proto-loader': 0.7.15
-      '@terraforge/core': 0.0.22(aws-crt@1.26.2)(graphology-types@0.24.8)
+      '@terraforge/core': 0.0.37(aws-crt@1.26.2)(graphology-types@0.24.8)
       change-case: 5.4.4
       jszip: 3.10.1
       msgpackr: 1.11.8
@@ -19746,18 +19671,18 @@ snapshots:
       '@vitest/utils': 1.6.1
       chai: 4.5.0
 
-  '@vitest/expect@4.0.18':
+  '@vitest/expect@4.1.0':
     dependencies:
-      '@standard-schema/spec': 1.0.0
+      '@standard-schema/spec': 1.1.0
       '@types/chai': 5.2.3
-      '@vitest/spy': 4.0.18
-      '@vitest/utils': 4.0.18
+      '@vitest/spy': 4.1.0
+      '@vitest/utils': 4.1.0
       chai: 6.2.2
       tinyrainbow: 3.0.3
 
-  '@vitest/mocker@4.0.18(vite@7.1.9(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1))':
+  '@vitest/mocker@4.1.0(vite@7.1.9(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1))':
     dependencies:
-      '@vitest/spy': 4.0.18
+      '@vitest/spy': 4.1.0
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
@@ -19771,7 +19696,7 @@ snapshots:
     dependencies:
       tinyrainbow: 2.0.0
 
-  '@vitest/pretty-format@4.0.18':
+  '@vitest/pretty-format@4.1.0':
     dependencies:
       tinyrainbow: 3.0.3
 
@@ -19805,32 +19730,33 @@ snapshots:
       '@vitest/utils': 3.1.4
       pathe: 2.0.3
 
-  '@vitest/runner@4.0.18':
+  '@vitest/runner@4.1.0':
     dependencies:
-      '@vitest/utils': 4.0.18
+      '@vitest/utils': 4.1.0
       pathe: 2.0.3
 
   '@vitest/snapshot@0.30.1':
     dependencies:
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       pathe: 1.1.2
       pretty-format: 27.5.1
 
   '@vitest/snapshot@0.34.6':
     dependencies:
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       pathe: 1.1.2
       pretty-format: 29.7.0
 
   '@vitest/snapshot@1.6.1':
     dependencies:
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       pathe: 1.1.2
       pretty-format: 29.7.0
 
-  '@vitest/snapshot@4.0.18':
+  '@vitest/snapshot@4.1.0':
     dependencies:
-      '@vitest/pretty-format': 4.0.18
+      '@vitest/pretty-format': 4.1.0
+      '@vitest/utils': 4.1.0
       magic-string: 0.30.21
       pathe: 2.0.3
 
@@ -19846,7 +19772,7 @@ snapshots:
     dependencies:
       tinyspy: 2.2.1
 
-  '@vitest/spy@4.0.18': {}
+  '@vitest/spy@4.1.0': {}
 
   '@vitest/utils@0.30.1':
     dependencies:
@@ -19885,9 +19811,10 @@ snapshots:
       loupe: 3.2.1
       tinyrainbow: 2.0.0
 
-  '@vitest/utils@4.0.18':
+  '@vitest/utils@4.1.0':
     dependencies:
-      '@vitest/pretty-format': 4.0.18
+      '@vitest/pretty-format': 4.1.0
+      convert-source-map: 2.0.0
       tinyrainbow: 3.0.3
 
   '@whatwg-node/promise-helpers@1.3.0':
@@ -20773,6 +20700,8 @@ snapshots:
   es-errors@1.3.0: {}
 
   es-module-lexer@1.7.0: {}
+
+  es-module-lexer@2.0.0: {}
 
   es-object-atoms@1.1.1:
     dependencies:
@@ -22661,7 +22590,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 20.17.30
+      '@types/node': 25.2.3
       long: 5.3.2
 
   proxy-from-env@1.1.0: {}
@@ -22894,7 +22823,7 @@ snapshots:
 
   rollup-preserve-directives@1.1.3(rollup@4.52.4):
     dependencies:
-      magic-string: 0.30.18
+      magic-string: 0.30.21
       rollup: 4.52.4
 
   rollup-swc-preserve-directives@0.6.0(@swc/core@1.11.16)(rollup@4.39.0):
@@ -23148,11 +23077,11 @@ snapshots:
 
   standard-as-callback@2.1.0: {}
 
-  std-env@3.10.0: {}
-
   std-env@3.8.1: {}
 
   std-env@3.9.0: {}
+
+  std-env@4.0.0: {}
 
   stream-browserify@3.0.0:
     dependencies:
@@ -23830,22 +23759,22 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1):
+  vitest@4.1.0(@opentelemetry/api@1.9.0)(@types/node@25.2.3)(vite@7.1.9(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1)):
     dependencies:
-      '@vitest/expect': 4.0.18
-      '@vitest/mocker': 4.0.18(vite@7.1.9(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1))
-      '@vitest/pretty-format': 4.0.18
-      '@vitest/runner': 4.0.18
-      '@vitest/snapshot': 4.0.18
-      '@vitest/spy': 4.0.18
-      '@vitest/utils': 4.0.18
-      es-module-lexer: 1.7.0
+      '@vitest/expect': 4.1.0
+      '@vitest/mocker': 4.1.0(vite@7.1.9(@types/node@25.2.3)(stylus@0.59.0)(terser@5.39.0)(tsx@4.19.3)(yaml@2.7.1))
+      '@vitest/pretty-format': 4.1.0
+      '@vitest/runner': 4.1.0
+      '@vitest/snapshot': 4.1.0
+      '@vitest/spy': 4.1.0
+      '@vitest/utils': 4.1.0
+      es-module-lexer: 2.0.0
       expect-type: 1.3.0
       magic-string: 0.30.21
       obug: 2.1.1
       pathe: 2.0.3
       picomatch: 4.0.3
-      std-env: 3.10.0
+      std-env: 4.0.0
       tinybench: 2.9.0
       tinyexec: 1.0.2
       tinyglobby: 0.2.15
@@ -23856,17 +23785,7 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@types/node': 25.2.3
     transitivePeerDependencies:
-      - jiti
-      - less
-      - lightningcss
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
   walker@1.0.8:
     dependencies:

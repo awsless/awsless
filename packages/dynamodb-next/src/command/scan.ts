@@ -1,5 +1,5 @@
 import { ScanCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client.js'
+import { getClient } from '../client.js'
 import { ExpressionAttributes } from '../expression/attributes.js'
 import { buildProjectionExpression, ProjectionExpression, ProjectionResponse } from '../expression/projection.js'
 import { fromCursorString, toCursorString } from '../helper/cursor.js'
@@ -25,6 +25,8 @@ export const scan = <T extends AnyTable, const P extends ProjectionExpression<T>
 	table: T,
 	options: ScanOptions<T, P> = {}
 ) => {
+	const client = getClient(options)
+
 	const execute = async (cursor?: string, limit?: number) => {
 		const attrs = new ExpressionAttributes(table)
 		const command = new ScanCommand({
@@ -36,7 +38,7 @@ export const scan = <T extends AnyTable, const P extends ProjectionExpression<T>
 			...attrs.attributes(),
 		})
 
-		const result = await client(options).send(command)
+		const result = await client.send(command)
 
 		return {
 			items: result.Items?.map(item => table.unmarshall(item, options.select)) || [],

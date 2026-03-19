@@ -1,8 +1,8 @@
-import commonjs from '@rollup/plugin-commonjs'
-import json from '@rollup/plugin-json'
-import nodeResolve from '@rollup/plugin-node-resolve'
+// import commonjs from '@rollup/plugin-commonjs'
+// import json from '@rollup/plugin-json'
+// import nodeResolve from '@rollup/plugin-node-resolve'
 import { dirname, join } from 'path'
-import { swc } from 'rollup-plugin-swc3'
+// import { swc } from 'rollup-plugin-swc3'
 import { fileURLToPath } from 'url'
 import { configDefaults } from 'vitest/config'
 import { Reporter, RunnerTask, startVitest } from 'vitest/node'
@@ -69,19 +69,19 @@ export const startTest = async (props: { dir: string; filters: string[] }): Prom
 		{
 			logLevel: 'silent',
 			plugins: [
-				// @ts-ignore
-				commonjs({ sourceMap: true }),
-				// @ts-ignore
-				nodeResolve({ preferBuiltins: true }),
-				swc({
-					jsc: {
-						// baseUrl: dirname(input),
-						minify: { sourceMap: true },
-					},
-					sourceMaps: true,
-				}),
-				// @ts-ignore
-				json(),
+				// // @ts-ignore
+				// commonjs({ sourceMap: true }),
+				// // @ts-ignore
+				// nodeResolve({ preferBuiltins: true }),
+				// swc({
+				// 	jsc: {
+				// 		// baseUrl: dirname(input),
+				// 		minify: { sourceMap: true },
+				// 	},
+				// 	sourceMaps: true,
+				// }),
+				// // @ts-ignore
+				// json(),
 			],
 		}
 	)

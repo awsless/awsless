@@ -1,10 +1,12 @@
 import { AnyTable, IndexNames } from '../table'
 import { Fluent } from './fluent'
 
+type KeysToUnion<K extends string | string[]> = K extends string ? K : K[keyof K]
+
 export type KeyConditionExpression<T extends AnyTable, I extends IndexNames<T> | undefined> = (
 	e: Pick<
 		T['schema'][symbol]['Expression']['Root']['Condition'],
-		I extends IndexNames<T> ? T['indexes'][I]['sort'] : T['sort']
+		I extends IndexNames<T> ? KeysToUnion<T['indexes'][I]['sort']> : T['sort']
 	>
 ) => Fluent | Fluent[]
 

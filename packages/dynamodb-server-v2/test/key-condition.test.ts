@@ -1,5 +1,5 @@
 import { CreateTableCommand, PutItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb'
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { DynamoDBServer } from '../src/index.js'
 
 describe('Key Condition Expressions', () => {
@@ -143,5 +143,121 @@ describe('Key Condition Expressions', () => {
 
 		expect(result.Count).toBe(1)
 		expect(result.Items?.[0]?.value?.S).toBe('test')
+	})
+
+	it('should support BETWEEN without breaking AND parsing', async () => {
+		const client = server.getClient()
+
+		await client.send(
+			new CreateTableCommand({
+				TableName: 'BetweenTest',
+				KeySchema: [
+					{ AttributeName: 'pk', KeyType: 'HASH' },
+					{ AttributeName: 'sk', KeyType: 'RANGE' },
+				],
+				AttributeDefinitions: [
+					{ AttributeName: 'pk', AttributeType: 'S' },
+					{ AttributeName: 'sk', AttributeType: 'N' },
+				],
+				BillingMode: 'PAY_PER_REQUEST',
+			})
+		)
+
+		for (const value of ['1', '2', '3']) {
+			await client.send(
+				new PutItemCommand({
+					TableName: 'BetweenTest',
+					Item: { pk: { S: 'group#1' }, sk: { N: value } },
+				})
+			)
+		}
+
+		const result = await client.send(
+			new QueryCommand({
+				TableName: 'BetweenTest',
+				KeyConditionExpression: 'pk = :pk AND sk BETWEEN :from AND :to',
+				ExpressionAttributeValues: {
+					':pk': { S: 'group#1' },
+					':from': { N: '2' },
+					':to': { N: '3' },
+				},
+			})
+		)
+
+		expect(result.Count).toBe(2)
+	})
+
+	it('should support grouped multi-sort-key conditions', async () => {
+		const client = server.getClient()
+
+		await client.send(
+			new CreateTableCommand({
+				TableName: 'GroupedMultiSortKeyTest',
+				KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+				AttributeDefinitions: [
+					{ AttributeName: 'pk', AttributeType: 'S' },
+					{ AttributeName: 'tenant', AttributeType: 'S' },
+					{ AttributeName: 'slug', AttributeType: 'S' },
+					{ AttributeName: 'createdAt', AttributeType: 'N' },
+				],
+				GlobalSecondaryIndexes: [
+					{
+						IndexName: 'GSI1',
+						KeySchema: [
+							{ AttributeName: 'tenant', KeyType: 'HASH' },
+							{ AttributeName: 'slug', KeyType: 'RANGE' },
+							{ AttributeName: 'createdAt', KeyType: 'RANGE' },
+						],
+						Projection: { ProjectionType: 'ALL' },
+					},
+				],
+				BillingMode: 'PAY_PER_REQUEST',
+			})
+		)
+
+		await client.send(
+			new PutItemCommand({
+				TableName: 'GroupedMultiSortKeyTest',
+				Item: {
+					pk: { S: '1' },
+					tenant: { S: 'tenant#1' },
+					slug: { S: 'post-a' },
+					createdAt: { N: '100' },
+				},
+			})
+		)
+
+		await client.send(
+			new PutItemCommand({
+				TableName: 'GroupedMultiSortKeyTest',
+				Item: {
+					pk: { S: '2' },
+					tenant: { S: 'tenant#1' },
+					slug: { S: 'post-a' },
+					createdAt: { N: '200' },
+				},
+			})
+		)
+
+		const result = await client.send(
+			new QueryCommand({
+				TableName: 'GroupedMultiSortKeyTest',
+				IndexName: 'GSI1',
+				KeyConditionExpression: '#tenant = :tenant AND (#slug = :slug AND #createdAt > :createdAt)',
+				ExpressionAttributeNames: {
+					'#tenant': 'tenant',
+					'#slug': 'slug',
+					'#createdAt': 'createdAt',
+				},
+				ExpressionAttributeValues: {
+					':tenant': { S: 'tenant#1' },
+					':slug': { S: 'post-a' },
+					':createdAt': { N: '150' },
+				},
+			})
+		)
+
+		expect(result.Count).toBe(1)
+		expect(result.Items?.[0]?.pk?.S).toBe('2')
 	})
 })

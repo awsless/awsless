@@ -570,7 +570,7 @@ export const createAsyncLambdaFunction = (
 	// ------------------------------------------------------------
 	// Make sure we always log errors inside async functions
 
-	result.setEnvironment('LOG_VIEWABLE_ERROR', '1')
+	result.setEnvironment('THROW_EXPECTED_ERRORS', '1')
 
 	// ------------------------------------------------------------
 	// Async Invoke Config

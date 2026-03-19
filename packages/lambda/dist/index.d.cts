@@ -103,10 +103,10 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
     handle: H;
     /** Array of logging functions that are called when an error is thrown. */
     logger?: Loggers;
-    /** Boolean to specify if viewable errors should be logged.
+    /** Boolean to specify if expected errors should be thrown and logged.
      * @default false
      */
-    logViewableErrors?: boolean;
+    throwExpectedErrors?: boolean;
 }
 type LambdaFactory = {
     <H extends Handler>(options: Options<H, undefined>): (event?: unknown, context?: Context$1) => Promise<Awaited<ReturnType<H>>>;

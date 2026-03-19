@@ -6,6 +6,10 @@ const filter = <L extends (unknown | undefined)[]>(list: L) => {
 	return list.filter(item => !!item) as Exclude<L[number], undefined>[]
 }
 
+const toArray = <T>(list?: T | T[]): T[] => {
+	return list ? (Array.isArray(list) ? list : [list]) : []
+}
+
 const unique = <L extends { AttributeName: string }[]>(list: L) => {
 	const unique: Record<string, L[number]> = {}
 	list.forEach(item => {
@@ -45,16 +49,25 @@ export const serializeTable = (table: AnyTable) => {
 					: undefined,
 				...indexes
 					.map(([_, item]) => [
-						{
-							AttributeName: item.hash,
-							AttributeType: table.schema.walk?.(item.hash)!.type,
-						},
-						item.sort
-							? {
-									AttributeName: item.sort,
-									AttributeType: table.schema.walk?.(item.sort)!.type,
-								}
-							: undefined,
+						...toArray(item.hash).map(hash => ({
+							AttributeName: hash,
+							AttributeType: table.schema.walk?.(hash)!.type,
+						})),
+						...toArray(item.sort).map(sort => ({
+							AttributeName: sort,
+							AttributeType: table.schema.walk?.(sort)!.type,
+						})),
+
+						// {
+						// 	AttributeName: item.hash,
+						// 	AttributeType: table.schema.walk?.(item.hash)!.type,
+						// },
+						// item.sort
+						// 	? {
+						// 			AttributeName: item.sort,
+						// 			AttributeType: table.schema.walk?.(item.sort)!.type,
+						// 		}
+						// 	: undefined,
 					])
 					.flat(),
 			])
@@ -65,18 +78,28 @@ export const serializeTable = (table: AnyTable) => {
 		result.GlobalSecondaryIndexes = indexes.map(([name, item]) => ({
 			Projection: { ProjectionType: 'ALL' },
 			IndexName: name,
-			KeySchema: filter([
-				{
+			KeySchema: [
+				...toArray(item.hash).map(hash => ({
 					KeyType: 'HASH',
-					AttributeName: item.hash,
-				},
-				item.sort
-					? {
-							KeyType: 'RANGE',
-							AttributeName: item.sort,
-						}
-					: undefined,
-			]),
+					AttributeName: hash,
+				})),
+				...toArray(item.sort).map(sort => ({
+					KeyType: 'RANGE',
+					AttributeName: sort,
+				})),
+			],
+			// KeySchema: filter([
+			// 	{
+			// 		KeyType: 'HASH',
+			// 		AttributeName: item.hash,
+			// 	},
+			// 	item.sort
+			// 		? {
+			// 				KeyType: 'RANGE',
+			// 				AttributeName: item.sort,
+			// 			}
+			// 		: undefined,
+			// ]),
 		}))
 	}
 

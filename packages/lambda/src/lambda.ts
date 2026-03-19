@@ -23,10 +23,10 @@ interface Options<H extends Handler<S>, S extends Schema = undefined> {
 	/** Array of logging functions that are called when an error is thrown. */
 	logger?: Loggers
 
-	/** Boolean to specify if viewable errors should be logged.
+	/** Boolean to specify if expected errors should be thrown and logged.
 	 * @default false
 	 */
-	logViewableErrors?: boolean
+	throwExpectedErrors?: boolean
 }
 
 export type LambdaFactory = {
@@ -126,18 +126,14 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 		} catch (error) {
 			await Promise.all(failureCallbacks.map(cb => cb(error)))
 
-			if ((!(error instanceof ViewableError) && !(error instanceof ExpectedError)) || options.logViewableErrors) {
+			const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError
+
+			if (!isExpectedError || options.throwExpectedErrors) {
 				await log(error)
 			}
 
-			if (!isTestEnv) {
-				if (error instanceof ViewableError) {
-					return toErrorResponse(error)
-				}
-
-				if (error instanceof ExpectedError) {
-					return toErrorResponse(error)
-				}
+			if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) {
+				return toErrorResponse(error)
 			}
 
 			throw error

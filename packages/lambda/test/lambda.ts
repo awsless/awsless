@@ -89,7 +89,7 @@ describe('Lambda', () => {
 		const logger = vi.fn()
 		const error = new ViewableError('type', 'message')
 		const fn = lambda({
-			logViewableErrors: true,
+			throwExpectedErrors: true,
 			logger,
 			handle() {
 				throw error

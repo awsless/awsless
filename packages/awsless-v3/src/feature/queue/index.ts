@@ -114,7 +114,7 @@ export const queueFeature = defineFeature({
 			if (typeof local === 'object') {
 				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
 
-				lambdaConsumer.setEnvironment('LOG_VIEWABLE_ERROR', '1')
+				lambdaConsumer.setEnvironment('THROW_EXPECTED_ERRORS', '1')
 
 				new aws.lambda.EventSourceMapping(
 					group,

@@ -330,6 +330,31 @@ await putItem(
 | `not`  | Check if the given condition evaluates to `false`.                |
 | `size` | Evaluates the size (length or item count) of the given attribute. |
 
+# Global Secondary Index Support
+
+```ts
+const posts = define('posts', {
+	hash: 'id',
+	schema: object({
+		id: uuid(),
+		userId: uuid(),
+		slug: string(),
+		title: string(),
+		createdAt: date(),
+	}),
+	indexes: {
+		slug: {
+			hash: 'slug',
+		},
+		listByUser: {
+			hash: 'userId',
+			// We have multi-key support for GSI's
+			sort: ['createdAt', 'id'],
+		},
+	},
+})
+```
+
 ## License
 
 MIT

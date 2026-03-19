@@ -132,7 +132,7 @@ export const createSchema = <A extends AttributeType, T>(props: SchemaProps<A, T
 		...props,
 		marshall(value, path) {
 			if (!props.validateInput(value)) {
-				throw new InvalidPayloadError('marshall', props, path, value)
+				throw new InvalidPayloadError('marshall', props, path, typeof value)
 			}
 
 			return props.marshall(value, path)
@@ -145,15 +145,21 @@ export const createSchema = <A extends AttributeType, T>(props: SchemaProps<A, T
 				return props.unmarshall(value, path, projection)
 			}
 
-			throw new InvalidPayloadError('unmarshall', props, path, value)
+			const valueType =
+				typeof value === 'object' && value !== null ? (Object.keys(value)[0] ?? typeof value) : typeof value
+			throw new InvalidPayloadError('unmarshall', props, path, valueType)
 		},
 	}
 }
 
 export class InvalidPayloadError extends TypeError {
-	constructor(type: string, schema: GenericSchema, path: Array<string | number>, value: unknown) {
+	constructor(type: string, schema: GenericSchema, path: Array<string | number>, value: string) {
 		super(
-			`Invalid ${type} payload provided for "${path.join('.')}". Expected ${schema.name}. Received ${typeof value}`
+			[
+				`Invalid ${type} payload provided for "${path.join('.')}".`,
+				`Expected schema type ${schema.name}`,
+				`Received type ${typeof value}`,
+			].join('\n')
 		)
 	}
 }

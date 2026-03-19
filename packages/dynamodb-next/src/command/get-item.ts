@@ -1,5 +1,5 @@
 import { AttributeValue, GetItemCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client.js'
+import { getClient } from '../client.js'
 import { ExpressionAttributes } from '../expression/attributes.js'
 import { buildProjectionExpression, ProjectionExpression, ProjectionResponse } from '../expression/projection.js'
 import { AnyTable } from '../table.js'
@@ -16,6 +16,7 @@ export const getItem = <T extends AnyTable, const P extends ProjectionExpression
 	} = {}
 ) => {
 	const attrs = new ExpressionAttributes(table)
+	const client = getClient(options)
 	const command = new GetItemCommand({
 		TableName: table.name,
 		Key: table.marshall(key),
@@ -33,7 +34,7 @@ export const getItem = <T extends AnyTable, const P extends ProjectionExpression
 			input: { Get: command.input },
 		})),
 		...thenable<ProjectionResponse<T, P> | undefined>(async () => {
-			const result = await client(options).send(command)
+			const result = await client.send(command)
 
 			if (result.Item) {
 				return table.unmarshall(result.Item, options.select)

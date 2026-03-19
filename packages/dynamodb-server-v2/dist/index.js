@@ -188,9 +188,15 @@ function validateAndCreate(store, input) {
       );
     }
   }
+  if (input.GlobalSecondaryIndexes) {
+    for (const gsi of input.GlobalSecondaryIndexes) {
+      validateSecondaryIndexKeySchema(gsi.IndexName, gsi.KeySchema, definedAttrs, true);
+    }
+  }
   if (input.LocalSecondaryIndexes) {
     const tableHashKey = hashKeys[0].AttributeName;
     for (const lsi of input.LocalSecondaryIndexes) {
+      validateSecondaryIndexKeySchema(lsi.IndexName, lsi.KeySchema, definedAttrs, false);
       const lsiHashKey = lsi.KeySchema.find((k) => k.KeyType === "HASH");
       if (!lsiHashKey || lsiHashKey.AttributeName !== tableHashKey) {
         throw new ValidationException(
@@ -214,6 +220,43 @@ function validateAndCreate(store, input) {
 function createTable(store, input) {
   const tableDescription = validateAndCreate(store, input);
   return { TableDescription: tableDescription };
+}
+function validateSecondaryIndexKeySchema(indexName, keySchema, definedAttrs, isGlobal) {
+  if (!keySchema.length) {
+    throw new ValidationException(`Index ${indexName} must define a key schema`);
+  }
+  const hashKeys = keySchema.filter((k) => k.KeyType === "HASH");
+  const rangeKeys = keySchema.filter((k) => k.KeyType === "RANGE");
+  const maxHashKeys = isGlobal ? 4 : 1;
+  const maxRangeKeys = isGlobal ? 4 : 1;
+  if (hashKeys.length === 0 || hashKeys.length > maxHashKeys) {
+    throw new ValidationException(
+      isGlobal ? `Global secondary index ${indexName} must have between 1 and 4 partition key attributes` : `Local secondary index ${indexName} must have exactly one hash key`
+    );
+  }
+  if (rangeKeys.length > maxRangeKeys) {
+    throw new ValidationException(
+      isGlobal ? `Global secondary index ${indexName} can have at most 4 sort key attributes` : `Local secondary index ${indexName} can have at most one range key`
+    );
+  }
+  if (isGlobal && hashKeys.length + rangeKeys.length > 8) {
+    throw new ValidationException(`Global secondary index ${indexName} can have at most 8 key attributes`);
+  }
+  let seenRange = false;
+  for (const keyElement of keySchema) {
+    if (!definedAttrs.has(keyElement.AttributeName)) {
+      throw new ValidationException(
+        `Attribute ${keyElement.AttributeName} is specified in index ${indexName} but not in AttributeDefinitions`
+      );
+    }
+    if (keyElement.KeyType === "RANGE") {
+      seenRange = true;
+    } else if (seenRange) {
+      throw new ValidationException(
+        `Index ${indexName} must list all partition key attributes before sort key attributes`
+      );
+    }
+  }
 }
 
 // src/operations/delete-table.ts
@@ -909,9 +952,29 @@ function getHashKey(keySchema) {
   }
   return hash.AttributeName;
 }
+function getHashKeys(keySchema) {
+  return keySchema.filter((k) => k.KeyType === "HASH").map((k) => k.AttributeName);
+}
 function getRangeKey(keySchema) {
   const range = keySchema.find((k) => k.KeyType === "RANGE");
   return range?.AttributeName;
+}
+function getRangeKeys(keySchema) {
+  return keySchema.filter((k) => k.KeyType === "RANGE").map((k) => k.AttributeName);
+}
+function hasCompleteKey(item, keySchema) {
+  return keySchema.every((element) => Boolean(item[element.AttributeName]));
+}
+function mergeKeySchemas(...schemas) {
+  const merged = [];
+  for (const schema of schemas) {
+    for (const element of schema) {
+      if (!merged.some((existing) => existing.AttributeName === element.AttributeName)) {
+        merged.push(element);
+      }
+    }
+  }
+  return merged;
 }
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -921,9 +984,31 @@ function estimateItemSize(item) {
 }
 
 // src/expressions/key-condition.ts
+function stripOuterParens(expression) {
+  let normalized = expression.trim();
+  while (normalized.startsWith("(") && normalized.endsWith(")")) {
+    let depth = 0;
+    let balanced = true;
+    for (let index = 0; index < normalized.length - 1; index++) {
+      if (normalized[index] === "(") depth++;
+      else if (normalized[index] === ")") depth--;
+      if (depth === 0) {
+        balanced = false;
+        break;
+      }
+    }
+    if (!balanced) {
+      break;
+    }
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
 function parseKeyCondition(expression, keySchema, context) {
-  const hashKeyName = getHashKey(keySchema);
-  const rangeKeyName = getRangeKey(keySchema);
+  const hashKeyNames = getHashKeys(keySchema);
+  const rangeKeyNames = getRangeKeys(keySchema);
+  const hashKeyName = hashKeyNames[0];
+  const rangeKeyName = rangeKeyNames[0];
   const resolvedNames = context.expressionAttributeNames || {};
   const resolvedValues = context.expressionAttributeValues || {};
   function resolveName(name) {
@@ -946,39 +1031,18 @@ function parseKeyCondition(expression, keySchema, context) {
     }
     throw new ValidationException(`Invalid value reference: ${ref}`);
   }
-  function stripOuterParens(expr) {
-    let s = expr.trim();
-    while (s.startsWith("(") && s.endsWith(")")) {
-      let depth = 0;
-      let balanced = true;
-      for (let i = 0; i < s.length - 1; i++) {
-        if (s[i] === "(") depth++;
-        else if (s[i] === ")") depth--;
-        if (depth === 0) {
-          balanced = false;
-          break;
-        }
-      }
-      if (balanced) {
-        s = s.slice(1, -1).trim();
-      } else {
-        break;
-      }
-    }
-    return s;
-  }
   const normalizedExpression = stripOuterParens(expression);
-  const parts = normalizedExpression.split(/\s+AND\s+/i);
-  let hashValue;
-  let rangeCondition;
+  const parts = flattenKeyConditions(normalizedExpression);
+  const hashConditions = /* @__PURE__ */ new Map();
+  const rangeConditions = /* @__PURE__ */ new Map();
   for (const part of parts) {
     const trimmed = stripOuterParens(part);
     const beginsWithMatch = trimmed.match(/^begins_with\s*\(\s*([#\w]+)\s*,\s*(:\w+)\s*\)$/i);
     if (beginsWithMatch) {
       const attrName = resolveName(beginsWithMatch[1]);
       const value = resolveValue(beginsWithMatch[2]);
-      if (attrName === rangeKeyName) {
-        rangeCondition = { operator: "begins_with", value };
+      if (rangeKeyNames.includes(attrName)) {
+        rangeConditions.set(attrName, { operator: "begins_with", value });
       } else {
         throw new ValidationException(`begins_with can only be used on sort key`);
       }
@@ -989,8 +1053,8 @@ function parseKeyCondition(expression, keySchema, context) {
       const attrName = resolveName(betweenMatch[1]);
       const value1 = resolveValue(betweenMatch[2]);
       const value2 = resolveValue(betweenMatch[3]);
-      if (attrName === rangeKeyName) {
-        rangeCondition = { operator: "BETWEEN", value: value1, value2 };
+      if (rangeKeyNames.includes(attrName)) {
+        rangeConditions.set(attrName, { operator: "BETWEEN", value: value1, value2 });
       } else {
         throw new ValidationException(`BETWEEN can only be used on sort key`);
       }
@@ -1001,13 +1065,13 @@ function parseKeyCondition(expression, keySchema, context) {
       const attrName = resolveName(comparisonMatch[1]);
       const operator = comparisonMatch[2];
       const value = resolveValue(comparisonMatch[3]);
-      if (attrName === hashKeyName) {
+      if (hashKeyNames.includes(attrName)) {
         if (operator !== "=") {
-          throw new ValidationException(`Hash key condition must use = operator`);
+          throw new ValidationException(`Partition key condition must use = operator`);
         }
-        hashValue = value;
-      } else if (attrName === rangeKeyName) {
-        rangeCondition = { operator, value };
+        hashConditions.set(attrName, value);
+      } else if (rangeKeyNames.includes(attrName)) {
+        rangeConditions.set(attrName, { operator, value });
       } else {
         throw new ValidationException(`Key condition references unknown attribute: ${attrName}`);
       }
@@ -1015,29 +1079,119 @@ function parseKeyCondition(expression, keySchema, context) {
     }
     throw new ValidationException(`Invalid key condition expression: ${trimmed}`);
   }
-  if (!hashValue) {
-    throw new ValidationException(`Key condition must specify hash key equality`);
+  for (const key of hashKeyNames) {
+    if (!hashConditions.has(key)) {
+      throw new ValidationException(`Key condition must specify equality for partition key ${key}`);
+    }
   }
+  let lastSortKeyIndex = -1;
+  for (const [index, key] of rangeKeyNames.entries()) {
+    const condition = rangeConditions.get(key);
+    if (!condition) {
+      if (lastSortKeyIndex !== -1) {
+        throw new ValidationException(`Sort key conditions must reference a contiguous prefix of the key schema`);
+      }
+      continue;
+    }
+    if (index > 0 && !rangeConditions.has(rangeKeyNames[index - 1])) {
+      throw new ValidationException(`Sort key conditions must reference a contiguous prefix of the key schema`);
+    }
+    if (lastSortKeyIndex !== -1) {
+      const previous = rangeConditions.get(rangeKeyNames[lastSortKeyIndex]);
+      if (previous && previous.operator !== "=") {
+        throw new ValidationException(`Only the last sort key condition can use a range operator`);
+      }
+    }
+    lastSortKeyIndex = index;
+  }
+  const orderedHashConditions = hashKeyNames.map((key) => ({
+    key,
+    value: hashConditions.get(key)
+  }));
+  const orderedRangeConditions = rangeKeyNames.filter((key) => rangeConditions.has(key)).map((key) => {
+    const condition = rangeConditions.get(key);
+    return {
+      key,
+      operator: condition.operator,
+      value: condition.value,
+      value2: condition.value2
+    };
+  });
   return {
     hashKey: hashKeyName,
-    hashValue,
+    hashValue: hashConditions.get(hashKeyName),
     rangeKey: rangeKeyName,
-    rangeCondition
+    rangeCondition: orderedRangeConditions[0] ? {
+      operator: orderedRangeConditions[0].operator,
+      value: orderedRangeConditions[0].value,
+      value2: orderedRangeConditions[0].value2
+    } : void 0,
+    hashConditions: orderedHashConditions,
+    rangeConditions: orderedRangeConditions
   };
 }
 function matchesKeyCondition(item, condition) {
-  const itemHashValue = item[condition.hashKey];
-  if (!itemHashValue || !attributeEquals(itemHashValue, condition.hashValue)) {
-    return false;
+  for (const hashCondition of condition.hashConditions) {
+    const itemHashValue = item[hashCondition.key];
+    if (!itemHashValue || !attributeEquals(itemHashValue, hashCondition.value)) {
+      return false;
+    }
   }
-  if (condition.rangeCondition && condition.rangeKey) {
-    const itemRangeValue = item[condition.rangeKey];
+  for (const rangeCondition of condition.rangeConditions) {
+    const itemRangeValue = item[rangeCondition.key];
     if (!itemRangeValue) {
       return false;
     }
-    return matchesRangeCondition(itemRangeValue, condition.rangeCondition);
+    if (!matchesRangeCondition(itemRangeValue, rangeCondition)) {
+      return false;
+    }
   }
   return true;
+}
+function flattenKeyConditions(expression) {
+  const normalized = stripOuterParens(expression);
+  const parts = splitTopLevelAndConditions(normalized);
+  if (parts.length === 1) {
+    return [normalized];
+  }
+  return parts.flatMap((part) => flattenKeyConditions(part));
+}
+function splitTopLevelAndConditions(expression) {
+  const parts = [];
+  let depth = 0;
+  let segmentStart = 0;
+  let betweenPending = false;
+  for (let index = 0; index < expression.length; index++) {
+    const char = expression[index];
+    if (char === "(") {
+      depth++;
+      continue;
+    }
+    if (char === ")") {
+      depth--;
+      continue;
+    }
+    if (depth !== 0) {
+      continue;
+    }
+    if (/^BETWEEN\b/i.test(expression.slice(index))) {
+      betweenPending = true;
+      index += "BETWEEN".length - 1;
+      continue;
+    }
+    if (/^\s+AND\s+/i.test(expression.slice(index))) {
+      if (betweenPending) {
+        betweenPending = false;
+        continue;
+      }
+      parts.push(expression.slice(segmentStart, index).trim());
+      const andMatch = expression.slice(index).match(/^\s+AND\s+/i);
+      index += andMatch[0].length - 1;
+      segmentStart = index + 1;
+    }
+  }
+  parts.push(expression.slice(segmentStart).trim());
+  return parts.filter(Boolean);
 }
 function matchesRangeCondition(value, condition) {
   const cmp5 = compareValues2(value, condition.value);
@@ -1659,9 +1813,10 @@ function query(store, input) {
   let items;
   let lastEvaluatedKey;
   if (input.IndexName) {
+    const hashValues = Object.fromEntries(keyCondition.hashConditions.map((condition) => [condition.key, condition.value]));
     const result = table.queryIndex(
       input.IndexName,
-      { [keyCondition.hashKey]: keyCondition.hashValue },
+      hashValues,
       {
         scanIndexForward: input.ScanIndexForward,
         exclusiveStartKey: input.ExclusiveStartKey
@@ -1670,8 +1825,9 @@ function query(store, input) {
     items = result.items;
     lastEvaluatedKey = result.lastEvaluatedKey;
   } else {
+    const hashValues = Object.fromEntries(keyCondition.hashConditions.map((condition) => [condition.key, condition.value]));
     const result = table.queryByHashKey(
-      { [keyCondition.hashKey]: keyCondition.hashValue },
+      hashValues,
       {
         scanIndexForward: input.ScanIndexForward,
         exclusiveStartKey: input.ExclusiveStartKey
@@ -1696,24 +1852,11 @@ function query(store, input) {
     items = items.slice(0, input.Limit);
     if (items.length > 0) {
       const lastItem = items[items.length - 1];
-      lastEvaluatedKey = {};
-      const hashKey = table.getHashKeyName();
-      const rangeKey = table.getRangeKeyName();
-      if (lastItem[hashKey]) {
-        lastEvaluatedKey[hashKey] = lastItem[hashKey];
-      }
-      if (rangeKey && lastItem[rangeKey]) {
-        lastEvaluatedKey[rangeKey] = lastItem[rangeKey];
-      }
+      lastEvaluatedKey = extractKey(lastItem, table.keySchema);
       if (input.IndexName) {
         const indexKeySchema = table.getIndexKeySchema(input.IndexName);
         if (indexKeySchema) {
-          for (const key of indexKeySchema) {
-            const attrValue = lastItem[key.AttributeName];
-            if (attrValue) {
-              lastEvaluatedKey[key.AttributeName] = attrValue;
-            }
-          }
+          lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexKeySchema, table.keySchema));
         }
       }
     }
@@ -1780,24 +1923,11 @@ function scan(store, input) {
     items = items.slice(0, input.Limit);
     if (items.length > 0) {
       const lastItem = items[items.length - 1];
-      lastEvaluatedKey = {};
-      const hashKey = table.getHashKeyName();
-      const rangeKey = table.getRangeKeyName();
-      if (lastItem[hashKey]) {
-        lastEvaluatedKey[hashKey] = lastItem[hashKey];
-      }
-      if (rangeKey && lastItem[rangeKey]) {
-        lastEvaluatedKey[rangeKey] = lastItem[rangeKey];
-      }
+      lastEvaluatedKey = extractKey(lastItem, table.keySchema);
       if (input.IndexName) {
         const indexKeySchema = table.getIndexKeySchema(input.IndexName);
         if (indexKeySchema) {
-          for (const key of indexKeySchema) {
-            const attrValue = lastItem[key.AttributeName];
-            if (attrValue) {
-              lastEvaluatedKey[key.AttributeName] = attrValue;
-            }
-          }
+          lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexKeySchema, table.keySchema));
         }
       }
     }
@@ -2594,12 +2724,7 @@ var Table = class {
     }
   }
   buildIndexKey(item, keySchema) {
-    const hashAttr = getHashKey(keySchema);
-    if (!item[hashAttr]) {
-      return null;
-    }
-    const rangeAttr = getRangeKey(keySchema);
-    if (rangeAttr && !item[rangeAttr]) {
+    if (!hasCompleteKey(item, keySchema)) {
       return null;
     }
     return serializeKey(extractKey(item, keySchema), keySchema);
@@ -2645,47 +2770,7 @@ var Table = class {
     };
   }
   queryByHashKey(hashValue, options) {
-    const hashAttr = this.getHashKeyName();
-    const rangeAttr = this.getRangeKeyName();
-    const matchingItems = [];
-    for (const item of this.items.values()) {
-      const itemHashValue = item[hashAttr];
-      const queryHashValue = hashValue[hashAttr];
-      if (itemHashValue && queryHashValue && this.attributeEquals(itemHashValue, queryHashValue)) {
-        matchingItems.push(deepClone(item));
-      }
-    }
-    if (rangeAttr) {
-      matchingItems.sort((a, b) => {
-        const aVal = a[rangeAttr];
-        const bVal = b[rangeAttr];
-        if (!aVal && !bVal) return 0;
-        if (!aVal) return 1;
-        if (!bVal) return -1;
-        const cmp5 = this.compareAttributes(aVal, bVal);
-        return options?.scanIndexForward === false ? -cmp5 : cmp5;
-      });
-    }
-    let startIdx = 0;
-    if (options?.exclusiveStartKey) {
-      const startKey = serializeKey(options.exclusiveStartKey, this.keySchema);
-      startIdx = matchingItems.findIndex(
-        (item) => serializeKey(extractKey(item, this.keySchema), this.keySchema) === startKey
-      );
-      if (startIdx !== -1) {
-        startIdx++;
-      } else {
-        startIdx = 0;
-      }
-    }
-    const limit = options?.limit;
-    const sliced = limit ? matchingItems.slice(startIdx, startIdx + limit) : matchingItems.slice(startIdx);
-    const hasMore = limit ? startIdx + limit < matchingItems.length : false;
-    const lastItem = sliced[sliced.length - 1];
-    return {
-      items: sliced,
-      lastEvaluatedKey: hasMore && lastItem ? extractKey(lastItem, this.keySchema) : void 0
-    };
+    return this.queryBySchema(this.keySchema, hashValue, this.keySchema, false, options);
   }
   queryIndex(indexName, hashValue, options) {
     const gsi = this.globalSecondaryIndexes.get(indexName);
@@ -2694,69 +2779,16 @@ var Table = class {
     if (!indexData) {
       throw new Error(`Index ${indexName} not found`);
     }
-    const indexHashAttr = getHashKey(indexData.keySchema);
-    const indexRangeAttr = getRangeKey(indexData.keySchema);
-    const matchingItems = [];
-    for (const item of this.items.values()) {
-      const itemHashValue = item[indexHashAttr];
-      const queryHashValue = hashValue[indexHashAttr];
-      if (!itemHashValue || !queryHashValue || !this.attributeEquals(itemHashValue, queryHashValue)) {
-        continue;
-      }
-      if (indexRangeAttr && !item[indexRangeAttr]) {
-        continue;
-      }
-      matchingItems.push(deepClone(item));
-    }
-    if (indexRangeAttr) {
-      matchingItems.sort((a, b) => {
-        const aVal = a[indexRangeAttr];
-        const bVal = b[indexRangeAttr];
-        if (!aVal && !bVal) return 0;
-        if (!aVal) return 1;
-        if (!bVal) return -1;
-        const cmp5 = this.compareAttributes(aVal, bVal);
-        return options?.scanIndexForward === false ? -cmp5 : cmp5;
-      });
-    }
-    let startIdx = 0;
-    if (options?.exclusiveStartKey) {
-      const combinedKeySchema = [...indexData.keySchema];
-      const tableRangeKey = this.getRangeKeyName();
-      if (tableRangeKey && !combinedKeySchema.some((k) => k.AttributeName === tableRangeKey)) {
-        combinedKeySchema.push({ AttributeName: tableRangeKey, KeyType: "RANGE" });
-      }
-      const tableHashKey = this.getHashKeyName();
-      if (!combinedKeySchema.some((k) => k.AttributeName === tableHashKey)) {
-        combinedKeySchema.push({ AttributeName: tableHashKey, KeyType: "HASH" });
-      }
-      const startKey = serializeKey(options.exclusiveStartKey, combinedKeySchema);
-      startIdx = matchingItems.findIndex(
-        (item) => serializeKey(extractKey(item, combinedKeySchema), combinedKeySchema) === startKey
-      );
-      if (startIdx !== -1) {
-        startIdx++;
-      } else {
-        startIdx = 0;
-      }
-    }
-    const limit = options?.limit;
-    const sliced = limit ? matchingItems.slice(startIdx, startIdx + limit) : matchingItems.slice(startIdx);
-    const hasMore = limit ? startIdx + limit < matchingItems.length : false;
-    const lastItem = sliced[sliced.length - 1];
-    let lastEvaluatedKey;
-    if (hasMore && lastItem) {
-      lastEvaluatedKey = extractKey(lastItem, this.keySchema);
-      for (const keyElement of indexData.keySchema) {
-        const attrValue = lastItem[keyElement.AttributeName];
-        if (attrValue) {
-          lastEvaluatedKey[keyElement.AttributeName] = attrValue;
-        }
-      }
-    }
+    const result = this.queryBySchema(
+      indexData.keySchema,
+      hashValue,
+      mergeKeySchemas(indexData.keySchema, this.keySchema),
+      true,
+      options
+    );
     return {
-      items: sliced,
-      lastEvaluatedKey,
+      items: result.items,
+      lastEvaluatedKey: result.lastEvaluatedKey,
       indexKeySchema: indexData.keySchema
     };
   }
@@ -2767,18 +2799,19 @@ var Table = class {
     if (!indexData) {
       throw new Error(`Index ${indexName} not found`);
     }
-    const indexHashAttr = getHashKey(indexData.keySchema);
     const matchingItems = [];
     for (const item of this.items.values()) {
-      if (item[indexHashAttr]) {
+      if (hasCompleteKey(item, indexData.keySchema)) {
         matchingItems.push(deepClone(item));
       }
     }
+    matchingItems.sort((a, b) => this.compareByKeySchema(a, b, indexData.keySchema, true));
     let startIdx = 0;
     if (exclusiveStartKey) {
-      const startKey = serializeKey(exclusiveStartKey, this.keySchema);
+      const paginationKeySchema = mergeKeySchemas(indexData.keySchema, this.keySchema);
+      const startKey = serializeKey(exclusiveStartKey, paginationKeySchema);
       startIdx = matchingItems.findIndex(
-        (item) => serializeKey(extractKey(item, this.keySchema), this.keySchema) === startKey
+        (item) => serializeKey(extractKey(item, paginationKeySchema), paginationKeySchema) === startKey
       );
       if (startIdx !== -1) {
         startIdx++;
@@ -2791,13 +2824,7 @@ var Table = class {
     const lastItem = sliced[sliced.length - 1];
     let lastEvaluatedKey;
     if (hasMore && lastItem) {
-      lastEvaluatedKey = extractKey(lastItem, this.keySchema);
-      for (const keyElement of indexData.keySchema) {
-        const attrValue = lastItem[keyElement.AttributeName];
-        if (attrValue) {
-          lastEvaluatedKey[keyElement.AttributeName] = attrValue;
-        }
-      }
+      lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexData.keySchema, this.keySchema));
     }
     return {
       items: sliced,
@@ -2822,6 +2849,67 @@ var Table = class {
     if ("N" in a && "N" in b) return cmp4(parse5(a.N), parse5(b.N));
     if ("B" in a && "B" in b) return a.B.localeCompare(b.B);
     return 0;
+  }
+  compareByKeySchema(a, b, keySchema, scanIndexForward = true) {
+    for (const attributeName of [...getHashKeys(keySchema), ...getRangeKeys(keySchema)]) {
+      const aVal = a[attributeName];
+      const bVal = b[attributeName];
+      if (!aVal && !bVal) {
+        continue;
+      }
+      if (!aVal) {
+        return 1;
+      }
+      if (!bVal) {
+        return -1;
+      }
+      const cmp5 = this.compareAttributes(aVal, bVal);
+      if (cmp5 !== 0) {
+        return scanIndexForward ? cmp5 : -cmp5;
+      }
+    }
+    return 0;
+  }
+  queryBySchema(keySchema, hashValue, paginationKeySchema, requireCompleteKey, options) {
+    const hashAttrs = getHashKeys(keySchema);
+    const rangeAttrs = getRangeKeys(keySchema);
+    const matchingItems = [];
+    for (const item of this.items.values()) {
+      if (requireCompleteKey && !hasCompleteKey(item, keySchema)) {
+        continue;
+      }
+      const matchesPartitionKey = hashAttrs.every((attr) => {
+        const itemHashValue = item[attr];
+        const queryHashValue = hashValue[attr];
+        return itemHashValue && queryHashValue && this.attributeEquals(itemHashValue, queryHashValue);
+      });
+      if (matchesPartitionKey) {
+        matchingItems.push(deepClone(item));
+      }
+    }
+    if (rangeAttrs.length > 0) {
+      matchingItems.sort((a, b) => this.compareByKeySchema(a, b, keySchema, options?.scanIndexForward !== false));
+    }
+    let startIdx = 0;
+    if (options?.exclusiveStartKey) {
+      const startKey = serializeKey(options.exclusiveStartKey, paginationKeySchema);
+      startIdx = matchingItems.findIndex(
+        (item) => serializeKey(extractKey(item, paginationKeySchema), paginationKeySchema) === startKey
+      );
+      if (startIdx !== -1) {
+        startIdx++;
+      } else {
+        startIdx = 0;
+      }
+    }
+    const limit = options?.limit;
+    const sliced = limit ? matchingItems.slice(startIdx, startIdx + limit) : matchingItems.slice(startIdx);
+    const hasMore = limit ? startIdx + limit < matchingItems.length : false;
+    const lastItem = sliced[sliced.length - 1];
+    return {
+      items: sliced,
+      lastEvaluatedKey: hasMore && lastItem ? extractKey(lastItem, paginationKeySchema) : void 0
+    };
   }
   getAllItems() {
     return Array.from(this.items.values()).map((item) => deepClone(item));

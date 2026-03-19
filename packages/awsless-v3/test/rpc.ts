@@ -8,14 +8,14 @@ import { RpcAuthorizerResponse } from '../src/server'
 
 describe('RPC server', () => {
 	mockLambda({
-		lock: (): RpcAuthorizerResponse => {
+		'lock-auth': (): RpcAuthorizerResponse => {
 			return unpatch({
 				authorized: true,
 				lockKey: 'user',
 				ttl: hours(1),
 			})
 		},
-		permission: (): RpcAuthorizerResponse => {
+		'permission-auth': (): RpcAuthorizerResponse => {
 			return unpatch({
 				authorized: true,
 				allowedFunctions: ['read'],
@@ -41,12 +41,15 @@ describe('RPC server', () => {
 				{
 					query: 'read',
 					function: 'echo',
-					// permissions: ['read'],
 				},
 				{
 					query: 'write',
 					function: 'echo',
-					// permissions: ['write'],
+				},
+				{
+					query: 'locked',
+					function: 'echo',
+					lock: true,
 				},
 			]),
 		],
@@ -70,11 +73,11 @@ describe('RPC server', () => {
 
 	describe('lock', () => {
 		it('only one request should succeed', async () => {
-			process.env.AUTH = 'lock'
+			process.env.AUTH = 'lock-auth'
 
 			const results = await Promise.all(
 				Array.from({ length: 10 }).map(async () => {
-					const response = await handle(createRequest([{ name: 'echo' }]))
+					const response = await handle(createRequest([{ name: 'locked' }]))
 
 					// console.log(response);
 
@@ -85,7 +88,7 @@ describe('RPC server', () => {
 			const errors = results.filter(n => n === 429)
 			const successes = results.filter(n => n === 200)
 
-			// console.log(successes, errors)
+			// console.log(results)
 
 			expect(errors.length).toBe(9)
 			expect(successes.length).toBe(1)
@@ -94,18 +97,18 @@ describe('RPC server', () => {
 
 	describe('permissions', () => {
 		it('should fail for invalid permissions', async () => {
-			process.env.AUTH = 'permission'
+			process.env.AUTH = 'permission-auth'
 
 			const result = await handle(createRequest([{ name: 'write' }], 'token-2'))
 
-			// console.log(result)
+			console.log(result)
 
 			expect(result.statusCode).toBe(200)
 			expect(JSON.parse(result.body)[0].ok).toBe(false)
 		})
 
 		it('should secceed for valid permissions', async () => {
-			process.env.AUTH = 'permission'
+			process.env.AUTH = 'permission-auth'
 
 			const result = await handle(createRequest([{ name: 'read' }], 'token-2'))
 

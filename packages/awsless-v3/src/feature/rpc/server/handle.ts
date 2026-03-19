@@ -7,6 +7,7 @@ import {
 	INTERNAL_FUNCTION_ERROR,
 	INTERNAL_SERVER_ERROR,
 	INVALID_REQUEST,
+	NO_LOCK_KEY_PROVIDED,
 	ONE_FUNCTION_AT_A_TIME,
 	PERMISSION_ACCESS_DENIED,
 	TOO_MANY_REQUESTS,
@@ -57,15 +58,60 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 			ip: request.output.requestContext.http.sourceIp,
 		})
 
+		// // ----------------------------------------
+		// // Lock the request if needed
+
+		// if (auth.lockKey) {
+		// 	// We should not allow batch calls for locked requests.
+		// 	if (request.output.body.length !== 1) {
+		// 		return response(400, ONE_FUNCTION_AT_A_TIME)
+		// 	}
+
+		// 	const locked = await lock(requestId, auth.lockKey)
+
+		// 	if (!locked) {
+		// 		return response(429, TOO_MANY_REQUESTS)
+		// 	}
+		// }
+
+		// ----------------------------------------
+		// Get function details
+
+		const calls = await Promise.all(
+			request.output.body.map(async fn => {
+				if (fn.name.startsWith('$')) {
+					return {
+						...fn,
+						details: undefined,
+					}
+				}
+
+				const details = await getFunctionDetails(fn.name)
+
+				return {
+					...fn,
+					details,
+				}
+			})
+		)
+
 		// ----------------------------------------
 		// Lock the request if needed
 
-		if (auth.lockKey) {
-			// We should not allow batch calls for locked requests.
-			if (request.output.body.length !== 1) {
-				return response(400, ONE_FUNCTION_AT_A_TIME)
-			}
+		const lockedCalls = calls.filter(fn => fn.details?.lock === true)
 
+		// A lock key should be provided if a locked
+		// function is called.
+		if (lockedCalls.length > 0 && !auth.lockKey) {
+			return response(400, NO_LOCK_KEY_PROVIDED)
+		}
+
+		// We should not allow batch calls for locked requests.
+		if (lockedCalls.length > 1) {
+			return response(400, ONE_FUNCTION_AT_A_TIME)
+		}
+
+		if (lockedCalls.length > 0 && auth.lockKey) {
 			const locked = await lock(requestId, auth.lockKey)
 
 			if (!locked) {
@@ -77,7 +123,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// Execute request functions
 
 		const result = await Promise.allSettled(
-			request.output.body.map(async (fn): Promise<FunctionResult> => {
+			calls.map(async (fn): Promise<FunctionResult> => {
 				// ----------------------------------------
 				// Check if the function is internal
 
@@ -86,11 +132,9 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 				}
 
 				// ----------------------------------------
-				// Get function details
+				// Check if function is defined
 
-				const fnName = await getFunctionDetails(fn.name)
-
-				if (!fnName) {
+				if (!('details' in fn && fn.details)) {
 					return UNKNOWN_FUNCTION_NAME
 				}
 
@@ -111,7 +155,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 				let data: unknown
 				try {
 					data = await invoke({
-						name: fnName,
+						name: fn.details.name,
 						payload: {
 							...(fn.payload ?? {}),
 							...(auth.context ?? {}),
@@ -139,7 +183,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Unlock the request if needed
 
-		if (auth.lockKey) {
+		if (lockedCalls.length > 0 && auth.lockKey) {
 			await unlock(requestId, auth.lockKey)
 		}
 

@@ -111,6 +111,320 @@ describe('Secondary Indexes', () => {
 
 			expect(result.Count).toBe(5)
 		})
+
+		it('should query a multi-key GSI with multiple partition keys', async () => {
+			const client = server.getClient()
+
+			await client.send(
+				new CreateTableCommand({
+					TableName: 'MultiKeyGSITest',
+					KeySchema: [
+						{ AttributeName: 'pk', KeyType: 'HASH' },
+						{ AttributeName: 'sk', KeyType: 'RANGE' },
+					],
+					AttributeDefinitions: [
+						{ AttributeName: 'pk', AttributeType: 'S' },
+						{ AttributeName: 'sk', AttributeType: 'S' },
+						{ AttributeName: 'tenant', AttributeType: 'S' },
+						{ AttributeName: 'region', AttributeType: 'S' },
+						{ AttributeName: 'entityType', AttributeType: 'S' },
+						{ AttributeName: 'status', AttributeType: 'S' },
+						{ AttributeName: 'createdAt', AttributeType: 'N' },
+					],
+					GlobalSecondaryIndexes: [
+						{
+							IndexName: 'GSI1',
+							KeySchema: [
+								{ AttributeName: 'tenant', KeyType: 'HASH' },
+								{ AttributeName: 'region', KeyType: 'HASH' },
+								{ AttributeName: 'entityType', KeyType: 'HASH' },
+								{ AttributeName: 'status', KeyType: 'RANGE' },
+								{ AttributeName: 'createdAt', KeyType: 'RANGE' },
+							],
+							Projection: { ProjectionType: 'ALL' },
+						},
+					],
+					BillingMode: 'PAY_PER_REQUEST',
+				})
+			)
+
+			await client.send(
+				new PutItemCommand({
+					TableName: 'MultiKeyGSITest',
+					Item: {
+						pk: { S: 'user#1' },
+						sk: { S: 'profile' },
+						tenant: { S: 'tenant#1' },
+						region: { S: 'eu-west-1' },
+						entityType: { S: 'user' },
+						status: { S: 'active' },
+						createdAt: { N: '100' },
+					},
+				})
+			)
+
+			await client.send(
+				new PutItemCommand({
+					TableName: 'MultiKeyGSITest',
+					Item: {
+						pk: { S: 'user#2' },
+						sk: { S: 'profile' },
+						tenant: { S: 'tenant#1' },
+						region: { S: 'eu-west-1' },
+						entityType: { S: 'user' },
+						status: { S: 'active' },
+						createdAt: { N: '200' },
+					},
+				})
+			)
+
+			await client.send(
+				new PutItemCommand({
+					TableName: 'MultiKeyGSITest',
+					Item: {
+						pk: { S: 'user#3' },
+						sk: { S: 'profile' },
+						tenant: { S: 'tenant#1' },
+						region: { S: 'eu-west-1' },
+						entityType: { S: 'user' },
+						status: { S: 'disabled' },
+						createdAt: { N: '300' },
+					},
+				})
+			)
+
+			const result = await client.send(
+				new QueryCommand({
+					TableName: 'MultiKeyGSITest',
+					IndexName: 'GSI1',
+					KeyConditionExpression:
+						'tenant = :tenant AND region = :region AND entityType = :entityType AND status = :status AND createdAt >= :createdAt',
+					ExpressionAttributeValues: {
+						':tenant': { S: 'tenant#1' },
+						':region': { S: 'eu-west-1' },
+						':entityType': { S: 'user' },
+						':status': { S: 'active' },
+						':createdAt': { N: '150' },
+					},
+				})
+			)
+
+			expect(result.Count).toBe(1)
+			expect(result.Items?.[0]?.pk?.S).toBe('user#2')
+		})
+
+		it('should keep a multi-key GSI sparse until all key attributes exist', async () => {
+			const client = server.getClient()
+
+			await client.send(
+				new CreateTableCommand({
+					TableName: 'SparseMultiKeyGSITest',
+					KeySchema: [{ AttributeName: 'pk', KeyType: 'HASH' }],
+					AttributeDefinitions: [
+						{ AttributeName: 'pk', AttributeType: 'S' },
+						{ AttributeName: 'tenant', AttributeType: 'S' },
+						{ AttributeName: 'region', AttributeType: 'S' },
+						{ AttributeName: 'kind', AttributeType: 'S' },
+					],
+					GlobalSecondaryIndexes: [
+						{
+							IndexName: 'GSI1',
+							KeySchema: [
+								{ AttributeName: 'tenant', KeyType: 'HASH' },
+								{ AttributeName: 'region', KeyType: 'HASH' },
+								{ AttributeName: 'kind', KeyType: 'RANGE' },
+							],
+							Projection: { ProjectionType: 'ALL' },
+						},
+					],
+					BillingMode: 'PAY_PER_REQUEST',
+				})
+			)
+
+			await client.send(
+				new PutItemCommand({
+					TableName: 'SparseMultiKeyGSITest',
+					Item: {
+						pk: { S: 'item#1' },
+						tenant: { S: 'tenant#1' },
+						region: { S: 'eu-west-1' },
+					},
+				})
+			)
+
+			await client.send(
+				new PutItemCommand({
+					TableName: 'SparseMultiKeyGSITest',
+					Item: {
+						pk: { S: 'item#2' },
+						tenant: { S: 'tenant#1' },
+						region: { S: 'eu-west-1' },
+						kind: { S: 'user' },
+					},
+				})
+			)
+
+			const result = await client.send(
+				new ScanCommand({
+					TableName: 'SparseMultiKeyGSITest',
+					IndexName: 'GSI1',
+				})
+			)
+
+			expect(result.Count).toBe(1)
+			expect(result.Items?.[0]?.pk?.S).toBe('item#2')
+		})
+
+		it('should query a multi-key GSI using multiple partition keys only', async () => {
+			const client = server.getClient()
+
+			await client.send(
+				new CreateTableCommand({
+					TableName: 'MultiHashOnlyGSITest',
+					KeySchema: [
+						{ AttributeName: 'pk', KeyType: 'HASH' },
+						{ AttributeName: 'sk', KeyType: 'RANGE' },
+					],
+					AttributeDefinitions: [
+						{ AttributeName: 'pk', AttributeType: 'S' },
+						{ AttributeName: 'sk', AttributeType: 'S' },
+						{ AttributeName: 'tenant', AttributeType: 'S' },
+						{ AttributeName: 'region', AttributeType: 'S' },
+						{ AttributeName: 'kind', AttributeType: 'S' },
+					],
+					GlobalSecondaryIndexes: [
+						{
+							IndexName: 'GSI1',
+							KeySchema: [
+								{ AttributeName: 'tenant', KeyType: 'HASH' },
+								{ AttributeName: 'region', KeyType: 'HASH' },
+								{ AttributeName: 'kind', KeyType: 'RANGE' },
+							],
+							Projection: { ProjectionType: 'ALL' },
+						},
+					],
+					BillingMode: 'PAY_PER_REQUEST',
+				})
+			)
+
+			const items = [
+				{ pk: 'user#1', tenant: 'tenant#1', region: 'eu-west-1', kind: 'account' },
+				{ pk: 'user#2', tenant: 'tenant#1', region: 'eu-west-1', kind: 'profile' },
+				{ pk: 'user#3', tenant: 'tenant#1', region: 'us-east-1', kind: 'account' },
+				{ pk: 'user#4', tenant: 'tenant#2', region: 'eu-west-1', kind: 'account' },
+			]
+
+			for (const item of items) {
+				await client.send(
+					new PutItemCommand({
+						TableName: 'MultiHashOnlyGSITest',
+						Item: {
+							pk: { S: item.pk },
+							sk: { S: 'root' },
+							tenant: { S: item.tenant },
+							region: { S: item.region },
+							kind: { S: item.kind },
+						},
+					})
+				)
+			}
+
+			const result = await client.send(
+				new QueryCommand({
+					TableName: 'MultiHashOnlyGSITest',
+					IndexName: 'GSI1',
+					KeyConditionExpression: 'tenant = :tenant AND region = :region',
+					ExpressionAttributeValues: {
+						':tenant': { S: 'tenant#1' },
+						':region': { S: 'eu-west-1' },
+					},
+				})
+			)
+
+			expect(result.Count).toBe(2)
+			expect(result.Items?.map(item => item.pk?.S)).toEqual(['user#1', 'user#2'])
+		})
+
+		it('should query a multi-key GSI using multiple sort keys in order', async () => {
+			const client = server.getClient()
+
+			await client.send(
+				new CreateTableCommand({
+					TableName: 'MultiSortGSITest',
+					KeySchema: [
+						{ AttributeName: 'pk', KeyType: 'HASH' },
+						{ AttributeName: 'sk', KeyType: 'RANGE' },
+					],
+					AttributeDefinitions: [
+						{ AttributeName: 'pk', AttributeType: 'S' },
+						{ AttributeName: 'sk', AttributeType: 'S' },
+						{ AttributeName: 'tenant', AttributeType: 'S' },
+						{ AttributeName: 'region', AttributeType: 'S' },
+						{ AttributeName: 'status', AttributeType: 'S' },
+						{ AttributeName: 'category', AttributeType: 'S' },
+						{ AttributeName: 'createdAt', AttributeType: 'N' },
+					],
+					GlobalSecondaryIndexes: [
+						{
+							IndexName: 'GSI1',
+							KeySchema: [
+								{ AttributeName: 'tenant', KeyType: 'HASH' },
+								{ AttributeName: 'region', KeyType: 'HASH' },
+								{ AttributeName: 'status', KeyType: 'RANGE' },
+								{ AttributeName: 'category', KeyType: 'RANGE' },
+								{ AttributeName: 'createdAt', KeyType: 'RANGE' },
+							],
+							Projection: { ProjectionType: 'ALL' },
+						},
+					],
+					BillingMode: 'PAY_PER_REQUEST',
+				})
+			)
+
+			const items = [
+				{ pk: 'order#1', status: 'active', category: 'pro', createdAt: '100' },
+				{ pk: 'order#2', status: 'active', category: 'pro', createdAt: '200' },
+				{ pk: 'order#3', status: 'active', category: 'basic', createdAt: '300' },
+				{ pk: 'order#4', status: 'disabled', category: 'pro', createdAt: '400' },
+			]
+
+			for (const item of items) {
+				await client.send(
+					new PutItemCommand({
+						TableName: 'MultiSortGSITest',
+						Item: {
+							pk: { S: item.pk },
+							sk: { S: 'root' },
+							tenant: { S: 'tenant#1' },
+							region: { S: 'eu-west-1' },
+							status: { S: item.status },
+							category: { S: item.category },
+							createdAt: { N: item.createdAt },
+						},
+					})
+				)
+			}
+
+			const result = await client.send(
+				new QueryCommand({
+					TableName: 'MultiSortGSITest',
+					IndexName: 'GSI1',
+					KeyConditionExpression:
+						'tenant = :tenant AND region = :region AND status = :status AND category = :category AND createdAt BETWEEN :from AND :to',
+					ExpressionAttributeValues: {
+						':tenant': { S: 'tenant#1' },
+						':region': { S: 'eu-west-1' },
+						':status': { S: 'active' },
+						':category': { S: 'pro' },
+						':from': { N: '150' },
+						':to': { N: '250' },
+					},
+				})
+			)
+
+			expect(result.Count).toBe(1)
+			expect(result.Items?.[0]?.pk?.S).toBe('order#2')
+		})
 	})
 
 	describe('Local Secondary Index', () => {

@@ -187,7 +187,7 @@ export const authFeature = defineFeature({
 						requireSymbols: props.password.symbols,
 						temporaryPasswordValidityDays: toDays(props.password.temporaryPasswordValidity),
 					},
-					deletionProtection: ctx.appConfig.protect ? 'ACTIVE' : 'INACTIVE',
+					deletionProtection: ctx.appConfig.removal === 'retain' ? 'ACTIVE' : 'INACTIVE',
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',

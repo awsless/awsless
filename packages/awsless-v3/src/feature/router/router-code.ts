@@ -9,7 +9,7 @@ export const getViewerRequestFunctionCode = (props: {
 }
 
 const BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT = `
-if (headers.host.value.includes('cloudfront.net')) {
+if (headers.host && headers.host.value.includes('cloudfront.net')) {
 	return {
 		statusCode: 403,
 		statusDescription: 'Forbidden'

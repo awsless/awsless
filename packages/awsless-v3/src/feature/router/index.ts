@@ -304,6 +304,10 @@ export const routerFeature = defineFeature({
 				})
 			}
 
+			// ctx.onDeleteResource(() => {
+			// 	aws.wafv2.WebAcl
+			// })
+
 			// ------------------------------------------------------------
 			// CDN Distribution
 
@@ -318,6 +322,7 @@ export const routerFeature = defineFeature({
 				comment: name,
 				enabled: true,
 				viewerCertificate: [{ cloudfrontDefaultCertificate: true }],
+
 				// viewerCertificate: certificateArn
 				// 	? [
 				// 			{
@@ -331,6 +336,7 @@ export const routerFeature = defineFeature({
 				// 				cloudfrontDefaultCertificate: true,
 				// 			},
 				// 		],
+
 				origin: [
 					{
 						id: 'default',
@@ -342,6 +348,7 @@ export const routerFeature = defineFeature({
 								originProtocolPolicy: 'http-only',
 								originReadTimeout: 20,
 								originSslProtocols: ['TLSv1.2'],
+								// originKeepaliveTimeout: 30,
 							},
 						],
 					},
@@ -399,6 +406,13 @@ export const routerFeature = defineFeature({
 			})
 
 			ctx.shared.add('router', 'id', id, distribution.id)
+
+			// if (waf) {
+			// 	new aws.wafv2.WebAclAssociation(group, 'association', {
+			// 		'webAclArn': waf.arn,
+			// 		'resourceArn':
+			// 	})
+			// }
 
 			// ------------------------------------------------------------
 			// Add Invalidation API

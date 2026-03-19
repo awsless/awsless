@@ -1,5 +1,5 @@
 import { AttributeValue, TransactGetItem, TransactGetItemsCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client'
+import { getClient } from '../client'
 import { Options } from '../types/options'
 
 export type Transactable = {
@@ -24,7 +24,8 @@ export const transactRead = async <const T extends Transactable[]>(
 		TransactItems: transactItems.map(item => item.input),
 	})
 
-	const result = await client(options).send(command)
+	const client = getClient(options)
+	const result = await client.send(command)
 	const responses = result.Responses ?? []
 
 	return responses.map((res, i) => {

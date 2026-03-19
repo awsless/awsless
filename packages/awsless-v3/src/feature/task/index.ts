@@ -16,7 +16,7 @@ import type { Mock } from 'vitest'
 
 type Func = (...args: any[]) => any
 
-type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type'> & {
+type Options = Omit<InvokeOptions, 'name' | 'payload' | 'type' | 'reflectViewableErrors'> & {
 	schedule?: Duration | Date
 }
 

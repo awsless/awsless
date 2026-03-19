@@ -37,8 +37,8 @@ export const AppSchema = z.object({
 			[
 				'Configure how your resources are handled when they have to be removed.',
 				'',
-				'remove: Removes the underlying resource.',
-				'retain: Retains resources like S3 stores and DynamoDB tables. Removes everything else.',
+				'remove: Removes all underlying resources.',
+				'retain: Retains the following resources: stores, tables, auth, searchs, and caches.',
 			].join('\n')
 		),
 

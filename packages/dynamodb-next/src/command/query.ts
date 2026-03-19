@@ -1,5 +1,5 @@
 import { QueryCommand } from '@aws-sdk/client-dynamodb'
-import { client } from '../client'
+import { getClient } from '../client'
 import { ExpressionAttributes } from '../expression/attributes'
 import { buildConditionExpression } from '../expression/condition'
 import { KeyConditionExpression } from '../expression/key-condition'
@@ -41,27 +41,29 @@ export const query = <
 	key: QueryKey<T, I>,
 	options: QueryOptions<T, P, I> = {}
 ) => {
+	const client = getClient(options)
+
 	const execute = async (cursor?: string, limit?: number) => {
 		const sort = options.order ?? options.sort
 		const attrs = new ExpressionAttributes(table)
 		const command = new QueryCommand({
 			TableName: table.name,
 			IndexName: options.index,
-			KeyConditionExpression: buildConditionExpression(attrs, e =>
-				(e as any).and([
-					...Object.entries(key).map(([k, v]) => e(k).eq(v)),
-					...(options.where ? [options.where(e)] : []),
-				])
-			),
+			KeyConditionExpression: buildConditionExpression(attrs, e => [
+				...Object.entries(key).map(([k, v]) => e(k).eq(v)),
+				...(options.where ? [options.where(e)] : []),
+			]),
 			ConsistentRead: options.consistentRead,
 			ScanIndexForward: sort === 'desc' ? false : true,
-			Limit: limit ?? options.limit ?? 10,
 			ExclusiveStartKey: fromCursorString(cursor),
 			ProjectionExpression: buildProjectionExpression(attrs, options.select),
+			Limit: limit ?? options.limit ?? 10,
 			...attrs.attributes(),
 		})
 
-		const result = await client(options).send(command)
+		// console.log(command.input)
+
+		const result = await client.send(command)
 
 		return {
 			items: result.Items?.map(item => table.unmarshall(item, options.select)) ?? [],

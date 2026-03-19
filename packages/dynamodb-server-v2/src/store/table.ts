@@ -15,7 +15,18 @@ import type {
 	TableDescription,
 	TimeToLiveSpecification,
 } from '../types.js'
-import { deepClone, estimateItemSize, extractKey, getHashKey, getRangeKey, serializeKey } from './item.js'
+import {
+	deepClone,
+	estimateItemSize,
+	extractKey,
+	getHashKey,
+	getHashKeys,
+	getRangeKey,
+	getRangeKeys,
+	hasCompleteKey,
+	mergeKeySchemas,
+	serializeKey,
+} from './item.js'
 
 let sequenceCounter = 0
 
@@ -328,13 +339,7 @@ export class Table {
 	}
 
 	private buildIndexKey(item: AttributeMap, keySchema: KeySchemaElement[]): string | null {
-		const hashAttr = getHashKey(keySchema)
-		if (!item[hashAttr]) {
-			return null
-		}
-
-		const rangeAttr = getRangeKey(keySchema)
-		if (rangeAttr && !item[rangeAttr]) {
+		if (!hasCompleteKey(item, keySchema)) {
 			return null
 		}
 
@@ -397,55 +402,7 @@ export class Table {
 			exclusiveStartKey?: AttributeMap
 		}
 	): { items: AttributeMap[]; lastEvaluatedKey?: AttributeMap } {
-		const hashAttr = this.getHashKeyName()
-		const rangeAttr = this.getRangeKeyName()
-
-		const matchingItems: AttributeMap[] = []
-
-		for (const item of this.items.values()) {
-			const itemHashValue = item[hashAttr]
-			const queryHashValue = hashValue[hashAttr]
-
-			if (itemHashValue && queryHashValue && this.attributeEquals(itemHashValue, queryHashValue)) {
-				matchingItems.push(deepClone(item))
-			}
-		}
-
-		if (rangeAttr) {
-			matchingItems.sort((a, b) => {
-				const aVal = a[rangeAttr]
-				const bVal = b[rangeAttr]
-				if (!aVal && !bVal) return 0
-				if (!aVal) return 1
-				if (!bVal) return -1
-				const cmp = this.compareAttributes(aVal, bVal)
-				return options?.scanIndexForward === false ? -cmp : cmp
-			})
-		}
-
-		let startIdx = 0
-		if (options?.exclusiveStartKey) {
-			const startKey = serializeKey(options.exclusiveStartKey, this.keySchema)
-			startIdx = matchingItems.findIndex(
-				item => serializeKey(extractKey(item, this.keySchema), this.keySchema) === startKey
-			)
-			if (startIdx !== -1) {
-				startIdx++
-			} else {
-				startIdx = 0
-			}
-		}
-
-		const limit = options?.limit
-		const sliced = limit ? matchingItems.slice(startIdx, startIdx + limit) : matchingItems.slice(startIdx)
-
-		const hasMore = limit ? startIdx + limit < matchingItems.length : false
-		const lastItem = sliced[sliced.length - 1]
-
-		return {
-			items: sliced,
-			lastEvaluatedKey: hasMore && lastItem ? extractKey(lastItem, this.keySchema) : undefined,
-		}
+		return this.queryBySchema(this.keySchema, hashValue, this.keySchema, false, options)
 	}
 
 	queryIndex(
@@ -465,83 +422,17 @@ export class Table {
 			throw new Error(`Index ${indexName} not found`)
 		}
 
-		const indexHashAttr = getHashKey(indexData.keySchema)
-		const indexRangeAttr = getRangeKey(indexData.keySchema)
-
-		const matchingItems: AttributeMap[] = []
-
-		for (const item of this.items.values()) {
-			const itemHashValue = item[indexHashAttr]
-			const queryHashValue = hashValue[indexHashAttr]
-
-			// Check if item matches the query hash value
-			if (!itemHashValue || !queryHashValue || !this.attributeEquals(itemHashValue, queryHashValue)) {
-				continue
-			}
-
-			// For GSIs, items with missing range key attribute are not projected to the index
-			if (indexRangeAttr && !item[indexRangeAttr]) {
-				continue
-			}
-
-			matchingItems.push(deepClone(item))
-		}
-
-		if (indexRangeAttr) {
-			matchingItems.sort((a, b) => {
-				const aVal = a[indexRangeAttr]
-				const bVal = b[indexRangeAttr]
-				if (!aVal && !bVal) return 0
-				if (!aVal) return 1
-				if (!bVal) return -1
-				const cmp = this.compareAttributes(aVal, bVal)
-				return options?.scanIndexForward === false ? -cmp : cmp
-			})
-		}
-
-		let startIdx = 0
-		if (options?.exclusiveStartKey) {
-			const combinedKeySchema = [...indexData.keySchema]
-			const tableRangeKey = this.getRangeKeyName()
-			if (tableRangeKey && !combinedKeySchema.some(k => k.AttributeName === tableRangeKey)) {
-				combinedKeySchema.push({ AttributeName: tableRangeKey, KeyType: 'RANGE' })
-			}
-			const tableHashKey = this.getHashKeyName()
-			if (!combinedKeySchema.some(k => k.AttributeName === tableHashKey)) {
-				combinedKeySchema.push({ AttributeName: tableHashKey, KeyType: 'HASH' })
-			}
-
-			const startKey = serializeKey(options.exclusiveStartKey, combinedKeySchema)
-			startIdx = matchingItems.findIndex(
-				item => serializeKey(extractKey(item, combinedKeySchema), combinedKeySchema) === startKey
-			)
-			if (startIdx !== -1) {
-				startIdx++
-			} else {
-				startIdx = 0
-			}
-		}
-
-		const limit = options?.limit
-		const sliced = limit ? matchingItems.slice(startIdx, startIdx + limit) : matchingItems.slice(startIdx)
-
-		const hasMore = limit ? startIdx + limit < matchingItems.length : false
-		const lastItem = sliced[sliced.length - 1]
-
-		let lastEvaluatedKey: AttributeMap | undefined
-		if (hasMore && lastItem) {
-			lastEvaluatedKey = extractKey(lastItem, this.keySchema)
-			for (const keyElement of indexData.keySchema) {
-				const attrValue = lastItem[keyElement.AttributeName]
-				if (attrValue) {
-					lastEvaluatedKey[keyElement.AttributeName] = attrValue
-				}
-			}
-		}
+		const result = this.queryBySchema(
+			indexData.keySchema,
+			hashValue,
+			mergeKeySchemas(indexData.keySchema, this.keySchema),
+			true,
+			options
+		)
 
 		return {
-			items: sliced,
-			lastEvaluatedKey,
+			items: result.items,
+			lastEvaluatedKey: result.lastEvaluatedKey,
 			indexKeySchema: indexData.keySchema,
 		}
 	}
@@ -559,20 +450,22 @@ export class Table {
 			throw new Error(`Index ${indexName} not found`)
 		}
 
-		const indexHashAttr = getHashKey(indexData.keySchema)
 		const matchingItems: AttributeMap[] = []
 
 		for (const item of this.items.values()) {
-			if (item[indexHashAttr]) {
+			if (hasCompleteKey(item, indexData.keySchema)) {
 				matchingItems.push(deepClone(item))
 			}
 		}
 
+		matchingItems.sort((a, b) => this.compareByKeySchema(a, b, indexData.keySchema, true))
+
 		let startIdx = 0
 		if (exclusiveStartKey) {
-			const startKey = serializeKey(exclusiveStartKey, this.keySchema)
+			const paginationKeySchema = mergeKeySchemas(indexData.keySchema, this.keySchema)
+			const startKey = serializeKey(exclusiveStartKey, paginationKeySchema)
 			startIdx = matchingItems.findIndex(
-				item => serializeKey(extractKey(item, this.keySchema), this.keySchema) === startKey
+				item => serializeKey(extractKey(item, paginationKeySchema), paginationKeySchema) === startKey
 			)
 			if (startIdx !== -1) {
 				startIdx++
@@ -588,13 +481,7 @@ export class Table {
 
 		let lastEvaluatedKey: AttributeMap | undefined
 		if (hasMore && lastItem) {
-			lastEvaluatedKey = extractKey(lastItem, this.keySchema)
-			for (const keyElement of indexData.keySchema) {
-				const attrValue = lastItem[keyElement.AttributeName]
-				if (attrValue) {
-					lastEvaluatedKey[keyElement.AttributeName] = attrValue
-				}
-			}
+			lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexData.keySchema, this.keySchema))
 		}
 
 		return {
@@ -627,6 +514,92 @@ export class Table {
 		if ('N' in a && 'N' in b) return cmp(parse(a.N), parse(b.N))
 		if ('B' in a && 'B' in b) return a.B.localeCompare(b.B)
 		return 0
+	}
+
+	private compareByKeySchema(
+		a: AttributeMap,
+		b: AttributeMap,
+		keySchema: KeySchemaElement[],
+		scanIndexForward = true
+	): number {
+		for (const attributeName of [...getHashKeys(keySchema), ...getRangeKeys(keySchema)]) {
+			const aVal = a[attributeName]
+			const bVal = b[attributeName]
+			if (!aVal && !bVal) {
+				continue
+			}
+			if (!aVal) {
+				return 1
+			}
+			if (!bVal) {
+				return -1
+			}
+			const cmp = this.compareAttributes(aVal, bVal)
+			if (cmp !== 0) {
+				return scanIndexForward ? cmp : -cmp
+			}
+		}
+
+		return 0
+	}
+
+	private queryBySchema(
+		keySchema: KeySchemaElement[],
+		hashValue: AttributeMap,
+		paginationKeySchema: KeySchemaElement[],
+		requireCompleteKey: boolean,
+		options?: {
+			limit?: number
+			scanIndexForward?: boolean
+			exclusiveStartKey?: AttributeMap
+		}
+	): { items: AttributeMap[]; lastEvaluatedKey?: AttributeMap } {
+		const hashAttrs = getHashKeys(keySchema)
+		const rangeAttrs = getRangeKeys(keySchema)
+		const matchingItems: AttributeMap[] = []
+
+		for (const item of this.items.values()) {
+			if (requireCompleteKey && !hasCompleteKey(item, keySchema)) {
+				continue
+			}
+
+			const matchesPartitionKey = hashAttrs.every(attr => {
+				const itemHashValue = item[attr]
+				const queryHashValue = hashValue[attr]
+				return itemHashValue && queryHashValue && this.attributeEquals(itemHashValue, queryHashValue)
+			})
+
+			if (matchesPartitionKey) {
+				matchingItems.push(deepClone(item))
+			}
+		}
+
+		if (rangeAttrs.length > 0) {
+			matchingItems.sort((a, b) => this.compareByKeySchema(a, b, keySchema, options?.scanIndexForward !== false))
+		}
+
+		let startIdx = 0
+		if (options?.exclusiveStartKey) {
+			const startKey = serializeKey(options.exclusiveStartKey, paginationKeySchema)
+			startIdx = matchingItems.findIndex(
+				item => serializeKey(extractKey(item, paginationKeySchema), paginationKeySchema) === startKey
+			)
+			if (startIdx !== -1) {
+				startIdx++
+			} else {
+				startIdx = 0
+			}
+		}
+
+		const limit = options?.limit
+		const sliced = limit ? matchingItems.slice(startIdx, startIdx + limit) : matchingItems.slice(startIdx)
+		const hasMore = limit ? startIdx + limit < matchingItems.length : false
+		const lastItem = sliced[sliced.length - 1]
+
+		return {
+			items: sliced,
+			lastEvaluatedKey: hasMore && lastItem ? extractKey(lastItem, paginationKeySchema) : undefined,
+		}
 	}
 
 	getAllItems(): AttributeMap[] {

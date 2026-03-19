@@ -1,5 +1,6 @@
 import { ResourceNotFoundException, ValidationException } from '../errors/index.js'
 import { applyProjection, evaluateCondition } from '../expressions/index.js'
+import { extractKey, mergeKeySchemas } from '../store/item.js'
 import type { TableStore } from '../store/index.js'
 import type { AttributeMap, AttributeValue, ConsumedCapacity } from '../types.js'
 
@@ -72,24 +73,11 @@ export function scan(store: TableStore, input: ScanInput): ScanOutput {
 		items = items.slice(0, input.Limit)
 		if (items.length > 0) {
 			const lastItem = items[items.length - 1]!
-			lastEvaluatedKey = {}
-			const hashKey = table.getHashKeyName()
-			const rangeKey = table.getRangeKeyName()
-			if (lastItem[hashKey]) {
-				lastEvaluatedKey[hashKey] = lastItem[hashKey]
-			}
-			if (rangeKey && lastItem[rangeKey]) {
-				lastEvaluatedKey[rangeKey] = lastItem[rangeKey]
-			}
+			lastEvaluatedKey = extractKey(lastItem, table.keySchema)
 			if (input.IndexName) {
 				const indexKeySchema = table.getIndexKeySchema(input.IndexName)
 				if (indexKeySchema) {
-					for (const key of indexKeySchema) {
-						const attrValue = lastItem[key.AttributeName]
-						if (attrValue) {
-							lastEvaluatedKey[key.AttributeName] = attrValue
-						}
-					}
+					lastEvaluatedKey = extractKey(lastItem, mergeKeySchemas(indexKeySchema, table.keySchema))
 				}
 			}
 		}

@@ -329,16 +329,12 @@ var lambda = (options) => {
       return unpatch(result);
     } catch (error) {
       await Promise.all(failureCallbacks.map((cb) => cb(error)));
-      if (!(error instanceof ViewableError) && !(error instanceof ExpectedError) || options.logViewableErrors) {
+      const isExpectedError = error instanceof ViewableError || error instanceof ExpectedError;
+      if (!isExpectedError || options.throwExpectedErrors) {
         await log(error);
       }
-      if (!isTestEnv) {
-        if (error instanceof ViewableError) {
-          return toErrorResponse(error);
-        }
-        if (error instanceof ExpectedError) {
-          return toErrorResponse(error);
-        }
+      if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) {
+        return toErrorResponse(error);
       }
       throw error;
     } finally {
