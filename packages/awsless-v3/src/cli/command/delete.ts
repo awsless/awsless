@@ -21,7 +21,20 @@ export const del = (program: Command) => {
 				if (appConfig.protect) {
 					log.warning('Your app is protected against deletion.')
 
-					return 'Disable the protect flag and try again.'
+					if (!process.env.SKIP_PROMPT) {
+						const confirmation = await prompt.text({
+							message: `Type ${color.error('delete')} to confirm deletion:`,
+							validate(value) {
+								if (value !== 'delete') {
+									return 'Please type "delete" to confirm.'
+								}
+							},
+						})
+
+						if (confirmation !== 'delete') {
+							throw new Cancelled()
+						}
+					}
 				}
 
 				const region = appConfig.region
