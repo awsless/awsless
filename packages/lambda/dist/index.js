@@ -239,6 +239,31 @@ var normalizeError = (maybeError) => {
   return error;
 };
 
+// src/errors/enhanced.ts
+var EnhandedError = class extends Error {
+  input;
+  requestId;
+  functionName;
+  functionVersion;
+  memoryLimit;
+  remainingTime;
+};
+var enhanceError = (maybeError, input, context) => {
+  const cause = normalizeError(maybeError);
+  const error = new EnhandedError(cause.message, {
+    cause
+  });
+  error.input = input;
+  if (context) {
+    error.requestId = context.awsRequestId;
+    error.functionName = context.functionName;
+    error.functionVersion = context.functionVersion;
+    error.memoryLimit = context.memoryLimitInMB;
+    error.remainingTime = context.getRemainingTimeInMillis();
+  }
+  return error;
+};
+
 // src/helpers/warm-up.ts
 var warmerKey = "warmer";
 var concurrencyKey = "concurrency";
@@ -335,6 +360,9 @@ var lambda = (options) => {
       }
       if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) {
         return toErrorResponse(error);
+      }
+      if (!isTestEnv) {
+        throw enhanceError(normalizeError(error), event, context);
       }
       throw error;
     } finally {

@@ -1,5 +1,7 @@
-export default () => {
-	console.log('Hello')
+import { lambda } from '@awsless/lambda'
 
-	throw new Error('My Own Error')
-}
+export default lambda({
+	handle: () => {
+		throw new Error('My Own Error')
+	},
+})

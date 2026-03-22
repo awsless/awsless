@@ -41,7 +41,7 @@
 			"code": "./function.ts",
 			"timeout": "15 seconds"
 		},
-		"test2": "./function.ts"
+		"error": "./error.ts"
 		// "test3": "./function.ts",
 		// "test4": "./function.ts",
 		// "test5": "./function.ts",

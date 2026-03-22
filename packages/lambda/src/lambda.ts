@@ -6,6 +6,7 @@ import { eventContext } from './context/lambda-context.js'
 import { createTimeoutWrap } from './errors/timeout.js'
 import { transformValidationErrors } from './errors/validation.js'
 // import { toViewableErrorResponse, ViewableError } from './errors/viewable.js'
+import { enhanceError } from './errors/enhanced.js'
 import { ExpectedError } from './errors/expected.js'
 import { toErrorResponse } from './errors/response.js'
 import { ViewableError } from './errors/viewable.js'
@@ -134,6 +135,10 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 
 			if (!isTestEnv && !options.throwExpectedErrors && isExpectedError) {
 				return toErrorResponse(error)
+			}
+
+			if (!isTestEnv) {
+				throw enhanceError(normalizeError(error), event, context)
 			}
 
 			throw error

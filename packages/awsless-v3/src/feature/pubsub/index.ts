@@ -5,6 +5,7 @@ import { formatGlobalResourceName, formatLocalResourceName } from '../../util/na
 import { createAsyncLambdaFunction, createLambdaFunction } from '../function/util.js'
 import { constantCase } from 'change-case'
 import { formatFullDomainName } from '../domain/util.js'
+import { minutes, toSeconds } from '@awsless/duration'
 
 export const pubsubFeature = defineFeature({
 	name: 'pubsub',
@@ -69,6 +70,7 @@ export const pubsubFeature = defineFeature({
 					zoneId: ctx.shared.entry('domain', `zone-id`, props.domain),
 					name: domainName,
 					type: 'CNAME',
+					ttl: toSeconds(minutes(5)),
 					records: [endpoint.endpointAddress],
 				})
 
