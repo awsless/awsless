@@ -1,4 +1,5 @@
 import { Context } from 'aws-lambda'
+import { enhanceError } from './enhanced'
 
 export class TimeoutError extends Error {
 	constructor(remainingTime: number) {
@@ -7,6 +8,7 @@ export class TimeoutError extends Error {
 }
 
 export const createTimeoutWrap = async <R>(
+	event: unknown,
 	context: Context | undefined,
 	log: (error: TimeoutError) => void,
 	callback: () => R
@@ -23,7 +25,8 @@ export const createTimeoutWrap = async <R>(
 	const delay = Math.max(time - 1000, 1000)
 
 	const id = setTimeout(() => {
-		log(new TimeoutError(context.getRemainingTimeInMillis()))
+		const error = new TimeoutError(context.getRemainingTimeInMillis())
+		log(enhanceError(error, event, context))
 	}, delay)
 
 	try {

@@ -270,7 +270,10 @@ export const domainFeature = defineFeature({
 
 		ctx.addGlobalPermission({
 			actions: ['ses:*'],
-			resources: [`arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`],
+			resources: [
+				// `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/*`,
+				'*',
+			],
 		})
 	},
 })

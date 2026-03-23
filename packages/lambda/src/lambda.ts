@@ -86,7 +86,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 				return undefined
 			}
 
-			const result = await createTimeoutWrap(context, log, () => {
+			const result = await createTimeoutWrap(event, context, log, () => {
 				return transformValidationErrors(() => {
 					const raw = typeof event === 'undefined' || isTestEnv ? event : patch(event)
 					const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw

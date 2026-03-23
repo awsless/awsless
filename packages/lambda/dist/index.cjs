@@ -128,20 +128,64 @@ var listFunctions = async ({
   return result;
 };
 
+// src/helpers/error.ts
+var normalizeError = (maybeError) => {
+  if (maybeError instanceof Error) {
+    return maybeError;
+  }
+  switch (typeof maybeError) {
+    case "string":
+    case "number":
+    case "boolean":
+      return new Error(String(maybeError));
+    case "object":
+      return new Error(JSON.stringify(maybeError));
+  }
+  const error = new Error("Received a non-error.");
+  error.name = "InvalidError";
+  return error;
+};
+
+// src/errors/enhanced.ts
+var EnhandedError = class extends Error {
+  input;
+  requestId;
+  functionName;
+  functionVersion;
+  memoryLimit;
+  remainingTime;
+};
+var enhanceError = (maybeError, input, context) => {
+  const cause = normalizeError(maybeError);
+  const error = new EnhandedError(cause.message, {
+    cause
+  });
+  error.input = input;
+  if (context) {
+    error.requestId = context.awsRequestId;
+    error.functionName = context.functionName;
+    error.functionVersion = context.functionVersion;
+    error.memoryLimit = context.memoryLimitInMB;
+    error.remainingTime = context.getRemainingTimeInMillis();
+  }
+  return error;
+};
+
 // src/errors/timeout.ts
 var TimeoutError = class extends Error {
   constructor(remainingTime) {
     super(`Lambda will timeout in ${remainingTime}ms`);
   }
 };
-var createTimeoutWrap = async (context, log, callback) => {
+var createTimeoutWrap = async (event, context, log, callback) => {
   if (!context) {
     return callback();
   }
   const time = context.getRemainingTimeInMillis();
   const delay = Math.max(time - 1e3, 1e3);
   const id = setTimeout(() => {
-    log(new TimeoutError(context.getRemainingTimeInMillis()));
+    const error = new TimeoutError(context.getRemainingTimeInMillis());
+    log(enhanceError(error, event, context));
   }, delay);
   try {
     return await callback();
@@ -252,49 +296,6 @@ var GlobalContext = class {
 // src/context/lambda-context.ts
 var eventContext = new GlobalContext();
 
-// src/helpers/error.ts
-var normalizeError = (maybeError) => {
-  if (maybeError instanceof Error) {
-    return maybeError;
-  }
-  switch (typeof maybeError) {
-    case "string":
-    case "number":
-    case "boolean":
-      return new Error(String(maybeError));
-    case "object":
-      return new Error(JSON.stringify(maybeError));
-  }
-  const error = new Error("Received a non-error.");
-  error.name = "InvalidError";
-  return error;
-};
-
-// src/errors/enhanced.ts
-var EnhandedError = class extends Error {
-  input;
-  requestId;
-  functionName;
-  functionVersion;
-  memoryLimit;
-  remainingTime;
-};
-var enhanceError = (maybeError, input, context) => {
-  const cause = normalizeError(maybeError);
-  const error = new EnhandedError(cause.message, {
-    cause
-  });
-  error.input = input;
-  if (context) {
-    error.requestId = context.awsRequestId;
-    error.functionName = context.functionName;
-    error.functionVersion = context.functionVersion;
-    error.memoryLimit = context.memoryLimitInMB;
-    error.remainingTime = context.getRemainingTimeInMillis();
-  }
-  return error;
-};
-
 // src/helpers/warm-up.ts
 var warmerKey = "warmer";
 var concurrencyKey = "concurrency";
@@ -349,7 +350,7 @@ var lambda = (options) => {
         await warmUp(warmUpEvent);
         return void 0;
       }
-      const result = await createTimeoutWrap(context, log, () => {
+      const result = await createTimeoutWrap(event, context, log, () => {
         return transformValidationErrors(() => {
           const raw = typeof event === "undefined" || isTestEnv ? event : (0, import_json3.patch)(event);
           const input = options.schema ? (0, import_validate2.parse)(options.schema, raw) : raw;

@@ -729,6 +729,9 @@ importers:
       rollup-plugin-string-import:
         specifier: 1.2.6
         version: 1.2.6(rollup@4.52.4)
+      stay-awake:
+        specifier: 0.0.3
+        version: 0.0.3
       svgo:
         specifier: ^4.0.0
         version: 4.0.0
@@ -9608,6 +9611,9 @@ packages:
 
   standard-as-callback@2.1.0:
     resolution: {integrity: sha512-qoRRSyROncaz1z0mvYqIE4lCd9p2R90i6GxW3uZv5ucSu8tU7B5HXUP1gG8pVZsYNVaXjk8ClXHPttLyxAL48A==}
+
+  stay-awake@0.0.3:
+    resolution: {integrity: sha512-OzB0K7ZF/wWfxUnZ9KBZLzQOZUT2B3vmuwxPW6uNM+95ZPq6FrVCNYuRHGUGAtTcx/kAFYyVUyHqGfsum6BpJw==}
 
   std-env@3.8.1:
     resolution: {integrity: sha512-vj5lIj3Mwf9D79hBkltk5qmkFI+biIKWS2IBxEyEU3AX1tUf7AoL8nSazCOiiqQsGKIq01SClsKEzweu34uwvA==}
@@ -23076,6 +23082,13 @@ snapshots:
   stackback@0.0.2: {}
 
   standard-as-callback@2.1.0: {}
+
+  stay-awake@0.0.3:
+    dependencies:
+      debug: 2.6.9
+      process: 0.11.10
+    transitivePeerDependencies:
+      - supports-color
 
   std-env@3.8.1: {}
 
