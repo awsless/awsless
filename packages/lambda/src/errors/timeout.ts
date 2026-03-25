@@ -1,3 +1,4 @@
+import { GenericSchema } from '@awsless/validate'
 import { Context } from 'aws-lambda'
 import { enhanceError } from './enhanced'
 
@@ -8,6 +9,7 @@ export class TimeoutError extends Error {
 }
 
 export const createTimeoutWrap = async <R>(
+	schema: GenericSchema | undefined,
 	event: unknown,
 	context: Context | undefined,
 	log: (error: TimeoutError) => void,
@@ -25,8 +27,11 @@ export const createTimeoutWrap = async <R>(
 	const delay = Math.max(time - 1000, 1000)
 
 	const id = setTimeout(() => {
-		const error = new TimeoutError(context.getRemainingTimeInMillis())
-		log(enhanceError(error, event, context))
+		const timeoutError = new TimeoutError(context.getRemainingTimeInMillis())
+		const enhancedError = enhanceError(timeoutError, schema, event, context)
+
+		log(enhancedError)
+		console.error(enhancedError)
 	}, delay)
 
 	try {

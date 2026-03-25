@@ -1,10 +1,15 @@
 import * as valibot from 'valibot';
-import { GenericSchema, ErrorMessage, GenericIssue, BaseSchema, InferOutput, InferInput, CheckIssue } from 'valibot';
+import { MetadataAction, GenericSchema, ErrorMessage, GenericIssue, BaseSchema, InferOutput, InferInput, CheckIssue } from 'valibot';
 export * from 'valibot';
 import { BigFloat } from '@awsless/big-float';
 import { UUID } from 'crypto';
 import { Duration } from '@awsless/duration';
 import { AnyTable, PrimaryKey, Infer } from '@awsless/dynamodb';
+
+declare const redact: () => MetadataAction<string, {
+    redact: true;
+}>;
+declare const applyRedaction: <T>(schema: GenericSchema, input: T) => T;
 
 type JsonSchema<T extends GenericSchema> = BaseSchema<string, InferOutput<T>, GenericIssue>;
 declare const json: <T extends GenericSchema>(schema: T, message?: ErrorMessage<GenericIssue>) => JsonSchema<T>;
@@ -77,4 +82,4 @@ declare function unique<T extends any[]>(compare?: (a: T[number], b: T[number]) 
 declare function minDuration(min: Duration, message?: ErrorMessage<CheckIssue<Duration>>): valibot.CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
 declare function maxDuration(max: Duration, message?: ErrorMessage<CheckIssue<Duration>>): valibot.CheckAction<Duration, ErrorMessage<CheckIssue<Duration>>>;
 
-export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, s3Event, snsTopic, sqsQueue, unique, uuid };
+export { type BigFloatSchema, type DurationSchema, type DynamoDBStreamSchema, type JsonSchema, type S3EventSchema, type SnsTopicSchema, type SqsQueueSchema, type UuidSchema, applyRedaction, bigfloat, duration, dynamoDbStream, json, maxDuration, minDuration, positive, precision, redact, s3Event, snsTopic, sqsQueue, unique, uuid };

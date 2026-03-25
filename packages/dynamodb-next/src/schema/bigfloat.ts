@@ -1,4 +1,4 @@
-import { BigFloat, parse } from '@awsless/big-float'
+import { BigFloat, floor, parse, PRECISION } from '@awsless/big-float'
 import { NumberExpression } from '../expression/types'
 import { BaseSchema, createSchema } from './schema'
 
@@ -17,11 +17,11 @@ export type BigFloatSchema = BaseSchema<
 // 		validate: value => value instanceof BigFloat,
 // 	})
 
-export const bigfloat = (): BigFloatSchema =>
+export const bigfloat = ({ precision = PRECISION } = {}): BigFloatSchema =>
 	createSchema({
 		name: 'bigfloat',
 		type: 'N',
-		marshall: value => ({ N: value.toString() }),
+		marshall: value => ({ N: floor(value, precision).toString() }),
 		unmarshall: value => parse(value.N),
 		// validate: value => value instanceof BigFloat,
 		validateInput: value => value instanceof BigFloat,

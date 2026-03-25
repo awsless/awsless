@@ -1,6 +1,11 @@
 export * from 'valibot'
 
 // --------------------------------------------
+// Actions
+
+export { redact, applyRedaction } from './action/redact.js'
+
+// --------------------------------------------
 // Schemas
 
 export { json, JsonSchema } from './schema/json.js'

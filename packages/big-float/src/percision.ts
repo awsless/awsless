@@ -1,4 +1,4 @@
-export let PRECISION = 20
+export let PRECISION = 12
 
 /**
  * Sets the global precision for BigFloat operations.

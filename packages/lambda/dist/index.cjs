@@ -128,6 +128,9 @@ var listFunctions = async ({
   return result;
 };
 
+// src/errors/enhanced.ts
+var import_validate = require("@awsless/validate");
+
 // src/helpers/error.ts
 var normalizeError = (maybeError) => {
   if (maybeError instanceof Error) {
@@ -155,12 +158,12 @@ var EnhandedError = class extends Error {
   memoryLimit;
   remainingTime;
 };
-var enhanceError = (maybeError, input, context) => {
+var enhanceError = (maybeError, schema, input, context) => {
   const cause = normalizeError(maybeError);
   const error = new EnhandedError(cause.message, {
     cause
   });
-  error.input = input;
+  error.input = schema ? (0, import_validate.applyRedaction)(schema, input) : input;
   if (context) {
     error.requestId = context.awsRequestId;
     error.functionName = context.functionName;
@@ -177,15 +180,17 @@ var TimeoutError = class extends Error {
     super(`Lambda will timeout in ${remainingTime}ms`);
   }
 };
-var createTimeoutWrap = async (event, context, log, callback) => {
+var createTimeoutWrap = async (schema, event, context, log, callback) => {
   if (!context) {
     return callback();
   }
   const time = context.getRemainingTimeInMillis();
   const delay = Math.max(time - 1e3, 1e3);
   const id = setTimeout(() => {
-    const error = new TimeoutError(context.getRemainingTimeInMillis());
-    log(enhanceError(error, event, context));
+    const timeoutError = new TimeoutError(context.getRemainingTimeInMillis());
+    const enhancedError = enhanceError(timeoutError, schema, event, context);
+    log(enhancedError);
+    console.error(enhancedError);
   }, delay);
   try {
     return await callback();
@@ -195,7 +200,7 @@ var createTimeoutWrap = async (event, context, log, callback) => {
 };
 
 // src/errors/validation.ts
-var import_validate = require("@awsless/validate");
+var import_validate2 = require("@awsless/validate");
 var ValidationError = class extends ExpectedError {
   constructor(message) {
     super("validation", message);
@@ -205,7 +210,7 @@ var transformValidationErrors = async (callback) => {
   try {
     return await callback();
   } catch (error) {
-    if (error instanceof import_validate.ValiError) {
+    if (error instanceof import_validate2.ValiError) {
       throw new ValidationError(error.message);
     }
     throw error;
@@ -274,7 +279,7 @@ var mockLambda = (lambdas) => {
 
 // src/lambda.ts
 var import_json3 = require("@awsless/json");
-var import_validate2 = require("@awsless/validate");
+var import_validate3 = require("@awsless/validate");
 
 // src/context/global-context.ts
 var GlobalContext = class {
@@ -340,7 +345,7 @@ var lambda = (options) => {
         })
       );
     };
-    const isTestEnv = process.env.NODE_ENV === "test";
+    const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === "test";
     const successCallbacks = [];
     const failureCallbacks = [];
     const finallyCallbacks = [];
@@ -350,10 +355,10 @@ var lambda = (options) => {
         await warmUp(warmUpEvent);
         return void 0;
       }
-      const result = await createTimeoutWrap(event, context, log, () => {
+      const result = await createTimeoutWrap(options.schema, event, context, log, () => {
         return transformValidationErrors(() => {
           const raw = typeof event === "undefined" || isTestEnv ? event : (0, import_json3.patch)(event);
-          const input = options.schema ? (0, import_validate2.parse)(options.schema, raw) : raw;
+          const input = options.schema ? (0, import_validate3.parse)(options.schema, raw) : raw;
           const extendedContext = {
             // ...(context ?? {}),
             event: input,
@@ -394,7 +399,7 @@ var lambda = (options) => {
         return toErrorResponse(error);
       }
       if (!isTestEnv) {
-        throw enhanceError(normalizeError(error), event, context);
+        throw enhanceError(normalizeError(error), options.schema, event, context);
       }
       throw error;
     } finally {

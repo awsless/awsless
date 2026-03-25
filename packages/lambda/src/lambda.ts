@@ -71,7 +71,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			)
 		}
 
-		const isTestEnv = process.env.NODE_ENV === 'test'
+		const isTestEnv = (process.env.LAMBDA_ENV || process.env.NODE_ENV) === 'test'
 
 		const successCallbacks: Array<(res: unknown) => void> = []
 		const failureCallbacks: Array<(err: unknown) => void> = []
@@ -86,7 +86,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 				return undefined
 			}
 
-			const result = await createTimeoutWrap(event, context, log, () => {
+			const result = await createTimeoutWrap(options.schema, event, context, log, () => {
 				return transformValidationErrors(() => {
 					const raw = typeof event === 'undefined' || isTestEnv ? event : patch(event)
 					const input: Output<S> = options.schema ? valiParse(options.schema, raw) : raw
@@ -138,7 +138,7 @@ export const lambda: LambdaFactory = <H extends Handler<S>, S extends Schema = u
 			}
 
 			if (!isTestEnv) {
-				throw enhanceError(normalizeError(error), event, context)
+				throw enhanceError(normalizeError(error), options.schema, event, context)
 			}
 
 			throw error

@@ -481,7 +481,9 @@ declare function bigint(): BigIntSchema;
 declare function bigint<T extends bigint>(): BigIntSchema<T>;
 
 type BigFloatSchema = BaseSchema<'N', BigFloat, NumberExpression<BigFloat>>;
-declare const bigfloat: () => BigFloatSchema;
+declare const bigfloat: ({ precision }?: {
+    precision?: number | undefined;
+}) => BigFloatSchema;
 
 type Uint8ArraySchema = BaseSchema<'B', Uint8Array, BinaryExpression<Uint8Array>>;
 declare const uint8array: () => Uint8ArraySchema;

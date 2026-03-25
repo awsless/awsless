@@ -1,5 +1,5 @@
 // src/percision.ts
-var PRECISION = 20;
+var PRECISION = 12;
 var setPrecision = (n) => {
   if (!Number.isInteger(n) || n < 0) {
     throw new TypeError("Only positive integers are allowed for precision");

@@ -1,6 +1,73 @@
 // src/index.ts
 export * from "valibot";
 
+// src/action/redact.ts
+import {
+  getMetadata,
+  metadata,
+  safeParse
+} from "valibot";
+var REDACTED = "[REDACTED]";
+var redact = () => {
+  return metadata({ redact: true });
+};
+var isPlainObject = (input) => input?.constructor === Object;
+var applyRedaction = (schema, input) => {
+  const metadata2 = getMetadata(schema);
+  if (metadata2.redact === true) {
+    return REDACTED;
+  }
+  if (schema.type === "union" || schema.type === "variant") {
+    const s = schema;
+    const matchingBranch = s.options.find((option) => safeParse(option, input).success);
+    if (matchingBranch) {
+      return applyRedaction(matchingBranch, input);
+    }
+  }
+  if (schema.type === "array" && Array.isArray(input)) {
+    const s = schema;
+    const i = input;
+    return i.map((item) => applyRedaction(s.item, item));
+  }
+  if (schema.type === "object" && isPlainObject(input)) {
+    const s = schema;
+    const i = input;
+    const redacted = {};
+    for (const key in s.entries) {
+      if (key in i) {
+        redacted[key] = applyRedaction(s.entries[key], i[key]);
+      }
+    }
+    return redacted;
+  }
+  if (schema.type === "record" && isPlainObject(input)) {
+    const s = schema;
+    const i = input;
+    const redacted = {};
+    for (const key in i) {
+      redacted[applyRedaction(s.key, key)] = applyRedaction(s.value, i[key]);
+    }
+    return redacted;
+  }
+  if (schema.type === "set" && input instanceof Set) {
+    const s = schema;
+    const redacted = /* @__PURE__ */ new Set();
+    for (const value of input) {
+      redacted.add(applyRedaction(s.value, value));
+    }
+    return redacted;
+  }
+  if (schema.type === "map" && input instanceof Map) {
+    const s = schema;
+    const redacted = /* @__PURE__ */ new Map();
+    for (const [key, value] of input.entries()) {
+      redacted.set(applyRedaction(s.key, key), applyRedaction(s.value, value));
+    }
+    return redacted;
+  }
+  return input;
+};
+
 // src/schema/json.ts
 import { parse } from "@awsless/json";
 import { pipe, rawTransform, string } from "valibot";
@@ -287,6 +354,7 @@ function maxDuration(max, message = "Invalid duration") {
   return check4((input) => input.value <= max.value, message);
 }
 export {
+  applyRedaction,
   bigfloat,
   duration,
   dynamoDbStream,
@@ -295,6 +363,7 @@ export {
   minDuration,
   positive,
   precision,
+  redact,
   s3Event,
   snsTopic,
   sqsQueue,

@@ -1,3 +1,4 @@
+import { applyRedaction, GenericSchema } from '@awsless/validate'
 import { LambdaContext } from '..'
 import { normalizeError } from '../helpers/error'
 
@@ -10,7 +11,12 @@ class EnhandedError extends Error {
 	remainingTime?: number
 }
 
-export const enhanceError = (maybeError: unknown, input: unknown, context?: LambdaContext) => {
+export const enhanceError = (
+	maybeError: unknown,
+	schema: GenericSchema | undefined,
+	input: unknown,
+	context?: LambdaContext
+) => {
 	const cause = normalizeError(maybeError)
 
 	const error = new EnhandedError(cause.message, {
@@ -18,7 +24,7 @@ export const enhanceError = (maybeError: unknown, input: unknown, context?: Lamb
 	})
 
 	// error.cause = cause
-	error.input = input
+	error.input = schema ? applyRedaction(schema, input) : input
 
 	if (context) {
 		error.requestId = context.awsRequestId

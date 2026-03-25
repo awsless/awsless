@@ -406,10 +406,10 @@ function bigint() {
 
 // src/schema/bigfloat.ts
 var import_big_float = require("@awsless/big-float");
-var bigfloat = () => createSchema({
+var bigfloat = ({ precision = import_big_float.PRECISION } = {}) => createSchema({
   name: "bigfloat",
   type: "N",
-  marshall: (value) => ({ N: value.toString() }),
+  marshall: (value) => ({ N: (0, import_big_float.floor)(value, precision).toString() }),
   unmarshall: (value) => (0, import_big_float.parse)(value.N),
   // validate: value => value instanceof BigFloat,
   validateInput: (value) => value instanceof import_big_float.BigFloat,
