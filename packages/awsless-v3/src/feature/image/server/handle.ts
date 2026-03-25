@@ -105,7 +105,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 			} else if (typeof result === undefined) {
 				return { statusCode: 404 }
 			} else {
-				throw new Error('Invalid response from image origin lambda')
+				throw new Error(`Invalid response from image origin lambda. Path: ${originalPath}`)
 			}
 		}
 
