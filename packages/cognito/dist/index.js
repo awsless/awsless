@@ -134,8 +134,7 @@ var zero = BigInt(0);
 var one = BigInt(1);
 var two = BigInt(2);
 function eGcd(a, b) {
-  if (a <= zero || b <= zero)
-    throw new RangeError("a and b MUST be > 0");
+  if (a <= zero || b <= zero) throw new RangeError("a and b MUST be > 0");
   let x = zero;
   let y = one;
   let u = one;

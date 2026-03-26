@@ -254,6 +254,9 @@ var subscribe = ({
         })
       );
     } catch (error) {
+      if (abortController.signal.aborted) {
+        return;
+      }
       console.error(
         JSON.stringify({
           message: "Error polling queue",

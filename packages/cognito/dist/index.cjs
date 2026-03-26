@@ -28,8 +28,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   Client: () => Client,
   CookieStore: () => CookieStore,
   LocalStore: () => LocalStore,
@@ -56,7 +56,7 @@ __export(src_exports, {
   signUp: () => signUp,
   srp: () => srp
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 
 // src/error/response-error.ts
 var ResponseError = class extends Error {
@@ -194,8 +194,7 @@ var zero = BigInt(0);
 var one = BigInt(1);
 var two = BigInt(2);
 function eGcd(a, b) {
-  if (a <= zero || b <= zero)
-    throw new RangeError("a and b MUST be > 0");
+  if (a <= zero || b <= zero) throw new RangeError("a and b MUST be > 0");
   let x = zero;
   let y = one;
   let u = one;

@@ -1,5 +1,5 @@
-import { Cluster, Redis } from 'ioredis'
 import type { RedisOptions } from 'ioredis'
+import { Cluster, Redis } from 'ioredis'
 
 export type CommandOptions<Cluster extends boolean = boolean> = RedisOptions & { cluster?: Cluster }
 export type Client<O extends CommandOptions> = O['cluster'] extends true ? Cluster : Redis
@@ -11,6 +11,7 @@ export const overrideOptions = (options: CommandOptions) => {
 
 export const redisClient = <O extends CommandOptions>(options: O): Client<O> => {
 	const props = {
+		tls: {},
 		lazyConnect: true,
 		stringNumbers: true,
 		keepAlive: 0,
@@ -18,11 +19,13 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 		enableReadyCheck: false,
 		maxRetriesPerRequest: 3,
 		autoResubscribe: false,
-		commandQueue: false,
-		offlineQueue: false,
 		autoResendUnfulfilledCommands: false,
-		connectTimeout: 1000 * 5,
-		commandTimeout: 1000 * 5,
+		connectTimeout: 5000,
+		commandTimeout: 5000,
+
+		// commandQueue: false,
+		// offlineQueue: false,
+
 		...options,
 		...optionOverrides,
 	}
@@ -39,22 +42,14 @@ export const redisClient = <O extends CommandOptions>(options: O): Client<O> => 
 			},
 		],
 		{
+			dnsLookup: (address, callback) => callback(null, address),
+			slotsRefreshTimeout: 5000,
+			enableReadyCheck: false,
+			clusterRetryStrategy(times) {
+				if (times > 5) return null
+				return Math.min(times * 200, 2000)
+			},
 			redisOptions: props,
 		}
-		// {
-		// 	dnsLookup: (address, callback) => callback(null, address),
-		// 	enableReadyCheck: false,
-		// 	redisOptions: {
-		// 		...props,
-		// 		// username: options.username,
-		// 		// password: options.password,
-		// 		tls: {
-		// 			checkServerIdentity: (/*host, cert*/) => {
-		// 				// skip certificate hostname validation
-		// 				return undefined
-		// 			},
-		// 		},
-		// 	},
-		// }
 	) as Client<O>
 }

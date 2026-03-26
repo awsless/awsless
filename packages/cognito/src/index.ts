@@ -10,7 +10,7 @@ export { Session } from './session.js'
 export { CookieStore } from './store/cookie-store.js'
 export { MemoryStore } from './store/memory-store.js'
 export { LocalStore } from './store/local-store.js'
-export { Store } from './store/store.js'
+export type { Store } from './store/store.js'
 
 export { changePassword } from './command/change-password.js'
 export { resendConfirmationCode } from './command/resend-confirmation-code.js'

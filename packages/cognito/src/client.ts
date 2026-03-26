@@ -16,7 +16,7 @@ export class Client {
 		}
 	) {
 		if (props.userPoolId.includes('_')) {
-			const [r, p] = props.userPoolId.split('_')
+			const [r, p] = props.userPoolId.split('_') as [string, string]
 			this.userPoolId = p
 			this.region = r
 		} else if (props.region) {

@@ -270,6 +270,11 @@ export const subscribe = ({
 				})
 			)
 		} catch (error) {
+			// Ignore errors during shutdown — the abort signal was triggered by unsubscribe()
+			if (abortController.signal.aborted) {
+				return
+			}
+
 			console.error(
 				JSON.stringify({
 					message: 'Error polling queue',

@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/redis",
-	"version": "0.0.14",
+	"version": "0.0.15",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -30,7 +30,7 @@
 	},
 	"dependencies": {
 		"@heat/request-port": "^0.0.1",
-		"ioredis": "^5.3.2",
+		"ioredis": "^5.10.1",
 		"redis-memory-server": "^0.10.0"
 	}
 }

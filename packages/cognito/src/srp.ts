@@ -84,7 +84,7 @@ export const srp = async (group: string, smallAValue?: ArrayBuffer) => {
 			const mac = await hmac('SHA-256', message, kUser)
 			const signature = toBase64(mac)
 
-			return [signature, timestamp]
+			return [signature, timestamp] as const
 		},
 	] as const
 }

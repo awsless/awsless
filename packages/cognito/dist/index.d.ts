@@ -14,7 +14,7 @@ declare class NewPasswordRequired extends Error {
     constructor(username: string, session: string, userAttributes: object, message?: string);
 }
 
-declare const srp: (group: string, smallAValue?: ArrayBuffer) => Promise<readonly [string, (user: string, pass: string, serverB: string, salt: string, secretBlock: string, time?: string) => Promise<string[]>]>;
+declare const srp: (group: string, smallAValue?: ArrayBuffer) => Promise<readonly [string, (user: string, pass: string, serverB: string, salt: string, secretBlock: string, time?: string) => Promise<readonly [string, string]>]>;
 declare const generateVerifier: (group: string, user: string, pass: string, random?: ArrayBuffer) => Promise<readonly [string, string]>;
 declare const generateDeviceSecret: () => string;
 
@@ -181,4 +181,4 @@ type ForgetOtherDevicesProps = {
 };
 declare const forgetOtherDevices: (client: Client, props: ForgetOtherDevicesProps) => Promise<any[]>;
 
-export { Client, CookieStore, LocalStore, MemoryStore, NewPasswordRequired, ResponseError, Session, Store, Token, Unauthorized, changePassword, confirmForgotPassword, confirmSignUp, forgetDevice, forgetOtherDevices, forgotPassword, generateDeviceSecret, generateVerifier, getSession, listDevices, newPassword, resendConfirmationCode, signIn, signOut, signUp, srp };
+export { Client, CookieStore, LocalStore, MemoryStore, NewPasswordRequired, ResponseError, Session, type Store, Token, Unauthorized, changePassword, confirmForgotPassword, confirmSignUp, forgetDevice, forgetOtherDevices, forgotPassword, generateDeviceSecret, generateVerifier, getSession, listDevices, newPassword, resendConfirmationCode, signIn, signOut, signUp, srp };

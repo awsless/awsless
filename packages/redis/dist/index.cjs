@@ -39,6 +39,7 @@ var overrideOptions = (options) => {
 };
 var redisClient = (options) => {
   const props = {
+    tls: {},
     lazyConnect: true,
     stringNumbers: true,
     keepAlive: 0,
@@ -46,11 +47,11 @@ var redisClient = (options) => {
     enableReadyCheck: false,
     maxRetriesPerRequest: 3,
     autoResubscribe: false,
-    commandQueue: false,
-    offlineQueue: false,
     autoResendUnfulfilledCommands: false,
-    connectTimeout: 1e3 * 5,
-    commandTimeout: 1e3 * 5,
+    connectTimeout: 5e3,
+    commandTimeout: 5e3,
+    // commandQueue: false,
+    // offlineQueue: false,
     ...options,
     ...optionOverrides
   };
@@ -65,29 +66,21 @@ var redisClient = (options) => {
       }
     ],
     {
+      dnsLookup: (address, callback) => callback(null, address),
+      slotsRefreshTimeout: 5e3,
+      enableReadyCheck: false,
+      clusterRetryStrategy(times) {
+        if (times > 5) return null;
+        return Math.min(times * 200, 2e3);
+      },
       redisOptions: props
     }
-    // {
-    // 	dnsLookup: (address, callback) => callback(null, address),
-    // 	enableReadyCheck: false,
-    // 	redisOptions: {
-    // 		...props,
-    // 		// username: options.username,
-    // 		// password: options.password,
-    // 		tls: {
-    // 			checkServerIdentity: (/*host, cert*/) => {
-    // 				// skip certificate hostname validation
-    // 				return undefined
-    // 			},
-    // 		},
-    // 	},
-    // }
   );
 };
 
 // src/server.ts
-var import_redis_memory_server = require("redis-memory-server");
 var import_ioredis2 = require("ioredis");
+var import_redis_memory_server = require("redis-memory-server");
 var RedisServer = class {
   client;
   process;
@@ -149,7 +142,9 @@ var mockRedis = () => {
       port,
       host: "localhost",
       cluster: false,
-      tls: void 0
+      tls: void 0,
+      commandQueue: false,
+      offlineQueue: false
     });
   }, 30 * 1e3);
   afterAll && afterAll(async () => {

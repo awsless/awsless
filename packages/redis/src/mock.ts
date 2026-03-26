@@ -21,6 +21,8 @@ export const mockRedis = () => {
 				host: 'localhost',
 				cluster: false,
 				tls: undefined,
+				commandQueue: false,
+				offlineQueue: false,
 			})
 		}, 30 * 1000)
 
