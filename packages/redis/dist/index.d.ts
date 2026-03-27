@@ -1,4 +1,5 @@
 import { RedisOptions, Cluster, Redis } from 'ioredis';
+export * from 'ioredis';
 export { Cluster, Redis } from 'ioredis';
 
 declare const mockRedis: () => void;
