@@ -29,18 +29,18 @@
 			"log": {
 				"retention": "1 week"
 			}
-		},
-		"onFailure": "./on-failure/handle.ts"
-		// "onLog": {
-		// 	"filter": ["error"],
-		// 	"consumer": "./log-parser.ts"
-		// }
-		"layers": {
-			"test": {
-				"file": "./layer/2.zip",
-				"architecture": "x86_64"
-			}
 		}
+		// "onFailure": "./on-failure/handle.ts",
+		// // "onLog": {
+		// // 	"filter": ["error"],
+		// // 	"consumer": "./log-parser.ts"
+		// // }
+		// "layers": {
+		// 	"test": {
+		// 		"file": "./layer/2.zip",
+		// 		"architecture": "x86_64"
+		// 	}
+		// }
 		// "pubsub": {
 		// 	"test": {
 		// 		"auth": "./function.ts"

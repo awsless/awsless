@@ -9,7 +9,9 @@
 		"test": "./function.ts"
 	},
 	"queues": {
-		"test": true
+		"test": {
+			"retentionPeriod": "1 minute"
+		}
 	}
 	// "tables": {
 	// 	"test": {

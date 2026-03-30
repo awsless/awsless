@@ -53,7 +53,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if (typeof props === 'object' && 'file' in props.consumer.code) {
+				if (typeof props === 'object' && props.consumer && 'file' in props.consumer.code) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -111,7 +111,7 @@ export const queueFeature = defineFeature({
 				),
 			})
 
-			if (typeof local === 'object') {
+			if (local.consumer) {
 				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
 
 				lambdaConsumer.setEnvironment('THROW_EXPECTED_ERRORS', '1')
