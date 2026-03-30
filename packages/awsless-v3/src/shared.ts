@@ -90,11 +90,13 @@ type SharedEntries = {
 	router: {
 		id: Output<string>
 		addRoutes: (
-			//
 			group: Group,
 			name: string,
 			routes: Record<string, Route>,
-			options?: { dependsOn?: Array<Resource | DataSource> }
+			options?: {
+				dependsOn?: Array<Resource | DataSource>
+				ttl?: Date
+			}
 		) => void
 		addInvalidation: (
 			group: Group,

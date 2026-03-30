@@ -10,6 +10,17 @@
 		// 		// "logLevel": "all"
 		// 	}
 		// },
+		//
+		"domains": {
+			"main": {
+				"domain": "getblockalert.com"
+			}
+		},
+		"router": {
+			"main": {
+				"domain": "main"
+			}
+		},
 		"function": {
 			"log": {
 				"retention": "7 days",
@@ -29,18 +40,18 @@
 			"log": {
 				"retention": "1 week"
 			}
-		},
-		"onFailure": "./on-failure/handle.ts"
+		}
+		// "onFailure": "./on-failure/handle.ts",
 		// "onLog": {
 		// 	"filter": ["error"],
 		// 	"consumer": "./log-parser.ts"
 		// }
-		"layers": {
-			"test": {
-				"file": "./layer/2.zip",
-				"architecture": "x86_64"
-			}
-		}
+		// "layers": {
+		// 	"test": {
+		// 		"file": "./layer/2.zip",
+		// 		"architecture": "x86_64"
+		// 	}
+		// }
 		// "pubsub": {
 		// 	"test": {
 		// 		"auth": "./function.ts"

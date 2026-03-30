@@ -2,15 +2,28 @@
 	"$schema": "../../dist/stack.json",
 	"name": "stack",
 	"tests": false,
-	"functions": {
-		"test": "./function.ts"
-	},
-	"tasks": {
-		"test": "./function.ts"
-	},
-	"queues": {
-		"test": true
+	"sites": {
+		"test": {
+			"router": "main",
+			"path": "/",
+			"build": {
+				"command": "echo build",
+				"cacheKey": "./stack.jsonc"
+			},
+			"static": "./site",
+			"ssr": "./site/ssr.ts"
+		}
 	}
+
+	// "functions": {
+	// 	"test": "./function.ts"
+	// },
+	// "tasks": {
+	// 	"test": "./function.ts"
+	// },
+	// "queues": {
+	// 	"test": true
+	// }
 	// "tables": {
 	// 	"test": {
 	// 		"hash": "id"

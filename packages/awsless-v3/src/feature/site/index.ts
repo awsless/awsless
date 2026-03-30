@@ -5,12 +5,13 @@ import { dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { createLambdaFunction } from '../function/util.js'
-import { getCacheControl, getContentType } from './util.js'
 import { constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
 import { getCredentials } from '../../util/aws.js'
 import { Route } from '../router/route.js'
+import { SiteDeployment } from '../../formation/s3.js'
+import { addDays, getUnixTime } from 'date-fns'
 
 export const siteFeature = defineFeature({
 	name: 'site',
@@ -38,7 +39,7 @@ export const siteFeature = defineFeature({
 				ctx.registerBuild('site', name, async build => {
 					const fingerprint = await generateCacheKey(buildProps.cacheKey)
 
-					return build(fingerprint, async write => {
+					await build(fingerprint, async write => {
 						const credentialProvider = await getCredentials(ctx.appConfig.profile)
 						const credentials = await credentialProvider()
 
@@ -74,31 +75,13 @@ export const siteFeature = defineFeature({
 							env,
 							stdout: 'pipe',
 							stderr: 'pipe',
-							// stdout: 'ignore',
-							// stderr: ''
-							// stdout: 'inherit',
-							// stderr: 'inherit',
 						})
 
 						await instance.exited
 
 						if (instance.exitCode !== null && instance.exitCode > 0) {
-							// const error = instance.stderr
-							// throw new ExpectedError(await instance.stderr?.text() ?? '')
-
-							// console.log('')
-							// console.log(await instance.stderr.text())
-							// // console.log('')
-							// // console.log(await instance.stdout.text())
-							// console.log('')
 							throw new Error('Site build failed')
 						}
-
-						// await execCommand({
-						// 	cwd,
-						// 	command: buildProps.command,
-						// 	env,
-						// })
 
 						await write('HASH', fingerprint)
 
@@ -115,8 +98,6 @@ export const siteFeature = defineFeature({
 
 			// ------------------------------------------------------------
 			// Server Side Rendering
-
-			// let functionUrl: aws.lambda.FunctionUrl | undefined
 
 			if (props.ssr) {
 				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
@@ -148,13 +129,6 @@ export const siteFeature = defineFeature({
 						urlEncodedQueryString: true,
 					},
 				})
-
-				// routes[routeKey] = {
-				// 	type: 'lambda',
-				// 	domainName: functionUrl.functionUrl.pipe(url => url.split('/')[2]!),
-				// 	forwardHost: true,
-				// 	urlEncodedQueryString: true,
-				// }
 			}
 
 			// ------------------------------------------------------------
@@ -237,54 +211,55 @@ export const siteFeature = defineFeature({
 				// Get all static files
 
 				ctx.onReady(() => {
-					if (typeof props.static === 'string' && bucket) {
+					if (typeof props.static === 'string') {
 						const files = glob.sync('**', {
 							cwd: props.static,
 							nodir: true,
 						})
 
-						const staticRoutes: Record<string, Route> = {}
+						const version = getUnixTime(new Date()).toString()
+						const routes: Record<string, Route> = {}
 
 						for (const file of files) {
-							const prefixedFile = join('/', file)
-							const object = new aws.s3.BucketObject(group, prefixedFile, {
-								bucket: bucket.bucket,
-								key: prefixedFile,
-								cacheControl: getCacheControl(file),
-								contentType: getContentType(file),
-								source: join(props.static, file),
-								sourceHash: $hash(join(props.static, file)),
-							})
+							const s3Key = join(`/v-${version}`, file)
 
-							versions.push(object.key)
-							versions.push(object.sourceHash)
+							let urlFriendlyFile = file
+							if (file.endsWith('index.html')) {
+								urlFriendlyFile = file.slice(0, -11)
+							} else if (file.endsWith('.html')) {
+								urlFriendlyFile = file.slice(0, -5)
+							}
 
-							const strippedHtmlFile = file.endsWith('index.html')
-								? file.slice(0, -11)
-								: file.endsWith('.html')
-									? file.slice(0, -5)
-									: file
-
-							const urlFriendlyFile = strippedHtmlFile.endsWith('/')
-								? strippedHtmlFile.slice(0, -1)
-								: strippedHtmlFile
+							if (urlFriendlyFile.endsWith('/')) {
+								urlFriendlyFile = urlFriendlyFile.slice(0, -1)
+							}
 
 							const routeFileKey = join(props.path, urlFriendlyFile)
 
-							staticRoutes[routeFileKey] = {
+							routes[routeFileKey] = {
 								type: 's3',
 								domainName: bucket.bucketRegionalDomainName,
-								rewrite: prefixedFile !== routeFileKey ? { to: prefixedFile } : undefined,
+								rewrite: { to: s3Key },
 							}
 						}
 
-						addRoutes(group, 'static', staticRoutes)
+						const deployment = new SiteDeployment(group, 'deployment', {
+							bucket: bucket.bucket,
+							source: props.static,
+							version,
+							ttl: getUnixTime(addDays(new Date(), 30)),
+						})
+
+						versions.push(deployment.version)
+
+						addRoutes(group, 'static', routes, {
+							ttl: addDays(new Date(), 30),
+						})
 					}
 				})
 			}
 
 			addInvalidation(group, 'invalidate', [routeKey], versions)
-			// addRoutes(group, routes)
 		}
 	},
 })

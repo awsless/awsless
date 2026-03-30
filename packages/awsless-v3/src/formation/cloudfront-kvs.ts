@@ -1,17 +1,16 @@
 import {
 	CloudFrontKeyValueStoreClient,
 	DescribeKeyValueStoreCommand,
-	ListKeysCommand,
 	UpdateKeysCommand,
 	UpdateKeysCommandOutput,
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
+import '@aws-sdk/signature-v4-crt'
 import { createCustomProvider, createCustomResourceClass, Input, Output } from '@terraforge/core'
 import chunk from 'chunk'
+import { fromUnixTime, isFuture, isPast } from 'date-fns'
 import promiseLimit from 'p-limit'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
-
-import '@aws-sdk/signature-v4-crt'
 import { Credentials } from '../util/aws'
 
 type ImportKeysInput = {
@@ -22,6 +21,7 @@ type ImportKeysInput = {
 			value: Input<string>
 		}>[]
 	>
+	ttl?: Input<number>
 }
 
 type ImportKeysOutput = {
@@ -30,6 +30,14 @@ type ImportKeysOutput = {
 		{
 			key: string
 			value: string
+		}[]
+	>
+	ttl: Output<number | undefined>
+	oldKeys: Output<
+		{
+			key: string
+			value: string
+			ttl: number
 		}[]
 	>
 
@@ -47,32 +55,33 @@ type ProviderProps = {
 
 type ConcurrencyQueue = <T>(cb: () => Promise<T>) => Promise<T>
 
+const keySchema = z.object({
+	key: z.string(),
+	value: z.string(),
+})
+
+const oldKeySchema = z.object({
+	key: z.string(),
+	value: z.string(),
+	ttl: z.number(),
+})
+
+const stateSchema = z.object({
+	kvsArn: z.string(),
+	keys: z.array(keySchema).optional().default([]),
+	ttl: z.number().optional(),
+	oldKeys: z.array(oldKeySchema).optional().default([]),
+})
+
 export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderProps) => {
 	const client = new CloudFrontKeyValueStoreClient({ credentials, region })
 	const queues: Record<string, ConcurrencyQueue> = {}
 
 	const getConcurrencyQueue = (arn: string): ConcurrencyQueue => {
 		if (!queues[arn]) {
-			const queue = promiseLimit(1)
-			queues[arn] = <T>(cb: () => Promise<T>) => {
-				return queue(cb)
-			}
+			queues[arn] = promiseLimit(1)
 		}
 		return queues[arn]
-	}
-
-	const validateInput = (state: unknown) => {
-		return z
-			.object({
-				kvsArn: z.string(),
-				keys: z.array(
-					z.object({
-						key: z.string(),
-						value: z.string(),
-					})
-				),
-			})
-			.parse(state)
 	}
 
 	const formatOutput = (output?: UpdateKeysCommandOutput) => {
@@ -146,7 +155,7 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 	return createCustomProvider('cloudfront-kvs', {
 		'import-keys': {
 			async getResource(props) {
-				const state = z.object({ kvsArn: z.string() }).parse(props.state)
+				const state = stateSchema.parse(props.state)
 
 				const result = await client.send(
 					new DescribeKeyValueStoreCommand({
@@ -154,48 +163,22 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 					})
 				)
 
-				const keys: { key: string; value: string }[] = []
-				let nextToken: string | undefined
-
-				while (true) {
-					const result = await client.send(
-						new ListKeysCommand({
-							KvsARN: state.kvsArn,
-							NextToken: nextToken,
-							MaxResults: 50,
-						})
-					)
-
-					for (const item of result.Items ?? []) {
-						keys.push({
-							key: item.Key!,
-							value: item.Value!,
-						})
-					}
-
-					if (result.NextToken) {
-						nextToken = result.NextToken
-					} else {
-						break
-					}
-				}
-
 				return {
-					keys,
 					...state,
 					...formatOutput(result),
 				}
 			},
 			async createResource(props) {
-				const state = validateInput(props.state)
+				const state = stateSchema.parse(props.state)
 
 				const result = await bulkUpdate({
 					arn: state.kvsArn,
-					mutations: state.keys.map(item => ({ ...item, type: 'put' })),
+					mutations: state.keys.map(k => ({ type: 'put' as const, key: k.key, value: k.value })),
 				})
 
 				return {
 					...state,
+					oldKeys: [],
 					...formatOutput(result),
 				}
 			},
@@ -204,36 +187,56 @@ export const createCloudFrontKvsProvider = ({ credentials, region }: ProviderPro
 					throw new Error(`kvsArn can't be changed.`)
 				}
 
-				const priorState = validateInput(props.priorState)
-				const proposedState = validateInput(props.proposedState)
+				const prior = stateSchema.parse(props.priorState)
+				const proposed = stateSchema.parse(props.proposedState)
 
-				const puts = proposedState.keys.filter(a => {
-					return !priorState.keys.find(b => a.key === b.key && a.value === b.value)
+				// New or changed keys
+				const puts = proposed.keys.filter(a => {
+					return !prior.keys.find(b => a.key === b.key && a.value === b.value)
 				})
 
-				const deletes = priorState.keys.filter(a => {
-					return !proposedState.keys.find(b => a.key === b.key)
+				// Keys removed from proposed
+				const removed = prior.keys.filter(a => {
+					return !proposed.keys.find(b => a.key === b.key)
 				})
+
+				// Retire removed keys — retain with TTL if set, delete immediately if not
+				const newOldKeys = proposed.ttl
+					? removed.map(k => ({ key: k.key, value: k.value, ttl: proposed.ttl! }))
+					: []
+
+				const immediateDeletes = proposed.ttl ? [] : removed
+
+				const oldKeys = [...prior.oldKeys, ...newOldKeys]
+				const active = oldKeys.filter(k => isFuture(fromUnixTime(k.ttl)))
+				const expired = oldKeys.filter(k => isPast(fromUnixTime(k.ttl)))
+
+				// Only delete if not still live somewhere
+				const liveKeys = new Set([...proposed.keys.map(k => k.key), ...active.map(k => k.key)])
+				const deletes = [...immediateDeletes, ...expired].filter(k => !liveKeys.has(k.key))
 
 				const result = await bulkUpdate({
-					arn: proposedState.kvsArn,
+					arn: proposed.kvsArn,
 					mutations: [
-						...puts.map(i => ({ ...i, type: 'put' as const })),
-						...deletes.map(i => ({ ...i, type: 'delete' as const })),
+						...puts.map(k => ({ type: 'put' as const, key: k.key, value: k.value })),
+						...deletes.map(k => ({ type: 'delete' as const, key: k.key })),
 					],
 				})
 
 				return {
-					...proposedState,
+					...proposed,
+					oldKeys: active,
 					...formatOutput(result),
 				}
 			},
 			async deleteResource(props) {
-				const state = validateInput(props.state)
+				const state = stateSchema.parse(props.state)
+
+				const keys = new Set([...state.keys, ...state.oldKeys])
 
 				await bulkUpdate({
 					arn: state.kvsArn,
-					mutations: state.keys.map(i => ({ ...i, type: 'delete' })),
+					mutations: Array.from(keys).map(k => ({ type: 'delete', key: k.key })),
 				})
 			},
 		},

@@ -9,6 +9,7 @@ import { ImportKeys } from '../../formation/cloudfront-kvs.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
 import { Invalidation } from '../../formation/cloudfront.js'
 import { createHash } from 'node:crypto'
+import { getUnixTime } from 'date-fns'
 import { ExpectedError } from '../../error.js'
 
 export const routerFeature = defineFeature({
@@ -56,6 +57,7 @@ export const routerFeature = defineFeature({
 								return { key, value: JSON.stringify(value) }
 							}) as any
 						}),
+						ttl: options?.ttl ? getUnixTime(options.ttl) : undefined,
 					},
 					{
 						dependsOn: options?.dependsOn,
