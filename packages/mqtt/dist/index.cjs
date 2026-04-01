@@ -42,15 +42,18 @@ var QoS = /* @__PURE__ */ ((QoS2) => {
   return QoS2;
 })(QoS || {});
 var sleep = (delay) => new Promise((r) => setTimeout(r, delay));
-var createClient = (propsOrProvider) => {
+var createClient = (propsOrProvider, debug = () => {
+}) => {
   const listeners = {};
   const queue = /* @__PURE__ */ new Set();
   let client;
   let destroyed = false;
   let connecting;
   let reconnecting;
+  let retries = 0;
   const disconnect = async () => {
     if (client) {
+      debug("disconnect");
       const old = client;
       client = void 0;
       old.removeAllListeners();
@@ -61,7 +64,10 @@ var createClient = (propsOrProvider) => {
   const scheduleReconnect = () => {
     if (destroyed) return;
     reconnecting ??= (async () => {
-      await sleep(1e3);
+      const delay = Math.min(1e3 * Math.pow(4, retries), 30 * 60 * 1e3);
+      retries++;
+      debug("reconnect", { attempt: retries, delay });
+      await sleep(delay);
       reconnecting = void 0;
       await connect();
     })();
@@ -72,6 +78,7 @@ var createClient = (propsOrProvider) => {
     if (queue.size === 0 && Object.keys(listeners).length === 0) return;
     connecting ??= (async () => {
       try {
+        debug("connecting");
         const props = typeof propsOrProvider === "function" ? await propsOrProvider() : propsOrProvider;
         const local = await import_mqtt.default.connectAsync(props.endpoint, {
           ...props,
@@ -79,21 +86,25 @@ var createClient = (propsOrProvider) => {
           resubscribe: false
         });
         client = local;
+        debug("connected", { topics: Object.keys(listeners).length });
         if (destroyed) {
           await disconnect();
           return;
         }
         local.on("disconnect", async () => {
+          debug("event:disconnect");
           await disconnect();
           scheduleReconnect();
         });
         local.on("close", () => {
+          debug("event:close");
           if (client === local) {
             client = void 0;
           }
           scheduleReconnect();
         });
-        local.on("error", () => {
+        local.on("error", (err) => {
+          debug("event:error", err);
         });
         local.on("message", (topic, payload) => {
           const entry = listeners[topic];
@@ -110,7 +121,9 @@ var createClient = (propsOrProvider) => {
             queue.delete(msg);
           })
         ]);
-      } catch {
+        retries = 0;
+      } catch (err) {
+        debug("connect:error", err);
         client = void 0;
         scheduleReconnect();
       } finally {
@@ -127,6 +140,7 @@ var createClient = (propsOrProvider) => {
       return Object.keys(listeners);
     },
     async destroy() {
+      debug("destroy");
       destroyed = true;
       reconnecting = void 0;
       await disconnect();

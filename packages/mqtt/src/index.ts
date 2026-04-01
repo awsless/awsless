@@ -21,7 +21,9 @@ export type MessageCallback = (payload: Buffer) => void | Promise<void>
 
 const sleep = (delay: number) => new Promise(r => setTimeout(r, delay))
 
-export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider) => {
+export type DebugCallback = (...args: unknown[]) => void
+
+export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider, debug: DebugCallback = () => {}) => {
 	const listeners: Record<string, { qos: QoS; callbacks: Set<{ callback: MessageCallback }> }> = {}
 	const queue = new Set<{ topic: string; payload: string | Buffer; qos: QoS }>()
 
@@ -29,9 +31,11 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 	let destroyed = false
 	let connecting: Promise<void> | undefined
 	let reconnecting: Promise<void> | undefined
+	let retries = 0
 
 	const disconnect = async () => {
 		if (client) {
+			debug('disconnect')
 			const old = client
 			client = undefined
 			old.removeAllListeners()
@@ -43,7 +47,10 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 		if (destroyed) return
 
 		reconnecting ??= (async () => {
-			await sleep(1000)
+			const delay = Math.min(1000 * Math.pow(4, retries), 30 * 60 * 1000)
+			retries++
+			debug('reconnect', { attempt: retries, delay })
+			await sleep(delay)
 			reconnecting = undefined
 			await connect()
 		})()
@@ -57,6 +64,7 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 
 		connecting ??= (async () => {
 			try {
+				debug('connecting')
 				const props = typeof propsOrProvider === 'function' ? await propsOrProvider() : propsOrProvider
 
 				const local = await mqtt.connectAsync(props.endpoint, {
@@ -66,6 +74,7 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 				})
 
 				client = local
+				debug('connected', { topics: Object.keys(listeners).length })
 
 				if (destroyed) {
 					await disconnect()
@@ -73,18 +82,22 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 				}
 
 				local.on('disconnect', async () => {
+					debug('event:disconnect')
 					await disconnect()
 					scheduleReconnect()
 				})
 
 				local.on('close', () => {
+					debug('event:close')
 					if (client === local) {
 						client = undefined
 					}
 					scheduleReconnect()
 				})
 
-				local.on('error', () => {})
+				local.on('error', err => {
+					debug('event:error', err)
+				})
 
 				local.on('message', (topic, payload) => {
 					const entry = listeners[topic]
@@ -104,7 +117,10 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 						queue.delete(msg)
 					}),
 				])
-			} catch {
+
+				retries = 0
+			} catch (err) {
+				debug('connect:error', err)
 				client = undefined
 				scheduleReconnect()
 			} finally {
@@ -123,6 +139,7 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 			return Object.keys(listeners)
 		},
 		async destroy() {
+			debug('destroy')
 			destroyed = true
 			reconnecting = undefined
 			await disconnect()

@@ -1,5 +1,5 @@
 import { parse, stringify } from '@awsless/json'
-import { createClient, QoS } from '@awsless/mqtt'
+import { createClient, QoS, type DebugCallback } from '@awsless/mqtt'
 
 type MessageCallback = (payload: any) => void
 
@@ -11,7 +11,11 @@ type ClientProps = {
 
 type ClientPropsProvider = () => Promise<ClientProps> | ClientProps
 
-export const createPubSubClient = (app: string | (() => string), props: ClientProps | ClientPropsProvider) => {
+export const createPubSubClient = (
+	app: string | (() => string),
+	props: ClientProps | ClientPropsProvider,
+	debug?: DebugCallback
+) => {
 	const mqtt = createClient(async () => {
 		const config = typeof props === 'function' ? await props() : props
 
@@ -20,7 +24,7 @@ export const createPubSubClient = (app: string | (() => string), props: ClientPr
 			username: `?x-amz-customauthorizer-name=${config.authorizer}`,
 			password: config.token,
 		}
-	})
+	}, debug)
 
 	const getApp = () => {
 		return typeof app === 'string' ? app : app()

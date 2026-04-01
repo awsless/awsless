@@ -16,7 +16,8 @@ type ClientProps = {
 };
 type Unsubscribe = () => Promise<void>;
 type MessageCallback = (payload: Buffer) => void | Promise<void>;
-declare const createClient: (propsOrProvider: ClientProps | ClientPropsProvider) => {
+type DebugCallback = (...args: unknown[]) => void;
+declare const createClient: (propsOrProvider: ClientProps | ClientPropsProvider, debug?: DebugCallback) => {
     readonly connected: boolean;
     readonly topics: string[];
     destroy(): Promise<void>;
@@ -24,4 +25,4 @@ declare const createClient: (propsOrProvider: ClientProps | ClientPropsProvider)
     subscribe(topic: string, callback: MessageCallback, qos?: QoS): Promise<Unsubscribe>;
 };
 
-export { type ClientProps, type ClientPropsProvider, type MessageCallback, QoS, type Unsubscribe, createClient };
+export { type ClientProps, type ClientPropsProvider, type DebugCallback, type MessageCallback, QoS, type Unsubscribe, createClient };
