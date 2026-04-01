@@ -22,119 +22,100 @@ export type MessageCallback = (payload: Buffer) => void | Promise<void>
 const sleep = (delay: number) => new Promise(r => setTimeout(r, delay))
 
 export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider) => {
-	const listeners: Record<string, Set<{ callback: MessageCallback }>> = {}
+	const listeners: Record<string, { qos: QoS; callbacks: Set<{ callback: MessageCallback }> }> = {}
 	const queue = new Set<{ topic: string; payload: string | Buffer; qos: QoS }>()
 
-	let connecting = false
 	let client: MqttClient | undefined
+	let destroyed = false
+	let connecting: Promise<void> | undefined
+	let reconnecting: Promise<void> | undefined
 
 	const disconnect = async () => {
 		if (client) {
-			// console.log('disconnect')
-			client.removeAllListeners()
-			await client.endAsync()
+			const old = client
 			client = undefined
+			old.removeAllListeners()
+			await old.endAsync(true).catch(() => {})
 		}
 	}
 
-	// console.log(propsOrProvider)
+	const scheduleReconnect = () => {
+		if (destroyed) return
 
-	const connect = async () => {
-		if (connecting || client) return
+		reconnecting ??= (async () => {
+			await sleep(1000)
+			reconnecting = undefined
+			await connect()
+		})()
+
+		return reconnecting
+	}
+
+	const connect = () => {
+		if (client || destroyed) return
 		if (queue.size === 0 && Object.keys(listeners).length === 0) return
 
-		connecting = true
-		const props = typeof propsOrProvider === 'function' ? await propsOrProvider() : propsOrProvider
+		connecting ??= (async () => {
+			try {
+				const props = typeof propsOrProvider === 'function' ? await propsOrProvider() : propsOrProvider
 
-		// console.log('connect')
+				const local = await mqtt.connectAsync(props.endpoint, {
+					...props,
+					reconnectPeriod: 0,
+					resubscribe: false,
+				})
 
-		const local = (client = await mqtt.connectAsync(props.endpoint, {
-			...props,
-			reconnectPeriod: 0,
-			resubscribe: false,
-		}))
+				client = local
 
-		// console.log('ready!')
-
-		local.on('disconnect', async () => {
-			// console.log('reconnecting')
-			await disconnect()
-			await sleep(1000)
-			await connect()
-			// local.removeAllListeners()
-			// await local.endAsync()
-		})
-
-		local.on('message', (topic, payload) => {
-			// console.log('message', topic, payload.toString())
-
-			const list = listeners[topic]
-
-			if (list) {
-				for (const entry of list) {
-					entry.callback(payload)
-					// console.log('callback')
+				if (destroyed) {
+					await disconnect()
+					return
 				}
+
+				local.on('disconnect', async () => {
+					await disconnect()
+					scheduleReconnect()
+				})
+
+				local.on('close', () => {
+					if (client === local) {
+						client = undefined
+					}
+					scheduleReconnect()
+				})
+
+				local.on('error', () => {})
+
+				local.on('message', (topic, payload) => {
+					const entry = listeners[topic]
+
+					if (entry) {
+						for (const listener of entry.callbacks) {
+							listener.callback(payload)
+						}
+					}
+				})
+
+				await local.subscribeAsync(Object.keys(listeners), { qos: QoS.AtLeastOnce })
+
+				await Promise.all([
+					...[...queue].map(async msg => {
+						await local.publishAsync(msg.topic, msg.payload, { qos: msg.qos })
+						queue.delete(msg)
+					}),
+				])
+			} catch {
+				client = undefined
+				scheduleReconnect()
+			} finally {
+				connecting = undefined
 			}
-		})
+		})()
 
-		// console.log('subs', Object.keys(listeners))
-
-		// subscribe first
-		await local.subscribeAsync(Object.keys(listeners), { qos: QoS.AtLeastOnce })
-
-		// console.log('process message queue', queue)
-
-		await Promise.all([
-			...[...queue].map(async msg => {
-				await local.publishAsync(msg.topic, msg.payload, { qos: msg.qos })
-				queue.delete(msg)
-			}),
-		])
-
-		connecting = false
-
-		// await new Promise<void>((resolve, reject) => {
-		// 	local.on('connect', async () => {
-		// 		client = local
-		// 		connecting = false
-
-		// 		console.log('sub', Object.keys(listeners))
-
-		// 		await Promise.all([
-		// 			local.subscribeAsync(Object.keys(listeners), { qos: QoS.AtLeastOnce }),
-		// 			...[...queue].map(async msg => {
-		// 				await local.publishAsync(msg.topic, msg.payload, { qos: msg.qos })
-		// 				queue.delete(msg)
-		// 			}),
-		// 		])
-
-		// 		resolve()
-		// 	})
-
-		// 	local.on('error', error => {
-		// 		cleanup()
-		// 		reject(error)
-		// 	})
-		// })
-
-		// local.on('disconnect', async () => {
-		// 	await local.endAsync()
-		// 	local.removeAllListeners()
-		// })
-
-		// local.on('message', (topic, payload) => {
-		// 	const list = listeners[topic]
-		// 	if (list) {
-		// 		for (const callback of list) {
-		// 			callback(payload)
-		// 		}
-		// 	}
-		// })
+		return connecting
 	}
 
 	return {
-		// onChange() {},
 		get connected() {
 			return client?.connected ?? false
 		},
@@ -142,42 +123,38 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 			return Object.keys(listeners)
 		},
 		async destroy() {
+			destroyed = true
+			reconnecting = undefined
 			await disconnect()
 		},
 		async publish(topic: string, payload: string | Buffer, qos: QoS = QoS.AtMostOnce) {
 			if (client) {
-				// console.log('push')
 				await client.publishAsync(topic, payload, { qos })
 			} else {
-				// console.log('lazy')
 				queue.add({ topic, payload, qos })
 				await connect()
 			}
 		},
 		async subscribe(topic: string, callback: MessageCallback, qos: QoS = QoS.AtMostOnce): Promise<Unsubscribe> {
 			const listener = { callback }
-			const list = (listeners[topic] = listeners[topic] ?? new Set())
+			const entry = (listeners[topic] = listeners[topic] ?? { qos, callbacks: new Set() })
 
-			list.add(listener)
+			entry.callbacks.add(listener)
 
 			if (client) {
-				if (list.size === 1) {
-					// console.log('sub', topic)
+				if (entry.callbacks.size === 1) {
 					await client.subscribeAsync(topic, { qos })
-					// await client.subscribeAsync(topic)
 				}
 			} else {
 				await connect()
 			}
 
 			return async () => {
-				list.delete(listener)
+				entry.callbacks.delete(listener)
 
-				if (list.size === 0) {
-					// console.log('unsub', topic)
-
+				if (entry.callbacks.size === 0) {
 					delete listeners[topic]
-					await client?.unsubscribeAsync(topic, { qos })
+					await client?.unsubscribeAsync(topic)
 				}
 
 				if (Object.keys(listeners).length === 0) {
@@ -187,42 +164,3 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider)
 		},
 	}
 }
-
-// const client = createClient({
-// 	endpoint: '',
-// })
-
-// const unsub = await client.subscribe('topic', payload => {
-// 	console.log(payload)
-// })
-
-// await client.subscribe('message', payload => {
-// 	console.log(payload)
-// })
-
-// client.publish('topic', 'Hello')
-
-// unsub()
-
-// type EventMessage = [string, unknown]
-// type EventCallback = (payload: unknown) => void
-
-// const createExtendedClient = (propsOrProvider: ClientProps | ClientPropsProvider) => {
-// 	const client = createClient(propsOrProvider)
-// 	return {
-// 		...client,
-// 		subscribe(topic: string, event: string, callback: EventCallback) {
-// 			return client.subscribe(topic, payload => {
-// 				const [evt, message] = JSON.parse(payload.toString('utf8')) as EventMessage
-
-// 				if (evt === event) {
-// 					callback(message)
-// 				}
-// 			})
-// 		},
-// 	}
-// }
-
-// createExtendedClient({
-// 	endpoint: '',
-// }).subscribe('', '', () => {})

@@ -21,7 +21,7 @@ declare const createClient: (propsOrProvider: ClientProps | ClientPropsProvider)
     readonly topics: string[];
     destroy(): Promise<void>;
     publish(topic: string, payload: string | Buffer, qos?: QoS): Promise<void>;
-    subscribe(topic: string, callback: MessageCallback): Promise<Unsubscribe>;
+    subscribe(topic: string, callback: MessageCallback, qos?: QoS): Promise<Unsubscribe>;
 };
 
-export { ClientProps, ClientPropsProvider, MessageCallback, QoS, Unsubscribe, createClient };
+export { type ClientProps, type ClientPropsProvider, type MessageCallback, QoS, type Unsubscribe, createClient };
