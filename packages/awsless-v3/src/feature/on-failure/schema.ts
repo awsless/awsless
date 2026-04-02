@@ -11,10 +11,16 @@ const NotifySchema = z
 	.describe('Receive an email notification when consuming failure entries goes wrong.')
 
 export const OnFailureDefaultSchema = z
-	.object({
-		consumer: FunctionSchema,
-		notify: NotifySchema.optional(),
-	})
+	.union([
+		FunctionSchema.transform(consumer => ({
+			consumer,
+			notify: [],
+		})),
+		z.object({
+			consumer: FunctionSchema,
+			notify: NotifySchema.optional(),
+		}),
+	])
 	.optional()
 	.describe(
 		[
