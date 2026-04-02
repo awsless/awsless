@@ -3,16 +3,16 @@
 	"name": "stack",
 	"tests": false,
 	"functions": {
-		"test": "./function.ts"
-	},
-	"tasks": {
-		"test": "./function.ts"
-	},
-	"queues": {
-		"test": {
-			"retentionPeriod": "1 minute"
-		}
+		"timeout": "./function/timeout.ts"
 	}
+	// "tasks": {
+	// 	"test": "./function/index.ts"
+	// },
+	// "queues": {
+	// 	"test": {
+	// 		"retentionPeriod": "1 minute"
+	// 	}
+	// }
 	// "tables": {
 	// 	"test": {
 	// 		"hash": "id"
