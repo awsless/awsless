@@ -26,7 +26,7 @@ export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
 // 	}
 // }
 
-const build = (opt: {
+export const build = (opt: {
 	prefix?: string
 	stackName?: string
 	resourceType: string

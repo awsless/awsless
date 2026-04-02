@@ -14,12 +14,15 @@
 		"router": {
 			"main": {
 				"domain": "main",
-				"waf": {
-					"rateLimiter": {
-						"limit": 10,
-						"window": "1 minute"
-					}
+				"passwordAuth": {
+					"password": "test"
 				}
+				// "waf": {
+				// 	"rateLimiter": {
+				// 		"limit": 10,
+				// 		"window": "1 minute"
+				// 	}
+				// }
 			}
 		},
 		// "rpc": {
@@ -56,7 +59,7 @@
 		// // "instance": {
 		// // 	// "connect": true
 		// // },
-		// "onFailure": "./on-log.ts",
+		"onFailure": "./on-log.ts",
 		// "onLog": {
 		// 	"consumer": "./on-log.ts",
 		// 	"filter": ["info", "debug", "trace", "error", "fatal"]

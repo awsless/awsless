@@ -23,6 +23,7 @@ import {
 	searchClient,
 	set,
 	string,
+	total,
 	updateItem,
 	uuid,
 } from '../src'
@@ -146,6 +147,11 @@ describe('Open Search Mock', () => {
 	// 		],
 	// 	})
 	// })
+
+	it('should get total count', async () => {
+		const count = await total(users)
+		expect(count).toBe(1)
+	})
 
 	it('should delete item', async () => {
 		await deleteItem(users, '1')

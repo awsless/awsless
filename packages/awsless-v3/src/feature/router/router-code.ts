@@ -1,10 +1,19 @@
 export const getViewerRequestFunctionCode = (props: {
 	blockDirectAccess?: boolean
 	basicAuth?: { username: string; password: string }
+	passwordAuth?: { password: string }
 }): string => {
 	return CODE([
 		props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
-		props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
+		(props.passwordAuth ?? props.basicAuth)
+			? AUTH_WRAPPER(
+					[
+						//
+						props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
+						props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
+					].join('\n')
+				)
+			: '',
 	])
 }
 
@@ -17,13 +26,38 @@ if (headers.host && headers.host.value.includes('cloudfront.net')) {
 }`
 
 const BASIC_AUTH_CHECK = (username: string, password: string) => `
-const auth = headers.authorization && headers.authorization.value;
-if (!auth || !auth.startsWith('Basic ') || auth.slice(6) !== '${Buffer.from(`${username}:${password}`).toString('base64')}') {
+authMethods.push('Basic realm="Protected"');
+
+if(!isAuthorized) {
+	if(authHeader && authHeader.startsWith('Basic ') && authHeader.slice(6) === '${Buffer.from(`${username}:${password}`).toString('base64')}') {
+		isAuthorized = true;
+	}
+}
+`
+
+const PASSWORD_AUTH_CHECK = (password: string) => `
+authMethods.push('Password realm="Protected"');
+
+if(!isAuthorized) {
+	if(authHeader && authHeader.startsWith('Password ') && authHeader.slice(9) === '${password}') {
+		isAuthorized = true;
+	}
+}
+`
+
+const AUTH_WRAPPER = (code: string) => `
+const authHeader = headers.authorization && headers.authorization.value;
+const authMethods = [];
+let isAuthorized = false;
+
+${code}
+
+if (!isAuthorized) {
 	return {
 		statusCode: 401,
 		headers: {
 			'www-authenticate': {
-				value: 'Basic realm="Protected"'
+				value: authMethods.join(', ')
 			}
 		}
 	};

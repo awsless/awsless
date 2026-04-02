@@ -1,18 +1,21 @@
-// import { hasOnFailure } from './util.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { defineFeature } from '../../feature.js'
-import { createLambdaFunction } from '../function/util.js'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { createLambdaFunction } from '../function/util.js'
+import { createPrebuildLambdaFunction } from '../function/prebuild.js'
+import { join } from 'node:path'
+import { mebibytes } from '@awsless/size'
 import { days, toSeconds } from '@awsless/duration'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
 	onApp(ctx) {
-		// ----------------------------------------------------------------
-		// Create a single on-failure queue to capture all failed jobs
-
 		const group = new Group(ctx.base, 'on-failure', 'main')
+
+		// ----------------------------------------------------------------
+		// Create a deadletter as last resort to all failing on-failure
+		// tasks
 
 		const deadletter = new aws.sqs.Queue(group, 'deadletter', {
 			name: formatGlobalResourceName({
@@ -23,6 +26,10 @@ export const onFailureFeature = defineFeature({
 			messageRetentionSeconds: toSeconds(days(14)),
 		})
 
+		// ----------------------------------------------------------------
+		// Create a single on-failure queue to capture all failed queue
+		// jobs
+
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -32,53 +39,169 @@ export const onFailureFeature = defineFeature({
 			redrivePolicy: deadletter.arn.pipe(deadLetterTargetArn => {
 				return JSON.stringify({
 					deadLetterTargetArn,
-					maxReceiveCount: 100,
+					maxReceiveCount: 3,
 				})
 			}),
 		})
 
-		// ctx.addEnv('ON_FAILURE_QUEUE_ARN', queue.arn)
-
 		ctx.shared.set('on-failure', 'queue-arn', queue.arn)
 
 		// ----------------------------------------------------------------
-		// Link a consumer to the on-failure queue
+		// Create a s3 bucket to capture all lambda failures
 
-		if (!ctx.appConfig.defaults.onFailure) {
-			return
-		}
+		/*
+			Async lambda's errors will saved like:
+			aws/lambda/async/<function-name>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
 
-		const result = createLambdaFunction(group, ctx, 'on-failure', 'consumer', ctx.appConfig.defaults.onFailure)
+			DynamoDB Stream error:
+			aws/lambda/<UUID>/<shard-id>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
+		*/
 
-		new aws.lambda.EventSourceMapping(
-			group,
-			'on-failure',
-			{
-				functionName: result.lambda.functionName,
-				eventSourceArn: queue.arn,
-				batchSize: 10,
-			},
-			{
-				dependsOn: [result.policy],
-			}
-		)
-
-		result.addPermission({
-			actions: [
-				'sqs:SendMessage',
-				'sqs:DeleteMessage',
-				'sqs:ReceiveMessage',
-				'sqs:GetQueueUrl',
-				'sqs:GetQueueAttributes',
+		const bucket = new aws.s3.Bucket(group, 'bucket', {
+			bucket: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-failure',
+				resourceName: 'failure',
+				postfix: ctx.appId,
+			}),
+			lifecycleRule: [
+				{
+					id: 'ttl',
+					enabled: true,
+					expiration: {
+						days: 14,
+					},
+				},
 			],
-			resources: [queue.arn],
 		})
 
-		// Deny calling other functions to stop circular loop problems
-		result.addPermission({
-			effect: 'deny',
-			actions: ['lambda:InvokeFunction', 'lambda:InvokeAsync', 'sqs:SendMessage', 'sns:Publish'],
-			resources: ['*'],
-		})
+		ctx.shared.set('on-failure', 'bucket-arn', bucket.arn)
+
+		// ----------------------------------------------------------------
+
+		const props = ctx.appConfig.defaults.onFailure
+
+		if (props) {
+			// ------------------------------------------------
+			// Create the consumer lambda
+
+			const consumer = createLambdaFunction(group, ctx, 'on-failure', 'consumer', props)
+
+			// Deny calling other functions to stop circular loop problems
+			consumer.addPermission({
+				effect: 'deny',
+				actions: [
+					//
+					'lambda:InvokeFunction',
+					'lambda:InvokeAsync',
+					'sqs:SendMessage',
+					'sns:Publish',
+				],
+				resources: ['*'],
+			})
+
+			// ------------------------------------------------
+			// Create the normalizer lambda
+
+			const prebuild = createPrebuildLambdaFunction(group, ctx, 'on-failure', 'normalizer', {
+				bundleFile: join(__dirname, '/prebuild/on-failure/bundle.zip'),
+				bundleHash: join(__dirname, '/prebuild/on-failure/HASH'),
+				memorySize: mebibytes(256),
+				timeout: props.timeout,
+				handler: 'index.default',
+				runtime: 'nodejs24.x',
+				log: {
+					format: 'json',
+					level: 'warn',
+					retention: days(3),
+					system: 'warn',
+				},
+			})
+
+			prebuild.setEnvironment('CONSUMER', consumer.name)
+
+			prebuild.addPermission({
+				actions: ['lambda:InvokeFunction'],
+				resources: [consumer.lambda.arn],
+			})
+
+			prebuild.addPermission({
+				actions: ['s3:GetObject', 's3:DeleteObject'],
+				resources: [bucket.arn, $interpolate`${bucket.arn}/*`],
+			})
+
+			// ------------------------------------------------
+			// Send any on-failure processing failures to the
+			// deadletter
+
+			prebuild.addPermission({
+				actions: ['sqs:SendMessage'],
+				resources: [deadletter.arn],
+			})
+
+			new aws.lambda.FunctionEventInvokeConfig(
+				group,
+				'async',
+				{
+					functionName: prebuild.lambda.arn,
+					maximumRetryAttempts: 2,
+					destinationConfig: {
+						onFailure: {
+							destination: deadletter.arn,
+						},
+					},
+				},
+				{
+					dependsOn: [prebuild.policy],
+				}
+			)
+
+			// ------------------------------------------------
+			// Link prebuild lambda to on-failure queue.
+
+			prebuild.addPermission({
+				actions: [
+					'sqs:SendMessage',
+					'sqs:DeleteMessage',
+					'sqs:ReceiveMessage',
+					'sqs:GetQueueUrl',
+					'sqs:GetQueueAttributes',
+				],
+				resources: [queue.arn],
+			})
+
+			new aws.lambda.EventSourceMapping(
+				group,
+				'on-failure',
+				{
+					functionName: prebuild.lambda.functionName,
+					eventSourceArn: queue.arn,
+					batchSize: 10,
+				},
+				{
+					dependsOn: [prebuild.policy],
+				}
+			)
+
+			// ------------------------------------------------
+			// Link lambda to bucket notifications
+
+			new aws.lambda.Permission(group, 'permission', {
+				action: 'lambda:InvokeFunction',
+				principal: 's3.amazonaws.com',
+				functionName: prebuild.lambda.functionName,
+				sourceArn: bucket.arn,
+			})
+
+			new aws.s3.BucketNotification(group, 'notification', {
+				bucket: bucket.bucket,
+				lambdaFunction: [
+					{
+						lambdaFunctionArn: prebuild.lambda.arn,
+						events: ['s3:ObjectCreated:*'],
+					},
+				],
+			})
+		}
 	},
 })

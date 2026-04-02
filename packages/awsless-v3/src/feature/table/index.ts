@@ -180,7 +180,7 @@ export const tableFeature = defineFeature({
 						eventSourceArn: table.streamArn,
 
 						// tumblingWindowInSeconds
-						// maximumRecordAgeInSeconds: props.stream.
+						maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
 						// bisectBatchOnFunctionError: true,
 
 						batchSize: props.stream.batchSize,
@@ -202,6 +202,23 @@ export const tableFeature = defineFeature({
 				)
 
 				result.addPermission({
+					actions: ['s3:PutObject', 's3:ListBucket'],
+					resources: [onFailure, $interpolate`${onFailure}/*`],
+					conditions: {
+						StringEquals: {
+							// This will protect anyone from taking our bucket name,
+							// and us sending our failed items to the wrong s3 bucket
+							's3:ResourceAccount': ctx.accountId,
+						},
+					},
+				})
+
+				// result.addPermission({
+				// 	actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+				// 	resources: [onFailure],
+				// })
+
+				result.addPermission({
 					actions: [
 						'dynamodb:ListStreams',
 						'dynamodb:DescribeStream',
@@ -209,11 +226,6 @@ export const tableFeature = defineFeature({
 						'dynamodb:GetShardIterator',
 					],
 					resources: [table.streamArn],
-				})
-
-				result.addPermission({
-					actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-					resources: [onFailure],
 				})
 			}
 

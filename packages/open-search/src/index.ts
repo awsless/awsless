@@ -21,6 +21,7 @@ export {
 	BulkItemError,
 } from './ops/bulk'
 
+export { total } from './ops/total'
 export { search } from './ops/search'
 export { indexItem } from './ops/index-item'
 export { deleteItem } from './ops/delete-item'

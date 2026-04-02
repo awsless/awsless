@@ -54,6 +54,7 @@ __export(index_exports, {
   searchClient: () => searchClient,
   set: () => set,
   string: () => string,
+  total: () => total,
   updateItem: () => updateItem,
   uuid: () => uuid
 });
@@ -379,6 +380,14 @@ var findBulkItemErrors = (items) => {
   return errors;
 };
 
+// src/ops/total.ts
+var total = async (table) => {
+  const result = await table.client().count({
+    index: table.index
+  });
+  return result.body.count;
+};
+
 // src/ops/search.ts
 var encodeCursor = (cursor) => {
   const json = JSON.stringify(cursor);
@@ -393,10 +402,11 @@ var decodeCursor = (cursor) => {
     return;
   }
 };
-var search = async (table, { query, aggs, limit = 10, cursor, sort, trackTotalHits }) => {
+var search = async (table, { query, aggs, limit = 10, offset, cursor, sort, trackTotalHits }) => {
   const result = await table.client().search({
     index: table.index,
     body: {
+      from: offset,
       size: limit + 1,
       search_after: decodeCursor(cursor),
       track_total_hits: trackTotalHits,
@@ -405,7 +415,7 @@ var search = async (table, { query, aggs, limit = 10, cursor, sort, trackTotalHi
       sort
     }
   });
-  const { hits, total } = result.body.hits;
+  const { hits, total: total2 } = result.body.hits;
   let nextCursor;
   if (hits.length > limit) {
     const last = hits[limit - 1];
@@ -416,7 +426,7 @@ var search = async (table, { query, aggs, limit = 10, cursor, sort, trackTotalHi
   const items = hits.splice(0, limit);
   return {
     cursor: nextCursor,
-    found: total.value,
+    found: total2.value,
     count: items.length,
     items: items.map((item) => table.schema.decode(item._source))
   };
@@ -506,7 +516,7 @@ var array = (struct) => {
 var import_big_float = require("@awsless/big-float");
 var bigfloat = (props = {}) => new Schema(
   (value) => new import_big_float.BigFloat(value).toString(),
-  (value) => new import_big_float.BigFloat(value),
+  (value) => (0, import_big_float.parse)(value),
   { type: "double", ...props }
 );
 
@@ -619,6 +629,7 @@ var uuid = (props = {}) => new Schema(
   searchClient,
   set,
   string,
+  total,
   updateItem,
   uuid
 });

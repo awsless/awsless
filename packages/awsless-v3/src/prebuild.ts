@@ -8,6 +8,7 @@ const builds = {
 	rpc: '../src/feature/rpc/server/handle.ts',
 	image: '../src/feature/image/server/handle.ts',
 	icon: '../src/feature/icon/server/handle.ts',
+	'on-failure': '../src/feature/on-failure/server/handle.ts',
 }
 
 for (const [name, file] of Object.entries(builds)) {

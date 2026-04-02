@@ -3,13 +3,9 @@
 import { AppContext, StackContext } from '../../feature.js'
 
 export const getGlobalOnFailure = (ctx: StackContext | AppContext) => {
-	return ctx.shared.get('on-failure', 'queue-arn')
+	return ctx.shared.get('on-failure', 'bucket-arn')
 }
 
-// export const hasOnFailure = (stacks: StackConfig[]) => {
-// 	const onFailure = stacks.find(stack => {
-// 		return typeof stack.onFailure !== 'undefined'
-// 	})
-
-// 	return !!onFailure
+// export const getGlobalOnFailureQueue = (ctx: StackContext | AppContext) => {
+// 	return ctx.shared.get('on-failure', 'queue-arn')
 // }

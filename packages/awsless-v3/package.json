@@ -94,7 +94,7 @@
 		"@terraforge/aws": "^6.35.1",
 		"@terraforge/core": "^0.0.37",
 		"@terraforge/terraform": "^0.0.30",
-		"@types/aws-lambda": "^8.10.110",
+		"@types/aws-lambda": "^8.10.161",
 		"@types/bun": "1.3.10",
 		"@types/chunk": "^0.0.0",
 		"@types/folder-hash": "^4.0.4",

@@ -80,6 +80,9 @@ export const queueFeature = defineFeature({
 
 		await ctx.write('queue.d.ts', gen, true)
 	},
+	onApp(ctx) {
+		// We should discurrage the usage of queue's
+	},
 	onStack(ctx) {
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
@@ -92,9 +95,11 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// console.log(props)
+			const onFailure = ctx.shared.get('on-failure', 'queue-arn')
 
-			const onFailure = getGlobalOnFailure(ctx)
+			// ctx.addWarning({
+			// 	'message'
+			// })
 
 			const queue = new aws.sqs.Queue(group, 'queue', {
 				name,
@@ -106,7 +111,7 @@ export const queueFeature = defineFeature({
 				redrivePolicy: onFailure.pipe(arn =>
 					JSON.stringify({
 						deadLetterTargetArn: arn,
-						maxReceiveCount: 100,
+						maxReceiveCount: props.retryAttempts + 1,
 					})
 				),
 			})

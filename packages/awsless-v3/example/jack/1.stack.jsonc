@@ -21,6 +21,32 @@
 	// 	}
 	// },
 	//
+
+	"tasks": {
+		"error": {
+			"consumer": "./error.ts",
+			"retryAttempts": 0
+		}
+	},
+
+	"queues": {
+		"error": {
+			"consumer": "./error.ts",
+			"retryAttempts": 0
+		}
+	},
+
+	"tables": {
+		"blog": {
+			"hash": "id",
+			"stream": {
+				"type": "new-and-old-images",
+				"retryAttempts": 0,
+				"consumer": "./error.ts"
+			}
+		}
+	},
+
 	"commands": {
 		"test": {
 			"description": "Hello",
@@ -41,6 +67,7 @@
 			"code": "./function.ts",
 			"timeout": "15 seconds"
 		},
+		"schedule-error": "./schedule-task.ts",
 		"error": "./error.ts"
 		// "test3": "./function.ts",
 		// "test4": "./function.ts",

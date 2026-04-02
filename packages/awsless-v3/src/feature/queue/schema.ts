@@ -70,6 +70,15 @@ export const MaxBatchingWindow = DurationSchema.refine(
 	'The maximum amount of time, that Lambda spends gathering records before invoking the function. You can specify an duration from 0 seconds to 5 minutes.'
 )
 
+const RetryAttemptsSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(999)
+	.describe(
+		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 999.'
+	)
+
 export const QueueDefaultSchema = z
 	.object({
 		retentionPeriod: RetentionPeriodSchema.default('7 days'),
@@ -80,6 +89,7 @@ export const QueueDefaultSchema = z
 		batchSize: BatchSizeSchema.default(10),
 		maxConcurrency: MaxConcurrencySchema.optional(),
 		maxBatchingWindow: MaxBatchingWindow.optional(),
+		retryAttempts: RetryAttemptsSchema.default(2),
 	})
 	.default({})
 
@@ -93,6 +103,7 @@ const QueueSchema = z.object({
 	batchSize: BatchSizeSchema.optional(),
 	maxConcurrency: MaxConcurrencySchema.optional(),
 	maxBatchingWindow: MaxBatchingWindow.optional(),
+	retryAttempts: RetryAttemptsSchema.optional(),
 })
 
 export const QueuesSchema = z

@@ -593,9 +593,21 @@ export const createAsyncLambdaFunction = (
 	)
 
 	result.addPermission({
-		actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
-		resources: [onFailure],
+		actions: ['s3:PutObject', 's3:ListBucket'],
+		resources: [onFailure, $interpolate`${onFailure}/*`],
+		conditions: {
+			StringEquals: {
+				// This will protect anyone from taking our bucket name,
+				// and us sending our failed items to the wrong s3 bucket
+				's3:ResourceAccount': ctx.accountId,
+			},
+		},
 	})
+
+	// result.addPermission({
+	// 	actions: ['sqs:SendMessage', 'sqs:GetQueueUrl'],
+	// 	resources: [onFailure],
+	// })
 
 	return result
 }

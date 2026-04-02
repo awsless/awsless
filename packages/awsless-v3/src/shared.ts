@@ -15,6 +15,7 @@ type SharedState = {
 	}
 
 	'on-failure': {
+		'bucket-arn': Output<string>
 		'queue-arn': Output<string>
 	}
 

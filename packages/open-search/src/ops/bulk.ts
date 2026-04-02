@@ -27,7 +27,7 @@ export const bulkCreateItem = <T extends AnyTable>(table: T, id: string, item: T
 	} as const
 }
 
-export const bulkUpdateItem = <T extends AnyTable>(table: T, id: string, item: T['schema']['INPUT']) => {
+export const bulkUpdateItem = <T extends AnyTable>(table: T, id: string, item: Partial<T['schema']['INPUT']>) => {
 	return {
 		action: 'update',
 		table,

@@ -22,6 +22,11 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 					...options,
 					queue: url ?? name,
 					payload,
+					attributes: {
+						...(options.attributes ?? {}),
+						...(url ? { queueUrl: url } : {}),
+						queueName: name,
+					},
 				})
 			},
 		}
@@ -33,7 +38,14 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 			return sendMessageBatch({
 				...options,
 				queue: url ?? name,
-				items,
+				items: items.map(item => ({
+					...item,
+					attributes: {
+						...(item.attributes ?? {}),
+						...(url ? { queueUrl: url } : {}),
+						queueName: name,
+					},
+				})),
 			})
 		}
 

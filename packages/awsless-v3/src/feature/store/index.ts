@@ -75,6 +75,13 @@ export const storeFeature = defineFeature({
 				`arn:aws:s3:::${name}`,
 				`arn:aws:s3:::${name}/*`,
 			],
+			conditions: {
+				StringEquals: {
+					// This will protect anyone from taking our bucket name,
+					// and us sending our items to the wrong s3 bucket
+					's3:ResourceAccount': ctx.accountId,
+				},
+			},
 		})
 	},
 	onStack(ctx) {
@@ -197,6 +204,13 @@ export const storeFeature = defineFeature({
 					bucket.arn,
 					bucket.arn.pipe(arn => `${arn}/*`),
 				],
+				conditions: {
+					StringEquals: {
+						// This will protect anyone from taking our bucket name,
+						// and us sending our items to the wrong s3 bucket
+						's3:ResourceAccount': ctx.accountId,
+					},
+				},
 			})
 		}
 	},

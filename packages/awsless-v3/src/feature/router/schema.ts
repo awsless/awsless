@@ -175,13 +175,20 @@ export const RouterDefaultSchema = z
 				.optional()
 				.describe('Specify the cors headers.'),
 
+			passwordAuth: z
+				.object({
+					password: z.string().describe('Password.'),
+				})
+				.optional()
+				.describe('Enable password authentication for the router.'),
+
 			basicAuth: z
 				.object({
 					username: z.string().describe('Basic auth username.'),
 					password: z.string().describe('Basic auth password.'),
 				})
 				.optional()
-				.describe('Enable basic authentication for the site.'),
+				.describe('Enable basic authentication for the router.'),
 
 			// security: z
 			// 	.object({

@@ -73,10 +73,10 @@ declare const bulkCreateItem: <T extends AnyTable>(table: T, id: string, item: T
     readonly item: T["schema"]["INPUT"];
     readonly id: string;
 };
-declare const bulkUpdateItem: <T extends AnyTable>(table: T, id: string, item: T["schema"]["INPUT"]) => {
+declare const bulkUpdateItem: <T extends AnyTable>(table: T, id: string, item: Partial<T["schema"]["INPUT"]>) => {
     readonly action: "update";
     readonly table: T;
-    readonly item: T["schema"]["INPUT"];
+    readonly item: Partial<T["schema"]["INPUT"]>;
     readonly id: string;
 };
 type BulkOptions = {
@@ -105,11 +105,14 @@ declare class BulkItemError extends Error {
     constructor(index: string, id: string, type: string, message: string);
 }
 
+declare const total: <T extends AnyTable>(table: T) => Promise<number>;
+
 type Options$3 = {
     query?: unknown;
     aggs?: unknown;
     limit?: number;
     cursor?: string;
+    offset?: number;
     sort?: unknown;
     trackTotalHits?: boolean;
 };
@@ -119,7 +122,7 @@ type Response<T extends AnyTable> = {
     count: number;
     items: T['schema']['OUTPUT'][];
 };
-declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, cursor, sort, trackTotalHits }: Options$3) => Promise<Response<T>>;
+declare const search: <T extends AnyTable>(table: T, { query, aggs, limit, offset, cursor, sort, trackTotalHits }: Options$3) => Promise<Response<T>>;
 
 type Options$2 = {
     refresh?: boolean;
@@ -170,4 +173,4 @@ declare const string: <T extends string>(props?: SchemaProps) => Schema<string, 
 
 declare const uuid: (props?: SchemaProps) => Schema<`${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`, `${string}-${string}-${string}-${string}-${string}`>;
 
-export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, updateItem, uuid };
+export { type AnySchema, type AnyTable, BulkError, BulkItemError, type Mapping, Schema, type SchemaProps, type Table, array, bigfloat, bigint, boolean, bulk, bulkCreateItem, bulkDeleteItem, bulkIndexItem, bulkUpdateItem, createIndex, date, define, deleteIndex, deleteItem, indexItem, mockOpenSearch, number, object, search, searchClient, set, string, total, updateItem, uuid };

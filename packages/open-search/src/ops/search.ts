@@ -5,23 +5,25 @@ type Options = {
 	aggs?: unknown
 	limit?: number
 	cursor?: string
+	offset?: number
 	sort?: unknown
 	trackTotalHits?: boolean
 }
 
 type Response<T extends AnyTable> = {
 	cursor?: string
+	// offset?: number
 	found: number
 	count: number
 	items: T['schema']['OUTPUT'][]
 }
 
-const encodeCursor = (cursor: object) => {
+const encodeCursor = (cursor: object): string => {
 	const json = JSON.stringify(cursor)
 	return Buffer.from(json, 'utf8').toString('base64')
 }
 
-const decodeCursor = (cursor?: string) => {
+const decodeCursor = (cursor?: string): string | undefined => {
 	if (!cursor) return
 
 	try {
@@ -35,11 +37,12 @@ const decodeCursor = (cursor?: string) => {
 
 export const search = async <T extends AnyTable>(
 	table: T,
-	{ query, aggs, limit = 10, cursor, sort, trackTotalHits }: Options
+	{ query, aggs, limit = 10, offset, cursor, sort, trackTotalHits }: Options
 ): Promise<Response<T>> => {
 	const result = await table.client().search({
 		index: table.index,
 		body: {
+			from: offset,
 			size: limit + 1,
 			search_after: decodeCursor(cursor),
 			track_total_hits: trackTotalHits,

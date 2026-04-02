@@ -179,6 +179,7 @@ export const routerFeature = defineFeature({
 				code: getViewerRequestFunctionCode({
 					blockDirectAccess: !!props.domain,
 					basicAuth: props.basicAuth,
+					passwordAuth: props.passwordAuth,
 				}),
 			})
 
