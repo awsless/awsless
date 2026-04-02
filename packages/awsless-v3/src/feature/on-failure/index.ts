@@ -82,10 +82,103 @@ export const onFailureFeature = defineFeature({
 		const props = ctx.appConfig.defaults.onFailure
 
 		if (props) {
+			if (props.notify) {
+				const topic = new aws.sns.Topic(group, 'deadletter-topic', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'on-failure',
+						resourceName: 'deadletter',
+					}),
+				})
+
+				for (const email of props.notify) {
+					new aws.sns.TopicSubscription(group, email, {
+						topicArn: topic.arn,
+						protocol: 'email',
+						endpoint: email,
+					})
+				}
+
+				const role = new aws.iam.Role(group, 'deadletter-topic-role', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'on-failure',
+						resourceName: 'pipe',
+					}),
+					description: `${ctx.app.name} on-failure deadletter notification pipe`,
+					assumeRolePolicy: JSON.stringify({
+						Version: '2012-10-17',
+						Statement: [
+							{
+								Effect: 'Allow',
+								Action: 'sts:AssumeRole',
+								Principal: {
+									Service: ['pipes.amazonaws.com'],
+								},
+							},
+						],
+					}),
+					inlinePolicy: [
+						{
+							name: 'deadletter-topic',
+							policy: topic.arn.pipe(topicArn =>
+								deadletter.arn.pipe(queueArn =>
+									JSON.stringify({
+										Version: '2012-10-17',
+										Statement: [
+											{
+												Effect: 'Allow',
+												Action: [
+													'sqs:ReceiveMessage',
+													'sqs:DeleteMessage',
+													'sqs:GetQueueAttributes',
+													'sqs:ChangeMessageVisibility',
+												],
+												Resource: queueArn,
+											},
+											{
+												Effect: 'Allow',
+												Action: ['sns:Publish'],
+												Resource: topicArn,
+											},
+										],
+									})
+								)
+							),
+						},
+					],
+				})
+
+				new aws.pipes.Pipe(group, 'deadletter-topic-pipe', {
+					name: formatGlobalResourceName({
+						appName: ctx.app.name,
+						resourceType: 'on-failure',
+						resourceName: 'notify',
+					}),
+					roleArn: role.arn,
+					source: deadletter.arn,
+					target: topic.arn,
+					sourceParameters: {
+						sqsQueueParameters: {
+							batchSize: 1,
+						},
+					},
+					targetParameters: {
+						inputTemplate: [
+							`Awsless on-failure DLQ message`,
+							`App: ${ctx.app.name}`,
+							`Sent: <$.attributes.SentTimestamp>`,
+							'',
+							`Body:\n<$.body>`,
+						].join('\n'),
+					},
+				})
+			}
+
 			// ------------------------------------------------
 			// Create the consumer lambda
 
-			const consumer = createLambdaFunction(group, ctx, 'on-failure', 'consumer', props)
+			const consumer = createLambdaFunction(group, ctx, 'on-failure', 'consumer', props.consumer)
 
 			// Deny calling other functions to stop circular loop problems
 			consumer.addPermission({
@@ -107,7 +200,7 @@ export const onFailureFeature = defineFeature({
 				bundleFile: join(__dirname, '/prebuild/on-failure/bundle.zip'),
 				bundleHash: join(__dirname, '/prebuild/on-failure/HASH'),
 				memorySize: mebibytes(256),
-				timeout: props.timeout,
+				timeout: props.consumer.timeout,
 				handler: 'index.default',
 				runtime: 'nodejs24.x',
 				log: {

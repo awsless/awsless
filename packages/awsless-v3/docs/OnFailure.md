@@ -34,6 +34,7 @@ You can also use the full Lambda function configuration:
         "file": "./src/handlers/on-failure.ts",
         "minify": true
       },
+      "notify": ["alerts@example.com"],
       "memorySize": "256 MB",
       "timeout": "30 seconds",
       "environment": {
@@ -49,9 +50,16 @@ You can also use the full Lambda function configuration:
 When you define an On-Failure handler in Awsless:
 
 1. An SQS queue is created to capture failure events
-2. A Lambda function is set up to process messages from the queue
-3. Asynchronous operations are configured to send failures to the queue
-4. The Lambda function processes the failures and takes appropriate actions
+2. A dead letter queue is attached to the on-failure queue as a last resort
+3. A Lambda function is set up to process messages from the queue
+4. Asynchronous operations are configured to send failures to the queue
+5. The Lambda function processes the failures and takes appropriate actions
+
+If you configure `notify`, Awsless also creates:
+
+1. An SNS topic with email subscriptions
+2. An EventBridge Pipe from the on-failure dead letter queue to the SNS topic
+3. Email notifications whenever a failure message ends up in the dead letter queue
 
 The On-Failure handler automatically captures failures from:
 
