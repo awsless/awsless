@@ -574,28 +574,28 @@ importers:
         version: link:../duration
       '@awsless/dynamodb':
         specifier: workspace:^
-        version: link:../dynamodb-next
+        version: 0.3.19(@aws-sdk/types@3.973.1)(@awsless/big-float@packages+big-float)(@awsless/json@packages+json)(aws-crt@1.26.2)
       '@awsless/iot':
         specifier: workspace:^
-        version: link:../iot
+        version: 0.0.3(aws-crt@1.26.2)
       '@awsless/json':
         specifier: workspace:^
         version: link:../json
       '@awsless/lambda':
         specifier: workspace:^
-        version: link:../lambda
+        version: 0.0.41(@awsless/json@packages+json)(@awsless/validate@packages+validate)(aws-crt@1.26.2)
       '@awsless/mqtt':
         specifier: workspace:^
-        version: link:../mqtt
+        version: 0.0.5
       '@awsless/open-search':
         specifier: workspace:^
-        version: link:../open-search
+        version: 0.0.21(@opensearch-project/opensearch@2.13.0)(aws-crt@1.26.2)
       '@awsless/redis':
         specifier: workspace:^
-        version: link:../redis
+        version: 0.0.16
       '@awsless/s3':
         specifier: workspace:^
-        version: link:../s3
+        version: 0.0.21(aws-crt@1.26.2)
       '@awsless/scheduler':
         specifier: workspace:^
         version: link:../scheduler
@@ -604,13 +604,13 @@ importers:
         version: link:../size
       '@awsless/sns':
         specifier: workspace:^
-        version: link:../sns
+        version: 0.0.10(aws-crt@1.26.2)
       '@awsless/sqs':
         specifier: workspace:^
-        version: link:../sqs
+        version: 0.0.17(@awsless/big-float@packages+big-float)(aws-crt@1.26.2)
       '@awsless/ssm':
         specifier: workspace:^
-        version: link:../ssm
+        version: 0.0.7(aws-crt@1.26.2)
       '@awsless/ts-file-cache':
         specifier: workspace:^
         version: link:../ts-file-cache
@@ -619,7 +619,7 @@ importers:
         version: link:../validate
       '@awsless/weak-cache':
         specifier: workspace:^
-        version: link:../weak-cache
+        version: 0.0.1
       '@clack/prompts':
         specifier: ^0.7.0
         version: 0.7.0
@@ -3145,6 +3145,74 @@ packages:
   '@aws/lambda-invoke-store@0.2.3':
     resolution: {integrity: sha512-oLvsaPMTBejkkmHhjf09xTgk71mOqyr/409NKhRIL08If7AhVfUsJhVsx386uJaqNd42v9kWamQ9lFbkoC2dYw==}
     engines: {node: '>=18.0.0'}
+
+  '@awsless/big-float@0.0.6':
+    resolution: {integrity: sha512-OAs/PLgicj7B0s2YMOYh/U0iS9FjomDW1ZYLCyZa6nBRUqEl1uXxTzgnd+KOWxYwep60d2qHFJz0yFK1FihEjg==}
+
+  '@awsless/big-float@0.1.6':
+    resolution: {integrity: sha512-cN4nZA1CtN5yMFjiZhDRC6WkV2G3XKL9zA2/4JH9+erQoE2TJOY7L1OXWOaCi8f7Fe1Xjh7rdC6Dtien0nwMpg==}
+
+  '@awsless/duration@0.0.3':
+    resolution: {integrity: sha512-1BELpbuIkcHfbq3Z8HUj0LIDl8kD/hdR6Zn8gZmhUQ03lPQQI7HhoDGUCi4oQEP+Ts4i1uprk0tg3YCEjCdHFQ==}
+
+  '@awsless/duration@0.0.4':
+    resolution: {integrity: sha512-9oJo60EUNAebvWv04ZZUzHy/58D7aEm4TBTpOgVAgTiyXZAJDmiLJPWMHas/VrE3Qgu6pAbTje2nDS5CqiABxg==}
+
+  '@awsless/dynamodb-server@0.1.7':
+    resolution: {integrity: sha512-m6z4EuGlTfTed24KDPVUCxaaja4RkkKw3qdqFltTMWWcxLCKArOn1vio+99WWOgqnfHEvsqpMZhl1AjbhtfXaw==}
+
+  '@awsless/dynamodb@0.3.19':
+    resolution: {integrity: sha512-e0aeSN+Xn5ux1HbayMynBgUcaLB1LWElNwhvzVT90wtjAwDp4S72dzHVj/D5BlH6fm7a87FgEJ7LsMXxv0kb2A==}
+    peerDependencies:
+      '@awsless/big-float': ^0.1.6
+      '@awsless/json': ^0.0.11
+
+  '@awsless/iot@0.0.3':
+    resolution: {integrity: sha512-mVNcyDMIaoDvfmpeywyl3J9DzoRSruq+FyaeooDaj0Pk3Q1DyXXVTll+t9iOqLwHPrSyJlXcMAEcQbTmXx6vBg==}
+
+  '@awsless/json@0.0.11':
+    resolution: {integrity: sha512-H/S5S1gurVIfb7PgpFz6lUzGYUoVZdEujjG4H4yrlXrI4SLII5fh0pZlUbTt58P8pdHWNO0bIbNmOrKjoGwrRA==}
+    peerDependencies:
+      '@awsless/big-float': ^0.1.5
+      '@awsless/duration': ^0.0.4
+
+  '@awsless/lambda@0.0.41':
+    resolution: {integrity: sha512-5wtsrX86j2RpCOjz8b96UYaXp9cyYbMbuDXausx5EKTg/jVlWCZD8vxnU7nXywA35mFvLdTP4dHi9wySgduLfQ==}
+    peerDependencies:
+      '@awsless/json': ^0.0.11
+      '@awsless/validate': ^0.1.6
+
+  '@awsless/mqtt@0.0.5':
+    resolution: {integrity: sha512-5EP5/Wp9qXgyU0R50xdAF83Gd2EQOani4LxYratMZfxBNB0eo84b8wmMvKI7JE5B3XXwfGp9V1RzSfTiCOahqA==}
+
+  '@awsless/open-search@0.0.21':
+    resolution: {integrity: sha512-hmVn65jtMIWnUvPMzDqKxHmI1G0feiNiKb/WPXLMNyW8LRvknFCx51WmqA6dz2eaxXm49X6uODnSa5lY0Sw49A==}
+    peerDependencies:
+      '@opensearch-project/opensearch': ^2.10.0
+
+  '@awsless/redis@0.0.16':
+    resolution: {integrity: sha512-KR8iJvQhcI4WmwFY7kdsACtPZxnO/y8fasvxrhnXw9azaV8JQ7K92OSIkMO1Nm2jm7DMCRC/vYQencUEOiNrzQ==}
+
+  '@awsless/s3@0.0.21':
+    resolution: {integrity: sha512-FNMMuUy0aKrRMbRBE4lxA6dxo1S/a0FNoc4+19VaPrwmXlmekoMEZ2Zg/npvRnkrUjF4anb/f3sqFrtCLzu5OQ==}
+
+  '@awsless/size@0.0.2':
+    resolution: {integrity: sha512-GxUU+yT1IQKqNpvlhpQ338jwk/Wow6Y1/AEViGcrFfkHuqv3hLP54PgfWjhtLNL78tb9UPE/w9CRWtrFygmjbg==}
+
+  '@awsless/sns@0.0.10':
+    resolution: {integrity: sha512-jO/1B2jFIfnVkE347+crZlu3xmOOyitaP+jxpDxYFB2bvo1HWEu4wtQGmOspsGk6lJSXPgnntAKQq2mcAhWsvw==}
+
+  '@awsless/sqs@0.0.17':
+    resolution: {integrity: sha512-IQv8clCkj3YKhOQ8UdCRJPNFMS0eIf5DktBTGJ9TuI3K5AVJqzv6Sc+Cb0QW06s65gaVR+nUfViebzPhrC3MhQ==}
+
+  '@awsless/ssm@0.0.7':
+    resolution: {integrity: sha512-92y3C7/jQe2NsBUZZObMCaEg9JZGw7ryTgS3DLPXm8E10I4FRctz1BWxtHQU0m6O216Ya02UeAp90cGCeldLZw==}
+
+  '@awsless/utils@0.0.2':
+    resolution: {integrity: sha512-NOHFwiOfyrfeKR07bIJCDTk69WQM4JhBBNIp8Y5lzogDReNuRGaGJdeb26ecIGOKoc8ZjQnWWT61jBZqUl0zDQ==}
+
+  '@awsless/weak-cache@0.0.1':
+    resolution: {integrity: sha512-+cruLKGGdJ4wAMmU6Jnjbp5nJD9mumKIMfHF5lMUushlRYyWmyMemMwZtrWwoxKmeePsm8ObJqRZRxHRcJKeRw==}
 
   '@babel/code-frame@7.26.2':
     resolution: {integrity: sha512-RJlIHRueQgwWitWgF8OdFYGZX328Ax5BCemNGlqHfplnRT9ESi8JkFlvaVYbS+UubVY6dpv87Fs2u5M29iNFVQ==}
@@ -7107,6 +7175,9 @@ packages:
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
+
+  bigfloat-esnext@3.0.1:
+    resolution: {integrity: sha512-+L6LRIuW3y7BTy0WRC2G2w4w2TPtC88h3GLPhEJ6tH4tTE1m5otWXk4rOhEwfwiXxyPcRzqx6YHQ637rpKJvKA==}
 
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
@@ -15583,6 +15654,152 @@ snapshots:
 
   '@aws/lambda-invoke-store@0.2.3': {}
 
+  '@awsless/big-float@0.0.6':
+    dependencies:
+      bigfloat-esnext: 3.0.1
+
+  '@awsless/big-float@0.1.6': {}
+
+  '@awsless/duration@0.0.3': {}
+
+  '@awsless/duration@0.0.4': {}
+
+  '@awsless/dynamodb-server@0.1.7(@aws-sdk/types@3.973.1)(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.26.2)
+      '@aws-sdk/lib-dynamodb': 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.973.1)
+      '@awsless/big-float': 0.1.6
+    optionalDependencies:
+      dynamo-db-local: 10.3.0
+    transitivePeerDependencies:
+      - '@aws-sdk/types'
+      - aws-crt
+
+  '@awsless/dynamodb@0.3.19(@aws-sdk/types@3.973.1)(@awsless/big-float@packages+big-float)(@awsless/json@packages+json)(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.26.2)
+      '@aws-sdk/lib-dynamodb': 3.363.0(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.26.2))(@aws-sdk/types@3.973.1)
+      '@aws-sdk/util-dynamodb': 3.363.0
+      '@awsless/big-float': link:packages/big-float
+      '@awsless/dynamodb-server': 0.1.7(@aws-sdk/types@3.973.1)(aws-crt@1.26.2)
+      '@awsless/json': link:packages/json
+      '@awsless/utils': 0.0.2
+      '@heat/request-port': 0.0.1
+      '@smithy/node-http-handler': 3.3.3
+      aws-sdk-client-mock: 4.0.0
+      chunk: 0.0.3
+    transitivePeerDependencies:
+      - '@aws-sdk/types'
+      - aws-crt
+
+  '@awsless/iot@0.0.3(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-iot': 3.329.0(aws-crt@1.26.2)
+      '@aws-sdk/client-iot-data-plane': 3.329.0(aws-crt@1.26.2)
+      '@awsless/utils': 0.0.2
+      aws-sdk-client-mock: 2.2.0
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@awsless/json@0.0.11(@awsless/big-float@packages+big-float)(@awsless/duration@0.0.4)':
+    dependencies:
+      '@awsless/big-float': link:packages/big-float
+      '@awsless/duration': 0.0.4
+
+  '@awsless/lambda@0.0.41(@awsless/json@packages+json)(@awsless/validate@packages+validate)(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-lambda': 3.329.0(aws-crt@1.26.2)
+      '@aws-sdk/util-utf8-node': 3.259.0
+      '@awsless/json': link:packages/json
+      '@awsless/utils': 0.0.2
+      '@awsless/validate': link:packages/validate
+      '@types/aws-lambda': 8.10.148
+      aws-lambda: 1.0.7
+      aws-sdk-client-mock: 2.2.0
+      type-fest: 3.13.1
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@awsless/mqtt@0.0.5':
+    dependencies:
+      mqtt: 5.10.4
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
+  '@awsless/open-search@0.0.21(@opensearch-project/opensearch@2.13.0)(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/credential-provider-node': 3.972.9(aws-crt@1.26.2)
+      '@aws-sdk/credential-providers': 3.782.0(aws-crt@1.26.2)
+      '@awsless/big-float': 0.0.6
+      '@heat/request-port': 0.0.1
+      '@opensearch-project/opensearch': 2.13.0
+      '@types/decompress': 4.2.7
+      '@types/find-cache-dir': 3.2.1
+      decompress: 4.2.1
+      find-cache-dir: 4.0.0
+      sleep-await: 1.0.2
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@awsless/redis@0.0.16':
+    dependencies:
+      '@heat/request-port': 0.0.1
+      ioredis: 5.10.1
+      redis-memory-server: 0.10.0
+    transitivePeerDependencies:
+      - supports-color
+
+  '@awsless/s3@0.0.21(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-s3': 3.525.0(aws-crt@1.26.2)
+      '@aws-sdk/s3-presigned-post': 3.525.0(aws-crt@1.26.2)
+      '@aws-sdk/s3-request-presigner': 3.609.0
+      '@aws-sdk/util-stream-node': 3.374.0
+      '@awsless/duration': 0.0.3
+      '@awsless/size': 0.0.2
+      '@awsless/utils': 0.0.2
+      '@smithy/types': 3.0.0
+      aws-sdk-client-mock: 3.1.0
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@awsless/size@0.0.2': {}
+
+  '@awsless/sns@0.0.10(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-sns': 3.329.0(aws-crt@1.26.2)
+      '@awsless/utils': 0.0.2
+      aws-sdk-client-mock: 2.2.0
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@awsless/sqs@0.0.17(@awsless/big-float@packages+big-float)(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-sqs': 3.329.0(aws-crt@1.26.2)
+      '@awsless/duration': 0.0.4
+      '@awsless/json': 0.0.11(@awsless/big-float@packages+big-float)(@awsless/duration@0.0.4)
+      '@awsless/utils': 0.0.2
+      aws-sdk-client-mock: 2.2.0
+      chunk: 0.0.3
+    transitivePeerDependencies:
+      - '@awsless/big-float'
+      - aws-crt
+
+  '@awsless/ssm@0.0.7(aws-crt@1.26.2)':
+    dependencies:
+      '@aws-sdk/client-ssm': 3.329.0(aws-crt@1.26.2)
+      '@awsless/utils': 0.0.2
+      aws-sdk-client-mock: 2.2.0
+      chunk: 0.0.3
+    transitivePeerDependencies:
+      - aws-crt
+
+  '@awsless/utils@0.0.2': {}
+
+  '@awsless/weak-cache@0.0.1': {}
+
   '@babel/code-frame@7.26.2':
     dependencies:
       '@babel/helper-validator-identifier': 7.25.9
@@ -20145,6 +20362,8 @@ snapshots:
     optional: true
 
   base64-js@1.5.1: {}
+
+  bigfloat-esnext@3.0.1: {}
 
   binary-extensions@2.3.0: {}
 
