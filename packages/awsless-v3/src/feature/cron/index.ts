@@ -86,7 +86,10 @@ export const cronFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Group(ctx.stack, 'cron', id)
 
-			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, props.consumer)
+			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, {
+				consumer: props.consumer,
+				retryAttempts: props.retryAttempts,
+			})
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,

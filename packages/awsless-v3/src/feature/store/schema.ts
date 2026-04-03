@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema } from '../function/schema.js'
+import { TaskSchema } from '../task/schema.js'
 
 export const StoresSchema = z
 	.union([
@@ -12,7 +12,7 @@ export const StoresSchema = z
 					static?: string
 					versioning?: boolean
 					// deletionProtection?: boolean
-					events?: Record<string, z.output<typeof FunctionSchema>>
+					events?: Record<string, z.output<typeof TaskSchema>>
 				}
 			> = {}
 
@@ -30,30 +30,30 @@ export const StoresSchema = z
 				events: z
 					.object({
 						// create
-						'created:*': FunctionSchema.optional().describe(
+						'created:*': TaskSchema.optional().describe(
 							'Subscribe to notifications regardless of the API that was used to create an object.'
 						),
-						'created:put': FunctionSchema.optional().describe(
+						'created:put': TaskSchema.optional().describe(
 							'Subscribe to notifications when an object is created using the PUT API operation.'
 						),
-						'created:post': FunctionSchema.optional().describe(
+						'created:post': TaskSchema.optional().describe(
 							'Subscribe to notifications when an object is created using the POST API operation.'
 						),
-						'created:copy': FunctionSchema.optional().describe(
+						'created:copy': TaskSchema.optional().describe(
 							'Subscribe to notifications when an object is created using the COPY API operation.'
 						),
-						'created:upload': FunctionSchema.optional().describe(
+						'created:upload': TaskSchema.optional().describe(
 							'Subscribe to notifications when an object multipart upload has been completed.'
 						),
 
 						// remove
-						'removed:*': FunctionSchema.optional().describe(
+						'removed:*': TaskSchema.optional().describe(
 							'Subscribe to notifications when an object is deleted or a delete marker for a versioned object is created.'
 						),
-						'removed:delete': FunctionSchema.optional().describe(
+						'removed:delete': TaskSchema.optional().describe(
 							'Subscribe to notifications when an object is deleted'
 						),
-						'removed:marker': FunctionSchema.optional().describe(
+						'removed:marker': TaskSchema.optional().describe(
 							'Subscribe to notifications when a delete marker for a versioned object is created.'
 						),
 					})

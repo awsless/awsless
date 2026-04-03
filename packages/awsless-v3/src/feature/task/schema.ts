@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 
@@ -12,20 +11,14 @@ const RetryAttemptsSchema = z
 		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
 	)
 
-const TaskSchema = z.union([
-	LocalFileSchema.transform(file => ({
-		consumer: {
-			code: {
-				file,
-				minify: true,
-				external: [],
-			},
-		},
-		retryAttempts: undefined,
+export const TaskSchema = z.union([
+	FunctionSchema.transform(consumer => ({
+		consumer,
+		retryAttempts: 2,
 	})),
 	z.object({
 		consumer: FunctionSchema,
-		retryAttempts: RetryAttemptsSchema.optional(),
+		retryAttempts: RetryAttemptsSchema.default(2),
 	}),
 ])
 
