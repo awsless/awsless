@@ -94,19 +94,19 @@ export const TablesSchema = z
 							].join('\n')
 						),
 
-					maxRecordAge: DurationSchema.refine(
-						durationMin(seconds(1)),
-						'Minimum record age duration is 1 second'
-					)
-						.refine(durationMax(minutes(1)), 'Maximum record age duration is 1 minute')
-						.default('60 seconds')
-						.describe(
-							[
-								'Discard records older than the specified age.',
-								'The maximum valid value for maximum record age is 60s.',
-								'The default value is 60s',
-							].join('\n')
-						),
+					// maxRecordAge: DurationSchema.refine(
+					// 	durationMin(seconds(1)),
+					// 	'Minimum record age duration is 1 second'
+					// )
+					// 	.refine(durationMax(minutes(1)), 'Maximum record age duration is 1 minute')
+					// 	.default('60 seconds')
+					// 	.describe(
+					// 		[
+					// 			'Discard records older than the specified age.',
+					// 			'The maximum valid value for maximum record age is 60s.',
+					// 			'The default value is 60s',
+					// 		].join('\n')
+					// 	),
 
 					retryAttempts: z
 						.number()
