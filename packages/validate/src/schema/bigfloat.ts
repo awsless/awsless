@@ -4,10 +4,10 @@ import {
 	ErrorMessage,
 	GenericIssue,
 	bigint,
-	decimal,
 	instance,
 	number,
 	pipe,
+	regex,
 	string,
 	transform,
 	union,
@@ -21,7 +21,7 @@ export function bigfloat(message: ErrorMessage<GenericIssue> = 'Invalid bigfloat
 			instance(BigFloat),
 			pipe(
 				string(),
-				decimal(),
+				regex(/^[+-]?((\d+\.?\d*)|(\.\d+))([eE][+-]?\d+)?$/),
 				transform(v => parse(v))
 			),
 			pipe(

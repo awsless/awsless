@@ -94,10 +94,10 @@ var json = (schema, message = "Invalid JSON") => {
 import { BigFloat, parse as parse2 } from "@awsless/big-float";
 import {
   bigint,
-  decimal,
   instance,
   number,
   pipe as pipe2,
+  regex,
   string as string2,
   transform,
   union
@@ -108,7 +108,7 @@ function bigfloat(message = "Invalid bigfloat") {
       instance(BigFloat),
       pipe2(
         string2(),
-        decimal(),
+        regex(/^[+-]?((\d+\.?\d*)|(\.\d+))([eE][+-]?\d+)?$/),
         transform((v) => parse2(v))
       ),
       pipe2(

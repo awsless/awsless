@@ -50,7 +50,7 @@
 	"commands": {
 		"test": {
 			"description": "Hello",
-			"file": "./command.ts"
+			"file": "./cli/test.ts"
 		}
 	},
 
@@ -63,17 +63,11 @@
 
 	"functions": {
 		// "log-metric": "./metric/log-metric.ts",
-		"test": {
-			"code": "./function.ts",
-			"timeout": "15 seconds"
-		},
-		"schedule-error": "./schedule-task.ts",
-		"error": "./error.ts"
-		// "test3": "./function.ts",
-		// "test4": "./function.ts",
-		// "test5": "./function.ts",
-		// "test6": "./function.ts",
-		// "test7": "./function.ts"
+		// "test": {
+		// 	"code": "./function.ts",
+		// 	"timeout": "15 seconds"
+		// },
+		"schedule-error": "./schedule-error.ts"
 	},
 
 	"sites": {

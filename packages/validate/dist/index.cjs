@@ -134,7 +134,7 @@ function bigfloat(message = "Invalid bigfloat") {
       (0, import_valibot3.instance)(import_big_float.BigFloat),
       (0, import_valibot3.pipe)(
         (0, import_valibot3.string)(),
-        (0, import_valibot3.decimal)(),
+        (0, import_valibot3.regex)(/^[+-]?((\d+\.?\d*)|(\.\d+))([eE][+-]?\d+)?$/),
         (0, import_valibot3.transform)((v) => (0, import_big_float.parse)(v))
       ),
       (0, import_valibot3.pipe)(
