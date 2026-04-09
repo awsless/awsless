@@ -10,8 +10,8 @@ type SharedState = {
 		'public-subnets': Output<string>[]
 	}
 
-	'on-log': {
-		'consumer-arn': Output<string>
+	'on-error-log': {
+		'subscriber-arn': Output<string>
 	}
 
 	'on-failure': {

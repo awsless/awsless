@@ -201,7 +201,7 @@ import {
 import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
 import { parse as parse2, stringify as stringify2 } from "@awsless/json";
 import { mockObjectValues, nextTick } from "@awsless/utils";
-import { mockClient } from "aws-sdk-client-mock";
+import { mockClient } from "aws-sdk-vitest-mock";
 var globalList = {};
 var mockLambda = (lambdas) => {
   const alreadyMocked = Object.keys(globalList).length > 0;
@@ -210,7 +210,8 @@ var mockLambda = (lambdas) => {
   if (alreadyMocked) {
     return list;
   }
-  mockClient(LambdaClient2).on(ListFunctionsCommand2).callsFake(async () => {
+  const client = mockClient(LambdaClient2);
+  client.on(ListFunctionsCommand2).callsFake(async () => {
     return {
       $metadata: {},
       Functions: [
@@ -220,7 +221,8 @@ var mockLambda = (lambdas) => {
         }
       ]
     };
-  }).on(InvokeCommand2).callsFake(async (input) => {
+  });
+  client.on(InvokeCommand2).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? parse2(toUtf82(input.Payload)) : void 0;
@@ -229,13 +231,8 @@ var mockLambda = (lambdas) => {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
     const result = await nextTick(callback, payload);
-    if (type === "RequestResponse" && result) {
-      return {
-        Payload: fromUtf82(stringify2(result))
-      };
-    }
     return {
-      Payload: void 0
+      Payload: type === "RequestResponse" && result ? fromUtf82(stringify2(result)) : void 0
     };
   });
   beforeEach && beforeEach(() => {

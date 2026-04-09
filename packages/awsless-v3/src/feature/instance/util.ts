@@ -13,7 +13,7 @@ import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
-import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
+import { filterPattern } from '../on-error-log/util.js'
 import { buildExecutable } from './build/executable.js'
 import { InstanceProps } from './schema.js'
 
@@ -172,24 +172,20 @@ export const createFargateTask = (
 	let logGroup: aws.cloudwatch.LogGroup | undefined
 	if (props.log.retention && props.log.retention.value > 0n) {
 		logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
-			// name: `/aws/ecs/${name}`,
-			name: `/aws/lambda/${name}`,
+			name: `/aws/ecs/${name}`,
+			// name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention),
 		})
 
 		// ------------------------------------------------------------
 		// Add log subscription
 
-		const onLogArn = getGlobalOnLog(ctx)
-
-		if (onLogArn && ctx.appConfig.defaults.onLog) {
-			const logFilter = ctx.appConfig.defaults.onLog.filter
-
-			new aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
-				name: 'log-subscription',
-				destinationArn: onLogArn,
+		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
+			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
+				name: 'error-log-subscription',
+				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
 				logGroupName: logGroup.name,
-				filterPattern: formatFilterPattern(logFilter),
+				filterPattern,
 			})
 		}
 	}

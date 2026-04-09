@@ -5,31 +5,33 @@ import { Hono } from 'hono'
 import { getQueueName } from '../../../src/server'
 
 let server: ServerType | undefined
-let unsub: () => void = () => {}
+const ac = new AbortController()
 
-try {
-	unsub = subscribe({
-		queue: getQueueName('test'),
-		maxMessages: 10,
-		waitTime: seconds(20),
-		visibilityTimeout: seconds(60),
-		handleMessage({ payload }) {
-			console.log(payload)
-		},
-	})
-} catch (error) {
-	console.log(
-		JSON.stringify({
-			message: 'Queue subscription failed',
-			error,
-		})
-	)
+;(async () => {
+	try {
+		for await (const records of subscribe({
+			queue: getQueueName('test'),
+			maxMessages: 10,
+			waitTime: seconds(20),
+			visibilityTimeout: seconds(60),
+			signal: ac.signal,
+		})) {
+			for (const { payload } of records) {
+				console.log(payload)
+			}
+		}
+	} catch (error) {
+		console.log(
+			JSON.stringify({
+				message: 'Queue subscription failed',
+				error,
+			})
+		)
 
-	unsub()
-	server?.close()
-
-	throw error
-}
+		ac.abort()
+		server?.close()
+	}
+})()
 
 // --------------------------------------
 
@@ -42,7 +44,7 @@ server = serve({ fetch: app.fetch, port: 80 }, (info: any) => {
 })
 
 const shutdown = () => {
-	unsub()
+	ac.abort()
 	server?.close()
 }
 

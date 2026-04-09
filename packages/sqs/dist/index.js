@@ -11,13 +11,14 @@ var sqsClient = globalClient(() => {
 // src/commands.ts
 import {
   ChangeMessageVisibilityCommand,
+  DeleteMessageBatchCommand,
   DeleteMessageCommand,
   GetQueueUrlCommand,
   ReceiveMessageCommand,
   SendMessageBatchCommand,
   SendMessageCommand
 } from "@aws-sdk/client-sqs";
-import { seconds, toMilliSeconds, toSeconds } from "@awsless/duration";
+import { seconds, toSeconds } from "@awsless/duration";
 import { parse, stringify } from "@awsless/json";
 import chunk from "chunk";
 var encodeAttributes = (attributes) => {
@@ -116,6 +117,25 @@ var deleteMessage = async ({
   });
   await client.send(command);
 };
+var deleteMessageBatch = async ({
+  client = sqsClient(),
+  queue,
+  receiptHandles
+}) => {
+  const url = await getCachedQueueUrl(client, queue);
+  await Promise.all(
+    chunk(receiptHandles, 10).map(async (batch) => {
+      const command = new DeleteMessageBatchCommand({
+        QueueUrl: url,
+        Entries: batch.map((receiptHandle, index) => ({
+          Id: String(index),
+          ReceiptHandle: receiptHandle
+        }))
+      });
+      await client.send(command);
+    })
+  );
+};
 var changeMessageVisibility = async ({
   client = sqsClient(),
   queue,
@@ -130,119 +150,78 @@ var changeMessageVisibility = async ({
   });
   await client.send(command);
 };
-var subscribe = ({
+async function* subscribe({
   client = sqsClient(),
   queue,
-  maxMessages,
+  maxMessages = 10,
   waitTime,
   visibilityTimeout,
-  autoExtendVisibility,
-  handleMessage
-}) => {
-  let subscribed = true;
-  const abortController = new AbortController();
-  const autoExtensionInterval = autoExtendVisibility ? toMilliSeconds(visibilityTimeout) / 2 : void 0;
-  const startVisibilityExtension = (receiptHandle) => {
-    const interval = setInterval(async () => {
-      if (!subscribed) {
-        clearInterval(interval);
-        return;
-      }
-      await changeMessageVisibility({
-        client,
-        queue,
-        receiptHandle,
-        visibilityTimeout
-      });
-    }, autoExtensionInterval);
-    return () => clearInterval(interval);
-  };
-  const poll = async () => {
+  signal
+}) {
+  while (!signal?.aborted) {
+    let messages;
     try {
-      const messages = await receiveMessages({
+      messages = await receiveMessages({
         client,
         queue,
         maxMessages,
         waitTime,
         visibilityTimeout,
-        abortSignal: abortController.signal
+        abortSignal: signal
       });
-      await Promise.all(
-        messages.map(async (message) => {
-          let stopExtension;
-          if (autoExtendVisibility) {
-            stopExtension = startVisibilityExtension(message.ReceiptHandle);
-          }
-          let body;
-          try {
-            body = {
-              payload: parse(message.Body),
-              attributes: decodeAttributes(message.MessageAttributes)
-            };
-          } catch (error) {
-            console.error(
-              JSON.stringify({
-                message: "Error processing message body",
-                error
-              })
-            );
-            return;
-          }
-          try {
-            await handleMessage(body);
-          } catch (error) {
-            console.error(
-              JSON.stringify({
-                message: "Error processing message",
-                error
-              })
-            );
-            return;
-          } finally {
-            stopExtension?.();
-          }
-          try {
-            await deleteMessage({
-              client,
-              queue,
-              receiptHandle: message.ReceiptHandle
-            });
-          } catch (error) {
-            console.error(
-              JSON.stringify({
-                message: "Error deleting message",
-                error
-              })
-            );
-            throw error;
-          }
-        })
-      );
     } catch (error) {
-      if (abortController.signal.aborted) {
-        return;
-      }
+      if (signal?.aborted) return;
       console.error(
         JSON.stringify({
           message: "Error polling queue",
+          error: error instanceof Error ? { ...error, name: error.name, message: error.message } : error
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 5e3));
+      continue;
+    }
+    const parsed = [];
+    for (const message of messages) {
+      try {
+        parsed.push({
+          record: {
+            payload: parse(message.Body),
+            attributes: decodeAttributes(message.MessageAttributes)
+          },
+          receiptHandle: message.ReceiptHandle
+        });
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            message: "Error processing message body",
+            error
+          })
+        );
+      }
+    }
+    if (parsed.length === 0) continue;
+    yield parsed.map((p) => p.record);
+    try {
+      await deleteMessageBatch({
+        client,
+        queue,
+        receiptHandles: parsed.map((p) => p.receiptHandle)
+      });
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          message: "Error deleting messages",
           error
         })
       );
     }
-    if (subscribed) {
-      poll();
-    }
-  };
-  poll();
-  return () => {
-    subscribed = false;
-    abortController.abort();
-  };
-};
+  }
+}
 
 // src/mock.ts
 import {
   ChangeMessageVisibilityCommand as ChangeMessageVisibilityCommand2,
+  DeleteMessageBatchCommand as DeleteMessageBatchCommand2,
   DeleteMessageCommand as DeleteMessageCommand2,
   GetQueueUrlCommand as GetQueueUrlCommand2,
   ReceiveMessageCommand as ReceiveMessageCommand2,
@@ -251,7 +230,7 @@ import {
   SendMessageCommand as SendMessageCommand2
 } from "@aws-sdk/client-sqs";
 import { mockObjectValues, nextTick } from "@awsless/utils";
-import { mockClient } from "aws-sdk-client-mock";
+import { mockClient } from "aws-sdk-vitest-mock";
 import { randomUUID } from "crypto";
 var formatAttributes = (attributes) => {
   const list = {};
@@ -309,7 +288,8 @@ var mockSQS = (queues) => {
     return callback;
   };
   const client = mockClient(SQSClient3);
-  client.on(GetQueueUrlCommand2).callsFake((input) => ({ QueueUrl: input.QueueName })).on(SendMessageCommand2).callsFake(async (input) => {
+  client.on(GetQueueUrlCommand2).callsFake(async (input) => ({ QueueUrl: input.QueueName }));
+  client.on(SendMessageCommand2).callsFake(async (input) => {
     const callback = get(input);
     const messageId = randomUUID();
     const receiptHandle = randomUUID();
@@ -331,7 +311,8 @@ var mockSQS = (queues) => {
     return {
       MessageId: messageId
     };
-  }).on(SendMessageBatchCommand2).callsFake(async (input) => {
+  });
+  client.on(SendMessageBatchCommand2).callsFake(async (input) => {
     const callback = get(input);
     const records = input.Entries?.map((entry) => {
       const messageId = entry.Id || randomUUID();
@@ -351,7 +332,9 @@ var mockSQS = (queues) => {
     await nextTick(callback, {
       Records: records
     });
-  }).on(ReceiveMessageCommand2).callsFake(async (input) => {
+    return {};
+  });
+  client.on(ReceiveMessageCommand2).callsFake(async (input) => {
     const deadline = Date.now() + (input.WaitTimeSeconds || 1) * 1e3;
     while (Date.now() < deadline) {
       const messages = messageStore.receiveMessages(
@@ -369,10 +352,18 @@ var mockSQS = (queues) => {
     return {
       Messages: []
     };
-  }).on(DeleteMessageCommand2).callsFake(async (input) => {
+  });
+  client.on(DeleteMessageCommand2).callsFake(async (input) => {
     messageStore.deleteMessage(input.QueueUrl, input.ReceiptHandle);
     return {};
-  }).on(ChangeMessageVisibilityCommand2).callsFake(async (input) => {
+  });
+  client.on(DeleteMessageBatchCommand2).callsFake(async (input) => {
+    for (const entry of input.Entries ?? []) {
+      messageStore.deleteMessage(input.QueueUrl, entry.ReceiptHandle);
+    }
+    return {};
+  });
+  client.on(ChangeMessageVisibilityCommand2).callsFake(async (input) => {
     messageStore.changeVisibility(input.QueueUrl, input.ReceiptHandle, input.VisibilityTimeout);
     return {};
   });
@@ -390,6 +381,7 @@ export {
   SQSClient4 as SQSClient,
   changeMessageVisibility,
   deleteMessage,
+  deleteMessageBatch,
   mockSQS,
   receiveMessages,
   sendMessage,

@@ -4,7 +4,6 @@ export { LambdaClient } from '@aws-sdk/client-lambda';
 import { Context as Context$1 } from 'aws-lambda';
 export { Context as LambdaContext } from 'aws-lambda';
 import { AsyncReturnType } from 'type-fest';
-import { Mock } from 'vitest';
 import { GenericSchema, InferOutput, InferInput } from '@awsless/validate';
 
 type InvokeOptions = {
@@ -76,7 +75,7 @@ declare const lambdaClient: {
 type Lambdas = {
     [key: string]: (payload: any) => unknown;
 };
-declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
+declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: any; };
 
 type Schema = GenericSchema | undefined;
 type Input<T extends Schema = undefined> = T extends undefined ? unknown : InferInput<RemoveUndefined<T>>;

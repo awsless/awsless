@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/sqs",
-	"version": "0.0.17",
+	"version": "0.0.20",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -24,19 +24,19 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm code test",
+		"test": "pnpm vitest run",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-sqs": "3.329.0",
-		"@awsless/json": "workspace:^",
+		"@aws-sdk/client-sqs": "3.1022.0",
 		"@awsless/duration": "workspace:^",
+		"@awsless/json": "workspace:^",
 		"@awsless/utils": "workspace:^",
-		"aws-sdk-client-mock": "^2.1.1",
-		"chunk": "^0.0.3"
+		"aws-sdk-vitest-mock": "1.0.55",
+		"chunk": "0.0.3"
 	},
 	"devDependencies": {
-		"@types/chunk": "^0.0.0"
+		"@types/chunk": "0.0.0"
 	}
 }

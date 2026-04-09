@@ -1,6 +1,5 @@
 import { IoTDataPlaneClient } from '@aws-sdk/client-iot-data-plane';
 export { IoTDataPlaneClient } from '@aws-sdk/client-iot-data-plane';
-import { Mock } from 'vitest';
 
 declare enum QoS {
     AtMostOnce = 0,
@@ -17,7 +16,7 @@ type PublishProps = {
 };
 declare const publish: ({ client, ...props }: PublishProps) => Promise<void>;
 
-declare const mockIoT: () => Mock<any, any>;
+declare const mockIoT: () => ReturnType<typeof vi.fn>;
 
 declare const iotClient: {
     (): IoTDataPlaneClient;

@@ -1,5 +1,6 @@
 import {
 	ChangeMessageVisibilityCommand,
+	DeleteMessageBatchCommand,
 	DeleteMessageCommand,
 	GetQueueUrlCommand,
 	MessageAttributeValue,
@@ -8,7 +9,7 @@ import {
 	SendMessageBatchCommand,
 	SendMessageCommand,
 } from '@aws-sdk/client-sqs'
-import { Duration, seconds, toMilliSeconds, toSeconds } from '@awsless/duration'
+import { Duration, seconds, toSeconds } from '@awsless/duration'
 import { parse, stringify } from '@awsless/json'
 import chunk from 'chunk'
 import { sqsClient } from './client'
@@ -144,6 +145,32 @@ export const deleteMessage = async ({
 	await client.send(command)
 }
 
+export const deleteMessageBatch = async ({
+	client = sqsClient(),
+	queue,
+	receiptHandles,
+}: {
+	client?: SQSClient
+	queue: string
+	receiptHandles: string[]
+}) => {
+	const url = await getCachedQueueUrl(client, queue)
+
+	await Promise.all(
+		chunk(receiptHandles, 10).map(async batch => {
+			const command = new DeleteMessageBatchCommand({
+				QueueUrl: url,
+				Entries: batch.map((receiptHandle, index) => ({
+					Id: String(index),
+					ReceiptHandle: receiptHandle,
+				})),
+			})
+
+			await client.send(command)
+		})
+	)
+}
+
 export const changeMessageVisibility = async ({
 	client = sqsClient(),
 	queue,
@@ -166,132 +193,88 @@ export const changeMessageVisibility = async ({
 	await client.send(command)
 }
 
-export const subscribe = ({
+export async function* subscribe({
 	client = sqsClient(),
 	queue,
-	maxMessages,
+	maxMessages = 10,
 	waitTime,
 	visibilityTimeout,
-	autoExtendVisibility,
-	handleMessage,
+	signal,
 }: {
 	client?: SQSClient
 	queue: string
-	maxMessages: number
+	maxMessages?: number
 	visibilityTimeout: Duration
 	waitTime?: Duration
-	autoExtendVisibility?: boolean
-	handleMessage: (props: { payload: unknown; attributes?: Record<string, string> }) => Promise<void> | void
-}) => {
-	let subscribed = true
-	const abortController = new AbortController()
-	const autoExtensionInterval = autoExtendVisibility ? toMilliSeconds(visibilityTimeout) / 2 : undefined
-
-	const startVisibilityExtension = (receiptHandle: string) => {
-		const interval = setInterval(async () => {
-			if (!subscribed) {
-				clearInterval(interval)
-				return
-			}
-			await changeMessageVisibility({
-				client,
-				queue,
-				receiptHandle,
-				visibilityTimeout,
-			})
-		}, autoExtensionInterval!)
-
-		return () => clearInterval(interval)
-	}
-
-	const poll = async () => {
+	signal?: AbortSignal
+}) {
+	while (!signal?.aborted) {
+		let messages
 		try {
-			const messages = await receiveMessages({
+			messages = await receiveMessages({
 				client,
 				queue,
 				maxMessages,
 				waitTime,
 				visibilityTimeout,
-				abortSignal: abortController.signal,
+				abortSignal: signal,
 			})
-
-			await Promise.all(
-				messages.map(async message => {
-					let stopExtension
-					if (autoExtendVisibility) {
-						stopExtension = startVisibilityExtension(message.ReceiptHandle!)
-					}
-
-					let body
-					try {
-						body = {
-							payload: parse(message.Body!),
-							attributes: decodeAttributes(message.MessageAttributes),
-						}
-					} catch (error) {
-						console.error(
-							JSON.stringify({
-								message: 'Error processing message body',
-								error,
-							})
-						)
-						return
-					}
-
-					try {
-						await handleMessage(body)
-					} catch (error) {
-						console.error(
-							JSON.stringify({
-								message: 'Error processing message',
-								error,
-							})
-						)
-						return
-					} finally {
-						stopExtension?.()
-					}
-
-					try {
-						await deleteMessage({
-							client,
-							queue,
-							receiptHandle: message.ReceiptHandle!,
-						})
-					} catch (error) {
-						console.error(
-							JSON.stringify({
-								message: 'Error deleting message',
-								error,
-							})
-						)
-						throw error
-					}
-				})
-			)
 		} catch (error) {
-			// Ignore errors during shutdown — the abort signal was triggered by unsubscribe()
-			if (abortController.signal.aborted) {
-				return
-			}
-
+			if (signal?.aborted) return
 			console.error(
 				JSON.stringify({
 					message: 'Error polling queue',
+					error: error instanceof Error ? { ...error, name: error.name, message: error.message } : error,
+				})
+			)
+			await new Promise(resolve => setTimeout(resolve, 5000))
+			continue
+		}
+
+		const parsed: {
+			record: {
+				payload: unknown
+				attributes: Record<string, string>
+			}
+			receiptHandle: string
+		}[] = []
+
+		for (const message of messages) {
+			try {
+				parsed.push({
+					record: {
+						payload: parse(message.Body!),
+						attributes: decodeAttributes(message.MessageAttributes) as Record<string, string>,
+					},
+					receiptHandle: message.ReceiptHandle!,
+				})
+			} catch (error) {
+				console.error(
+					JSON.stringify({
+						message: 'Error processing message body',
+						error,
+					})
+				)
+			}
+		}
+
+		if (parsed.length === 0) continue
+
+		yield parsed.map(p => p.record)
+
+		try {
+			await deleteMessageBatch({
+				client,
+				queue,
+				receiptHandles: parsed.map(p => p.receiptHandle),
+			})
+		} catch (error) {
+			console.error(
+				JSON.stringify({
+					message: 'Error deleting messages',
 					error,
 				})
 			)
 		}
-
-		if (subscribed) {
-			poll()
-		}
-	}
-
-	poll()
-
-	return () => {
-		subscribed = false
-		abortController.abort()
 	}
 }

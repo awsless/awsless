@@ -5,6 +5,7 @@ export {
 	sendMessageBatch,
 	receiveMessages,
 	deleteMessage,
+	deleteMessageBatch,
 	subscribe,
 	changeMessageVisibility,
 } from './commands'

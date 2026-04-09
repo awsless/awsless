@@ -92,7 +92,7 @@ export const iconFeature = defineFeature({
 				memorySize: mebibytes(512),
 				timeout: seconds(10),
 				handler: 'index.default',
-				runtime: 'nodejs22.x',
+				runtime: 'nodejs24.x',
 				log: props.log,
 			})
 

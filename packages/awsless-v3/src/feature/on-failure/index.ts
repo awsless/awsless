@@ -141,7 +141,7 @@ export const onFailureFeature = defineFeature({
 
 			new aws.lambda.FunctionEventInvokeConfig(
 				group,
-				'async',
+				'on-failure',
 				{
 					functionName: prebuild.lambda.arn,
 					maximumRetryAttempts: 2,

@@ -8,7 +8,7 @@ import { functionFeature } from './function/index.js'
 // import { graphqlFeature } from './__graphql/index.js'
 // import { httpFeature } from './__http/index.js'
 // import { instanceFeature } from './__instance/index.js'
-import { onLogFeature } from './on-log/index.js'
+import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
 import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
@@ -39,14 +39,16 @@ export const features = [
 	commandFeature,
 	layerFeature,
 
-	// 1.5
-	onFailureFeature,
-	onLogFeature,
-
 	// 2
-	authFeature,
+	onFailureFeature,
 
 	// 3
+	onErrorLogFeature,
+
+	// 4
+	authFeature,
+
+	// 5
 	functionFeature,
 	instanceFeature,
 	// graphqlFeature,
@@ -70,6 +72,6 @@ export const features = [
 	imageFeature,
 	iconFeature,
 
-	// 4
+	// 6
 	rpcFeature,
 ]

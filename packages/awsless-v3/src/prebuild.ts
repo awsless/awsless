@@ -9,6 +9,7 @@ const builds = {
 	image: '../src/feature/image/server/handle.ts',
 	icon: '../src/feature/icon/server/handle.ts',
 	'on-failure': '../src/feature/on-failure/server/handle.ts',
+	'on-error-log': '../src/feature/on-error-log/server/handle.ts',
 }
 
 for (const [name, file] of Object.entries(builds)) {

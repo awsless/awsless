@@ -3,8 +3,12 @@
 	"name": "stack",
 	"tests": false,
 	"functions": {
-		"timeout": "./function/timeout.ts"
-	}
+		"function": "./function/index.ts",
+		"normal-error": "./function/error/normal.ts",
+		"timeout-error": "./function/error/timeout.ts",
+		"handler-error": "./function/error/invalid-handler.ts",
+		"memory-error": "./function/error/out-of-memory.ts"
+	},
 	// "tasks": {
 	// 	"test": "./function/index.ts"
 	// },
@@ -12,12 +16,25 @@
 	// 	"test": {
 	// 		"retentionPeriod": "1 minute"
 	// 	}
-	// }
-	// "tables": {
-	// 	"test": {
-	// 		"hash": "id"
-	// 	}
 	// },
+	"tables": {
+		"logs": {
+			"hash": "hash",
+			"fields": {
+				"updatedAt": "number"
+			},
+			"indexes": {
+				"log-level": {
+					"hash": "logLevel",
+					"sort": "updatedAt"
+				},
+				"origin": {
+					"hash": "origin",
+					"sort": "updatedAt"
+				}
+			}
+		}
+	}
 	// "stores": {
 	// 	"test": {
 	// 		"static": "./static"

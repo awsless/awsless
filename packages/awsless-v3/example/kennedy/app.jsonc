@@ -13,7 +13,8 @@
 		"function": {
 			"log": {
 				"retention": "7 days",
-				"format": "text"
+				"level": "error",
+				"system": "warn"
 			}
 		},
 		"instance": {
@@ -29,12 +30,14 @@
 			"log": {
 				"retention": "1 week"
 			}
-		}
+		},
 		// "onFailure": "./on-failure/handle.ts",
-		// // "onLog": {
-		// // 	"filter": ["error"],
-		// // 	"consumer": "./log-parser.ts"
-		// // }
+		"onErrorLog": {
+			"code": "./on-error-log/consumer.ts",
+			"log": {
+				"level": "info"
+			}
+		}
 		// "layers": {
 		// 	"test": {
 		// 		"file": "./layer/2.zip",

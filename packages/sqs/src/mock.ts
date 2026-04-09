@@ -1,9 +1,12 @@
 import {
 	ChangeMessageVisibilityCommand,
 	ChangeMessageVisibilityCommandInput,
+	DeleteMessageBatchCommand,
+	DeleteMessageBatchCommandInput,
 	DeleteMessageCommand,
 	DeleteMessageCommandInput,
 	GetQueueUrlCommand,
+	GetQueueUrlCommandInput,
 	Message,
 	MessageAttributeValue,
 	ReceiveMessageCommand,
@@ -15,10 +18,8 @@ import {
 	SendMessageCommandInput,
 } from '@aws-sdk/client-sqs'
 import { mockObjectValues, nextTick } from '@awsless/utils'
-import { mockClient } from 'aws-sdk-client-mock'
+import { mockClient } from 'aws-sdk-vitest-mock'
 import { randomUUID } from 'crypto'
-// @ts-ignore
-import { Mock } from 'vitest'
 
 type Queues = {
 	[key: string]: (payload: unknown) => unknown
@@ -99,15 +100,15 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 
 	client
 		.on(GetQueueUrlCommand)
-		.callsFake(input => ({ QueueUrl: input.QueueName }))
+		.callsFake(async (input: GetQueueUrlCommandInput) => ({ QueueUrl: input.QueueName }))
 
+	client
 		.on(SendMessageCommand)
 		.callsFake(async (input: SendMessageCommandInput) => {
 			const callback = get(input)
 			const messageId = randomUUID()
 			const receiptHandle = randomUUID()
 
-			// Add message to store for potential receiveMessage calls
 			messageStore.addMessage(input.QueueUrl!, {
 				MessageId: messageId,
 				ReceiptHandle: receiptHandle,
@@ -130,6 +131,7 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 			}
 		})
 
+	client
 		.on(SendMessageBatchCommand)
 		.callsFake(async (input: SendMessageBatchCommandInput) => {
 			const callback = get(input)
@@ -137,7 +139,6 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 				const messageId = entry.Id || randomUUID()
 				const receiptHandle = randomUUID()
 
-				// Add message to store for potential receiveMessage calls
 				messageStore.addMessage(input.QueueUrl!, {
 					MessageId: messageId,
 					ReceiptHandle: receiptHandle,
@@ -155,8 +156,11 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 			await nextTick(callback, {
 				Records: records,
 			})
+
+			return {}
 		})
 
+	client
 		.on(ReceiveMessageCommand)
 		.callsFake(async (input: ReceiveMessageCommandInput) => {
 			const deadline = Date.now() + (input.WaitTimeSeconds || 1) * 1000
@@ -181,12 +185,23 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 			}
 		})
 
+	client
 		.on(DeleteMessageCommand)
 		.callsFake(async (input: DeleteMessageCommandInput) => {
 			messageStore.deleteMessage(input.QueueUrl!, input.ReceiptHandle!)
 			return {}
 		})
 
+	client
+		.on(DeleteMessageBatchCommand)
+		.callsFake(async (input: DeleteMessageBatchCommandInput) => {
+			for (const entry of input.Entries ?? []) {
+				messageStore.deleteMessage(input.QueueUrl!, entry.ReceiptHandle!)
+			}
+			return {}
+		})
+
+	client
 		.on(ChangeMessageVisibilityCommand)
 		.callsFake(async (input: ChangeMessageVisibilityCommandInput) => {
 			messageStore.changeVisibility(input.QueueUrl!, input.ReceiptHandle!, input.VisibilityTimeout!)

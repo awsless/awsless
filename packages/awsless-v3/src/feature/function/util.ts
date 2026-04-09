@@ -22,7 +22,7 @@ import { generateCacheKey } from '../../util/cache.js'
 import { shortId } from '../../util/id.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
-import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
+import { filterPattern } from '../on-error-log/util.js'
 import { zipBundle } from './build/bundle/bundle.js'
 // import { bundleTypeScriptWithBun } from './build/typescript/bun.js'
 import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
@@ -438,16 +438,12 @@ export const createLambdaFunction = (
 		// ------------------------------------------------------------
 		// Add Log subscription
 
-		const onLogArn = getGlobalOnLog(ctx)
-
-		if (onLogArn && ctx.appConfig.defaults.onLog) {
-			const logFilter = ctx.appConfig.defaults.onLog.filter
-
-			new aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
-				name: 'log-subscription',
-				destinationArn: onLogArn,
+		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
+			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
+				name: 'error-log-subscription',
+				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
 				logGroupName: logGroup.name,
-				filterPattern: formatFilterPattern(logFilter),
+				filterPattern,
 			})
 		}
 	}

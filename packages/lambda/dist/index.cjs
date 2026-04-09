@@ -232,7 +232,7 @@ var import_client_lambda4 = require("@aws-sdk/client-lambda");
 var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
 var import_json2 = require("@awsless/json");
 var import_utils2 = require("@awsless/utils");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 var globalList = {};
 var mockLambda = (lambdas) => {
   const alreadyMocked = Object.keys(globalList).length > 0;
@@ -241,7 +241,8 @@ var mockLambda = (lambdas) => {
   if (alreadyMocked) {
     return list;
   }
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_lambda4.LambdaClient).on(import_client_lambda4.ListFunctionsCommand).callsFake(async () => {
+  const client = (0, import_aws_sdk_vitest_mock.mockClient)(import_client_lambda4.LambdaClient);
+  client.on(import_client_lambda4.ListFunctionsCommand).callsFake(async () => {
     return {
       $metadata: {},
       Functions: [
@@ -251,7 +252,8 @@ var mockLambda = (lambdas) => {
         }
       ]
     };
-  }).on(import_client_lambda4.InvokeCommand).callsFake(async (input) => {
+  });
+  client.on(import_client_lambda4.InvokeCommand).callsFake(async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
     const payload = input.Payload ? (0, import_json2.parse)((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
@@ -260,13 +262,8 @@ var mockLambda = (lambdas) => {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
     const result = await (0, import_utils2.nextTick)(callback, payload);
-    if (type === "RequestResponse" && result) {
-      return {
-        Payload: (0, import_util_utf8_node2.fromUtf8)((0, import_json2.stringify)(result))
-      };
-    }
     return {
-      Payload: void 0
+      Payload: type === "RequestResponse" && result ? (0, import_util_utf8_node2.fromUtf8)((0, import_json2.stringify)(result)) : void 0
     };
   });
   beforeEach && beforeEach(() => {

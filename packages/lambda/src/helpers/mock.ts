@@ -1,6 +1,5 @@
 import {
 	InvokeCommand,
-	InvokeCommandInput,
 	LambdaClient,
 	ListFunctionsCommand,
 	ListFunctionsCommandOutput,
@@ -8,8 +7,7 @@ import {
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { parse, stringify } from '@awsless/json'
 import { mockObjectValues, nextTick } from '@awsless/utils'
-import { mockClient } from 'aws-sdk-client-mock'
-// @ts-ignore
+import { mockClient } from 'aws-sdk-vitest-mock'
 import { Mock } from 'vitest'
 
 type Lambdas = {
@@ -28,7 +26,9 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 		return list
 	}
 
-	mockClient(LambdaClient)
+	const client = mockClient(LambdaClient)
+
+	client
 		.on(ListFunctionsCommand)
 		.callsFake(async (): Promise<ListFunctionsCommandOutput> => {
 			return {
@@ -42,11 +42,13 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 			}
 		})
 
+	client
 		.on(InvokeCommand)
-		.callsFake(async (input: InvokeCommandInput) => {
+		// @ts-expect-error - Uint8Array generic mismatch between fromUtf8 return and InvokeCommandOutput.Payload
+		.callsFake(async (input) => {
 			const name = input.FunctionName ?? ''
 			const type = input.InvocationType ?? 'RequestResponse'
-			const payload: unknown = input.Payload ? parse(toUtf8(input.Payload)) : undefined
+			const payload: unknown = input.Payload ? parse(toUtf8(input.Payload as Uint8Array)) : undefined
 			const callback = globalList[name]
 
 			if (!callback) {
@@ -55,14 +57,8 @@ export const mockLambda = <T extends Lambdas>(lambdas: T) => {
 
 			const result = await nextTick(callback, payload)
 
-			if (type === 'RequestResponse' && result) {
-				return {
-					Payload: fromUtf8(stringify(result)),
-				}
-			}
-
 			return {
-				Payload: undefined,
+				Payload: type === 'RequestResponse' && result ? fromUtf8(stringify(result)) : undefined,
 			}
 		})
 

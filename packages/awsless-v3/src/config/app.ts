@@ -8,8 +8,8 @@ import { DomainsDefaultSchema } from '../feature/domain/schema.js'
 // import { HttpDefaultSchema } from '../feature/__http/schema.js'
 import { FunctionDefaultSchema } from '../feature/function/schema.js'
 import { LayerSchema } from '../feature/layer/schema.js'
+import { OnErrorLogDefaultSchema } from '../feature/on-error-log/schema.js'
 import { OnFailureDefaultSchema } from '../feature/on-failure/schema.js'
-import { OnLogDefaultSchema } from '../feature/on-log/schema.js'
 import { PubSubDefaultSchema } from '../feature/pubsub/schema.js'
 import { QueueDefaultSchema } from '../feature/queue/schema.js'
 import { RestDefaultSchema } from '../feature/rest/schema.js'
@@ -53,7 +53,7 @@ export const AppSchema = z.object({
 	defaults: z
 		.object({
 			onFailure: OnFailureDefaultSchema,
-			onLog: OnLogDefaultSchema,
+			onErrorLog: OnErrorLogDefaultSchema,
 			auth: AuthDefaultSchema,
 			domains: DomainsDefaultSchema,
 			function: FunctionDefaultSchema,

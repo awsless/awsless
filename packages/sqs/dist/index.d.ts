@@ -2,7 +2,6 @@ import * as _aws_sdk_client_sqs from '@aws-sdk/client-sqs';
 import { SQSClient } from '@aws-sdk/client-sqs';
 export { SQSClient } from '@aws-sdk/client-sqs';
 import { Duration } from '@awsless/duration';
-import { Mock } from 'vitest';
 
 declare const sqsClient: {
     (): SQSClient;
@@ -46,28 +45,32 @@ declare const deleteMessage: ({ client, queue, receiptHandle, }: {
     queue: string;
     receiptHandle: string;
 }) => Promise<void>;
+declare const deleteMessageBatch: ({ client, queue, receiptHandles, }: {
+    client?: SQSClient;
+    queue: string;
+    receiptHandles: string[];
+}) => Promise<void>;
 declare const changeMessageVisibility: ({ client, queue, receiptHandle, visibilityTimeout, }: {
     client?: SQSClient;
     queue: string;
     receiptHandle: string;
     visibilityTimeout: Duration;
 }) => Promise<void>;
-declare const subscribe: ({ client, queue, maxMessages, waitTime, visibilityTimeout, autoExtendVisibility, handleMessage, }: {
+declare function subscribe({ client, queue, maxMessages, waitTime, visibilityTimeout, signal, }: {
     client?: SQSClient;
     queue: string;
-    maxMessages: number;
+    maxMessages?: number;
     visibilityTimeout: Duration;
     waitTime?: Duration;
-    autoExtendVisibility?: boolean;
-    handleMessage: (props: {
-        payload: unknown;
-        attributes?: Record<string, string>;
-    }) => Promise<void> | void;
-}) => () => void;
+    signal?: AbortSignal;
+}): AsyncGenerator<{
+    payload: unknown;
+    attributes: Record<string, string>;
+}[], void, unknown>;
 
 type Queues = {
     [key: string]: (payload: unknown) => unknown;
 };
-declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: Mock<any, (...args: any[]) => any>; };
+declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: any; };
 
-export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };
+export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, deleteMessageBatch, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };

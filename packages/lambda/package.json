@@ -24,25 +24,25 @@
 		}
 	},
 	"scripts": {
-		"test": "pnpm code test",
+		"test": "pnpm vitest run",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
 	},
 	"peerDependencies": {
-		"@awsless/validate": "workspace:^",
-		"@awsless/json": "workspace:^"
+		"@awsless/json": "workspace:^",
+		"@awsless/validate": "workspace:^"
 	},
 	"devDependencies": {
 		"@awsless/validate": "workspace:^"
 	},
 	"dependencies": {
-		"@aws-sdk/client-lambda": "3.329.0",
-		"@aws-sdk/util-utf8-node": "^3.208.0",
-		"@awsless/utils": "workspace:^",
+		"@aws-sdk/client-lambda": "3.1023.0",
+		"@aws-sdk/util-utf8-node": "3.259.0",
 		"@awsless/json": "workspace:^",
-		"@types/aws-lambda": "^8.10.126",
-		"aws-lambda": "^1.0.7",
-		"aws-sdk-client-mock": "^2.1.1",
-		"type-fest": "^3.6.0"
+		"@awsless/utils": "workspace:^",
+		"@types/aws-lambda": "8.10.161",
+		"aws-lambda": "1.0.7",
+		"aws-sdk-vitest-mock": "1.0.55",
+		"type-fest": "5.5.0"
 	}
 }

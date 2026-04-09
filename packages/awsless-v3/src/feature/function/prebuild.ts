@@ -7,7 +7,7 @@ import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
-import { formatFilterPattern, getGlobalOnLog } from '../on-log/util.js'
+import { filterPattern } from '../on-error-log/util.js'
 // import { bundleTypeScript } from './build/typescript/bundle.js'
 import { bundleTypeScriptWithRolldown } from './build/typescript/rolldown.js'
 import { zipFiles } from './build/zip.js'
@@ -217,16 +217,12 @@ export const createPrebuildLambdaFunction = (
 		// ------------------------------------------------------------
 		// Add Log subscription
 
-		const onLogArn = getGlobalOnLog(ctx)
-
-		if (onLogArn && ctx.appConfig.defaults.onLog) {
-			const logFilter = ctx.appConfig.defaults.onLog.filter
-
-			new aws.cloudwatch.LogSubscriptionFilter(group, `on-log`, {
-				name: 'log-subscription',
-				destinationArn: onLogArn,
+		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
+			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
+				name: 'error-log-subscription',
+				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
 				logGroupName: logGroup.name,
-				filterPattern: formatFilterPattern(logFilter),
+				filterPattern,
 			})
 		}
 	}

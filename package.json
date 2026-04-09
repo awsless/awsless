@@ -7,7 +7,7 @@
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"devDependencies": {
-		"@aws-sdk/types": "3.329.0",
+		"@aws-sdk/types": "3.973.6",
 		"@awsless/code": "workspace:^",
 		"@types/node": "^25.2.3",
 		"eslint": "^9.3.0",
@@ -17,12 +17,9 @@
 		"prettier-plugin-organize-imports": "^3.2.4",
 		"tsup": "^8.2.4",
 		"typescript": "^5.5.4",
-		"vitest": "^0.30.1"
+		"vitest": "^4.1.2"
 	},
 	"pnpm": {
-		"overrides": {
-			"@smithy/types": "3.0.0"
-		},
 		"onlyBuiltDependencies": [
 			"@swc/core"
 		],
