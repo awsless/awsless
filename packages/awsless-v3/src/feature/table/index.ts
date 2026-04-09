@@ -180,7 +180,7 @@ export const tableFeature = defineFeature({
 						eventSourceArn: table.streamArn,
 
 						// tumblingWindowInSeconds
-						maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
+						// maximumRecordAgeInSeconds: toSeconds(props.stream.maxRecordAge),
 						// bisectBatchOnFunctionError: true,
 
 						batchSize: props.stream.batchSize,

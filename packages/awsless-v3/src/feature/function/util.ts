@@ -558,10 +558,12 @@ export const createAsyncLambdaFunction = (
 	ctx: StackContext | AppContext,
 	ns: string,
 	id: string,
-	local: FunctionProps
+	props: {
+		consumer: FunctionProps
+		retryAttempts: number
+	}
 ) => {
-	const result = createLambdaFunction(group, ctx, ns, id, { ...local, warm: 0 })
-	const props = deepmerge(ctx.appConfig.defaults.function, local)
+	const result = createLambdaFunction(group, ctx, ns, id, { ...props.consumer, warm: 0 })
 
 	// ------------------------------------------------------------
 	// Make sure we always log errors inside async functions

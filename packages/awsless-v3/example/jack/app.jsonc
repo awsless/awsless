@@ -59,7 +59,10 @@
 		// // "instance": {
 		// // 	// "connect": true
 		// // },
-		"onFailure": "./on-log.ts",
+		"onFailure": {
+			"consumer": "./error.ts",
+			"notify": ["info@jacksclub.io"]
+		},
 		// "onLog": {
 		// 	"consumer": "./on-log.ts",
 		// 	"filter": ["info", "debug", "trace", "error", "fatal"]

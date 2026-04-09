@@ -87,7 +87,7 @@ export const pubsubFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.pubsub ?? {})) {
 			const group = new Group(ctx.stack, 'pubsub', id)
 
-			const { lambda } = createAsyncLambdaFunction(group, ctx, `pubsub`, id, props.consumer)
+			const { lambda } = createAsyncLambdaFunction(group, ctx, `pubsub`, id, props)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,

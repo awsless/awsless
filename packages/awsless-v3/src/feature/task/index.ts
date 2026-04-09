@@ -156,7 +156,7 @@ export const taskFeature = defineFeature({
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
 			const group = new Group(ctx.stack, 'task', id)
-			createAsyncLambdaFunction(group, ctx, 'task', id, props.consumer)
+			createAsyncLambdaFunction(group, ctx, 'task', id, props)
 		}
 	},
 })

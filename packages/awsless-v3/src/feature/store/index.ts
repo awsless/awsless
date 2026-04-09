@@ -160,14 +160,17 @@ export const storeFeature = defineFeature({
 				'removed:marker': 's3:ObjectRemoved:DeleteMarkerCreated',
 			}
 
-			for (const [event, funcProps] of Object.entries(props.events ?? {})) {
+			for (const [event, taskProps] of Object.entries(props.events ?? {})) {
 				const eventGroup = new Group(group, 'event', event)
 
 				const eventId = kebabCase(`${id}-${shortId(event)}`)
 
 				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, eventId, {
-					...funcProps,
-					description: `${id} event "${event}"`,
+					...taskProps,
+					consumer: {
+						...taskProps.consumer,
+						description: `${id} event "${event}"`,
+					},
 				})
 
 				new aws.lambda.Permission(eventGroup, 'permission', {

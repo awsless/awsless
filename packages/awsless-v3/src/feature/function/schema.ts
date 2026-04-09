@@ -38,14 +38,14 @@ const ArchitectureSchema = z
 	.enum(['x86_64', 'arm64'])
 	.describe('The instruction set architecture that the function supports.')
 
-const RetryAttemptsSchema = z
-	.number()
-	.int()
-	.min(0)
-	.max(2)
-	.describe(
-		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
-	)
+// const RetryAttemptsSchema = z
+// 	.number()
+// 	.int()
+// 	.min(0)
+// 	.max(2)
+// 	.describe(
+// 		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
+// 	)
 
 const NodeRuntimeSchema = z.enum(['nodejs18.x', 'nodejs20.x', 'nodejs22.x', 'nodejs24.x'])
 const ContainerRuntimeSchema = z.literal('container')
@@ -279,7 +279,7 @@ const FnSchema = z.object({
 	memorySize: MemorySizeSchema.optional(),
 	architecture: ArchitectureSchema.optional(),
 	ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
-	retryAttempts: RetryAttemptsSchema.optional(),
+	// retryAttempts: RetryAttemptsSchema.optional(),
 	reserved: ReservedConcurrentExecutionsSchema.optional(),
 	layers: LayersSchema.optional(),
 	environment: EnvironmentSchema.optional(),
@@ -325,7 +325,7 @@ export const FunctionDefaultSchema = z
 		memorySize: MemorySizeSchema.default('128 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
 		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
-		retryAttempts: RetryAttemptsSchema.default(2),
+		// retryAttempts: RetryAttemptsSchema.default(2),
 		reserved: ReservedConcurrentExecutionsSchema.optional(),
 		layers: LayersSchema.optional(),
 		environment: EnvironmentSchema.optional(),

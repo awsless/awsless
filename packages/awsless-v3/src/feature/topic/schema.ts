@@ -1,6 +1,6 @@
 import { kebabCase } from 'change-case'
 import { z } from 'zod'
-import { FunctionSchema } from '../function/schema.js'
+import { TaskSchema } from '../task/schema.js'
 
 export const TopicNameSchema = z
 	.string()
@@ -19,6 +19,6 @@ export const TopicsDefaultSchema = z
 	.describe('Define the event topics for your app.')
 
 export const SubscribersSchema = z
-	.record(TopicNameSchema, FunctionSchema)
+	.record(TopicNameSchema, TaskSchema)
 	.optional()
 	.describe('Define the event topics to subscribe too in your stack.')

@@ -31,6 +31,15 @@ export const PubSubDefaultSchema = z
 	.optional()
 	.describe('Define the pubsub subscriber in your stack.')
 
+const RetryAttemptsSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(2)
+	.describe(
+		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 2.'
+	)
+
 export const PubSubSchema = z
 	.record(
 		ResourceIdSchema,
@@ -43,6 +52,7 @@ export const PubSubSchema = z
 				.describe('The version of the SQL rules engine to use when evaluating the rule.'),
 
 			consumer: FunctionSchema.describe('The consuming lambda function properties.'),
+			retryAttempts: RetryAttemptsSchema.default(2),
 		})
 	)
 	.optional()
