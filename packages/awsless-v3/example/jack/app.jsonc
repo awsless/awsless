@@ -60,7 +60,7 @@
 		// // 	// "connect": true
 		// // },
 		"onFailure": {
-			"consumer": "./error.ts",
+			"consumer": "./on-log.ts",
 			"notify": ["info@jacksclub.io"]
 		},
 		// "onLog": {
