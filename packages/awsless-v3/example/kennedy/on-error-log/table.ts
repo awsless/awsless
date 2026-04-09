@@ -19,8 +19,8 @@ export const logTable = define('app-kennedy--stack--table--logs', {
 			hash: 'logLevel',
 			sort: 'updatedAt',
 		},
-		lambda: {
-			hash: 'resource',
+		origin: {
+			hash: 'origin',
 			sort: 'updatedAt',
 		},
 	},

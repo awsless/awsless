@@ -1,56 +1,56 @@
 {
-	"name": "@awsless/json",
-	"version": "0.0.11",
-	"license": "MIT",
-	"type": "module",
-	"keywords": [
-		"JSON",
-		"stringify",
-		"parse",
-		"BigInt",
-		"BigFloat",
-		"Map",
-		"Set",
-		"Date",
-		"NaN",
-		"Infinity",
-		"RegExp",
-		"Uint8Array",
-		"Binary",
-		"undefined",
-		"extendable"
-	],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/awsless/awsless.git"
-	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
-	"files": [
-		"dist"
-	],
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"require": "./dist/index.cjs",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
-	"scripts": {
-		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
-	},
-	"peerDependencies": {
-		"@awsless/big-float": "workspace:^",
-		"@awsless/duration": "workspace:^"
-	},
-	"devDependencies": {
-		"@awsless/big-float": "workspace:^",
-		"@awsless/duration": "workspace:^"
-	}
+  "name": "@awsless/json",
+  "version": "0.0.11",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "JSON",
+    "stringify",
+    "parse",
+    "BigInt",
+    "BigFloat",
+    "Map",
+    "Set",
+    "Date",
+    "NaN",
+    "Infinity",
+    "RegExp",
+    "Uint8Array",
+    "Binary",
+    "undefined",
+    "extendable"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/awsless/awsless.git"
+  },
+  "bugs": {
+    "url": "https://github.com/awsless/awsless/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "test": "pnpm code test",
+    "build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
+  },
+  "peerDependencies": {
+    "@awsless/big-float": "workspace:^",
+    "@awsless/duration": "workspace:^"
+  },
+  "devDependencies": {
+    "@awsless/big-float": "workspace:^",
+    "@awsless/duration": "workspace:^"
+  }
 }

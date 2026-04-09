@@ -1,40 +1,40 @@
 {
-	"name": "@awsless/big-float",
-	"version": "0.1.6",
-	"license": "MIT",
-	"type": "module",
-	"description": "A tree-shakable, library for arbitrary-precision decimal arithmetic.",
-	"keywords": [
-		"arithmetic",
-		"bigfloat",
-		"bignumber",
-		"bigint",
-		"arbitrary",
-		"precision"
-	],
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/awsless/awsless.git"
-	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
-	"files": [
-		"dist"
-	],
-	"main": "./dist/index.js",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"require": "./dist/index.js",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
-	"scripts": {
-		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format esm --dts --clean",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
-	}
+  "name": "@awsless/big-float",
+  "version": "0.1.6",
+  "license": "MIT",
+  "type": "module",
+  "description": "A tree-shakable, library for arbitrary-precision decimal arithmetic.",
+  "keywords": [
+    "arithmetic",
+    "bigfloat",
+    "bignumber",
+    "bigint",
+    "arbitrary",
+    "precision"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/awsless/awsless.git"
+  },
+  "bugs": {
+    "url": "https://github.com/awsless/awsless/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "test": "pnpm code test",
+    "build": "pnpm tsup src/index.ts --format esm --dts --clean",
+    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
+  }
 }

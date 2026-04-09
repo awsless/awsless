@@ -54,14 +54,15 @@ var publish = async ({ client = iotClient(), ...props }) => {
 // src/mock.ts
 var import_client_iot = require("@aws-sdk/client-iot");
 var import_client_iot_data_plane3 = require("@aws-sdk/client-iot-data-plane");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 var mockIoT = () => {
   const fn = vi.fn();
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_iot.IoTClient).on(import_client_iot.DescribeEndpointCommand).resolves({
+  (0, import_aws_sdk_vitest_mock.mockClient)(import_client_iot.IoTClient).on(import_client_iot.DescribeEndpointCommand).resolves({
     endpointAddress: "endpoint"
   });
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_iot_data_plane3.IoTDataPlaneClient).on(import_client_iot_data_plane3.PublishCommand).callsFake(() => {
+  (0, import_aws_sdk_vitest_mock.mockClient)(import_client_iot_data_plane3.IoTDataPlaneClient).on(import_client_iot_data_plane3.PublishCommand).callsFake(async () => {
     fn();
+    return {};
   });
   beforeEach(() => {
     fn.mockClear();

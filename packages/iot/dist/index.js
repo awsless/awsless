@@ -26,14 +26,15 @@ var publish = async ({ client = iotClient(), ...props }) => {
 // src/mock.ts
 import { DescribeEndpointCommand, IoTClient } from "@aws-sdk/client-iot";
 import { IoTDataPlaneClient as IoTDataPlaneClient3, PublishCommand as PublishCommand2 } from "@aws-sdk/client-iot-data-plane";
-import { mockClient } from "aws-sdk-client-mock";
+import { mockClient } from "aws-sdk-vitest-mock";
 var mockIoT = () => {
   const fn = vi.fn();
   mockClient(IoTClient).on(DescribeEndpointCommand).resolves({
     endpointAddress: "endpoint"
   });
-  mockClient(IoTDataPlaneClient3).on(PublishCommand2).callsFake(() => {
+  mockClient(IoTDataPlaneClient3).on(PublishCommand2).callsFake(async () => {
     fn();
+    return {};
   });
   beforeEach(() => {
     fn.mockClear();

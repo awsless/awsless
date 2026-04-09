@@ -98,115 +98,101 @@ export const mockSQS = <T extends Queues>(queues: T) => {
 
 	const client = mockClient(SQSClient)
 
-	client
-		.on(GetQueueUrlCommand)
-		.callsFake(async (input: GetQueueUrlCommandInput) => ({ QueueUrl: input.QueueName }))
+	client.on(GetQueueUrlCommand).callsFake(async (input: GetQueueUrlCommandInput) => ({ QueueUrl: input.QueueName }))
 
-	client
-		.on(SendMessageCommand)
-		.callsFake(async (input: SendMessageCommandInput) => {
-			const callback = get(input)
-			const messageId = randomUUID()
+	client.on(SendMessageCommand).callsFake(async (input: SendMessageCommandInput) => {
+		const callback = get(input)
+		const messageId = randomUUID()
+		const receiptHandle = randomUUID()
+
+		messageStore.addMessage(input.QueueUrl!, {
+			MessageId: messageId,
+			ReceiptHandle: receiptHandle,
+			Body: input.MessageBody,
+			MessageAttributes: input.MessageAttributes,
+		})
+
+		await nextTick(callback, {
+			Records: [
+				{
+					body: input.MessageBody,
+					messageId,
+					messageAttributes: input.MessageAttributes,
+				},
+			],
+		})
+
+		return {
+			MessageId: messageId,
+		}
+	})
+
+	client.on(SendMessageBatchCommand).callsFake(async (input: SendMessageBatchCommandInput) => {
+		const callback = get(input)
+		const records = input.Entries?.map(entry => {
+			const messageId = entry.Id || randomUUID()
 			const receiptHandle = randomUUID()
 
 			messageStore.addMessage(input.QueueUrl!, {
 				MessageId: messageId,
 				ReceiptHandle: receiptHandle,
-				Body: input.MessageBody,
-				MessageAttributes: input.MessageAttributes,
-			})
-
-			await nextTick(callback, {
-				Records: [
-					{
-						body: input.MessageBody,
-						messageId,
-						messageAttributes: input.MessageAttributes,
-					},
-				],
+				Body: entry.MessageBody,
+				MessageAttributes: entry.MessageAttributes,
 			})
 
 			return {
-				MessageId: messageId,
+				body: entry.MessageBody,
+				messageId,
+				messageAttributes: formatAttributes(entry.MessageAttributes),
 			}
 		})
 
-	client
-		.on(SendMessageBatchCommand)
-		.callsFake(async (input: SendMessageBatchCommandInput) => {
-			const callback = get(input)
-			const records = input.Entries?.map(entry => {
-				const messageId = entry.Id || randomUUID()
-				const receiptHandle = randomUUID()
+		await nextTick(callback, {
+			Records: records,
+		})
 
-				messageStore.addMessage(input.QueueUrl!, {
-					MessageId: messageId,
-					ReceiptHandle: receiptHandle,
-					Body: entry.MessageBody,
-					MessageAttributes: entry.MessageAttributes,
-				})
+		return {}
+	})
 
+	client.on(ReceiveMessageCommand).callsFake(async (input: ReceiveMessageCommandInput) => {
+		const deadline = Date.now() + (input.WaitTimeSeconds || 1) * 1000
+		while (Date.now() < deadline) {
+			const messages = messageStore.receiveMessages(
+				input.QueueUrl!,
+				input.MaxNumberOfMessages ?? 1,
+				input.VisibilityTimeout
+			)
+
+			if (messages.length > 0) {
 				return {
-					body: entry.MessageBody,
-					messageId,
-					messageAttributes: formatAttributes(entry.MessageAttributes),
+					Messages: messages,
 				}
-			})
-
-			await nextTick(callback, {
-				Records: records,
-			})
-
-			return {}
-		})
-
-	client
-		.on(ReceiveMessageCommand)
-		.callsFake(async (input: ReceiveMessageCommandInput) => {
-			const deadline = Date.now() + (input.WaitTimeSeconds || 1) * 1000
-			while (Date.now() < deadline) {
-				const messages = messageStore.receiveMessages(
-					input.QueueUrl!,
-					input.MaxNumberOfMessages ?? 1,
-					input.VisibilityTimeout
-				)
-
-				if (messages.length > 0) {
-					return {
-						Messages: messages,
-					}
-				}
-
-				await new Promise(resolve => setTimeout(resolve, 10))
 			}
 
-			return {
-				Messages: [],
-			}
-		})
+			await new Promise(resolve => setTimeout(resolve, 10))
+		}
 
-	client
-		.on(DeleteMessageCommand)
-		.callsFake(async (input: DeleteMessageCommandInput) => {
-			messageStore.deleteMessage(input.QueueUrl!, input.ReceiptHandle!)
-			return {}
-		})
+		return {
+			Messages: [],
+		}
+	})
 
-	client
-		.on(DeleteMessageBatchCommand)
-		.callsFake(async (input: DeleteMessageBatchCommandInput) => {
-			for (const entry of input.Entries ?? []) {
-				messageStore.deleteMessage(input.QueueUrl!, entry.ReceiptHandle!)
-			}
-			return {}
-		})
+	client.on(DeleteMessageCommand).callsFake(async (input: DeleteMessageCommandInput) => {
+		messageStore.deleteMessage(input.QueueUrl!, input.ReceiptHandle!)
+		return {}
+	})
 
-	client
-		.on(ChangeMessageVisibilityCommand)
-		.callsFake(async (input: ChangeMessageVisibilityCommandInput) => {
-			messageStore.changeVisibility(input.QueueUrl!, input.ReceiptHandle!, input.VisibilityTimeout!)
-			return {}
-		})
+	client.on(DeleteMessageBatchCommand).callsFake(async (input: DeleteMessageBatchCommandInput) => {
+		for (const entry of input.Entries ?? []) {
+			messageStore.deleteMessage(input.QueueUrl!, entry.ReceiptHandle!)
+		}
+		return {}
+	})
+
+	client.on(ChangeMessageVisibilityCommand).callsFake(async (input: ChangeMessageVisibilityCommandInput) => {
+		messageStore.changeVisibility(input.QueueUrl!, input.ReceiptHandle!, input.VisibilityTimeout!)
+		return {}
+	})
 
 	beforeEach(() => {
 		Object.values(list).forEach(fn => {

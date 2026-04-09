@@ -1,5 +1,4 @@
 import { InvokeCommand } from '@aws-sdk/client-lambda'
-import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { parse, stringify } from '@awsless/json'
 import { ExpectedError } from '../errors/expected'
 import { isErrorResponse } from '../errors/response'
@@ -27,7 +26,7 @@ export const invoke: Invoke = async ({
 	const command = new InvokeCommand({
 		InvocationType: type,
 		FunctionName: name,
-		Payload: payload ? fromUtf8(stringify(payload)) : undefined,
+		Payload: payload ? new TextEncoder().encode(stringify(payload)) : undefined,
 		Qualifier: qualifier,
 	})
 
@@ -36,7 +35,7 @@ export const invoke: Invoke = async ({
 		return
 	}
 
-	const json = toUtf8(result.Payload)
+	const json = new TextDecoder().decode(result.Payload)
 	if (!json) {
 		return
 	}

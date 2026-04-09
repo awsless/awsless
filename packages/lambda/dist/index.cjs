@@ -38,7 +38,6 @@ var import_client_lambda5 = require("@aws-sdk/client-lambda");
 
 // src/commands/invoke.ts
 var import_client_lambda2 = require("@aws-sdk/client-lambda");
-var import_util_utf8_node = require("@aws-sdk/util-utf8-node");
 var import_json = require("@awsless/json");
 
 // src/errors/expected.ts
@@ -48,6 +47,7 @@ var ExpectedError = class extends Error {
     super(message);
     this.type = type;
   }
+  type;
 };
 
 // src/errors/response.ts
@@ -86,14 +86,14 @@ var invoke = async ({
   const command = new import_client_lambda2.InvokeCommand({
     InvocationType: type,
     FunctionName: name,
-    Payload: payload ? (0, import_util_utf8_node.fromUtf8)((0, import_json.stringify)(payload)) : void 0,
+    Payload: payload ? new TextEncoder().encode((0, import_json.stringify)(payload)) : void 0,
     Qualifier: qualifier
   });
   const result = await client.send(command);
   if (!result.Payload) {
     return;
   }
-  const json = (0, import_util_utf8_node.toUtf8)(result.Payload);
+  const json = new TextDecoder().decode(result.Payload);
   if (!json) {
     return;
   }
@@ -224,12 +224,13 @@ var ViewableError = class extends Error {
     this.type = type;
     this.data = data;
   }
+  type;
+  data;
   name = "ViewableError";
 };
 
 // src/helpers/mock.ts
 var import_client_lambda4 = require("@aws-sdk/client-lambda");
-var import_util_utf8_node2 = require("@aws-sdk/util-utf8-node");
 var import_json2 = require("@awsless/json");
 var import_utils2 = require("@awsless/utils");
 var import_aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
@@ -242,30 +243,28 @@ var mockLambda = (lambdas) => {
     return list;
   }
   const client = (0, import_aws_sdk_vitest_mock.mockClient)(import_client_lambda4.LambdaClient);
-  client.on(import_client_lambda4.ListFunctionsCommand).callsFake(async () => {
-    return {
-      $metadata: {},
-      Functions: [
-        {
-          FunctionName: "test",
-          FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
-        }
-      ]
-    };
+  client.on(import_client_lambda4.ListFunctionsCommand).resolves({
+    $metadata: {},
+    Functions: [
+      {
+        FunctionName: "test",
+        FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
+      }
+    ]
   });
-  client.on(import_client_lambda4.InvokeCommand).callsFake(async (input) => {
+  client.on(import_client_lambda4.InvokeCommand).callsFake((async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
-    const payload = input.Payload ? (0, import_json2.parse)((0, import_util_utf8_node2.toUtf8)(input.Payload)) : void 0;
+    const payload = input.Payload ? (0, import_json2.parse)(new TextDecoder().decode(input.Payload)) : void 0;
     const callback = globalList[name];
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
     const result = await (0, import_utils2.nextTick)(callback, payload);
     return {
-      Payload: type === "RequestResponse" && result ? (0, import_util_utf8_node2.fromUtf8)((0, import_json2.stringify)(result)) : void 0
+      Payload: type === "RequestResponse" && result ? new TextEncoder().encode((0, import_json2.stringify)(result)) : void 0
     };
-  });
+  }));
   beforeEach && beforeEach(() => {
     Object.values(globalList).forEach((fn) => {
       fn.mockClear();
@@ -330,7 +329,7 @@ var warmUp = async (input) => {
 
 // src/lambda.ts
 var lambda = (options) => {
-  return async (event, context) => {
+  return (async (event, context) => {
     const log = async (maybeError) => {
       const error = normalizeError(maybeError);
       const list = [options.logger].flat(10);
@@ -402,7 +401,7 @@ var lambda = (options) => {
     } finally {
       await Promise.all(finallyCallbacks.map((cb) => cb()));
     }
-  };
+  });
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {

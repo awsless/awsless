@@ -1,47 +1,47 @@
 {
-	"name": "@awsless/mysql",
-	"version": "0.0.5",
-	"license": "MIT",
-	"type": "module",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/awsless/awsless.git"
-	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
-	"files": [
-		"dist"
-	],
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"require": "./dist/index.cjs",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
-	"scripts": {
-		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
-	},
-	"vitest": {
-		"singleThread": true,
-		"exclude": [
-			"test/_migrations/*"
-		]
-	},
-	"dependencies": {
-		"@heat/request-port": "^0.0.1",
-		"@types/decompress": "^4.2.4",
-		"@types/find-cache-dir": "^3.2.1",
-		"decompress": "^4.2.1",
-		"find-cache-dir": "^4.0.0",
-		"kysely": "^0.25.0",
-		"mysql2": "^3.4.0",
-		"sleep-await": "^1.0.2"
-	}
+  "name": "@awsless/mysql",
+  "version": "0.0.5",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/awsless/awsless.git"
+  },
+  "bugs": {
+    "url": "https://github.com/awsless/awsless/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "test": "pnpm code test",
+    "build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
+  },
+  "vitest": {
+    "singleThread": true,
+    "exclude": [
+      "test/_migrations/*"
+    ]
+  },
+  "dependencies": {
+    "@heat/request-port": "^0.0.1",
+    "@types/decompress": "^4.2.4",
+    "@types/find-cache-dir": "^3.2.1",
+    "decompress": "^4.2.1",
+    "find-cache-dir": "^4.0.0",
+    "kysely": "^0.25.0",
+    "mysql2": "^3.4.0",
+    "sleep-await": "^1.0.2"
+  }
 }

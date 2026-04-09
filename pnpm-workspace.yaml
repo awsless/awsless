@@ -8,5 +8,7 @@ minimumReleaseAgeExclude:
     - '@oxc-project/*'
     - '@rolldown/*'
 
+strictPeerDependencies: false
+
 packages:
     - 'packages/*'

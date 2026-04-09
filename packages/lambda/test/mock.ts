@@ -1,5 +1,4 @@
 import { InvokeCommand, LambdaClient, ListFunctionsCommand } from '@aws-sdk/client-lambda'
-import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node'
 import { mockLambda } from '../src'
 
 describe('Lambda Mock', () => {
@@ -35,11 +34,11 @@ describe('Lambda Mock', () => {
 		const result = await client.send(
 			new InvokeCommand({
 				FunctionName: 'echo',
-				Payload: fromUtf8(JSON.stringify('Hello')),
+				Payload: new TextEncoder().encode(JSON.stringify('Hello')),
 			})
 		)
 
-		expect(JSON.parse(toUtf8(result.Payload!))).toBe('Hello')
+		expect(JSON.parse(new TextDecoder().decode(result.Payload!))).toBe('Hello')
 		expect(lambda.echo).toBeCalledTimes(1)
 	})
 
@@ -69,7 +68,7 @@ describe('Lambda Mock', () => {
 		const promise = client.send(
 			new InvokeCommand({
 				FunctionName: 'unknown',
-				Payload: fromUtf8(JSON.stringify('')),
+				Payload: new TextEncoder().encode(JSON.stringify('')),
 			})
 		)
 
@@ -81,7 +80,7 @@ describe('Lambda Mock', () => {
 		const promise = client.send(
 			new InvokeCommand({
 				FunctionName: 'unknown',
-				Payload: fromUtf8(JSON.stringify('')),
+				Payload: new TextEncoder().encode(JSON.stringify('')),
 			})
 		)
 

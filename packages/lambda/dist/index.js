@@ -3,7 +3,6 @@ import { LambdaClient as LambdaClient3 } from "@aws-sdk/client-lambda";
 
 // src/commands/invoke.ts
 import { InvokeCommand } from "@aws-sdk/client-lambda";
-import { fromUtf8, toUtf8 } from "@aws-sdk/util-utf8-node";
 import { parse, stringify } from "@awsless/json";
 
 // src/errors/expected.ts
@@ -13,6 +12,7 @@ var ExpectedError = class extends Error {
     super(message);
     this.type = type;
   }
+  type;
 };
 
 // src/errors/response.ts
@@ -51,14 +51,14 @@ var invoke = async ({
   const command = new InvokeCommand({
     InvocationType: type,
     FunctionName: name,
-    Payload: payload ? fromUtf8(stringify(payload)) : void 0,
+    Payload: payload ? new TextEncoder().encode(stringify(payload)) : void 0,
     Qualifier: qualifier
   });
   const result = await client.send(command);
   if (!result.Payload) {
     return;
   }
-  const json = toUtf8(result.Payload);
+  const json = new TextDecoder().decode(result.Payload);
   if (!json) {
     return;
   }
@@ -189,16 +189,13 @@ var ViewableError = class extends Error {
     this.type = type;
     this.data = data;
   }
+  type;
+  data;
   name = "ViewableError";
 };
 
 // src/helpers/mock.ts
-import {
-  InvokeCommand as InvokeCommand2,
-  LambdaClient as LambdaClient2,
-  ListFunctionsCommand as ListFunctionsCommand2
-} from "@aws-sdk/client-lambda";
-import { fromUtf8 as fromUtf82, toUtf8 as toUtf82 } from "@aws-sdk/util-utf8-node";
+import { InvokeCommand as InvokeCommand2, LambdaClient as LambdaClient2, ListFunctionsCommand as ListFunctionsCommand2 } from "@aws-sdk/client-lambda";
 import { parse as parse2, stringify as stringify2 } from "@awsless/json";
 import { mockObjectValues, nextTick } from "@awsless/utils";
 import { mockClient } from "aws-sdk-vitest-mock";
@@ -211,30 +208,28 @@ var mockLambda = (lambdas) => {
     return list;
   }
   const client = mockClient(LambdaClient2);
-  client.on(ListFunctionsCommand2).callsFake(async () => {
-    return {
-      $metadata: {},
-      Functions: [
-        {
-          FunctionName: "test",
-          FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
-        }
-      ]
-    };
+  client.on(ListFunctionsCommand2).resolves({
+    $metadata: {},
+    Functions: [
+      {
+        FunctionName: "test",
+        FunctionArn: "arn:aws:lambda:us-west-2:123456789012:function:project--service--lambda-name"
+      }
+    ]
   });
-  client.on(InvokeCommand2).callsFake(async (input) => {
+  client.on(InvokeCommand2).callsFake((async (input) => {
     const name = input.FunctionName ?? "";
     const type = input.InvocationType ?? "RequestResponse";
-    const payload = input.Payload ? parse2(toUtf82(input.Payload)) : void 0;
+    const payload = input.Payload ? parse2(new TextDecoder().decode(input.Payload)) : void 0;
     const callback = globalList[name];
     if (!callback) {
       throw new TypeError(`Lambda mock function not defined for: ${name}`);
     }
     const result = await nextTick(callback, payload);
     return {
-      Payload: type === "RequestResponse" && result ? fromUtf82(stringify2(result)) : void 0
+      Payload: type === "RequestResponse" && result ? new TextEncoder().encode(stringify2(result)) : void 0
     };
-  });
+  }));
   beforeEach && beforeEach(() => {
     Object.values(globalList).forEach((fn) => {
       fn.mockClear();
@@ -299,7 +294,7 @@ var warmUp = async (input) => {
 
 // src/lambda.ts
 var lambda = (options) => {
-  return async (event, context) => {
+  return (async (event, context) => {
     const log = async (maybeError) => {
       const error = normalizeError(maybeError);
       const list = [options.logger].flat(10);
@@ -371,7 +366,7 @@ var lambda = (options) => {
     } finally {
       await Promise.all(finallyCallbacks.map((cb) => cb()));
     }
-  };
+  });
 };
 export {
   ExpectedError,

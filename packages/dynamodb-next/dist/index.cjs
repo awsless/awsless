@@ -93,6 +93,7 @@ var Table = class {
     this.schema = opt.schema;
     this.indexes = opt.indexes;
   }
+  name;
   hash;
   sort;
   schema;
@@ -859,6 +860,7 @@ var ExpressionAttributes = class {
   constructor(table) {
     this.table = table;
   }
+  table;
   #names = /* @__PURE__ */ new Map();
   #values = /* @__PURE__ */ new Map();
   path(path) {
@@ -1251,7 +1253,7 @@ import_client_dynamodb8.TransactionCanceledException.prototype.validationErrorAt
 var import_client_dynamodb22 = require("@aws-sdk/client-dynamodb");
 
 // src/expression/fluent.ts
-var secret = Symbol("fluent");
+var secret = /* @__PURE__ */ Symbol("fluent");
 var Fluent = class extends Function {
 };
 var createFluent = () => {

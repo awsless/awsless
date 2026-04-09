@@ -1,73 +1,73 @@
 {
-	"name": "@awsless/formation-old",
-	"version": "0.0.62",
-	"license": "MIT",
-	"type": "module",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/awsless/awsless.git"
-	},
-	"bugs": {
-		"url": "https://github.com/awsless/awsless/issues"
-	},
-	"files": [
-		"dist"
-	],
-	"main": "./dist/index.cjs",
-	"module": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"exports": {
-		".": {
-			"require": "./dist/index.cjs",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		}
-	},
-	"scripts": {
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-		"example": "pnpm tsup ./examples/example.ts --format cjs,esm && node ./dist/example.js",
-		"example-resource": "zsh -c 'pnpm tsup ./examples/resources/${1}.ts --format esm && node ./dist/${1}.js' --",
-		"test": "pnpm code test",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
-	},
-	"dependencies": {
-		"@aws-sdk/client-acm": "^3.540.0",
-		"@aws-sdk/client-apigatewayv2": "^3.569.0",
-		"@aws-sdk/client-appsync": "^3.540.0",
-		"@aws-sdk/client-cloudcontrol": "^3.533.0",
-		"@aws-sdk/client-cloudfront": "^3.425.0",
-		"@aws-sdk/client-cognito-identity-provider": "^3.441.0",
-		"@aws-sdk/client-dynamodb": "3.363.0",
-		"@aws-sdk/client-ec2": "^3.537.0",
-		"@aws-sdk/client-ecr": "^3.582.0",
-		"@aws-sdk/client-iam": "^3.535.0",
-		"@aws-sdk/client-iot": "3.329.0",
-		"@aws-sdk/client-lambda": "3.329.0",
-		"@aws-sdk/client-route-53": "^3.369.0",
-		"@aws-sdk/client-s3": "^3.537.0",
-		"@aws-sdk/client-sns": "3.329.0",
-		"@aws-sdk/credential-providers": "^3.369.0",
-		"@aws-sdk/util-dynamodb": "3.363.0",
-		"@awsless/duration": "workspace:^",
-		"@awsless/size": "workspace:^",
-		"@grpc/grpc-js": "^1.11.3",
-		"@types/object-path": "^0.11.4",
-		"@types/promise-dag": "^1.0.4",
-		"@types/proper-lockfile": "^4.1.4",
-		"@types/semver": "^7.5.8",
-		"@types/uuid": "^9.0.0",
-		"change-case": "^4.1.2",
-		"exponential-backoff": "^3.1.1",
-		"object-path": "^0.11.8",
-		"p-limit": "^5.0.0",
-		"promise-dag": "^1.0.0",
-		"promisify-child-process": "^4.1.2",
-		"proper-lockfile": "^4.1.2",
-		"rfc6902": "^5.1.1",
-		"semver": "^7.6.3",
-		"tsup": "^7.2.0",
-		"typed-emitter": "^2.1.0",
-		"typescript": "^5.4.2",
-		"uuid": "^9.0.0"
-	}
+  "name": "@awsless/formation-old",
+  "version": "0.0.62",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/awsless/awsless.git"
+  },
+  "bugs": {
+    "url": "https://github.com/awsless/awsless/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+    "example": "pnpm tsup ./examples/example.ts --format cjs,esm && node ./dist/example.js",
+    "example-resource": "zsh -c 'pnpm tsup ./examples/resources/${1}.ts --format esm && node ./dist/${1}.js' --",
+    "test": "pnpm code test",
+    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
+  },
+  "dependencies": {
+    "@aws-sdk/client-acm": "^3.540.0",
+    "@aws-sdk/client-apigatewayv2": "^3.569.0",
+    "@aws-sdk/client-appsync": "^3.540.0",
+    "@aws-sdk/client-cloudcontrol": "^3.533.0",
+    "@aws-sdk/client-cloudfront": "^3.425.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.441.0",
+    "@aws-sdk/client-dynamodb": "3.363.0",
+    "@aws-sdk/client-ec2": "^3.537.0",
+    "@aws-sdk/client-ecr": "^3.582.0",
+    "@aws-sdk/client-iam": "^3.535.0",
+    "@aws-sdk/client-iot": "3.329.0",
+    "@aws-sdk/client-lambda": "3.329.0",
+    "@aws-sdk/client-route-53": "^3.369.0",
+    "@aws-sdk/client-s3": "^3.537.0",
+    "@aws-sdk/client-sns": "3.329.0",
+    "@aws-sdk/credential-providers": "^3.369.0",
+    "@aws-sdk/util-dynamodb": "3.363.0",
+    "@awsless/duration": "workspace:^",
+    "@awsless/size": "workspace:^",
+    "@grpc/grpc-js": "^1.11.3",
+    "@types/object-path": "^0.11.4",
+    "@types/promise-dag": "^1.0.4",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/semver": "^7.5.8",
+    "@types/uuid": "^9.0.0",
+    "change-case": "^4.1.2",
+    "exponential-backoff": "^3.1.1",
+    "object-path": "^0.11.8",
+    "p-limit": "^5.0.0",
+    "promise-dag": "^1.0.0",
+    "promisify-child-process": "^4.1.2",
+    "proper-lockfile": "^4.1.2",
+    "rfc6902": "^5.1.1",
+    "semver": "^7.6.3",
+    "tsup": "^7.2.0",
+    "typed-emitter": "^2.1.0",
+    "typescript": "^5.4.2",
+    "uuid": "^9.0.0"
+  }
 }

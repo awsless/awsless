@@ -7,6 +7,7 @@ var Table = class {
     this.schema = opt.schema;
     this.indexes = opt.indexes;
   }
+  name;
   hash;
   sort;
   schema;
@@ -331,7 +332,7 @@ var bigfloat = ({ precision = PRECISION } = {}) => createSchema({
 });
 
 // src/schema/uint8-array.ts
-import { isUint8Array } from "node:util/types";
+import { isUint8Array } from "util/types";
 var uint8array = () => createSchema({
   name: "uint8array",
   type: "B",
@@ -805,6 +806,7 @@ var ExpressionAttributes = class {
   constructor(table) {
     this.table = table;
   }
+  table;
   #names = /* @__PURE__ */ new Map();
   #values = /* @__PURE__ */ new Map();
   path(path) {
@@ -1202,7 +1204,7 @@ import {
 } from "@aws-sdk/client-dynamodb";
 
 // src/expression/fluent.ts
-var secret = Symbol("fluent");
+var secret = /* @__PURE__ */ Symbol("fluent");
 var Fluent = class extends Function {
 };
 var createFluent = () => {
