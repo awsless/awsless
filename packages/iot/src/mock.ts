@@ -1,8 +1,9 @@
 import { DescribeEndpointCommand, IoTClient } from '@aws-sdk/client-iot'
 import { IoTDataPlaneClient, PublishCommand } from '@aws-sdk/client-iot-data-plane'
 import { mockClient } from 'aws-sdk-vitest-mock'
+import { type Mock } from 'vitest'
 
-export const mockIoT = (): ReturnType<typeof vi.fn> => {
+export const mockIoT = (): Mock => {
 	const fn = vi.fn()
 
 	mockClient(IoTClient).on(DescribeEndpointCommand).resolves({

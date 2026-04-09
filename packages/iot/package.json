@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/iot",
-	"version": "0.0.3",
+	"version": "0.0.5",
 	"license": "MIT",
 	"type": "module",
 	"repository": {
@@ -27,6 +27,9 @@
 		"test": "pnpm vitest run",
 		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
 		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"peerDependencies": {
+		"vitest": ">=4"
 	},
 	"dependencies": {
 		"@aws-sdk/client-iot": "3.1023.0",

@@ -1,5 +1,5 @@
-import { FunctionSchema } from '../function/schema.js'
+import { TaskSchema } from '../task/schema.js'
 
-export const OnErrorLogDefaultSchema = FunctionSchema.optional().describe(
+export const OnErrorLogDefaultSchema = TaskSchema.optional().describe(
 	'Define a subscription on all Lambda functions logs.'
 )

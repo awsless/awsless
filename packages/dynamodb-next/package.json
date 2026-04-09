@@ -1,68 +1,69 @@
 {
-  "name": "@awsless/dynamodb",
-  "version": "0.3.19",
-  "license": "MIT",
-  "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/awsless/awsless.git"
-  },
-  "bugs": {
-    "url": "https://github.com/awsless/awsless/issues"
-  },
-  "keywords": [
-    "AWS",
-    "amazon",
-    "dynamo",
-    "DynamoDB",
-    "schema",
-    "query",
-    "builder"
-  ],
-  "files": [
-    "dist"
-  ],
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs",
-      "import": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "test": "pnpm code test",
-    "build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
-    "prepublish": "if pnpm test; then pnpm build; else exit; fi"
-  },
-  "vitest": {
-    "hookTimeout": 30000,
-    "exclude": [
-      "test/aws/*",
-      "**/__*/**"
-    ]
-  },
-  "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.1023.0",
-    "@aws-sdk/lib-dynamodb": "3.1023.0",
-    "@aws-sdk/util-dynamodb": "3.996.2",
-    "@awsless/dynamodb-server": "workspace:^",
-    "@awsless/json": "workspace:^",
-    "@awsless/utils": "workspace:^",
-    "@heat/request-port": "^0.0.1",
-    "@smithy/node-http-handler": "4.5.1",
-    "aws-sdk-client-mock": "4.1.0",
-    "chunk": "0.0.3"
-  },
-  "devDependencies": {
-    "@awsless/big-float": "workspace:^",
-    "@smithy/types": "4.13.1",
-    "@types/chunk": "0.0.0"
-  },
-  "peerDependencies": {
-    "@awsless/big-float": "workspace:^",
-    "@awsless/json": "workspace:^"
-  }
+	"name": "@awsless/dynamodb",
+	"version": "0.3.20",
+	"license": "MIT",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"keywords": [
+		"AWS",
+		"amazon",
+		"dynamo",
+		"DynamoDB",
+		"schema",
+		"query",
+		"builder"
+	],
+	"files": [
+		"dist"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"test": "pnpm vitest run",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"vitest": {
+		"hookTimeout": 30000,
+		"exclude": [
+			"test/aws/*",
+			"**/__*/**"
+		]
+	},
+	"dependencies": {
+		"@aws-sdk/client-dynamodb": "3.1023.0",
+		"@aws-sdk/lib-dynamodb": "3.1023.0",
+		"@aws-sdk/util-dynamodb": "3.996.2",
+		"@awsless/dynamodb-server": "workspace:^",
+		"@awsless/json": "workspace:^",
+		"@awsless/utils": "workspace:^",
+		"@heat/request-port": "^0.0.1",
+		"@smithy/node-http-handler": "4.5.1",
+		"aws-sdk-vitest-mock": "1.0.55",
+		"chunk": "0.0.3"
+	},
+	"devDependencies": {
+		"@awsless/big-float": "workspace:^",
+		"@smithy/types": "4.13.1",
+		"@types/chunk": "0.0.0"
+	},
+	"peerDependencies": {
+		"@awsless/big-float": "workspace:^",
+		"@awsless/json": "workspace:^",
+		"vitest": ">=4"
+	}
 }

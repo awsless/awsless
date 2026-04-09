@@ -647,7 +647,7 @@ var import_client_dynamodb7 = require("@aws-sdk/client-dynamodb");
 var import_lib_dynamodb2 = require("@aws-sdk/lib-dynamodb");
 var import_dynamodb_server = require("@awsless/dynamodb-server");
 var import_request_port = require("@heat/request-port");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 
 // src/test/migrate.ts
 var import_client_dynamodb3 = require("@aws-sdk/client-dynamodb");
@@ -1178,8 +1178,48 @@ var mockDynamoDB = (configOrServer) => {
       beforeAll(async () => {
         const [port, releasePort] = await (0, import_request_port.requestPort)();
         await server.listen(port);
-        (0, import_aws_sdk_client_mock.mockClient)(import_client_dynamodb7.DynamoDBClient).on(import_client_dynamodb7.CreateTableCommand).callsFake((input) => clientSend(new import_client_dynamodb7.CreateTableCommand(input))).on(import_client_dynamodb7.ListTablesCommand).callsFake((input) => clientSend(new import_client_dynamodb7.ListTablesCommand(input))).on(import_client_dynamodb7.GetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.GetItemCommand(input))).on(import_client_dynamodb7.PutItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.PutItemCommand(input))).on(import_client_dynamodb7.DeleteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.DeleteItemCommand(input))).on(import_client_dynamodb7.UpdateItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.UpdateItemCommand(input))).on(import_client_dynamodb7.QueryCommand).callsFake((input) => clientSend(new import_client_dynamodb7.QueryCommand(input))).on(import_client_dynamodb7.ScanCommand).callsFake((input) => clientSend(new import_client_dynamodb7.ScanCommand(input))).on(import_client_dynamodb7.BatchGetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.BatchGetItemCommand(input))).on(import_client_dynamodb7.BatchWriteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.BatchWriteItemCommand(input))).on(import_client_dynamodb7.TransactGetItemsCommand).callsFake((input) => clientSend(new import_client_dynamodb7.TransactGetItemsCommand(input))).on(import_client_dynamodb7.TransactWriteItemsCommand).callsFake((input) => clientSend(new import_client_dynamodb7.TransactWriteItemsCommand(input)));
-        (0, import_aws_sdk_client_mock.mockClient)(import_lib_dynamodb2.DynamoDBDocumentClient).on(import_lib_dynamodb2.GetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.GetCommand(input))).on(import_lib_dynamodb2.PutCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.PutCommand(input))).on(import_lib_dynamodb2.DeleteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.DeleteCommand(input))).on(import_lib_dynamodb2.UpdateCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.UpdateCommand(input))).on(import_lib_dynamodb2.QueryCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.QueryCommand(input))).on(import_lib_dynamodb2.ScanCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.ScanCommand(input))).on(import_lib_dynamodb2.BatchGetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.BatchGetCommand(input))).on(import_lib_dynamodb2.BatchWriteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.BatchWriteCommand(input))).on(import_lib_dynamodb2.TransactGetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.TransactGetCommand(input))).on(import_lib_dynamodb2.TransactWriteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.TransactWriteCommand(input)));
+        const dbMock = (0, import_aws_sdk_vitest_mock.mockClient)(import_client_dynamodb7.DynamoDBClient);
+        dbMock.on(import_client_dynamodb7.CreateTableCommand).callsFake((input) => clientSend(new import_client_dynamodb7.CreateTableCommand(input)));
+        dbMock.on(import_client_dynamodb7.ListTablesCommand).callsFake(
+          (input) => clientSend(new import_client_dynamodb7.ListTablesCommand(input ?? {}))
+        );
+        dbMock.on(import_client_dynamodb7.GetItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.GetItemCommand(input)));
+        dbMock.on(import_client_dynamodb7.PutItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.PutItemCommand(input)));
+        dbMock.on(import_client_dynamodb7.DeleteItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.DeleteItemCommand(input)));
+        dbMock.on(import_client_dynamodb7.UpdateItemCommand).callsFake((input) => clientSend(new import_client_dynamodb7.UpdateItemCommand(input)));
+        dbMock.on(import_client_dynamodb7.QueryCommand).callsFake((input) => clientSend(new import_client_dynamodb7.QueryCommand(input)));
+        dbMock.on(import_client_dynamodb7.ScanCommand).callsFake((input) => clientSend(new import_client_dynamodb7.ScanCommand(input)));
+        dbMock.on(import_client_dynamodb7.BatchGetItemCommand).callsFake(
+          (input) => clientSend(new import_client_dynamodb7.BatchGetItemCommand(input))
+        );
+        dbMock.on(import_client_dynamodb7.BatchWriteItemCommand).callsFake(
+          (input) => clientSend(new import_client_dynamodb7.BatchWriteItemCommand(input))
+        );
+        dbMock.on(import_client_dynamodb7.TransactGetItemsCommand).callsFake(
+          (input) => clientSend(new import_client_dynamodb7.TransactGetItemsCommand(input))
+        );
+        dbMock.on(import_client_dynamodb7.TransactWriteItemsCommand).callsFake(
+          (input) => clientSend(new import_client_dynamodb7.TransactWriteItemsCommand(input))
+        );
+        const docMock = (0, import_aws_sdk_vitest_mock.mockClient)(import_lib_dynamodb2.DynamoDBDocumentClient);
+        docMock.on(import_lib_dynamodb2.GetCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.GetCommand(input)));
+        docMock.on(import_lib_dynamodb2.PutCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.PutCommand(input)));
+        docMock.on(import_lib_dynamodb2.DeleteCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.DeleteCommand(input)));
+        docMock.on(import_lib_dynamodb2.UpdateCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.UpdateCommand(input)));
+        docMock.on(import_lib_dynamodb2.QueryCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.QueryCommand(input)));
+        docMock.on(import_lib_dynamodb2.ScanCommand).callsFake((input) => documentClientSend(new import_lib_dynamodb2.ScanCommand(input)));
+        docMock.on(import_lib_dynamodb2.BatchGetCommand).callsFake(
+          (input) => documentClientSend(new import_lib_dynamodb2.BatchGetCommand(input))
+        );
+        docMock.on(import_lib_dynamodb2.BatchWriteCommand).callsFake(
+          (input) => documentClientSend(new import_lib_dynamodb2.BatchWriteCommand(input))
+        );
+        docMock.on(import_lib_dynamodb2.TransactGetCommand).callsFake(
+          (input) => documentClientSend(new import_lib_dynamodb2.TransactGetCommand(input))
+        );
+        docMock.on(import_lib_dynamodb2.TransactWriteCommand).callsFake(
+          (input) => documentClientSend(new import_lib_dynamodb2.TransactWriteCommand(input))
+        );
         if (configOrServer.tables) {
           await migrate(server.getClient(), configOrServer.tables);
           if (configOrServer.seed) {
@@ -1193,6 +1233,8 @@ var mockDynamoDB = (configOrServer) => {
       }, configOrServer.timeout);
     }
   }
+  const originalDynamoDBSend = import_client_dynamodb7.DynamoDBClient.prototype.send;
+  const originalDocumentClientSend = import_lib_dynamodb2.DynamoDBDocumentClient.prototype.send;
   const client = server.getClient();
   const documentClient = server.getDocumentClient();
   const processStream = (command, send) => {
@@ -1203,18 +1245,12 @@ var mockDynamoDB = (configOrServer) => {
   };
   const clientSend = (command) => {
     return processStream(command, () => {
-      if (client.__proto__.send.wrappedMethod) {
-        return client.__proto__.send.wrappedMethod.call(client, command);
-      }
-      return client.send(command);
+      return originalDynamoDBSend.call(client, command);
     });
   };
   const documentClientSend = (command) => {
     return processStream(command, () => {
-      if (documentClient.__proto__.send.wrappedMethod) {
-        return documentClient.__proto__.send.wrappedMethod.call(documentClient, command);
-      }
-      return documentClient.send(command);
+      return originalDocumentClientSend.call(documentClient, command);
     });
   };
   return server;

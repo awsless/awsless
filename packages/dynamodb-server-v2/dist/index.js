@@ -69,7 +69,7 @@ function createJavaServer(port, region) {
 // src/server.ts
 import {
   createServer as createHttpServer
-} from "node:http";
+} from "http";
 
 // src/errors/index.ts
 var DynamoDBError = class extends Error {

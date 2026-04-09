@@ -1,6 +1,6 @@
 {
   "name": "@awsless/bugsnag",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -24,7 +24,7 @@
     }
   },
   "scripts": {
-    "test": "pnpm code test",
+    "test": "pnpm vitest run",
     "build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
     "prepublish": "if pnpm test; then pnpm build; else exit; fi"
   },
