@@ -1,4 +1,16 @@
-import { date, object, optional, picklist, string, unknown } from '@awsless/validate'
+import {
+	array,
+	date,
+	isoTimestamp,
+	object,
+	optional,
+	picklist,
+	pipe,
+	string,
+	transform,
+	union,
+	unknown,
+} from '@awsless/validate'
 
 export const onErrorLogSchema = object({
 	hash: string(),
@@ -7,9 +19,16 @@ export const onErrorLogSchema = object({
 	level: picklist(['warn', 'error', 'fatal']),
 	type: string(),
 	message: string(),
-	stackTrace: optional(string()),
+	stackTrace: optional(array(string())),
 	data: optional(unknown()),
-	date: date(),
+	date: union([
+		date(),
+		pipe(
+			string(),
+			isoTimestamp(),
+			transform(v => new Date(v))
+		),
+	]),
 })
 
 // export const imageOriginSchema = object({

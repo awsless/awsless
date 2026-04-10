@@ -26,8 +26,16 @@ const RuntimeErrorSchema = object({
 	message: looseObject({
 		errorType: string(),
 		errorMessage: string(),
-		stackTrace: array(string()),
+		stackTrace: optional(array(string())),
 	}),
+})
+
+// Simple error log (plain string message)
+const SimpleErrorSchema = object({
+	timestamp: string(),
+	level: pipe(string(), toLowerCase(), picklist(['error', 'warn', 'fatal'])),
+	requestId: uuid(),
+	message: string(),
 })
 
 // System error log (timeout, OOM)
@@ -62,7 +70,7 @@ type Error = {
 	type: string
 	message: string
 	stackTrace?: string[]
-	data: unknown
+	data?: unknown
 }
 
 const consumer = process.env.CONSUMER
@@ -143,5 +151,19 @@ const parseError = (message: string, origin: string): Error | undefined => {
 		}
 	}
 
-	throw new Error(`Unknown error ${JSON.stringify(parsed)}`)
+	// Simple error (plain string message)
+	const simpleError = safeParse(SimpleErrorSchema, parsed)
+	if (simpleError.success) {
+		const { requestId, level, message } = simpleError.output
+		const hash = createHash('sha256').update([origin, message].join('-')).digest('hex')
+		return {
+			hash,
+			requestId,
+			level,
+			type: 'Error',
+			message,
+		}
+	}
+
+	return
 }

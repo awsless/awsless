@@ -60,8 +60,6 @@ export const onErrorLogFeature = defineFeature({
 			},
 		})
 
-		ctx.shared.set('on-error-log', 'subscriber-arn', prebuild.lambda.arn)
-
 		// ------------------------------------------------
 		// Grant CloudWatch Logs permission to invoke the subscriber
 
@@ -86,5 +84,11 @@ export const onErrorLogFeature = defineFeature({
 
 			prebuild.setEnvironment('CONSUMER', consumer.name)
 		}
+
+		// ------------------------------------------------
+		// Share the subscriber ARN after the consumer has been created,
+		// else there can be an infinite loop.
+
+		ctx.shared.set('on-error-log', 'subscriber-arn', prebuild.lambda.arn)
 	},
 })
