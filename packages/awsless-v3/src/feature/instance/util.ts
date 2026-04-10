@@ -267,7 +267,7 @@ export const createFargateTask = (
 									logDriver: 'awslogs',
 									options: {
 										// 'awslogs-group': `/aws/ecs/${name}`,
-										'awslogs-group': `/aws/lambda/${name}`,
+										'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-region': ctx.appConfig.region,
 										'awslogs-stream-prefix': 'ecs',
 										mode: 'non-blocking',
