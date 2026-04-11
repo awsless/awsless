@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { JobsSchema } from '../feature/job/schema.js'
 import { InstancesSchema } from '../feature/instance/schema.js'
 // import { AuthSchema } from '../feature/auth/schema.js'
 import { CachesSchema } from '../feature/cache/schema.js'
@@ -53,6 +54,7 @@ export const StackSchema = z.object({
 	subscribers: SubscribersSchema,
 	functions: FunctionsSchema,
 	instances: InstancesSchema,
+	jobs: JobsSchema,
 	tasks: TasksSchema,
 	tables: TablesSchema,
 	stores: StoresSchema,

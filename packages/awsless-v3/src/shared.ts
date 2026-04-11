@@ -39,6 +39,13 @@ type SharedState = {
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 	}
+
+	job: {
+		'bucket-name': Output<string>
+		'cluster-name': Output<string>
+		'cluster-arn': Output<string>
+		'security-group-id': Output<string>
+	}
 }
 
 type SharedEntries = {

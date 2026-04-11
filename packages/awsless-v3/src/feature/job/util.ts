@@ -5,7 +5,6 @@ import { aws } from '@terraforge/aws'
 import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
 import { constantCase, pascalCase } from 'change-case'
 import deepmerge from 'deepmerge'
-import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
 import { Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
@@ -14,17 +13,17 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { createTempFolder } from '../../util/temp.js'
 import { filterPattern } from '../on-error-log/util.js'
-import { buildExecutable } from './build/executable.js'
-import { InstanceProps } from './schema.js'
+import { buildJobExecutable } from './build/executable.js'
+import { JobProps } from './schema.js'
 
-export const createFargateTask = (
+export const createFargateJob = (
 	parentGroup: Group,
 	ctx: StackContext,
 	ns: string,
 	id: string,
-	local: InstanceProps
+	local: JobProps
 ) => {
-	const group = new Group(parentGroup, 'instance', ns)
+	const group = new Group(parentGroup, 'job', ns)
 
 	const name = formatLocalResourceName({
 		appName: ctx.app.name,
@@ -35,7 +34,7 @@ export const createFargateTask = (
 
 	const shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 
-	const props = deepmerge(ctx.appConfig.defaults.instance, local)
+	const props = deepmerge(ctx.appConfig.defaults.job, local)
 
 	const image =
 		props.image ||
@@ -45,12 +44,12 @@ export const createFargateTask = (
 
 	// ------------------------------------------------------------
 
-	ctx.registerBuild('instance', name, async (build, { workspace }) => {
+	ctx.registerBuild('job', name, async (build, { workspace }) => {
 		const fingerprint = await generateFileHash(workspace, local.code.file)
 
 		return build(fingerprint, async write => {
-			const temp = await createTempFolder(`instance--${name}`)
-			const executable = await buildExecutable(local.code.file, temp.path, props.architecture)
+			const temp = await createTempFolder(`job--${name}`)
+			const executable = await buildJobExecutable(local.code.file, temp.path, props.architecture)
 
 			await Promise.all([
 				//
@@ -66,10 +65,10 @@ export const createFargateTask = (
 	})
 
 	const code = new aws.s3.BucketObject(group, 'code', {
-		bucket: ctx.shared.get('instance', 'bucket-name'),
+		bucket: ctx.shared.get('job', 'bucket-name'),
 		key: name,
-		source: relativePath(getBuildPath('instance', name, 'program')),
-		sourceHash: $file(getBuildPath('instance', name, 'HASH')),
+		source: relativePath(getBuildPath('job', name, 'program')),
+		sourceHash: $file(getBuildPath('job', name, 'HASH')),
 	})
 
 	// ------------------------------------------------------------
@@ -173,7 +172,6 @@ export const createFargateTask = (
 	if (props.log.retention && props.log.retention.value > 0n) {
 		logGroup = new aws.cloudwatch.LogGroup(group, 'log', {
 			name: `/aws/ecs/${name}`,
-			// name: `/aws/lambda/${name}`,
 			retentionInDays: toDays(props.log.retention),
 		})
 
@@ -239,7 +237,7 @@ export const createFargateTask = (
 									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
 									`chmod +x /usr/app/program`,
 									...(props.startupCommand ?? []),
-									`exec /usr/app/program`,
+									`exec timeout ${toSeconds(props.timeout)} /usr/app/program`,
 								].join(' && '),
 							],
 
@@ -248,48 +246,17 @@ export const createFargateTask = (
 								value,
 							})),
 
-							portMappings: [
-								{
-									name: 'http',
-									protocol: 'tcp',
-									appProtocol: 'http',
-									containerPort: 80,
-									hostPort: 80,
-								},
-							],
-
-							restartPolicy: {
-								enabled: true,
-								restartAttemptPeriod: 60,
-							},
-
 							...(logGroup && {
 								logConfiguration: {
 									logDriver: 'awslogs',
 									options: {
-										// 'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-group': `/aws/ecs/${name}`,
 										'awslogs-region': ctx.appConfig.region,
 										'awslogs-stream-prefix': 'ecs',
 										mode: 'non-blocking',
-										// 'awslogs-multiline-pattern': '',
-										// 'max-buffer-size': '100m',
 									},
 								},
 							}),
-
-							healthCheck: props.healthCheck
-								? {
-										command: [
-											'CMD-SHELL',
-											`curl -f http://${join('localhost', props.healthCheck.path)} || exit 1`,
-										],
-										interval: toSeconds(props.healthCheck.interval),
-										retries: props.healthCheck.retries,
-										startPeriod: toSeconds(props.healthCheck.startPeriod),
-										timeout: toSeconds(props.healthCheck.timeout),
-									}
-								: undefined,
 						},
 					])
 				)
@@ -310,85 +277,6 @@ export const createFargateTask = (
 		}
 	)
 
-	const securityGroup = new aws.security.Group(group, 'security-group', {
-		name: name,
-		description: 'Security group for the instance',
-		vpcId: ctx.shared.get('vpc', 'id'),
-		revokeRulesOnDelete: true,
-		tags,
-	})
-
-	// new aws.vpc.SecurityGroupIngressRule(group, 'ingress-rule-http', {
-	// 	securityGroupId: securityGroup.id,
-	// 	description: `Allow HTTP traffic on port 80 to the ${name} instance`,
-	// 	fromPort: 80,
-	// 	toPort: 80,
-	// 	ipProtocol: 'tcp',
-	// 	cidrIpv4: '0.0.0.0/0',
-	// 	tags,
-	// })
-
-	new aws.vpc.SecurityGroupEgressRule(group, 'egress-rule', {
-		securityGroupId: securityGroup.id,
-		description: `Allow all outbound traffic from the ${name} instance`,
-		ipProtocol: '-1',
-		cidrIpv4: '0.0.0.0/0',
-		tags,
-	})
-
-	const clusterName = ctx.shared.get('instance', 'cluster-name')
-	const clusterArn = ctx.shared.get('instance', 'cluster-arn')
-
-	const service = new aws.ecs.Service(group, 'service', {
-		name: name,
-		cluster: clusterArn,
-		taskDefinition: task.arn,
-		desiredCount: 1,
-		launchType: 'FARGATE',
-		networkConfiguration: {
-			subnets: ctx.shared.get('vpc', 'public-subnets'),
-			securityGroups: [securityGroup.id],
-			assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
-		},
-
-		forceNewDeployment: true,
-		forceDelete: true,
-		tags,
-
-		// ------------------------------------------------------------
-		// Deployment safeguards: keep the service pinned to one running task.
-		schedulingStrategy: 'REPLICA',
-		deploymentMaximumPercent: 100,
-		deploymentMinimumHealthyPercent: 0,
-		deploymentCircuitBreaker: {
-			enable: true,
-			rollback: true,
-		},
-
-		// ------------------------------------------------------------
-		// Tag hygiene: let ECS manage and propagate runtime tags automatically.
-		enableEcsManagedTags: true,
-		propagateTags: 'SERVICE',
-	})
-
-	new aws.appautoscaling.Target(
-		group,
-		'autoscaling-target',
-		{
-			serviceNamespace: 'ecs',
-			scalableDimension: 'ecs:service:DesiredCount',
-			minCapacity: 1,
-			maxCapacity: 1,
-			resourceId: $resolve([clusterName, service.name], (clusterName: string, serviceName: string) => {
-				return `service/${clusterName}/${serviceName}`
-			}),
-			tags,
-		},
-		{
-			dependsOn: [service],
-		}
-	)
-
 	// ------------------------------------------------------------
 
 	ctx.onEnv((name, value) => {
@@ -406,6 +294,7 @@ export const createFargateTask = (
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
 	variables.CODE_HASH = code.sourceHash // needed to force update on code change
+	variables.TIMEOUT = toSeconds(props.timeout).toString()
 
 	// Add user-defined environment variables
 	if (props.environment) {
@@ -417,13 +306,13 @@ export const createFargateTask = (
 	// ------------------------------------------------------------
 	// Add user defined permissions
 
-	if (ctx.appConfig.defaults.instance.permissions) {
-		statements.push(...ctx.appConfig.defaults.instance.permissions)
+	if (ctx.appConfig.defaults.job.permissions) {
+		statements.push(...ctx.appConfig.defaults.job.permissions)
 	}
 
 	if ('permissions' in local && local.permissions) {
 		statements.push(...local.permissions)
 	}
 
-	return { name, task, service, policy, code, group }
+	return { name, task, policy, code, group }
 }

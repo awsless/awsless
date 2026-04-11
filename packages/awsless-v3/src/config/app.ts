@@ -16,6 +16,7 @@ import { RestDefaultSchema } from '../feature/rest/schema.js'
 import { RpcDefaultSchema } from '../feature/rpc/schema.js'
 // import { StoreDefaultSchema } from '../feature/store/schema.js'
 // import { TableDefaultSchema } from '../feature/table/schema.js'
+import { JobDefaultSchema } from '../feature/job/schema.js'
 import { InstanceDefaultSchema } from '../feature/instance/schema.js'
 import { RouterDefaultSchema } from '../feature/router/schema.js'
 import { TopicsDefaultSchema } from '../feature/topic/schema.js'
@@ -58,6 +59,7 @@ export const AppSchema = z.object({
 			domains: DomainsDefaultSchema,
 			function: FunctionDefaultSchema,
 			instance: InstanceDefaultSchema,
+			job: JobDefaultSchema,
 			queue: QueueDefaultSchema,
 			// graphql: GraphQLDefaultSchema,
 			// http: HttpDefaultSchema,

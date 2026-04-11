@@ -1,7 +1,7 @@
-import { days, toDays } from '@awsless/duration'
+import { days, hours, minutes, toDays } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { z } from 'zod'
-import { durationMin, DurationSchema } from '../../config/schema/duration.js'
+import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { SizeSchema } from '../../config/schema/size.js'
@@ -9,9 +9,7 @@ import { SizeSchema } from '../../config/schema/size.js'
 const CpuSchema = z
 	.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(2), z.literal(4), z.literal(8), z.literal(16)])
 	.transform(v => `${v} vCPU`)
-	.describe(
-		'The number of virtual CPU units (vCPU) used by the instance. Valid values: 0.25, 0.5, 1, 2, 4, 8, 16 vCPU.'
-	)
+	.describe('The number of virtual CPU units (vCPU) used by the job. Valid values: 0.25, 0.5, 1, 2, 4, 8, 16 vCPU.')
 
 const validMemorySize = [
 	// 0.25 vCPU
@@ -27,34 +25,13 @@ const validMemorySize = [
 const MemorySizeSchema = SizeSchema.refine(
 	s => validMemorySize.includes(toMebibytes(s)),
 	`Invalid memory size. Allowed sizes: ${validMemorySize.join(', ')} MiB`
-).describe('The amount of memory (in MiB) used by the instance. Valid memory values depend on the CPU configuration.')
-
-const HealthCheckSchema = z
-	.object({
-		path: z.string().describe('The path that the container runs to determine if it is healthy.'),
-		interval: DurationSchema.describe('The time period in seconds between each health check execution.'),
-		retries: z
-			.number()
-			.int()
-			.min(1)
-			.max(10)
-			.describe(
-				'The number of times to retry a failed health check before the container is considered unhealthy.'
-			),
-		startPeriod: DurationSchema.describe(
-			'The optional grace period to provide containers time to bootstrap before failed health checks count towards the maximum number of retries.'
-		),
-		timeout: DurationSchema.describe(
-			'The time period in seconds to wait for a health check to succeed before it is considered a failure.'
-		),
-	})
-	.describe('The health check command and associated configuration parameters for the container.')
+).describe('The amount of memory (in MiB) used by the job. Valid memory values depend on the CPU configuration.')
 
 const EnvironmentSchema = z.record(z.string(), z.string()).optional().describe('Environment variable key-value pairs.')
 
 const ArchitectureSchema = z
 	.enum(['x86_64', 'arm64'])
-	.describe('The instruction set architecture that the instance supports.')
+	.describe('The instruction set architecture that the job supports.')
 
 const ActionSchema = z.string()
 const ActionsSchema = z.union([ActionSchema.transform(v => [v]), ActionSchema.array()])
@@ -74,11 +51,7 @@ const PermissionSchema = z.object({
 
 const PermissionsSchema = z
 	.union([PermissionSchema.transform(v => [v]), PermissionSchema.array()])
-	.describe('Add IAM permissions to your instance.')
-
-const DescriptionSchema = z.string().describe('A description of the instance.')
-
-const ImageSchema = z.string().optional().describe('The URL of the container image to use.')
+	.describe('Add IAM permissions to your job.')
 
 const validLogRetentionDays = [
 	...[1, 3, 5, 7, 14, 30, 60, 90, 120, 150],
@@ -109,7 +82,7 @@ export const LogSchema = z
 	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
 const FileCodeSchema = z.object({
-	file: LocalFileSchema.describe('The file path of the instance code.'),
+	file: LocalFileSchema.describe('The file path of the job code.'),
 })
 
 const CodeSchema = z
@@ -119,15 +92,20 @@ const CodeSchema = z
 		})).pipe(FileCodeSchema),
 		FileCodeSchema,
 	])
-	.describe('Specify the code of your instance.')
+	.describe('Specify the code of your job.')
+
+const TimeoutSchema = DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout is 1 minute.')
+	.refine(durationMax(hours(4)), 'Maximum timeout is 4 hours.')
+	.describe('The maximum time the job is allowed to run before being stopped.')
+
+const ImageSchema = z.string().describe('The URL of the container image to use.')
 
 const StartupCommandSchema = z
 	.union([z.string().transform(v => [v]), z.string().array()])
-	.describe('Optional shell commands to run before the instance program starts.')
+	.describe('Optional shell commands to run before the job program starts.')
 
-const ISchema = z.object({
+const ASchema = z.object({
 	code: CodeSchema,
-	description: DescriptionSchema.optional(),
 	image: ImageSchema.optional(),
 	startupCommand: StartupCommandSchema.optional(),
 	log: LogSchema.optional(),
@@ -136,25 +114,21 @@ const ISchema = z.object({
 	architecture: ArchitectureSchema.optional(),
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
-	healthCheck: HealthCheckSchema.optional(),
-	// restartPolicy: RestartPolicySchema.optional(),
+	timeout: TimeoutSchema.default('30 minutes').describe('The maximum time the job is allowed to run before being stopped. Default: 30 minutes.'),
 })
 
-const InstanceSchema = z.union([
+const JobSchema = z.union([
 	LocalFileSchema.transform(code => ({
 		code,
-	})).pipe(ISchema),
-	ISchema,
+	})).pipe(ASchema),
+	ASchema,
 ])
 
-export const InstancesSchema = z
-	.record(ResourceIdSchema, InstanceSchema)
-	.optional()
-	.describe('Define the instances in your stack.')
+export const JobsSchema = z.record(ResourceIdSchema, JobSchema).optional().describe('Define the jobs in your stack.')
 
-export type InstanceProps = z.output<typeof ISchema>
+export type JobProps = z.output<typeof ASchema>
 
-export const InstanceDefaultSchema = z
+export const JobDefaultSchema = z
 	.object({
 		image: ImageSchema.optional(),
 		cpu: CpuSchema.default(0.25),
@@ -162,8 +136,7 @@ export const InstanceDefaultSchema = z
 		architecture: ArchitectureSchema.default('arm64'),
 		environment: EnvironmentSchema.optional(),
 		permissions: PermissionsSchema.optional(),
-		healthCheck: HealthCheckSchema.optional(),
-		// restartPolicy: RestartPolicySchema.default({ enabled: true }),
+		timeout: TimeoutSchema.optional(),
 		log: LogSchema.default(true).transform(log => ({
 			retention: log.retention ?? days(7),
 		})),

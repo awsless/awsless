@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.666",
+	"version": "0.0.668",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -73,6 +73,7 @@
 		"@aws-sdk/client-cloudwatch-logs": "^3.806.0",
 		"@aws-sdk/client-cognito-identity-provider": "^3.840.0",
 		"@aws-sdk/client-dynamodb": "3.363.0",
+		"@aws-sdk/client-ecs": "^3.369.0",
 		"@aws-sdk/client-lambda": "3.329.0",
 		"@aws-sdk/client-route-53": "^3.782.0",
 		"@aws-sdk/client-s3": "^3.369.0",

@@ -1,6 +1,7 @@
 export { CommandContext, CommandHandler } from './command.js'
 
 // Mocks
+export * from './lib/mock/job.js'
 export * from './lib/mock/alert.js'
 export * from './lib/mock/cache.js'
 export * from './lib/mock/function.js'
@@ -11,6 +12,7 @@ export * from './lib/mock/task.js'
 export * from './lib/mock/topic.js'
 
 // Server
+export * from './lib/server/job.js'
 export * from './lib/server/alert.js'
 export * from './lib/server/auth.js'
 export * from './lib/server/cache.js'

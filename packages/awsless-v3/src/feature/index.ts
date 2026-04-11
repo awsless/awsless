@@ -27,6 +27,7 @@ import { alertFeature } from './alert/index.js'
 import { layerFeature } from './layer/index.js'
 import { imageFeature } from './image/index.js'
 import { iconFeature } from './icon/index.js'
+import { jobFeature } from './job/index.js'
 import { instanceFeature } from './instance/index.js'
 import { metricFeature } from './metric/index.js'
 import { routerFeature } from './router/index.js'
@@ -51,6 +52,7 @@ export const features = [
 	// 5
 	functionFeature,
 	instanceFeature,
+	jobFeature,
 	// graphqlFeature,
 	configFeature,
 	searchFeature,
