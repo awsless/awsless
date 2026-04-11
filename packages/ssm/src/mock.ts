@@ -4,7 +4,7 @@ import {
 	GetParametersCommandInput,
 	PutParameterCommand,
 } from '@aws-sdk/client-ssm'
-import { mockClient } from 'aws-sdk-client-mock'
+import { mockClient } from 'aws-sdk-vitest-mock'
 import { nextTick, mockFn } from '@awsless/utils'
 // @ts-ignore
 import { Mock } from 'vitest'
@@ -12,7 +12,9 @@ import { Mock } from 'vitest'
 export const mockSSM = (values: Record<string, string>) => {
 	const mock = mockFn(() => {})
 
-	mockClient(SSMClient)
+	const client = mockClient(SSMClient)
+
+	client
 		.on(GetParametersCommand)
 		.callsFake(async (input: GetParametersCommandInput) => {
 			await nextTick(mock)
@@ -26,6 +28,7 @@ export const mockSSM = (values: Record<string, string>) => {
 			}
 		})
 
+	client
 		.on(PutParameterCommand)
 		.callsFake(async () => {
 			await nextTick(mock)

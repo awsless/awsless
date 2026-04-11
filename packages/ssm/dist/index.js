@@ -34,7 +34,7 @@ var ssm = async (paths, { client = ssmClient(), ttl = 0 } = {}) => {
   }).filter(({ key, path, transform }) => {
     const item = cache[path];
     if (item && item.ttl > now) {
-      values[key] = transform(cache[path].value);
+      values[key] = transform(item.value);
       return false;
     }
     return true;
@@ -123,12 +123,13 @@ import {
   GetParametersCommand as GetParametersCommand2,
   PutParameterCommand as PutParameterCommand2
 } from "@aws-sdk/client-ssm";
-import { mockClient } from "aws-sdk-client-mock";
+import { mockClient } from "aws-sdk-vitest-mock";
 import { nextTick, mockFn } from "@awsless/utils";
 var mockSSM = (values) => {
   const mock = mockFn(() => {
   });
-  mockClient(SSMClient2).on(GetParametersCommand2).callsFake(async (input) => {
+  const client = mockClient(SSMClient2);
+  client.on(GetParametersCommand2).callsFake(async (input) => {
     await nextTick(mock);
     return {
       Parameters: (input.Names || []).map((name) => {
@@ -138,7 +139,8 @@ var mockSSM = (values) => {
         };
       })
     };
-  }).on(PutParameterCommand2).callsFake(async () => {
+  });
+  client.on(PutParameterCommand2).callsFake(async () => {
     await nextTick(mock);
     return {};
   });

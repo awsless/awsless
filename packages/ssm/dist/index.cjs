@@ -28,8 +28,8 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
-var src_exports = {};
-__export(src_exports, {
+var index_exports = {};
+__export(index_exports, {
   SSMClient: () => import_client_ssm5.SSMClient,
   array: () => array,
   float: () => float,
@@ -41,7 +41,7 @@ __export(src_exports, {
   ssmClient: () => ssmClient,
   string: () => string
 });
-module.exports = __toCommonJS(src_exports);
+module.exports = __toCommonJS(index_exports);
 var import_client_ssm5 = require("@aws-sdk/client-ssm");
 
 // src/client.ts
@@ -77,7 +77,7 @@ var ssm = async (paths, { client = ssmClient(), ttl = 0 } = {}) => {
   }).filter(({ key, path, transform }) => {
     const item = cache[path];
     if (item && item.ttl > now) {
-      values[key] = transform(cache[path].value);
+      values[key] = transform(item.value);
       return false;
     }
     return true;
@@ -162,12 +162,13 @@ var json = (path) => {
 
 // src/mock.ts
 var import_client_ssm4 = require("@aws-sdk/client-ssm");
-var import_aws_sdk_client_mock = require("aws-sdk-client-mock");
+var import_aws_sdk_vitest_mock = require("aws-sdk-vitest-mock");
 var import_utils2 = require("@awsless/utils");
 var mockSSM = (values) => {
   const mock = (0, import_utils2.mockFn)(() => {
   });
-  (0, import_aws_sdk_client_mock.mockClient)(import_client_ssm4.SSMClient).on(import_client_ssm4.GetParametersCommand).callsFake(async (input) => {
+  const client = (0, import_aws_sdk_vitest_mock.mockClient)(import_client_ssm4.SSMClient);
+  client.on(import_client_ssm4.GetParametersCommand).callsFake(async (input) => {
     await (0, import_utils2.nextTick)(mock);
     return {
       Parameters: (input.Names || []).map((name) => {
@@ -177,7 +178,8 @@ var mockSSM = (values) => {
         };
       })
     };
-  }).on(import_client_ssm4.PutParameterCommand).callsFake(async () => {
+  });
+  client.on(import_client_ssm4.PutParameterCommand).callsFake(async () => {
     await (0, import_utils2.nextTick)(mock);
     return {};
   });
