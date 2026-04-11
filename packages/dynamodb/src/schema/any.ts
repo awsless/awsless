@@ -1,10 +1,7 @@
-import { marshall, marshallOptions, unmarshall, unmarshallOptions } from '@aws-sdk/util-dynamodb'
-import { Schema } from './schema'
+import { UnknownExpression } from '../expression/types'
+import { AttributeType, BaseSchema } from './schema'
+import { unknown, UnknownOptions } from './unknown'
 
-type Options = marshallOptions & unmarshallOptions
+export type AnySchema = BaseSchema<AttributeType, any, UnknownExpression<any>>
 
-export const any = (opts: Options) =>
-	new Schema<any, any>(
-		value => marshall({ value }, opts).value,
-		value => unmarshall({ value: value as any }, opts).value
-	)
+export const any = (opts?: UnknownOptions): AnySchema => unknown(opts)

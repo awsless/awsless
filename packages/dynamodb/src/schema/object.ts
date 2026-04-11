@@ -1,69 +1,209 @@
-import { AnySchema, MarshalledOutput, Schema } from './schema'
+import { MapExpression } from '../expression/types'
+import { BaseSchema, createSchema, GenericSchema, MarshallInputTypes } from './schema'
 
-type Properties = Record<string | symbol, AnySchema>
+type Properties = Record<string, GenericSchema>
+type KeyOf<T> = Extract<keyof T, string>
+type IsOptional<T extends GenericSchema> = undefined extends T[symbol]['Type'] ? true : false
 
-type KeyOf<S> = Extract<keyof S, string>
+type FilterOptional<T extends Properties> = { [K in KeyOf<T> as IsOptional<T[K]> extends true ? K : never]?: T[K] }
+type FilterRequired<T extends Properties> = { [K in KeyOf<T> as IsOptional<T[K]> extends true ? never : K]: T[K] }
 
-type FilterOptional<S extends Properties> = {
-	[K in KeyOf<S> as S[K]['OPTIONAL'] extends true ? K : never]?: S[K]
-}
+type Optinalize<T extends Properties> = FilterOptional<T> & FilterRequired<T>
 
-type FilterRequired<S extends Properties> = {
-	[K in KeyOf<S> as S[K]['OPTIONAL'] extends true ? never : K]: S[K]
-}
+type InferProps<S extends Properties, R extends GenericSchema | undefined = undefined> = {
+	[K in keyof Optinalize<S>]: S[K][symbol]['Type']
+} & (R extends GenericSchema ? { [key: string]: R[symbol]['Type'] | S[keyof S][symbol]['Type'] } : {})
 
-type Optinalize<S extends Properties> = FilterOptional<S> & FilterRequired<S>
+export type ObjectSchema<T, P extends Properties, R extends GenericSchema | undefined = undefined> = BaseSchema<
+	'M',
+	T,
+	MapExpression<T, P, R>
+>
 
-type InferInput<S extends Properties> = {
-	[K in keyof Optinalize<S>]: S[K]['INPUT']
-}
+// export const object = <P extends Properties, R extends GenericSchema | undefined = undefined>(
+// 	props: P,
+// 	rest?: R
+// ): ObjectSchema<InferProps<P, R>, P, R> =>
+// 	createSchema<'M', InferProps<P, R>>({
+// 		type: 'M',
+// 		validate: value => typeof value === 'object' && value !== null,
+// 		encode: (input: Record<string, unknown>) => {
+// 			const result: Record<string, any> = {}
 
-type InferOutput<S extends Properties> = {
-	[K in keyof Optinalize<S>]: S[K]['OUTPUT']
-}
+// 			for (const [key, schema] of Object.entries(props)) {
+// 				const value = input[key]
 
-type InferPaths<S extends Properties> = {
-	[K in KeyOf<S>]: [K] | [K, ...S[K]['PATHS']]
-}[KeyOf<S>]
+// 				if (typeof value === 'undefined') {
+// 					continue
+// 				}
 
-type InferOptPaths<S extends Properties> = {
-	[K in KeyOf<S>]: S[K]['OPTIONAL'] extends true ? [K] | [K, ...S[K]['OPT_PATHS']] : []
-}[KeyOf<S>]
+// 				const marshalled = schema.marshall(value)
+// 				if (typeof marshalled !== 'undefined') {
+// 					result[key] = marshalled
+// 				}
+// 			}
 
-export const object = <S extends Properties>(props: S) =>
-	new Schema<InferInput<S>, InferOutput<S>, InferPaths<S>, InferOptPaths<S>>(
-		(unmarshalled: Record<string, unknown>) => {
-			const marshalled: Record<string, MarshalledOutput | undefined> = {}
+// 			if (rest) {
+// 				for (const [key, value] of Object.entries(input)) {
+// 					if (props[key]) {
+// 						continue
+// 					}
 
-			for (const [key, type] of Object.entries(props)) {
-				// const value = unmarshalled[key]
+// 					if (typeof value === 'undefined') {
+// 						continue
+// 					}
 
-				// if (type.filterIn(value)) {
+// 					const marshalled = rest.marshall(value)
+// 					if (typeof marshalled !== 'undefined') {
+// 						result[key] = marshalled
+// 					}
+
+// 					// result[key] = rest.marshall(value)
+// 				}
+// 			}
+
+// 			return result
+// 		},
+// 		decode: output => {
+// 			const result: Record<string, any> = {}
+
+// 			for (const [key, schema] of Object.entries(props)) {
+// 				const value = output[key]
+
+// 				if (typeof value === 'undefined') {
+// 					continue
+// 				}
+
+// 				result[key] = schema.unmarshall(value!)
+// 			}
+
+// 			if (rest) {
+// 				for (const [key, value] of Object.entries(output)) {
+// 					if (props[key]) {
+// 						continue
+// 					}
+
+// 					if (typeof value === 'undefined') {
+// 						continue
+// 					}
+
+// 					result[key] = rest.unmarshall(value)
+// 				}
+// 			}
+
+// 			return result as InferProps<P, R>
+// 		},
+// 		walk(path, ...next) {
+// 			const type = props[path] ?? rest
+
+// 			return next.length ? type?.walk?.(...next) : type
+// 		},
+// 	})
+
+export const object = <P extends Properties, R extends GenericSchema | undefined = undefined>(
+	props: P,
+	rest?: R
+): ObjectSchema<InferProps<P, R>, P, R> =>
+	createSchema<'M', InferProps<P, R>>({
+		name: 'object',
+		type: 'M',
+		marshall: (input: Record<string, unknown>, path) => {
+			const result: Record<string, Partial<MarshallInputTypes>> = {}
+
+			for (const [key, schema] of Object.entries(props)) {
+				const value = input[key]
+
+				if (typeof value === 'undefined') {
+					continue
+				}
+
+				const marshalled = schema.marshall(value, [...path, key])
+
+				if (typeof marshalled === 'undefined' || marshalled.NULL) {
+					continue
+				}
+
+				result[key] = marshalled
+			}
+
+			if (rest) {
+				for (const [key, value] of Object.entries(input)) {
+					if (props[key]) {
+						continue
+					}
+
+					if (typeof value === 'undefined') {
+						continue
+					}
+
+					const marshalled = rest.marshall(value, [...path, key])
+
+					if (typeof value === 'undefined' || marshalled.NULL) {
+						continue
+					}
+
+					result[key] = marshalled
+
+					// result[key] = rest.marshall(value)
+				}
+			}
+
+			return { M: result }
+		},
+		unmarshall: (output, path, projection) => {
+			const result: Record<string, any> = {}
+
+			// console.log('object.unmarshall', projection)
+
+			for (const [key, schema] of Object.entries(props)) {
+				const value = output.M[key]
+
+				if (projection && !projection.includes(key)) {
+					continue
+				}
+
+				// if (typeof value === 'undefined') {
 				// 	continue
 				// }
 
-				marshalled[key] = type.marshall(unmarshalled[key])
+				const unmarshalled = schema.unmarshall(value!, [...path, key])
+
+				if (typeof unmarshalled !== 'undefined') {
+					result[key] = unmarshalled
+				}
 			}
 
-			return { M: marshalled }
-		},
-		marshalled => {
-			const unmarshalled: Record<string, unknown> = {}
+			if (rest) {
+				for (const [key, value] of Object.entries(output.M)) {
+					if (props[key]) {
+						continue
+					}
 
-			for (const [key, type] of Object.entries(props)) {
-				// const value = marshalled.M[key]!
+					if (projection && !projection.includes(key)) {
+						continue
+					}
 
-				// if (type.filterOut(value)) {
-				// 	continue
-				// }
+					// if (typeof value === 'undefined') {
+					// 	continue
+					// }
 
-				unmarshalled[key] = type.unmarshall(marshalled.M[key]!)
+					const unmarshalled = rest.unmarshall(value, [...path, key])
+
+					if (typeof unmarshalled !== 'undefined') {
+						result[key] = unmarshalled
+					}
+				}
 			}
 
-			return unmarshalled as InferOutput<S>
+			return result as InferProps<P, R>
 		},
-		(path, ...rest) => {
-			const type = props[path]!
-			return rest.length ? type.walk?.(...rest) : type
-		}
-	)
+		// validate: value => typeof value === 'object' && value !== null,
+		validateInput: value => typeof value === 'object' && value !== null,
+		validateOutput: value =>
+			!!(typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null),
+		walk(path, ...next) {
+			const type = props[path] ?? rest
+
+			return next.length ? type?.walk?.(...next) : type
+		},
+	})

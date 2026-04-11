@@ -1,19 +1,16 @@
 import {
 	define,
-	object,
-	string,
+	deleteItem,
+	deleteItems,
 	mockDynamoDB,
 	number,
-	streamTable,
+	object,
 	putItem,
-	updateItem,
-	deleteItem,
-	batchPutItem,
-	batchDeleteItem,
+	putItems,
+	streamTable,
+	string,
 	transactWrite,
-	transactPut,
-	transactUpdate,
-	transactDelete,
+	updateItem,
 } from '../../src'
 
 describe('Mock Stream', () => {
@@ -23,11 +20,17 @@ describe('Mock Stream', () => {
 			id: number(),
 			name: string(),
 		}),
+		indexes: {
+			byName: {
+				hash: 'name',
+			},
+		},
 	})
 
 	const process = vitest.fn()
 
 	mockDynamoDB({
+		engine: 'correctness',
 		tables: [users],
 		stream: [streamTable(users, process)],
 	})
@@ -58,7 +61,7 @@ describe('Mock Stream', () => {
 			users,
 			{ id: 1 },
 			{
-				update: exp => exp.update('name').set('Black'),
+				update: e => e.name.set('Black'),
 			}
 		)
 
@@ -94,7 +97,7 @@ describe('Mock Stream', () => {
 	})
 
 	it('batch put', async () => {
-		await batchPutItem(users, [
+		await putItems(users, [
 			{ id: 1, name: 'Jack' },
 			{ id: 2, name: 'Black' },
 		])
@@ -122,7 +125,7 @@ describe('Mock Stream', () => {
 	})
 
 	it('batch delete', async () => {
-		await batchDeleteItem(users, [{ id: 1 }, { id: 2 }])
+		await deleteItems(users, [{ id: 1 }, { id: 2 }])
 
 		expect(process).toBeCalledWith({
 			Records: [
@@ -147,19 +150,11 @@ describe('Mock Stream', () => {
 	})
 
 	it('transact write', async () => {
-		await transactWrite({
-			items: [
-				transactPut(users, { id: 1, name: 'Jack' }),
-				transactUpdate(
-					users,
-					{ id: 2 },
-					{
-						update: exp => exp.update('name').set('Black'),
-					}
-				),
-				transactDelete(users, { id: 3 }),
-			],
-		})
+		await transactWrite([
+			putItem(users, { id: 1, name: 'Jack' }),
+			updateItem(users, { id: 2 }, { update: e => e.name.set('Black') }),
+			deleteItem(users, { id: 3 }),
+		])
 
 		expect(process).toBeCalledWith({
 			Records: [

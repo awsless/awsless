@@ -1,9 +1,10 @@
 {
-	"name": "@awsless/dynamodb-server-old",
-	"version": "0.0.12",
+	"name": "@awsless/dynamodb-server",
+	"version": "0.1.8",
 	"license": "MIT",
+	"type": "module",
 	"main": "./dist/index.js",
-	"module": "./dist/index.mjs",
+	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
 	"files": [
 		"dist"
@@ -15,16 +16,28 @@
 	"bugs": {
 		"url": "https://github.com/awsless/awsless/issues"
 	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
 	"scripts": {
-		"test": "pnpm code test",
-		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean --external vitest",
-		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+		"test": "bun test",
+		"build": "pnpm tsup src/index.ts --format esm --dts --clean --external dynamo-db-local",
+		"prepublish": "if bun test; then pnpm build; else exit; fi"
 	},
 	"dependencies": {
-		"@aws-sdk/client-dynamodb": "3.363.0",
-		"@aws-sdk/lib-dynamodb": "3.363.0",
-		"@aws-sdk/url-parser": "^3.272.0",
-		"dynamo-db-local": "^9.3.0",
-		"sleep-await": "^1.0.2"
+		"@aws-sdk/client-dynamodb": "3.1023.0",
+		"@aws-sdk/lib-dynamodb": "3.1023.0",
+		"@awsless/big-float": "workspace:^"
+	},
+	"optionalDependencies": {
+		"dynamo-db-local": "^10.3.0"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.1.6",
+		"bun-types": "^1.1.6",
+		"typescript": "^5.5.4"
 	}
 }

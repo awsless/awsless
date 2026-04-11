@@ -1,13 +1,18 @@
-import { AnyTableDefinition, IndexNames } from '../table'
+import { AnyTable, IndexNames, Infer } from '../table'
 
-type Key<T extends AnyTableDefinition, K extends keyof T['schema']['INPUT']> = Required<
-	Record<K, T['schema']['INPUT'][K]>
->
+// type Key<T extends AnyTable, K extends keyof Infer<T>> = Required<Record<K, Infer<T>[K]>>
 
-export type HashKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> =
+type Key<T extends AnyTable, K extends keyof Infer<T> | (keyof Infer<T>)[]> = K extends keyof Infer<T>
+	? Required<Record<K, Infer<T>[K]>>
+	: K extends (keyof Infer<T>)[]
+		? // Use a mapped type to preserve specific types for each key
+			{ [P in K[number]]: Required<Infer<T>[P]> }
+		: never
+
+export type HashKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> =
 	I extends IndexNames<T> ? Key<T, T['indexes'][I]['hash']> : Key<T, T['hash']>
 
-export type SortKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> =
+export type SortKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> =
 	I extends IndexNames<T>
 		? T['indexes'][I]['sort'] extends string
 			? Key<T, T['indexes'][I]['sort']>
@@ -16,8 +21,11 @@ export type SortKey<T extends AnyTableDefinition, I extends IndexNames<T> | unde
 			? Key<T, T['sort']>
 			: {}
 
-export type PrimaryKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> &
+export type PrimaryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> &
 	SortKey<T, I>
 
-export type CursorKey<T extends AnyTableDefinition, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> &
-	(I extends IndexNames<T> ? PrimaryKey<T, I> : {})
+export type QueryKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = HashKey<T, I> &
+	Partial<SortKey<T, I>>
+
+// export type CursorKey<T extends AnyTable, I extends IndexNames<T> | undefined = undefined> = PrimaryKey<T> &
+// 	(I extends IndexNames<T> ? PrimaryKey<T, I> : {})

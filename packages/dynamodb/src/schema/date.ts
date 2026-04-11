@@ -1,7 +1,23 @@
-import { Schema } from './schema'
+import { NumberExpression } from '../expression/types'
+import { BaseSchema, createSchema } from './schema'
 
-export const date = () =>
-	new Schema<Date, Date>(
-		value => ({ N: String(value.getTime()) }),
-		value => new Date(Number(value.N))
-	)
+export type DateSchema = BaseSchema<'N', Date, NumberExpression<Date>>
+
+// export const date = (): DateSchema =>
+// 	createSchema({
+// 		type: 'N',
+// 		encode: value => String(value.getTime()),
+// 		decode: value => new Date(Number(value)),
+// 		validate: value => value instanceof Date,
+// 	})
+
+export const date = (): DateSchema =>
+	createSchema({
+		name: 'date',
+		type: 'N',
+		marshall: value => ({ N: String(value.getTime()) }),
+		unmarshall: value => new Date(Number(value.N)),
+		// validate: value => value instanceof Date,
+		validateInput: value => value instanceof Date && !isNaN(value.getTime()),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
+	})

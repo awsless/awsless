@@ -1,41 +1,32 @@
 // define
-export { define, InferOutput, InferInput, TableDefinition } from './table.js'
+export { AnyTable, define, Infer, Table } from './table.js'
 
 // types
-export { PrimaryKey, CursorKey, HashKey, SortKey } from './types/key.js'
-export {
-	Transactable,
-	TransactConditionCheck,
-	TransactDelete,
-	TransactPut,
-	TransactUpdate,
-} from './operations/transact-write.js'
+export { PrimaryKey, HashKey, SortKey } from './types/key.js'
+export { Transactable } from './command/transact-write.js'
 
 // structs
-export { optional } from './structs/optional.js'
+export { optional } from './schema/optional.js'
 
-export { any } from './structs/any.js'
-export { uuid } from './structs/uuid.js'
-export { string } from './structs/string.js'
-export { boolean } from './structs/boolean.js'
-export { number } from './structs/number.js'
-export { bigint } from './structs/bigint.js'
-export { bigfloat } from './structs/bigfloat.js'
-export { binary } from './structs/binary.js'
-export { object } from './structs/object.js'
-export { record } from './structs/record.js'
-export { array } from './structs/array.js'
-export { date } from './structs/date.js'
-export { ttl } from './structs/ttl.js'
-export { unknown } from './structs/unknown.js'
-
-export { stringEnum } from './structs/enum/string.js'
-export { numberEnum } from './structs/enum/number.js'
-
-export { stringSet } from './structs/set/string.js'
-export { numberSet } from './structs/set/number.js'
-export { bigintSet } from './structs/set/bigint.js'
-export { binarySet } from './structs/set/binary.js'
+export { any, AnySchema } from './schema/any.js'
+export { set, SetSchema } from './schema/set.js'
+export { uuid, UuidSchema } from './schema/uuid.js'
+export { string, StringSchema } from './schema/string.js'
+export { boolean, BooleanSchema } from './schema/boolean.js'
+export { number, NumberSchema } from './schema/number.js'
+export { bigint, BigIntSchema } from './schema/bigint.js'
+export { bigfloat, BigFloatSchema } from './schema/bigfloat.js'
+export { uint8array, Uint8ArraySchema } from './schema/uint8-array.js'
+export { object, ObjectSchema } from './schema/object.js'
+export { record, RecordSchema } from './schema/record.js'
+export { variant, VariantSchema } from './schema/variant.js'
+export { array, ArraySchema } from './schema/array.js'
+export { tuple, TupleSchema, TupleWithRestSchema } from './schema/tuple.js'
+export { date, DateSchema } from './schema/date.js'
+export { enum_, EnumSchema } from './schema/enum.js'
+export { json, JsonSchema } from './schema/json.js'
+export { ttl, TtlSchema } from './schema/ttl.js'
+export { unknown, UnknownSchema } from './schema/unknown.js'
 
 // test
 export { mockDynamoDB } from './test/mock.js'
@@ -49,41 +40,39 @@ export { dynamoDBClient, dynamoDBDocumentClient } from './client.js'
 export { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 export { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 
-// commands
+// raw commands
 export { GetItemCommand, PutItemCommand, UpdateItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb'
 export { QueryCommand, ScanCommand } from '@aws-sdk/client-dynamodb'
 export { TransactWriteItemsCommand, TransactGetItemsCommand } from '@aws-sdk/client-dynamodb'
 export { BatchGetItemCommand, BatchWriteItemCommand } from '@aws-sdk/client-dynamodb'
 
 // errors
-import './exceptions/transaction-canceled'
-export { ConditionalCheckFailedException, TransactionCanceledException } from '@aws-sdk/client-dynamodb'
-
-// operations
-export { getItem } from './operations/get-item.js'
-export { putItem } from './operations/put-item.js'
-export { updateItem } from './operations/update-item.js'
-export { deleteItem } from './operations/delete-item.js'
-
-export { getIndexedItem } from './operations/get-indexed-item.js'
-
-export { batchGetItem } from './operations/batch-get-item.js'
-export { batchPutItem } from './operations/batch-put-item.js'
-export { batchDeleteItem } from './operations/batch-delete-item.js'
-
-export { query } from './operations/query.js'
-export { scan } from './operations/scan.js'
-
-export { queryAll } from './operations/query-all.js'
-export { scanAll } from './operations/scan-all.js'
-
-export { paginateQuery } from './operations/paginate-query.js'
-export { paginateScan } from './operations/paginate-scan.js'
-
+import './exception/transaction-canceled'
 export {
-	transactWrite,
-	transactUpdate,
-	transactPut,
-	transactDelete,
-	transactConditionCheck,
-} from './operations/transact-write.js'
+	ConditionalCheckFailedException,
+	TransactionCanceledException,
+	TransactionConflictException,
+	DynamoDBServiceException,
+} from '@aws-sdk/client-dynamodb'
+
+// fluent
+export { Fluent, createFluent } from './expression/fluent.js'
+
+// commands
+export { getItem } from './command/get-item.js'
+export { putItem } from './command/put-item.js'
+export { updateItem } from './command/update-item.js'
+export { deleteItem } from './command/delete-item.js'
+
+export { getItems } from './command/get-items.js'
+export { putItems } from './command/put-items.js'
+export { deleteItems } from './command/delete-items.js'
+
+export { getIndexItem } from './command/get-index-item.js'
+
+export { query } from './command/query.js'
+export { scan } from './command/scan.js'
+
+export { conditionCheck } from './command/condition-check.js'
+export { transactWrite } from './command/transact-write.js'
+export { transactRead } from './command/transact-read.js'
