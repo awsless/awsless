@@ -13,7 +13,8 @@
 	"jobs": {
 		"worker": {
 			"code": "./job/worker.ts",
-			"timeout": "10 minutes"
+			"timeout": "10 minutes",
+			"persistentStorage": true
 		}
 	},
 	// "tasks": {

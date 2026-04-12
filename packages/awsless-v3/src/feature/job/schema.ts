@@ -1,7 +1,7 @@
-import { days, hours, minutes, toDays } from '@awsless/duration'
+import { days, toDays } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { z } from 'zod'
-import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
+import { durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { SizeSchema } from '../../config/schema/size.js'
@@ -94,19 +94,22 @@ const CodeSchema = z
 	])
 	.describe('Specify the code of your job.')
 
-const TimeoutSchema = DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout is 1 minute.')
-	.refine(durationMax(hours(4)), 'Maximum timeout is 4 hours.')
-	.describe('The maximum time the job is allowed to run before being stopped.')
+const TimeoutSchema = DurationSchema.describe('The maximum time the job is allowed to run before being stopped.')
 
 const ImageSchema = z.string().describe('The URL of the container image to use.')
 
+const PersistentStorageSchema = z
+	.boolean()
+	.describe('Mount persistent storage for the job at a fixed internal path.')
+
 const StartupCommandSchema = z
 	.union([z.string().transform(v => [v]), z.string().array()])
-	.describe('Optional shell commands to run before the job program starts.')
+	.describe('Optional shell commands to run before the job executable is downloaded and started.')
 
 const ASchema = z.object({
 	code: CodeSchema,
 	image: ImageSchema.optional(),
+	persistentStorage: PersistentStorageSchema.optional(),
 	startupCommand: StartupCommandSchema.optional(),
 	log: LogSchema.optional(),
 	cpu: CpuSchema.optional(),
@@ -131,6 +134,7 @@ export type JobProps = z.output<typeof ASchema>
 export const JobDefaultSchema = z
 	.object({
 		image: ImageSchema.optional(),
+		persistentStorage: PersistentStorageSchema.optional(),
 		cpu: CpuSchema.default(0.25),
 		memorySize: MemorySizeSchema.default('512 MB'),
 		architecture: ArchitectureSchema.default('arm64'),

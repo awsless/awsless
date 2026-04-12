@@ -1,8 +1,17 @@
+import { readFile, writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
+
 export default async (payload: { message: string }) => {
-	console.log('Job started with payload:', payload)
+	const counterFile = '/root/.job-counter'
+	const taskId = process.env.ECS_TASK_ARN?.split('/').pop() ?? 'unknown'
 
-	// Simulate some work
-	await new Promise(resolve => setTimeout(resolve, 5000))
+	let count = 0
+	if (existsSync(counterFile)) {
+		count = parseInt(await readFile(counterFile, 'utf8')) || 0
+	}
+	count++
+	await writeFile(counterFile, count.toString())
 
-	console.log('Job finished')
+	console.log(`Task ${taskId}: Run #${count}, payload: ${payload.message}`)
+	console.log(`Persistent storage at /root works: counter persisted across ${count} run(s)`)
 }

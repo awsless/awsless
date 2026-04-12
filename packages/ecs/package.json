@@ -1,0 +1,43 @@
+{
+	"name": "@awsless/ecs",
+	"version": "0.0.3",
+	"license": "MIT",
+	"type": "module",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/awsless/awsless.git"
+	},
+	"bugs": {
+		"url": "https://github.com/awsless/awsless/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"dist"
+	],
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"require": "./dist/index.cjs",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"test": "pnpm vitest run",
+		"build": "pnpm tsup src/index.ts --format cjs,esm --dts --clean",
+		"prepublish": "if pnpm test; then pnpm build; else exit; fi"
+	},
+	"dependencies": {
+		"@aws-sdk/client-ecs": "3.1024.0",
+		"@awsless/json": "workspace:^",
+		"@awsless/utils": "workspace:^",
+		"aws-sdk-vitest-mock": "1.0.55"
+	},
+	"devDependencies": {
+		"vitest": ">=4"
+	}
+}

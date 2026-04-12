@@ -1,13 +1,14 @@
-import { ECSClient, RunTaskCommand } from '@aws-sdk/client-ecs'
+import { runTask } from '@awsless/ecs'
 import { stringify } from '@awsless/json'
+import { putObject } from '@awsless/s3'
+import { kebabCase } from 'change-case'
+import { randomUUID } from 'crypto'
 import { createProxy } from '../proxy.js'
 import { APP, bindLocalResourceName } from './util.js'
 
 export const getJobName = bindLocalResourceName('job')
 
 export interface JobResources {}
-
-const client = new ECSClient({})
 
 export const Job: JobResources = /*@__PURE__*/ createProxy(stackName => {
 	return createProxy(jobName => {
@@ -18,36 +19,22 @@ export const Job: JobResources = /*@__PURE__*/ createProxy(stackName => {
 				const subnets = JSON.parse(process.env.JOB_SUBNETS!)
 				const securityGroup = process.env.JOB_SECURITY_GROUP!
 
-				const result = await client.send(
-					new RunTaskCommand({
-						cluster,
-						taskDefinition: name,
-						launchType: 'FARGATE',
-						networkConfiguration: {
-							awsvpcConfiguration: {
-								subnets,
-								securityGroups: [securityGroup],
-								assignPublicIp: 'ENABLED',
-							},
-						},
-						overrides: {
-							containerOverrides: [
-								{
-									name: `container-${jobName}`,
-									environment: [{ name: 'PAYLOAD', value: stringify(payload) }],
-								},
-							],
-						},
-						count: 1,
-					})
-				)
-
-				if (result.failures && result.failures.length > 0) {
-					const { reason, detail } = result.failures[0]!
-					throw new Error(`Job RunTask failed: ${reason}${detail ? ` - ${detail}` : ''}`)
+				let storedPayload = payload
+				const bucket = process.env.JOB_PAYLOAD_BUCKET
+				if (payload !== undefined && bucket) {
+					const key = `payloads/${randomUUID()}.json`
+					await putObject({ bucket, key, body: stringify(payload), contentType: 'application/json' })
+					storedPayload = `s3://${bucket}/${key}`
 				}
 
-				return { taskArn: result.tasks?.[0]?.taskArn }
+				return runTask({
+					cluster,
+					taskDefinition: name,
+					subnets,
+					securityGroups: [securityGroup],
+					container: `container-${kebabCase(jobName)}`,
+					payload: storedPayload,
+				})
 			},
 		}
 		return ctx[name]

@@ -557,9 +557,6 @@ importers:
       '@aws-sdk/lib-storage':
         specifier: ^3.423.0
         version: 3.1023.0(@aws-sdk/client-s3@3.1023.0(aws-crt@1.30.0))
-      '@aws-sdk/s3-request-presigner':
-        specifier: ^3.369.0
-        version: 3.609.0
       '@aws-sdk/signature-v4-crt':
         specifier: ^3.816.0
         version: 3.1023.0
@@ -578,6 +575,9 @@ importers:
       '@awsless/dynamodb':
         specifier: workspace:^
         version: link:../dynamodb-next
+      '@awsless/ecs':
+        specifier: workspace:^
+        version: link:../ecs
       '@awsless/iot':
         specifier: workspace:^
         version: link:../iot
@@ -1127,6 +1127,25 @@ importers:
       dynamo-db-local:
         specifier: ^10.3.0
         version: 10.3.0
+
+  packages/ecs:
+    dependencies:
+      '@aws-sdk/client-ecs':
+        specifier: 3.1024.0
+        version: 3.1024.0(aws-crt@1.30.0)
+      '@awsless/json':
+        specifier: workspace:^
+        version: link:../json
+      '@awsless/utils':
+        specifier: workspace:^
+        version: link:../utils
+      aws-sdk-vitest-mock:
+        specifier: 1.0.55
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.5.1)(vite@7.3.1(@types/node@25.5.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+    devDependencies:
+      vitest:
+        specifier: '>=4'
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.5.1)(vite@7.3.1(@types/node@25.5.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/env: {}
 

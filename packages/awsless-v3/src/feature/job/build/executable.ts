@@ -10,11 +10,18 @@ export const buildJobExecutable = async (input: string, outputPath: string, arch
 
 	await writeFile(
 		wrapperPath,
-		[
-			`import handler from '${handlerPath}'`,
-			`const payload = JSON.parse(process.env.PAYLOAD || '{}')`,
-			`await handler(payload)`,
-		].join('\n')
+		`import { parse } from '@awsless/json'
+import { getObject } from '@awsless/s3'
+import handler from '${handlerPath}'
+
+let payload = process.env.PAYLOAD ? parse(process.env.PAYLOAD) : undefined
+if (typeof payload === 'string' && payload.startsWith('s3://')) {
+	const url = new URL(payload)
+	const response = await getObject({ bucket: url.hostname, key: url.pathname.slice(1) })
+	if (response) payload = parse(await response.body.transformToString())
+}
+await handler(payload)
+	`
 	)
 
 	const target = architecture === 'x86_64' ? 'bun-linux-x64' : 'bun-linux-arm64'
@@ -42,7 +49,7 @@ export const buildJobExecutable = async (input: string, outputPath: string, arch
 	const file = await readFile(filePath)
 
 	return {
-		hash: createHash('sha1').update(file).update(architecture).digest('hex'),
+		hash: createHash('sha1').update(file).update(target).digest('hex'),
 		file,
 	}
 }

@@ -16,13 +16,7 @@ import { filterPattern } from '../on-error-log/util.js'
 import { buildJobExecutable } from './build/executable.js'
 import { JobProps } from './schema.js'
 
-export const createFargateJob = (
-	parentGroup: Group,
-	ctx: StackContext,
-	ns: string,
-	id: string,
-	local: JobProps
-) => {
+export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: string, id: string, local: JobProps) => {
 	const group = new Group(parentGroup, 'job', ns)
 
 	const name = formatLocalResourceName({
@@ -35,17 +29,12 @@ export const createFargateJob = (
 	const shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 
 	const props = deepmerge(ctx.appConfig.defaults.job, local)
-
-	const image =
-		props.image ||
-		(props.architecture === 'arm64'
-			? 'public.ecr.aws/aws-cli/aws-cli:arm64'
-			: 'public.ecr.aws/aws-cli/aws-cli:amd64')
+	const image = props.image || 'public.ecr.aws/amazonlinux/amazonlinux:2023-minimal'
 
 	// ------------------------------------------------------------
 
 	ctx.registerBuild('job', name, async (build, { workspace }) => {
-		const fingerprint = await generateFileHash(workspace, local.code.file)
+		const fingerprint = [await generateFileHash(workspace, local.code.file), props.architecture].join(':')
 
 		return build(fingerprint, async write => {
 			const temp = await createTempFolder(`job--${name}`)
@@ -119,8 +108,8 @@ export const createFargateJob = (
 							Statement: [
 								{
 									Effect: pascalCase('allow'),
-									Action: ['s3:getObject', 's3:HeadObject'],
-									Resource: `arn:aws:s3:::${bucket}/${key}`,
+									Action: ['s3:GetObject', 's3:HeadObject'],
+									Resource: [`arn:aws:s3:::${bucket}/${key}`, `arn:aws:s3:::${bucket}/payloads/*`],
 								},
 							],
 						})
@@ -198,6 +187,73 @@ export const createFargateJob = (
 
 	const variables: Record<string, Input<string> | OptionalInput<string>> = {}
 	const variableDeps: Set<any> = new Set()
+	const taskDependsOn: any[] = [code]
+
+	const accessPoint = props.persistentStorage
+		? (() => {
+				const persistentStorageSecurityGroup = new aws.security.Group(
+					group,
+					'persistent-storage-security-group',
+					{
+						name: shortId(`${shortName}:storage-sg`),
+						description: name,
+						vpcId: ctx.shared.get('vpc', 'id'),
+						revokeRulesOnDelete: true,
+						tags,
+					}
+				)
+
+				new aws.vpc.SecurityGroupIngressRule(group, 'persistent-storage-ingress-rule', {
+					securityGroupId: persistentStorageSecurityGroup.id,
+					referencedSecurityGroupId: ctx.shared.get('job', 'security-group-id'),
+					description: 'Allow NFS traffic from this job',
+					ipProtocol: 'tcp',
+					fromPort: 2049,
+					toPort: 2049,
+					tags,
+				})
+
+				const fileSystem = new aws.efs.FileSystem(group, 'persistent-storage-file-system', {
+					encrypted: true,
+					performanceMode: 'generalPurpose',
+					throughputMode: 'elastic',
+					tags: {
+						...tags,
+						Name: `${name}-storage`,
+					},
+				})
+
+				for (const [index, subnetId] of ctx.shared.get('vpc', 'public-subnets').entries()) {
+					const mountTarget = new aws.efs.MountTarget(group, `mount-target-${index + 1}`, {
+						fileSystemId: fileSystem.id,
+						subnetId,
+						securityGroups: [persistentStorageSecurityGroup.id],
+					})
+
+					taskDependsOn.push(mountTarget)
+				}
+
+				const accessPoint = new aws.efs.AccessPoint(group, 'access-point', {
+					fileSystemId: fileSystem.id,
+					rootDirectory: {
+						path: `/jobs/${name}`,
+						creationInfo: {
+							ownerUid: 0,
+							ownerGid: 0,
+							permissions: '755',
+						},
+					},
+					tags,
+				})
+
+				taskDependsOn.push(fileSystem, accessPoint)
+
+				return {
+					accessPoint,
+					fileSystem,
+				}
+			})()
+		: undefined
 
 	const task = new aws.ecs.TaskDefinition(
 		group,
@@ -215,6 +271,20 @@ export const createFargateJob = (
 				operatingSystemFamily: 'LINUX',
 			},
 			trackLatest: true,
+			...(accessPoint && {
+				volume: [
+					{
+						name: 'persistent-storage',
+						efsVolumeConfiguration: {
+							fileSystemId: accessPoint.fileSystem.id,
+							transitEncryption: 'ENABLED',
+							authorizationConfig: {
+								accessPointId: accessPoint.accessPoint.id,
+							},
+						},
+					},
+				],
+			}),
 			containerDefinitions: new Output<string>(variableDeps, async (resolve: (value: string) => void) => {
 				const data = await resolveInputs(variables)
 
@@ -229,15 +299,15 @@ export const createFargateJob = (
 							name: `container-${id}`,
 							essential: true,
 							image,
-							protocol: 'tcp',
 							workingDirectory: '/usr/app',
 							entryPoint: ['sh', '-c'],
 							command: [
 								[
-									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
-									`chmod +x /usr/app/program`,
-									...(props.startupCommand ?? []),
-									`exec timeout ${toSeconds(props.timeout)} /usr/app/program`,
+									...(props.startupCommand?.length
+										? [`if [ ! -f /root/.setup-done ]; then ${props.startupCommand.join(' && ')} && touch /root/.setup-done; fi`]
+										: []),
+									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
+									`exec timeout ${toSeconds(props.timeout)} /root/program`,
 								].join(' && '),
 							],
 
@@ -245,6 +315,14 @@ export const createFargateJob = (
 								name,
 								value,
 							})),
+							...(accessPoint && {
+								mountPoints: [
+									{
+										sourceVolume: 'persistent-storage',
+										containerPath: '/root',
+									},
+								],
+							}),
 
 							...(logGroup && {
 								logConfiguration: {
@@ -273,7 +351,7 @@ export const createFargateJob = (
 				'executionRoleArn',
 				'taskRoleArn',
 			],
-			dependsOn: [code],
+			dependsOn: taskDependsOn,
 		}
 	)
 

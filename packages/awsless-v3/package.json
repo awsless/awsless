@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/awsless",
-	"version": "0.0.668",
+	"version": "0.0.702",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -52,6 +52,7 @@
 		"@awsless/cloudwatch": "workspace:^",
 		"@awsless/clui": "workspace:^",
 		"@awsless/duration": "workspace:^",
+		"@awsless/ecs": "workspace:^",
 		"@awsless/dynamodb": "workspace:^",
 		"@awsless/iot": "workspace:^",
 		"@awsless/json": "workspace:^",
