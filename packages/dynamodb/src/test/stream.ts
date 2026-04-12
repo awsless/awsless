@@ -5,37 +5,37 @@ import {
 	TransactWriteItemsCommand,
 	UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb'
-import { getItem } from '../operations/get-item'
-import { AnyTableDefinition, InferOutput } from '../table'
+import { getItem } from '../command/get-item'
+import { AnyTable, Infer } from '../table'
 import { PrimaryKey } from '../types/key'
 
-type StreamData<T extends AnyTableDefinition> = {
+type StreamData<T extends AnyTable> = {
 	Keys: PrimaryKey<T>
-	OldImage?: InferOutput<T>
-	NewImage?: InferOutput<T>
+	OldImage?: Infer<T>
+	NewImage?: Infer<T>
 }
 
-export type StreamRequest<T extends AnyTableDefinition> = {
+export type StreamRequest<T extends AnyTable> = {
 	Records: {
 		eventName: 'MODIFY' | 'INSERT' | 'REMOVE'
 		dynamodb: StreamData<T>
 	}[]
 }
 
-export type Stream<T extends AnyTableDefinition> = {
+export type Stream<T extends AnyTable> = {
 	table: T
 	fn: (payload: StreamRequest<T>) => unknown | void
 }
 
-export const streamTable = <T extends AnyTableDefinition>(
+export const streamTable = <T extends AnyTable>(
 	table: T,
 	fn: (payload: StreamRequest<T>) => unknown | void
-): Stream<AnyTableDefinition> => {
+): Stream<AnyTable> => {
 	return { table, fn } as any
 }
 
-const getPrimaryKey = (table: AnyTableDefinition, item: any): PrimaryKey<AnyTableDefinition> => {
-	const key = {
+const getPrimaryKey = (table: AnyTable, item: any): PrimaryKey<AnyTable> => {
+	const key: PrimaryKey<AnyTable> = {
 		[table.hash]: item[table.hash],
 	}
 
@@ -58,7 +58,7 @@ const getEventName = (OldImage: unknown, NewImage: unknown) => {
 	return 'REMOVE'
 }
 
-const emit = (stream: Stream<AnyTableDefinition>, items: StreamData<AnyTableDefinition>[]) => {
+const emit = (stream: Stream<AnyTable>, items: StreamData<AnyTable>[]) => {
 	return stream.fn({
 		Records: items.map(({ Keys, OldImage, NewImage }) => ({
 			eventName: getEventName(OldImage, NewImage),
@@ -71,7 +71,7 @@ const emit = (stream: Stream<AnyTableDefinition>, items: StreamData<AnyTableDefi
 	})
 }
 
-export const pipeStream = (streams: Stream<AnyTableDefinition>[], command: any, send: <T>() => T) => {
+export const pipeStream = (streams: Stream<AnyTable>[], command: any, send: <T>() => T) => {
 	if (command instanceof PutItemCommand) {
 		return pipeToTable({
 			streams,
@@ -79,7 +79,7 @@ export const pipeStream = (streams: Stream<AnyTableDefinition>[], command: any, 
 			send,
 			getKey: (command, table) => {
 				const key = getPrimaryKey(table, command.input.Item!)
-				return table.unmarshall(key)
+				return table.unmarshall(key, table.keys)
 			},
 		})
 	}
@@ -90,7 +90,7 @@ export const pipeStream = (streams: Stream<AnyTableDefinition>[], command: any, 
 			command,
 			send,
 			getKey: (command, table) => {
-				return table.unmarshall(command.input.Key!)
+				return table.unmarshall(command.input.Key!, table.keys)
 			},
 		})
 	}
@@ -109,9 +109,9 @@ export const pipeStream = (streams: Stream<AnyTableDefinition>[], command: any, 
 						items: items.map(item => {
 							if (item.PutRequest) {
 								const key = getPrimaryKey(stream.table, item.PutRequest.Item)
-								return { key: stream.table.unmarshall(key) }
+								return { key: stream.table.unmarshall(key, stream.table.keys) }
 							} else if (item.DeleteRequest) {
-								return { key: stream.table.unmarshall(item.DeleteRequest.Key!) }
+								return { key: stream.table.unmarshall(item.DeleteRequest.Key!, stream.table.keys) }
 							}
 							return
 						}),
@@ -139,7 +139,7 @@ export const pipeStream = (streams: Stream<AnyTableDefinition>[], command: any, 
 
 					return {
 						...stream,
-						items: [{ key: stream.table.unmarshall(marshall) }],
+						items: [{ key: stream.table.unmarshall(marshall, stream.table.keys) }],
 					}
 				})
 			},
@@ -157,7 +157,7 @@ const pipeToTables = async <Command>({
 	command: Command
 	send: <T>() => T
 	getEntries: (command: Command) => Array<
-		| (Stream<AnyTableDefinition> & {
+		| (Stream<AnyTable> & {
 				items: Array<
 					| {
 							key: any
@@ -236,10 +236,10 @@ const pipeToTable = async <Command extends { input: { TableName?: string } }>({
 	send,
 	getKey,
 }: {
-	streams: Stream<AnyTableDefinition>[]
+	streams: Stream<AnyTable>[]
 	command: Command
 	send: <T>() => T
-	getKey: (command: Command, table: AnyTableDefinition) => any
+	getKey: (command: Command, table: AnyTable) => any
 }) => {
 	const listeners = streams.filter(stream => stream.table.name === command.input.TableName)
 
@@ -258,7 +258,7 @@ const pipeToTable = async <Command extends { input: { TableName?: string } }>({
 		listeners.map(stream => {
 			return emit(stream, [
 				{
-					Keys: table.marshall(key),
+					Keys: table.marshall(key)!,
 					OldImage: image1 ? table.marshall(image1) : undefined,
 					NewImage: image2 ? table.marshall(image2) : undefined,
 				},

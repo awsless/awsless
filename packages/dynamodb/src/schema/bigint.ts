@@ -1,10 +1,29 @@
-import { Schema } from './schema'
+import { NumberExpression } from '../expression/types'
+import { BaseSchema, createSchema } from './schema'
 
-export function bigint(): Schema<bigint, bigint>
-export function bigint<T extends bigint>(): Schema<T, T>
-export function bigint<T extends bigint>() {
-	return new Schema<T, T>(
-		value => ({ N: value.toString() }),
-		value => BigInt(value.N) as T
-	)
+export type BigIntSchema<T extends bigint = bigint> = BaseSchema<'N', T, NumberExpression<T>>
+
+// export function bigint(): BigIntSchema
+// export function bigint<T extends bigint>(): BigIntSchema<T>
+// export function bigint<T extends bigint>(): BigIntSchema<T> {
+// 	return createSchema({
+// 		type: 'N',
+// 		encode: value => value.toString(),
+// 		decode: value => BigInt(value) as T,
+// 		validate: value => typeof value === 'bigint',
+// 	})
+// }
+
+export function bigint(): BigIntSchema
+export function bigint<T extends bigint>(): BigIntSchema<T>
+export function bigint<T extends bigint>(): BigIntSchema<T> {
+	return createSchema({
+		name: 'bigint',
+		type: 'N',
+		marshall: value => ({ N: value.toString() }),
+		unmarshall: value => BigInt(value.N) as T,
+		// validate: value => typeof value === 'bigint',
+		validateInput: value => typeof value === 'bigint',
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
+	})
 }

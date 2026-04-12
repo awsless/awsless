@@ -1,14 +1,14 @@
 import { CreateTableCommand, CreateTableCommandInput, DynamoDBClient } from '@aws-sdk/client-dynamodb'
-import { AnyTableDefinition, TableDefinition } from '../table'
+import { AnyTable, Table } from '../table'
 import { serializeTable } from './serialize'
 
 export const migrate = (
 	client: DynamoDBClient,
-	tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTableDefinition | AnyTableDefinition[]
+	tables: CreateTableCommandInput | CreateTableCommandInput[] | AnyTable | AnyTable[]
 ) => {
 	return Promise.all(
 		[tables].flat().map(table => {
-			if (table instanceof TableDefinition) {
+			if (table instanceof Table) {
 				table = serializeTable(table)
 			}
 

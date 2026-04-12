@@ -1,35 +1,73 @@
-import { AnySchema, MarshalledOutput, Schema } from './schema'
+import { MapExpression } from '../expression/types'
+import { AttributeInput, BaseSchema, createSchema, GenericSchema } from './schema'
 
-type RecordPaths<S extends AnySchema> = [string] | [string, ...S['PATHS']]
-type RecordOptPaths<S extends AnySchema> = [string] | [string, ...S['OPT_PATHS']]
+type Infer<S extends GenericSchema> = Record<string, S[symbol]['Type']>
 
-export const record = <S extends AnySchema>(schema: S) =>
-	new Schema<
-		//
-		Record<string, S['INPUT']>,
-		Record<string, S['OUTPUT']>,
-		RecordPaths<S>,
-		RecordOptPaths<S>
-	>(
-		unmarshalled => {
-			const marshalled: Record<string, MarshalledOutput | undefined> = {}
+export type RecordSchema<S extends GenericSchema> = BaseSchema<
+	//
+	'M',
+	Infer<S>,
+	MapExpression<Infer<S>, {}, S>
+>
 
-			for (const [key, value] of Object.entries(unmarshalled)) {
-				marshalled[key] = schema.marshall(value)
+// export const record = <S extends GenericSchema>(schema: S): RecordSchema<S> =>
+// 	createSchema({
+// 		type: 'M',
+// 		encode(input) {
+// 			const result: Record<string, any> = {}
+
+// 			for (const [key, value] of Object.entries(input)) {
+// 				result[key] = schema.marshall(value)
+// 			}
+
+// 			return result
+// 		},
+// 		decode(output) {
+// 			const result: Infer<S> = {}
+
+// 			for (const [key, value] of Object.entries(output)) {
+// 				result[key] = schema.unmarshall(value)
+// 			}
+
+// 			return result
+// 		},
+// 		walk(_, ...rest) {
+// 			return rest.length ? schema.walk?.(...rest) : schema
+// 		},
+// 	})
+
+export const record = <S extends GenericSchema>(schema: S): RecordSchema<S> =>
+	createSchema({
+		name: 'record',
+		type: 'M',
+		marshall(input, path) {
+			const result: Record<string, AttributeInput<any>> = {}
+
+			for (const [key, value] of Object.entries(input)) {
+				const marshalled = schema.marshall(value, [...path, key])
+
+				if (marshalled.NULL) {
+					continue
+				}
+
+				result[key] = marshalled
 			}
 
-			return { M: marshalled }
+			return { M: result }
 		},
-		marshalled => {
-			const unmarshalled: Record<string, S['OUTPUT']> = {}
+		unmarshall(output, path) {
+			const result: Infer<S> = {}
 
-			for (const [key, value] of Object.entries(marshalled.M)) {
-				unmarshalled[key] = schema.unmarshall(value)
+			for (const [key, value] of Object.entries(output.M)) {
+				result[key] = schema.unmarshall(value, [...path, key])
 			}
 
-			return unmarshalled
+			return result
 		},
-		(_, ...rest) => {
+		validateInput: value => typeof value === 'object' && value !== null,
+		validateOutput: value =>
+			!!(typeof value === 'object' && 'M' in value && typeof value.M === 'object' && value.M !== null),
+		walk(_, ...rest) {
 			return rest.length ? schema.walk?.(...rest) : schema
-		}
-	)
+		},
+	})

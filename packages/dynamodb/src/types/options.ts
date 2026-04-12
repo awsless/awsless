@@ -1,15 +1,13 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
+// import { ConditionExpression } from '../expression/condition'
+// import { ReturnValues } from '../expression/return'
+// import { AnyTable } from '../table'
 
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
-import { Combine, Condition } from "../expressions/condition"
-import { ReturnValues } from "../expressions/return"
-import { AnyTableDefinition } from "../table"
-
-export interface Options {
+export type Options = {
 	client?: DynamoDBClient
-	debug?: boolean
 }
 
-export interface MutateOptions<T extends AnyTableDefinition, R extends ReturnValues = 'NONE'> extends Options {
-	condition?: (exp:Condition<T>) => Combine<T>
-	return?: R
-}
+// export interface MutateOptions<T extends AnyTable, R extends ReturnValues> extends Options {
+// 	when?: ConditionExpression<T>
+// 	return?: R
+// }

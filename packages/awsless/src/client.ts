@@ -1,2 +1,4 @@
-export { HTTP, HttpFetcher, createHttpClient, createHttpFetcher } from './node/http.js'
-export { GraphQL } from './node/graphql.js'
+export * from './lib/client/auth.js'
+export * from './lib/client/http.js'
+export * from './lib/client/pubsub.js'
+export * from './lib/client/rpc.js'

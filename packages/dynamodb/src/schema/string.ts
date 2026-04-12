@@ -1,10 +1,29 @@
-import { Schema } from './schema'
+import { StringExpression } from '../expression/types'
+import { BaseSchema, createSchema } from './schema'
 
-export function string(): Schema<string, string>
-export function string<T extends string>(): Schema<T, T>
-export function string<T extends string>() {
-	return new Schema<T, T>(
-		value => ({ S: value }),
-		value => value.S as T
-	)
+export type StringSchema<T extends string = string> = BaseSchema<'S', T, StringExpression<T>>
+
+// export function string(): StringSchema
+// export function string<T extends string>(): StringSchema<T>
+// export function string<T extends string>(): StringSchema<T> {
+// 	return createSchema({
+// 		type: 'S',
+// 		validate: value => typeof value === 'string',
+// 	})
+// }
+
+export function string(): StringSchema
+export function string<T extends string>(): StringSchema<T>
+export function string<T extends string>(): StringSchema<T> {
+	return createSchema({
+		name: 'string',
+		type: 'S',
+		marshall: value => ({ S: value }),
+		unmarshall: value => value.S as T,
+		// validate: value => typeof value === 'string',
+		validateInput: value => typeof value === 'string',
+		validateOutput: value => {
+			return !!(typeof value === 'object' && 'S' in value && typeof value.S === 'string')
+		},
+	})
 }

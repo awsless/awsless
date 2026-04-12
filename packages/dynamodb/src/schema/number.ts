@@ -1,10 +1,29 @@
-import { Schema } from './schema'
+import { NumberExpression } from '../expression/types'
+import { BaseSchema, createSchema } from './schema'
 
-export function number(): Schema<number, number>
-export function number<T extends number>(): Schema<T, T>
-export function number<T extends number>() {
-	return new Schema<T, T>(
-		value => ({ N: value.toString() }),
-		value => Number(value.N) as T
-	)
+export type NumberSchema<T extends number = number> = BaseSchema<'N', T, NumberExpression<T>>
+
+// export function number(): NumberSchema
+// export function number<T extends number>(): NumberSchema<T>
+// export function number<T extends number>(): NumberSchema {
+// 	return createSchema({
+// 		type: 'N',
+// 		encode: value => value.toString(),
+// 		decode: value => Number(value) as T,
+// 		validate: value => typeof value === 'number',
+// 	})
+// }
+
+export function number(): NumberSchema
+export function number<T extends number>(): NumberSchema<T>
+export function number<T extends number>(): NumberSchema {
+	return createSchema({
+		name: 'number',
+		type: 'N',
+		marshall: value => ({ N: value.toString() }),
+		unmarshall: value => Number(value.N) as T,
+		// validate: value => typeof value === 'number',
+		validateInput: value => typeof value === 'number' && !isNaN(value) && isFinite(value),
+		validateOutput: value => !!(typeof value === 'object' && 'N' in value && typeof value.N === 'string'),
+	})
 }

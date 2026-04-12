@@ -1,11 +1,7 @@
-import { AnyTableDefinition, IndexNames } from "../table"
-import { CursorKey } from "../types/key"
+import { AttributeValue } from '@aws-sdk/client-dynamodb'
 
-export const fromCursorString = <
-	T extends AnyTableDefinition,
-	I extends IndexNames<T> | undefined = undefined
->(table:T, cursorStringValue?:string): CursorKey<T, I> | undefined => {
-	if(!cursorStringValue) {
+export const fromCursorString = (cursorStringValue?: string): Record<string, AttributeValue> | undefined => {
+	if (!cursorStringValue) {
 		return
 	}
 
@@ -15,24 +11,19 @@ export const fromCursorString = <
 	try {
 		const buffer = Buffer.from(cursorStringValue, 'base64')
 		const json = buffer.toString('utf-8')
-		const cursor = JSON.parse(json)
 
-		return table.unmarshall(cursor)
-	} catch(error) {
+		return JSON.parse(json)
+	} catch (error) {
 		return
 	}
 }
 
-export const toCursorString = <
-	T extends AnyTableDefinition,
-	I extends IndexNames<T> | undefined = undefined
->(table:T, cursor?:CursorKey<T, I>): string | undefined => {
-	if(!cursor) {
+export const toCursorString = (cursor?: Record<string, AttributeValue>): string | undefined => {
+	if (!cursor) {
 		return
 	}
 
-	const marshalled = table.marshall(cursor)
-	const json = JSON.stringify(marshalled)
+	const json = JSON.stringify(cursor)
 	const buffer = Buffer.from(json, 'utf-8')
 
 	return buffer.toString('base64')
