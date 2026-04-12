@@ -236,9 +236,9 @@ export const createFargateTask = (
 							entryPoint: ['sh', '-c'],
 							command: [
 								[
+									...(props.startupCommand ?? []),
 									`aws s3 cp s3://${s3Bucket}/${s3Key} /usr/app/program`,
 									`chmod +x /usr/app/program`,
-									...(props.startupCommand ?? []),
 									`exec /usr/app/program`,
 								].join(' && '),
 							],
@@ -339,37 +339,44 @@ export const createFargateTask = (
 	const clusterName = ctx.shared.get('instance', 'cluster-name')
 	const clusterArn = ctx.shared.get('instance', 'cluster-arn')
 
-	const service = new aws.ecs.Service(group, 'service', {
-		name: name,
-		cluster: clusterArn,
-		taskDefinition: task.arn,
-		desiredCount: 1,
-		launchType: 'FARGATE',
-		networkConfiguration: {
-			subnets: ctx.shared.get('vpc', 'public-subnets'),
-			securityGroups: [securityGroup.id],
-			assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+	const service = new aws.ecs.Service(
+		group,
+		'service',
+		{
+			name: name,
+			cluster: clusterArn,
+			taskDefinition: task.arn,
+			desiredCount: 1,
+			launchType: 'FARGATE',
+			networkConfiguration: {
+				subnets: ctx.shared.get('vpc', 'public-subnets'),
+				securityGroups: [securityGroup.id],
+				assignPublicIp: true, // https://stackoverflow.com/questions/76398247/cannotpullcontainererror-pull-image-manifest-has-been-retried-5-times-failed
+			},
+
+			forceNewDeployment: true,
+			forceDelete: true,
+			tags,
+
+			// ------------------------------------------------------------
+			// Deployment safeguards: keep the service pinned to one running task.
+			schedulingStrategy: 'REPLICA',
+			deploymentMaximumPercent: 100,
+			deploymentMinimumHealthyPercent: 0,
+			deploymentCircuitBreaker: {
+				enable: true,
+				rollback: true,
+			},
+
+			// ------------------------------------------------------------
+			// Tag hygiene: let ECS manage and propagate runtime tags automatically.
+			enableEcsManagedTags: true,
+			propagateTags: 'SERVICE',
 		},
-
-		forceNewDeployment: true,
-		forceDelete: true,
-		tags,
-
-		// ------------------------------------------------------------
-		// Deployment safeguards: keep the service pinned to one running task.
-		schedulingStrategy: 'REPLICA',
-		deploymentMaximumPercent: 100,
-		deploymentMinimumHealthyPercent: 0,
-		deploymentCircuitBreaker: {
-			enable: true,
-			rollback: true,
-		},
-
-		// ------------------------------------------------------------
-		// Tag hygiene: let ECS manage and propagate runtime tags automatically.
-		enableEcsManagedTags: true,
-		propagateTags: 'SERVICE',
-	})
+		{
+			replaceOnChanges: ['cluster'],
+		}
+	)
 
 	new aws.appautoscaling.Target(
 		group,

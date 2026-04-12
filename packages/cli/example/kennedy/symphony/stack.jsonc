@@ -1,0 +1,45 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "symphony",
+	"tests": false,
+	"configs": ["github-token", "linear-api-key", "openai-api-key"],
+	"instances": {
+		"daemon": {
+			"code": "./server.ts",
+			"image": "hexpm/elixir:1.18.4-erlang-27.3.4-alpine-3.21.3",
+			"cpu": 1,
+			"memorySize": "2048 MB",
+			"startupCommand": [
+				"apk add --no-cache git curl bash github-cli aws-cli",
+				"mix local.hex --force && mix local.rebar --force && git clone https://github.com/openai/symphony /opt/symphony && cd /opt/symphony && mix deps.get && mix build"
+			],
+			"healthCheck": {
+				"path": "/health",
+				"interval": "30 seconds",
+				"timeout": "10 seconds",
+				"retries": 3,
+				"startPeriod": "5 minutes"
+			},
+			"log": {
+				"retention": "14 days"
+			}
+		}
+	},
+	"tables": {
+		"runs": {
+			"hash": "issueId",
+			"fields": {
+				"updatedAt": "number"
+			},
+			"indexes": {
+				"by-state": {
+					"hash": "state",
+					"sort": "updatedAt"
+				}
+			}
+		}
+	},
+	"stores": {
+		"workspaces": {}
+	}
+}

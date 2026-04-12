@@ -35,9 +35,16 @@ export const instanceFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'instance', 'cluster')
 
-		const cluster = new aws.ecs.Cluster(group, 'cluster', {
-			name: ctx.app.name,
-		})
+		const cluster = new aws.ecs.Cluster(
+			group,
+			'cluster',
+			{
+				name: `${ctx.app.name}-instance`,
+			},
+			{
+				replaceOnChanges: ['name'],
+			}
+		)
 
 		ctx.shared.set('instance', 'cluster-name', cluster.name)
 		ctx.shared.set('instance', 'cluster-arn', cluster.arn)

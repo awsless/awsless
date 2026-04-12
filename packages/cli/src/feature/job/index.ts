@@ -116,9 +116,16 @@ export const jobFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'job', 'cluster')
 
-		const cluster = new aws.ecs.Cluster(group, 'cluster', {
-			name: `${ctx.app.name}-job`,
-		})
+		const cluster = new aws.ecs.Cluster(
+			group,
+			'cluster',
+			{
+				name: `${ctx.app.name}-job`,
+			},
+			{
+				replaceOnChanges: ['name'],
+			}
+		)
 
 		ctx.shared.set('job', 'cluster-name', cluster.name)
 		ctx.shared.set('job', 'cluster-arn', cluster.arn)
