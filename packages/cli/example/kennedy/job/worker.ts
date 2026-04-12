@@ -1,5 +1,5 @@
-import { readFile, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
+import { readFile, writeFile } from 'fs/promises'
 
 export default async (payload: { message: string }) => {
 	const counterFile = '/root/.job-counter'

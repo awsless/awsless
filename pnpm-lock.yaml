@@ -215,6 +215,9 @@ importers:
       '@awsless/validate':
         specifier: workspace:^
         version: link:../validate
+      '@awsless/weak-cache':
+        specifier: workspace:^
+        version: link:../weak-cache
       '@clack/prompts':
         specifier: ^0.7.0
         version: 0.7.0
@@ -266,6 +269,9 @@ importers:
       aws-lambda:
         specifier: ^1.0.7
         version: 1.0.7
+      awsless:
+        specifier: workspace:^
+        version: link:../awsless
       chalk:
         specifier: ^5.3.0
         version: 5.6.2

@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { toDays, toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
@@ -304,10 +305,13 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 							command: [
 								[
 									...(props.startupCommand?.length
-										? [`if [ ! -f /root/.setup-done ]; then ${props.startupCommand.join(' && ')} && touch /root/.setup-done; fi`]
+										? (() => {
+												const setupHash = createHash('sha1').update(props.startupCommand.join(' && ')).digest('hex').slice(0, 8)
+												return [`if [ ! -f /root/.setup-done-${setupHash} ]; then ${props.startupCommand.join(' && ')} && touch /root/.setup-done-${setupHash}; fi`]
+											})()
 										: []),
-									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
-									`exec timeout ${toSeconds(props.timeout)} /root/program`,
+									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program.tmp && mv /root/program.tmp /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
+									`exec timeout --kill-after=10 ${toSeconds(props.timeout)} /root/program`,
 								].join(' && '),
 							],
 
@@ -372,7 +376,6 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
 	variables.CODE_HASH = code.sourceHash // needed to force update on code change
-	variables.TIMEOUT = toSeconds(props.timeout).toString()
 
 	// Add user-defined environment variables
 	if (props.environment) {

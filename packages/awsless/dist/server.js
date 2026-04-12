@@ -67,6 +67,8 @@ var Job = /* @__PURE__ */ createProxy((stackName) => {
     const ctx = {
       [name]: async (payload) => {
         const cluster = `${APP}-job`;
+        if (!process.env.JOB_SUBNETS) throw new Error("JOB_SUBNETS env var is not set. Is the job feature deployed?");
+        if (!process.env.JOB_SECURITY_GROUP) throw new Error("JOB_SECURITY_GROUP env var is not set. Is the job feature deployed?");
         const subnets = JSON.parse(process.env.JOB_SUBNETS);
         const securityGroup = process.env.JOB_SECURITY_GROUP;
         let storedPayload = payload;
@@ -99,20 +101,15 @@ var mockJob = (cb) => {
     return createProxy((name) => {
       return (handle = () => {
       }) => {
-        list[getJobName(name, stack)] = vi.fn(handle);
+        list[getJobName(name, stack)] = handle;
       };
     });
   });
   cb(mock);
-  mockEcs(list);
-  beforeEach && beforeEach(() => {
-    for (const item of Object.values(list)) {
-      item.mockClear();
-    }
-  });
+  const mocks = mockEcs(list);
   return createProxy((stack) => {
     return createProxy((name) => {
-      return list[getJobName(name, stack)];
+      return mocks[getJobName(name, stack)];
     });
   });
 };

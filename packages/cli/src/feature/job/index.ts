@@ -147,24 +147,9 @@ export const jobFeature = defineFeature({
 		})
 
 		ctx.shared.set('job', 'security-group-id', securityGroup.id)
-
-		// ------------------------------------------------------------
-		// Global permissions for invoking jobs
-
-		ctx.addGlobalPermission({
-			actions: ['ecs:RunTask', 'ecs:DescribeTasks', 'ecs:StopTask'],
-			resources: ['*'],
-		})
-
-		ctx.addGlobalPermission({
-			actions: ['iam:PassRole'],
-			resources: ['*'],
-		})
 	},
 	onStack(ctx) {
-		if (!ctx.shared.has('job', 'security-group-id')) return
-
-		// Env vars for job invocation (added at stack level to avoid base stack dependency issues)
+		// Env vars for job invocation (global for cross-stack invocation)
 		const subnets = ctx.shared.get('vpc', 'public-subnets')
 		ctx.addEnv(
 			'JOB_SUBNETS',
@@ -176,7 +161,10 @@ export const jobFeature = defineFeature({
 		ctx.addEnv('JOB_SECURITY_GROUP', ctx.shared.get('job', 'security-group-id'))
 		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('job', 'bucket-name'))
 
-		for (const [id, props] of Object.entries(ctx.stackConfig.jobs ?? {})) {
+		const jobs = Object.entries(ctx.stackConfig.jobs ?? {})
+		if (jobs.length === 0) return
+
+		for (const [id, props] of jobs) {
 			const group = new Group(ctx.stack, 'job', id)
 			createFargateJob(group, ctx, 'job', id, props)
 		}

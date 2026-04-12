@@ -1,7 +1,9 @@
-import { Job } from '../../../src/server'
+import { Job } from 'awsless'
 
 export default async () => {
-	const result = await Job.stack.worker({ message: 'hello from lambda' })
+	const result = await Job.job.worker({
+		message: 'hello from lambda',
+	})
 
 	return {
 		statusCode: 200,

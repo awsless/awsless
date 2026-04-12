@@ -8,14 +8,6 @@
 		"timeout-error": "./function/error/timeout.ts",
 		"handler-error": "./function/error/invalid-handler.ts",
 		"memory-error": "./function/error/out-of-memory.ts",
-		"run-job": "./job/run-job.ts"
-	},
-	"jobs": {
-		"worker": {
-			"code": "./job/worker.ts",
-			"timeout": "10 minutes",
-			"persistentStorage": true
-		}
 	},
 	// "tasks": {
 	// 	"test": "./function/index.ts"

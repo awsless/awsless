@@ -18,7 +18,8 @@ let payload = process.env.PAYLOAD ? parse(process.env.PAYLOAD) : undefined
 if (typeof payload === 'string' && payload.startsWith('s3://')) {
 	const url = new URL(payload)
 	const response = await getObject({ bucket: url.hostname, key: url.pathname.slice(1) })
-	if (response) payload = parse(await response.body.transformToString())
+	if (!response) throw new Error('Failed to fetch payload from S3: ' + payload)
+	payload = parse(await response.body.transformToString())
 }
 await handler(payload)
 	`

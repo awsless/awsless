@@ -2,7 +2,7 @@ import { seconds } from '@awsless/duration'
 import { subscribe } from '@awsless/sqs'
 import { serve, ServerType } from '@hono/node-server'
 import { Hono } from 'hono'
-import { getQueueName } from '../../../src/server'
+import { getQueueName } from 'awsless'
 
 let server: ServerType | undefined
 const ac = new AbortController()

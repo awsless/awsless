@@ -1,6 +1,6 @@
 import { updateItem } from '@awsless/dynamodb'
 import { lambda } from '@awsless/lambda'
-import { onErrorLogSchema } from '../../../src/server'
+import { onErrorLogSchema } from 'awsless'
 import { logTable } from './table'
 
 export default lambda({
