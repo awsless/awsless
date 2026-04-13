@@ -180,7 +180,12 @@ export const RouterDefaultSchema = z
 					password: z.string().describe('Password.'),
 				})
 				.optional()
-				.describe('Enable password authentication for the router.'),
+				.describe(
+					[
+						'Enable password authentication for the router.',
+						'You can authenicate by adding a "authorization" header with the value "Password [YOUR_PASSWORD]".',
+					].join('\n')
+				),
 
 			basicAuth: z
 				.object({
