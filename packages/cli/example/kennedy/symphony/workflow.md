@@ -1,31 +1,33 @@
 ---
 tracker:
     kind: linear
-    api_token: $LINEAR_API_KEY
-    project_slug: CCS
+    api_key: $LINEAR_API_KEY
+    project_slug: b5a3c59dc8db
+    active_states:
+        - Todo
+        - In Progress
+        - Rework
+    terminal_states:
+        - Done
+        - Closed
+        - Cancelled
+        - Canceled
+        - Duplicate
 polling:
     interval_ms: 60000
-active_states:
-    - Todo
-    - In Progress
-    - Rework
-terminal_states:
-    - Done
-    - Closed
-    - Cancelled
-    - Canceled
-    - Duplicate
 human_review_state: Human Review
 merging_state: Merging
 agent:
     max_concurrent_agents: 5
+codex:
+    command: codex --full-auto --config shell_environment_policy.inherit=all --config model_reasoning_effort=xhigh --model gpt-5.4 app-server
 workspace:
     root: /root/workspaces
-    hooks:
-        after_create: |
-            echo $GITHUB_TOKEN | gh auth login --with-token
-            git clone https://$GITHUB_TOKEN@github.com/your-org/your-repo.git .
-            git checkout -b agent/{{ issue.identifier }}
+hooks:
+    after_create: |
+        echo "$GITHUB_TOKEN" | gh auth login --with-token
+        gh auth setup-git
+        git clone https://github.com/camelot-org/ccs.git .
 ---
 
 You are an autonomous software engineer working on {{ issue.identifier }}: {{ issue.title }}.
@@ -42,25 +44,27 @@ Determine the current state of this issue and follow the appropriate flow:
 
 ### In Progress
 1. Read your tracking comment to understand current progress
-{% if attempt == null %}
+{% if attempt == nil %}
 2. Plan your approach before writing code — spend effort on design and verification strategy
 3. Reproduce the current behavior/issue before changing code
 {% else %}
 4. Review what failed in attempt {{ attempt }} and adjust your approach
 {% endif %}
-5. Implement the changes following existing code patterns and conventions
-6. Write or update tests for your changes
-7. Run the full test suite to verify nothing is broken
-8. Commit with a descriptive message referencing {{ issue.identifier }}
-9. Open a pull request and move the issue to "Human Review"
+5. Create a git branch for this issue if you are still on the default branch
+6. Implement the changes following existing code patterns and conventions
+7. Write or update tests for your changes
+8. Run the full test suite to verify nothing is broken
+9. Commit with a descriptive message referencing {{ issue.identifier }}
+10. Open a pull request and move the issue to "Human Review"
 
 ### Rework
 1. Read ALL review comments on the pull request
 2. Identify exactly what the reviewer wants changed
 3. Make targeted fixes addressing each review comment
-4. Run the test suite again
-5. Push updates to the existing PR
-6. Move the issue back to "Human Review"
+4. Ensure you are on the correct existing branch for this issue before editing
+5. Run the test suite again
+6. Push updates to the existing PR
+7. Move the issue back to "Human Review"
 
 ### Human Review
 No action needed. Wait for human decision.

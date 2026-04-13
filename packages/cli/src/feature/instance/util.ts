@@ -1,9 +1,11 @@
 import { toDays, toSeconds } from '@awsless/duration'
+import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { Group, Input, OptionalInput, Output, findInputDeps, resolveInputs } from '@terraforge/core'
 import { constantCase, pascalCase } from 'change-case'
+import { createHash } from 'crypto'
 import deepmerge from 'deepmerge'
 import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
@@ -413,6 +415,7 @@ export const createFargateTask = (
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
 	variables.CODE_HASH = code.sourceHash // needed to force update on code change
+	variables.INSTANCE_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
 
 	// Add user-defined environment variables
 	if (props.environment) {

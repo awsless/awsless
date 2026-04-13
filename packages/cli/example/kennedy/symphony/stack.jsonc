@@ -2,44 +2,33 @@
 	"$schema": "../../../dist/stack.json",
 	"name": "symphony",
 	"tests": false,
-	"configs": ["github-token", "linear-api-key", "openai-api-key"],
+	"configs": ["github-token", "linear-api-key", "codex-oauth-token", "openai-api-key"],
+	"commands": {
+		"sync-codex-oauth-token": {
+			"file": "./sync-codex-oauth-token.ts",
+			"description": "Read ~/.codex/auth.json and store it in SSM as codex-oauth-token"
+		}
+	},
 	"instances": {
 		"daemon": {
 			"code": "./server.ts",
-			"image": "hexpm/elixir:1.18.4-erlang-27.3.4-alpine-3.21.3",
-			"cpu": 1,
-			"memorySize": "2048 MB",
+			"image": "hexpm/elixir:1.19.5-erlang-26.2.5.19-ubuntu-noble-20260324",
+			"cpu": 2,
+			"memorySize": "4096 MB",
 			"startupCommand": [
-				"apk add --no-cache git curl bash github-cli aws-cli",
-				"mix local.hex --force && mix local.rebar --force && git clone https://github.com/openai/symphony /opt/symphony && cd /opt/symphony && mix deps.get && mix build"
+				"apt-get update && apt-get install -y --no-install-recommends git curl bash python3-pip gh nodejs npm && pip install awscli --break-system-packages && npm install -g @openai/codex",
+				"mix local.hex --force && mix local.rebar --force && (test -d /opt/symphony || git clone https://github.com/openai/symphony /opt/symphony) && cd /opt/symphony/elixir && mix deps.get && mix build"
 			],
 			"healthCheck": {
 				"path": "/health",
-				"interval": "30 seconds",
+				"interval": "5 minutes",
 				"timeout": "10 seconds",
-				"retries": 3,
+				"retries": 4,
 				"startPeriod": "5 minutes"
 			},
 			"log": {
 				"retention": "14 days"
 			}
 		}
-	},
-	"tables": {
-		"runs": {
-			"hash": "issueId",
-			"fields": {
-				"updatedAt": "number"
-			},
-			"indexes": {
-				"by-state": {
-					"hash": "state",
-					"sort": "updatedAt"
-				}
-			}
-		}
-	},
-	"stores": {
-		"workspaces": {}
 	}
 }

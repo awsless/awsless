@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { toDays, toSeconds } from '@awsless/duration'
+import { stringify } from '@awsless/json'
 import { toMebibytes } from '@awsless/size'
 import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
@@ -376,6 +377,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	variables.AWS_ACCOUNT_ID = ctx.accountId
 	variables.STACK = ctx.stackConfig.name
 	variables.CODE_HASH = code.sourceHash // needed to force update on code change
+	variables.JOB_CONFIG_HASH = createHash('sha1').update(stringify(props)).digest('hex') // needed to force update on config change
 
 	// Add user-defined environment variables
 	if (props.environment) {

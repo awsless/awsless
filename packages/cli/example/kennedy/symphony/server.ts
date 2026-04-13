@@ -1,8 +1,9 @@
 import { serve, ServerType } from '@hono/node-server'
 import { Config } from 'awsless'
-import { ChildProcess, spawn } from 'child_process'
-import { writeFileSync } from 'fs'
+import { ChildProcess, spawn, spawnSync } from 'child_process'
+import { mkdirSync, writeFileSync } from 'fs'
 import { Hono } from 'hono'
+import { gunzipSync } from 'zlib'
 
 // Symphony daemon manager + health check sidecar for Fargate.
 //
@@ -19,13 +20,92 @@ import { Hono } from 'hono'
 
 // --- Config ---
 
+process.env.HOME ??= '/root'
+
+const getOptionalConfig = (name: string) => {
+	try {
+		return Config[name as keyof typeof Config] as string
+	} catch {
+		return undefined
+	}
+}
+
 process.env.GITHUB_TOKEN = Config.GITHUB_TOKEN
 process.env.LINEAR_API_KEY = Config.LINEAR_API_KEY
-process.env.OPENAI_API_KEY = Config.OPENAI_API_KEY
+
+const codexOauthToken = getOptionalConfig('CODEX_OAUTH_TOKEN')?.trim()
+const openaiApiKey = getOptionalConfig('OPENAI_API_KEY')?.trim()
+
+if (openaiApiKey) {
+	process.env.OPENAI_API_KEY = openaiApiKey
+}
+
+const decodeCodexAuthJson = (value: string) => {
+	const raw = value.trim()
+
+	const parseObjectJson = (text: string) => {
+		const parsed = JSON.parse(text)
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			throw new Error('expected a JSON object')
+		}
+		return JSON.stringify(parsed)
+	}
+
+	try {
+		return parseObjectJson(raw)
+	} catch {
+		// Fall through. This commonly happens when the secret is stored as compressed transport text
+		// to stay below SSM's 4 KB string limit.
+	}
+
+	try {
+		const inflated = gunzipSync(Buffer.from(raw, 'base64')).toString('utf8')
+		return parseObjectJson(inflated)
+	} catch (error) {
+		const message = error instanceof Error ? error.message : 'unknown error'
+		throw new Error(`Invalid CODEX_OAUTH_TOKEN: expected raw JSON or gzip+base64 JSON (${message})`)
+	}
+}
+
+function ensureCodexAuth() {
+	if (codexOauthToken) {
+		const authJson = decodeCodexAuthJson(codexOauthToken)
+
+		mkdirSync('/root/.codex', {
+			recursive: true,
+			mode: 0o700,
+		})
+
+		writeFileSync('/root/.codex/auth.json', authJson, {
+			mode: 0o600,
+		})
+
+		return
+	}
+
+	const apiKey = process.env.OPENAI_API_KEY?.trim()
+
+	if (!apiKey) {
+		throw new Error('Missing Codex auth: set CODEX_OAUTH_TOKEN or OPENAI_API_KEY')
+	}
+
+	// `startupCommand` only sees CONFIG_* indirection, not the resolved secret. Authenticate here,
+	// after the stack config has been loaded from SSM and exported into the process environment.
+	const result = spawnSync('codex', ['login', '--with-api-key'], {
+		input: `${apiKey}\n`,
+		encoding: 'utf8',
+		env: { ...process.env },
+	})
+
+	if (result.status !== 0 || result.error) {
+		const error = result.error?.message || result.stderr.trim() || result.stdout.trim() || `exit ${result.status}`
+		throw new Error(`Codex login failed: ${error}`)
+	}
+}
 
 // --- Symphony daemon ---
 
-const SYMPHONY_BIN = '/opt/symphony/bin/symphony'
+const SYMPHONY_BIN = '/opt/symphony/elixir/bin/symphony'
 const SYMPHONY_PORT = '4001'
 const WORKFLOW_PATH = '/tmp/workflow.md'
 
@@ -35,31 +115,33 @@ writeFileSync(
 ---
 tracker:
     kind: linear
-    api_token: $LINEAR_API_KEY
-    project_slug: CCS
+    api_key: $LINEAR_API_KEY
+    project_slug: b5a3c59dc8db
+    active_states:
+        - Todo
+        - In Progress
+        - Rework
+    terminal_states:
+        - Done
+        - Closed
+        - Cancelled
+        - Canceled
+        - Duplicate
 polling:
     interval_ms: 60000
-active_states:
-    - Todo
-    - In Progress
-    - Rework
-terminal_states:
-    - Done
-    - Closed
-    - Cancelled
-    - Canceled
-    - Duplicate
 human_review_state: Human Review
 merging_state: Merging
 agent:
     max_concurrent_agents: 5
+codex:
+    command: codex --full-auto --config shell_environment_policy.inherit=all --config model_reasoning_effort=xhigh --model gpt-5.4 app-server
 workspace:
     root: /root/workspaces
-    hooks:
-        after_create: |
-            echo $GITHUB_TOKEN | gh auth login --with-token
-            git clone https://$GITHUB_TOKEN@github.com/your-org/your-repo.git .
-            git checkout -b agent/{{ issue.identifier }}
+hooks:
+    after_create: |
+        echo "$GITHUB_TOKEN" | gh auth login --with-token
+        gh auth setup-git
+        git clone https://github.com/camelot-org/ccs.git .
 ---
 
 You are an autonomous software engineer working on {{ issue.identifier }}: {{ issue.title }}.
@@ -76,25 +158,27 @@ Determine the current state of this issue and follow the appropriate flow:
 
 ### In Progress
 1. Read your tracking comment to understand current progress
-{% if attempt == null %}
+{% if attempt == nil %}
 2. Plan your approach before writing code — spend effort on design and verification strategy
 3. Reproduce the current behavior/issue before changing code
 {% else %}
 4. Review what failed in attempt {{ attempt }} and adjust your approach
 {% endif %}
-5. Implement the changes following existing code patterns and conventions
-6. Write or update tests for your changes
-7. Run the full test suite to verify nothing is broken
-8. Commit with a descriptive message referencing {{ issue.identifier }}
-9. Open a pull request and move the issue to "Human Review"
+5. Create a git branch for this issue if you are still on the default branch
+6. Implement the changes following existing code patterns and conventions
+7. Write or update tests for your changes
+8. Run the full test suite to verify nothing is broken
+9. Commit with a descriptive message referencing {{ issue.identifier }}
+10. Open a pull request and move the issue to "Human Review"
 
 ### Rework
 1. Read ALL review comments on the pull request
 2. Identify exactly what the reviewer wants changed
 3. Make targeted fixes addressing each review comment
-4. Run the test suite again
-5. Push updates to the existing PR
-6. Move the issue back to "Human Review"
+4. Ensure you are on the correct existing branch for this issue before editing
+5. Run the test suite again
+6. Push updates to the existing PR
+7. Move the issue back to "Human Review"
 
 ### Human Review
 No action needed. Wait for human decision.
@@ -123,12 +207,16 @@ Before marking work complete, ensure:
 let symphonyProcess: ChildProcess | undefined
 let restartCount = 0
 
+ensureCodexAuth()
+
 function startSymphony() {
 	symphonyProcess = spawn(
 		SYMPHONY_BIN,
 		[
 			'--port',
 			SYMPHONY_PORT,
+			'--logs-root',
+			'/tmp/symphony-logs',
 			'--i-understand-that-this-will-be-running-without-the-usual-guardrails',
 			WORKFLOW_PATH,
 		],
@@ -182,6 +270,7 @@ let server: ServerType | undefined
 
 server = serve({ fetch: app.fetch, port: 80 }, info => {
 	console.log(`Health check sidecar on port ${info.port}`)
+	console.log('version 4')
 })
 
 // --- Graceful shutdown ---
