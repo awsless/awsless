@@ -5,7 +5,7 @@
 	"configs": ["github-token", "linear-api-key", "codex-oauth-token", "openai-api-key"],
 	"commands": {
 		"sync-codex-oauth-token": {
-			"file": "./sync-codex-oauth-token.ts",
+			"file": "./cli/sync-codex-oauth-token.ts",
 			"description": "Read ~/.codex/auth.json and store it in SSM as codex-oauth-token"
 		}
 	},

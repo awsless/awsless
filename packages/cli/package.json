@@ -1,6 +1,6 @@
 {
 	"name": "@awsless/cli",
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"license": "MIT",
 	"type": "module",
 	"sideEffects": false,
@@ -29,7 +29,6 @@
 		"build-layers": "mkdir -p dist/layers && cp -r layers/* dist/layers",
 		"jack": "pnpm tsup ./example/jack/jack.ts --format esm --external bun; bun ./dist/jack.js",
 		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm --external bun; bun ./dist/kennedy.js",
-		"tanmay": "pnpm tsup ./example/tanmay/tanmay.ts --format esm --external bun; bun ./dist/tanmay.js",
 		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; pnpm build-prebuild; pnpm build-layers; else exit; fi"
 	},
 	"vitest": {

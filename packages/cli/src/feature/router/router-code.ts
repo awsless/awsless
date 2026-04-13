@@ -56,6 +56,9 @@ if (!isAuthorized) {
 	return {
 		statusCode: 401,
 		headers: {
+			'access-control-allow-origin': {
+				value: '*'
+			},
 			'www-authenticate': {
 				value: authMethods.join(', ')
 			}
