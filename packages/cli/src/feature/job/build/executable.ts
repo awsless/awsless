@@ -36,6 +36,23 @@ await handler(payload)
 				outfile: filePath,
 			},
 			target: 'bun',
+			loader: {
+				'.md': 'text',
+				'.txt': 'text',
+				'.html': 'text',
+				'.css': 'text',
+				'.yaml': 'text',
+				'.yml': 'text',
+				'.xml': 'text',
+				'.csv': 'text',
+				'.svg': 'text',
+				'.png': 'file',
+				'.jpg': 'file',
+				'.jpeg': 'file',
+				'.gif': 'file',
+				'.webp': 'file',
+				'.wasm': 'file',
+			},
 		})
 	} catch (error) {
 		throw new ExpectedError(

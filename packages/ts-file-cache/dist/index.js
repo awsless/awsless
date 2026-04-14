@@ -4,7 +4,7 @@ import { readdir } from "fs/promises";
 // src/hash.ts
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
-import { builtinModules } from "node:module";
+import { builtinModules } from "module";
 import { relative } from "path";
 
 // src/import.ts
@@ -105,9 +105,13 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
       return;
     }
     const code = await readFile(file, "utf8");
-    const deps = await findImports(file, code);
+    const ext = file.split(".").pop();
     const hash = createHash("sha1").update(code).digest();
     hashes.set(relFile, hash);
+    if (!ext || !allowedExtensions.includes(ext)) {
+      return;
+    }
+    const deps = await findImports(file, code);
     for (const dep of deps) {
       await generateRecursiveFileHashes(workspace, dep, file, allowedExtensions, hashes);
     }
@@ -245,7 +249,7 @@ var generateFolderHash = async (workspace, folder, opts = {}) => {
   const files = await readdir(folder, { recursive: true, withFileTypes: true });
   for (const file of files) {
     if (file.isFile() && options.extensions.includes(extname(file.name).substring(1))) {
-      const f = resolve2(file.path, file.name);
+      const f = resolve2(file.parentPath, file.name);
       await generateRecursiveFileHashes(workspace, f, f, options.extensions, hashes);
     }
   }

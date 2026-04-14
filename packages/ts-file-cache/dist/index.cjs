@@ -131,9 +131,13 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
       return;
     }
     const code = await (0, import_promises2.readFile)(file, "utf8");
-    const deps = await findImports(file, code);
+    const ext = file.split(".").pop();
     const hash = (0, import_crypto.createHash)("sha1").update(code).digest();
     hashes.set(relFile, hash);
+    if (!ext || !allowedExtensions.includes(ext)) {
+      return;
+    }
+    const deps = await findImports(file, code);
     for (const dep of deps) {
       await generateRecursiveFileHashes(workspace, dep, file, allowedExtensions, hashes);
     }
@@ -271,7 +275,7 @@ var generateFolderHash = async (workspace, folder, opts = {}) => {
   const files = await (0, import_promises4.readdir)(folder, { recursive: true, withFileTypes: true });
   for (const file of files) {
     if (file.isFile() && options.extensions.includes((0, import_path5.extname)(file.name).substring(1))) {
-      const f = (0, import_path5.resolve)(file.path, file.name);
+      const f = (0, import_path5.resolve)(file.parentPath, file.name);
       await generateRecursiveFileHashes(workspace, f, f, options.extensions, hashes);
     }
   }

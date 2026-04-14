@@ -21,6 +21,23 @@ export const buildExecutable = async (input: string, outputPath: string, archite
 				outfile: filePath,
 			},
 			target: 'bun',
+			loader: {
+				'.md': 'text',
+				'.txt': 'text',
+				'.html': 'text',
+				'.css': 'text',
+				'.yaml': 'text',
+				'.yml': 'text',
+				'.xml': 'text',
+				'.csv': 'text',
+				'.svg': 'text',
+				'.png': 'file',
+				'.jpg': 'file',
+				'.jpeg': 'file',
+				'.gif': 'file',
+				'.webp': 'file',
+				'.wasm': 'file',
+			},
 		})
 	} catch (error) {
 		throw new ExpectedError(

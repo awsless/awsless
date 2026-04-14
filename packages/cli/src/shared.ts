@@ -45,6 +45,7 @@ type SharedState = {
 		'cluster-name': Output<string>
 		'cluster-arn': Output<string>
 		'security-group-id': Output<string>
+		'persistent-storage-file-system-id': Output<string>
 	}
 }
 

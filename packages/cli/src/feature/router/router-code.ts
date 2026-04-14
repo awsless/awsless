@@ -191,7 +191,7 @@ function setLambdaOrigin(route) {
 	}));
 }
 
-function setUrlRoute(route) {
+function setUrlOrigin(route) {
 	cf.updateRequestOrigin(getRequestOriginConfig(route));
 }
 
@@ -199,6 +199,18 @@ async function handler(event) {
 	const request = event.request;
 	const headers = request.headers;
 	const path = decodeURIComponent(request.uri);
+
+	if (request.method === 'OPTIONS') {
+		return {
+			statusCode: 204,
+			headers: {
+				'access-control-allow-origin': { value: '*' },
+				'access-control-allow-methods': { value: 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS' },
+				'access-control-allow-headers': { value: '*' },
+				'access-control-max-age': { value: '86400' }
+			}
+		};
+	}
 
 	${injection.join('\n')}
 

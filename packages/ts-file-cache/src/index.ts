@@ -43,7 +43,7 @@ export const generateFolderHash = async (workspace: Workspace, folder: string, o
 
 	for (const file of files) {
 		if (file.isFile() && options.extensions.includes(extname(file.name).substring(1))) {
-			const f = resolve(file.path, file.name)
+			const f = resolve(file.parentPath, file.name)
 			await generateRecursiveFileHashes(workspace, f, f, options.extensions, hashes)
 		}
 	}

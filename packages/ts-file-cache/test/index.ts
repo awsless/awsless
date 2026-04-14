@@ -12,21 +12,21 @@ describe('Hash', () => {
 
 	it('should hash a relative file', async () => {
 		const hash = await generateFileHash(workspace, './src/index.ts')
-		expect(hash).toBe('610aad76087f9db4aa7a65f11898e8a8c8affbad')
+		expect(hash).toBe('bff8aab198c7c24c25ea23b9cee6101d22a90b18')
 	})
 
 	it('should hash a absolute file', async () => {
 		const hash = await generateFileHash(workspace, __dirname + '/../src/index.ts')
-		expect(hash).toBe('610aad76087f9db4aa7a65f11898e8a8c8affbad')
+		expect(hash).toBe('bff8aab198c7c24c25ea23b9cee6101d22a90b18')
 	})
 
 	it('should hash a relative folder', async () => {
 		const hash = await generateFolderHash(workspace, './src')
-		expect(hash).toBe('610aad76087f9db4aa7a65f11898e8a8c8affbad')
+		expect(hash).toBe('bff8aab198c7c24c25ea23b9cee6101d22a90b18')
 	})
 
 	it('should hash a absolute folder', async () => {
 		const hash = await generateFolderHash(workspace, process.cwd() + '/src')
-		expect(hash).toBe('610aad76087f9db4aa7a65f11898e8a8c8affbad')
+		expect(hash).toBe('bff8aab198c7c24c25ea23b9cee6101d22a90b18')
 	})
 })

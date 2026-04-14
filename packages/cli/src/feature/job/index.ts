@@ -1,6 +1,7 @@
 import { Group, Output, resolveInputs, findInputDeps } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { camelCase } from 'change-case'
+import deepmerge from 'deepmerge'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -154,9 +155,57 @@ export const jobFeature = defineFeature({
 		})
 
 		ctx.shared.set('job', 'security-group-id', securityGroup.id)
+
+		// ------------------------------------------------------------
+		// Create shared EFS for persistent storage
+
+		const needsPersistentStorage = ctx.stackConfigs.some(stack =>
+			Object.values(stack.jobs ?? {}).some(job => {
+				const merged = deepmerge(ctx.appConfig.defaults.job, job)
+				return merged.persistentStorage
+			})
+		)
+
+		if (needsPersistentStorage) {
+			const storageGroup = new Group(ctx.base, 'job', 'persistent-storage')
+
+			new aws.vpc.SecurityGroupIngressRule(storageGroup, 'ingress-rule', {
+				securityGroupId: securityGroup.id,
+				referencedSecurityGroupId: securityGroup.id,
+				description: 'Allow NFS traffic from jobs',
+				ipProtocol: 'tcp',
+				fromPort: 2049,
+				toPort: 2049,
+				tags: {
+					APP: ctx.appConfig.name,
+				},
+			})
+
+			const fileSystem = new aws.efs.FileSystem(storageGroup, 'file-system', {
+				encrypted: true,
+				performanceMode: 'generalPurpose',
+				throughputMode: 'elastic',
+				tags: {
+					APP: ctx.appConfig.name,
+					Name: `${ctx.app.name}-job-storage`,
+				},
+			})
+
+			for (const [index, subnetId] of ctx.shared.get('vpc', 'public-subnets').entries()) {
+				new aws.efs.MountTarget(storageGroup, `mount-target-${index + 1}`, {
+					fileSystemId: fileSystem.id,
+					subnetId,
+					securityGroups: [securityGroup.id],
+				})
+			}
+
+			ctx.shared.set('job', 'persistent-storage-file-system-id', fileSystem.id)
+		}
 	},
 	onStack(ctx) {
-		// Env vars for job invocation (global for cross-stack invocation)
+		const jobs = Object.entries(ctx.stackConfig.jobs ?? {})
+		if (jobs.length === 0) return
+
 		const subnets = ctx.shared.get('vpc', 'public-subnets')
 		ctx.addEnv(
 			'JOB_SUBNETS',
@@ -167,9 +216,6 @@ export const jobFeature = defineFeature({
 		)
 		ctx.addEnv('JOB_SECURITY_GROUP', ctx.shared.get('job', 'security-group-id'))
 		ctx.addEnv('JOB_PAYLOAD_BUCKET', ctx.shared.get('job', 'bucket-name'))
-
-		const jobs = Object.entries(ctx.stackConfig.jobs ?? {})
-		if (jobs.length === 0) return
 
 		for (const [id, props] of jobs) {
 			const group = new Group(ctx.stack, 'job', id)

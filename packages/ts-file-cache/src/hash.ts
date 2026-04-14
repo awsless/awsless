@@ -27,10 +27,16 @@ export const generateRecursiveFileHashes = async (
 		}
 
 		const code = await readFile(file, 'utf8')
-		const deps = await findImports(file, code)
+		const ext = file.split('.').pop()
 		const hash = createHash('sha1').update(code).digest()
 
 		hashes.set(relFile, hash)
+
+		if (!ext || !allowedExtensions.includes(ext)) {
+			return
+		}
+
+		const deps = await findImports(file, code)
 
 		for (const dep of deps) {
 			await generateRecursiveFileHashes(workspace, dep, file, allowedExtensions, hashes)

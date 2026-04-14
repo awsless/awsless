@@ -193,66 +193,33 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 
 	const accessPoint = props.persistentStorage
 		? (() => {
-				const persistentStorageSecurityGroup = new aws.security.Group(
+				const fileSystemId = ctx.shared.get('job', 'persistent-storage-file-system-id')
+
+				const accessPoint = new aws.efs.AccessPoint(
 					group,
-					'persistent-storage-security-group',
+					'access-point',
 					{
-						name: shortId(`${shortName}:storage-sg`),
-						description: name,
-						vpcId: ctx.shared.get('vpc', 'id'),
-						revokeRulesOnDelete: true,
+						fileSystemId,
+						rootDirectory: {
+							path: `/jobs/${name}`,
+							creationInfo: {
+								ownerUid: 0,
+								ownerGid: 0,
+								permissions: '755',
+							},
+						},
 						tags,
+					},
+					{
+						replaceOnChanges: ['fileSystemId'],
 					}
 				)
 
-				new aws.vpc.SecurityGroupIngressRule(group, 'persistent-storage-ingress-rule', {
-					securityGroupId: persistentStorageSecurityGroup.id,
-					referencedSecurityGroupId: ctx.shared.get('job', 'security-group-id'),
-					description: 'Allow NFS traffic from this job',
-					ipProtocol: 'tcp',
-					fromPort: 2049,
-					toPort: 2049,
-					tags,
-				})
-
-				const fileSystem = new aws.efs.FileSystem(group, 'persistent-storage-file-system', {
-					encrypted: true,
-					performanceMode: 'generalPurpose',
-					throughputMode: 'elastic',
-					tags: {
-						...tags,
-						Name: `${name}-storage`,
-					},
-				})
-
-				for (const [index, subnetId] of ctx.shared.get('vpc', 'public-subnets').entries()) {
-					const mountTarget = new aws.efs.MountTarget(group, `mount-target-${index + 1}`, {
-						fileSystemId: fileSystem.id,
-						subnetId,
-						securityGroups: [persistentStorageSecurityGroup.id],
-					})
-
-					taskDependsOn.push(mountTarget)
-				}
-
-				const accessPoint = new aws.efs.AccessPoint(group, 'access-point', {
-					fileSystemId: fileSystem.id,
-					rootDirectory: {
-						path: `/jobs/${name}`,
-						creationInfo: {
-							ownerUid: 0,
-							ownerGid: 0,
-							permissions: '755',
-						},
-					},
-					tags,
-				})
-
-				taskDependsOn.push(fileSystem, accessPoint)
+				taskDependsOn.push(accessPoint)
 
 				return {
 					accessPoint,
-					fileSystem,
+					fileSystemId,
 				}
 			})()
 		: undefined
@@ -278,7 +245,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 					{
 						name: 'persistent-storage',
 						efsVolumeConfiguration: {
-							fileSystemId: accessPoint.fileSystem.id,
+							fileSystemId: accessPoint.fileSystemId,
 							transitEncryption: 'ENABLED',
 							authorizationConfig: {
 								accessPointId: accessPoint.accessPoint.id,
