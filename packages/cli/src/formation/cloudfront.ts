@@ -1,9 +1,8 @@
 import {
 	CloudFrontClient,
-	CreateDistributionCommand,
+	// CreateDistributionCommand,
 	CreateInvalidationForDistributionTenantCommand,
 	ListDistributionTenantsCommand,
-	UpdateDistributionCommand,
 } from '@aws-sdk/client-cloudfront' // ES Modules import
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import { randomUUID } from 'crypto'

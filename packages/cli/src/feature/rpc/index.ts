@@ -106,7 +106,7 @@ export const rpcFeature = defineFeature({
 				memorySize: mebibytes(256),
 				timeout: props.timeout,
 				handler: 'index.default',
-				runtime: 'nodejs22.x',
+				runtime: 'nodejs24.x',
 				warm: 3,
 				log: props.log,
 			})
