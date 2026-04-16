@@ -78,7 +78,7 @@ const PermissionsSchema = z
 
 const DescriptionSchema = z.string().describe('A description of the instance.')
 
-const ImageSchema = z.string().optional().describe('The URL of the container image to use.')
+const ImageSchema = z.string().optional().describe('The URL of the container image to use. Default: public.ecr.aws/aws-cli/aws-cli:{architecture}')
 
 const validLogRetentionDays = [
 	...[1, 3, 5, 7, 14, 30, 60, 90, 120, 150],

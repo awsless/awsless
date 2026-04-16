@@ -31,7 +31,11 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 	const shortName = shortId(`${ctx.app.name}:${ctx.stack.name}:${ns}:${id}:${ctx.appId}`)
 
 	const props = deepmerge(ctx.appConfig.defaults.job, local)
-	const image = props.image || 'public.ecr.aws/amazonlinux/amazonlinux:2023-minimal'
+	const image =
+		props.image ||
+		(props.architecture === 'arm64'
+			? 'public.ecr.aws/aws-cli/aws-cli:arm64'
+			: 'public.ecr.aws/aws-cli/aws-cli:amd64')
 
 	// ------------------------------------------------------------
 
@@ -273,10 +277,7 @@ export const createFargateJob = (parentGroup: Group, ctx: StackContext, ns: stri
 							command: [
 								[
 									...(props.startupCommand?.length
-										? (() => {
-												const setupHash = createHash('sha1').update(props.startupCommand.join(' && ')).digest('hex').slice(0, 8)
-												return [`if [ ! -f /root/.setup-done-${setupHash} ]; then ${props.startupCommand.join(' && ')} && touch /root/.setup-done-${setupHash}; fi`]
-											})()
+										? [props.startupCommand.join(' && ')]
 										: []),
 									`if [ "$(cat /root/.code-hash 2>/dev/null)" != "$CODE_HASH" ]; then command -v aws >/dev/null 2>&1 || dnf install -y awscli && aws s3 cp s3://${s3Bucket}/${s3Key} /root/program.tmp && mv /root/program.tmp /root/program && chmod +x /root/program && echo "$CODE_HASH" > /root/.code-hash; fi`,
 									`exec timeout --kill-after=10 ${toSeconds(props.timeout)} /root/program`,

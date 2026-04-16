@@ -96,7 +96,7 @@ const CodeSchema = z
 
 const TimeoutSchema = DurationSchema.describe('The maximum time the job is allowed to run before being stopped.')
 
-const ImageSchema = z.string().describe('The URL of the container image to use.')
+const ImageSchema = z.string().describe('The URL of the container image to use. Default: public.ecr.aws/aws-cli/aws-cli:{architecture}')
 
 const PersistentStorageSchema = z
 	.boolean()
