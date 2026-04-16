@@ -1,6 +1,6 @@
 import { ssm } from '@awsless/ssm'
-import { APP } from './resource.js'
 import { paramCase } from 'change-case'
+import { APP } from './resource.js'
 
 export const getConfigName = (name: string) => {
 	return `/.awsless/${APP}/${name}`

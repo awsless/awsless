@@ -3,7 +3,7 @@ import { kebabCase } from 'change-case'
 import { APP, IS_TEST } from './util.js'
 
 export const getConfigName = (name: string) => {
-	return `/.awsless/${APP}/${name}`
+	return `/.awsless/${APP}/${kebabCase(name)}`
 }
 
 /*@__NO_SIDE_EFFECTS__*/
