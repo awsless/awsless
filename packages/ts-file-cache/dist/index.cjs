@@ -143,15 +143,16 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
     }
     return;
   }
-  if (hashes.has(file)) {
+  const module2 = getPackageName(file);
+  if (hashes.has(module2)) {
     return;
   }
-  const dependency = findDependency(workspace, file, sourceFile);
+  const dependency = findDependency(workspace, module2, sourceFile);
   if (dependency) {
     if (dependency.type === "package") {
-      hashes.set(file, Buffer.from(`${file}:${dependency.version}`, "utf8"));
+      hashes.set(module2, Buffer.from(`${module2}:${dependency.version}`, "utf8"));
     } else {
-      const localPackage = workspace.packages[file];
+      const localPackage = workspace.packages[module2];
       if (!localPackage) {
         throw new Error(`Can't find the local workspace package for: ${file}`);
       }
@@ -168,7 +169,7 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
     }
     return;
   }
-  if (import_node_module.builtinModules.includes(file.replace(/^node\:/, ""))) {
+  if (import_node_module.builtinModules.includes(module2.replace(/^node\:/, ""))) {
     return;
   }
   throw new Error(`Can't find the dependency version for: ${file} inside the source: ${sourceFile}`);
@@ -176,6 +177,17 @@ var generateRecursiveFileHashes = async (workspace, file, sourceFile, allowedExt
 var mergeHashes = (hashes) => {
   const merge = Buffer.concat(Array.from(hashes.values()).sort());
   return (0, import_crypto.createHash)("sha1").update(merge).digest("hex");
+};
+var getPackageName = (importee) => {
+  const parts = importee.split("/");
+  if (importee.startsWith("@")) {
+    if (parts.length >= 2) {
+      return `${parts[0]}/${parts[1]}`;
+    }
+  } else if (parts.length >= 1) {
+    return parts[0];
+  }
+  throw new Error(`Malformed importee: ${importee}`);
 };
 var findDependency = (workspace, module2, source) => {
   const pkg = Object.values(workspace.packages).filter((p) => source.startsWith(p.path)).sort((a, b) => b.path.split("/").length - a.path.split("/").length).find((p) => p.dependencies[module2]);

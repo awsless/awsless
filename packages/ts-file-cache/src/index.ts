@@ -31,8 +31,6 @@ export const generateFileHash = async (workspace: Workspace, file: string, opts:
 
 	await generateRecursiveFileHashes(workspace, absoluteFile, absoluteFile, options.extensions, hashes)
 
-	// console.log(hashes)
-
 	return mergeHashes(hashes)
 }
 

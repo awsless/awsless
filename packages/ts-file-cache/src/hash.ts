@@ -45,17 +45,19 @@ export const generateRecursiveFileHashes = async (
 		return
 	}
 
-	if (hashes.has(file)) {
+	const module = getPackageName(file)
+
+	if (hashes.has(module)) {
 		return
 	}
 
-	const dependency = findDependency(workspace, file, sourceFile)
+	const dependency = findDependency(workspace, module, sourceFile)
 
 	if (dependency) {
 		if (dependency.type === 'package') {
-			hashes.set(file, Buffer.from(`${file}:${dependency.version}`, 'utf8'))
+			hashes.set(module, Buffer.from(`${module}:${dependency.version}`, 'utf8'))
 		} else {
-			const localPackage = workspace.packages[file]
+			const localPackage = workspace.packages[module]
 
 			if (!localPackage) {
 				throw new Error(`Can't find the local workspace package for: ${file}`)
@@ -77,7 +79,7 @@ export const generateRecursiveFileHashes = async (
 		return
 	}
 
-	if (builtinModules.includes(file.replace(/^node\:/, ''))) {
+	if (builtinModules.includes(module.replace(/^node\:/, ''))) {
 		return
 	}
 
@@ -90,7 +92,22 @@ export const mergeHashes = (hashes: Map<string, Buffer>) => {
 	return createHash('sha1').update(merge).digest('hex')
 }
 
+const getPackageName = (importee: string) => {
+	const parts = importee.split('/')
+
+	if (importee.startsWith('@')) {
+		if (parts.length >= 2) {
+			return `${parts[0]}/${parts[1]}`
+		}
+	} else if (parts.length >= 1) {
+		return parts[0]!
+	}
+
+	throw new Error(`Malformed importee: ${importee}`)
+}
+
 const findDependency = (workspace: Workspace, module: string, source: string) => {
+	// const module = getPackageName(importee)
 	const pkg = Object.values(workspace.packages)
 		.filter(p => source.startsWith(p.path))
 		.sort((a, b) => b.path.split('/').length - a.path.split('/').length)
