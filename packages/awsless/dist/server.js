@@ -492,7 +492,7 @@ var Cache = /* @__PURE__ */ createProxy((stack) => {
 import { ssm } from "@awsless/ssm";
 import { kebabCase as kebabCase3 } from "change-case";
 var getConfigName = (name) => {
-  return `/.awsless/${APP}/${kebabCase3(name)}`;
+  return `/.awsless/${APP}/${name}`;
 };
 var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
   if (!IS_TEST) {

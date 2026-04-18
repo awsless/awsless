@@ -1,4 +1,5 @@
 import { Group } from '@terraforge/core'
+import { toDays } from '@awsless/duration'
 import { kebabCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -96,6 +97,13 @@ export const storeFeature = defineFeature({
 				postfix: ctx.appId,
 			})
 
+			const lifecycleRule = props.lifecycle?.map((rule, index) => ({
+				id: rule.prefix ? `expire-${kebabCase(rule.prefix)}` : `expire-rule-${index}`,
+				enabled: true,
+				...(rule.prefix ? { prefix: rule.prefix } : {}),
+				expiration: { days: toDays(rule.expiration) },
+			}))
+
 			const bucket = new aws.s3.Bucket(
 				group,
 				'store',
@@ -114,6 +122,7 @@ export const storeFeature = defineFeature({
 							allowedMethods: ['POST'],
 						},
 					],
+					...(lifecycleRule?.length ? { lifecycleRule } : {}),
 				},
 				{
 					retainOnDelete: ctx.appConfig.removal === 'retain',
