@@ -49,7 +49,7 @@ export const buildViewerPayload = (request: InferOutput<typeof requestSchema>): 
 		return request.headers[`cloudfront-viewer-${name}`]
 	}
 
-	const isViewer = <T extends Record<string, string>>(enums: T): T[keyof T] | undefined => {
+	const isViewer = <const T extends Record<string, string>>(enums: T): T[keyof T] | undefined => {
 		for (const [name, value] of Object.entries(enums)) {
 			if (request.headers[`cloudfront-is-${name}-viewer`] === 'true') {
 				return value as T[keyof T]
@@ -82,11 +82,11 @@ export const buildViewerPayload = (request: InferOutput<typeof requestSchema>): 
 			tablet: 'tablet',
 			desktop: 'desktop',
 			smarttv: 'tv',
-		} as const),
+		}),
 
 		os: isViewer({
 			ios: 'ios',
 			android: 'android',
-		} as const),
+		}),
 	}
 }

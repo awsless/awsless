@@ -50,6 +50,7 @@ export { BatchGetItemCommand, BatchWriteItemCommand } from '@aws-sdk/client-dyna
 import './exception/transaction-canceled'
 export {
 	ConditionalCheckFailedException,
+	TransactionInProgressException,
 	TransactionCanceledException,
 	TransactionConflictException,
 	DynamoDBServiceException,

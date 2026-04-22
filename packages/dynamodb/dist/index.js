@@ -1234,6 +1234,7 @@ TransactionCanceledException.prototype.validationErrorAt = function(index) {
 // src/index.ts
 import {
   ConditionalCheckFailedException,
+  TransactionInProgressException,
   TransactionCanceledException as TransactionCanceledException2,
   TransactionConflictException,
   DynamoDBServiceException
@@ -1797,6 +1798,7 @@ export {
   TransactWriteItemsCommand4 as TransactWriteItemsCommand,
   TransactionCanceledException2 as TransactionCanceledException,
   TransactionConflictException,
+  TransactionInProgressException,
   UpdateItemCommand4 as UpdateItemCommand,
   any,
   array,
