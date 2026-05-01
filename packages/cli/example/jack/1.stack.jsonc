@@ -1,6 +1,6 @@
 {
 	"$schema": "../../dist/stack.json",
-	"name": "feature-2",
+	"name": "stack-1",
 	// "depends": ["stack-2"],
 
 	// "tests": "./test",
@@ -22,65 +22,65 @@
 	// },
 	//
 
-	"tasks": {
-		"error": {
-			"consumer": "./error.ts",
-			"retryAttempts": 0
-		}
-	},
+	// "tasks": {
+	// 	"error": {
+	// 		"consumer": "./error.ts",
+	// 		"retryAttempts": 0
+	// 	}
+	// },
 
-	"queues": {
-		"error": {
-			"consumer": "./error.ts",
-			"retryAttempts": 0
-		}
-	},
+	// "queues": {
+	// 	"error": {
+	// 		"consumer": "./error.ts",
+	// 		"retryAttempts": 0
+	// 	}
+	// },
 
-	"tables": {
-		"blog": {
-			"hash": "id",
-			"stream": {
-				"type": "new-and-old-images",
-				"retryAttempts": 0,
-				"consumer": "./error.ts"
-			}
-		}
-	},
+	// "tables": {
+	// 	"blog": {
+	// 		"hash": "id",
+	// 		"stream": {
+	// 			"type": "new-and-old-images",
+	// 			"retryAttempts": 0,
+	// 			"consumer": "./error.ts"
+	// 		}
+	// 	}
+	// },
 
-	"commands": {
-		"test": {
-			"description": "Hello",
-			"file": "./cli/test.ts"
-		}
-	},
+	// "commands": {
+	// 	"test": {
+	// 		"description": "Hello",
+	// 		"file": "./cli/test.ts"
+	// 	}
+	// },
 
-	"crons": {
-		"test": {
-			"schedule": "5 minutes",
-			"consumer": "./function.ts"
-		}
-	},
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "5 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
 
-	"functions": {
-		// "log-metric": "./metric/log-metric.ts",
-		// "test": {
-		// 	"code": "./function.ts",
-		// 	"timeout": "15 seconds"
-		// },
-		"schedule-error": "./schedule-error.ts"
-	},
+	// "functions": {
+	// 	// "log-metric": "./metric/log-metric.ts",
+	// 	// "test": {
+	// 	// 	"code": "./function.ts",
+	// 	// 	"timeout": "15 seconds"
+	// 	// },
+	// 	"schedule-error": "./schedule-error.ts"
+	// },
 
 	"sites": {
-		"test": {
-			"router": "main",
-			"path": "/",
-			"build": {
-				"command": "pnpm test",
-				"cacheKey": "./1.stack.jsonc"
-			},
-			"static": "./site",
-			"ssr": "./ssr.ts"
-		}
+		// "test": {
+		// 	"router": "main",
+		// 	"path": "/",
+		// 	"build": {
+		// 		"command": "pnpm test",
+		// 		"cacheKey": "./1.stack.jsonc"
+		// 	},
+		// 	"static": "./site",
+		// 	"ssr": "./ssr.ts"
+		// }
 		// "test2": {
 		// 	"router": "main",
 		// 	"path": "/docs",

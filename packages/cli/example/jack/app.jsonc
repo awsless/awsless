@@ -1,30 +1,30 @@
 {
 	"$schema": "../../dist/app.json",
-	"name": "app-jack-next",
+	"name": "app-jack",
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	// "protect": true,
 
 	"defaults": {
-		"domains": {
-			"main": {
-				"domain": "awsless.com"
-			}
-		},
-		"router": {
-			"main": {
-				"domain": "main",
-				"passwordAuth": {
-					"password": "test"
-				}
-				// "waf": {
-				// 	"rateLimiter": {
-				// 		"limit": 10,
-				// 		"window": "1 minute"
-				// 	}
-				// }
-			}
-		},
+		// "domains": {
+		// 	"main": {
+		// 		"domain": "awsless.com"
+		// 	}
+		// },
+		// "router": {
+		// 	"main": {
+		// 		"domain": "main",
+		// 		"passwordAuth": {
+		// 			"password": "test"
+		// 		}
+		// 		// "waf": {
+		// 		// 	"rateLimiter": {
+		// 		// 		"limit": 10,
+		// 		// 		"window": "1 minute"
+		// 		// 	}
+		// 		// }
+		// 	}
+		// },
 		// "rpc": {
 		// 	"main": {
 		// 		"router": "main",
@@ -40,11 +40,11 @@
 		// 		"domain": "getblockalert.com"
 		// 	}
 		// },
-		"auth": {
-			"users": {
-				"groups": ["admin", "support", "marketing"]
-			}
-		},
+		// "auth": {
+		// 	"users": {
+		// 		"groups": ["admin", "support", "marketing"]
+		// 	}
+		// },
 		// "pubsub": {
 		// 	"admin": {
 		// 		// "domain": "main",
@@ -59,10 +59,10 @@
 		// // "instance": {
 		// // 	// "connect": true
 		// // },
-		"onFailure": {
-			"consumer": "./on-log.ts",
-			"notify": ["info@jacksclub.io"]
-		},
+		// "onFailure": {
+		// 	"consumer": "./on-log.ts",
+		// 	"notify": ["info@jacksclub.io"]
+		// },
 		// "onLog": {
 		// 	"consumer": "./on-log.ts",
 		// 	"filter": ["info", "debug", "trace", "error", "fatal"]
