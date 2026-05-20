@@ -25,6 +25,7 @@ __export(index_exports, {
   TimeoutError: () => TimeoutError,
   ValidationError: () => ValidationError,
   ViewableError: () => ViewableError,
+  getContext: () => getContext,
   invoke: () => invoke,
   isErrorResponse: () => isErrorResponse,
   lambda: () => lambda,
@@ -217,6 +218,33 @@ var transformValidationErrors = async (callback) => {
   }
 };
 
+// src/context/global-context.ts
+var GlobalContext = class {
+  #store;
+  async run(store, callback) {
+    this.#store = store;
+    try {
+      const res = await callback();
+      return res;
+    } finally {
+      this.#store = void 0;
+    }
+  }
+  get() {
+    return this.#store;
+  }
+};
+
+// src/context/lambda-context.ts
+var eventContext = new GlobalContext();
+var getContext = () => {
+  const ctx = eventContext.get();
+  if (!ctx) {
+    throw new Error("Lambda context is not available");
+  }
+  return ctx;
+};
+
 // src/errors/viewable.ts
 var ViewableError = class extends Error {
   constructor(type, message, data) {
@@ -276,26 +304,6 @@ var mockLambda = (lambdas) => {
 // src/lambda.ts
 var import_json3 = require("@awsless/json");
 var import_validate3 = require("@awsless/validate");
-
-// src/context/global-context.ts
-var GlobalContext = class {
-  #store;
-  async run(store, callback) {
-    this.#store = store;
-    try {
-      const res = await callback();
-      return res;
-    } finally {
-      this.#store = void 0;
-    }
-  }
-  get() {
-    return this.#store;
-  }
-};
-
-// src/context/lambda-context.ts
-var eventContext = new GlobalContext();
 
 // src/helpers/warm-up.ts
 var warmerKey = "warmer";
@@ -410,6 +418,7 @@ var lambda = (options) => {
   TimeoutError,
   ValidationError,
   ViewableError,
+  getContext,
   invoke,
   isErrorResponse,
   lambda,

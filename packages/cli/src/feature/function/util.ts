@@ -284,12 +284,12 @@ export const createLambdaFunction = (
 
 	let dependsOn: Resource<any>[] = []
 	if (props.vpc) {
-		if (props.warm > 1) {
-			throw new FileError(
-				'stackConfig' in ctx ? ctx.stackConfig.file : 'app.json',
-				`We can't warm more then 1 lambda in a VPC.`
-			)
-		}
+		// if (props.warm > 1) {
+		// 	throw new FileError(
+		// 		'stackConfig' in ctx ? ctx.stackConfig.file : 'app.json',
+		// 		`We can't warm more then 1 lambda in a VPC.`
+		// 	)
+		// }
 
 		dependsOn.push(
 			new aws.iam.RolePolicy(group, 'vpc-policy', {
@@ -418,6 +418,14 @@ export const createLambdaFunction = (
 
 	if ('stackConfig' in ctx) {
 		variables.STACK = ctx.stackConfig.name
+	}
+
+	if (props.vpc) {
+		// This will tell all aws client's to use
+		// the dualstack endpoint when our lambda
+		// is inside a vpc
+
+		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
 	}
 
 	// ------------------------------------------------------------

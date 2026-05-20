@@ -1,4 +1,3 @@
-import { parse, stringify } from '@awsless/json'
 import { string } from '@awsless/validate'
 import { Context } from 'aws-lambda'
 import { lambda, ViewableError } from '../src'

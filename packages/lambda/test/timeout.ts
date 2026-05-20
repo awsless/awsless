@@ -1,5 +1,5 @@
-import { lambda } from '../src'
 import { Context } from 'aws-lambda'
+import { lambda } from '../src'
 
 describe('Timeout', () => {
 	const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))

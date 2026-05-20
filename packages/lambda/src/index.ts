@@ -7,6 +7,8 @@ export { listFunctions } from './commands/list-functions'
 export { Invoke, InvokeOptions, InvokeResponse } from './commands/type'
 export { TimeoutError } from './errors/timeout'
 export { ValidationError } from './errors/validation'
+// context
+export { getContext } from './context/lambda-context'
 // errors
 export {
 	// getViewableErrorData,

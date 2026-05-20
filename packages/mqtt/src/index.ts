@@ -144,6 +144,9 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider,
 			reconnecting = undefined
 			await disconnect()
 		},
+		// async ping() {
+		// 	await client?.sendPing()
+		// },
 		async publish(topic: string, payload: string | Buffer, qos: QoS = QoS.AtMostOnce) {
 			if (client) {
 				await client.publishAsync(topic, payload, { qos })

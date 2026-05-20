@@ -450,7 +450,8 @@ var Auth = /* @__PURE__ */ createProxy((name) => {
 });
 
 // src/lib/server/cache.ts
-import { command } from "@awsless/redis";
+import { getContext } from "@awsless/lambda";
+import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { constantCase as constantCase3 } from "change-case";
 var getCacheProps = (name, stack = STACK) => {
   const prefix = `CACHE_${constantCase3(stack)}_${constantCase3(name)}`;
@@ -461,30 +462,24 @@ var getCacheProps = (name, stack = STACK) => {
 };
 var Cache = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((name) => {
-    const { host, port } = getCacheProps(name, stack);
-    const call = (opts, fn) => {
-      const overload = typeof opts === "function";
-      const options = overload ? {} : opts;
-      const callback = overload ? opts : fn;
-      return command(
-        {
-          host,
-          port,
-          db: 0,
+    return (db = 0) => {
+      return createLazyClient(() => {
+        const client = createIoRedisClient({
+          ...getCacheProps(name, stack),
           cluster: true,
+          db,
           tls: {
             checkServerIdentity: () => {
               return void 0;
             }
-          },
-          ...options
-        },
-        callback
-      );
+          }
+        });
+        getContext().onFinally(() => {
+          return client.destroy();
+        });
+        return client;
+      });
     };
-    call.host = host;
-    call.port = port;
-    return call;
   });
 });
 

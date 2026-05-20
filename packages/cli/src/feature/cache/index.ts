@@ -8,16 +8,10 @@ import { formatLocalResourceName } from '../../util/name.js'
 import { toGibibytes } from '@awsless/size'
 
 const typeGenCode = `
-import { Cluster, CommandOptions } from '@awsless/redis'
+import { RedisClient } from '@awsless/redis'
 
-type Callback<T> = (redis: Cluster) => T
-
-type Command = {
-	readonly host: string
-	readonly port: number
-	<T>(callback: Callback<T>): T
-	<T>(options:Omit<CommandOptions, 'cluster'>, callback: Callback<T>): T
-}`
+type RedisClientFactory = (db?: number) => RedisClient
+`
 
 export const cacheFeature = defineFeature({
 	name: 'cache',
@@ -28,7 +22,7 @@ export const cacheFeature = defineFeature({
 		for (const stack of ctx.stackConfigs) {
 			const resource = new TypeObject(2)
 			for (const name of Object.keys(stack.caches || {})) {
-				resource.addType(name, `Command`)
+				resource.addType(name, `RedisClientFactory`)
 			}
 
 			resources.addType(stack.name, resource)

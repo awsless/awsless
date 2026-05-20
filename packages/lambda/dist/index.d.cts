@@ -49,6 +49,26 @@ declare class ValidationError extends ExpectedError {
     constructor(message: string);
 }
 
+type Schema = GenericSchema | undefined;
+type Input<T extends Schema = undefined> = T extends undefined ? unknown : InferInput<RemoveUndefined<T>>;
+type Output<T extends Schema = undefined> = T extends undefined ? unknown : InferOutput<RemoveUndefined<T>>;
+type RemoveUndefined<T> = T extends undefined ? never : T;
+type Context = {
+    readonly raw: unknown;
+    readonly event: unknown;
+    readonly context?: Context$1;
+    readonly log: Logger;
+    readonly onSuccess: (cb: (res: unknown) => void) => void;
+    readonly onFailure: (cb: (err: unknown) => void) => void;
+    readonly onFinally: (cb: () => void) => void;
+};
+type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R;
+type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>;
+type Loggers = Array<Logger | Loggers> | Logger;
+type ExtraMetaData = Record<string, unknown | Record<string, unknown>>;
+
+declare const getContext: () => Context;
+
 declare class ViewableError extends Error {
     readonly type: string;
     readonly data?: unknown | undefined;
@@ -77,24 +97,6 @@ type Lambdas = {
 };
 declare const mockLambda: <T extends Lambdas>(lambdas: T) => { [P in keyof T]: any; };
 
-type Schema = GenericSchema | undefined;
-type Input<T extends Schema = undefined> = T extends undefined ? unknown : InferInput<RemoveUndefined<T>>;
-type Output<T extends Schema = undefined> = T extends undefined ? unknown : InferOutput<RemoveUndefined<T>>;
-type RemoveUndefined<T> = T extends undefined ? never : T;
-type Context = {
-    readonly raw: unknown;
-    readonly event: unknown;
-    readonly context?: Context$1;
-    readonly log: Logger;
-    readonly onSuccess: (cb: (res: unknown) => void) => void;
-    readonly onFailure: (cb: (err: unknown) => void) => void;
-    readonly onFinally: (cb: () => void) => void;
-};
-type Handler<S extends Schema = undefined, R = unknown> = (event: Output<S>, context: Context) => R;
-type Logger = (error: Error, metaData?: ExtraMetaData) => Promise<void>;
-type Loggers = Array<Logger | Loggers> | Logger;
-type ExtraMetaData = Record<string, unknown | Record<string, unknown>>;
-
 interface Options<H extends Handler<S>, S extends Schema = undefined> {
     /** A validation struct to validate the input. */
     schema?: S;
@@ -115,4 +117,4 @@ type LambdaFunction<H extends Handler<S>, S extends Schema = undefined> = S exte
 /** Create a lambda handle function. */
 declare const lambda: LambdaFactory;
 
-export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, TimeoutError, ValidationError, ViewableError, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };
+export { type Context, type ErrorResponse, ExpectedError, type ExtraMetaData, type Handler, type Input, type Invoke, type InvokeOptions, type InvokeResponse, type LambdaFactory, type LambdaFunction, type Logger, type Loggers, TimeoutError, ValidationError, ViewableError, getContext, invoke, isErrorResponse, lambda, lambdaClient, listFunctions, mockLambda, toErrorResponse };

@@ -1,4 +1,5 @@
-import { Cluster, command, CommandOptions } from '@awsless/redis'
+import { getContext } from '@awsless/lambda'
+import { createIoRedisClient, createLazyClient } from '@awsless/redis'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { STACK } from './util.js'
@@ -12,40 +13,30 @@ export const getCacheProps = (name: string, stack: string = STACK) => {
 	} as const
 }
 
-type Callback = (client: Cluster) => unknown
-
 export interface CacheResources {}
 
 export const Cache: CacheResources = /*@__PURE__*/ createProxy(stack => {
 	return createProxy(name => {
-		const { host, port } = getCacheProps(name, stack)
-
-		const call = (opts: Omit<CommandOptions, 'cluster'> | Callback, fn: Callback) => {
-			const overload = typeof opts === 'function'
-			const options = overload ? {} : opts
-			const callback = overload ? opts : fn
-
-			return command(
-				{
-					host,
-					port,
-					db: 0,
+		return (db: number = 0) => {
+			return createLazyClient(() => {
+				const client = createIoRedisClient({
+					...getCacheProps(name, stack),
 					cluster: true,
+					db,
 					tls: {
 						checkServerIdentity: (/*host, cert*/) => {
 							// skip certificate hostname validation
 							return undefined
 						},
 					},
-					...options,
-				},
-				callback
-			)
+				})
+
+				getContext().onFinally(() => {
+					return client.destroy()
+				})
+
+				return client
+			})
 		}
-
-		call.host = host
-		call.port = port
-
-		return call
 	})
 })
