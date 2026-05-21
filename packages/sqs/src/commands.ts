@@ -13,7 +13,7 @@ import { Duration, seconds, toSeconds } from '@awsless/duration'
 import { parse, stringify } from '@awsless/json'
 import chunk from 'chunk'
 import { sqsClient } from './client'
-import { Attributes, SendMessageBatchOptions, SendMessageOptions } from './types'
+import { Attributes, BatchItem, SendMessageBatchOptions, SendMessageOptions } from './types'
 
 const encodeAttributes = (attributes: Attributes) => {
 	const list: Record<string, MessageAttributeValue> = {}
@@ -61,7 +61,9 @@ export const sendMessage = async ({
 	client = sqsClient(),
 	queue,
 	payload,
-	delay = 0,
+	delay,
+	groupId,
+	deduplicationId,
 	attributes = {},
 }: SendMessageOptions) => {
 	const url = await getCachedQueueUrl(client, queue)
@@ -70,24 +72,27 @@ export const sendMessage = async ({
 		QueueUrl: url,
 		MessageBody: stringify(payload),
 		DelaySeconds: delay,
+		MessageGroupId: groupId,
+		MessageDeduplicationId: deduplicationId,
 		MessageAttributes: encodeAttributes({ queue, ...attributes }),
 	})
 
 	await client.send(command)
 }
 
-/** Add batch of messages to a SQS queue */
 export const sendMessageBatch = async ({ client = sqsClient(), queue, items }: SendMessageBatchOptions) => {
 	const url = await getCachedQueueUrl(client, queue)
 
 	await Promise.all(
-		chunk(items, 10).map(async batch => {
+		chunk(items, 10).map(async (batch: BatchItem[]) => {
 			const command = new SendMessageBatchCommand({
 				QueueUrl: url,
-				Entries: batch.map(({ payload, delay = 0, attributes = {} }, id) => ({
+				Entries: batch.map(({ payload, delay, groupId, deduplicationId, attributes = {} }, id) => ({
 					Id: String(id),
 					MessageBody: stringify(payload),
 					DelaySeconds: delay,
+					MessageGroupId: groupId,
+					MessageDeduplicationId: deduplicationId,
 					MessageAttributes: encodeAttributes({ queue, ...attributes }),
 				})),
 			})

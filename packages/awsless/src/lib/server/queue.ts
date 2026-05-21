@@ -1,9 +1,19 @@
-import { BatchItem, sendMessage, sendMessageBatch, SendMessageBatchOptions, SendMessageOptions } from '@awsless/sqs'
+import {
+	BatchItem,
+	sendMessage,
+	sendMessageBatch,
+	SendMessageBatchOptions,
+	SendMessageOptions,
+} from '@awsless/sqs'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName, STACK } from './util.js'
 
-export const getQueueName = bindLocalResourceName('queue')
+const bindQueueBaseName = bindLocalResourceName('queue')
+
+export const getQueueName = (name: string, stack: string = STACK) => {
+	return `${bindQueueBaseName(name, stack)}.fifo`
+}
 
 export const getQueueUrl = (name: string, stack: string = STACK) => {
 	return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`]
@@ -17,7 +27,7 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 		const name = getQueueName(queue, stack)
 
 		const ctx: Record<string, any> = {
-			[name]: (payload: unknown, options: Omit<SendMessageOptions, 'queue' | 'payload'> = {}) => {
+			[name]: (payload: unknown, options: Omit<SendMessageOptions, 'queue' | 'payload'>) => {
 				return sendMessage({
 					...options,
 					queue: url ?? name,

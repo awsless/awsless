@@ -2,7 +2,7 @@ import { seconds } from '@awsless/duration'
 import { subscribe } from '@awsless/sqs'
 import { serve, ServerType } from '@hono/node-server'
 import { Hono } from 'hono'
-import { getQueueName } from 'awsless'
+import { getInstanceQueueName } from 'awsless'
 
 let server: ServerType | undefined
 const ac = new AbortController()
@@ -10,7 +10,7 @@ const ac = new AbortController()
 ;(async () => {
 	try {
 		for await (const records of subscribe({
-			queue: getQueueName('test'),
+			queue: getInstanceQueueName('test'),
 			maxMessages: 10,
 			waitTime: seconds(20),
 			visibilityTimeout: seconds(60),

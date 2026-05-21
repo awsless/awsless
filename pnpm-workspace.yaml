@@ -9,6 +9,20 @@ minimumReleaseAgeExclude:
     - '@rolldown/*'
 
 strictPeerDependencies: false
+gitChecks: false
 
 packages:
     - 'packages/*'
+
+allowBuilds:
+    '@swc/core': true
+    aws-crt: false
+    aws-sdk: false
+    core-js: false
+    esbuild: false
+    msgpackr-extract: false
+    protobufjs: false
+    redis-memory-server: false
+    sharp: false
+    stay-awake: false
+    svelte-preprocess: false

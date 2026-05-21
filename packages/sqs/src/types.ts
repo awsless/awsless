@@ -7,8 +7,10 @@ export type Attributes = {
 export interface SendMessageOptions<Payload = unknown> {
 	client?: SQSClient
 	queue: string
-	payload?: Payload
+	payload: Payload
 	delay?: number
+	groupId?: string
+	deduplicationId?: string
 	attributes?: Attributes
 }
 
@@ -19,7 +21,9 @@ export interface SendMessageBatchOptions<Payload = unknown> {
 }
 
 export interface BatchItem<Payload = unknown> {
-	payload?: Payload
+	payload: Payload
 	delay?: number
+	groupId?: string
+	deduplicationId?: string
 	attributes?: Attributes
 }

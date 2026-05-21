@@ -235,6 +235,60 @@ var mockMetric = () => {
   return mockCloudWatch();
 };
 
+// src/lib/mock/instance.ts
+import { mockSQS } from "@awsless/sqs";
+
+// src/lib/server/instance.ts
+import { sendMessage } from "@awsless/sqs";
+import { constantCase } from "change-case";
+var getInstanceQueueName = bindLocalResourceName("instance");
+var getInstanceQueueUrl = (name, stack = STACK) => {
+  return process.env[`INSTANCE_${constantCase(stack)}_${constantCase(name)}_URL`];
+};
+var Instance = /* @__PURE__ */ createProxy((stack) => {
+  return createProxy((name) => {
+    const url = getInstanceQueueUrl(name, stack);
+    const queue = getInstanceQueueName(name, stack);
+    const ctx = {
+      [queue]: (payload, options = {}) => {
+        return sendMessage({
+          ...options,
+          queue: url ?? queue,
+          payload,
+          attributes: {
+            ...options.attributes ?? {},
+            ...url ? { queueUrl: url } : {},
+            queueName: queue
+          }
+        });
+      }
+    };
+    const send = ctx[queue];
+    send.url = url;
+    return send;
+  });
+});
+
+// src/lib/mock/instance.ts
+var mockInstance = (cb) => {
+  const list = {};
+  const mock = createProxy((stack) => {
+    return createProxy((name) => {
+      return (handle) => {
+        list[getInstanceQueueName(name, stack)] = handle ?? (() => {
+        });
+      };
+    });
+  });
+  cb(mock);
+  const result = mockSQS(list);
+  return createProxy((stack) => {
+    return createProxy((name) => {
+      return result[getInstanceQueueName(name, stack)];
+    });
+  });
+};
+
 // src/lib/mock/pubsub.ts
 import { mockIoT } from "@awsless/iot";
 var mockPubSub = () => {
@@ -242,22 +296,28 @@ var mockPubSub = () => {
 };
 
 // src/lib/mock/queue.ts
-import { mockSQS } from "@awsless/sqs";
+import { mockSQS as mockSQS2 } from "@awsless/sqs";
 
 // src/lib/server/queue.ts
-import { sendMessage, sendMessageBatch } from "@awsless/sqs";
-import { constantCase } from "change-case";
-var getQueueName = bindLocalResourceName("queue");
+import {
+  sendMessage as sendMessage2,
+  sendMessageBatch
+} from "@awsless/sqs";
+import { constantCase as constantCase2 } from "change-case";
+var bindQueueBaseName = bindLocalResourceName("queue");
+var getQueueName = (name, stack = STACK) => {
+  return `${bindQueueBaseName(name, stack)}.fifo`;
+};
 var getQueueUrl = (name, stack = STACK) => {
-  return process.env[`QUEUE_${constantCase(stack)}_${constantCase(name)}_URL`];
+  return process.env[`QUEUE_${constantCase2(stack)}_${constantCase2(name)}_URL`];
 };
 var Queue = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((queue) => {
     const url = getQueueUrl(queue, stack);
     const name = getQueueName(queue, stack);
     const ctx = {
-      [name]: (payload, options = {}) => {
-        return sendMessage({
+      [name]: (payload, options) => {
+        return sendMessage2({
           ...options,
           queue: url ?? name,
           payload,
@@ -301,7 +361,7 @@ var mockQueue = (cb) => {
     });
   });
   cb(mock);
-  const result = mockSQS(list);
+  const result = mockSQS2(list);
   return createProxy((stack) => {
     return createProxy((name) => {
       return result[getQueueName(name, stack)];
@@ -425,11 +485,11 @@ var mockTopic = (cb) => {
 };
 
 // src/lib/server/auth.ts
-import { constantCase as constantCase2 } from "change-case";
+import { constantCase as constantCase3 } from "change-case";
 var getAuthProps = (name) => {
   return {
-    userPoolId: process.env[`AUTH_${constantCase2(name)}_USER_POOL_ID`],
-    clientId: process.env[`AUTH_${constantCase2(name)}_CLIENT_ID`]
+    userPoolId: process.env[`AUTH_${constantCase3(name)}_USER_POOL_ID`],
+    clientId: process.env[`AUTH_${constantCase3(name)}_CLIENT_ID`]
   };
 };
 var Auth = /* @__PURE__ */ createProxy((name) => {
@@ -452,9 +512,9 @@ var Auth = /* @__PURE__ */ createProxy((name) => {
 // src/lib/server/cache.ts
 import { getContext } from "@awsless/lambda";
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
-import { constantCase as constantCase3 } from "change-case";
+import { constantCase as constantCase4 } from "change-case";
 var getCacheProps = (name, stack = STACK) => {
-  const prefix = `CACHE_${constantCase3(stack)}_${constantCase3(name)}`;
+  const prefix = `CACHE_${constantCase4(stack)}_${constantCase4(name)}`;
   return {
     host: process.env[`${prefix}_HOST`],
     port: parseInt(process.env[`${prefix}_PORT`], 10)
@@ -563,7 +623,7 @@ import {
   createSizeMetric,
   putData
 } from "@awsless/cloudwatch";
-import { constantCase as constantCase4, kebabCase as kebabCase4 } from "change-case";
+import { constantCase as constantCase5, kebabCase as kebabCase4 } from "change-case";
 var getMetricName = (name) => {
   return kebabCase4(name);
 };
@@ -577,7 +637,7 @@ var Metric = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((metricName) => {
     const name = getMetricName(metricName);
     const namespace = getMetricNamespace(stack);
-    const unit = process.env[`METRIC_${constantCase4(metricName)}`];
+    const unit = process.env[`METRIC_${constantCase5(metricName)}`];
     let metric;
     if (!unit && !IS_TEST) {
       throw new TypeError(`Metric "${name}" isn't defined in your stack.`);
@@ -728,11 +788,11 @@ var pubsubAuthorizerResponse = (props) => {
 
 // src/lib/server/search.ts
 import { define, searchClient } from "@awsless/open-search";
-import { constantCase as constantCase5 } from "change-case";
+import { constantCase as constantCase6 } from "change-case";
 var getSearchName = bindLocalResourceName("search");
 var getSearchProps = (name, stack = STACK) => {
   return {
-    domain: process.env[`SEARCH_${constantCase5(stack)}_${constantCase5(name)}_DOMAIN`]
+    domain: process.env[`SEARCH_${constantCase6(stack)}_${constantCase6(name)}_DOMAIN`]
   };
 };
 var Search = /* @__PURE__ */ createProxy((stack) => {
@@ -803,6 +863,7 @@ export {
   Config,
   Cron,
   Fn,
+  Instance,
   Job,
   Metric,
   PubSub,
@@ -821,6 +882,8 @@ export {
   getConfigValue,
   getCronName,
   getFunctionName,
+  getInstanceQueueName,
+  getInstanceQueueUrl,
   getJobName,
   getMetricName,
   getMetricNamespace,
@@ -837,6 +900,7 @@ export {
   mockAlert,
   mockCache,
   mockFunction,
+  mockInstance,
   mockJob,
   mockMetric,
   mockPubSub,

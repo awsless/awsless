@@ -27,6 +27,12 @@ declare const mockFunction: (cb: (mock: FunctionMock) => void) => FunctionMockRe
 
 declare const mockMetric: () => void;
 
+interface InstanceMock {
+}
+interface InstanceMockResponse {
+}
+declare const mockInstance: (cb: (mock: InstanceMock) => void) => InstanceMockResponse;
+
 declare const mockPubSub: () => vitest.Mock;
 
 interface QueueMock {
@@ -90,6 +96,12 @@ interface FunctionResources {
 }
 declare const Fn: FunctionResources;
 
+declare const getInstanceQueueName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--instance--${N}`;
+declare const getInstanceQueueUrl: (name: string, stack?: string) => string | undefined;
+interface InstanceResources {
+}
+declare const Instance: InstanceResources;
+
 declare const getMetricName: (name: string) => string;
 declare const getMetricNamespace: (stack?: string, app?: string) => string;
 interface MetricResources {
@@ -139,7 +151,7 @@ type PubsubAuthorizerEvent = {
 declare const pubsubAuthorizerHandle: (cb: (token: string) => PubsubAuthorizerResponse | Promise<PubsubAuthorizerResponse>) => Promise<(event: PubsubAuthorizerEvent) => Promise<IoTCustomAuthorizerResult>>;
 declare const pubsubAuthorizerResponse: (props: PubsubAuthorizerResponse) => IoTCustomAuthorizerResult;
 
-declare const getQueueName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--queue--${N}`;
+declare const getQueueName: (name: string, stack?: string) => string;
 declare const getQueueUrl: (name: string, stack?: string) => string | undefined;
 interface QueueResources {
 }
@@ -188,4 +200,4 @@ declare const Topic: TopicResources;
 declare const APP: "app";
 declare const STACK: "stack";
 
-export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PublishOptions, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getJobName, getMetricName, getMetricNamespace, getPubSubTopic, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, pubsubAuthorizerHandle, pubsubAuthorizerResponse, setConfigValue };
+export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PublishOptions, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubTopic, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, pubsubAuthorizerHandle, pubsubAuthorizerResponse, setConfigValue };

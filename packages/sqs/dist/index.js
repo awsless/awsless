@@ -57,7 +57,9 @@ var sendMessage = async ({
   client = sqsClient(),
   queue,
   payload,
-  delay = 0,
+  delay,
+  groupId,
+  deduplicationId,
   attributes = {}
 }) => {
   const url = await getCachedQueueUrl(client, queue);
@@ -65,6 +67,8 @@ var sendMessage = async ({
     QueueUrl: url,
     MessageBody: stringify(payload),
     DelaySeconds: delay,
+    MessageGroupId: groupId,
+    MessageDeduplicationId: deduplicationId,
     MessageAttributes: encodeAttributes({ queue, ...attributes })
   });
   await client.send(command);
@@ -75,10 +79,12 @@ var sendMessageBatch = async ({ client = sqsClient(), queue, items }) => {
     chunk(items, 10).map(async (batch) => {
       const command = new SendMessageBatchCommand({
         QueueUrl: url,
-        Entries: batch.map(({ payload, delay = 0, attributes = {} }, id) => ({
+        Entries: batch.map(({ payload, delay, groupId, deduplicationId, attributes = {} }, id) => ({
           Id: String(id),
           MessageBody: stringify(payload),
           DelaySeconds: delay,
+          MessageGroupId: groupId,
+          MessageDeduplicationId: deduplicationId,
           MessageAttributes: encodeAttributes({ queue, ...attributes })
         }))
       });

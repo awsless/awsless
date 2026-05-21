@@ -435,5 +435,5 @@ export const createFargateTask = (
 		statements.push(...local.permissions)
 	}
 
-	return { name, task, service, policy, code, group }
+	return { name, task, service, policy, code, group, addPermission }
 }

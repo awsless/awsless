@@ -13,22 +13,16 @@ import { seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
 
 const typeGenCode = `
-import {
-	SendMessageOptions,
-	SendMessageBatchOptions,
-	BatchItem,
-} from '@awsless/sqs'
+import { SendMessageOptions, SendMessageBatchOptions, BatchItem } from '@awsless/sqs'
 import type { Mock } from 'vitest'
 
 type Func = (...args: any[]) => any
-type Payload<F extends Func> = Parameters<F>[0]
-
-type Required<T> = T & { groupId: string; deduplicationId: string }
+type Payload<F extends Func> = Parameters<F>[0]['Records'][number]['body']
 
 type Send<Name extends string, F extends Func> = {
 	readonly name: Name
-	batch(items: Required<BatchItem<Payload<F>>>[], options?: Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
-	(payload: Payload<F>, options: Required<Omit<SendMessageOptions, 'queue' | 'payload'>>): Promise<void>
+	batch(items:BatchItem<Payload<F>>[], options?:Omit<SendMessageBatchOptions, 'queue' | 'items'>): Promise<void>
+	(payload: Payload<F>, options?: Omit<SendMessageOptions, 'queue' | 'payload'>): Promise<void>
 }
 
 type MockHandle<F extends Func> = (payload: Parameters<F>[0]) => void
@@ -51,12 +45,12 @@ export const queueFeature = defineFeature({
 
 			for (const [name, props] of Object.entries(stack.queues || {})) {
 				const varName = camelCase(`${stack.name}-${name}`)
-				const queueName = `${formatLocalResourceName({
+				const queueName = formatLocalResourceName({
 					appName: ctx.appConfig.name,
 					stackName: stack.name,
 					resourceType: 'queue',
 					resourceName: name,
-				})}.fifo`
+				})
 
 				if (typeof props === 'object' && props.consumer && 'file' in props.consumer.code) {
 					const relFile = relative(directories.types, props.consumer.code.file)
@@ -85,27 +79,40 @@ export const queueFeature = defineFeature({
 
 		await ctx.write('queue.d.ts', gen, true)
 	},
+	onApp(ctx) {
+		// We should discurrage the usage of queue's
+	},
 	onStack(ctx) {
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
 
 			const group = new Group(ctx.stack, 'queue', id)
-			const baseName = formatLocalResourceName({
+			const name = formatLocalResourceName({
 				appName: ctx.app.name,
 				stackName: ctx.stack.name,
 				resourceType: 'queue',
 				resourceName: id,
 			})
 
+			const onFailure = ctx.shared.get('on-failure', 'queue-arn')
+
+			// ctx.addWarning({
+			// 	'message'
+			// })
+
 			const queue = new aws.sqs.Queue(group, 'queue', {
-				name: `${baseName}.fifo`,
+				name,
+				delaySeconds: toSeconds(props.deliveryDelay),
 				visibilityTimeoutSeconds: toSeconds(props.visibilityTimeout),
 				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
 				messageRetentionSeconds: toSeconds(props.retentionPeriod),
 				maxMessageSize: toBytes(props.maxMessageSize),
-				fifoQueue: true,
-				deduplicationScope: 'messageGroup',
-				fifoThroughputLimit: 'perMessageGroupId',
+				redrivePolicy: onFailure.pipe(arn =>
+					JSON.stringify({
+						deadLetterTargetArn: arn,
+						maxReceiveCount: props.retryAttempts + 1,
+					})
+				),
 			})
 
 			if (local.consumer) {
@@ -120,6 +127,10 @@ export const queueFeature = defineFeature({
 						functionName: lambdaConsumer.lambda.functionName,
 						eventSourceArn: queue.arn,
 						batchSize: props.batchSize,
+						maximumBatchingWindowInSeconds: props.maxBatchingWindow && toSeconds(props.maxBatchingWindow),
+						scalingConfig: {
+							maximumConcurrency: props.maxConcurrency,
+						},
 					},
 					{
 						dependsOn: [lambdaConsumer.policy],
@@ -128,6 +139,7 @@ export const queueFeature = defineFeature({
 
 				lambdaConsumer.addPermission({
 					actions: [
+						//
 						'sqs:ReceiveMessage',
 						'sqs:DeleteMessage',
 						'sqs:GetQueueAttributes',

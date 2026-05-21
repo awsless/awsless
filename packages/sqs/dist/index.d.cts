@@ -14,8 +14,10 @@ type Attributes = {
 interface SendMessageOptions<Payload = unknown> {
     client?: SQSClient;
     queue: string;
-    payload?: Payload;
+    payload: Payload;
     delay?: number;
+    groupId?: string;
+    deduplicationId?: string;
     attributes?: Attributes;
 }
 interface SendMessageBatchOptions<Payload = unknown> {
@@ -24,13 +26,14 @@ interface SendMessageBatchOptions<Payload = unknown> {
     items: BatchItem<Payload>[];
 }
 interface BatchItem<Payload = unknown> {
-    payload?: Payload;
+    payload: Payload;
     delay?: number;
+    groupId?: string;
+    deduplicationId?: string;
     attributes?: Attributes;
 }
 
-declare const sendMessage: ({ client, queue, payload, delay, attributes, }: SendMessageOptions) => Promise<void>;
-/** Add batch of messages to a SQS queue */
+declare const sendMessage: ({ client, queue, payload, delay, groupId, deduplicationId, attributes, }: SendMessageOptions) => Promise<void>;
 declare const sendMessageBatch: ({ client, queue, items }: SendMessageBatchOptions) => Promise<void>;
 declare const receiveMessages: ({ client, queue, maxMessages, waitTime, visibilityTimeout, abortSignal, }: {
     client?: SQSClient;
