@@ -316,7 +316,7 @@ var Queue = /* @__PURE__ */ createProxy((stack) => {
     const url = getQueueUrl(queue, stack);
     const name = getQueueName(queue, stack);
     const ctx = {
-      [name]: (payload, options) => {
+      [name]: (payload, options = {}) => {
         return sendMessage2({
           ...options,
           queue: url ?? name,

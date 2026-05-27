@@ -21,7 +21,7 @@ import {
 import type { Mock } from 'vitest'
 
 type Func = (...args: any[]) => any
-type Payload<F extends Func> = Parameters<F>[0]
+type Payload<F extends Func> = Parameters<F>[0]['Records'][number]['body']
 
 type Required<T> = T & { groupId: string; deduplicationId: string }
 

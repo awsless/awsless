@@ -27,7 +27,7 @@ export const Queue: QueueResources = /*@__PURE__*/ createProxy(stack => {
 		const name = getQueueName(queue, stack)
 
 		const ctx: Record<string, any> = {
-			[name]: (payload: unknown, options: Omit<SendMessageOptions, 'queue' | 'payload'>) => {
+			[name]: (payload: unknown, options: Omit<SendMessageOptions, 'queue' | 'payload'> = {}) => {
 				return sendMessage({
 					...options,
 					queue: url ?? name,
