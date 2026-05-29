@@ -36,7 +36,7 @@ const decodeAttributes = (attributes?: Record<string, MessageAttributeValue>) =>
 	return list
 }
 
-export const getQueueUrl = async (client: SQSClient, queue: string) => {
+export const getQueueUrl = async (queue: string, client: SQSClient = sqsClient()) => {
 	if (queue.includes('://')) {
 		return queue
 	}
@@ -49,9 +49,9 @@ export const getQueueUrl = async (client: SQSClient, queue: string) => {
 
 const cache = new Map<string, Promise<string>>()
 
-export const getCachedQueueUrl = (client: SQSClient, queue: string) => {
+export const getCachedQueueUrl = (queue: string, client: SQSClient = sqsClient()) => {
 	if (!cache.has(queue)) {
-		cache.set(queue, getQueueUrl(client, queue))
+		cache.set(queue, getQueueUrl(queue, client))
 	}
 
 	return cache.get(queue)!
@@ -66,7 +66,7 @@ export const sendMessage = async ({
 	deduplicationId,
 	attributes = {},
 }: SendMessageOptions) => {
-	const url = await getCachedQueueUrl(client, queue)
+	const url = await getCachedQueueUrl(queue, client)
 
 	const command = new SendMessageCommand({
 		QueueUrl: url,
@@ -81,7 +81,7 @@ export const sendMessage = async ({
 }
 
 export const sendMessageBatch = async ({ client = sqsClient(), queue, items }: SendMessageBatchOptions) => {
-	const url = await getCachedQueueUrl(client, queue)
+	const url = await getCachedQueueUrl(queue, client)
 
 	await Promise.all(
 		chunk(items, 10).map(async (batch: BatchItem[]) => {
@@ -117,7 +117,7 @@ export const receiveMessages = async ({
 	visibilityTimeout: Duration
 	abortSignal?: AbortSignal
 }) => {
-	const url = await getCachedQueueUrl(client, queue)
+	const url = await getCachedQueueUrl(queue, client)
 
 	const command = new ReceiveMessageCommand({
 		QueueUrl: url,
@@ -140,7 +140,7 @@ export const deleteMessage = async ({
 	queue: string
 	receiptHandle: string
 }) => {
-	const url = await getCachedQueueUrl(client, queue)
+	const url = await getCachedQueueUrl(queue, client)
 
 	const command = new DeleteMessageCommand({
 		QueueUrl: url,
@@ -159,7 +159,7 @@ export const deleteMessageBatch = async ({
 	queue: string
 	receiptHandles: string[]
 }) => {
-	const url = await getCachedQueueUrl(client, queue)
+	const url = await getCachedQueueUrl(queue, client)
 
 	await Promise.all(
 		chunk(receiptHandles, 10).map(async batch => {
@@ -187,7 +187,7 @@ export const changeMessageVisibility = async ({
 	receiptHandle: string
 	visibilityTimeout: Duration
 }) => {
-	const url = await getCachedQueueUrl(client, queue)
+	const url = await getCachedQueueUrl(queue, client)
 
 	const command = new ChangeMessageVisibilityCommand({
 		QueueUrl: url,

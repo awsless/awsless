@@ -8,6 +8,8 @@ export {
 	deleteMessageBatch,
 	subscribe,
 	changeMessageVisibility,
+	getQueueUrl,
+	getCachedQueueUrl,
 } from './commands'
 export { mockSQS } from './mock'
 export { SendMessageOptions, BatchItem, SendMessageBatchOptions } from './types'

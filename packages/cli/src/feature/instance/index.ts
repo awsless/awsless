@@ -129,7 +129,7 @@ export const instanceFeature = defineFeature({
 				resources: [queue.arn],
 			})
 
-			ctx.addStackPermission({
+			ctx.addGlobalPermission({
 				actions: ['sqs:SendMessage', 'sqs:GetQueueUrl', 'sqs:GetQueueAttributes'],
 				resources: [queue.arn],
 			})

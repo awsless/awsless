@@ -33,6 +33,8 @@ interface BatchItem<Payload = unknown> {
     attributes?: Attributes;
 }
 
+declare const getQueueUrl: (queue: string, client?: SQSClient) => Promise<string>;
+declare const getCachedQueueUrl: (queue: string, client?: SQSClient) => Promise<string>;
 declare const sendMessage: ({ client, queue, payload, delay, groupId, deduplicationId, attributes, }: SendMessageOptions) => Promise<void>;
 declare const sendMessageBatch: ({ client, queue, items }: SendMessageBatchOptions) => Promise<void>;
 declare const receiveMessages: ({ client, queue, maxMessages, waitTime, visibilityTimeout, abortSignal, }: {
@@ -76,4 +78,4 @@ type Queues = {
 };
 declare const mockSQS: <T extends Queues>(queues: T) => { [P in keyof T]: any; };
 
-export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, deleteMessageBatch, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };
+export { type BatchItem, type SendMessageBatchOptions, type SendMessageOptions, changeMessageVisibility, deleteMessage, deleteMessageBatch, getCachedQueueUrl, getQueueUrl, mockSQS, receiveMessages, sendMessage, sendMessageBatch, sqsClient, subscribe };

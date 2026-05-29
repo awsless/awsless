@@ -239,7 +239,7 @@ var mockMetric = () => {
 import { mockSQS } from "@awsless/sqs";
 
 // src/lib/server/instance.ts
-import { sendMessage } from "@awsless/sqs";
+import { getCachedQueueUrl, sendMessage } from "@awsless/sqs";
 import { constantCase } from "change-case";
 var getInstanceQueueName = bindLocalResourceName("instance");
 var getInstanceQueueUrl = (name, stack = STACK) => {
@@ -250,14 +250,15 @@ var Instance = /* @__PURE__ */ createProxy((stack) => {
     const url = getInstanceQueueUrl(name, stack);
     const queue = getInstanceQueueName(name, stack);
     const ctx = {
-      [queue]: (payload, options = {}) => {
+      [queue]: async (payload, options = {}) => {
+        const resolved = url ?? await getCachedQueueUrl(queue);
         return sendMessage({
           ...options,
-          queue: url ?? queue,
+          queue: resolved,
           payload,
           attributes: {
             ...options.attributes ?? {},
-            ...url ? { queueUrl: url } : {},
+            queueUrl: resolved,
             queueName: queue
           }
         });

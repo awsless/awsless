@@ -1,4 +1,4 @@
-import { sendMessage, SendMessageOptions } from '@awsless/sqs'
+import { getCachedQueueUrl, sendMessage, SendMessageOptions } from '@awsless/sqs'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName, STACK } from './util.js'
@@ -17,17 +17,21 @@ export const Instance: InstanceResources = /*@__PURE__*/ createProxy(stack => {
 		const queue = getInstanceQueueName(name, stack)
 
 		const ctx: Record<string, any> = {
-			[queue]: (
+			[queue]: async (
 				payload: unknown,
 				options: Omit<SendMessageOptions, 'queue' | 'payload' | 'groupId' | 'deduplicationId'> = {}
 			) => {
+				// Without a stack dependency the producer never receives the queue's
+				// URL env var, so fall back to resolving it from the name at runtime.
+				const resolved = url ?? (await getCachedQueueUrl(queue))
+
 				return sendMessage({
 					...options,
-					queue: url ?? queue,
+					queue: resolved,
 					payload,
 					attributes: {
 						...(options.attributes ?? {}),
-						...(url ? { queueUrl: url } : {}),
+						queueUrl: resolved,
 						queueName: queue,
 					},
 				})
