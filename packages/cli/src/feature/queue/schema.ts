@@ -38,6 +38,15 @@ const BatchSizeSchema = z
 	.max(10, 'FIFO queues support a maximum batch size of 10')
 	.describe('The maximum number of records per batch. FIFO queues are capped at 10.')
 
+const RetryAttemptsSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(999)
+	.describe(
+		'The maximum number of times to retry when the function returns an error. You can specify a number from 0 to 999.'
+	)
+
 export const QueueDefaultSchema = z
 	.object({
 		retentionPeriod: RetentionPeriodSchema.default('7 days'),
@@ -45,6 +54,7 @@ export const QueueDefaultSchema = z
 		receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 		maxMessageSize: MaxMessageSizeSchema.default('256 KB'),
 		batchSize: BatchSizeSchema.default(10),
+		retryAttempts: RetryAttemptsSchema.default(2),
 	})
 	.default({})
 
@@ -55,6 +65,7 @@ const QueueSchema = z.object({
 	receiveMessageWaitTime: ReceiveMessageWaitTimeSchema.optional(),
 	maxMessageSize: MaxMessageSizeSchema.optional(),
 	batchSize: BatchSizeSchema.optional(),
+	retryAttempts: RetryAttemptsSchema.optional(),
 })
 
 export const QueuesSchema = z
