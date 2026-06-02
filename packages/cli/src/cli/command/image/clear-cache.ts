@@ -145,7 +145,10 @@ export const clearCache = (program: Command) => {
 
 						await createInvalidationForDistributionTenants(cloudFrontClient, {
 							distributionId,
-							paths: [shared.entry('image', 'path', name!)],
+							paths: [
+								// shared.entry('image', 'path', name!)
+								'/*',
+							],
 						})
 
 						// await cloudFrontClient.send(

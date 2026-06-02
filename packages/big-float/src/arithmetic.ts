@@ -126,6 +126,13 @@ export const pow = (base: Numeric, exp: Numeric): BigFloat => {
 	return make(internal.pow(parse(base), parse(exp)))
 }
 
+// /**
+//  * Returns Euler's number raised to the power of `n`.
+//  * @param {Numeric} n - The exponent.
+//  * @returns {BigFloat} The result of `e^n`.
+//  */
+// export const exp = (n: Numeric): BigFloat => make(internal.exp(parse(n)))
+
 /**
  * Computes the factorial of a number.
  * @param {Numeric} n - The number to compute the factorial for.

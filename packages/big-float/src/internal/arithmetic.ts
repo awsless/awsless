@@ -225,6 +225,62 @@ export const pow = (base: IBigFloat, exp: IBigFloat): IBigFloat => {
 	return acc
 }
 
+// const roundToPrecision = (n: IBigFloat, precision: number): IBigFloat => {
+// 	if (n.exponent >= -precision) {
+// 		return n
+// 	}
+
+// 	const digitsToDrop = -n.exponent - precision
+// 	const factor = 10n ** BigInt(digitsToDrop)
+// 	const isNegativeResult = n.coefficient < 0n
+// 	const absCoefficient = isNegativeResult ? -n.coefficient : n.coefficient
+// 	const roundedAbsCoefficient = (absCoefficient + factor / 2n) / factor
+
+// 	return make(isNegativeResult ? -roundedAbsCoefficient : roundedAbsCoefficient, -precision)
+// }
+
+// const computeExp = (n: IBigFloat, precision: number): IBigFloat => {
+// 	if (isZero(n)) {
+// 		return ONE
+// 	}
+
+// 	const workingPrecision = precision + 6
+
+// 	if (isNegative(n)) {
+// 		return roundToPrecision(div(ONE, computeExp(abs(n), workingPrecision), workingPrecision), precision)
+// 	}
+
+// 	if (gt(n, ONE)) {
+// 		const half = computeExp(div(n, TWO, workingPrecision), workingPrecision)
+// 		return roundToPrecision(mul(half, half), precision)
+// 	}
+
+// 	let sum = ONE
+// 	let term = ONE
+// 	let index = 1n
+// 	let iterations = 0
+// 	const maxIterations = 10_000
+
+// 	while (iterations < maxIterations) {
+// 		term = div(mul(term, n), make(index, 0), workingPrecision)
+
+// 		const next = add(sum, term)
+// 		if (eq(next, sum)) {
+// 			break
+// 		}
+
+// 		sum = next
+// 		index += 1n
+// 		iterations += 1
+// 	}
+
+// 	return roundToPrecision(sum, precision)
+// }
+
+// export const exp = (n: IBigFloat): IBigFloat => {
+// 	return computeExp(n, PRECISION)
+// }
+
 export const ceil = (n: IBigFloat): IBigFloat => {
 	if (isInteger(n)) {
 		return n
