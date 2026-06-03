@@ -97,7 +97,7 @@ export const queueFeature = defineFeature({
 				resourceName: id,
 			})
 
-			const onFailure = ctx.shared.get('on-failure', 'queue-arn')
+			// const onFailure = ctx.shared.get('on-failure', 'queue-arn')
 
 			const queue = new aws.sqs.Queue(group, 'queue', {
 				name: `${baseName}.fifo`,
@@ -108,12 +108,12 @@ export const queueFeature = defineFeature({
 				fifoQueue: true,
 				deduplicationScope: 'messageGroup',
 				fifoThroughputLimit: 'perMessageGroupId',
-				redrivePolicy: onFailure.pipe(arn =>
-					JSON.stringify({
-						deadLetterTargetArn: arn,
-						maxReceiveCount: props.retryAttempts + 1,
-					})
-				),
+				// redrivePolicy: onFailure.pipe(arn =>
+				// 	JSON.stringify({
+				// 		deadLetterTargetArn: arn,
+				// 		maxReceiveCount: props.retryAttempts + 1,
+				// 	})
+				// ),
 			})
 
 			if (local.consumer) {
