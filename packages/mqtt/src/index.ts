@@ -1,4 +1,4 @@
-import mqtt, { MqttClient, MqttProtocol } from 'mqtt'
+import mqtt, { MqttClient, MqttProtocol, IClientOptions } from 'mqtt'
 
 export enum QoS {
 	AtMostOnce = 0,
@@ -14,7 +14,7 @@ export type ClientProps = {
 	port?: number
 	username?: string
 	password?: string | Buffer
-}
+} & IClientOptions
 
 export type Unsubscribe = () => Promise<void>
 export type MessageCallback = (payload: Buffer) => void | Promise<void>
@@ -69,8 +69,12 @@ export const createClient = (propsOrProvider: ClientProps | ClientPropsProvider,
 
 				const local = await mqtt.connectAsync(props.endpoint, {
 					...props,
+					keepalive: 30,
+					reschedulePings: false,
 					reconnectPeriod: 0,
 					resubscribe: false,
+					// reconnectOnConnackError: true,
+					// connectTimeout: 10 * 1000,
 				})
 
 				client = local

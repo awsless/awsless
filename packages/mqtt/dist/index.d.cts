@@ -1,4 +1,4 @@
-import { MqttProtocol } from 'mqtt';
+import { MqttProtocol, IClientOptions } from 'mqtt';
 
 declare enum QoS {
     AtMostOnce = 0,
@@ -13,7 +13,7 @@ type ClientProps = {
     port?: number;
     username?: string;
     password?: string | Buffer;
-};
+} & IClientOptions;
 type Unsubscribe = () => Promise<void>;
 type MessageCallback = (payload: Buffer) => void | Promise<void>;
 type DebugCallback = (...args: unknown[]) => void;

@@ -82,8 +82,12 @@ var createClient = (propsOrProvider, debug = () => {
         const props = typeof propsOrProvider === "function" ? await propsOrProvider() : propsOrProvider;
         const local = await import_mqtt.default.connectAsync(props.endpoint, {
           ...props,
+          keepalive: 30,
+          reschedulePings: false,
           reconnectPeriod: 0,
           resubscribe: false
+          // reconnectOnConnackError: true,
+          // connectTimeout: 10 * 1000,
         });
         client = local;
         debug("connected", { topics: Object.keys(listeners).length });
@@ -145,6 +149,9 @@ var createClient = (propsOrProvider, debug = () => {
       reconnecting = void 0;
       await disconnect();
     },
+    // async ping() {
+    // 	await client?.sendPing()
+    // },
     async publish(topic, payload, qos = 0 /* AtMostOnce */) {
       if (client) {
         await client.publishAsync(topic, payload, { qos });
