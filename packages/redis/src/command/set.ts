@@ -1,5 +1,5 @@
 import { Command, InputValue, RedisClient } from '../type'
-import { del as deleteKey } from './key'
+import { delete as deleteKey } from './key'
 import {
 	buildScanArgs,
 	command,

@@ -125,30 +125,32 @@ it('your test', async () => {
 | `set.all`    | Get all values from a set                                      |
 | `set.scan`   | Iterate through set values                                     |
 
-| Function                 | Description                                           |
-| ------------------------ | ----------------------------------------------------- |
-| `sortedSet.add`          | Add one or more scored values to a sorted set         |
-| `sortedSet.has`          | Check whether a sorted set contains a value           |
-| `sortedSet.score`        | Get the score for a value in a sorted set             |
-| `sortedSet.incr`         | Increment the score for a value in a sorted set       |
-| `sortedSet.indexOf`      | Get the rank of a value in a sorted set               |
-| `sortedSet.random`       | Get one or more random values from a sorted set       |
-| `sortedSet.pop`          | Remove and return the lowest or highest scored values |
-| `sortedSet.delete`       | Remove one or more values from a sorted set           |
-| `sortedSet.length`       | Get the number of values in a sorted set              |
-| `sortedSet.clear`        | Alias for `key.delete`                                |
-| `sortedSet.all`          | Get all values from a sorted set                      |
-| `sortedSet.rangeByRank`  | Read members by their rank positions in a sorted set  |
-| `sortedSet.rangeByScore` | Read members whose scores fall between two bounds     |
+| Function                 | Description                                                       |
+| ------------------------ | ----------------------------------------------------------------- |
+| `sortedSet.add`          | Add one or more scored values to a sorted set                     |
+| `sortedSet.has`          | Check whether a sorted set contains a value                       |
+| `sortedSet.score`        | Get the score for a value in a sorted set                         |
+| `sortedSet.incr`         | Increment the score for a value in a sorted set                   |
+| `sortedSet.indexOf`      | Get the rank of a value in a sorted set                           |
+| `sortedSet.random`       | Get one or more random values from a sorted set                   |
+| `sortedSet.pop`          | Remove and return the lowest or highest scored values             |
+| `sortedSet.delete`       | Remove one or more values from a sorted set                       |
+| `sortedSet.length`       | Get the number of values in a sorted set                          |
+| `sortedSet.clear`        | Alias for `key.delete`                                            |
+| `sortedSet.all`          | Get all values from a sorted set                                  |
+| `sortedSet.rangeByRank`  | Read members by their rank positions in a sorted set              |
+| `sortedSet.rangeByScore` | Read members whose scores fall between two bounds                 |
 | `sortedSet.rangeByLex`   | Read members whose values fall between two lexicographical bounds |
-| `sortedSet.scan`         | Iterate through sorted set values and scores          |
+| `sortedSet.scan`         | Iterate through sorted set values and scores                      |
 
-| Function     | Description                           |
-| ------------ | ------------------------------------- |
-| `key.has`    | Check whether a key exists            |
-| `key.delete` | Delete a key                          |
-| `key.type`   | Get the type of value stored at a key |
-| `key.rename` | Rename a key                          |
+| Function     | Description                                  |
+| ------------ | -------------------------------------------- |
+| `key.has`    | Check whether a key exists                   |
+| `key.delete` | Delete a key                                 |
+| `key.unlink` | Delete a key asynchronously                  |
+| `key.type`   | Get the type of value stored at a key        |
+| `key.rename` | Rename a key                                 |
+| `key.scan`   | Iterate through keys in the current database |
 
 | Function       | Description                              |
 | -------------- | ---------------------------------------- |

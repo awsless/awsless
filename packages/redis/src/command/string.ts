@@ -1,7 +1,7 @@
 import { mul, Numeric, parse, StringNumericLiteral } from '@awsless/big-float'
 import { Duration, toSafeMilliSeconds } from '@awsless/duration'
 import { InputValue, RedisClient } from '../type'
-import { del as deleteKey, has as hasKey } from './key'
+import { delete as deleteKey, has as hasKey } from './key'
 import { command, removeNull, returnBoolean, returnEcho, returnInt } from './util'
 
 /**

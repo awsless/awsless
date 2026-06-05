@@ -1,7 +1,7 @@
 import { Numeric } from '@awsless/big-float'
 import chunk from 'chunk'
 import { Command, InputValue, RedisClient } from '../type'
-import { del as deleteKey } from './key'
+import { delete as deleteKey } from './key'
 import {
 	buildScanArgs,
 	command,
@@ -257,12 +257,12 @@ const buildRangeArgs = (
 		options.by === 'rank'
 			? [start.toString(), end.toString()]
 			: options.by === 'score'
-			? options.reverse
-				? [formatInf(end as Numeric), formatInf(start as Numeric)]
-				: [formatInf(start as Numeric), formatInf(end as Numeric)]
-			: options.reverse
-				? [end.toString(), start.toString()]
-				: [start.toString(), end.toString()]
+				? options.reverse
+					? [formatInf(end as Numeric), formatInf(start as Numeric)]
+					: [formatInf(start as Numeric), formatInf(end as Numeric)]
+				: options.reverse
+					? [end.toString(), start.toString()]
+					: [start.toString(), end.toString()]
 	const args: (string | number)[] = [key, ...bounds]
 
 	if (options.by === 'score') {
@@ -368,7 +368,13 @@ export function rangeByScore(
  * @speed slow
  * @since 1.2.0
  */
-export const rangeByLex = (client: RedisClient, key: string, start: string, end: string, options: LexRangeOptions = {}) => {
+export const rangeByLex = (
+	client: RedisClient,
+	key: string,
+	start: string,
+	end: string,
+	options: LexRangeOptions = {}
+) => {
 	return command<string[], string[]>(
 		client,
 		'ZRANGE',

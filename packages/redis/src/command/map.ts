@@ -1,7 +1,7 @@
 import { mul, Numeric, parse, StringNumericLiteral } from '@awsless/big-float'
 import chunk from 'chunk'
 import { InputValue, RedisClient } from '../type'
-import { del as deleteKey } from './key'
+import { delete as deleteKey } from './key'
 import {
 	buildScanArgs,
 	command,
@@ -123,7 +123,12 @@ export const clear = deleteKey
  * @since 2.1.0
  */
 export const all = (client: RedisClient, key: string) => {
-	return command<Map<string, string>, string[]>(client, 'HGETALL', [key], items => new Map(chunk(items, 2) as [string, string][]))
+	return command<Map<string, string>, string[]>(
+		client,
+		'HGETALL',
+		[key],
+		items => new Map(chunk(items, 2) as [string, string][])
+	)
 }
 
 const formatScanResult = (result: [string, string[]]) => {

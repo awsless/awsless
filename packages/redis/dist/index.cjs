@@ -243,10 +243,11 @@ var import_duration = require("@awsless/duration");
 // src/command/key.ts
 var key_exports = {};
 __export(key_exports, {
-  del: () => del,
+  asyncDelete: () => asyncDelete,
   delete: () => del,
   has: () => has,
   rename: () => rename,
+  scan: () => scan,
   type: () => type
 });
 
@@ -336,6 +337,9 @@ var has = (client, key) => {
 var del = (client, key) => {
   return command(client, "DEL", [key], returnBoolean);
 };
+var asyncDelete = (client, key) => {
+  return command(client, "UNLINK", [key], returnBoolean);
+};
 var type = (client, key) => {
   return command(client, "TYPE", [key], returnEcho);
 };
@@ -346,6 +350,45 @@ var rename = (client, from, to, options = {}) => {
   return command(client, "RENAME", [from, to], () => {
     return true;
   });
+};
+var formatScanResult = (result) => {
+  return returnScanResult(result);
+};
+var scan = (client, options = {}) => {
+  return {
+    ...command(
+      client,
+      "SCAN",
+      buildScanArgs(options),
+      formatScanResult
+    ),
+    [Symbol.asyncIterator]() {
+      let cursor = options.cursor;
+      let done = false;
+      return {
+        async next() {
+          while (!done) {
+            const result = await client.send(
+              "SCAN",
+              buildScanArgs({ ...options, cursor })
+            );
+            const formatted = formatScanResult(result);
+            cursor = formatted.cursor;
+            if (!formatted.cursor) {
+              done = true;
+            }
+            if (formatted.items.length > 0) {
+              return {
+                value: formatted.items,
+                done: false
+              };
+            }
+          }
+          return { done: true };
+        }
+      };
+    }
+  };
 };
 
 // src/command/string.ts
@@ -399,7 +442,7 @@ __export(map_exports, {
   has: () => has3,
   incr: () => incr2,
   length: () => length,
-  scan: () => scan,
+  scan: () => scan2,
   set: () => set3,
   ttl: () => ttl_exports
 });
@@ -492,26 +535,31 @@ var length = (client, key) => {
 };
 var clear = del;
 var all = (client, key) => {
-  return command(client, "HGETALL", [key], (items) => new Map((0, import_chunk.default)(items, 2)));
+  return command(
+    client,
+    "HGETALL",
+    [key],
+    (items) => new Map((0, import_chunk.default)(items, 2))
+  );
 };
-var formatScanResult = (result) => {
+var formatScanResult2 = (result) => {
   const { cursor, items } = returnScanResult(result);
   return {
     cursor,
     items: new Map((0, import_chunk.default)(items, 2))
   };
 };
-var scan = (client, key, options = {}) => {
+var scan2 = (client, key, options = {}) => {
   return {
     ...command(
       client,
       "HSCAN",
       [key, ...buildScanArgs(options)],
-      formatScanResult
+      formatScanResult2
     ),
     ...iterable(options.cursor, async (cursor) => {
       const result = await client.send("HSCAN", [key, ...buildScanArgs({ ...options, cursor })]);
-      return formatScanResult(result);
+      return formatScanResult2(result);
     })
   };
 };
@@ -567,7 +615,7 @@ __export(set_exports, {
   length: () => length2,
   pop: () => pop,
   random: () => random,
-  scan: () => scan2
+  scan: () => scan3
 });
 var returnSet = (r) => new Set(r);
 var add = (client, key, ...values) => {
@@ -592,24 +640,24 @@ var clear2 = del;
 var all2 = (client, key) => {
   return command(client, "SMEMBERS", [key], returnSet);
 };
-var formatScanResult2 = (result) => {
+var formatScanResult3 = (result) => {
   const { cursor, items } = returnScanResult(result);
   return {
     cursor,
     items: new Set(items)
   };
 };
-var scan2 = (client, key, options = {}) => {
+var scan3 = (client, key, options = {}) => {
   return {
     ...command(
       client,
       "SSCAN",
       [key, ...buildScanArgs(options)],
-      formatScanResult2
+      formatScanResult3
     ),
     ...iterable(options.cursor, async (cursor) => {
       const result = await client.send("SSCAN", [key, ...buildScanArgs({ ...options, cursor })]);
-      return formatScanResult2(result);
+      return formatScanResult3(result);
     })
   };
 };
@@ -630,7 +678,7 @@ __export(sorted_set_exports, {
   rangeByLex: () => rangeByLex,
   rangeByRank: () => rangeByRank,
   rangeByScore: () => rangeByScore,
-  scan: () => scan3,
+  scan: () => scan4,
   score: () => score
 });
 var import_chunk2 = __toESM(require("chunk"), 1);
@@ -744,24 +792,24 @@ var rangeByLex = (client, key, start, end, options = {}) => {
     returnEcho
   );
 };
-var formatScanResult3 = (result) => {
+var formatScanResult4 = (result) => {
   const { cursor, items } = returnScanResult(result);
   return {
     cursor,
     items: returnSortedSet(items)
   };
 };
-var scan3 = (client, key, options = {}) => {
+var scan4 = (client, key, options = {}) => {
   return {
     ...command(
       client,
       "ZSCAN",
       [key, ...buildScanArgs(options)],
-      formatScanResult3
+      formatScanResult4
     ),
     ...iterable(options.cursor, async (cursor) => {
       const result = await client.send("ZSCAN", [key, ...buildScanArgs({ ...options, cursor })]);
-      return formatScanResult3(result);
+      return formatScanResult4(result);
     })
   };
 };
@@ -783,7 +831,7 @@ __export(array_exports, {
   prepend: () => prepend,
   range: () => range,
   replace: () => replace,
-  scan: () => scan4,
+  scan: () => scan5,
   shift: () => shift,
   trim: () => trim
 });
@@ -842,10 +890,10 @@ var range = (client, key, start, end) => {
 var all4 = (client, key) => {
   return range(client, key, 0, -1);
 };
-var scan4 = (client, key, options = {}) => {
+var scan5 = (client, key, options = {}) => {
   const cursor = options.cursor ?? 0;
   const limit = options.limit ?? 10;
-  const formatScanResult4 = (cursor2, items) => {
+  const formatScanResult5 = (cursor2, items) => {
     if (items.length < limit) {
       return {
         cursor: void 0,
@@ -862,12 +910,12 @@ var scan4 = (client, key, options = {}) => {
       client,
       "LRANGE",
       [key, cursor, cursor + limit - 1],
-      (v) => formatScanResult4(cursor, v)
+      (v) => formatScanResult5(cursor, v)
     ),
     ...iterable(cursor, async (cursor2) => {
       const c = cursor2 ?? 0;
       const result = await client.send("LRANGE", [key, c, c + limit - 1]);
-      return formatScanResult4(c, result);
+      return formatScanResult5(c, result);
     })
   };
 };

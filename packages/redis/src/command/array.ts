@@ -1,5 +1,5 @@
 import { InputValue, RedisClient } from '../type'
-import { del as deleteKey } from './key'
+import { delete as deleteKey } from './key'
 import { command, iterable, removeNull, returnBoolean, returnEcho, returnInt, returnVoid } from './util'
 
 /**

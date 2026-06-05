@@ -64,4 +64,43 @@ describe('Key', () => {
 		const exists = await redis.key.has(client, 'renamed-key')
 		expect(exists).toBe(false)
 	})
+
+	it('asyncDelete', async () => {
+		await redis.string.set(client, 'unlink-key', 'value')
+
+		const result = await redis.key.asyncDelete(client, 'unlink-key')
+		expect(result).toBe(true)
+		expectTypeOf(result).toBeBoolean()
+
+		const exists = await redis.key.has(client, 'unlink-key')
+		expect(exists).toBe(false)
+	})
+
+	it('scan', async () => {
+		await redis.string.set(client, 'scan-key-1', 'value')
+		await redis.string.set(client, 'scan-key-2', 'value')
+
+		const result = await redis.key.scan(client, { match: 'scan-key-*' })
+
+		expect(result).toStrictEqual({
+			cursor: undefined,
+			items: expect.arrayContaining(['scan-key-1', 'scan-key-2']),
+		})
+
+		expectTypeOf(result).toEqualTypeOf<{
+			cursor: string | undefined
+			items: string[]
+		}>()
+	})
+
+	it('scan iterate', async () => {
+		const result: string[][] = []
+
+		for await (const items of redis.key.scan(client, { match: 'scan-key-*', limit: 1 })) {
+			result.push(items)
+			expectTypeOf(items).toEqualTypeOf<string[]>()
+		}
+
+		expect(result.flat()).toEqual(expect.arrayContaining(['scan-key-1', 'scan-key-2']))
+	})
 })

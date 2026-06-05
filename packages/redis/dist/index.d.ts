@@ -106,6 +106,12 @@ declare namespace string {
   export { append$1 as append, decr$1 as decr, del$5 as delete, get$3 as get, has$5 as has, incr$2 as incr, set$4 as set, string_substring as substring };
 }
 
+type ScanOptions = {
+    match?: string;
+    limit?: number;
+    cursor?: string;
+};
+
 type KeyType = 'none' | 'string' | 'list' | 'set' | 'zset' | 'hash' | 'stream';
 /**
  * Check whether a key exists.
@@ -127,6 +133,15 @@ declare const has$4: (client: RedisClient, key: string) => Command<boolean, stri
 declare const del$4: (client: RedisClient, key: string) => Command<boolean, number>;
 
 /**
+ * Delete a key asynchronously.
+ *
+ * @command UNLINK
+ * @complexity O(1) for each key removed from the keyspace. The actual memory reclaiming happens asynchronously
+ * @speed fast
+ * @since 4.0.0
+ */
+declare const asyncDelete: (client: RedisClient, key: string) => Command<boolean, number>;
+/**
  * Get the type of value stored at a key.
  *
  * @command TYPE
@@ -146,19 +161,46 @@ declare const type: (client: RedisClient, key: string) => Command<KeyType, KeyTy
 declare const rename: (client: RedisClient, from: string, to: string, options?: {
     when?: "not-exists";
 }) => Command<boolean, string>;
+/**
+ * Iterate through keys in the current database.
+ *
+ * @command SCAN
+ * @complexity O(1) for every call. O(N) for a complete iteration, including enough command calls for the cursor to return to 0
+ * @speed slow
+ * @since 2.8.0
+ */
+declare const scan$4: (client: RedisClient, options?: ScanOptions) => {
+    [Symbol.asyncIterator](): {
+        next(): Promise<{
+            done: true;
+        } | {
+            done: false;
+            value: string[];
+        }>;
+    };
+    preloadScript?: string;
+    name: string;
+    args: (InputValue | undefined)[];
+    resolve: (response: [string, string[]]) => {
+        cursor: string | undefined;
+        items: string[];
+    };
+    then<Result1 = {
+        cursor: string | undefined;
+        items: string[];
+    }, Result2 = never>(onfulfilled: (value: {
+        cursor: string | undefined;
+        items: string[];
+    }) => Result1, onrejected?: ((reason: any) => Result2) | undefined): Promise<Result1 | Result2>;
+};
 
 type key_KeyType = KeyType;
+declare const key_asyncDelete: typeof asyncDelete;
 declare const key_rename: typeof rename;
 declare const key_type: typeof type;
 declare namespace key {
-  export { type key_KeyType as KeyType, del$4 as del, del$4 as delete, has$4 as has, key_rename as rename, key_type as type };
+  export { type key_KeyType as KeyType, key_asyncDelete as asyncDelete, del$4 as delete, has$4 as has, key_rename as rename, scan$4 as scan, key_type as type };
 }
-
-type ScanOptions = {
-    match?: string;
-    limit?: number;
-    cursor?: string;
-};
 
 /**
  * Set expirations on one or more hash fields.
