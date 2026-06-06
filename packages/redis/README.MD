@@ -143,14 +143,14 @@ it('your test', async () => {
 | `sortedSet.rangeByLex`   | Read members whose values fall between two lexicographical bounds |
 | `sortedSet.scan`         | Iterate through sorted set values and scores                      |
 
-| Function     | Description                                  |
-| ------------ | -------------------------------------------- |
-| `key.has`    | Check whether a key exists                   |
-| `key.delete` | Delete a key                                 |
-| `key.unlink` | Delete a key asynchronously                  |
-| `key.type`   | Get the type of value stored at a key        |
-| `key.rename` | Rename a key                                 |
-| `key.scan`   | Iterate through keys in the current database |
+| Function          | Description                                  |
+| ----------------- | -------------------------------------------- |
+| `key.has`         | Check whether a key exists                   |
+| `key.delete`      | Delete a key                                 |
+| `key.asyncDelete` | Delete a key asynchronously                  |
+| `key.type`        | Get the type of value stored at a key        |
+| `key.rename`      | Rename a key                                 |
+| `key.scan`        | Iterate through keys in the current database |
 
 | Function       | Description                              |
 | -------------- | ---------------------------------------- |
