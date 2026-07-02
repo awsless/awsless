@@ -87,6 +87,14 @@ var string = (a, radix) => {
   }
   return s;
 };
+var fixed = (a, decimals) => {
+  const [integer3 = "0", fraction3 = ""] = string(a).split(".");
+  if (decimals === 0) {
+    return integer3;
+  }
+  const fixedFraction = fraction3.slice(0, decimals).padEnd(decimals, "0");
+  return `${integer3}.${fixedFraction}`;
+};
 var scientific = (a) => {
   if (isZero(a)) {
     return "0";
@@ -279,24 +287,24 @@ var sqrt = (n) => {
   } while (gt(abs(sub(x, prev)), EPSILON) && iterations < maxIterations);
   return x;
 };
-var pow = (base, exp3) => {
-  if (eq(exp3, ZERO)) {
+var pow = (base, exp) => {
+  if (eq(exp, ZERO)) {
     return ONE;
   }
-  if (isNegative(exp3)) {
-    return div(ONE, pow(base, abs(exp3)));
+  if (isNegative(exp)) {
+    return div(ONE, pow(base, abs(exp)));
   }
-  if (exp3.exponent === 0) {
+  if (exp.exponent === 0) {
     let result = base;
     let n = 1;
-    while (n !== number(exp3)) {
+    while (n !== number(exp)) {
       result = mul(result, base);
       n += 1;
     }
     return result;
   }
-  if (gt(exp3, ONE) || eq(exp3, ONE)) {
-    const temp = pow(base, div(exp3, TWO));
+  if (gt(exp, ONE) || eq(exp, ONE)) {
+    const temp = pow(base, div(exp, TWO));
     return mul(temp, temp);
   }
   let low = ZERO;
@@ -304,9 +312,9 @@ var pow = (base, exp3) => {
   let sqr = sqrt(base);
   let acc = sqr;
   let mid = div(high, TWO);
-  while (gt(abs(sub(mid, exp3)), EPSILON)) {
+  while (gt(abs(sub(mid, exp)), EPSILON)) {
     sqr = sqrt(sqr);
-    if (lt(mid, exp3) || eq(mid, exp3)) {
+    if (lt(mid, exp) || eq(mid, exp)) {
       low = mid;
       acc = mul(acc, sqr);
     } else {
@@ -316,49 +324,6 @@ var pow = (base, exp3) => {
     mid = div(add(low, high), TWO);
   }
   return acc;
-};
-var roundToPrecision = (n, precision) => {
-  if (n.exponent >= -precision) {
-    return n;
-  }
-  const digitsToDrop = -n.exponent - precision;
-  const factor = 10n ** BigInt(digitsToDrop);
-  const isNegativeResult = n.coefficient < 0n;
-  const absCoefficient = isNegativeResult ? -n.coefficient : n.coefficient;
-  const roundedAbsCoefficient = (absCoefficient + factor / 2n) / factor;
-  return make(isNegativeResult ? -roundedAbsCoefficient : roundedAbsCoefficient, -precision);
-};
-var computeExp = (n, precision) => {
-  if (isZero(n)) {
-    return ONE;
-  }
-  const workingPrecision = precision + 6;
-  if (isNegative(n)) {
-    return roundToPrecision(div(ONE, computeExp(abs(n), workingPrecision), workingPrecision), precision);
-  }
-  if (gt(n, ONE)) {
-    const half = computeExp(div(n, TWO, workingPrecision), workingPrecision);
-    return roundToPrecision(mul(half, half), precision);
-  }
-  let sum = ONE;
-  let term = ONE;
-  let index = 1n;
-  let iterations = 0;
-  const maxIterations = 1e4;
-  while (iterations < maxIterations) {
-    term = div(mul(term, n), make(index, 0), workingPrecision);
-    const next = add(sum, term);
-    if (eq(next, sum)) {
-      break;
-    }
-    sum = next;
-    index += 1n;
-    iterations += 1;
-  }
-  return roundToPrecision(sum, precision);
-};
-var exp = (n) => {
-  return computeExp(n, PRECISION);
 };
 var ceil = (n) => {
   if (isInteger(n)) {
@@ -445,6 +410,9 @@ var integer2 = (n) => {
 var string2 = (n) => {
   return string(parse(n));
 };
+var fixed2 = (n, decimals) => {
+  return fixed(parse(n), decimals);
+};
 var scientific2 = (n) => {
   return scientific(parse(n));
 };
@@ -489,10 +457,9 @@ var round2 = (n, precision = 0, divisorPrecision) => {
   const divisor = parse(Math.pow(10, precision));
   return make2(div(round(mul(parse(n), divisor)), divisor, divisorPrecision));
 };
-var pow2 = (base, exp3) => {
-  return make2(pow(parse(base), parse(exp3)));
+var pow2 = (base, exp) => {
+  return make2(pow(parse(base), parse(exp)));
 };
-var exp2 = (n) => make2(exp(parse(n)));
 var fact2 = (n) => {
   return make2(fact(parse(n)));
 };
@@ -589,8 +556,8 @@ export {
   cmp,
   div2 as div,
   eq2 as eq,
-  exp2 as exp,
   fact2 as fact,
+  fixed2 as fixed,
   floor2 as floor,
   fraction2 as fraction,
   gt2 as gt,

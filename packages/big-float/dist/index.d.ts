@@ -122,12 +122,6 @@ declare const round: (n: Numeric, precision?: number, divisorPrecision?: number)
  */
 declare const pow: (base: Numeric, exp: Numeric) => BigFloat;
 /**
- * Returns Euler's number raised to the power of `n`.
- * @param {Numeric} n - The exponent.
- * @returns {BigFloat} The result of `e^n`.
- */
-declare const exp: (n: Numeric) => BigFloat;
-/**
  * Computes the factorial of a number.
  * @param {Numeric} n - The number to compute the factorial for.
  * @returns {BigFloat} The factorial of `n`.
@@ -178,13 +172,14 @@ declare const integer: (n: Numeric) => BigFloat;
 /**
  * Converts a number to its standard string representation.
  * @param {Numeric} n - The number to convert.
- * @returns {string} The string representation of `n`.
+ * @returns {StringNumericLiteral} The string representation of `n`.
  */
 declare const string: (n: Numeric) => StringNumericLiteral;
+declare const fixed: (n: Numeric, decimals: number) => StringNumericLiteral;
 /**
  * Converts a number to its scientific notation string representation.
  * @param {Numeric} n - The number to convert.
- * @returns {string} The scientific notation of `n`.
+ * @returns {StringNumericLiteral} The scientific notation of `n`.
  */
 declare const scientific: (n: Numeric) => StringNumericLiteral;
 
@@ -296,4 +291,4 @@ declare const max: (...numbers: Numeric[]) => BigFloat;
  */
 declare const clamp: (number: Numeric, min: Numeric, max: Numeric) => BigFloat;
 
-export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, type IBigFloat, MILLION, NINE, type Numeric, ONE, PRECISION, QUADRILLION, QUINTILLION, SEPTILLION, SEVEN, SEXTILLION, SIX, type StringNumericLiteral, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, clamp, cmp, div, eq, exp, fact, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, make, max, min, mul, neg, parse, pow, round, scientific, setPrecision, sqrt, string, sub };
+export { BILLION, BigFloat, EIGHT, FIVE, FOUR, HUNDRED, type IBigFloat, MILLION, NINE, type Numeric, ONE, PRECISION, QUADRILLION, QUINTILLION, SEPTILLION, SEVEN, SEXTILLION, SIX, type StringNumericLiteral, TEN, THOUSAND, THREE, TRILLION, TWO, ZERO, abs, add, ceil, clamp, cmp, div, eq, fact, fixed, floor, fraction, gt, gte, integer, isBigFloat, isInteger, isNegative, isPositive, isZero, lt, lte, make, max, min, mul, neg, parse, pow, round, scientific, setPrecision, sqrt, string, sub };

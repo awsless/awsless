@@ -1,10 +1,10 @@
-import { Command, InputValue, RedisClient } from '../type'
+import { Command, RedisClient, RedisCommand } from '../type'
 
 type BatchResponse<T extends Command<any, any>[]> = {
 	[K in keyof T]: ReturnType<T[K]['resolve']>
 }
 
-const runBatch = async (client: RedisClient, commands: { name: string; args: (InputValue | undefined)[] }[]) => {
+const runBatch = async (client: RedisClient, commands: RedisCommand[]) => {
 	const response = await client.batch(commands)
 
 	if (response === null) {

@@ -66,7 +66,7 @@ export const flush = (client: RedisClient, mode: 'sync' | 'async' = 'sync') => {
 	return command<void, string>(client, 'SCRIPT', ['FLUSH', mode.toUpperCase()], returnVoid)
 }
 
-const createScriptRunner = (script: string, keyNum: number = 0) => {
+const createScriptRunner = (script: string, keyNum: number = 0, readonly: boolean = false) => {
 	let hash: string | undefined
 
 	const sha = () => {
@@ -87,10 +87,10 @@ const createScriptRunner = (script: string, keyNum: number = 0) => {
 			let result
 			try {
 				// result = await evalSha(client, sha(), [], args)
-				result = await command(client, 'EVALSHA', [sha(), keyNum, ...args], returnEcho)
+				result = await command(client, 'EVALSHA', [sha(), keyNum, ...args], returnEcho, { readonly })
 			} catch (error) {
 				if (error instanceof Error && error.message.includes('NOSCRIPT')) {
-					result = await command(client, 'EVAL', [script, keyNum, ...args], returnEcho)
+					result = await command(client, 'EVAL', [script, keyNum, ...args], returnEcho, { readonly })
 				} else {
 					throw error
 				}
@@ -102,6 +102,7 @@ const createScriptRunner = (script: string, keyNum: number = 0) => {
 		return {
 			name: 'EVALSHA',
 			args: [sha(), keyNum, ...args],
+			options: { readonly },
 			resolve: returnEcho as any,
 			preloadScript: script,
 			then(onfulfilled, onrejected) {
@@ -126,11 +127,13 @@ const createScriptRunner = (script: string, keyNum: number = 0) => {
 export const define = <I extends InputValue[], O extends string | string[]>({
 	script,
 	keys = 0,
+	readonly = false,
 }: {
 	script: string
 	keys?: number
+	readonly?: boolean
 }) => {
-	const run = createScriptRunner(script, keys)
+	const run = createScriptRunner(script, keys, readonly)
 
 	return (client: RedisClient, ...args: I) => {
 		return run<I, O>(client, ...args)

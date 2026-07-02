@@ -110,6 +110,18 @@ export const string = (a: IBigFloat, radix?: number): StringNumericLiteral => {
 	return s as StringNumericLiteral
 }
 
+export const fixed = (a: IBigFloat, decimals: number): StringNumericLiteral => {
+	const [integer = '0', fraction = ''] = string(a).split('.')
+
+	if (decimals === 0) {
+		return integer as StringNumericLiteral
+	}
+
+	const fixedFraction = fraction.slice(0, decimals).padEnd(decimals, '0')
+
+	return `${integer}.${fixedFraction}` as StringNumericLiteral
+}
+
 // export const scientific = (a: IBigFloat): string => {
 // 	if (isZero(a)) {
 // 		return '0'

@@ -39,7 +39,7 @@ interface IBigFloat {
 import { BigFloat, type IBigFloat, type Numeric, setPrecision } from "@awsless/big-float";
 
 // constructors
-import { parse, fraction, integer, string, scientific } from '@awsless/big-float'
+import { parse, fraction, integer, string, scientific, fixed } from '@awsless/big-float'
 
 // arithmetic
 import { neg, abs, add, sub, mul, div, sqrt, pow, ceil, floor, fact } from '@awsless/big-float'

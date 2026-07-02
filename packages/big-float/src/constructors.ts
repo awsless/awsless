@@ -37,16 +37,20 @@ export const integer = (n: Numeric): BigFloat => {
 /**
  * Converts a number to its standard string representation.
  * @param {Numeric} n - The number to convert.
- * @returns {string} The string representation of `n`.
+ * @returns {StringNumericLiteral} The string representation of `n`.
  */
 export const string = (n: Numeric): StringNumericLiteral => {
 	return internal.string(internal.parse(n))
 }
 
+export const fixed = (n: Numeric, decimals: number): StringNumericLiteral => {
+	return internal.fixed(internal.parse(n), decimals)
+}
+
 /**
  * Converts a number to its scientific notation string representation.
  * @param {Numeric} n - The number to convert.
- * @returns {string} The scientific notation of `n`.
+ * @returns {StringNumericLiteral} The scientific notation of `n`.
  */
 export const scientific = (n: Numeric): StringNumericLiteral => {
 	return internal.scientific(internal.parse(n))

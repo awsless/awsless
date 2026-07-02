@@ -11,8 +11,8 @@ export const createLazyClient = (cb: () => RedisClient): RedisClient => {
 	}
 
 	return {
-		send(name, args) {
-			return redis().send(name, args)
+		send(name, args, options) {
+			return redis().send(name, args, options)
 		},
 		batch(commands) {
 			return redis().batch(commands)

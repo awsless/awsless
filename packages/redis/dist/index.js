@@ -8,7 +8,18 @@ var __export = (target, all5) => {
 import { requestPort } from "@heat/request-port";
 
 // src/client/ioredis.ts
-import { Cluster, Redis } from "ioredis";
+import { Cluster, Command as IoRedisCommand, Redis } from "ioredis";
+var filterArgs = (args) => {
+  return args.filter((arg) => typeof arg !== "undefined");
+};
+var createCommand = (redis, name, args, options) => {
+  return new IoRedisCommand(name, filterArgs(args), {
+    errorStack: redis.options.showFriendlyErrorStack ? new Error() : void 0,
+    keyPrefix: redis.options.keyPrefix,
+    readOnly: options?.readonly,
+    replyEncoding: "utf8"
+  });
+};
 var optionOverrides = {};
 var overrideOptions = (options) => {
   optionOverrides = options;
@@ -27,6 +38,11 @@ var createIoRedisClient = (options) => {
       autoResendUnfulfilledCommands: false,
       connectTimeout: 5e3,
       commandTimeout: 5e3,
+      // reconnectOnError(err) {
+      // 	// After an ElastiCache failover the old primary is demoted to a
+      // 	// replica; the open socket must be dropped to re-resolve DNS.
+      // 	return err.message.includes('READONLY') ? 2 : false
+      // },
       // commandQueue: false,
       // offlineQueue: false,
       ...options,
@@ -50,7 +66,12 @@ var createIoRedisClient = (options) => {
             if (times > 5) return null;
             return Math.min(times * 200, 2e3);
           },
-          redisOptions: props
+          redisOptions: {
+            ...props,
+            reconnectOnError(err) {
+              return err.message.includes("READONLY") ? 2 : false;
+            }
+          }
         }
       );
     }
@@ -63,29 +84,21 @@ var createIoRedisClient = (options) => {
     return redis;
   };
   return {
-    send: (name, args) => {
-      return getLazyClient().call(
-        name,
-        args.filter((a) => typeof a !== "undefined")
-      );
+    send: (name, args, options2) => {
+      const redis2 = getLazyClient();
+      return redis2.sendCommand(createCommand(redis2, name, args, options2));
     },
     batch: (commands) => {
       const pipe = getLazyClient().pipeline();
       for (const command2 of commands) {
-        pipe.call(
-          command2.name,
-          command2.args.filter((a) => typeof a !== "undefined")
-        );
+        pipe.sendCommand(createCommand(pipe, command2.name, command2.args, command2.options));
       }
       return pipe.exec();
     },
     transact: (commands) => {
       const pipe = getLazyClient().multi();
       for (const command2 of commands) {
-        pipe.call(
-          command2.name,
-          command2.args.filter((a) => typeof a !== "undefined")
-        );
+        pipe.sendCommand(createCommand(pipe, command2.name, command2.args, command2.options));
       }
       return pipe.exec();
     },
@@ -251,15 +264,16 @@ var buildScanArgs = ({ match, limit, cursor }) => {
   }
   return args;
 };
-var command = (redis, name, args, resolve) => {
+var command = (redis, name, args, resolve, options) => {
   let promise;
   return {
     name,
     args,
+    options,
     resolve,
     then(onfulfilled, onrejected) {
       if (!promise) {
-        promise = redis.send(name, args).then(resolve);
+        promise = redis.send(name, args, options).then(resolve);
       }
       return promise.then(onfulfilled).catch(onrejected);
     }
@@ -917,7 +931,7 @@ var exists = (client, ...hashes) => {
 var flush = (client, mode = "sync") => {
   return command(client, "SCRIPT", ["FLUSH", mode.toUpperCase()], returnVoid);
 };
-var createScriptRunner = (script, keyNum = 0) => {
+var createScriptRunner = (script, keyNum = 0, readonly = false) => {
   let hash;
   const sha = () => {
     if (!hash) {
@@ -930,10 +944,10 @@ var createScriptRunner = (script, keyNum = 0) => {
     const run = async () => {
       let result;
       try {
-        result = await command(client, "EVALSHA", [sha(), keyNum, ...args], returnEcho);
+        result = await command(client, "EVALSHA", [sha(), keyNum, ...args], returnEcho, { readonly });
       } catch (error) {
         if (error instanceof Error && error.message.includes("NOSCRIPT")) {
-          result = await command(client, "EVAL", [script, keyNum, ...args], returnEcho);
+          result = await command(client, "EVAL", [script, keyNum, ...args], returnEcho, { readonly });
         } else {
           throw error;
         }
@@ -943,6 +957,7 @@ var createScriptRunner = (script, keyNum = 0) => {
     return {
       name: "EVALSHA",
       args: [sha(), keyNum, ...args],
+      options: { readonly },
       resolve: returnEcho,
       preloadScript: script,
       then(onfulfilled, onrejected) {
@@ -956,9 +971,10 @@ var createScriptRunner = (script, keyNum = 0) => {
 };
 var define = ({
   script,
-  keys = 0
+  keys = 0,
+  readonly = false
 }) => {
-  const run = createScriptRunner(script, keys);
+  const run = createScriptRunner(script, keys, readonly);
   return (client, ...args) => {
     return run(client, ...args);
   };
@@ -1043,8 +1059,8 @@ var createLazyClient = (cb) => {
     return client;
   };
   return {
-    send(name, args) {
-      return redis().send(name, args);
+    send(name, args, options) {
+      return redis().send(name, args, options);
     },
     batch(commands) {
       return redis().batch(commands);

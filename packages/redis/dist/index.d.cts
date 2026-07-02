@@ -5,22 +5,22 @@ import { RedisOptions } from 'ioredis';
 declare const mockRedis: () => void;
 
 type InputValue = number | string;
-type RedisClient = {
-    send: <T = any>(name: string, args: (InputValue | undefined)[]) => Promise<T>;
-    batch: <T = any[]>(commands: {
-        name: string;
-        args: (InputValue | undefined)[];
-    }[]) => Promise<T>;
-    transact: <T = any[]>(commands: {
-        name: string;
-        args: (InputValue | undefined)[];
-    }[]) => Promise<T>;
-    destroy(): Promise<void>;
+type RedisCommandOptions = {
+    readonly?: boolean;
 };
-type Command<T, R> = {
-    preloadScript?: string;
+type RedisCommand = {
     name: string;
     args: (InputValue | undefined)[];
+    options?: RedisCommandOptions;
+};
+type RedisClient = {
+    send: <T = any>(name: string, args: (InputValue | undefined)[], options?: RedisCommandOptions) => Promise<T>;
+    batch: <T = any[]>(commands: RedisCommand[]) => Promise<T>;
+    transact: <T = any[]>(commands: RedisCommand[]) => Promise<T>;
+    destroy(): Promise<void>;
+};
+type Command<T, R> = RedisCommand & {
+    preloadScript?: string;
     resolve: (response: R) => T;
     then<Result1 = T, Result2 = never>(onfulfilled: (value: T) => Result1, onrejected?: (reason: any) => Result2): Promise<Result1 | Result2>;
 };
@@ -178,9 +178,10 @@ declare const scan$4: (client: RedisClient, options?: ScanOptions) => {
             value: string[];
         }>;
     };
-    preloadScript?: string;
     name: string;
     args: (InputValue | undefined)[];
+    options?: RedisCommandOptions;
+    preloadScript?: string;
     resolve: (response: [string, string[]]) => {
         cursor: string | undefined;
         items: string[];
@@ -342,9 +343,10 @@ declare const scan$3: (client: RedisClient, key: string, options?: ScanOptions) 
             value: Map<string, string>;
         }>;
     };
-    preloadScript?: string;
     name: string;
     args: (InputValue | undefined)[];
+    options?: RedisCommandOptions;
+    preloadScript?: string;
     resolve: (response: [string, string[]]) => {
         cursor: string | undefined;
         items: Map<string, string>;
@@ -498,9 +500,10 @@ declare const scan$2: (client: RedisClient, key: string, options?: ScanOptions) 
             value: Set<string>;
         }>;
     };
-    preloadScript?: string;
     name: string;
     args: (InputValue | undefined)[];
+    options?: RedisCommandOptions;
+    preloadScript?: string;
     resolve: (response: [string, string[]]) => {
         cursor: string | undefined;
         items: Set<string>;
@@ -697,9 +700,10 @@ declare const scan$1: (client: RedisClient, key: string, options?: ScanOptions) 
             value: SortedSetOutput[];
         }>;
     };
-    preloadScript?: string;
     name: string;
     args: (InputValue | undefined)[];
+    options?: RedisCommandOptions;
+    preloadScript?: string;
     resolve: (response: [string, (string | number)[]]) => {
         cursor: string | undefined;
         items: SortedSetOutput[];
@@ -891,9 +895,10 @@ declare const scan: (client: RedisClient, key: string, options?: {
             value: string[];
         }>;
     };
-    preloadScript?: string;
     name: string;
     args: (InputValue | undefined)[];
+    options?: RedisCommandOptions;
+    preloadScript?: string;
     resolve: (response: string[]) => {
         cursor: number | undefined;
         items: string[];
@@ -981,9 +986,10 @@ declare const flush$1: (client: RedisClient, mode?: "sync" | "async") => Command
  * @speed slow
  * @since 2.6.0
  */
-declare const define: <I extends InputValue[], O extends string | string[]>({ script, keys, }: {
+declare const define: <I extends InputValue[], O extends string | string[]>({ script, keys, readonly, }: {
     script: string;
     keys?: number;
+    readonly?: boolean;
 }) => (client: RedisClient, ...args: I) => Command<O, unknown>;
 /**
  * Define a reusable Lua script with template literal arguments.
@@ -1105,4 +1111,4 @@ declare const createRedisClient: (options: RedisClientOptions) => RedisClient;
 
 declare const createLazyClient: (cb: () => RedisClient) => RedisClient;
 
-export { type Command, type InputValue, type IoRedisOptions, type RedisClient, type RedisClientOptions, createIoRedisClient, createLazyClient, createRedisClient, mockRedis, overrideOptions, index as redis };
+export { type Command, type InputValue, type IoRedisOptions, type RedisClient, type RedisClientOptions, type RedisCommand, type RedisCommandOptions, createIoRedisClient, createLazyClient, createRedisClient, mockRedis, overrideOptions, index as redis };

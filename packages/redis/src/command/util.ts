@@ -1,4 +1,4 @@
-import { Command, InputValue, RedisClient } from '../type'
+import { Command, InputValue, RedisClient, RedisCommandOptions } from '../type'
 
 export const removeNull = <T>(value: T): Exclude<T, null> | undefined => {
 	if (value === null) {
@@ -48,17 +48,19 @@ export const command = <T, R>(
 	redis: RedisClient,
 	name: string,
 	args: (InputValue | undefined)[],
-	resolve: (response: R) => T
+	resolve: (response: R) => T,
+	options?: RedisCommandOptions
 ): Command<T, R> => {
 	let promise: Promise<T> | undefined
 
 	return {
 		name,
 		args,
+		options,
 		resolve,
 		then(onfulfilled, onrejected) {
 			if (!promise) {
-				promise = redis.send(name, args).then(resolve)
+				promise = redis.send(name, args, options).then(resolve)
 			}
 
 			return promise.then(onfulfilled).catch(onrejected)
