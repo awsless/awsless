@@ -1,0 +1,282 @@
+{
+	"$schema": "../../dist/stack.json",
+	"name": "stack-1",
+	// "depends": ["stack-2"],
+
+	// "tests": "./test",
+	"tests": false,
+	"configs": ["test"],
+
+	// "metrics": {
+	// 	"size": {
+	// 		"type": "number",
+	// 		"alarms": [
+	// 			{
+	// 				"where": "sum > 1",
+	// 				"period": "1 minutes",
+	// 				"trigger": "./metric/trigger.ts",
+	// 				"minDataPoints": 1
+	// 			}
+	// 		]
+	// 	}
+	// },
+	//
+
+	// "tasks": {
+	// 	"error": {
+	// 		"consumer": "./error.ts",
+	// 		"retryAttempts": 0
+	// 	}
+	// },
+
+	// "queues": {
+	// 	"error": {
+	// 		"consumer": "./error.ts",
+	// 		"retryAttempts": 0
+	// 	}
+	// },
+
+	// "tables": {
+	// 	"blog": {
+	// 		"hash": "id",
+	// 		"stream": {
+	// 			"type": "new-and-old-images",
+	// 			"retryAttempts": 0,
+	// 			"consumer": "./error.ts"
+	// 		}
+	// 	}
+	// },
+
+	// "commands": {
+	// 	"test": {
+	// 		"description": "Hello",
+	// 		"file": "./cli/test.ts"
+	// 	}
+	// },
+
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "5 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
+
+	// "functions": {
+	// 	// "log-metric": "./metric/log-metric.ts",
+	// 	// "test": {
+	// 	// 	"code": "./function.ts",
+	// 	// 	"timeout": "15 seconds"
+	// 	// },
+	// 	"schedule-error": "./schedule-error.ts"
+	// },
+
+	"sites": {
+		// "test": {
+		// 	"router": "main",
+		// 	"path": "/",
+		// 	"build": {
+		// 		"command": "pnpm test",
+		// 		"cacheKey": "./1.stack.jsonc"
+		// 	},
+		// 	"static": "./site",
+		// 	"ssr": "./ssr.ts"
+		// }
+		// "test2": {
+		// 	"router": "main",
+		// 	"path": "/docs",
+		// 	"static": "./site2"
+		// }
+		// "test3": {
+		// 	"router": "main",
+		// 	"path": "/docs",
+		// 	"static": "./site2"
+		// }
+	}
+
+	// "tables": {
+	// 	"new-table-old": {
+	// 		"hash": "hello"
+	// 	}
+	// }
+
+	// "rpc": {
+	// 	"main": {
+	// 		"test": "./echo.ts"
+	// 	}
+	// },
+
+	// "images": {
+	// 	"avatars": {
+	// 		"router": "main",
+	// 		"path": "/images",
+	// 		"origin": {
+	// 			"static": "./image"
+	// 		},
+	// 		"extensions": {
+	// 			"png": { "compressionLevel": 6 }
+	// 		},
+	// 		"presets": {
+	// 			"lg": {
+	// 				"width": 200
+	// 			},
+	// 			"md": {
+	// 				"width": 100
+	// 			},
+	// 			"sm": {
+	// 				"width": 50
+	// 			}
+	// 		}
+	// 	}
+	// },
+
+	// "icons": {
+	// 	"icons": {
+	// 		"router": "main",
+	// 		"path": "/icons",
+	// 		"origin": {
+	// 			"static": "./icon"
+	// 		}
+	// 	}
+	// }
+
+	// "commands": {
+	// 	"test": {
+	// 		"file": "./command.ts",
+	// 		"description": "Test command"
+	// 	}
+	// },
+
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "5 minutes",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
+
+	// "functions": {
+	// 	"echo": {
+	// 		"code": "./function.ts",
+	// 		"warm": 1
+	// 	}
+	// 	// "echo-4": "./function.ts"
+	// 	// "echo-3": "./function.ts"
+	// },
+
+	// "caches": {
+	// 	"test": {}
+	// },
+
+	// "topics": ["login", "register"],
+	// "subscribers": {
+	// 	"login": "./function.ts"
+	// },
+
+	// "tables": {
+	// 	"state": {
+	// 		"hash": "id"
+	// 	}
+	// },
+
+	// "stores": {
+	// 	"test": {}
+	// },
+
+	// "rpc": {
+	// 	"api": {
+	// 		"test": {
+	// 			"code": "./echo.ts",
+	// 			// "timeout": "5 minutes",
+	// 			"log": {
+	// 				"level": "trace"
+	// 			}
+	// 		}
+	// 	}
+	// },
+
+	// "crons": {
+	// 	"test": {
+	// 		"schedule": "1 day",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
+
+	// "queues": {
+	// 	"queue": "./function.ts"
+	// },
+
+	// "tests": "./schedule/test",
+
+	// "tables": {
+	// 	"state": {
+	// 		"hash": "id",
+	// 		"fields": {
+	// 			"id": "number"
+	// 		}
+	// 	}
+	// },
+
+	// "functions": {
+	// 	"start": {
+	// 		"code": "./schedule/start.ts"
+	// 	}
+	// },
+
+	// "tasks": {
+	// 	"end": "./schedule/end.ts"
+	// }
+
+	// "instances": {
+	// 	"test": {
+	// 		"code": "./instance/index.ts",
+	// 		"memorySize": "1 GB"
+	// 	}
+	// }
+
+	// "pubsub": {
+	// 	"test": {
+	// 		"sql": "SELECT * FROM '$aws/events/presence/connected/+'",
+	// 		"consumer": "./function.ts"
+	// 	}
+	// },
+
+	// "rest": {
+	// 	"public": {
+	// 		"GET /": "./function.ts"
+	// 	}
+	// },
+
+	// "sites": {
+	// 	"website": {
+	// 		// "domain": "main",
+	// 		"build": {
+	// 			"command": "pnpm test",
+	// 			"cacheKey": ["./site/", "./app.jsonc"],
+	// 			"configs": ["test"]
+	// 		},
+	// 		"ssr": "./ssr.ts",
+	// 		"static": true
+	// 		// "static": {
+	// 		// 	"nocheck": "./site"
+	// 		// }
+	// 	}
+	// }
+
+	// "streams": {
+	// 	"arena": {
+	// 		"type": "basic"
+	// 	}
+	// },
+
+	// "instances": {
+	// 	"stream": {
+	// 		"type": "t4g.nano",
+	// 		"image": "ami-05172b510cbeb4f59",
+	// 		"code": "./instance",
+	// 		"command": "sh ./bootup.sh",
+	// 		"waitForTermination": false,
+	// 		"environment": {
+	// 			"TEST": "FOO"
+	// 		}
+	// 	}
+	// }
+}

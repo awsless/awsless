@@ -1,0 +1,285 @@
+import { days, minutes, parse } from '@awsless/duration'
+import { z } from 'zod'
+import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
+import { ResourceIdSchema } from '../../config/schema/resource-id.js'
+
+const ErrorResponsePathSchema = z
+	.string()
+	.describe(
+		[
+			'The path to the custom error page that you want to return to the viewer when your origin returns the HTTP status code specified.',
+			'- We recommend that you store custom error pages in an Amazon S3 bucket.',
+			"If you store custom error pages on an HTTP server and the server starts to return 5xx errors, CloudFront can't get the files that you want to return to viewers because the origin server is unavailable.",
+		].join('\n')
+	)
+
+const StatusCodeSchema = z
+	.number()
+	.int()
+	.positive()
+	.optional()
+	.describe(
+		[
+			'The HTTP status code that you want CloudFront to return to the viewer along with the custom error page.',
+			'There are a variety of reasons that you might want CloudFront to return a status code different from the status code that your origin returned to CloudFront, for example:',
+			'- Some Internet devices (some firewalls and corporate proxies, for example) intercept HTTP 4xx and 5xx and prevent the response from being returned to the viewer.',
+			"If you substitute 200, the response typically won't be intercepted.",
+			`- If you don't care about distinguishing among different client errors or server errors, you can specify 400 or 500 as the ResponseCode for all 4xx or 5xx errors.`,
+			`- You might want to return a 200 status code (OK) and static website so your customers don't know that your website is down.`,
+		].join('\n')
+	)
+
+const MinTTLSchema = DurationSchema.describe(
+	'The minimum amount of time, that you want to cache the error response. When this time period has elapsed, CloudFront queries your origin to see whether the problem that caused the error has been resolved and the requested object is now available.'
+)
+
+const ErrorResponseSchema = z
+	.union([
+		ErrorResponsePathSchema,
+		z.object({
+			path: ErrorResponsePathSchema,
+			statusCode: StatusCodeSchema.optional(),
+			minTTL: MinTTLSchema.optional(),
+		}),
+	])
+	.optional()
+
+export const RouteSchema = z.string().regex(/^\//, 'Route must start with a slash (/)')
+
+const VisibilitySchema = z.boolean().default(false).describe('Whether to enable CloudWatch metrics for the WAF rule.')
+
+const WafSettingsSchema = z
+	.object({
+		rateLimiter: z
+			.object({
+				limit: z
+					.number()
+					.min(10)
+					.max(2_000_000_000)
+					.default(10)
+					.describe(
+						'The limit on requests during the specified evaluation window for a single aggregation instance for the rate-based rule.'
+					),
+				window: z
+					.union([
+						z.literal('1 minute'),
+						z.literal('2 minutes'),
+						z.literal('5 minutes'),
+						z.literal('10 minutes'),
+					])
+					.default('5 minutes')
+					.transform(v => parse(v))
+					.describe(
+						'The amount of time, in seconds, that AWS WAF should include in its request counts, looking back from the current time.'
+					),
+				visibility: VisibilitySchema,
+			})
+			.optional()
+			.describe(
+				'A rate-based rule counts incoming requests and rate limits requests when they are coming at too fast a rate.'
+			),
+		ddosProtection: z
+			.object({
+				sensitivity: z.object({
+					challenge: z
+						.enum(['low', 'medium', 'high'])
+						.default('low')
+						.transform(v => v.toUpperCase())
+						.describe('The sensitivity level for challenge requests.'),
+					block: z
+						.enum(['low', 'medium', 'high'])
+						.default('low')
+						.transform(v => v.toUpperCase())
+						.describe('The sensitivity level for block requests.'),
+				}),
+				exemptUriRegex: z.string().default('^$'),
+				visibility: VisibilitySchema,
+			})
+			.optional()
+			.describe(
+				'Provides protection against DDoS attacks targeting the application layer, also known as Layer 7 attacks. Uses 50 WCU.'
+			),
+		botProtection: z
+			.object({
+				inspectionLevel: z
+					.enum(['common', 'targeted'])
+					.default('common')
+					.transform(v => v.toUpperCase()),
+				visibility: VisibilitySchema,
+			})
+			.optional()
+			.describe(
+				'Provides protection against automated bots that can consume excess resources, skew business metrics, cause downtime, or perform malicious activities. Bot Control provides additional visibility through Amazon CloudWatch and generates labels that you can use to control bot traffic to your applications. Uses 50 WCU.'
+			),
+		captchaImmunityTime: DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout duration is 1 minute')
+			.refine(durationMax(days(3)), 'Maximum timeout duration is 3 days')
+			.default('5 minutes')
+			.describe(
+				'The amount of time that a CAPTCHA timestamp is considered valid by AWS WAF. The default setting is 5 minutes.'
+			),
+		challengeImmunityTime: DurationSchema.refine(durationMin(minutes(1)), 'Minimum timeout duration is 1 minute')
+			.refine(durationMax(days(3)), 'Maximum timeout duration is 3 days')
+			.default('5 minutes')
+			.describe(
+				'The amount of time that a challenge timestamp is considered valid by AWS WAF. The default setting is 5 minutes.'
+			),
+	})
+	.describe(
+		"WAF settings for the router. Each rule consumes Web ACL capacity units (WCUs). The total WCUs for a web ACL can't exceed 5000. Using over 1500 WCUs affects your costs."
+	)
+
+export const RouterDefaultSchema = z
+	.record(
+		ResourceIdSchema,
+		z.object({
+			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
+			subDomain: z.string().optional(),
+
+			waf: WafSettingsSchema.optional(),
+
+			geoRestrictions: z
+				.array(z.string().length(2).toUpperCase())
+				.default([])
+				.describe('Specifies a blacklist of countries that should be blocked.'),
+
+			errors: z
+				.object({
+					400: ErrorResponseSchema.describe('Customize a `400 Bad Request` response.'),
+					403: ErrorResponseSchema.describe('Customize a `403 Forbidden` response.'),
+					404: ErrorResponseSchema.describe('Customize a `404 Not Found` response.'),
+					405: ErrorResponseSchema.describe('Customize a `405 Method Not Allowed` response.'),
+					414: ErrorResponseSchema.describe('Customize a `414 Request-URI` response.'),
+					416: ErrorResponseSchema.describe('Customize a `416 Range Not` response.'),
+					500: ErrorResponseSchema.describe('Customize a `500 Internal Server` response.'),
+					501: ErrorResponseSchema.describe('Customize a `501 Not Implemented` response.'),
+					502: ErrorResponseSchema.describe('Customize a `502 Bad Gateway` response.'),
+					503: ErrorResponseSchema.describe('Customize a `503 Service Unavailable` response.'),
+					504: ErrorResponseSchema.describe('Customize a `504 Gateway Timeout` response.'),
+				})
+				.optional()
+				.describe('Customize the error responses for specific HTTP status codes.'),
+
+			cors: z
+				.object({
+					override: z.boolean().default(false),
+					maxAge: DurationSchema.default('365 days'),
+					exposeHeaders: z.string().array().optional(),
+					credentials: z.boolean().default(false),
+					headers: z.string().array().default(['*']),
+					origins: z.string().array().default(['*']),
+					methods: z
+						.enum(['GET', 'DELETE', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', 'ALL'])
+						.array()
+						.default(['ALL']),
+				})
+				.optional()
+				.describe('Specify the cors headers.'),
+
+			passwordAuth: z
+				.object({
+					password: z.string().describe('Password.'),
+				})
+				.optional()
+				.describe(
+					[
+						'Enable password authentication for the router.',
+						'You can authenicate by adding a "authorization" header with the value "Password [YOUR_PASSWORD]".',
+					].join('\n')
+				),
+
+			basicAuth: z
+				.object({
+					username: z.string().describe('Basic auth username.'),
+					password: z.string().describe('Basic auth password.'),
+				})
+				.optional()
+				.describe('Enable basic authentication for the router.'),
+
+			// security: z
+			// 	.object({
+			// 		contentSecurityPolicy: z.object({
+			// 			override: z.boolean().default(false),
+			// 			policy: z.string(),
+			// 		})
+			// 		contentSecurityPolicy?: {
+			// 			override?: boolean
+			// 			contentSecurityPolicy: string
+			// 		}
+			// 		contentTypeOptions?: {
+			// 			override?: boolean
+			// 		}
+			// 		frameOptions?: {
+			// 			override?: boolean
+			// 			frameOption?: 'deny' | 'same-origin'
+			// 		}
+			// 		referrerPolicy?: {
+			// 			override?: boolean
+			// 			referrerPolicy?: (
+			// 				'no-referrer' |
+			// 				'no-referrer-when-downgrade' |
+			// 				'origin' |
+			// 				'origin-when-cross-origin' |
+			// 				'same-origin' |
+			// 				'strict-origin' |
+			// 				'strict-origin-when-cross-origin' |
+			// 				'unsafe-url'
+			// 			)
+			// 		}
+			// 		strictTransportSecurity?: {
+			// 			maxAge?: Duration
+			// 			includeSubdomains?: boolean
+			// 			override?: boolean
+			// 			preload?: boolean
+			// 		}
+			// 		xssProtection?: {
+			// 			override?: boolean
+			// 			enable?: boolean
+			// 			modeBlock?: boolean
+			// 			reportUri?: string
+			// 		}
+			// 	})
+			// 	.optional()
+			// 	.describe('Specify the security policy.'),
+
+			cache: z
+				.object({
+					cookies: z
+						.string()
+						.array()
+						.optional()
+						.describe('Specifies the cookies that CloudFront includes in the cache key.'),
+					headers: z
+						.string()
+						.array()
+						.optional()
+						.describe('Specifies the headers that CloudFront includes in the cache key.'),
+					queries: z
+						.string()
+						.array()
+						.optional()
+						.describe('Specifies the query values that CloudFront includes in the cache key.'),
+				})
+				.optional()
+				.describe(
+					'Specifies the cookies, headers, and query values that CloudFront includes in the cache key.'
+				),
+		})
+	)
+	.optional()
+	.describe(`Define the global Router. Backed by AWS CloudFront.`)
+
+// export const RouterDefaultSchema = z
+// 	.record(
+// 		ResourceIdSchema,
+// 		z.object({
+// 			domain: ResourceIdSchema.describe('The domain id to link your Router.').optional(),
+// 			subDomain: z.string().optional(),
+
+// 			geoRestrictions: z
+// 				.array(z.string().length(2).toUpperCase())
+// 				.default([])
+// 				.describe('Specifies a blacklist of countries that should be blocked.'),
+// 		})
+// 	)
+// 	.describe(`Define the global Router. Backed by AWS CloudFront.`)
+// 	.optional()

@@ -1,0 +1,15 @@
+{
+	"$schema": "../../../dist/stack.json",
+	"name": "job",
+	"tests": false,
+	"functions": {
+		"run-job": "./run-job.ts"
+	},
+	"jobs": {
+		"worker": {
+			"code": "./worker.ts",
+			"timeout": "10 minutes",
+			"persistentStorage": true
+		}
+	}
+}

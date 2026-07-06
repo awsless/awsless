@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>CORS Test - CloudFront Domain</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 20px;
+				background-color: #f5f5f5;
+			}
+			.container {
+				background-color: white;
+				padding: 20px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			}
+			.test-section {
+				margin: 20px 0;
+				padding: 15px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+			}
+			.success {
+				background-color: #d4edda;
+				border-color: #c3e6cb;
+				color: #155724;
+			}
+			.error {
+				background-color: #f8d7da;
+				border-color: #f5c6cb;
+				color: #721c24;
+			}
+			.warning {
+				background-color: #fff3cd;
+				border-color: #ffeaa7;
+				color: #856404;
+			}
+			.loading {
+				background-color: #cce7ff;
+				border-color: #a6d4ff;
+				color: #004085;
+			}
+			button {
+				background-color: #007bff;
+				color: white;
+				border: none;
+				padding: 10px 20px;
+				border-radius: 4px;
+				cursor: pointer;
+				margin: 10px 5px 10px 0;
+			}
+			button:hover {
+				background-color: #0056b3;
+			}
+			button:disabled {
+				background-color: #6c757d;
+				cursor: not-allowed;
+			}
+			pre {
+				background-color: #f8f9fa;
+				padding: 10px;
+				border-radius: 4px;
+				overflow-x: auto;
+				font-size: 12px;
+			}
+			.info {
+				background-color: #e7f3ff;
+				border: 1px solid #b3d9ff;
+				padding: 15px;
+				border-radius: 5px;
+				margin-bottom: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>CloudFront CORS Test</h1>
+
+			<div class="info">
+				<strong>Target Domain:</strong> d2j3dqzozwc8cj.cloudfront.net<br />
+				<strong>Purpose:</strong> Test if we can make fetch requests without CORS blocking
+			</div>
+
+			<div class="test-section">
+				<h3>Test 1: Basic GET Request to Root</h3>
+				<button onclick="testBasicGet()" id="test1-btn">Run Test</button>
+				<div id="test1-result"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>Test 2: HEAD Request (Less Intrusive)</h3>
+				<button onclick="testHeadRequest()" id="test2-btn">Run Test</button>
+				<div id="test2-result"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>Test 3: OPTIONS Request (CORS Preflight)</h3>
+				<button onclick="testOptionsRequest()" id="test3-btn">Run Test</button>
+				<div id="test3-result"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>Test 4: GET with Custom Headers (Triggers Preflight)</h3>
+				<button onclick="testCustomHeaders()" id="test4-btn">Run Test</button>
+				<div id="test4-result"></div>
+			</div>
+
+			<div class="test-section">
+				<h3>Test 5: Try Common Paths</h3>
+				<button onclick="testCommonPaths()" id="test5-btn">Run Test</button>
+				<div id="test5-result"></div>
+			</div>
+
+			<button onclick="runAllTests()" id="run-all-btn">Run All Tests</button>
+			<button onclick="clearResults()">Clear Results</button>
+		</div>
+
+		<script>
+			const CLOUDFRONT_DOMAIN = 'https://d2j3dqzozwc8cj.cloudfront.net'
+
+			function updateResult(testId, status, message, details = null) {
+				const resultDiv = document.getElementById(`${testId}-result`)
+				resultDiv.className = `test-section ${status}`
+
+				let html = `<strong>${status.toUpperCase()}:</strong> ${message}`
+				if (details) {
+					html += `<pre>${JSON.stringify(details, null, 2)}</pre>`
+				}
+				resultDiv.innerHTML = html
+			}
+
+			function setButtonState(testId, disabled) {
+				const btn = document.getElementById(`${testId}-btn`)
+				btn.disabled = disabled
+			}
+
+			async function testBasicGet() {
+				setButtonState('test1', true)
+				updateResult('test1', 'loading', 'Testing basic GET request...')
+
+				try {
+					const response = await fetch(CLOUDFRONT_DOMAIN, {
+						method: 'GET',
+						mode: 'cors',
+					})
+
+					const headers = {}
+					response.headers.forEach((value, key) => {
+						headers[key] = value
+					})
+
+					updateResult('test1', 'success', `Request successful! Status: ${response.status}`, {
+						status: response.status,
+						statusText: response.statusText,
+						headers: headers,
+						url: response.url,
+					})
+				} catch (error) {
+					const errorDetails = {
+						name: error.name,
+						message: error.message,
+						stack: error.stack,
+					}
+
+					if (error.name === 'TypeError' && error.message.includes('CORS')) {
+						updateResult(
+							'test1',
+							'error',
+							'CORS blocked! The domain does not allow cross-origin requests.',
+							errorDetails
+						)
+					} else {
+						updateResult('test1', 'error', 'Request failed', errorDetails)
+					}
+				}
+				setButtonState('test1', false)
+			}
+
+			async function testHeadRequest() {
+				setButtonState('test2', true)
+				updateResult('test2', 'loading', 'Testing HEAD request...')
+
+				try {
+					const response = await fetch(CLOUDFRONT_DOMAIN, {
+						method: 'HEAD',
+						mode: 'cors',
+					})
+
+					const headers = {}
+					response.headers.forEach((value, key) => {
+						headers[key] = value
+					})
+
+					updateResult('test2', 'success', `HEAD request successful! Status: ${response.status}`, {
+						status: response.status,
+						headers: headers,
+					})
+				} catch (error) {
+					const errorDetails = {
+						name: error.name,
+						message: error.message,
+					}
+					updateResult('test2', 'error', 'HEAD request failed', errorDetails)
+				}
+				setButtonState('test2', false)
+			}
+
+			async function testOptionsRequest() {
+				setButtonState('test3', true)
+				updateResult('test3', 'loading', 'Testing OPTIONS request (CORS preflight)...')
+
+				try {
+					const response = await fetch(CLOUDFRONT_DOMAIN, {
+						method: 'OPTIONS',
+						mode: 'cors',
+					})
+
+					const headers = {}
+					response.headers.forEach((value, key) => {
+						headers[key] = value
+					})
+
+					updateResult('test3', 'success', `OPTIONS request successful! Status: ${response.status}`, {
+						status: response.status,
+						headers: headers,
+						corsHeaders: {
+							'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+							'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
+							'access-control-allow-headers': response.headers.get('access-control-allow-headers'),
+						},
+					})
+				} catch (error) {
+					updateResult('test3', 'error', 'OPTIONS request failed', {
+						name: error.name,
+						message: error.message,
+					})
+				}
+				setButtonState('test3', false)
+			}
+
+			async function testCustomHeaders() {
+				setButtonState('test4', true)
+				updateResult('test4', 'loading', 'Testing GET with custom headers...')
+
+				try {
+					const response = await fetch(CLOUDFRONT_DOMAIN, {
+						method: 'GET',
+						mode: 'cors',
+						headers: {
+							'X-Custom-Header': 'test-value',
+							'Content-Type': 'application/json',
+						},
+					})
+
+					updateResult('test4', 'success', `Custom headers request successful! Status: ${response.status}`, {
+						status: response.status,
+						url: response.url,
+					})
+				} catch (error) {
+					updateResult('test4', 'error', 'Custom headers request failed', {
+						name: error.name,
+						message: error.message,
+					})
+				}
+				setButtonState('test4', false)
+			}
+
+			async function testCommonPaths() {
+				setButtonState('test5', true)
+				updateResult('test5', 'loading', 'Testing common paths...')
+
+				const paths = ['/', '/index.html', '/favicon.ico', '/robots.txt', '/health']
+				const results = {}
+
+				for (const path of paths) {
+					try {
+						const response = await fetch(`${CLOUDFRONT_DOMAIN}${path}`, {
+							method: 'GET',
+							mode: 'cors',
+						})
+						results[path] = {
+							status: response.status,
+							success: true,
+						}
+					} catch (error) {
+						results[path] = {
+							status: 'error',
+							success: false,
+							error: error.message,
+						}
+					}
+				}
+
+				const hasSuccess = Object.values(results).some(r => r.success)
+				const status = hasSuccess ? 'success' : 'error'
+				const message = hasSuccess ? 'Some paths are accessible!' : 'All paths failed'
+
+				updateResult('test5', status, message, results)
+				setButtonState('test5', false)
+			}
+
+			async function runAllTests() {
+				const buttons = ['run-all-btn']
+				buttons.forEach(id => setButtonState(id.replace('-btn', ''), true))
+
+				await testBasicGet()
+				await new Promise(resolve => setTimeout(resolve, 500))
+				await testHeadRequest()
+				await new Promise(resolve => setTimeout(resolve, 500))
+				await testOptionsRequest()
+				await new Promise(resolve => setTimeout(resolve, 500))
+				await testCustomHeaders()
+				await new Promise(resolve => setTimeout(resolve, 500))
+				await testCommonPaths()
+
+				buttons.forEach(id => setButtonState(id.replace('-btn', ''), false))
+			}
+
+			function clearResults() {
+				for (let i = 1; i <= 5; i++) {
+					const resultDiv = document.getElementById(`test${i}-result`)
+					resultDiv.innerHTML = ''
+					resultDiv.className = ''
+				}
+			}
+
+			// Run basic test on page load
+			window.addEventListener('load', () => {
+				console.log('CORS Test Page Loaded')
+				console.log('Target domain:', CLOUDFRONT_DOMAIN)
+			})
+		</script>
+	</body>
+</html>
