@@ -1,5 +1,5 @@
 import { days, seconds, toSeconds, years } from '@awsless/duration'
-import { DataSource, Group, Input, Resource } from '@terraforge/core'
+import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
@@ -17,6 +17,10 @@ export const routerFeature = defineFeature({
 	onApp(ctx) {
 		const deploymentDomain = ctx.appConfig.defaults.deploymentDomain
 		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
+
+		if (Object.hasOwn(ctx.appConfig.defaults.router ?? {}, 'store')) {
+			throw new ExpectedError(`The router id "store" is reserved.`)
+		}
 
 		if (deploymentDomain) {
 			// deployment urls must never live on a user facing domain
@@ -40,7 +44,7 @@ export const routerFeature = defineFeature({
 		const defaultRouter = routers[0]?.[0]
 		const routes: Record<string, Route> = {}
 		const routeDependencies = new Set<Resource | DataSource>()
-		const distributionIds: Input<string>[] = []
+		const distributionIds: Output<string>[] = []
 		let hasLambdaRoutes = false
 		let routeStore: aws.cloudfront.KeyValueStore | undefined
 		let previewDistribution: aws.cloudfront.Distribution | undefined

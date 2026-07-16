@@ -415,7 +415,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 2,
 			functionVersion: '2',
-			routers: [],
 		})
 
 		expect(aws.alias).toEqual({
@@ -434,7 +433,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 2,
 			functionVersion: '2',
-			routers: [],
 		})
 
 		await promoteDeployment({
@@ -456,7 +454,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: previous.id,
 			functionVersion: previous.functionVersion,
-			routers: [],
 		})
 
 		expect(aws.alias).toEqual({
