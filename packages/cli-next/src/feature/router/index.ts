@@ -18,10 +18,6 @@ export const routerFeature = defineFeature({
 		const deploymentDomain = ctx.appConfig.defaults.deploymentDomain
 		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
 
-		if (Object.hasOwn(ctx.appConfig.defaults.router ?? {}, 'store')) {
-			throw new ExpectedError(`The router id "store" is reserved.`)
-		}
-
 		if (deploymentDomain) {
 			// deployment urls must never live on a user facing domain
 			for (const domainProps of Object.values(ctx.appConfig.defaults.domains ?? {})) {
