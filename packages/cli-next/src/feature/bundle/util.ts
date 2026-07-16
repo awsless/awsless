@@ -113,10 +113,18 @@ export const buildBundle = (props: BuildBundleProps): Builder => {
 			return `\t${JSON.stringify(routeKey)}: ${load},`
 		})
 
-		const entry = `import { createBundle } from ${JSON.stringify(runtime)}
-import env from './awsless-env.mjs'
+		const entry = `import env from './awsless-env.mjs'
 
-export default createBundle(env, {
+// The environment must be applied before the runtime & handlers are
+// loaded, so the real lambda environment always wins over the bundled
+// environment.
+for (const name in env) {
+	process.env[name] ??= env[name]
+}
+
+const { createBundle } = await import(${JSON.stringify(runtime)})
+
+export default createBundle({
 ${entries.join('\n')}
 })
 `

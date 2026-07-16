@@ -33,7 +33,7 @@ const routeType = (routeKey: string) => routeKey.split(':')[1]!
 // Runtime for the single app bundle lambda that hosts every handler.
 // The generated entry file provides the env & lazy handler map.
 
-export const createBundle = (env: Record<string, string>, handlers: Record<string, LoadHandler>) => {
+export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const topicSubscribers = new Map<string, string[]>()
 
 	for (const routeKey of Object.keys(handlers)) {
@@ -45,11 +45,6 @@ export const createBundle = (env: Record<string, string>, handlers: Record<strin
 			subscribers.push(routeKey)
 			topicSubscribers.set(id!, subscribers)
 		}
-	}
-
-	// The real lambda environment always wins over the bundled environment.
-	for (const [name, value] of Object.entries(env)) {
-		process.env[name] ??= value
 	}
 
 	return async (event: BundleEvent, context: LambdaContext) => {

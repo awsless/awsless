@@ -1,7 +1,9 @@
-import { getCurrentRoute, getStack, invokeRoute } from 'awsless'
+import { APP, getCurrentRoute, getStack, invokeRoute } from 'awsless'
 import { getValue } from './shared'
 
 export const echo = (event: unknown) => ({ stack: process.env.STACK, event })
+
+export const app = () => APP
 
 export const nested = async () => {
 	const inner = await invokeRoute('stack-1:function:echo', { from: 'nested' })

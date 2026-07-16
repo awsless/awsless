@@ -156,6 +156,7 @@ describe('bundle handler', () => {
 					{ routeKey: 'stack-1:function:special', file: handlers, exportName: 'special' },
 					{ routeKey: 'stack-1:function:error', file: handlers, exportName: 'errorResponse' },
 					{ routeKey: 'stack-1:function:nested-error', file: handlers, exportName: 'nestedError' },
+				{ routeKey: 'stack-1:function:app-name', file: handlers, exportName: 'app' },
 				{ routeKey: 'stack-1:cron:tick', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:task:work', file: handlers, exportName: 'echo' },
 				{ routeKey: 'stack-1:rpc:query', file: handlers, exportName: 'echo' },
@@ -215,6 +216,18 @@ describe('bundle handler', () => {
 		expect(process.env.GLOBAL_VALUE).toBe('global')
 		expect(process.env.PRESET_VALUE).toBe('real')
 		expect(process.env.FRESH_VALUE).toBe('bundled')
+	})
+
+	it('should apply bundled env before the runtime module scope runs', async () => {
+		const result = await handler(
+			{
+				'$awsless-route': 'stack-1:function:app-name',
+				event: {},
+			},
+			context
+		)
+
+		expect(result).toBe('test-app')
 	})
 
 	it('should dispatch the invoke envelope', async () => {
