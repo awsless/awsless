@@ -338,7 +338,7 @@ export const promoteDeployment = async (props: {
 	}
 }
 
-const updateDeployment = async (props: {
+const activateDeployment = async (props: {
 	appConfig: AppConfig
 	deploymentId?: number
 	rejectStale?: boolean
@@ -428,11 +428,11 @@ export const promoteAppDeployment = (props: {
 	appConfig: AppConfig
 	deploymentId: number
 }) => {
-	return updateDeployment({ ...props, rejectStale: true })
+	return activateDeployment({ ...props, rejectStale: true })
 }
 
 export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentId?: number }) => {
-	return withAppReleaseLock(props.appConfig, () => updateDeployment(props))
+	return withAppReleaseLock(props.appConfig, () => activateDeployment(props))
 }
 
 export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {

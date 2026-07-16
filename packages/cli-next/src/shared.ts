@@ -82,6 +82,7 @@ type SharedEntries = {
 
 	rest: {
 		id: Output<string>
+		permission: aws.lambda.Permission
 	}
 
 	image: {

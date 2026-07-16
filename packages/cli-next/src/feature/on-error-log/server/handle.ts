@@ -14,7 +14,7 @@ import {
 	uuid,
 } from '@awsless/validate'
 import { getRouteEnv, invokeRoute } from 'awsless'
-import type { CloudWatchLogsEvent } from 'aws-lambda'
+import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { createHash, UUID } from 'crypto'
 import * as zlib from 'zlib'
 
@@ -75,13 +75,23 @@ type ErrorLog = {
 
 // The bundles own log group subscribes to the bundle, so consuming
 // an error log must never produce one, or errors would loop forever.
+// Errors produced by our own runs (a consumer timeout / OOM) are
+// skipped, so a failing consumer can't feed itself.
 
-export default async (event: CloudWatchLogsEvent) => {
+const ownRequests = new Set<string>()
+
+export default async (event: CloudWatchLogsEvent, context: Context) => {
 	const consumerRoute = getRouteEnv('CONSUMER')
 
 	if (!consumerRoute) {
 		throw new Error('The CONSUMER route env is not set')
 	}
+
+	if (ownRequests.size > 10000) {
+		ownRequests.clear()
+	}
+
+	ownRequests.add(context.awsRequestId)
 
 	const original = { error: console.error, warn: console.warn }
 	console.error = console.info
@@ -102,7 +112,7 @@ export default async (event: CloudWatchLogsEvent) => {
 		for (const logEvent of result.output.logEvents) {
 			const error = parseError(logEvent.message, origin)
 
-			if (!error) {
+			if (!error || ownRequests.has(error.requestId)) {
 				continue
 			}
 

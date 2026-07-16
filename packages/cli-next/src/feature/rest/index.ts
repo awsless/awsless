@@ -10,6 +10,8 @@ import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.
 export const restFeature = defineFeature({
 	name: 'rest',
 	onApp(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.appConfig.defaults?.rest ?? {})) {
 			const group = new Group(ctx.base, 'rest', id)
 			const name = formatGlobalResourceName({
@@ -29,7 +31,18 @@ export const restFeature = defineFeature({
 				autoDeploy: true,
 			})
 
+			const permission = new aws.lambda.Permission(group, 'permission', {
+				action: 'lambda:InvokeFunction',
+				principal: 'apigateway.amazonaws.com',
+				functionName: bundle.lambda.functionName,
+				qualifier: bundle.alias.name,
+				sourceArn: api.id.pipe(
+					id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`
+				),
+			})
+
 			ctx.shared.add('rest', 'id', id, api.id)
+			ctx.shared.add('rest', 'permission', id, permission)
 
 			if (props.domain) {
 				const domainName = formatFullDomainName(ctx.appConfig, props.domain, props.subDomain)
@@ -87,20 +100,11 @@ export const restFeature = defineFeature({
 			for (const [routeKey, props] of Object.entries(routes)) {
 				const group = new Group(restGroup, 'route', routeKey)
 				const apiId = ctx.shared.entry('rest', 'id', id)
+				const permission = ctx.shared.entry('rest', 'permission', id)
 				const routeId = shortId(routeKey)
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'rest', `${id}-${routeId}`)
 
 				addBundleFunction(ctx, bundleRouteKey, props)
-
-				const permission = new aws.lambda.Permission(group, 'permission', {
-					action: 'lambda:InvokeFunction',
-					principal: 'apigateway.amazonaws.com',
-					functionName: bundle.lambda.functionName,
-					qualifier: bundle.alias.name,
-					sourceArn: apiId.pipe(
-						id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`
-					),
-				})
 
 				const integration = new aws.apigatewayv2.Integration(group, 'integration', {
 					apiId,
