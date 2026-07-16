@@ -80,13 +80,6 @@ export const addBundleFunction = (ctx: StackContext | AppContext, routeKey: stri
 	return bundle
 }
 
-export const getBundleTimeout = (ctx: BeforeContext) => {
-	return Math.max(
-		toSeconds(ctx.appConfig.defaults.function.timeout),
-		...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
-	)
-}
-
 type BuildBundleProps = {
 	name: string
 	minify?: boolean
@@ -193,7 +186,7 @@ export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps)
 	const env: Record<string, Input<string>> = {}
 	const envDeps = new Set<any>()
 	const layers: Input<string>[] = []
-	let timeout = toSeconds(props.timeout)
+	const timeout = toSeconds(props.timeout)
 	const memorySize = toMebibytes(props.memorySize)
 
 	const addHandler = (handler: BundleHandler) => {
@@ -221,11 +214,6 @@ export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps)
 
 	const addLayer = (layer: Input<string>) => {
 		layers.push(layer)
-	}
-
-	const setTimeout = (value: number) => {
-		timeout = Math.max(timeout, value)
-		lambdaProps.timeout = timeout
 	}
 
 	const name = getBundleFunctionName(ctx.app.name)
@@ -517,7 +505,6 @@ export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps)
 		addHandler,
 		addEnv,
 		addLayer,
-		setTimeout,
 		addPermission,
 	}
 }

@@ -4,7 +4,7 @@ import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { days, toSeconds } from '@awsless/duration'
 import { formatRouteEnvName } from 'awsless'
-import { addBundleFunction, formatRouteKey, getBundleTimeout } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -30,7 +30,7 @@ export const onFailureFeature = defineFeature({
 		// Create a single on-failure queue to feed all failure bucket
 		// notifications into the bundle
 
-		const bundleTimeout = getBundleTimeout(ctx)
+		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,

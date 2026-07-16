@@ -88,8 +88,10 @@ export const rpcFeature = defineFeature({
 				exportName: 'default',
 			})
 
-			bundle.setTimeout(toSeconds(props.timeout))
-			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'TIMEOUT'), toSeconds(props.timeout).toString())
+			bundle.addEnv(
+				formatRouteEnvName(serverRouteKey, 'TIMEOUT'),
+				toSeconds(ctx.appConfig.defaults.function.timeout).toString()
+			)
 
 			// ------------------------------------------------------
 			// Create the lock table

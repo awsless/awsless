@@ -36,7 +36,6 @@ type SharedState = {
 			addHandler: (handler: BundleHandler) => void
 			addEnv: (name: string, value: Input<string>) => void
 			addLayer: (layer: Input<string>) => void
-			setTimeout: (seconds: number) => void
 			addPermission: (statement: Permission) => void
 		}
 	}

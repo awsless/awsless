@@ -66,7 +66,6 @@ export const bundleFeature = defineFeature({
 			addHandler: bundle.addHandler,
 			addEnv: bundle.addEnv,
 			addLayer: bundle.addLayer,
-			setTimeout: bundle.setTimeout,
 			addPermission: bundle.addPermission,
 		})
 	},

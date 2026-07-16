@@ -1,4 +1,3 @@
-import { toSeconds } from '@awsless/duration'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { createHash } from 'crypto'
@@ -118,11 +117,7 @@ export const siteFeature = defineFeature({
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
-				const bundle = addBundleFunction(ctx, bundleRouteKey, ssr)
-
-				if (ssr.timeout) {
-					bundle.setTimeout(toSeconds(ssr.timeout))
-				}
+				addBundleFunction(ctx, bundleRouteKey, ssr)
 
 				addRoutes({
 					[routeKey]: {

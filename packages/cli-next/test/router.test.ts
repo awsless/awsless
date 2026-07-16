@@ -166,22 +166,6 @@ describe('router routes', () => {
 		).toThrow(`can't overlap`)
 	})
 
-	it('should reject RPC timeouts above the CloudFront origin limit', () => {
-		expect(() =>
-			createRouterApp(
-				{ main: {} },
-				{
-					rpc: {
-						api: {
-							router: 'main',
-							path: '/api',
-							timeout: '3 minutes',
-						},
-					},
-				}
-			)
-		).toThrow('Maximum timeout duration is 2 minutes')
-	})
 
 	it('should serve deployment urls from a wildcard on the dedicated deployment domain', async () => {
 		const result = createRouterApp({ main: {} }, { deploymentDomain: 'example-deploys.com' })

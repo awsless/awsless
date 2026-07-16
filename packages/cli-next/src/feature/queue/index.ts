@@ -8,7 +8,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { addBundleFunction, formatRouteKey, getBundleTimeout } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
 
@@ -86,7 +86,7 @@ export const queueFeature = defineFeature({
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		const bundleTimeout = getBundleTimeout(ctx)
+		const bundleTimeout = toSeconds(ctx.appConfig.defaults.function.timeout)
 
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})

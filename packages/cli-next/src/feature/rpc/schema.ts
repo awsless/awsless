@@ -1,6 +1,6 @@
-import { minutes, seconds } from '@awsless/duration'
+// import { minutes, seconds } from '@awsless/duration'
 import { z } from 'zod'
-import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
+// import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { FunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
@@ -9,17 +9,11 @@ import { RouteSchema } from '../router/schema.js'
 // 	`The duration a response should be cached for. The maximum value is one hour. The Lambda function can override this by returning a ttl key in its response.`
 // )
 
-const TimeoutSchema = DurationSchema
-	//
-	.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
-	// The rpc timeout raises the timeout of the whole shared bundle.
-	.refine(durationMax(minutes(2)), 'Maximum timeout duration is 2 minutes')
-	.describe(
-		[
-			'The amount of time that the RPC lambda is allowed run before stopping it.',
-			'You can specify a timeout from 10 seconds to 2 minutes.',
-		].join(' ')
-	)
+// The rpc timeout is defined by the shared bundle.
+// const TimeoutSchema = DurationSchema
+// 	.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
+// 	.refine(durationMax(minutes(2)), 'Maximum timeout duration is 2 minutes')
+// 	.describe('The amount of time that the RPC lambda is allowed run before stopping it.')
 
 export const RpcDefaultSchema = z
 	.record(
@@ -32,7 +26,7 @@ export const RpcDefaultSchema = z
 			path: RouteSchema.describe('The path inside the router to link your RPC API to.'),
 
 			auth: FunctionSchema.optional().describe('The authentication handler for your RPC API.'),
-			timeout: TimeoutSchema.default('1 minutes'),
+			// timeout: TimeoutSchema.default('1 minutes'),
 		})
 	)
 	.describe(`Define the global RPC API's.`)

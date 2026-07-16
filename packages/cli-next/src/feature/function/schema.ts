@@ -91,7 +91,7 @@ const HandlerSchema = z
 // 	.union([LocalFileSchema, LocalDirectorySchema])
 // 	.describe('The file path of the function code or a directory that needs to be bundled.')
 
-const DescriptionSchema = z.string().describe('A description of the function.')
+// const DescriptionSchema = z.string().describe('A description of the function.')
 
 const validLogRetentionDays = [
 	...[1, 3, 5, 7, 14, 30, 60, 90, 120, 150],
@@ -257,18 +257,19 @@ const FnSchema = z.object({
 	// container
 	// ...
 
-	runtime: RuntimeSchema.optional(),
-	description: DescriptionSchema.optional(),
-	warm: WarmSchema.optional(),
-	vpc: VPCSchema.optional(),
-	log: LogSchema.optional(),
-	timeout: TimeoutSchema.optional(),
-	memorySize: MemorySizeSchema.optional(),
-	architecture: ArchitectureSchema.optional(),
-	ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
+	// The lambda config is defined by the shared bundle.
+	// runtime: RuntimeSchema.optional(),
+	// description: DescriptionSchema.optional(),
+	// warm: WarmSchema.optional(),
+	// vpc: VPCSchema.optional(),
+	// log: LogSchema.optional(),
+	// timeout: TimeoutSchema.optional(),
+	// memorySize: MemorySizeSchema.optional(),
+	// architecture: ArchitectureSchema.optional(),
+	// ephemeralStorageSize: EphemeralStorageSizeSchema.optional(),
 	// retryAttempts: RetryAttemptsSchema.optional(),
-	reserved: ReservedConcurrentExecutionsSchema.optional(),
-	layers: LayersSchema.optional(),
+	// reserved: ReservedConcurrentExecutionsSchema.optional(),
+	// layers: LayersSchema.optional(),
 	environment: EnvironmentSchema.optional(),
 	permissions: PermissionsSchema.optional(),
 })
