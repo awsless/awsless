@@ -24,13 +24,11 @@ export const internalHandler = (name: string) => {
 	return join(dirname(fileURLToPath(import.meta.url)), `handlers/${name}.mjs`)
 }
 
-const bundleRuntime = internalHandler('bundle')
-
 // Build all handlers into a single code bundle behind a generated entry file.
 
 export const buildBundle = (props: BuildBundleProps): Builder => {
 	return async (build, { workspace }) => {
-		const runtime = props.runtime ?? bundleRuntime
+		const runtime = props.runtime ?? internalHandler('bundle')
 		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
 
 		// The entry file lazily imports every handler behind its route key.
