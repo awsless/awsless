@@ -231,22 +231,6 @@ export const promoteDeployment = async (props: {
 		props.deploymentId,
 		Math.max(props.deploymentId, aliasDeployment?.latest ?? 0, active?.id ?? 0)
 	)
-	const priorId = active?.id
-	const priorVersion = active?.functionVersion
-
-	if (priorId !== undefined && priorVersion !== undefined && priorVersion === alias?.FunctionVersion) {
-		const priorAlias = await getAlias(props.lambda, props.functionName, getDeploymentAliasName(priorId))
-
-		if (priorAlias?.FunctionVersion !== priorVersion || priorAlias?.Description !== promotedDescription) {
-			await upsertAlias(props.lambda, {
-				functionName: props.functionName,
-				functionVersion: priorVersion,
-				name: getDeploymentAliasName(priorId),
-				description: promotedDescription,
-			})
-		}
-	}
-
 	const deploymentAlias = await getAlias(
 		props.lambda,
 		props.functionName,

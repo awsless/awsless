@@ -66,8 +66,7 @@ const routeDeploymentInputSchema = z.object({
 	functionVersion: z.string(),
 })
 
-// store values are plain '<table>:<id or version>' pairs; anything else
-// is garbage written by an older version of awsless
+// store values are plain '<table>:<id or version>' pairs
 const parseValue = (value: string | undefined): [string, string] | undefined => {
 	const parts = value?.split(':')
 

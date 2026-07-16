@@ -331,22 +331,6 @@ describe('deployment promotion', () => {
 		expect(aws.getDeploymentAlias(2)?.Description).not.toBe('$awsless:promoted')
 	})
 
-	it('should seed the current route deployment as promoted during migration', async () => {
-		const aws = mockAws()
-		const store = seedStore(aws.stores)
-		aws.removeDeploymentAlias(1)
-
-		await promoteDeployment({
-			...clients(),
-			functionName,
-			deploymentId: 2,
-			functionVersion: '2',
-			store,
-		})
-
-		expect(aws.getDeploymentAlias(1)?.Description).toBe('$awsless:promoted')
-	})
-
 	it('should reject a stale async-only promotion', async () => {
 		const aws = mockAws()
 
