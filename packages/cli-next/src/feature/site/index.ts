@@ -1,3 +1,4 @@
+import { toSeconds } from '@awsless/duration'
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { createHash } from 'crypto'
@@ -117,7 +118,12 @@ export const siteFeature = defineFeature({
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
-				addBundleFunction(ctx, bundleRouteKey, ssr)
+				const bundle = addBundleFunction(ctx, bundleRouteKey, ssr)
+
+				// A slow SSR page must fit inside the shared bundle's timeout.
+				if (ssr.timeout) {
+					bundle.setTimeout(toSeconds(ssr.timeout))
+				}
 
 				addRoutes({
 					[routeKey]: {
@@ -268,11 +274,14 @@ export const siteFeature = defineFeature({
 						}
 
 						// one route serves every asset of this site version
+						const pathPattern =
+							props.path === '/' ? '' : props.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 						staticRoutes[join(props.path, '*.')] = {
 							type: 's3',
 							domainName: bucket.bucketRegionalDomainName,
 							rewrite: {
-								regex: `^${props.path === '/' ? '' : props.path}/?(.*)$`,
+								regex: `^${pathPattern}/?(.*)$`,
 								to: $interpolate`/v-${deployment.version}/$1`,
 							},
 						}
