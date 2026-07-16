@@ -1,20 +1,24 @@
 import { toDays, toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
+import { generateFileHash } from '@awsless/ts-file-cache'
 import { aws } from '@terraforge/aws'
 import { findInputDeps, Group, Input, Output, resolveInputs } from '@terraforge/core'
 import { kebabCase, pascalCase } from 'change-case'
 import { createHash } from 'crypto'
-import { readdir, readFile, writeFile } from 'fs/promises'
-import { join } from 'path'
-import { getBuildPath } from '../../build/index.js'
+import { readdir, readFile, rm, writeFile } from 'fs/promises'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+import { Builder, getBuildPath } from '../../build/index.js'
 import { AppContext, BeforeContext, Permission, StackContext } from '../../feature.js'
 import { BundleDeployment } from '../../formation/lambda.js'
+import { formatByteSize } from '../../util/byte-size.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
+import { createTempFolder } from '../../util/temp.js'
 import { FunctionDefaultProps } from '../function/schema.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
-import { buildBundle } from './build/bundle.js'
+import { bundleTypeScriptWithRolldown } from './build/rolldown.js'
 import { zipFiles } from './build/zip.js'
 
 // The request header used to route web requests to the right bundle handler.
@@ -81,6 +85,94 @@ export const getBundleTimeout = (ctx: BeforeContext) => {
 		toSeconds(ctx.appConfig.defaults.function.timeout),
 		...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
 	)
+}
+
+type BuildBundleProps = {
+	name: string
+	minify?: boolean
+	external?: string[]
+	handlers: BundleHandler[]
+
+	// Overwrite the bundle runtime location for testing purposes.
+	runtime?: string
+}
+
+// Build all handlers into a single code bundle behind a generated entry file.
+
+export const buildBundle = (props: BuildBundleProps): Builder => {
+	return async (build, { workspace }) => {
+		const runtime = props.runtime ?? join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.mjs')
+		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
+
+		// The entry file lazily imports every handler behind its route key.
+		// The route query virtualizes the handler file per route, so module
+		// level state is never shared between routes using the same file.
+		const entries = handlers.map(({ routeKey, file, exportName }) => {
+			const load = `() => import(${JSON.stringify(`${file}?awsless-route=${encodeURIComponent(routeKey)}`)}).then(module => module[${JSON.stringify(exportName)}])`
+
+			return `\t${JSON.stringify(routeKey)}: ${load},`
+		})
+
+		const entry = `import { createBundle } from ${JSON.stringify(runtime)}
+import env from './awsless-env.mjs'
+
+export default createBundle(env, {
+${entries.join('\n')}
+})
+`
+		const hashes = await Promise.all([
+			readFile(runtime),
+			...handlers.map(handler =>
+				dirname(handler.file) === dirname(runtime)
+					? readFile(handler.file)
+					: generateFileHash(workspace, handler.file)
+			),
+		])
+
+		const hash = createHash('sha1')
+			.update(entry)
+			.update(JSON.stringify([props.external, props.minify, handlers.map(h => [h.external, h.importAsString])]))
+
+		for (const item of hashes) {
+			hash.update(item)
+		}
+
+		const fingerprint = hash.digest('hex')
+
+		return build(fingerprint, async write => {
+			const temp = await createTempFolder(`bundle--${props.name}`)
+			const entryFile = join(temp.path, 'entry.ts')
+
+			await writeFile(entryFile, entry)
+
+			const importAsString = handlers.flatMap(handler => handler.importAsString ?? [])
+			const bundle = await bundleTypeScriptWithRolldown({
+				file: entryFile,
+				minify: props.minify,
+				external: [
+					'./awsless-env.mjs', // The env file is generated at deploy time.
+					...(props.external ?? []),
+					...handlers.flatMap(handler => handler.external ?? []),
+				],
+				importAsString: importAsString.length > 0 ? importAsString : undefined,
+			})
+
+			await temp.delete()
+
+			// Clear out the stale chunks from the previous build.
+			await rm(getBuildPath('function', props.name, 'files'), { recursive: true, force: true })
+
+			await Promise.all([
+				write('HASH', bundle.hash),
+				...bundle.files.map(file => write(`files/${file.name}`, file.code)),
+				...bundle.files.map(file => file.map && write(`files/${file.name}.map`, file.map)),
+			])
+
+			return {
+				size: formatByteSize(bundle.files.reduce((total, file) => total + file.code.byteLength, 0)),
+			}
+		})
+	}
 }
 
 export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps) => {
