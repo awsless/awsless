@@ -24,7 +24,7 @@
 		"function": {
 			"log": {
 				"retention": "7 days",
-				"level": "info",
+				"level": "error",
 				"system": "warn"
 			}
 		},

@@ -1,8 +1,8 @@
-import { days, toSeconds } from '@awsless/duration'
-import { aws } from '@terraforge/aws'
-import { Group } from '@terraforge/core'
-import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
+import { defineFeature } from '../../feature.js'
+import { Group } from '@terraforge/core'
+import { aws } from '@terraforge/aws'
+import { days, toSeconds } from '@awsless/duration'
 import { formatRouteEnvName } from 'awsless'
 import { internalHandler } from '../bundle/build/bundle.js'
 import { addBundleFunction, formatRouteKey, getBundleTimeout } from '../bundle/util.js'
@@ -12,6 +12,10 @@ export const onFailureFeature = defineFeature({
 	onBefore(ctx) {
 		const group = new Group(ctx.base, 'on-failure', 'main')
 
+		// ----------------------------------------------------------------
+		// Create a deadletter as last resort to all failing on-failure
+		// tasks
+
 		const deadletter = new aws.sqs.Queue(group, 'deadletter', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -20,6 +24,10 @@ export const onFailureFeature = defineFeature({
 			}),
 			messageRetentionSeconds: toSeconds(days(14)),
 		})
+
+		// ----------------------------------------------------------------
+		// Create a single on-failure queue to feed all failure bucket
+		// notifications into the bundle
 
 		const bundleTimeout = getBundleTimeout(ctx)
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
@@ -37,6 +45,16 @@ export const onFailureFeature = defineFeature({
 			}),
 		})
 
+		// ----------------------------------------------------------------
+		// Create a s3 bucket to capture all lambda failures
+
+		/*
+			Async lambda's errors will saved like:
+			aws/lambda/async/<function-name>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
+
+			DynamoDB Stream error:
+			aws/lambda/<UUID>/<shard-id>/YYYY/MM/DD/YYYY-MM-DDTHH.MM.SS-<UUID>
+		*/
 
 		const bucket = new aws.s3.Bucket(group, 'bucket', {
 			bucket: formatGlobalResourceName({
@@ -61,7 +79,6 @@ export const onFailureFeature = defineFeature({
 			group,
 			bucket,
 			queue,
-			deadletter,
 		})
 
 		const notify = ctx.appConfig.defaults.onFailure?.notify
@@ -148,12 +165,13 @@ export const onFailureFeature = defineFeature({
 					},
 				},
 				targetParameters: {
-					inputTemplate: `Awsless on-failure DLQ message
-App: ${ctx.app.name}
-Sent: <$.attributes.SentTimestamp>
-
-Body:
-<$.body>`,
+					inputTemplate: [
+						`Awsless on-failure DLQ message`,
+						`App: ${ctx.app.name}`,
+						`Sent: <$.attributes.SentTimestamp>`,
+						'',
+						`Body:\n<$.body>`,
+					].join('\n'),
 				},
 			})
 		}
@@ -182,7 +200,7 @@ Body:
 
 		bundle.addPermission({
 			actions: ['s3:GetObject', 's3:DeleteObject'],
-			resources: [bucket.arn.pipe(arn => `${arn}/*`)],
+			resources: [$interpolate`${bucket.arn}/*`],
 		})
 		bundle.addPermission({
 			actions: [

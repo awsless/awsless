@@ -1,4 +1,5 @@
 import { prompt } from '@awsless/clui'
+import { URN } from '@terraforge/core'
 import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { Cancelled } from '../../../error.js'
@@ -23,9 +24,16 @@ export const unlock = (program: Command) => {
 				const releaseUrn = getAppReleaseLockUrn(
 					generateGlobalAppId({ accountId, region, appName: appConfig.name })
 				)
-				const locked = await Promise.all([app.urn, releaseUrn].map(urn => lock.locked(urn)))
 
-				if (!locked.some(Boolean)) {
+				const lockedUrns: URN[] = []
+
+				for (const urn of [app.urn, releaseUrn]) {
+					if (await lock.locked(urn)) {
+						lockedUrns.push(urn)
+					}
+				}
+
+				if (lockedUrns.length === 0) {
 					return 'No lock exists.'
 				}
 
@@ -39,9 +47,9 @@ export const unlock = (program: Command) => {
 					throw new Cancelled()
 				}
 
-				await Promise.all(
-					[app.urn, releaseUrn].filter((_, index) => locked[index]).map(urn => lock.insecureReleaseLock(urn))
-				)
+				for (const urn of lockedUrns) {
+					await lock.insecureReleaseLock(urn)
+				}
 
 				return 'The deployment lock was successfully released.'
 			})

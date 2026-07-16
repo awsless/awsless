@@ -236,17 +236,20 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
         payload: formatRoutePayload(routeKey, payload)
       });
     };
-    const call = (payload, options = {}) => {
-      const { cache: shouldCache, ...invokeOptions } = options;
-      if (!shouldCache) {
-        return send(payload, invokeOptions);
+    const ctx = {
+      [name]: (payload, options = {}) => {
+        const { cache: shouldCache, ...invokeOptions } = options;
+        if (!shouldCache) {
+          return send(payload, invokeOptions);
+        }
+        const cacheKey = stringify3([routeKey, payload, invokeOptions.qualifier]);
+        if (!cache.has(cacheKey)) {
+          cache.set(cacheKey, send(payload, invokeOptions));
+        }
+        return cache.get(cacheKey);
       }
-      const cacheKey = stringify3([routeKey, payload, invokeOptions.qualifier]);
-      if (!cache.has(cacheKey)) {
-        cache.set(cacheKey, send(payload, invokeOptions));
-      }
-      return cache.get(cacheKey);
     };
+    const call = ctx[name];
     call.cached = (payload, options = {}) => {
       return call(payload, { ...options, cache: true });
     };

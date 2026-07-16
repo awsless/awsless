@@ -42,9 +42,6 @@ export const routerFeature = defineFeature({
 
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
-			const placeholderOrigin = ctx.shared
-				.get('bundle', 'bucket-name')
-				.pipe(bucket => `${bucket}.s3.${ctx.appConfig.region}.amazonaws.com`)
 
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -118,18 +115,16 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Add routes API
 
-			const routeKeys = new Set<string>()
 			const routes: Record<string, Route> = {}
 			const routeDependencies = new Set<Resource | DataSource>()
 			let lambdaUrlHost: Input<string> | undefined
 
 			ctx.shared.add('router', 'addRoutes', id, (newRoutes, options) => {
 				for (const [key, route] of Object.entries(newRoutes)) {
-					if (routeKeys.has(key)) {
+					if (Object.hasOwn(routes, key)) {
 						throw new ExpectedError(`Duplicate route key: ${key} in the "${id}" router`)
 					}
 
-					routeKeys.add(key)
 					routes[key] = route
 				}
 
@@ -420,12 +415,12 @@ export const routerFeature = defineFeature({
 				origin: [
 					{
 						id: 'default',
-						domainName: placeholderOrigin,
+						domainName: 'placeholder.awsless.dev',
 						customOriginConfig: [
 							{
 								httpPort: 80,
 								httpsPort: 443,
-								originProtocolPolicy: 'https-only',
+								originProtocolPolicy: 'http-only',
 								originReadTimeout: 20,
 								originSslProtocols: ['TLSv1.2'],
 								// originKeepaliveTimeout: 30,
@@ -496,11 +491,11 @@ export const routerFeature = defineFeature({
 				origin: [
 					{
 						originId: 'default',
-						domainName: placeholderOrigin,
+						domainName: 'placeholder.awsless.dev',
 						customOriginConfig: {
 							httpPort: 80,
 							httpsPort: 443,
-							originProtocolPolicy: 'https-only',
+							originProtocolPolicy: 'http-only',
 							originReadTimeout: 20,
 							originSslProtocols: ['TLSv1.2'],
 						},

@@ -2,8 +2,8 @@
 import { stringify } from '@awsless/json'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
-import { formatRoutePayload, invokeRoute, isInsideBundle } from './bundle.js'
 import { createProxy } from '../proxy.js'
+import { formatRoutePayload, invokeRoute, isInsideBundle } from './bundle.js'
 import { bindLocalResourceName, BUNDLE_NAME, formatRouteKey, getBundleQualifier, IS_TEST } from './util.js'
 
 const cache = new WeakCache<string, Promise<unknown>>()
@@ -47,21 +47,25 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 			})
 		}
 
-		const call = (payload: unknown, options: FunctionOptions = {}) => {
-			const { cache: shouldCache, ...invokeOptions } = options
+		const ctx: Record<string, any> = {
+			[name]: (payload: unknown, options: FunctionOptions = {}) => {
+				const { cache: shouldCache, ...invokeOptions } = options
 
-			if (!shouldCache) {
-				return send(payload, invokeOptions)
-			}
+				if (!shouldCache) {
+					return send(payload, invokeOptions)
+				}
 
-			const cacheKey = stringify([routeKey, payload, invokeOptions.qualifier])
+				const cacheKey = stringify([routeKey, payload, invokeOptions.qualifier])
 
-			if (!cache.has(cacheKey)) {
-				cache.set(cacheKey, send(payload, invokeOptions))
-			}
+				if (!cache.has(cacheKey)) {
+					cache.set(cacheKey, send(payload, invokeOptions))
+				}
 
-			return cache.get(cacheKey)
+				return cache.get(cacheKey)
+			},
 		}
+
+		const call = ctx[name]
 
 		call.cached = (payload: unknown, options: FunctionInvokeOptions = {}) => {
 			return call(payload, { ...options, cache: true })

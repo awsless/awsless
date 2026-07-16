@@ -163,7 +163,6 @@ function setRouteOrigin(route) {
 	}
 }
 
-
 function setS3Origin(route) {
 	cf.updateRequestOrigin({
 		domainName: route.domainName,

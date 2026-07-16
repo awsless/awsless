@@ -31,7 +31,7 @@ const routeSchema = z.object({
 	value: z.string(),
 })
 
-type Route = z.output<typeof routeSchema>
+type RouteEntry = z.output<typeof routeSchema>
 
 type Mutation =
 	| {
@@ -53,7 +53,7 @@ export type RouteDeployment = {
 type RouteDeploymentInput = {
 	deploymentId: Input<number>
 	storeArn: Input<string>
-	routes: Input<Route[]>
+	routes: Input<RouteEntry[]>
 	functionVersion: Input<string>
 }
 
@@ -77,7 +77,7 @@ const parseValue = (value: string | undefined): [string, string] | undefined => 
 // ------------------------------------------------------------
 // Planning
 
-const sortRoutes = (routes: Route[]) => {
+const sortRoutes = (routes: RouteEntry[]) => {
 	return [...routes].sort((a, b) => {
 		if (a.key === b.key) {
 			return a.value < b.value ? -1 : a.value > b.value ? 1 : 0
@@ -87,11 +87,11 @@ const sortRoutes = (routes: Route[]) => {
 	})
 }
 
-const getRouteTableId = (routes: Route[]) => {
+const getRouteTableId = (routes: RouteEntry[]) => {
 	return createHash('sha1').update(JSON.stringify(routes)).digest('hex').slice(0, 8)
 }
 
-const getTableMutations = (table: string, routes: Route[]): Mutation[] => {
+const getTableMutations = (table: string, routes: RouteEntry[]): Mutation[] => {
 	return routes.map(route => ({
 		type: 'put',
 		key: `${table}:${route.key}`,

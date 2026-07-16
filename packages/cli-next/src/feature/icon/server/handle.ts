@@ -9,27 +9,29 @@ import svgstore from 'svgstore'
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const path = event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath
-		const cacheBucket = getRouteEnv('ICON_CACHE_BUCKET')!
+		const cacheBucket = getRouteEnv('ICON_CACHE_BUCKET')
 
 		// ----------------------------------------
 		// Get cached svg from s3
 
-		const cachedIcon = await getObject({
-			bucket: cacheBucket,
-			key: path,
-		})
+		if (cacheBucket) {
+			const cachedIcon = await getObject({
+				bucket: cacheBucket,
+				key: path,
+			})
 
-		if (cachedIcon) {
-			const cachedIconData = await cachedIcon.body.transformToByteArray()
+			if (cachedIcon) {
+				const cachedIconData = await cachedIcon.body.transformToByteArray()
 
-			return {
-				statusCode: 200,
-				body: Buffer.from(cachedIconData).toString('base64'),
-				isBase64Encoded: true,
-				headers: {
-					'Content-Type': 'image/svg+xml',
-					'Cache-Control': 'public, max-age=31536000, immutable',
-				},
+				return {
+					statusCode: 200,
+					body: Buffer.from(cachedIconData).toString('base64'),
+					isBase64Encoded: true,
+					headers: {
+						'Content-Type': 'image/svg+xml',
+						'Cache-Control': 'public, max-age=31536000, immutable',
+					},
+				}
 			}
 		}
 
@@ -120,7 +122,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Cache the image in S3
 
 		await putObject({
-			bucket: cacheBucket,
+			bucket: cacheBucket!,
 			key: path,
 			body: icon,
 			contentType: 'image/svg+xml',

@@ -2,7 +2,7 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { GetAliasCommand, GetFunctionCommand, LambdaClient, ListAliasesCommand } from '@aws-sdk/client-lambda'
 import { define, DynamoDBClient, number, object, string, updateItem } from '@awsless/dynamodb'
-import { App } from '@terraforge/core'
+import { App, StateBackend } from '@terraforge/core'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
 import {
@@ -24,7 +24,7 @@ import {
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
-type RouterDeployment = {
+type RouterTarget = {
 	id: string
 	storeArn: string
 	deployment: RouteDeployment
@@ -46,6 +46,40 @@ const parseDeploymentDescription = (description?: string) => {
 
 const formatDeploymentDescription = (active: number, latest: number) => {
 	return `$awsless:deployment:${active}:${latest}`
+}
+
+export const formatDeploymentSummary = (props: {
+	state: Awaited<ReturnType<StateBackend['get']>>
+	appConfig: AppConfig
+	deploymentId: number
+}): string[] => {
+	const previewUrls = new Map<string, string>()
+	const stacks = Object.values(props.state?.stacks ?? {}) as Array<{
+		nodes: Record<string, { type: string; output: { domainName?: string } }>
+	}>
+
+	for (const stack of stacks) {
+		for (const [urn, node] of Object.entries(stack.nodes)) {
+			if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
+				const routerId = urn.match(/:router:\{([^}]+)\}/)?.[1]
+				if (routerId) {
+					previewUrls.set(routerId, `https://${node.output.domainName}`)
+				}
+			}
+		}
+	}
+
+	const deploymentDomain = props.appConfig.defaults.deploymentDomain
+
+	return Object.keys(props.appConfig.defaults.router ?? {}).map(routerId => {
+		return [
+			`${routerId}: deployment #${props.deploymentId}`,
+			deploymentDomain && `https://${routerId}-${props.deploymentId}.${deploymentDomain}`,
+			previewUrls.get(routerId),
+		]
+			.filter(Boolean)
+			.join('\n')
+	})
 }
 
 export const readFunctionDeployment = async (props: {
@@ -156,7 +190,7 @@ export const promoteDeployment = async (props: {
 	functionName: string
 	deploymentId: number
 	functionVersion: string
-	routers: RouterDeployment[]
+	routers: RouterTarget[]
 	rejectStale?: boolean
 }) => {
 	if (props.routers.some(router => router.deployment.functionVersion !== props.functionVersion)) {
@@ -319,7 +353,7 @@ const updateDeployment = async (props: {
 	const release = await lock.lock(app.urn)
 
 	try {
-		const routers: RouterDeployment[] = []
+		const routers: RouterTarget[] = []
 		let deploymentId = props.deploymentId
 		let functionVersion: string | undefined
 		const routerIds = Object.keys(props.appConfig.defaults.router ?? {})

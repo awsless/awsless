@@ -70,7 +70,6 @@ export const topicFeature = defineFeature({
 				name,
 			})
 
-
 			// All subscribers share the bundle as their endpoint, so we subscribe the bundle once per topic.
 			const subscribed = ctx.stackConfigs.some(stack => stack.subscribers?.[id])
 

@@ -1,25 +1,24 @@
-import { DynamoDBClient } from '@awsless/dynamodb'
-import { log, prompt } from '@awsless/clui'
 import { LambdaClient } from '@aws-sdk/client-lambda'
+import { log, prompt } from '@awsless/clui'
+import { DynamoDBClient } from '@awsless/dynamodb'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
-import { nextDeploymentId, preflightDeployment, promoteAppDeployment } from '../../util/deployment.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
+import {
+	formatDeploymentSummary,
+	nextDeploymentId,
+	preflightDeployment,
+	promoteAppDeployment,
+} from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
-import {
-	createDeploymentBackends,
-	createWorkSpace,
-	getAppReleaseLockUrn,
-	pullRemoteState,
-} from '../../util/workspace.js'
+import { createWorkSpace, getAppReleaseLockUrn, pullRemoteState } from '../../util/workspace.js'
 import { bootstrapAwsless } from '../ui/complex/bootstrap-awsless.js'
 import { buildAssets } from '../ui/complex/build-assets.js'
 import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
 import { showWarnings } from '../ui/complex/show-warnings.js'
-import { color } from '../ui/style.js'
 
 export const deploy = (program: Command) => {
 	program
@@ -65,7 +64,7 @@ export const deploy = (program: Command) => {
 
 				if (!process.env.SKIP_PROMPT) {
 					const ok = await prompt.confirm({
-						message: `Are you sure you want to deploy ${color.warning('all')} stacks?`,
+						message: 'Are you sure you want to deploy?',
 					})
 
 					if (!ok) {
@@ -95,18 +94,20 @@ export const deploy = (program: Command) => {
 
 				// ---------------------------------------------------
 
-				const { workspace, state } = await createWorkSpace({
+				const {
+					workspace,
+					state,
+					lock: releaseLock,
+				} = await createWorkSpace({
 					credentials,
 					accountId,
 					region,
 				})
-				const { lock: releaseLock } = createDeploymentBackends({ credentials, accountId, region })
 				const releaseUrn = getAppReleaseLockUrn(globalAppId)
 				const lambda = new LambdaClient({ credentials, region })
 				const functionName = getBundleFunctionName(appConfig.name)
-				let deployments: string[] = []
 
-				await log.task({
+				const deployments = await log.task({
 					initialMessage: 'Deploying the stacks to AWS',
 					successMessage: 'Done deploying the stacks to AWS.',
 					async task() {
@@ -117,32 +118,10 @@ export const deploy = (program: Command) => {
 							await workspace.deploy(app, { filters: [] })
 
 							await pullRemoteState(app, state)
-							const deployed = await state.get(app.urn)
-							const previewUrls = new Map<string, string>()
-							const stacks = Object.values(deployed?.stacks ?? {}) as Array<{
-								nodes: Record<string, { type: string; output: { domainName?: string } }>
-							}>
-							for (const stack of stacks) {
-								for (const [urn, node] of Object.entries(stack.nodes)) {
-									if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
-										const routerId = urn.match(/:router:\{([^}]+)\}/)?.[1]
-										if (routerId) {
-											previewUrls.set(routerId, `https://${node.output.domainName}`)
-										}
-									}
-								}
-							}
-
-							const deploymentDomain = appConfig.defaults.deploymentDomain
-
-							deployments = Object.keys(appConfig.defaults.router ?? {}).map(routerId => {
-								return [
-									`${routerId}: deployment #${deploymentId}`,
-									deploymentDomain && `https://${routerId}-${deploymentId}.${deploymentDomain}`,
-									previewUrls.get(routerId),
-								]
-									.filter(Boolean)
-									.join('\n')
+							const deployments = formatDeploymentSummary({
+								state: await state.get(app.urn),
+								appConfig,
+								deploymentId,
 							})
 
 							// Promotion goes live, so it must be the last fallible step.
@@ -150,6 +129,8 @@ export const deploy = (program: Command) => {
 								appConfig,
 								deploymentId,
 							})
+
+							return deployments
 						} finally {
 							await release()
 						}

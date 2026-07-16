@@ -5,7 +5,7 @@ import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
 import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 
@@ -128,7 +128,7 @@ export const taskFeature = defineFeature({
 							{
 								Action: ['lambda:InvokeFunction'],
 								Effect: 'Allow',
-								Resource: `arn:aws:lambda:*:*:function:${ctx.appConfig.name}--function--bundle:*`,
+								Resource: `arn:aws:lambda:*:*:function:${getBundleFunctionName(ctx.appConfig.name)}:*`,
 							},
 							{
 								Action: ['sqs:SendMessage'],

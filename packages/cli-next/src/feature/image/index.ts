@@ -166,6 +166,19 @@ export const imageFeature = defineFeature({
 				external: ['sharp'],
 			})
 
+			addRoutes({
+				[routeKey]: {
+					type: 'lambda',
+					requestHeaders: {
+						[ROUTE_HEADER]: serverRouteKey,
+					},
+					rewrite: {
+						regex: `^${props.path}/(.*)$`,
+						to: '/$1',
+					},
+				},
+			})
+
 			bundle.addPermission({
 				actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
 				resources: [
@@ -193,19 +206,6 @@ export const imageFeature = defineFeature({
 			if (s3Origin) {
 				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN_S3'), s3Origin.bucket)
 			}
-
-			addRoutes({
-				[routeKey]: {
-					type: 'lambda',
-					requestHeaders: {
-						[ROUTE_HEADER]: serverRouteKey,
-					},
-					rewrite: {
-						regex: `^${props.path}/(.*)$`,
-						to: '/$1',
-					},
-				},
-			})
 
 			// ------------------------------------------------------------
 			// Upload static images to S3

@@ -37,10 +37,8 @@ export const features = [
 	commandFeature,
 	layerFeature,
 
-	// 4
 	authFeature,
 
-	// 5
 	functionFeature,
 	bundleFeature,
 	onErrorLogFeature,

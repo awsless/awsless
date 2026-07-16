@@ -15,7 +15,7 @@ const normalizeExtension = (extension: (typeof supportedExtensions)[number]) => 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const request = parsePath(event.rawPath)
-		const cacheBucket = getRouteEnv('IMAGE_CACHE_BUCKET')!
+		const cacheBucket = getRouteEnv('IMAGE_CACHE_BUCKET')
 
 		if (!request.success) {
 			return { statusCode: 404 }
@@ -28,22 +28,24 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Get cached image from s3
 
-		const cachedImage = await getObject({
-			bucket: cacheBucket,
-			key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
-		})
+		if (cacheBucket) {
+			const cachedImage = await getObject({
+				bucket: cacheBucket,
+				key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
+			})
 
-		if (cachedImage) {
-			const cachedImageData = await cachedImage.body.transformToByteArray()
+			if (cachedImage) {
+				const cachedImageData = await cachedImage.body.transformToByteArray()
 
-			return {
-				statusCode: 200,
-				body: Buffer.from(cachedImageData).toString('base64'),
-				isBase64Encoded: true,
-				headers: {
-					'Content-Type': `image/${normalizeExtension(extension)}`,
-					'Cache-Control': 'public, max-age=31536000, immutable',
-				},
+				return {
+					statusCode: 200,
+					body: Buffer.from(cachedImageData).toString('base64'),
+					isBase64Encoded: true,
+					headers: {
+						'Content-Type': `image/${normalizeExtension(extension)}`,
+						'Cache-Control': 'public, max-age=31536000, immutable',
+					},
+				}
 			}
 		}
 
@@ -128,7 +130,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Cache the image in S3
 
 		await putObject({
-			bucket: cacheBucket,
+			bucket: cacheBucket!,
 			key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
 			body: image,
 			contentType: `image/${extension}`,

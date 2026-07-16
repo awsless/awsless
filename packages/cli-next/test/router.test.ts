@@ -117,8 +117,8 @@ describe('router routes', () => {
 		const production = resources.find(resource => resource.type === 'aws_cloudfront_multitenant_distribution')!
 		const origin = production.input.origin[0]
 
-		expect(findInputDeps(origin.domainName).map(dependency => dependency.type)).toContain('aws_s3_bucket')
-		expect(origin.customOriginConfig[0].originProtocolPolicy).toBe('https-only')
+		expect(origin.domainName).toBe('placeholder.awsless.dev')
+		expect(origin.customOriginConfig[0].originProtocolPolicy).toBe('http-only')
 	})
 
 	it('should stage one deployment per router', () => {

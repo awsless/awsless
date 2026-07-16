@@ -23,7 +23,6 @@ type SharedState = {
 			group: Group
 			bucket: aws.s3.Bucket
 			queue: aws.sqs.Queue
-			deadletter: aws.sqs.Queue
 		}
 	}
 

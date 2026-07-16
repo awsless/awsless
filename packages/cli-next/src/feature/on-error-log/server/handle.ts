@@ -15,8 +15,8 @@ import {
 } from '@awsless/validate'
 import { getRouteEnv, invokeRoute } from 'awsless'
 import type { CloudWatchLogsEvent } from 'aws-lambda'
-import { createHash, UUID } from 'node:crypto'
-import * as zlib from 'node:zlib'
+import { createHash, UUID } from 'crypto'
+import * as zlib from 'zlib'
 
 // Runtime error log (thrown by function code)
 const RuntimeErrorSchema = object({

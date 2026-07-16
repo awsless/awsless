@@ -96,6 +96,19 @@ export const iconFeature = defineFeature({
 				exportName: 'default',
 			})
 
+			addRoutes({
+				[routeKey]: {
+					type: 'lambda',
+					requestHeaders: {
+						[ROUTE_HEADER]: serverRouteKey,
+					},
+					rewrite: {
+						regex: `^${props.path}/(.*)$`,
+						to: '/$1',
+					},
+				},
+			})
+
 			bundle.addPermission({
 				actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
 				resources: [
@@ -123,19 +136,6 @@ export const iconFeature = defineFeature({
 			if (s3Origin) {
 				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_ORIGIN_S3'), s3Origin.bucket)
 			}
-
-			addRoutes({
-				[routeKey]: {
-					type: 'lambda',
-					requestHeaders: {
-						[ROUTE_HEADER]: serverRouteKey,
-					},
-					rewrite: {
-						regex: `^${props.path}/(.*)$`,
-						to: '/$1',
-					},
-				},
-			})
 
 			// ------------------------------------------------------------
 			// Upload static icons to S3

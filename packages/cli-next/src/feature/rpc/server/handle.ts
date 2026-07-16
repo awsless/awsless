@@ -142,16 +142,14 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 				// ----------------------------------------
 				// Invoke function
 
-				const payload = {
-					...(fn.payload ?? {}),
-					...(auth.context ?? {}),
-					// headers: request.output.headers,
-					viewer: buildViewerPayload(request.output),
-				}
-
 				let data: unknown
 				try {
-					data = await invokeRoute(fn.details.name, payload)
+					data = await invokeRoute(fn.details.name, {
+						...(fn.payload ?? {}),
+						...(auth.context ?? {}),
+						// headers: request.output.headers,
+						viewer: buildViewerPayload(request.output),
+					})
 				} catch (error) {
 					if (error instanceof ViewableError || error instanceof ExpectedError) {
 						return EXPECTED_ERROR(error)

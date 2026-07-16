@@ -2,7 +2,7 @@ import { minutes, seconds } from '@awsless/duration'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
-import { FunctionSchema, LogSchema } from '../function/schema.js'
+import { FunctionSchema } from '../function/schema.js'
 import { RouteSchema } from '../router/schema.js'
 
 // const AuthorizerTtl = DurationSchema.describe(
@@ -17,7 +17,6 @@ const TimeoutSchema = DurationSchema
 		[
 			'The amount of time that the RPC lambda is allowed run before stopping it.',
 			'You can specify a timeout from 10 seconds to 2 minutes.',
-			'The timeouts of all inner RPC functions will be capped at 80% of this timeout.',
 		].join(' ')
 	)
 
@@ -32,7 +31,6 @@ export const RpcDefaultSchema = z
 			path: RouteSchema.describe('The path inside the router to link your RPC API to.'),
 
 			auth: FunctionSchema.optional().describe('The authentication handler for your RPC API.'),
-			log: LogSchema.optional(),
 			timeout: TimeoutSchema.default('1 minutes'),
 		})
 	)

@@ -183,7 +183,6 @@ export const domainFeature = defineFeature({
 				{ dependsOn: [identity, verificationRecord, nsCheck] }
 			)
 
-
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain
 				new aws.route53.Record(group, `${name}-${record.type}`, {

@@ -1,6 +1,6 @@
-import { Future, Group } from '@terraforge/core'
+import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
-import { createHash } from 'node:crypto'
+import { createHash } from 'crypto'
 import { glob } from 'glob'
 import { basename, dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
@@ -113,8 +113,6 @@ export const siteFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Server Side Rendering
 
-			// let functionUrl: aws.lambda.FunctionUrl | undefined
-
 			if (props.ssr) {
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
@@ -223,22 +221,15 @@ export const siteFeature = defineFeature({
 							})
 							.sort()
 						const hashes = files.map(file => $hash(join(staticDir, file)))
-						const version = new Future<string>(resolve => {
-							if (hashes.length === 0) {
-								resolve(createHash('sha1').digest('hex'))
-								return
+						const version = $combine(...hashes).pipe(hashes => {
+							const hash = createHash('sha1')
+
+							for (const [index, file] of files.entries()) {
+								hash.update(file)
+								hash.update(hashes[index]!)
 							}
 
-							$combine(...hashes).then(hashes => {
-								const hash = createHash('sha1')
-
-								for (const [index, file] of files.entries()) {
-									hash.update(file)
-									hash.update(hashes[index]!)
-								}
-
-								resolve(hash.digest('hex'))
-							})
+							return hash.digest('hex')
 						})
 						const deployment = new SiteDeployment(group, 'deployment', {
 							bucket: bucket.bucket,
@@ -290,7 +281,6 @@ export const siteFeature = defineFeature({
 					}
 				})
 			}
-
 		}
 	},
 })

@@ -104,8 +104,8 @@ export const functionFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
-		for (const [id, local] of Object.entries(ctx.stackConfig.functions ?? {})) {
-			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'function', id), local)
+		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
+			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'function', id), props)
 		}
 	},
 })

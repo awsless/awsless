@@ -1,4 +1,4 @@
-import { Group } from '@terraforge/core'
+import { Group, Output } from '@terraforge/core'
 import { toDays } from '@awsless/duration'
 import { kebabCase } from 'change-case'
 import { defineFeature } from '../../feature.js'
@@ -115,6 +115,7 @@ export const storeFeature = defineFeature({
 					corsRule: [
 						// ---------------------------------------------
 						// Support for presigned post requests
+						// ---------------------------------------------
 						{
 							allowedOrigins: ['*'],
 							allowedMethods: ['POST'],
@@ -153,6 +154,7 @@ export const storeFeature = defineFeature({
 
 			// ---------------------------------------------
 			// Event notifications
+			// ---------------------------------------------
 
 			const eventMap: Record<string, string> = {
 				'created:*': 's3:ObjectCreated:*',
@@ -169,7 +171,7 @@ export const storeFeature = defineFeature({
 			const notifications: {
 				id: string
 				events: string[]
-				lambdaFunctionArn: typeof bundle.alias.arn
+				lambdaFunctionArn: Output<string>
 			}[] = []
 
 			for (const [event, taskProps] of Object.entries(props.events ?? {})) {

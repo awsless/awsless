@@ -6,7 +6,7 @@ export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
 
 // Inside the bundle the stack is scoped to the running route,
 // so we need to read it live instead of at module load.
-export const getStack = (): string => getCurrentRoute()?.split(':')[0] ?? process.env.STACK ?? 'stack'
+export const getStack = () => (getCurrentRoute()?.split(':')[0] ?? process.env.STACK ?? 'stack') as 'stack'
 export const IS_TEST = process.env.NODE_ENV === 'test'
 export const REGION = process.env.AWS_REGION
 export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID

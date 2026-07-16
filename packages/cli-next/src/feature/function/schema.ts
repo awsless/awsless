@@ -156,13 +156,6 @@ export const LogSchema = z
 	])
 	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
-const LogDefaultSchema = LogSchema.default(true).transform(log => ({
-	retention: log.retention ?? days(7),
-	level: 'level' in log ? log.level : 'error',
-	system: 'system' in log ? log.system : 'warn',
-	format: 'format' in log ? log.format : 'json',
-}))
-
 const LayersSchema = z.string().array().describe(
 	// `A list of function layers to add to the function's execution environment..`
 	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
@@ -315,7 +308,12 @@ export const FunctionDefaultSchema = z
 			.describe(`A list of external packages that won't be included in the bundle.`),
 		warm: WarmSchema.default(0),
 		vpc: VPCSchema.default(false),
-		log: LogDefaultSchema,
+		log: LogSchema.default(true).transform(log => ({
+			retention: log.retention ?? days(7),
+			level: 'level' in log ? log.level : 'error',
+			system: 'system' in log ? log.system : 'warn',
+			format: 'format' in log ? log.format : 'json',
+		})),
 		timeout: TimeoutSchema.default('15 minutes'),
 		memorySize: MemorySizeSchema.default('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),

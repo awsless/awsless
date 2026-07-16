@@ -31,59 +31,58 @@ type ProviderProps = {
 	region: Region
 }
 
-const inputSchema = z.object({
-	bucket: z.string(),
-	source: z.string(),
-	version: z.string(),
-})
-
-const getCacheControl = (file: string) => {
-	switch (lookup(file)) {
-		case false:
-		case 'text/html':
-		case 'application/json':
-		case 'application/manifest+json':
-		case 'application/manifest':
-		case 'text/markdown':
-			return 's-maxage=31536000, max-age=0'
-
-		default:
-			return 'public, max-age=31536000, immutable'
-	}
-}
-
-const uploadFiles = async (client: S3Client, bucket: string, source: string, version: string) => {
-	const files = glob.sync('**', { cwd: source, nodir: true })
-	const limit = promiseLimit(16)
-
-	await Promise.all(
-		files.map(file =>
-			limit(async () => {
-				await client.send(
-					new PutObjectCommand({
-						Bucket: bucket,
-						Key: posix.join(`v-${version}`, file),
-						Body: await readFile(join(source, file)),
-						ContentType: contentType(extname(file)) || 'text/html; charset=utf-8',
-						CacheControl: getCacheControl(file),
-					})
-				)
-			})
-		)
-	)
-}
-
 export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 	const client = new S3Client({ credentials, region })
+	const inputSchema = z.object({
+		bucket: z.string(),
+		source: z.string(),
+		version: z.string(),
+	})
+
+	const getCacheControl = (file: string) => {
+		switch (lookup(file)) {
+			case false:
+			case 'text/html':
+			case 'application/json':
+			case 'application/manifest+json':
+			case 'application/manifest':
+			case 'text/markdown':
+				return 's-maxage=31536000, max-age=0'
+
+			default:
+				return 'public, max-age=31536000, immutable'
+		}
+	}
+
+	const uploadFiles = async (bucket: string, source: string, version: string) => {
+		const files = glob.sync('**', { cwd: source, nodir: true })
+		const limit = promiseLimit(16)
+
+		await Promise.all(
+			files.map(file =>
+				limit(async () => {
+					await client.send(
+						new PutObjectCommand({
+							Bucket: bucket,
+							Key: posix.join(`v-${version}`, file),
+							Body: await readFile(join(source, file)),
+							ContentType: contentType(extname(file)) || 'text/html; charset=utf-8',
+							CacheControl: getCacheControl(file),
+						})
+					)
+				})
+			)
+		)
+	}
 
 	return createCustomProvider('s3', {
 		'site-deployment': {
 			async createResource(props) {
-				const proposed = inputSchema.parse(props.state)
+				const state = inputSchema.parse(props.state)
 
-				await uploadFiles(client, proposed.bucket, proposed.source, proposed.version)
+				await uploadFiles(state.bucket, state.source, state.version)
 
-				return proposed
+				return state
 			},
 			async updateResource(props) {
 				const prior = inputSchema.parse(props.priorState)
@@ -94,7 +93,7 @@ export const createS3Provider = ({ credentials, region }: ProviderProps) => {
 				}
 
 				if (prior.version !== proposed.version) {
-					await uploadFiles(client, proposed.bucket, proposed.source, proposed.version)
+					await uploadFiles(proposed.bucket, proposed.source, proposed.version)
 				}
 
 				return proposed
