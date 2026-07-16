@@ -38,11 +38,9 @@ var createIoRedisClient = (options) => {
       autoResendUnfulfilledCommands: false,
       connectTimeout: 5e3,
       commandTimeout: 5e3,
-      // reconnectOnError(err) {
-      // 	// After an ElastiCache failover the old primary is demoted to a
-      // 	// replica; the open socket must be dropped to re-resolve DNS.
-      // 	return err.message.includes('READONLY') ? 2 : false
-      // },
+      reconnectOnError(err) {
+        return err.message.includes("READONLY") ? 2 : false;
+      },
       // commandQueue: false,
       // offlineQueue: false,
       ...options,
@@ -66,12 +64,7 @@ var createIoRedisClient = (options) => {
             if (times > 5) return null;
             return Math.min(times * 200, 2e3);
           },
-          redisOptions: {
-            ...props,
-            reconnectOnError(err) {
-              return err.message.includes("READONLY") ? 2 : false;
-            }
-          }
+          redisOptions: props
         }
       );
     }
@@ -195,6 +188,7 @@ __export(command_exports, {
   db: () => db_exports,
   key: () => key_exports,
   map: () => map_exports,
+  pubsub: () => pubsub_exports,
   script: () => script_exports,
   server: () => server_exports,
   set: () => set_exports,
@@ -897,6 +891,15 @@ var scan5 = (client, key, options = {}) => {
       return formatScanResult5(c, result);
     })
   };
+};
+
+// src/command/pubsub.ts
+var pubsub_exports = {};
+__export(pubsub_exports, {
+  publish: () => publish
+});
+var publish = (client, channel, message, options = {}) => {
+  return command(client, options.sharded ? "SPUBLISH" : "PUBLISH", [channel, message], returnInt);
 };
 
 // src/command/script.ts

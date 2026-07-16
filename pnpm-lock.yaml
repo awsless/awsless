@@ -234,14 +234,14 @@ importers:
         specifier: ^0.7.0
         version: 0.7.0
       '@terraforge/aws':
-        specifier: ^6.35.1
-        version: 6.35.1(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8))(@terraforge/terraform@0.0.31(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8)))
+        specifier: ^6.53.0
+        version: 6.53.0(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8)))
       '@terraforge/core':
-        specifier: ^0.0.38
-        version: 0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8)
+        specifier: ^0.0.39
+        version: 0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8)
       '@terraforge/terraform':
-        specifier: ^0.0.31
-        version: 0.0.31(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8))
+        specifier: ^0.0.33
+        version: 0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8))
       '@types/aws-lambda':
         specifier: ^8.10.161
         version: 8.10.161
@@ -320,6 +320,9 @@ importers:
       glob:
         specifier: ^10.3.9
         version: 10.5.0
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -329,6 +332,9 @@ importers:
       mime-types:
         specifier: ^2.1.35
         version: 2.1.35
+      minimatch:
+        specifier: ^9.0.5
+        version: 9.0.9
       p-limit:
         specifier: 7.2.0
         version: 7.2.0
@@ -361,7 +367,7 @@ importers:
         version: 9.0.1
       vitest:
         specifier: ^4.1.0
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       wildstring:
         specifier: ^1.0.9
         version: 1.0.9
@@ -588,13 +594,13 @@ importers:
         version: 4.5.1
       aws-sdk-vitest-mock:
         specifier: 1.0.55
-        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
       chunk:
         specifier: 0.0.3
         version: 0.0.3
       vitest:
         specifier: '>=4'
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
     devDependencies:
       '@awsless/big-float':
         specifier: workspace:^
@@ -645,11 +651,11 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.55
-        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
     devDependencies:
       vitest:
         specifier: '>=4'
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/env: {}
 
@@ -700,7 +706,7 @@ importers:
         version: 2.0.102(zod@4.3.6)
       '@sveltejs/vite-plugin-svelte':
         specifier: ^3.1.2
-        version: 3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       svelte:
         specifier: ^5.46.0
         version: 5.55.1
@@ -709,7 +715,7 @@ importers:
         version: 6.0.3(@babel/core@7.29.0)(coffeescript@2.7.0)(postcss-load-config@6.0.1(postcss@8.5.8)(tsx@4.21.0)(yaml@2.8.3))(postcss@8.5.8)(stylus@0.59.0)(svelte@5.55.1)(typescript@5.8.2)
       vite:
         specifier: ^7.1.9
-        version: 7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
+        version: 7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
   packages/iot:
     dependencies:
@@ -724,10 +730,10 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.55
-        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
       vitest:
         specifier: '>=4'
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   packages/json:
     devDependencies:
@@ -757,13 +763,13 @@ importers:
         version: 1.0.7
       aws-sdk-vitest-mock:
         specifier: 1.0.55
-        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
       type-fest:
         specifier: 5.5.0
         version: 5.5.0
       vitest:
         specifier: '>=4'
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
     devDependencies:
       '@awsless/validate':
         specifier: workspace:^
@@ -801,7 +807,7 @@ importers:
         version: 0.25.0
       mysql2:
         specifier: ^3.4.0
-        version: 3.20.0(@types/node@25.9.1)
+        version: 3.20.0(@types/node@26.1.0)
       sleep-await:
         specifier: ^1.0.2
         version: 1.0.3
@@ -956,13 +962,13 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.55
-        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
       chunk:
         specifier: 0.0.3
         version: 0.0.3
       vitest:
         specifier: '>=4'
-        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+        version: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
     devDependencies:
       '@types/chunk':
         specifier: 0.0.0
@@ -978,7 +984,7 @@ importers:
         version: link:../utils
       aws-sdk-vitest-mock:
         specifier: 1.0.55
-        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
+        version: 1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))
       chunk:
         specifier: 0.0.3
         version: 0.0.3
@@ -1836,6 +1842,12 @@ packages:
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@aws-sdk/client-dynamodb': ^3.1003.0
+
+  '@aws-sdk/util-dynamodb@3.996.5':
+    resolution: {integrity: sha512-m9bdmYq3WtbMHAKGALw9XWiMBfKu5T8ukgdJT7Mc/d2oOwDGNFmhsnnkQ18xomoXo/ZHxAuIDi3Y6slsblW1Mg==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@aws-sdk/client-dynamodb': ^3.1069.0
 
   '@aws-sdk/util-endpoints@3.329.0':
     resolution: {integrity: sha512-AlBHc4c+dj5pNMBoPFLGpB/+4Fe9nxe6eUf8T9Wu5QcTK+u6L8aiH1oGKv/1TxqwoPvqtrjb3HMBafUsB5Mw/g==}
@@ -3407,9 +3419,6 @@ packages:
   '@protobufjs/float@1.0.2':
     resolution: {integrity: sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==}
 
-  '@protobufjs/inquire@1.1.2':
-    resolution: {integrity: sha512-pa0vFRuws4wkvaXKK1uXZMAwAX4/t8ANaJo45iw/oQHNQ9q5xUzwgFmVJGXiga2BeN+zpX7Vf9vmsiIa2J+MUw==}
-
   '@protobufjs/path@1.1.2':
     resolution: {integrity: sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==}
 
@@ -4515,17 +4524,17 @@ packages:
   '@swc/types@0.1.26':
     resolution: {integrity: sha512-lyMwd7WGgG79RS7EERZV3T8wMdmPq3xwyg+1nmAM64kIhx5yl+juO2PYIHb7vTiPgPCj8LYjsNV2T5wiQHUEaw==}
 
-  '@terraforge/aws@6.35.1':
-    resolution: {integrity: sha512-+6fzEwh1HuXjHXH+SImBpkog+ZGBX6PVpu0IoehnJWhEJ5+oYyMIE0PLoP5M4rfqgcY1mihYw2Cw39PCeWu3Pg==}
+  '@terraforge/aws@6.53.0':
+    resolution: {integrity: sha512-F+stGtmO0Mz58mSLFqIqycOgZkP6VfIvMcEVHxVguhBQN1zfbU5S60IUblyvVWfhbpHb5cocIldBRkUAyVRUKQ==}
     peerDependencies:
       '@terraforge/core': 0.0.19
       '@terraforge/terraform': 0.0.14
 
-  '@terraforge/core@0.0.38':
-    resolution: {integrity: sha512-IORqx9i/SyOELO6qNHaHWitRWMoxhwoWB5Yo7JYgLh362EW4EqlrYu/X45UQzv5tvCbZ76URtV6eJXOjDHb07A==}
+  '@terraforge/core@0.0.39':
+    resolution: {integrity: sha512-Id4QIopNyDPS7rAq794gc1PY1eYdWgcR9l6kapLA7csUsUIRfagAn2XRYap3kiI4iTlX+SWt2/5M49grWTYtHw==}
 
-  '@terraforge/terraform@0.0.31':
-    resolution: {integrity: sha512-3nIsLUgbohlrslb4D4yxEP7kxwD6wFMXDp9sqeooUKc2ucfC+00yJO/qkbaoJ8e0WfX4MoVA/FHHx4a0ARDM6A==}
+  '@terraforge/terraform@0.0.33':
+    resolution: {integrity: sha512-iDWQHQIkqJlGWWV1tU4Bonfyr9gyfZ5fbBaCfNbOx/MfmMKi9ziVNTpAkGKn3WNsTzHmEGu1wkMg+b0jQf7tWw==}
     hasBin: true
     peerDependencies:
       '@terraforge/core': 0.0.19
@@ -4613,8 +4622,8 @@ packages:
   '@types/node@25.5.1':
     resolution: {integrity: sha512-lgrR3HRNQdTEeeXBnLURFO4JIIbpcVcMlLM9IG0jsNRTRNSbMkm9S2hyhxhnokke1NM25Dr9QghgeB5PQKolrw==}
 
-  '@types/node@25.9.1':
-    resolution: {integrity: sha512-xfrlY7UD5rMJk3ZVJP8BNzS28J36YJg+xp+LPXV1TdWxr8uMH5A860QNxYDGQe/ylDSgjxE52Q9VnO7p75tJxg==}
+  '@types/node@26.1.0':
+    resolution: {integrity: sha512-O0A1G3xPGy4w7AgQdAQYUlQ+BKk2Oovw8eRpofyp5KdBZULnbe+WqaOVNrm705SHphCiG4XHsACrSmPu1f+Kgw==}
 
   '@types/play-sound@1.1.2':
     resolution: {integrity: sha512-alq2D5sBtVcq5bzL/yLr5SSQ7B4VTIkX728V3nYfo6TaCtnwFLdHsFgy+N9oCjh67OOZQnj7kkJauWNW0L8bWw==}
@@ -6633,8 +6642,8 @@ packages:
     resolution: {integrity: sha512-4kmO/MdyUIkLIvTPr8VHLil4AtoKIoniWPIEk5+CDy0xnWC84azhSFmuJ7PxZdsYtiP5kEeQsORAVIeMgxT+Hw==}
     hasBin: true
 
-  msgpackr@1.11.12:
-    resolution: {integrity: sha512-RBdJ1Un7yGlXWajrkxcSa93nvQ0w4zBf60c0yYv7YtBelP8H2FA7XsfBbMHtXKXUMUxH7zV3Zuozh+kUQWhHvg==}
+  msgpackr@1.12.1:
+    resolution: {integrity: sha512-4EUH9tQHnMmEgzW/MdAP0KIfa1T9AF+htl0ffe2n5vb2EKn9y2co8ccpgWko6S52Jy1PQZKwRnx5/KkYjtd9MQ==}
 
   mysql2@3.20.0:
     resolution: {integrity: sha512-eCLUs7BNbgA6nf/MZXsaBO1SfGs0LtLVrJD3WeWq+jPLDWkSufTD+aGMwykfUVPdZnblaUK1a8G/P63cl9FkKg==}
@@ -6943,8 +6952,8 @@ packages:
   proper-lockfile@4.1.2:
     resolution: {integrity: sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA==}
 
-  protobufjs@7.6.2:
-    resolution: {integrity: sha512-N9EiLovGEQOJSPF26Ij7qUGvahfEnq0eeYZ02aigIedkmz1qZSwjnP9SBITHJuF/6MYbIW4HDN8zdYjsjqJKXQ==}
+  protobufjs@7.6.5:
+    resolution: {integrity: sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==}
     engines: {node: '>=12.0.0'}
 
   proxy-from-env@2.1.0:
@@ -7140,8 +7149,8 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  semver@7.8.1:
-    resolution: {integrity: sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg==}
+  semver@7.8.5:
+    resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -7635,8 +7644,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici-types@7.24.6:
-    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
   unicode-canonical-property-names-ecmascript@2.0.1:
     resolution: {integrity: sha512-dA8WbNeb2a6oQzAQ55YlT5vQAWGV9WXOsi3SskE3bcCdM0P4SDd+24zS/OCacdRq5BkdsRj9q3Pg6YyQoxIGqg==}
@@ -7672,8 +7681,8 @@ packages:
   util@0.12.5:
     resolution: {integrity: sha512-kZf/K6hEIrWHI6XqOFUiiMa+79wE/D8Q+NCNAWclkyg3b4d2k7s0QGepNjiABc+aR3N1PAyHL7p6UcLY6LmrnA==}
 
-  uuid@11.1.0:
-    resolution: {integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==}
+  uuid@11.1.1:
+    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
     hasBin: true
 
   uuid@8.0.0:
@@ -7977,6 +7986,10 @@ packages:
 
   yargs@17.7.2:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
+    engines: {node: '>=12'}
+
+  yargs@17.7.3:
+    resolution: {integrity: sha512-GZtjxm/J/4TSxuL3FNYjCmLktBTnIw/rVmKSIyKeYAZpmJB2ig9VauCC5xsa82GNKVKDAqpOn3KVzNt0zmrU0g==}
     engines: {node: '>=12'}
 
   yauzl@2.10.0:
@@ -11028,7 +11041,7 @@ snapshots:
       '@aws-sdk/client-dynamodb': 3.1023.0(aws-crt@1.30.0)
       tslib: 2.8.1
 
-  '@aws-sdk/util-dynamodb@3.996.2(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.30.0))':
+  '@aws-sdk/util-dynamodb@3.996.5(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.30.0))':
     dependencies:
       '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.30.0)
       tslib: 2.8.1
@@ -12250,8 +12263,8 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.6.2
-      yargs: 17.7.2
+      protobufjs: 7.6.5
+      yargs: 17.7.3
 
   '@heat/request-port@0.0.1':
     dependencies:
@@ -12730,8 +12743,6 @@ snapshots:
       '@protobufjs/aspromise': 1.1.2
 
   '@protobufjs/float@1.0.2': {}
-
-  '@protobufjs/inquire@1.1.2': {}
 
   '@protobufjs/path@1.1.2': {}
 
@@ -14044,26 +14055,26 @@ snapshots:
     dependencies:
       acorn: 8.16.0
 
-  '@sveltejs/vite-plugin-svelte-inspector@2.1.0(@sveltejs/vite-plugin-svelte@3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
+  '@sveltejs/vite-plugin-svelte-inspector@2.1.0(@sveltejs/vite-plugin-svelte@3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
-      '@sveltejs/vite-plugin-svelte': 3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      '@sveltejs/vite-plugin-svelte': 3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       debug: 4.4.3
       svelte: 5.55.1
-      vite: 7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
     transitivePeerDependencies:
       - supports-color
 
-  '@sveltejs/vite-plugin-svelte@3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
+  '@sveltejs/vite-plugin-svelte@3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
-      '@sveltejs/vite-plugin-svelte-inspector': 2.1.0(@sveltejs/vite-plugin-svelte@3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.55.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      '@sveltejs/vite-plugin-svelte-inspector': 2.1.0(@sveltejs/vite-plugin-svelte@3.1.2(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)))(svelte@5.55.1)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       debug: 4.4.3
       deepmerge: 4.3.1
       kleur: 4.1.5
       magic-string: 0.30.21
       svelte: 5.55.1
       svelte-hmr: 0.16.0(svelte@5.55.1)
-      vite: 7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
-      vitefu: 0.2.5(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      vite: 7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
+      vitefu: 0.2.5(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
     transitivePeerDependencies:
       - supports-color
 
@@ -14127,37 +14138,37 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
-  '@terraforge/aws@6.35.1(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8))(@terraforge/terraform@0.0.31(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8)))':
+  '@terraforge/aws@6.53.0(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8))(@terraforge/terraform@0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8)))':
     dependencies:
-      '@terraforge/core': 0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8)
-      '@terraforge/terraform': 0.0.31(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8))
+      '@terraforge/core': 0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8)
+      '@terraforge/terraform': 0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8))
 
-  '@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8)':
+  '@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8)':
     dependencies:
       '@aws-sdk/client-dynamodb': 3.363.0(aws-crt@1.30.0)
       '@aws-sdk/client-s3': 3.1023.0(aws-crt@1.30.0)
       '@aws-sdk/types': 3.329.0
-      '@aws-sdk/util-dynamodb': 3.996.2(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.30.0))
+      '@aws-sdk/util-dynamodb': 3.996.5(@aws-sdk/client-dynamodb@3.363.0(aws-crt@1.30.0))
       async-on-exit: 0.1.0
       get-wild: 3.0.2
       graphology: 0.26.0(graphology-types@0.24.8)
       graphology-dag: 0.4.1(graphology-types@0.24.8)
       p-limit: 6.2.0
       proper-lockfile: 4.1.2
-      uuid: 11.1.0
+      uuid: 11.1.1
     transitivePeerDependencies:
       - aws-crt
       - graphology-types
 
-  '@terraforge/terraform@0.0.31(@terraforge/core@0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8))':
+  '@terraforge/terraform@0.0.33(@terraforge/core@0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8))':
     dependencies:
       '@grpc/grpc-js': 1.12.6
       '@grpc/proto-loader': 0.7.15
-      '@terraforge/core': 0.0.38(aws-crt@1.30.0)(graphology-types@0.24.8)
+      '@terraforge/core': 0.0.39(aws-crt@1.30.0)(graphology-types@0.24.8)
       change-case: 5.4.4
       jszip: 3.10.1
-      msgpackr: 1.11.12
-      semver: 7.8.1
+      msgpackr: 1.12.1
+      semver: 7.8.5
 
   '@tybys/wasm-util@0.10.1':
     dependencies:
@@ -14249,9 +14260,9 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
-  '@types/node@25.9.1':
+  '@types/node@26.1.0':
     dependencies:
-      undici-types: 7.24.6
+      undici-types: 8.3.0
 
   '@types/play-sound@1.1.2':
     dependencies:
@@ -14325,13 +14336,13 @@ snapshots:
     optionalDependencies:
       vite: 7.3.1(@types/node@25.5.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.2(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
+  '@vitest/mocker@4.1.2(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.2
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/pretty-format@3.2.4':
     dependencies:
@@ -14536,10 +14547,10 @@ snapshots:
       sinon: 16.1.3
       tslib: 2.8.1
 
-  aws-sdk-vitest-mock@1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))):
+  aws-sdk-vitest-mock@1.0.55(@aws-sdk/core@3.973.26)(vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))):
     dependencies:
       '@aws-sdk/core': 3.973.26
-      vitest: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      vitest: 4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   aws-sdk@2.1693.0:
     dependencies:
@@ -14996,7 +15007,7 @@ snapshots:
       js-string-escape: 1.0.1
       lodash: 4.18.1
       md5-hex: 3.0.1
-      semver: 7.8.1
+      semver: 7.8.5
       well-known-symbols: 2.0.0
 
   confbox@0.1.8: {}
@@ -15946,7 +15957,7 @@ snapshots:
       '@babel/parser': 7.29.2
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
-      semver: 7.8.1
+      semver: 7.8.5
     transitivePeerDependencies:
       - supports-color
 
@@ -16235,7 +16246,7 @@ snapshots:
       jest-util: 29.7.0
       natural-compare: 1.4.0
       pretty-format: 29.7.0
-      semver: 7.8.1
+      semver: 7.8.5
     transitivePeerDependencies:
       - supports-color
 
@@ -16455,7 +16466,7 @@ snapshots:
 
   make-dir@4.0.0:
     dependencies:
-      semver: 7.8.1
+      semver: 7.8.5
 
   make-error@1.3.6: {}
 
@@ -16635,13 +16646,13 @@ snapshots:
       '@msgpackr-extract/msgpackr-extract-win32-x64': 3.0.4
     optional: true
 
-  msgpackr@1.11.12:
+  msgpackr@1.12.1:
     optionalDependencies:
       msgpackr-extract: 3.0.4
 
-  mysql2@3.20.0(@types/node@25.9.1):
+  mysql2@3.20.0(@types/node@26.1.0):
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 26.1.0
       aws-ssl-profiles: 1.1.2
       denque: 2.1.0
       generate-function: 2.3.1
@@ -16913,7 +16924,7 @@ snapshots:
       retry: 0.12.0
       signal-exit: 3.0.7
 
-  protobufjs@7.6.2:
+  protobufjs@7.6.5:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
@@ -16921,11 +16932,10 @@ snapshots:
       '@protobufjs/eventemitter': 1.1.1
       '@protobufjs/fetch': 1.1.1
       '@protobufjs/float': 1.0.2
-      '@protobufjs/inquire': 1.1.2
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.1
+      '@types/node': 26.1.0
       long: 5.3.2
 
   proxy-from-env@2.1.0: {}
@@ -17176,7 +17186,7 @@ snapshots:
 
   semver@7.7.4: {}
 
-  semver@7.8.1: {}
+  semver@7.8.5: {}
 
   serialize-javascript@6.0.2:
     dependencies:
@@ -17712,7 +17722,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici-types@7.24.6: {}
+  undici-types@8.3.0: {}
 
   unicode-canonical-property-names-ecmascript@2.0.1: {}
 
@@ -17750,7 +17760,7 @@ snapshots:
       is-typed-array: 1.1.15
       which-typed-array: 1.1.20
 
-  uuid@11.1.0: {}
+  uuid@11.1.1: {}
 
   uuid@8.0.0: {}
 
@@ -17813,7 +17823,7 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3):
+  vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       esbuild: 0.27.7
       fdir: 6.5.0(picomatch@4.0.4)
@@ -17822,16 +17832,16 @@ snapshots:
       rollup: 4.60.1
       tinyglobby: 0.2.15
     optionalDependencies:
-      '@types/node': 25.9.1
+      '@types/node': 26.1.0
       fsevents: 2.3.3
       stylus: 0.59.0
       terser: 5.46.1
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vitefu@0.2.5(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)):
+  vitefu@0.2.5(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)):
     optionalDependencies:
-      vite: 7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
   vitest@0.30.1(stylus@0.59.0)(terser@5.46.1):
     dependencies:
@@ -17898,10 +17908,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@25.9.1)(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)):
+  vitest@4.1.2(@opentelemetry/api@1.9.0)(@types/node@26.1.0)(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.2
-      '@vitest/mocker': 4.1.2(vite@7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+      '@vitest/mocker': 4.1.2(vite@7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.2
       '@vitest/runner': 4.1.2
       '@vitest/snapshot': 4.1.2
@@ -17918,11 +17928,11 @@ snapshots:
       tinyexec: 1.0.4
       tinyglobby: 0.2.15
       tinyrainbow: 3.1.0
-      vite: 7.3.1(@types/node@25.9.1)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
+      vite: 7.3.1(@types/node@26.1.0)(stylus@0.59.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
-      '@types/node': 25.9.1
+      '@types/node': 26.1.0
     transitivePeerDependencies:
       - msw
 
@@ -18040,6 +18050,16 @@ snapshots:
   yargs-parser@21.1.1: {}
 
   yargs@17.7.2:
+    dependencies:
+      cliui: 8.0.1
+      escalade: 3.2.0
+      get-caller-file: 2.0.5
+      require-directory: 2.1.1
+      string-width: 4.2.3
+      y18n: 5.0.8
+      yargs-parser: 21.1.1
+
+  yargs@17.7.3:
     dependencies:
       cliui: 8.0.1
       escalade: 3.2.0

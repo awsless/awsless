@@ -32,6 +32,7 @@ const generateJsonSchema = (props: GenerateProps) => {
 const appendDefaults = (object: unknown) => {
 	if (Array.isArray(object)) {
 		object.forEach(appendDefaults)
+		return
 	}
 
 	if (typeof object === 'object' && object !== null) {

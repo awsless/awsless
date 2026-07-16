@@ -7,6 +7,20 @@
 	"tests": false,
 	"configs": ["test"],
 
+	"pubsub": {
+		"test": {
+			"connected": "./pubsub/event.ts",
+			"disconnected": "./pubsub/event.ts",
+			"subscribed": "./pubsub/event.ts",
+			"unsubscribed": "./pubsub/event.ts"
+		}
+	},
+	// "rpc": {
+	// 	"main": {
+	// 		"publish"
+	// 	}
+	// },
+
 	// "metrics": {
 	// 	"size": {
 	// 		"type": "number",

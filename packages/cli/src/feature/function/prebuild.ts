@@ -2,10 +2,10 @@ import { days, seconds, toDays, toSeconds } from '@awsless/duration'
 import { mebibytes, toMebibytes } from '@awsless/size'
 import { aws } from '@terraforge/aws'
 import { Group, Input, Output, findInputDeps, resolveInputs } from '@terraforge/core'
-import { pascalCase } from 'change-case'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { AppContext, Permission, StackContext } from '../../feature.js'
+import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { filterPattern } from '../on-error-log/util.js'
 // import { bundleTypeScript } from './build/typescript/bundle.js'
@@ -28,6 +28,21 @@ export const prebuild = async (file: string, output: string, external: string[] 
 
 	await writeFile(join(output, 'HASH'), bundle.hash)
 	await writeFile(join(output, 'bundle.zip'), archive)
+}
+
+// Prebuild a raw unzipped bundle with the aws-sdk included.
+// Used for code that runs outside of the lambda runtime,
+// like the pubsub websocket server that gets compiled into a bun executable.
+export const prebuildBundle = async (file: string, output: string) => {
+	const bundle = await bundleTypeScriptWithRolldown({
+		file,
+		minify: true,
+		externalAwsSdk: false,
+		codeSplitting: false,
+	})
+
+	await Promise.all(bundle.files.map(item => writeFile(join(output, item.name), item.code)))
+	await writeFile(join(output, 'HASH'), bundle.hash)
 }
 
 export const createPrebuildLambdaFunction = (
@@ -106,6 +121,32 @@ export const createPrebuildLambdaFunction = (
 		}
 	}
 
+	// ------------------------------------------------------------
+	// VPC
+
+	if (props.vpc) {
+		new aws.iam.RolePolicy(group, 'vpc-policy', {
+			role: role.name,
+			name: 'lambda-vpc-policy',
+			policy: JSON.stringify({
+				Version: '2012-10-17',
+				Statement: [
+					{
+						Effect: 'Allow',
+						Action: [
+							'ec2:CreateNetworkInterface',
+							'ec2:DescribeNetworkInterfaces',
+							'ec2:DeleteNetworkInterface',
+							'ec2:AssignPrivateIpAddresses',
+							'ec2:UnassignPrivateIpAddresses',
+						],
+						Resource: ['*'],
+					},
+				],
+			}),
+		})
+	}
+
 	ctx.onPermission(statement => {
 		addPermission(statement)
 	})
@@ -116,16 +157,7 @@ export const createPrebuildLambdaFunction = (
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
 
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: list.map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-					})),
-				})
-			)
+			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
 		}),
 	})
 
@@ -164,6 +196,14 @@ export const createPrebuildLambdaFunction = (
 			variables,
 		},
 
+		vpcConfig: props.vpc
+			? {
+					securityGroupIds: [ctx.shared.get('vpc', 'security-group-id')],
+					subnetIds: ctx.shared.get('vpc', 'private-subnets'),
+					ipv6AllowedForDualStack: true,
+				}
+			: undefined,
+
 		loggingConfig: {
 			logGroup: `/aws/lambda/${name}`,
 			logFormat: logFormats[(props.log && 'format' in props.log && props.log.format) || 'json'],
@@ -198,6 +238,14 @@ export const createPrebuildLambdaFunction = (
 
 	if ('stackConfig' in ctx) {
 		variables.STACK = ctx.stackConfig.name
+	}
+
+	if (props.vpc) {
+		// This will tell all aws client's to use
+		// the dualstack endpoint when our lambda
+		// is inside a vpc
+
+		variables.AWS_USE_DUALSTACK_ENDPOINT = 'true'
 	}
 
 	// ------------------------------------------------------------

@@ -7,6 +7,7 @@ import { getBuildPath } from '../../build/index.js'
 import { AppContext, Permission, StackContext } from '../../feature.js'
 import { formatByteSize } from '../../util/byte-size.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatPolicyDocument, ResolvedPolicyStatement } from '../../util/policy.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 // import { bundleTypeScript } from './build/typescript/bundle.js'
 import { zipFiles } from './build/zip.js'
@@ -14,10 +15,8 @@ import { FunctionProps } from './schema.js'
 // import { getGlobalOnFailure, hasOnFailure } from '../on-failure/util.js'
 import { toDays, toSeconds } from '@awsless/duration'
 import { toMebibytes } from '@awsless/size'
-import { pascalCase } from 'change-case'
 // import { hashElement } from 'folder-hash'
 // import { FileError } from '../../error.js'
-import { FileError } from '../../error.js'
 import { generateCacheKey } from '../../util/cache.js'
 import { shortId } from '../../util/id.js'
 import { relativePath } from '../../util/path.js'
@@ -145,6 +144,7 @@ export const createLambdaFunction = (
 						...(fileCode.external ?? []),
 						...(props.layers ?? []).flatMap(id => ctx.shared.entry('layer', `packages`, id)),
 					],
+					moduleSideEffects: fileCode.moduleSideEffects,
 					minify: fileCode.minify,
 					nativeDir: temp.path,
 					importAsString: fileCode.importAsString,
@@ -265,17 +265,7 @@ export const createLambdaFunction = (
 		policy: new Output(statementDeps, async (resolve: (value: string) => void) => {
 			const list = await resolveInputs(statements)
 
-			resolve(
-				JSON.stringify({
-					Version: '2012-10-17',
-					Statement: list.map(statement => ({
-						Effect: pascalCase(statement.effect ?? 'allow'),
-						Action: statement.actions,
-						Resource: statement.resources,
-						Condition: statement.conditions,
-					})),
-				})
-			)
+			resolve(JSON.stringify(formatPolicyDocument(list as ResolvedPolicyStatement[])))
 		}),
 	})
 

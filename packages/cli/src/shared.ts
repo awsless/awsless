@@ -40,6 +40,10 @@ type SharedState = {
 		'cluster-arn': Output<string>
 	}
 
+	pubsub: {
+		'bucket-name': Output<string>
+	}
+
 	job: {
 		'bucket-name': Output<string>
 		'cluster-name': Output<string>
@@ -59,6 +63,10 @@ type SharedEntries = {
 
 	topic: {
 		arn: Output<string>
+	}
+
+	pubsub: {
+		'events-topic-arn': Output<string>
 	}
 
 	rpc: {

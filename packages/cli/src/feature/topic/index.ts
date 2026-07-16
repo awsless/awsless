@@ -8,6 +8,7 @@ import { createAsyncLambdaFunction } from '../function/util.js'
 import { FileError } from '../../error.js'
 
 const typeGenCode = `
+import type { Mock } from 'vitest'
 import type { PublishOptions } from '@awsless/sns'
 
 type Publish<Name extends string> = {

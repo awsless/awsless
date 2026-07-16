@@ -47,6 +47,9 @@ const items = await redis.batch(client, [
 // Run script
 const sub = redis.script.lua`return ${10} - ${5}`
 const result = await sub<string>(client)
+
+// Publish a message to a channel
+const receivers = await redis.pubsub.publish(client, 'channel', 'message')
 ```
 
 # Local Development / Testing
@@ -158,6 +161,10 @@ it('your test', async () => {
 | `ttl.get`      | Get the expiration date for a key        |
 | `ttl.duration` | Get the remaining TTL duration for a key |
 | `ttl.delete`   | Remove the expiration from a key         |
+
+| Function         | Description                                                                   |
+| ---------------- | ----------------------------------------------------------------------------- |
+| `pubsub.publish` | Publish a message to a channel, with optional sharded publishing (`SPUBLISH`) |
 
 | Function         | Description                                                  |
 | ---------------- | ------------------------------------------------------------ |

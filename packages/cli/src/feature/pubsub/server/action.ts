@@ -2,8 +2,27 @@ import { array, custom, maxLength, minLength, pipe, safeParse, string } from '@a
 import { publishEvent } from './event'
 import { Socket } from './type'
 
-const MAX_TOPICS = 25
-const MAX_TOPIC_LENGTH = 25
+const MAX_TOPICS = 32
+const MAX_TOPIC_LENGTH = 128
+
+// Allowed topics can contain a `*` wildcard segment that
+// matches exactly one path level with any value.
+// For example `game/*` allows `game/123`, but not `game/123/round`.
+export const matchTopic = (allowedTopics: string[], topic: string) => {
+	const segments = topic.split('/')
+
+	return allowedTopics.some(allowed => {
+		const pattern = allowed.split('/')
+
+		if (pattern.length !== segments.length) {
+			return false
+		}
+
+		return pattern.every((segment, i) => {
+			return segment === '*' || segment === segments[i]
+		})
+	})
+}
 
 export const parseTopics = (
 	value: unknown,
@@ -22,9 +41,10 @@ export const parseTopics = (
 			array(
 				pipe(
 					string(),
+					minLength(1),
 					maxLength(MAX_TOPIC_LENGTH),
 					custom(topic => {
-						return typeof topic === 'string' && allowedTopics.includes(topic)
+						return typeof topic === 'string' && matchTopic(allowedTopics, topic)
 					})
 				)
 			),
@@ -49,6 +69,8 @@ export const parseTopics = (
 
 export const connect = (socket: Socket) => {
 	publishEvent('connected', {
+		socketId: socket.data.id,
+		ip: socket.data.ip,
 		context: socket.data.context,
 	})
 }
@@ -56,39 +78,56 @@ export const connect = (socket: Socket) => {
 export const disconnect = (socket: Socket) => {
 	unsubscribeAll(socket)
 	socket.close()
-	publishEvent('disconnected', {
-		context: socket.data.context,
-	})
+
+	// Sockets that never passed authentication
+	// were never "connected" to begin with.
+	if (socket.data.authenticated) {
+		publishEvent('disconnected', {
+			socketId: socket.data.id,
+			ip: socket.data.ip,
+			context: socket.data.context,
+		})
+	}
 }
 
 export const subscribe = (socket: Socket, payload: unknown) => {
 	const result = parseTopics(payload, socket.data.allowed)
 
 	if (!result.valid) {
-		unsubscribeAll(socket)
 		socket.close(4000, 'Invalid topic payload')
 		return
 	}
 
-	for (const topic of result.topics) {
+	// Only count topics the socket isn't already subscribed to.
+	const topics = [...new Set(result.topics)].filter(topic => {
+		return !socket.isSubscribed(topic)
+	})
+
+	if (socket.subscriptions.length + topics.length > MAX_TOPICS) {
+		socket.close(4000, 'Too many topic subscriptions')
+		return
+	}
+
+	for (const topic of topics) {
 		socket.subscribe(topic)
 	}
 
-	if (result.topics.length > 0) {
-		socket.sendText(`ACK`)
-
-		publishEvent('subscribe', {
+	if (topics.length > 0) {
+		publishEvent('subscribed', {
+			socketId: socket.data.id,
+			ip: socket.data.ip,
 			context: socket.data.context,
-			topics: result.topics,
+			topics,
 		})
 	}
+
+	socket.sendText(`ACK`)
 }
 
 export const unsubscribe = (socket: Socket, payload: unknown) => {
 	const result = parseTopics(payload, socket.data.allowed)
 
 	if (!result.valid) {
-		unsubscribeAll(socket)
 		socket.close(4000, 'Invalid topic payload')
 		return
 	}
@@ -102,13 +141,15 @@ export const unsubscribe = (socket: Socket, payload: unknown) => {
 	}
 
 	if (topics.length > 0) {
-		socket.sendText(`ACK`)
-
-		publishEvent('unsubscribe', {
+		publishEvent('unsubscribed', {
+			socketId: socket.data.id,
+			ip: socket.data.ip,
 			context: socket.data.context,
 			topics,
 		})
 	}
+
+	socket.sendText(`ACK`)
 }
 
 export const unsubscribeAll = (socket: Socket) => {
@@ -119,7 +160,9 @@ export const unsubscribeAll = (socket: Socket) => {
 	}
 
 	if (topics.length > 0) {
-		publishEvent('unsubscribe', {
+		publishEvent('unsubscribed', {
+			socketId: socket.data.id,
+			ip: socket.data.ip,
 			context: socket.data.context,
 			topics,
 		})
