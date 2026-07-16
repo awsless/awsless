@@ -314,6 +314,10 @@ export const FunctionDefaultSchema = z
 			system: 'system' in log ? log.system : 'warn',
 			format: 'format' in log ? log.format : 'json',
 		})),
+		// The defaults size the single shared bundle lambda, which also serves
+		// queues, crons & tasks — hence the higher timeout & memory than the
+		// old 10s / 128MB per-function defaults. The queue visibility timeout
+		// is derived from this timeout.
 		timeout: TimeoutSchema.default('15 minutes'),
 		memorySize: MemorySizeSchema.default('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),

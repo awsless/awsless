@@ -41,6 +41,9 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 				} else if (options.schedule) {
 					const resourceTaskName = bindGlobalResourceName('task')
 
+					// A task scheduled for later deliberately targets the live
+					// alias instead of pinning the current bundle version, which
+					// version pruning may delete before the schedule fires.
 					await schedule({
 						name: `${BUNDLE_NAME}:${options.qualifier ?? BUNDLE_QUALIFIER}`,
 						payload: formatRoutePayload(routeKey, payload),

@@ -143,6 +143,9 @@ export const createBundle = (env: Record<string, string>, handlers: Record<strin
 
 		if (match) {
 			if ('fanout' in match) {
+				// Pin the fanout to the executing bundle version; the version
+				// carries its own retry & on-failure event invoke config (set
+				// by the BundleDeployment resource on every published version).
 				const name = `${process.env.AWS_LAMBDA_FUNCTION_NAME}:${process.env.AWS_LAMBDA_FUNCTION_VERSION}`
 
 				await Promise.all(
