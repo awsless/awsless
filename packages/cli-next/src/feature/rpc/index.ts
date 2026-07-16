@@ -14,8 +14,6 @@ import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'url'
 import { toSeconds } from '@awsless/duration'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
 export const rpcFeature = defineFeature({
 	name: 'rpc',
 	async onTypeGen(ctx) {
@@ -86,7 +84,7 @@ export const rpcFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: join(__dirname, '/handlers/rpc.mjs'),
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/rpc.mjs'),
 				exportName: 'default',
 			})
 

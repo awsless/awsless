@@ -8,8 +8,6 @@ import { addBundleFunction, formatRouteKey, getBundleTimeout } from '../bundle/u
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
 	onBefore(ctx) {
@@ -194,7 +192,7 @@ export const onFailureFeature = defineFeature({
 
 		bundle.addHandler({
 			routeKey: normalizerRoute,
-			file: join(__dirname, '/handlers/on-failure.mjs'),
+			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.mjs'),
 			exportName: 'default',
 		})
 		addBundleFunction(ctx, consumerRoute, consumer)

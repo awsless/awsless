@@ -10,8 +10,6 @@ import { toDays } from '@awsless/duration'
 import { glob } from 'glob'
 import { shortId } from '../../util/id'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
 export const iconFeature = defineFeature({
 	name: 'icon',
 	onStack(ctx) {
@@ -94,7 +92,7 @@ export const iconFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: join(__dirname, '/handlers/icon.mjs'),
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/icon.mjs'),
 				exportName: 'default',
 			})
 

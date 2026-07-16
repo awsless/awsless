@@ -7,8 +7,6 @@ import { filterPattern } from './util.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
 	onApp(ctx) {
@@ -30,7 +28,7 @@ export const onErrorLogFeature = defineFeature({
 
 		bundle.addHandler({
 			routeKey: handlerRoute,
-			file: join(__dirname, '/handlers/on-error-log.mjs'),
+			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-error-log.mjs'),
 			exportName: 'default',
 		})
 

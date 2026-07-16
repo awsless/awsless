@@ -11,8 +11,6 @@ import { fileURLToPath } from 'url'
 import { glob } from 'glob'
 import { shortId } from '../../util/id'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
 export const imageFeature = defineFeature({
 	name: 'image',
 	onApp(ctx) {
@@ -33,7 +31,7 @@ export const imageFeature = defineFeature({
 
 		const group = new Group(ctx.base, 'image', 'layer')
 
-		const path = join(__dirname, '/layers/sharp-arm.zip')
+		const path = join(dirname(fileURLToPath(import.meta.url)), '/layers/sharp-arm.zip')
 
 		const layerId = formatGlobalResourceName({
 			appName: ctx.appConfig.name,
@@ -160,7 +158,7 @@ export const imageFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: join(__dirname, '/handlers/image.mjs'),
+				file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/image.mjs'),
 				exportName: 'default',
 				external: ['sharp'],
 			})
