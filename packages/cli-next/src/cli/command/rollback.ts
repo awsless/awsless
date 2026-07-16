@@ -1,7 +1,9 @@
+import { log, prompt } from '@awsless/clui'
 import { Command } from 'commander'
-import { ExpectedError } from '../../error.js'
-import { layout } from '../ui/complex/layout.js'
+import { Cancelled, ExpectedError } from '../../error.js'
 import { rollbackAppDeployment } from '../../util/deployment.js'
+import { playSuccessSound } from '../../util/sound.js'
+import { layout } from '../ui/complex/layout.js'
 
 export const rollback = (program: Command) => {
 	program
@@ -16,9 +18,28 @@ export const rollback = (program: Command) => {
 					throw new ExpectedError(`"${arg}" isn't a valid deployment number.`)
 				}
 
-				const targets = await rollbackAppDeployment({ appConfig, deploymentId })
+				if (!process.env.SKIP_PROMPT) {
+					const ok = await prompt.confirm({
+						message:
+							deploymentId === undefined
+								? `Are you sure you want to activate the previous deployment?`
+								: `Are you sure you want to activate deployment #${deploymentId}?`,
+					})
 
-				return `Deployment #${targets[0]} is live.`
+					if (!ok) {
+						throw new Cancelled()
+					}
+				}
+
+				const target = await log.task({
+					initialMessage: 'Activating the deployment',
+					successMessage: 'Done activating the deployment.',
+					task: () => rollbackAppDeployment({ appConfig, deploymentId }),
+				})
+
+				playSuccessSound()
+
+				return `Deployment #${target} is live.`
 			})
 		})
 }

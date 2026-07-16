@@ -249,10 +249,12 @@ export const promoteDeployment = async (props: {
 	const priorId = activeIds.size === 1 ? [...activeIds][0] : undefined
 	const priorVersion = activeVersions.size === 1 ? [...activeVersions][0] : undefined
 
-	if (priorId !== undefined && priorVersion === alias?.FunctionVersion) {
+	// Repair the outgoing deployment's alias in case an earlier promote
+	// failed halfway, so the rollback scan can still find it as promoted.
+	if (priorId !== undefined && priorVersion !== undefined && priorVersion === alias?.FunctionVersion) {
 		const priorAlias = await getAlias(props.lambda, props.functionName, getDeploymentAliasName(priorId))
 
-		if (priorAlias?.FunctionVersion !== priorVersion || priorAlias.Description !== promotedDescription) {
+		if (priorAlias?.FunctionVersion !== priorVersion || priorAlias?.Description !== promotedDescription) {
 			await upsertAlias(props.lambda, {
 				functionName: props.functionName,
 				functionVersion: priorVersion,
@@ -301,16 +303,18 @@ export const promoteDeployment = async (props: {
 	} catch (error) {
 		const rollback = [
 			...changed.reverse().map(router => setActiveRouteDeployment(props.kvs, router.storeArn, router.active)),
-			...(deploymentUpdateStarted
+			...(deploymentUpdateStarted && deploymentAlias?.FunctionVersion
 				? [
 						upsertAlias(props.lambda, {
 							functionName: props.functionName,
-							functionVersion: props.functionVersion,
+							functionVersion: deploymentAlias.FunctionVersion,
 							name: getDeploymentAliasName(props.deploymentId),
-							description: deploymentAlias?.Description ?? '',
+							description: deploymentAlias.Description ?? '',
 						}),
 					]
-				: []),
+				: deploymentUpdateStarted
+					? [deleteAlias(props.lambda, props.functionName, getDeploymentAliasName(props.deploymentId))]
+					: []),
 			...(aliasUpdateStarted && alias?.FunctionVersion
 				? [
 						upsertAlias(props.lambda, {
@@ -415,12 +419,17 @@ const updateDeployment = async (props: {
 			rejectStale: props.rejectStale,
 		})
 
-		return routers.length > 0 ? routers.map(router => router.deployment.id) : [deploymentId]
+		return deploymentId
 	} finally {
 		await release()
 	}
 }
 
+// The caller must already hold the app release lock (deploy.ts wraps the
+// whole deploy + promotion in it); rollbackAppDeployment takes it itself.
+// updateDeployment additionally locks app.urn — the same urn terraforge's
+// workspace.deploy locks — so promote/rollback can't interleave with an
+// in-flight deploy from another process.
 export const promoteAppDeployment = (props: {
 	appConfig: AppConfig
 	deploymentId: number
@@ -432,6 +441,8 @@ export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentI
 	return withAppReleaseLock(props.appConfig, () => updateDeployment(props))
 }
 
+// The sequence counter shares the bootstrap lock table under its own
+// 'urn:deployment-seq:' prefix, so the item shapes never collide.
 export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
 	const sequences = define('awsless-locks', {
 		hash: 'urn',
