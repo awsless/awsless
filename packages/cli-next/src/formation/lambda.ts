@@ -262,9 +262,6 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				const deploymentAliases = [...prior.deploymentAliases]
 				const live = await getLiveAlias(proposed)
 
-				// Upsert unconditionally: a reused deployment id (a re-deploy
-				// after a partial failure) must repoint its alias at the newly
-				// published version instead of serving the stale one.
 				await createAlias(lambda, {
 					functionName: proposed.functionName,
 					functionVersion: proposed.functionVersion,

@@ -189,9 +189,7 @@ function setLambdaOrigin(route) {
 	cf.updateRequestOrigin({
 		domainName: route.domainName,
 		timeouts: {
-			// Cover slow SSR/rpc responses from the shared bundle. Note the
-			// CloudFront origin response timeout is capped at 60s unless the
-			// account has a quota increase.
+			// CloudFront caps the origin response timeout at 60s without a quota increase.
 			readTimeout: 120,
 			connectionTimeout: 10,
 		},

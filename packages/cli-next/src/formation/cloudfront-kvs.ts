@@ -122,8 +122,6 @@ const getStoreValue = async (kvs: CloudFrontKeyValueStoreClient, storeArn: strin
 	}
 }
 
-// Writes assume a single writer per store per apply (one RouteDeployment
-// per router), so the ETag chain never races another mutation.
 const updateKeys = async (
 	kvs: CloudFrontKeyValueStoreClient,
 	props: { storeArn: string; mutations: Mutation[] }

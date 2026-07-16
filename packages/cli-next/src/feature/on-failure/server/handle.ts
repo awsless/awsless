@@ -165,8 +165,6 @@ const invokeConsumer = async (payload: unknown, context: Context) => {
 		throw new Error('The CONSUMER route env is not set')
 	}
 
-	// A fresh self-invoke gives the consumer its own log stream & timeout,
-	// isolated from the normalizer.
 	await invoke({
 		name: context.invokedFunctionArn,
 		type: 'RequestResponse',

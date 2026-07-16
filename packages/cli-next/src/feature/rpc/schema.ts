@@ -12,8 +12,7 @@ import { RouteSchema } from '../router/schema.js'
 const TimeoutSchema = DurationSchema
 	//
 	.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
-	// The rpc timeout raises the timeout of the whole shared bundle,
-	// so it is capped lower than the old 5 minute standalone limit.
+	// The rpc timeout raises the timeout of the whole shared bundle.
 	.refine(durationMax(minutes(2)), 'Maximum timeout duration is 2 minutes')
 	.describe(
 		[

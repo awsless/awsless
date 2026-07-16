@@ -217,7 +217,6 @@ export const onFailureFeature = defineFeature({
 			eventSourceArn: queue.arn,
 			batchSize: 10,
 		}, {
-			// AWS validates the queue permissions when the mapping is created.
 			dependsOn: [bundle.policy],
 		})
 

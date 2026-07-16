@@ -52,8 +52,7 @@ type BundleFunctionProps = {
 	permissions?: Permission[]
 }
 
-// Register a feature function into the shared app bundle,
-// mirroring the old per-feature createLambdaFunction call shape.
+// Register a feature function into the shared app bundle.
 
 export const addBundleFunction = (ctx: StackContext | AppContext, routeKey: string, props: BundleFunctionProps) => {
 	const bundle = ctx.shared.get('bundle', 'main')
@@ -77,21 +76,12 @@ export const addBundleFunction = (ctx: StackContext | AppContext, routeKey: stri
 	return bundle
 }
 
-// The bundle lambda timeout is the max of the function default
-// timeout and the timeout of every rpc server.
-
 export const getBundleTimeout = (ctx: BeforeContext) => {
 	return Math.max(
 		toSeconds(ctx.appConfig.defaults.function.timeout),
 		...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
 	)
 }
-
-// Note: handlers/env/layers/statements/lambdaProps are intentionally
-// mutated AFTER the terraforge resources capture them — terraforge stores
-// inputs by reference and resolves dependencies lazily, which is what lets
-// features keep registering into the bundle during their own hooks. Don't
-// spread or clone these objects, that would silently drop late registrations.
 
 export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps) => {
 	const group = new Group(ctx.base, 'function', 'bundle')
@@ -329,11 +319,6 @@ export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps)
 		dependsOn: [vpcPolicy],
 	})
 
-	// Internal routing self-invokes the bundle, so AWS's platform loop
-	// detection must be disabled. TODO: this also removes the old on-failure
-	// consumer's deny policy protection against circular failure loops
-	// (consumer -> message -> failure -> consumer); a runtime guard for the
-	// on-failure route is still needed.
 	const recursion = new aws.lambda.FunctionRecursionConfig(group, 'recursion', {
 		functionName: lambda.functionName,
 		recursiveLoop: 'Allow',

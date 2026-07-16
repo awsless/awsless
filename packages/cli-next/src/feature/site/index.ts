@@ -120,7 +120,6 @@ export const siteFeature = defineFeature({
 
 				const bundle = addBundleFunction(ctx, bundleRouteKey, ssr)
 
-				// A slow SSR page must fit inside the shared bundle's timeout.
 				if (ssr.timeout) {
 					bundle.setTimeout(toSeconds(ssr.timeout))
 				}

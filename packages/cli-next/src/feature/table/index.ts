@@ -198,7 +198,6 @@ export const tableFeature = defineFeature({
 						},
 					},
 				}, {
-					// AWS validates the stream permissions when the mapping is created.
 					dependsOn: [bundle.policy],
 				})
 
@@ -210,7 +209,6 @@ export const tableFeature = defineFeature({
 					],
 					resources: [table.streamArn],
 				})
-				// ListStreams can't be scoped to a single stream arn.
 				bundle.addPermission({
 					actions: ['dynamodb:ListStreams'],
 					resources: ['*'],

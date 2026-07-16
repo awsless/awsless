@@ -249,8 +249,6 @@ export const promoteDeployment = async (props: {
 	const priorId = activeIds.size === 1 ? [...activeIds][0] : undefined
 	const priorVersion = activeVersions.size === 1 ? [...activeVersions][0] : undefined
 
-	// Repair the outgoing deployment's alias in case an earlier promote
-	// failed halfway, so the rollback scan can still find it as promoted.
 	if (priorId !== undefined && priorVersion !== undefined && priorVersion === alias?.FunctionVersion) {
 		const priorAlias = await getAlias(props.lambda, props.functionName, getDeploymentAliasName(priorId))
 
@@ -425,11 +423,7 @@ const updateDeployment = async (props: {
 	}
 }
 
-// The caller must already hold the app release lock (deploy.ts wraps the
-// whole deploy + promotion in it); rollbackAppDeployment takes it itself.
-// updateDeployment additionally locks app.urn — the same urn terraforge's
-// workspace.deploy locks — so promote/rollback can't interleave with an
-// in-flight deploy from another process.
+// The caller must hold the app release lock.
 export const promoteAppDeployment = (props: {
 	appConfig: AppConfig
 	deploymentId: number
@@ -441,8 +435,6 @@ export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentI
 	return withAppReleaseLock(props.appConfig, () => updateDeployment(props))
 }
 
-// The sequence counter shares the bootstrap lock table under its own
-// 'urn:deployment-seq:' prefix, so the item shapes never collide.
 export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
 	const sequences = define('awsless-locks', {
 		hash: 'urn',

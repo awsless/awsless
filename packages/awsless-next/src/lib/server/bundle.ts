@@ -43,8 +43,6 @@ export const formatRouteEnvName = (routeKey: string, name: string) => {
 }
 
 export const getRouteEnv = (name: string) => {
-	// The env fallback covers module-scope reads that run during the lazy
-	// import, before withRoute's AsyncLocalStorage context is entered.
 	const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE
 
 	return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name]

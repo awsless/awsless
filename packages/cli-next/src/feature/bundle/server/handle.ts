@@ -12,8 +12,7 @@ type BundleEvent = {
 	headers?: LambdaFunctionURLEvent['headers']
 }
 
-// Async event handlers run with expected-error responses enabled,
-// like the old dedicated async lambdas did.
+// Async event handlers run with expected-error responses enabled.
 const asyncRouteTypes = new Set([
 	'cron',
 	'task',
@@ -54,9 +53,6 @@ export const createBundle = (env: Record<string, string>, handlers: Record<strin
 	}
 
 	return async (event: BundleEvent, context: LambdaContext) => {
-		// The flag is applied per dispatched route, before the handler module
-		// is lazily loaded, so module level reads capture the right value even
-		// for nested in-process invokes.
 		const applyExpectedErrors = (key: string) => {
 			if (asyncRouteTypes.has(routeType(key))) {
 				process.env.THROW_EXPECTED_ERRORS = '1'
@@ -74,9 +70,6 @@ export const createBundle = (env: Record<string, string>, handlers: Record<strin
 
 			applyExpectedErrors(key)
 
-			// Best effort compat for handlers reading the env directly; parallel
-			// in-process invokes can observe another route's values, while the
-			// AsyncLocalStorage backed getStack() / getRouteEnv() stay correct.
 			const [stack] = key.split(':')
 			process.env.STACK = stack
 			process.env.AWSLESS_ROUTE = key
@@ -126,8 +119,7 @@ export const createBundle = (env: Record<string, string>, handlers: Record<strin
 				throw new Error('Unknown bundle route: ' + headerRoute)
 			}
 
-			// Restore the viewer authorization that the router tunneled around
-			// the OAC sigv4 signing, which owns the real authorization header.
+			// Restore the viewer authorization that the router tunneled around the OAC signing.
 			const authorization = event.headers?.['x-awsless-authorization']
 
 			if (typeof authorization === 'string') {
@@ -143,9 +135,6 @@ export const createBundle = (env: Record<string, string>, handlers: Record<strin
 
 		if (match) {
 			if ('fanout' in match) {
-				// Pin the fanout to the executing bundle version; the version
-				// carries its own retry & on-failure event invoke config (set
-				// by the BundleDeployment resource on every published version).
 				const name = `${process.env.AWS_LAMBDA_FUNCTION_NAME}:${process.env.AWS_LAMBDA_FUNCTION_VERSION}`
 
 				await Promise.all(
