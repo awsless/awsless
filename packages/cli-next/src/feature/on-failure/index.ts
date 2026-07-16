@@ -4,7 +4,8 @@ import { Group } from '@terraforge/core'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteEnvName } from 'awsless'
-import { formatRouteKey, internalHandler, parseExportName } from '../bundle/util.js'
+import { internalHandler } from '../bundle/build/bundle.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',

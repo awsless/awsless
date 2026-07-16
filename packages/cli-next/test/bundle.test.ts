@@ -6,7 +6,7 @@ import { mkdir, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { pathToFileURL } from 'url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildBundle } from '../src/feature/bundle/util'
+import { buildBundle } from '../src/feature/bundle/build/bundle'
 import { formatRouteKey, parseExportName } from '../src/feature/bundle/util'
 import { createTestApp } from './_kit'
 

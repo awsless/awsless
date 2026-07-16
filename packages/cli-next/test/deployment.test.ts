@@ -13,7 +13,7 @@ import {
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { preflightDeployment, promoteDeployment, readFunctionDeployment } from '../src/cli/command/deployment'
+import { preflightDeployment, promoteDeployment, readFunctionDeployment } from '../src/util/deployment'
 import { notFound } from './_kit'
 
 const mockAws = () => {

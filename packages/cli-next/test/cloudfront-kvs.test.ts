@@ -7,11 +7,8 @@ import {
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { DynamoDBClient } from '@awsless/dynamodb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-	createCloudFrontKvsProvider,
-	nextDeploymentId,
-	setActiveRouteDeployment,
-} from '../src/formation/cloudfront-kvs'
+import { createCloudFrontKvsProvider, setActiveRouteDeployment } from '../src/formation/cloudfront-kvs'
+import { nextDeploymentId } from '../src/util/deployment'
 import { credentials, notFound, sent } from './_kit'
 
 const storeArn = 'arn:aws:cloudfront::123456789012:key-value-store/test-router'

@@ -9,19 +9,20 @@ import {
 	ListAliasesCommand,
 	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
+import { define, DynamoDBClient, number, object, string, updateItem } from '@awsless/dynamodb'
 import { App } from '@terraforge/core'
-import { AppConfig } from '../../config/app.js'
-import { ExpectedError } from '../../error.js'
+import { AppConfig } from '../config/app.js'
+import { ExpectedError } from '../error.js'
 import {
 	getRouteStoreArn,
 	readActiveDeploymentId,
 	readRouteDeployment,
 	RouteDeployment,
 	setActiveRouteDeployment,
-} from '../../formation/cloudfront-kvs.js'
-import { getAccountId, getCredentials } from '../../util/aws.js'
-import { formatGlobalResourceName, generateGlobalAppId } from '../../util/name.js'
-import { createDeploymentBackends, getAppReleaseLockUrn } from '../../util/workspace.js'
+} from '../formation/cloudfront-kvs.js'
+import { getAccountId, getCredentials } from './aws.js'
+import { formatGlobalResourceName, generateGlobalAppId } from './name.js'
+import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 type RouterDeployment = {
 	id: string
@@ -463,6 +464,28 @@ export const promoteAppDeployment = (props: {
 
 export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentId?: number }) => {
 	return withAppReleaseLock(props.appConfig, () => updateDeployment(props))
+}
+
+export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
+	const sequences = define('awsless-locks', {
+		hash: 'urn',
+		schema: object({
+			urn: string(),
+			version: number(),
+		}),
+	})
+
+	const result = await updateItem(
+		sequences,
+		{ urn: `urn:deployment-seq:${appId}` },
+		{
+			update: e => e.version.incr(1),
+			return: 'ALL_NEW',
+			client,
+		}
+	)
+
+	return result.version
 }
 
 const withAppReleaseLock = async <T>(appConfig: AppConfig, callback: () => Promise<T>) => {

@@ -2,7 +2,8 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { defineFeature } from '../../feature.js'
-import { formatRouteKey, internalHandler, parseExportName } from '../bundle/util.js'
+import { internalHandler } from '../bundle/build/bundle.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 import { filterPattern } from './util.js'
 
 export const onErrorLogFeature = defineFeature({

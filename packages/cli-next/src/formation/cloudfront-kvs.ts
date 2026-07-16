@@ -5,7 +5,6 @@ import {
 	GetKeyCommand,
 	UpdateKeysCommand,
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import { define, DynamoDBClient, number, object, string, updateItem } from '@awsless/dynamodb'
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
 import chunk from 'chunk'
 import { createHash } from 'node:crypto'
@@ -259,24 +258,3 @@ export const setActiveRouteDeployment = async (
 	})
 }
 
-export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
-	const sequences = define('awsless-locks', {
-		hash: 'urn',
-		schema: object({
-			urn: string(),
-			version: number(),
-		}),
-	})
-
-	const result = await updateItem(
-		sequences,
-		{ urn: `urn:deployment-seq:${appId}` },
-		{
-			update: e => e.version.incr(1),
-			return: 'ALL_NEW',
-			client,
-		}
-	)
-
-	return result.version
-}

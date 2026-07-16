@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { ExpectedError } from '../../error.js'
 import { layout } from '../ui/complex/layout.js'
-import { rollbackAppDeployment } from './deployment.js'
+import { rollbackAppDeployment } from '../../util/deployment.js'
 
 export const rollback = (program: Command) => {
 	program

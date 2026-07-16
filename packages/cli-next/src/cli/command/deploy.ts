@@ -4,7 +4,7 @@ import { LambdaClient } from '@aws-sdk/client-lambda'
 import { Command } from 'commander'
 import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
-import { nextDeploymentId } from '../../formation/cloudfront-kvs.js'
+import { nextDeploymentId, preflightDeployment, promoteAppDeployment } from '../../util/deployment.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import { formatGlobalResourceName, generateGlobalAppId } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
@@ -20,7 +20,6 @@ import { layout } from '../ui/complex/layout.js'
 import { runTests } from '../ui/complex/run-tests.js'
 import { showWarnings } from '../ui/complex/show-warnings.js'
 import { color } from '../ui/style.js'
-import { preflightDeployment, promoteAppDeployment } from './deployment.js'
 
 export const deploy = (program: Command) => {
 	program
