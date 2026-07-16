@@ -3,12 +3,14 @@ import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature'
 import { formatLocalResourceName } from '../../util/name'
 import { formatRouteEnvName } from 'awsless'
-import { internalHandler } from '../bundle/build/bundle.js'
 import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { toDays } from '@awsless/duration'
 import { glob } from 'glob'
 import { shortId } from '../../util/id'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export const iconFeature = defineFeature({
 	name: 'icon',
@@ -92,7 +94,7 @@ export const iconFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: internalHandler('icon'),
+				file: join(__dirname, '/handlers/icon.mjs'),
 				exportName: 'default',
 			})
 

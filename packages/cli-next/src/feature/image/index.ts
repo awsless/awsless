@@ -4,7 +4,6 @@ import { FileError } from '../../error'
 import { defineFeature } from '../../feature'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
 import { formatRouteEnvName } from 'awsless'
-import { internalHandler } from '../bundle/build/bundle.js'
 import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { join, dirname } from 'path'
 import { toDays } from '@awsless/duration'
@@ -161,7 +160,7 @@ export const imageFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: internalHandler('image'),
+				file: join(__dirname, '/handlers/image.mjs'),
 				exportName: 'default',
 				external: ['sharp'],
 			})

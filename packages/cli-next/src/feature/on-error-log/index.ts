@@ -2,9 +2,12 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { defineFeature } from '../../feature.js'
-import { internalHandler } from '../bundle/build/bundle.js'
 import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { filterPattern } from './util.js'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export const onErrorLogFeature = defineFeature({
 	name: 'on-error-log',
@@ -27,7 +30,7 @@ export const onErrorLogFeature = defineFeature({
 
 		bundle.addHandler({
 			routeKey: handlerRoute,
-			file: internalHandler('on-error-log'),
+			file: join(__dirname, '/handlers/on-error-log.mjs'),
 			exportName: 'default',
 		})
 

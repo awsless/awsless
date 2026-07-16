@@ -8,11 +8,13 @@ import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteEnvName } from 'awsless'
-import { internalHandler } from '../bundle/build/bundle.js'
 import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { directories } from '../../util/path.js'
-import { relative } from 'path'
+import { dirname, join, relative } from 'path'
+import { fileURLToPath } from 'url'
 import { toSeconds } from '@awsless/duration'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export const rpcFeature = defineFeature({
 	name: 'rpc',
@@ -84,7 +86,7 @@ export const rpcFeature = defineFeature({
 
 			bundle.addHandler({
 				routeKey: serverRouteKey,
-				file: internalHandler('rpc'),
+				file: join(__dirname, '/handlers/rpc.mjs'),
 				exportName: 'default',
 			})
 

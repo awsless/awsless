@@ -19,16 +19,13 @@ type BuildBundleProps = {
 	runtime?: string
 }
 
-// The internal handlers are precompiled into the dist folder.
-export const internalHandler = (name: string) => {
-	return join(dirname(fileURLToPath(import.meta.url)), `handlers/${name}.mjs`)
-}
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // Build all handlers into a single code bundle behind a generated entry file.
 
 export const buildBundle = (props: BuildBundleProps): Builder => {
 	return async (build, { workspace }) => {
-		const runtime = props.runtime ?? internalHandler('bundle')
+		const runtime = props.runtime ?? join(__dirname, '/handlers/bundle.mjs')
 		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
 
 		// The entry file lazily imports every handler behind its route key.
