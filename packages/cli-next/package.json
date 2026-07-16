@@ -18,23 +18,18 @@
 		"awsless": "./dist/bin.js"
 	},
 	"scripts": {
-		"test": "pnpm vitest",
+		"test": "pnpm prebuild-handlers; pnpm vitest",
 		"term": "zsh -c 'bun dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
 		"berm": "zsh -c 'pnpm build; pnpm build-features; pnpm build-json-schema; bun dist/bin.js ${*} --config-file=./test/_data/app.jsonc' --",
-		"build": "pnpm tsup src/bin.ts --format esm --dts --clean --external bun",
+		"build": "pnpm tsup src/bin.ts --format esm --dts --clean --external bun; pnpm prebuild-handlers",
+		"prebuild-handlers": "bun cli/prebuild-handlers.ts",
 		"build-json-schema": "pnpm tsup cli/build-json-schema.ts --format esm; bun ./dist/build-json-schema.js",
 		"publish-docker-image": "zsh ./cli/publish-fargate-image.sh",
 		"build-test-setup": "pnpm tsup src/test/test-global-setup.ts --format esm",
-		"build-prebuild": "pnpm tsup src/prebuild.ts --format esm; bun ./dist/prebuild.js",
 		"build-layers": "mkdir -p dist/layers && cp -r layers/* dist/layers",
-		"jack": "pnpm tsup ./example/jack/jack.ts --format esm --external bun; bun ./dist/jack.js",
-		"kennedy": "pnpm tsup ./example/kennedy/kennedy.ts --format esm --external bun; bun ./dist/kennedy.js",
-		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; pnpm build-prebuild; pnpm build-layers; else exit; fi"
-	},
-	"vitest": {
-		"include": [
-			"./test/**"
-		]
+		"jack": "pnpm prebuild-handlers; pnpm tsup ./example/jack/jack.ts --format esm --external bun; bun ./dist/jack.js",
+		"kennedy": "pnpm prebuild-handlers; pnpm tsup ./example/kennedy/kennedy.ts --format esm --external bun; bun ./dist/kennedy.js",
+		"prepublish": "if pnpm test; then pnpm build; pnpm build-json-schema; pnpm build-test-setup; pnpm build-layers; else exit; fi"
 	},
 	"dependencies": {
 		"@aws-sdk/client-cloudformation": "^3.369.0",
@@ -44,7 +39,7 @@
 		"@aws-sdk/client-cognito-identity-provider": "^3.840.0",
 		"@aws-sdk/client-dynamodb": "3.363.0",
 		"@aws-sdk/client-ecs": "^3.369.0",
-		"@aws-sdk/client-lambda": "3.329.0",
+		"@aws-sdk/client-lambda": "^3.991.0",
 		"@aws-sdk/client-route-53": "^3.782.0",
 		"@aws-sdk/client-s3": "^3.369.0",
 		"@aws-sdk/client-ssm": "3.329.0",

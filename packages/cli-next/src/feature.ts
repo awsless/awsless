@@ -88,6 +88,7 @@ export type BeforeContext = {
 	stackConfigs: StackConfig[]
 	accountId: string
 	appId: string
+	deploymentId?: number
 	import: boolean
 
 	app: App
@@ -116,6 +117,7 @@ export type AppContext = BeforeContext & {
 	onEnv: OnEnv
 
 	onReady: OnReady
+	onReadyLast: OnReady
 
 	// onEvent: OnEvent
 

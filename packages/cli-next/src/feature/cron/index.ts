@@ -1,7 +1,7 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { shortId } from '../../util/id.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -49,12 +49,10 @@ export const cronFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.consumer.code) {
-					const relFile = relative(directories.types, props.consumer.code.file)
+				const relFile = relative(directories.types, props.consumer.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
 			}
 
 			resources.addType(stack.name, resource)
@@ -83,13 +81,27 @@ export const cronFeature = defineFeature({
 		}
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
 			const group = new Group(ctx.stack, 'cron', id)
+			const routeKey = formatRouteKey(ctx.stack.name, 'cron', id)
 
-			const { lambda } = createAsyncLambdaFunction(group, ctx, 'cron', id, {
-				consumer: props.consumer,
-				retryAttempts: props.retryAttempts,
+			bundle.addHandler({
+				routeKey,
+				file: props.consumer.code.file,
+				exportName: parseExportName(props.consumer.handler ?? ctx.appConfig.defaults.function.handler!),
+				external: props.consumer.code.external,
+				importAsString: props.consumer.code.importAsString,
 			})
+
+			for (const [name, value] of Object.entries(props.consumer.environment ?? {})) {
+				bundle.addEnv(name, value)
+			}
+
+			for (const permission of props.consumer.permissions ?? []) {
+				bundle.addPermission(permission)
+			}
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,
@@ -116,7 +128,7 @@ export const cronFeature = defineFeature({
 				inlinePolicy: [
 					{
 						name: 'InvokeFunction',
-						policy: lambda.arn.pipe(arn =>
+						policy: bundle.alias.arn.pipe(arn =>
 							JSON.stringify({
 								Version: '2012-10-17',
 								Statement: [
@@ -140,9 +152,12 @@ export const cronFeature = defineFeature({
 				scheduleExpression: props.schedule,
 				flexibleTimeWindow: { mode: 'OFF' },
 				target: {
-					arn: lambda.arn,
+					arn: bundle.alias.arn,
 					roleArn: scheduleRole.arn,
-					input: JSON.stringify(props.payload) ?? '{}',
+					input: JSON.stringify({
+						'$awsless-route': routeKey,
+						event: props.payload,
+					}),
 				},
 			})
 		}

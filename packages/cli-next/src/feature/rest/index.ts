@@ -5,7 +5,7 @@ import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
-import { createLambdaFunction } from '../function/util.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 
 export const restFeature = defineFeature({
 	name: 'rest',
@@ -79,6 +79,8 @@ export const restFeature = defineFeature({
 		}
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, routes] of Object.entries(ctx.stackConfig.rest ?? {})) {
 			const restGroup = new Group(ctx.stack, 'rest', id)
 
@@ -86,15 +88,32 @@ export const restFeature = defineFeature({
 				const group = new Group(restGroup, 'route', routeKey)
 				const apiId = ctx.shared.entry('rest', 'id', id)
 				const routeId = shortId(routeKey)
-				const { lambda } = createLambdaFunction(group, ctx, 'rest', `${id}-${routeId}`, {
-					...props,
-					description: `${id} ${routeKey}`,
+				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'rest', `${id}-${routeId}`)
+
+				bundle.addHandler({
+					routeKey: bundleRouteKey,
+					file: props.code.file,
+					exportName: parseExportName(props.handler ?? ctx.appConfig.defaults.function.handler!),
+					external: props.code.external,
+					importAsString: props.code.importAsString,
 				})
+
+				for (const [name, value] of Object.entries(props.environment ?? {})) {
+					bundle.addEnv(name, value)
+				}
+
+				for (const permission of props.permissions ?? []) {
+					bundle.addPermission(permission)
+				}
 
 				const permission = new aws.lambda.Permission(group, 'permission', {
 					action: 'lambda:InvokeFunction',
 					principal: 'apigateway.amazonaws.com',
-					functionName: lambda.functionName,
+					functionName: bundle.lambda.functionName,
+					qualifier: bundle.alias.name,
+					sourceArn: apiId.pipe(
+						id => `arn:aws:execute-api:${ctx.appConfig.region}:${ctx.accountId}:${id}/*/*`
+					),
 				})
 
 				const integration = new aws.apigatewayv2.Integration(group, 'integration', {
@@ -103,9 +122,15 @@ export const restFeature = defineFeature({
 					integrationType: 'AWS_PROXY',
 					integrationMethod: 'POST',
 					payloadFormatVersion: '2.0',
-					integrationUri: lambda.arn.pipe(arn => {
+					integrationUri: bundle.alias.arn.pipe(arn => {
 						return `arn:aws:apigateway:${ctx.appConfig.region}:lambda:path/2015-03-31/functions/${arn}/invocations`
 					}),
+
+					// Overwrite the route header that tells the bundle which handler to run,
+					// so a client provided route header can never hijack the routing.
+					requestParameters: {
+						'overwrite:header.x-awsless-route': bundleRouteKey,
+					},
 				})
 
 				new aws.apigatewayv2.Route(
@@ -117,7 +142,7 @@ export const restFeature = defineFeature({
 						target: integration.id.pipe(id => `integrations/${id}`),
 					},
 					{
-						dependsOn: [lambda, permission],
+						dependsOn: [permission],
 					}
 				)
 			}

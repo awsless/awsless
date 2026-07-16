@@ -1,0 +1,480 @@
+import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
+import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
+import {
+	CreateAliasCommand,
+	DeleteAliasCommand,
+	GetAliasCommand,
+	GetFunctionCommand,
+	LambdaClient,
+	ListAliasesCommand,
+	UpdateAliasCommand,
+} from '@aws-sdk/client-lambda'
+import { App } from '@terraforge/core'
+import { AppConfig } from '../../config/app.js'
+import { ExpectedError } from '../../error.js'
+import {
+	getRouteStoreArn,
+	readActiveDeploymentId,
+	readRouteDeployment,
+	RouteDeployment,
+	setActiveRouteDeployment,
+} from '../../formation/cloudfront-kvs.js'
+import { getAccountId, getCredentials } from '../../util/aws.js'
+import { formatGlobalResourceName, generateGlobalAppId } from '../../util/name.js'
+import { createDeploymentBackends, getAppReleaseLockUrn } from '../../util/workspace.js'
+
+type RouterDeployment = {
+	id: string
+	storeArn: string
+	deployment: RouteDeployment
+}
+
+const descriptionPattern = /^\$awsless:deployment:(\d+):(\d+)$/
+const promotedDescription = '$awsless:promoted'
+
+const parseDeploymentDescription = (description?: string) => {
+	const match = description?.match(descriptionPattern)
+
+	return match
+		? {
+				active: Number(match[1]),
+				latest: Number(match[2]),
+			}
+		: undefined
+}
+
+const formatDeploymentDescription = (active: number, latest: number) => {
+	return `$awsless:deployment:${active}:${latest}`
+}
+
+const isError = (error: unknown, name: string) => {
+	return error instanceof Error && error.name === name
+}
+
+const getAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
+	try {
+		return await lambda.send(
+			new GetAliasCommand({
+				FunctionName: functionName,
+				Name: name,
+			})
+		)
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+	}
+}
+
+const upsertAlias = async (
+	lambda: LambdaClient,
+	props: {
+		functionName: string
+		functionVersion: string
+		name: string
+		description: string
+	}
+) => {
+	const input = {
+		FunctionName: props.functionName,
+		Name: props.name,
+		FunctionVersion: props.functionVersion,
+		Description: props.description,
+	}
+
+	try {
+		await lambda.send(new UpdateAliasCommand(input))
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+
+		try {
+			await lambda.send(new CreateAliasCommand(input))
+		} catch (error) {
+			if (!isError(error, 'ResourceConflictException')) {
+				throw error
+			}
+
+			await lambda.send(new UpdateAliasCommand(input))
+		}
+	}
+}
+
+const deleteAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
+	try {
+		await lambda.send(new DeleteAliasCommand({ FunctionName: functionName, Name: name }))
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+	}
+}
+
+export const readFunctionDeployment = async (props: {
+	lambda: LambdaClient
+	functionName: string
+	deploymentId?: number
+}) => {
+	if (props.deploymentId !== undefined) {
+		try {
+			const alias = await props.lambda.send(
+				new GetAliasCommand({
+					FunctionName: props.functionName,
+					Name: `deployment-${props.deploymentId}`,
+				})
+			)
+
+			return {
+				id: props.deploymentId,
+				functionVersion: alias.FunctionVersion!,
+			}
+		} catch (error) {
+			if (isError(error, 'ResourceNotFoundException')) {
+				throw new ExpectedError(`Deployment "${props.deploymentId}" doesn't exist.`)
+			}
+
+			throw error
+		}
+	}
+
+	let live
+
+	try {
+		live = await props.lambda.send(
+			new GetAliasCommand({
+				FunctionName: props.functionName,
+				Name: 'live',
+			})
+		)
+	} catch (error) {
+		if (isError(error, 'ResourceNotFoundException')) {
+			throw new ExpectedError(`There is no previous deployment to rollback to.`)
+		}
+
+		throw error
+	}
+
+	const active = parseDeploymentDescription(live.Description)?.active
+	let nextToken: string | undefined
+	let previous:
+		| {
+				id: number
+				functionVersion: string
+		  }
+		| undefined
+
+	if (active !== undefined) {
+		do {
+			const page = await props.lambda.send(
+				new ListAliasesCommand({
+					FunctionName: props.functionName,
+					Marker: nextToken,
+				})
+			)
+			nextToken = page.NextMarker
+
+			for (const alias of page.Aliases ?? []) {
+				const id = Number(alias.Name?.match(/^deployment-(\d+)$/)?.[1])
+
+				if (
+					Number.isFinite(id) &&
+					id < active &&
+					(!previous || id > previous.id) &&
+					alias.FunctionVersion &&
+					alias.Description === promotedDescription
+				) {
+					previous = {
+						id,
+						functionVersion: alias.FunctionVersion,
+					}
+				}
+			}
+		} while (nextToken)
+	}
+
+	if (!previous) {
+		throw new ExpectedError(`There is no previous deployment to rollback to.`)
+	}
+
+	return previous
+}
+
+export const preflightDeployment = async (props: {
+	lambda: LambdaClient
+	functionName: string
+	deploymentId: number
+}) => {
+	const live = await getAlias(props.lambda, props.functionName, 'live')
+	const latest = parseDeploymentDescription(live?.Description)?.latest
+
+	if (latest !== undefined && latest > props.deploymentId) {
+		throw new ExpectedError(`A newer deployment is already live.`)
+	}
+}
+
+export const promoteDeployment = async (props: {
+	kvs: CloudFrontKeyValueStoreClient
+	lambda: LambdaClient
+	functionName: string
+	deploymentId: number
+	functionVersion: string
+	routers: RouterDeployment[]
+	rejectStale?: boolean
+}) => {
+	if (props.routers.some(router => router.deployment.functionVersion !== props.functionVersion)) {
+		throw new ExpectedError(`The routers don't share the deployed function version.`)
+	}
+
+	const alias = await getAlias(props.lambda, props.functionName, 'live')
+	const aliasDeployment = parseDeploymentDescription(alias?.Description)
+	const active = await Promise.all(
+		props.routers.map(async router => {
+			const activeId = await readActiveDeploymentId(props.kvs, router.storeArn)
+
+			return {
+				...router,
+				active:
+					activeId === undefined
+						? undefined
+						: await readRouteDeployment(props.kvs, router.storeArn, activeId),
+			}
+		})
+	)
+	const activeIds = new Set(active.map(router => router.active?.id).filter(id => id !== undefined))
+	const activeVersions = new Set(
+		active.map(router => router.active?.functionVersion).filter(version => version !== undefined)
+	)
+
+	if (
+		props.rejectStale &&
+		Math.max(aliasDeployment?.latest ?? 0, ...active.map(router => router.active?.id ?? 0)) > props.deploymentId
+	) {
+		throw new ExpectedError(`A newer deployment is already live.`)
+	}
+
+	try {
+		await props.lambda.send(
+			new GetFunctionCommand({
+				FunctionName: props.functionName,
+				Qualifier: props.functionVersion,
+			})
+		)
+	} catch (error) {
+		if (isError(error, 'ResourceNotFoundException')) {
+			throw new ExpectedError(`The function version "${props.functionVersion}" of this deployment no longer exists.`)
+		}
+
+		throw error
+	}
+
+	const changed: typeof active = []
+	let aliasUpdateStarted = false
+	let deploymentUpdateStarted = false
+	const description = formatDeploymentDescription(
+		props.deploymentId,
+		Math.max(props.deploymentId, aliasDeployment?.latest ?? 0, ...active.map(router => router.active?.id ?? 0))
+	)
+	const priorId = activeIds.size === 1 ? [...activeIds][0] : undefined
+	const priorVersion = activeVersions.size === 1 ? [...activeVersions][0] : undefined
+
+	if (priorId !== undefined && priorVersion === alias?.FunctionVersion) {
+		const priorAlias = await getAlias(props.lambda, props.functionName, `deployment-${priorId}`)
+
+		if (priorAlias?.FunctionVersion !== priorVersion || priorAlias.Description !== promotedDescription) {
+			await upsertAlias(props.lambda, {
+				functionName: props.functionName,
+				functionVersion: priorVersion,
+				name: `deployment-${priorId}`,
+				description: promotedDescription,
+			})
+		}
+	}
+
+	const deploymentAlias = await getAlias(
+		props.lambda,
+		props.functionName,
+		`deployment-${props.deploymentId}`
+	)
+
+	try {
+		for (const router of active) {
+			if (router.active?.id !== router.deployment.id) {
+				changed.push(router)
+				await setActiveRouteDeployment(props.kvs, router.storeArn, router.deployment)
+			}
+		}
+
+		if (alias?.FunctionVersion !== props.functionVersion || alias?.Description !== description) {
+			aliasUpdateStarted = true
+			await upsertAlias(props.lambda, {
+				functionName: props.functionName,
+				functionVersion: props.functionVersion,
+				name: 'live',
+				description,
+			})
+		}
+
+		if (
+			deploymentAlias?.FunctionVersion !== props.functionVersion ||
+			deploymentAlias.Description !== promotedDescription
+		) {
+			deploymentUpdateStarted = true
+			await upsertAlias(props.lambda, {
+				functionName: props.functionName,
+				functionVersion: props.functionVersion,
+				name: `deployment-${props.deploymentId}`,
+				description: promotedDescription,
+			})
+		}
+	} catch (error) {
+		const rollback = [
+			...changed.reverse().map(router => setActiveRouteDeployment(props.kvs, router.storeArn, router.active)),
+			...(deploymentUpdateStarted
+				? [
+						upsertAlias(props.lambda, {
+							functionName: props.functionName,
+							functionVersion: props.functionVersion,
+							name: `deployment-${props.deploymentId}`,
+							description: deploymentAlias?.Description ?? '',
+						}),
+					]
+				: []),
+			...(aliasUpdateStarted && alias?.FunctionVersion
+				? [
+						upsertAlias(props.lambda, {
+							functionName: props.functionName,
+							functionVersion: alias.FunctionVersion,
+							name: 'live',
+							description: alias.Description ?? '',
+						}),
+					]
+				: aliasUpdateStarted
+					? [deleteAlias(props.lambda, props.functionName, 'live')]
+					: []),
+		]
+		const failures = (await Promise.allSettled(rollback))
+			.filter(result => result.status === 'rejected')
+			.map(result => result.reason)
+
+		if (failures.length > 0) {
+			throw new AggregateError([error, ...failures], `Deployment promotion failed and couldn't be fully reverted.`)
+		}
+
+		throw error
+	}
+}
+
+const updateDeployment = async (props: {
+	appConfig: AppConfig
+	deploymentId?: number
+	rejectStale?: boolean
+}) => {
+	const region = props.appConfig.region
+	const credentials = await getCredentials(props.appConfig.profile)
+	const accountId = await getAccountId(credentials, region)
+	const app = new App(props.appConfig.name)
+	const cloudfront = new CloudFrontClient({ credentials, region: 'us-east-1' })
+	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
+	const lambda = new LambdaClient({ credentials, region })
+	const functionName = formatGlobalResourceName({
+		appName: props.appConfig.name,
+		resourceType: 'function',
+		resourceName: 'bundle',
+	})
+	const { lock } = createDeploymentBackends({ credentials, accountId, region })
+	const release = await lock.lock(app.urn)
+
+	try {
+		const routers: RouterDeployment[] = []
+		let deploymentId = props.deploymentId
+		let functionVersion: string | undefined
+		const routerIds = Object.keys(props.appConfig.defaults.router ?? {})
+
+		if (props.rejectStale || deploymentId === undefined || routerIds.length === 0) {
+			const deployment = await readFunctionDeployment({
+				lambda,
+				functionName,
+				deploymentId,
+			})
+			deploymentId = deployment.id
+			functionVersion = deployment.functionVersion
+		}
+
+		for (const id of routerIds) {
+			const storeArn = await getRouteStoreArn(
+				cloudfront,
+				formatGlobalResourceName({
+					appName: props.appConfig.name,
+					resourceType: 'router',
+					resourceName: id,
+				})
+			)
+
+			if (!storeArn) {
+				throw new ExpectedError(`The "${id}" router hasn't been deployed yet. Run "awsless deploy" first.`)
+			}
+
+			const deployment = await readRouteDeployment(kvs, storeArn, deploymentId!)
+
+			if (!deployment) {
+				throw new ExpectedError(`Deployment "${deploymentId}" doesn't exist for every router.`)
+			}
+
+			routers.push({ id, storeArn, deployment })
+		}
+
+		const deploymentIds = new Set(routers.map(router => router.deployment.id))
+		const functionVersions = new Set(routers.map(router => router.deployment.functionVersion))
+
+		if (deploymentIds.size > 1) {
+			throw new ExpectedError(`The routers don't share one deployment.`)
+		}
+
+		if (functionVersions.size > 1) {
+			throw new ExpectedError(`The routers don't share one function version.`)
+		}
+
+		deploymentId ??= routers[0]!.deployment.id
+		functionVersion ??= routers[0]!.deployment.functionVersion
+
+		await promoteDeployment({
+			kvs,
+			lambda,
+			functionName,
+			deploymentId,
+			functionVersion,
+			routers,
+			rejectStale: props.rejectStale,
+		})
+
+		return routers.length > 0 ? routers.map(router => router.deployment.id) : [deploymentId]
+	} finally {
+		await release()
+	}
+}
+
+export const promoteAppDeployment = (props: {
+	appConfig: AppConfig
+	deploymentId: number
+}) => {
+	return updateDeployment({ ...props, rejectStale: true })
+}
+
+export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentId?: number }) => {
+	return withAppReleaseLock(props.appConfig, () => updateDeployment(props))
+}
+
+const withAppReleaseLock = async <T>(appConfig: AppConfig, callback: () => Promise<T>) => {
+	const credentials = await getCredentials(appConfig.profile)
+	const accountId = await getAccountId(credentials, appConfig.region)
+	const { lock } = createDeploymentBackends({ credentials, accountId, region: appConfig.region })
+	const appId = generateGlobalAppId({ accountId, region: appConfig.region, appName: appConfig.name })
+	const release = await lock.lock(getAppReleaseLockUrn(appId))
+
+	try {
+		return await callback()
+	} finally {
+		await release()
+	}
+}

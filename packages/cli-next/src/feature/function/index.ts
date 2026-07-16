@@ -1,16 +1,11 @@
-// import { camelCase } from 'change-case'
-// import { relative } from 'path'
-// import { FunctionSchema } from './schema.js'
-import { Group } from '@terraforge/core'
-import { aws } from '@terraforge/aws'
 import { camelCase } from 'change-case'
 import { relative } from 'path'
 import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
-import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
+import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createLambdaFunction } from './util.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 import deepmerge from 'deepmerge'
 
 const typeGenCode = `
@@ -65,19 +60,17 @@ export const functionFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in local.code) {
-					const relFile = relative(directories.types, local.code.file)
+				const relFile = relative(directories.types, local.code.file)
 
-					if (props.runtime === 'container') {
-						resource.addType(name, `Invoke<'${funcName}', Func>`)
-						mock.addType(name, `MockBuilder<Func>`)
-						mockResponse.addType(name, `MockObject<Func>`)
-					} else {
-						types.addImport(varName, relFile)
-						resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-						mock.addType(name, `MockBuilder<typeof ${varName}>`)
-						mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-					}
+				if (props.runtime === 'container') {
+					resource.addType(name, `Invoke<'${funcName}', Func>`)
+					mock.addType(name, `MockBuilder<Func>`)
+					mockResponse.addType(name, `MockObject<Func>`)
+				} else {
+					types.addImport(varName, relFile)
+					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+					mock.addType(name, `MockBuilder<typeof ${varName}>`)
+					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 				}
 			}
 
@@ -92,79 +85,6 @@ export const functionFeature = defineFeature({
 		types.addInterface('FunctionMockResponse', mockResponses)
 
 		await ctx.write('function.d.ts', types, true)
-	},
-	// We are putting the resources for this feature in a onBefore hook
-	// because we will need it for functions defined in the onApp hook
-	// in different features
-	onBefore(ctx) {
-		const group = new Group(ctx.base, 'function', 'asset')
-
-		// ------------------------------------------------------
-		// Define the Bucket used to store the lambda function code.
-
-		const bucket = new aws.s3.Bucket(group, 'bucket', {
-			bucket: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'function',
-				resourceName: 'assets',
-				postfix: ctx.appId,
-			}),
-			forceDestroy: true,
-			// versioning: true,
-			// forceDelete: true,
-		})
-
-		ctx.shared.set('function', 'bucket-name', bucket.bucket)
-
-		// ------------------------------------------------------
-		// Define the ScheduleGroup for warmers
-
-		const warmGroup = new aws.scheduler.ScheduleGroup(group, 'warm', {
-			name: formatGlobalResourceName({
-				appName: ctx.app.name,
-				resourceType: 'function',
-				resourceName: 'warm',
-			}),
-		})
-
-		ctx.shared.set('function', 'warm-group-name', warmGroup.name)
-
-		// ------------------------------------------------------
-		// Define the Repository used to store the container images.
-
-		// const repository = new aws.ecr.Repository(group, 'repository', {
-		// 	name: formatGlobalResourceName({
-		// 		appName: ctx.app.name,
-		// 		resourceType: 'function',
-		// 		resourceName: 'repository',
-		// 		seperator: '-',
-		// 	}),
-		// 	imageTagMutability: 'MUTABLE',
-		// })
-
-		// new aws.ecr.LifecyclePolicy(group, 'lifecycle', {
-		// 	repository: repository.name,
-		// 	policy: JSON.stringify({
-		// 		rules: [
-		// 			{
-		// 				rulePriority: 1,
-		// 				description: 'Remove untagged images older then 1 day',
-		// 				action: {
-		// 					type: 'expire',
-		// 				},
-		// 				selection: {
-		// 					tagStatus: 'untagged',
-		// 					countType: 'sinceImagePushed',
-		// 					countNumber: 1,
-		// 					countUnit: 'days',
-		// 				},
-		// 			},
-		// 		],
-		// 	}),
-		// })
-
-		// ctx.shared.set('function-repository-name', repository.name)
-		// ctx.shared.set('function-repository-uri', repository.repositoryUrl)
 	},
 	onApp(ctx) {
 		// ------------------------------------------------------
@@ -184,9 +104,24 @@ export const functionFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
-		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
-			const group = new Group(ctx.stack, 'function', id)
-			createLambdaFunction(group, ctx, 'function', id, props)
+		const bundle = ctx.shared.get('bundle', 'main')
+
+		for (const [id, local] of Object.entries(ctx.stackConfig.functions ?? {})) {
+			bundle.addHandler({
+				routeKey: formatRouteKey(ctx.stack.name, 'function', id),
+				file: local.code.file,
+				exportName: parseExportName(local.handler ?? ctx.appConfig.defaults.function.handler!),
+				external: local.code.external,
+				importAsString: local.code.importAsString,
+			})
+
+			for (const [name, value] of Object.entries(local.environment ?? {})) {
+				bundle.addEnv(name, value)
+			}
+
+			for (const permission of local.permissions ?? []) {
+				bundle.addPermission(permission)
+			}
 		}
 	},
 })

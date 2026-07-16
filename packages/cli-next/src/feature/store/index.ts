@@ -6,7 +6,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 import { aws } from '@terraforge/aws'
 import { glob } from 'glob'
 import { getCacheControl, getContentType } from './util.js'
@@ -63,12 +63,9 @@ export const storeFeature = defineFeature({
 		ctx.addAppPermission({
 			actions: [
 				's3:ListBucket',
-				's3:ListBucketV2',
-				's3:HeadObject',
 				's3:GetObject',
 				's3:PutObject',
 				's3:DeleteObject',
-				's3:CopyObject',
 				's3:GetObjectAttributes',
 			],
 			resources: [
@@ -86,6 +83,8 @@ export const storeFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.stores ?? {})) {
 			const group = new Group(ctx.stack, 'store', id)
 
@@ -116,7 +115,6 @@ export const storeFeature = defineFeature({
 					corsRule: [
 						// ---------------------------------------------
 						// Support for presigned post requests
-						// ---------------------------------------------
 						{
 							allowedOrigins: ['*'],
 							allowedMethods: ['POST'],
@@ -155,7 +153,6 @@ export const storeFeature = defineFeature({
 
 			// ---------------------------------------------
 			// Event notifications
-			// ---------------------------------------------
 
 			const eventMap: Record<string, string> = {
 				'created:*': 's3:ObjectCreated:*',
@@ -169,46 +166,67 @@ export const storeFeature = defineFeature({
 				'removed:marker': 's3:ObjectRemoved:DeleteMarkerCreated',
 			}
 
+			const notifications: {
+				id: string
+				events: string[]
+				lambdaFunctionArn: typeof bundle.alias.arn
+			}[] = []
+
 			for (const [event, taskProps] of Object.entries(props.events ?? {})) {
-				const eventGroup = new Group(group, 'event', event)
-
 				const eventId = kebabCase(`${id}-${shortId(event)}`)
+				const routeKey = formatRouteKey(ctx.stack.name, 'store', eventId)
+				const consumer = taskProps.consumer
 
-				const { lambda } = createAsyncLambdaFunction(eventGroup, ctx, `store`, eventId, {
-					...taskProps,
-					consumer: {
-						...taskProps.consumer,
-						description: `${id} event "${event}"`,
-					},
+				bundle.addHandler({
+					routeKey,
+					file: consumer.code.file,
+					exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
+					external: consumer.code.external,
+					importAsString: consumer.code.importAsString,
 				})
 
-				new aws.lambda.Permission(eventGroup, 'permission', {
+				for (const [name, value] of Object.entries(consumer.environment ?? {})) {
+					bundle.addEnv(name, value)
+				}
+
+				for (const permission of consumer.permissions ?? []) {
+					bundle.addPermission(permission)
+				}
+
+				notifications.push({
+					id: routeKey,
+					events: [eventMap[event]!],
+					lambdaFunctionArn: bundle.alias.arn,
+				})
+			}
+
+			if (notifications.length > 0) {
+				const permission = new aws.lambda.Permission(group, 'permission', {
 					action: 'lambda:InvokeFunction',
 					principal: 's3.amazonaws.com',
-					functionName: lambda.functionName,
+					functionName: bundle.lambda.functionName,
+					qualifier: bundle.alias.name,
+					sourceAccount: ctx.accountId,
 					sourceArn: `arn:aws:s3:::${name}`,
 				})
 
-				new aws.s3.BucketNotification(eventGroup, 'notification', {
-					bucket: bucket.bucket,
-					lambdaFunction: [
-						{
-							events: [eventMap[event]!],
-							lambdaFunctionArn: lambda.arn,
-						},
-					],
-				})
+				new aws.s3.BucketNotification(
+					group,
+					'notification',
+					{
+						bucket: bucket.bucket,
+						lambdaFunction: notifications,
+					},
+					{ dependsOn: [permission] }
+				)
 			}
 
 			ctx.addStackPermission({
 				actions: [
 					's3:ListBucket',
-					's3:ListBucketV2',
-					's3:HeadObject',
 					's3:GetObject',
 					's3:PutObject',
 					's3:DeleteObject',
-					's3:CopyObject',
 					's3:GetObjectAttributes',
 				],
 				resources: [

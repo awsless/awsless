@@ -1,25 +1,22 @@
 import { Input } from '@terraforge/core'
 
-export type Route = {
-	type: 'url' | 'lambda' | 's3'
-	domainName: Input<string>
-
-	removeCookies?: boolean
+type RouteProps = {
 	forwardHost?: boolean
 	urlEncodedQueryString?: boolean
 
-	hostHeader?: string
-	originPath?: string
-	customHeaders?: Record<string, string>
-
-	readTimeout?: number
-	responseCompletionTimeout?: number
-	connectionAttempts?: number
-	connectionTimeout?: number
-	keepAliveTimeout?: number
+	requestHeaders?: Record<string, string>
 
 	rewrite?: {
 		regex?: string
-		to: string
+		to: Input<string>
 	}
 }
+
+export type Route =
+	| (RouteProps & {
+			type: 'lambda'
+	  })
+	| (RouteProps & {
+			type: 's3'
+			domainName: Input<string>
+	  })

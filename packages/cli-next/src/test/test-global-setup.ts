@@ -1,5 +1,6 @@
 import { BigFloat, eq } from '@awsless/big-float'
 import { $mockdate, setGlobalTypes } from '@awsless/json'
+import { beforeAll, expect } from 'vitest'
 
 beforeAll(() => {
 	// Set timezone for dates to UTC-0 to get consistant test results

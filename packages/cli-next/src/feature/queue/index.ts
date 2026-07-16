@@ -8,8 +8,8 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createLambdaFunction } from '../function/util.js'
-import { seconds, toSeconds } from '@awsless/duration'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
 
 const typeGenCode = `
@@ -58,7 +58,7 @@ export const queueFeature = defineFeature({
 					resourceName: name,
 				})}.fifo`
 
-				if (typeof props === 'object' && props.consumer && 'file' in props.consumer.code) {
+				if (typeof props === 'object' && props.consumer) {
 					const relFile = relative(directories.types, props.consumer.code.file)
 
 					gen.addImport(varName, relFile)
@@ -86,6 +86,11 @@ export const queueFeature = defineFeature({
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
+		const bundleTimeout = Math.max(
+			toSeconds(ctx.appConfig.defaults.function.timeout),
+			...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
+		)
+
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
 
@@ -101,7 +106,7 @@ export const queueFeature = defineFeature({
 
 			const queue = new aws.sqs.Queue(group, 'queue', {
 				name: `${baseName}.fifo`,
-				visibilityTimeoutSeconds: toSeconds(props.visibilityTimeout),
+				visibilityTimeoutSeconds: bundleTimeout + toSeconds(minutes(1)),
 				receiveWaitTimeSeconds: toSeconds(props.receiveMessageWaitTime ?? seconds(0)),
 				messageRetentionSeconds: toSeconds(props.retentionPeriod),
 				maxMessageSize: toBytes(props.maxMessageSize),
@@ -117,26 +122,30 @@ export const queueFeature = defineFeature({
 			})
 
 			if (local.consumer) {
-				const lambdaConsumer = createLambdaFunction(group, ctx, `queue`, id, local.consumer)
+				const consumer = local.consumer
+				const bundle = ctx.shared.get('bundle', 'main')
 
-				lambdaConsumer.setEnvironment('THROW_EXPECTED_ERRORS', '1')
+				// The bundle routes the queue event to the right consumer based on the event source arn.
+				bundle.addHandler({
+					routeKey: formatRouteKey(ctx.stack.name, 'queue', id),
+					file: consumer.code.file,
+					exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
+					external: consumer.code.external,
+					importAsString: consumer.code.importAsString,
+				})
 
-				new aws.lambda.EventSourceMapping(
-					group,
-					'event',
-					{
-						functionName: lambdaConsumer.lambda.functionName,
-						eventSourceArn: queue.arn,
-						batchSize: props.batchSize,
-					},
-					{
-						dependsOn: [lambdaConsumer.policy],
-					}
-				)
+				for (const [name, value] of Object.entries(consumer.environment ?? {})) {
+					bundle.addEnv(name, value)
+				}
 
-				lambdaConsumer.addPermission({
-					actions: ['sqs:ReceiveMessage', 'sqs:DeleteMessage', 'sqs:GetQueueAttributes'],
-					resources: [queue.arn],
+				for (const permission of consumer.permissions ?? []) {
+					bundle.addPermission(permission)
+				}
+
+				new aws.lambda.EventSourceMapping(group, 'event', {
+					functionName: bundle.alias.arn,
+					eventSourceArn: queue.arn,
+					batchSize: props.batchSize,
 				})
 			}
 

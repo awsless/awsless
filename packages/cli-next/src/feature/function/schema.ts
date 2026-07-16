@@ -2,7 +2,6 @@ import { days, minutes, seconds, toDays } from '@awsless/duration'
 import { gibibytes, mebibytes } from '@awsless/size'
 import { z } from 'zod'
 import { durationMax, durationMin, DurationSchema } from '../../config/schema/duration.js'
-import { LocalDirectorySchema } from '../../config/schema/local-directory.js'
 import { LocalFileSchema } from '../../config/schema/local-file.js'
 import { ResourceIdSchema } from '../../config/schema/resource-id.js'
 import { sizeMax, sizeMin, SizeSchema } from '../../config/schema/size.js'
@@ -157,6 +156,13 @@ export const LogSchema = z
 	])
 	.describe('Enable logging to a CloudWatch log group. Providing a duration value will set the log retention time.')
 
+const LogDefaultSchema = LogSchema.default(true).transform(log => ({
+	retention: log.retention ?? days(7),
+	level: 'level' in log ? log.level : 'error',
+	system: 'system' in log ? log.system : 'warn',
+	format: 'format' in log ? log.format : 'json',
+}))
+
 const LayersSchema = z.string().array().describe(
 	// `A list of function layers to add to the function's execution environment..`
 	`A list of function layers to add to the function's execution environment. Specify each layer by its ARN, including the version.`
@@ -189,24 +195,12 @@ const FileCodeSchema = z.object({
 
 // export type FileCode = z.infer<typeof FileCodeSchema>
 
-const BundleCodeSchema = z.object({
-	bundle: LocalDirectorySchema.describe('The directory that needs to be bundled.'),
-
-	// dir: z.string(),
-	// build: z.string(),
-	// run: z.string(),
-	// cacheKey:
-})
-
-// export type BundleCode = z.infer<typeof BundleCodeSchema>
-
 const CodeSchema = z
 	.union([
 		LocalFileSchema.transform(file => ({
 			file,
 		})).pipe(FileCodeSchema),
 		FileCodeSchema,
-		BundleCodeSchema,
 	])
 	.describe('Specify the code of your function.')
 
@@ -313,16 +307,17 @@ export const FunctionDefaultSchema = z
 
 		// container
 
+		minify: MinifySchema.default(true),
+		external: z
+			.string()
+			.array()
+			.optional()
+			.describe(`A list of external packages that won't be included in the bundle.`),
 		warm: WarmSchema.default(0),
 		vpc: VPCSchema.default(false),
-		log: LogSchema.default(true).transform(log => ({
-			retention: log.retention ?? days(7),
-			level: 'level' in log ? log.level : 'error',
-			system: 'system' in log ? log.system : 'warn',
-			format: 'format' in log ? log.format : 'json',
-		})),
-		timeout: TimeoutSchema.default('10 seconds'),
-		memorySize: MemorySizeSchema.default('128 MB'),
+		log: LogDefaultSchema,
+		timeout: TimeoutSchema.default('15 minutes'),
+		memorySize: MemorySizeSchema.default('1024 MB'),
 		architecture: ArchitectureSchema.default('arm64'),
 		ephemeralStorageSize: EphemeralStorageSizeSchema.default('512 MB'),
 		// retryAttempts: RetryAttemptsSchema.default(2),
@@ -332,6 +327,8 @@ export const FunctionDefaultSchema = z
 		permissions: PermissionsSchema.optional(),
 	})
 	.default({})
+
+export type FunctionDefaultProps = z.output<typeof FunctionDefaultSchema>
 
 // export const FunctionDefaultSchema = z
 // 	.intersection(

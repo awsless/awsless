@@ -2,9 +2,9 @@ import { getContext } from '@awsless/lambda'
 import { createIoRedisClient, createLazyClient } from '@awsless/redis'
 import { constantCase } from 'change-case'
 import { createProxy } from '../proxy.js'
-import { STACK } from './util.js'
+import { getStack } from './util.js'
 
-export const getCacheProps = (name: string, stack: string = STACK) => {
+export const getCacheProps = (name: string, stack: string = getStack()) => {
 	const prefix = `CACHE_${constantCase(stack)}_${constantCase(name)}`
 
 	return {

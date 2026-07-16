@@ -34,7 +34,7 @@ export type HttpFetcher = (props: {
 
 export const createHttpFetcher = (host: string): HttpFetcher => {
 	return async ({ method, path, headers, body, query }) => {
-		const url = new URL(host, path)
+		const url = new URL(path, host)
 
 		if (query) {
 			for (const [key, value] of Object.entries(query)) {
@@ -43,11 +43,22 @@ export const createHttpFetcher = (host: string): HttpFetcher => {
 		}
 
 		headers.set('content-type', 'application/json')
+		const payload = body === undefined ? undefined : JSON.stringify(body)
+
+		if (method === 'POST') {
+			const bytes = new TextEncoder().encode(payload ?? '')
+			const hash = await crypto.subtle.digest('SHA-256', bytes)
+
+			headers.set(
+				'x-amz-content-sha256',
+				Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('')
+			)
+		}
 
 		const response = await fetch(url, {
 			method,
 			headers,
-			body: body ? JSON.stringify(body) : undefined,
+			body: payload,
 		})
 
 		const result = await response.json()
@@ -62,7 +73,7 @@ export const createHttpClient = <S extends Schema>(fetcher: HttpFetcher) => {
 		routeKey: Extract<P, string>,
 		props?: Props<GetRoute<S, M, P>>
 	) => {
-		const path = routeKey.replaceAll(/{([a-z0-1-]+)}/, key => {
+		const path = routeKey.replaceAll(/{([a-z0-9-]+)}/g, key => {
 			return props?.params?.[key.substring(1, key.length - 1)]?.toString() ?? ''
 		})
 

@@ -4,19 +4,44 @@
 	"tests": false,
 	"functions": {
 		"function": "./function/index.ts",
+		"caller": "./function/caller.ts",
 		"normal-error": "./function/error/normal.ts",
 		"timeout-error": "./function/error/timeout.ts",
 		"handler-error": "./function/error/invalid-handler.ts",
-		"memory-error": "./function/error/out-of-memory.ts",
+		"memory-error": "./function/error/out-of-memory.ts"
 	},
-	// "tasks": {
-	// 	"test": "./function/index.ts"
-	// },
-	// "queues": {
-	// 	"test": {
-	// 		"retentionPeriod": "1 minute"
-	// 	}
-	// },
+	"crons": {
+		"tick": {
+			"consumer": "./function/cron.ts",
+			"schedule": "1 minute",
+			"payload": { "source": "cron" }
+		}
+	},
+	"queues": {
+		"jobs": {
+			"consumer": "./function/queue.ts",
+			"retentionPeriod": "1 hour"
+		}
+	},
+	"subscribers": {
+		"events": "./function/topic.ts"
+	},
+	"tasks": {
+		"work": "./function/task.ts"
+	},
+	"rpc": {
+		"api": {
+			"echo": "./rpc/echo.ts"
+		}
+	},
+	"sites": {
+		"web": {
+			"router": "main",
+			"path": "/",
+			"static": "./site",
+			"ssr": "./function/site.ts"
+		}
+	},
 	"tables": {
 		"logs": {
 			"hash": "hash",

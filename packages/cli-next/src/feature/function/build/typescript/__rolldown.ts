@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import { rolldown } from 'rolldown'
 import { debugError } from '../../../../cli/debug.js'
-import { File } from '../zip.js'
+import { File } from '../../../bundle/build/zip.js'
 
 export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'

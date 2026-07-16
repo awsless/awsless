@@ -6,7 +6,7 @@ import { dirname } from 'path'
 import { rollup } from 'rollup'
 import { swc, minify as swcMinify } from 'rollup-plugin-swc3'
 import { debugError } from '../../../../cli/debug.js'
-import { File } from '../zip.js'
+import { File } from '../../../bundle/build/zip.js'
 
 export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'

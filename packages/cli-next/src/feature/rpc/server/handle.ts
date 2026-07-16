@@ -1,4 +1,5 @@
-import { ExpectedError, invoke, ViewableError } from '@awsless/lambda'
+import { ExpectedError, ViewableError } from '@awsless/lambda'
+import { invokeRoute } from 'awsless'
 import { APIGatewayProxyEventV2 } from 'aws-lambda'
 import { randomUUID } from 'node:crypto'
 import { authenticate } from './auth.js'
@@ -77,23 +78,12 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 		// ----------------------------------------
 		// Get function details
 
-		const calls = await Promise.all(
-			request.output.body.map(async fn => {
-				if (fn.name.startsWith('$')) {
-					return {
-						...fn,
-						details: undefined,
-					}
-				}
-
-				const details = await getFunctionDetails(fn.name)
-
-				return {
-					...fn,
-					details,
-				}
-			})
-		)
+		const calls = request.output.body.map(fn => {
+			return {
+				...fn,
+				details: fn.name.startsWith('$') ? undefined : getFunctionDetails(fn.name),
+			}
+		})
 
 		// ----------------------------------------
 		// Lock the request if needed
@@ -152,17 +142,16 @@ export default async (event: APIGatewayProxyEventV2): Promise<Response> => {
 				// ----------------------------------------
 				// Invoke function
 
+				const payload = {
+					...(fn.payload ?? {}),
+					...(auth.context ?? {}),
+					// headers: request.output.headers,
+					viewer: buildViewerPayload(request.output),
+				}
+
 				let data: unknown
 				try {
-					data = await invoke({
-						name: fn.details.name,
-						payload: {
-							...(fn.payload ?? {}),
-							...(auth.context ?? {}),
-							// headers: request.output.headers,
-							viewer: buildViewerPayload(request.output),
-						},
-					})
+					data = await invokeRoute(fn.details.name, payload)
 				} catch (error) {
 					if (error instanceof ViewableError || error instanceof ExpectedError) {
 						return EXPECTED_ERROR(error)

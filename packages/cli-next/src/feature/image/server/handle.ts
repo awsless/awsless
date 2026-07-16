@@ -1,7 +1,7 @@
-import { invoke } from '@awsless/lambda'
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
 import sharp, { JpegOptions, PngOptions, ResizeOptions, WebpOptions } from 'sharp'
+import { getRouteEnv, invokeRoute } from 'awsless'
 import { parsePath, supportedExtensions } from './validate'
 
 const normalizeExtension = (extension: (typeof supportedExtensions)[number]) => {
@@ -15,6 +15,7 @@ const normalizeExtension = (extension: (typeof supportedExtensions)[number]) => 
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const request = parsePath(event.rawPath)
+		const cacheBucket = getRouteEnv('IMAGE_CACHE_BUCKET')!
 
 		if (!request.success) {
 			return { statusCode: 404 }
@@ -27,31 +28,29 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Get cached image from s3
 
-		if (process.env.IMAGE_CACHE_BUCKET) {
-			const cachedImage = await getObject({
-				bucket: process.env.IMAGE_CACHE_BUCKET,
-				key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
-			})
+		const cachedImage = await getObject({
+			bucket: cacheBucket,
+			key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
+		})
 
-			if (cachedImage) {
-				const cachedImageData = await cachedImage.body.transformToByteArray()
+		if (cachedImage) {
+			const cachedImageData = await cachedImage.body.transformToByteArray()
 
-				return {
-					statusCode: 200,
-					body: Buffer.from(cachedImageData).toString('base64'),
-					isBase64Encoded: true,
-					headers: {
-						'Content-Type': `image/${normalizeExtension(extension)}`,
-						'Cache-Control': 'public, max-age=31536000, immutable',
-					},
-				}
+			return {
+				statusCode: 200,
+				body: Buffer.from(cachedImageData).toString('base64'),
+				isBase64Encoded: true,
+				headers: {
+					'Content-Type': `image/${normalizeExtension(extension)}`,
+					'Cache-Control': 'public, max-age=31536000, immutable',
+				},
 			}
 		}
 
 		// ----------------------------------------
 		// Get the preset and extension configuration
 
-		const configsEnv = process.env.IMAGE_CONFIG
+		const configsEnv = getRouteEnv('IMAGE_CONFIG')
 
 		if (!configsEnv) {
 			throw new Error('Image configurations not found in environment variables')
@@ -77,9 +76,11 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		let baseImage: Buffer | undefined = undefined
 
-		if (process.env.IMAGE_ORIGIN_S3) {
+		const originBucket = getRouteEnv('IMAGE_ORIGIN_S3')
+
+		if (originBucket) {
 			const result = await getObject({
-				bucket: process.env.IMAGE_ORIGIN_S3,
+				bucket: originBucket,
 				key: originalPath,
 			})
 
@@ -92,17 +93,14 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Call the orginal image fetcher
 
-		if (!baseImage && process.env.IMAGE_ORIGIN_LAMBDA) {
-			const result = (await invoke({
-				name: process.env.IMAGE_ORIGIN_LAMBDA,
-				payload: {
-					path: originalPath,
-				},
-			})) as string | undefined
+		const originRoute = getRouteEnv('IMAGE_ORIGIN')
+
+		if (!baseImage && originRoute) {
+			const result = (await invokeRoute(originRoute, { path: originalPath })) as string | undefined
 
 			if (typeof result === 'string') {
 				baseImage = Buffer.from(result, 'base64')
-			} else if (typeof result === undefined) {
+			} else if (result === undefined) {
 				return { statusCode: 404 }
 			} else {
 				throw new Error(`Invalid response from image origin lambda. Path: ${originalPath}`)
@@ -130,7 +128,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Cache the image in S3
 
 		await putObject({
-			bucket: process.env.IMAGE_CACHE_BUCKET!,
+			bucket: cacheBucket,
 			key: event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath,
 			body: image,
 			contentType: `image/${extension}`,

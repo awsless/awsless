@@ -1,20 +1,13 @@
-import { boolean, define, object, optional, string, ttl } from '@awsless/dynamodb'
+import { define, object, string, ttl } from '@awsless/dynamodb'
+import { getRouteEnv } from 'awsless'
 
-export const schemaTable = define(process.env.SCHEMA_TABLE ?? 'schema', {
-	hash: 'query',
-	schema: object({
-		query: string(),
-		function: string(),
-		lock: optional(boolean()),
-		// permissions: optional(array(string())),
-	}),
-})
-
-export const lockTable = define(process.env.LOCK_TABLE ?? 'lock', {
-	hash: 'key',
-	schema: object({
-		key: string(),
-		ttl: ttl(),
-		requestId: string(),
-	}),
-})
+export const getLockTable = () => {
+	return define(getRouteEnv('LOCK_TABLE') ?? 'lock', {
+		hash: 'key',
+		schema: object({
+			key: string(),
+			ttl: ttl(),
+			requestId: string(),
+		}),
+	})
+}

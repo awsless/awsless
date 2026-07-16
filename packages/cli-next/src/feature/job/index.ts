@@ -58,14 +58,12 @@ export const jobFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.code) {
-					const relFile = relative(directories.types, props.code.file)
+				const relFile = relative(directories.types, props.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				mock.addType(name, `MockBuilder<typeof ${varName}>`)
+				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 			}
 
 			mocks.addType(stack.name, mock)

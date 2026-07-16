@@ -1,5 +1,7 @@
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
+import { Permission } from './feature'
+import { BundleHandler } from './feature/bundle/util.js'
 import { Route } from './feature/router/route'
 
 type SharedState = {
@@ -12,18 +14,32 @@ type SharedState = {
 
 	'on-error-log': {
 		'subscriber-arn': Output<string>
+		permission: aws.lambda.Permission
 	}
 
 	'on-failure': {
 		'bucket-arn': Output<string>
-		'queue-arn': Output<string>
+		resources: {
+			group: Group
+			bucket: aws.s3.Bucket
+			queue: aws.sqs.Queue
+			deadletter: aws.sqs.Queue
+		}
 	}
 
-	function: {
+	bundle: {
 		'bucket-name': Output<string>
-		'repository-name': Output<string>
-		'repository-url': Output<string>
-		'warm-group-name': Output<string>
+		main: {
+			lambda: aws.lambda.Function
+			alias: aws.lambda.Alias
+			logGroup: aws.cloudwatch.LogGroup | undefined
+			policy: aws.iam.RolePolicy
+			addHandler: (handler: BundleHandler) => void
+			addEnv: (name: string, value: Input<string>) => void
+			addLayer: (layer: Input<string>) => void
+			setTimeout: (seconds: number) => void
+			addPermission: (statement: Permission) => void
+		}
 	}
 
 	cron: {
@@ -52,17 +68,8 @@ type SharedState = {
 type SharedEntries = {
 	domain: {
 		'zone-id': Output<string>
-		'mail-arn': Output<string>
 		'certificate-arn': Output<string>
 		'global-certificate-arn': Output<string>
-	}
-
-	topic: {
-		arn: Output<string>
-	}
-
-	rpc: {
-		'schema-table': aws.dynamodb.Table
 	}
 
 	layer: {
@@ -71,9 +78,7 @@ type SharedEntries = {
 	}
 
 	auth: {
-		'user-pool-arn': Output<string>
 		'user-pool-id': Output<string>
-		'client-id': Output<string>
 	}
 
 	rest: {
@@ -83,35 +88,17 @@ type SharedEntries = {
 	image: {
 		'distribution-id': Output<string>
 		'cache-bucket': Output<string>
-		path: string
 	}
 
 	icon: {
 		'distribution-id': Output<string>
 		'cache-bucket': Output<string>
-		path: string
 	}
-
-	// cron: {
-
-	// }
 
 	router: {
 		id: Output<string>
-		addRoutes: (
-			//
-			group: Group,
-			name: string,
-			routes: Record<string, Route>,
-			options?: { dependsOn?: Array<Resource | DataSource> }
-		) => void
-		addInvalidation: (
-			group: Group,
-			name: string,
-			paths: string[],
-			versions: Array<Input<string> | Input<string | undefined>>,
-			options?: { dependsOn?: Array<Resource | DataSource> }
-		) => void
+		'preview-id': Output<string>
+		addRoutes: (routes: Record<string, Route>, options?: { dependsOn?: Array<Resource | DataSource> }) => void
 	}
 }
 
@@ -174,15 +161,5 @@ export class SharedData {
 		entries.set(entry, value)
 
 		return this
-	}
-
-	list<F extends keyof SharedEntries, K extends keyof SharedEntries[F]>(
-		feature: F,
-		name: K
-	): MapIterator<[string | number, SharedEntries[F][K]]> {
-		const key = `${feature}/${name.toString()}`
-		const entries = this.entries.get(key) ?? new Map()
-
-		return entries.entries()
 	}
 }

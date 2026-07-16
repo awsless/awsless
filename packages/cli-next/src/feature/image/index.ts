@@ -1,12 +1,12 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { FileError } from '../../error'
 import { defineFeature } from '../../feature'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
-import { createLambdaFunction } from '../function/util'
+import { formatRouteEnvName } from 'awsless'
+import { formatRouteKey, internalHandler, parseExportName } from '../bundle/util.js'
 import { join, dirname } from 'path'
-import { createPrebuildLambdaFunction } from '../function/prebuild'
-import { mebibytes } from '@awsless/size'
-import { seconds, toDays } from '@awsless/duration'
+import { toDays } from '@awsless/duration'
 import { fileURLToPath } from 'url'
 import { glob } from 'glob'
 import { shortId } from '../../util/id'
@@ -22,6 +22,10 @@ export const imageFeature = defineFeature({
 
 		if (found.length === 0) {
 			return
+		}
+
+		if (ctx.appConfig.defaults.function.architecture !== 'arm64') {
+			throw new FileError('app.json', 'The image feature requires an arm64 function bundle.')
 		}
 
 		// ------------------------------------------------------------
@@ -71,8 +75,13 @@ export const imageFeature = defineFeature({
 		)
 
 		ctx.shared.add('layer', 'arn', layerId, layer.arn)
+
+		const bundle = ctx.shared.get('bundle', 'main')
+		bundle.addLayer(layer.arn)
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.images ?? {})) {
 			const group = new Group(ctx.stack, 'image', id)
 
@@ -91,10 +100,27 @@ export const imageFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Create the image origins
 
-			let lambdaOrigin: ReturnType<typeof createLambdaFunction> | undefined = undefined
+			let originRouteKey: string | undefined
 
 			if (props.origin.function) {
-				lambdaOrigin = createLambdaFunction(group, ctx, `origin`, id, props.origin.function)
+				const origin = props.origin.function
+				originRouteKey = formatRouteKey(ctx.stack.name, 'image', `${id}-origin`)
+
+				bundle.addHandler({
+					routeKey: originRouteKey,
+					file: origin.code.file,
+					exportName: parseExportName(origin.handler ?? ctx.appConfig.defaults.function.handler!),
+					external: origin.code.external,
+					importAsString: origin.code.importAsString,
+				})
+
+				for (const [name, value] of Object.entries(origin.environment ?? {})) {
+					bundle.addEnv(name, value)
+				}
+
+				for (const permission of origin.permissions ?? []) {
+					bundle.addPermission(permission)
+				}
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined
@@ -142,66 +168,19 @@ export const imageFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Create the image server function
+			// Add the image server to the bundle
 
-			const sharpLayerId = formatGlobalResourceName({
-				appName: ctx.appConfig.name,
-				resourceType: 'layer',
-				resourceName: 'sharp',
+			const serverRouteKey = formatRouteKey(ctx.stack.name, 'image', id)
+
+			bundle.addHandler({
+				routeKey: serverRouteKey,
+				file: internalHandler('image'),
+				exportName: 'default',
+				external: ['sharp'],
 			})
 
-			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'image', id, {
-				bundleFile: join(__dirname, '/prebuild/image/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/image/HASH'),
-				memorySize: mebibytes(512),
-				timeout: seconds(10),
-				handler: 'index.default',
-				runtime: 'nodejs24.x',
-				log: props.log,
-				layers: [sharpLayerId],
-			})
-
-			const permission = new aws.lambda.Permission(group, 'permission', {
-				principal: 'cloudfront.amazonaws.com',
-				action: 'lambda:InvokeFunctionUrl',
-				functionName: serverLambda.lambda.functionName,
-				functionUrlAuthType: 'AWS_IAM',
-				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
-			})
-
-			// ------------------------------------------------------------
-
-			const serverLambdaUrl = new aws.lambda.FunctionUrl(
-				group,
-				'url',
-				{
-					functionName: serverLambda.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				},
-				{ dependsOn: [permission] }
-			)
-
-			addRoutes(group, 'routes', {
-				[routeKey]: {
-					type: 'lambda',
-					domainName: serverLambdaUrl.functionUrl.pipe(url => url.split('/')[2]!),
-					rewrite: {
-						regex: `^${props.path}/(.*)$`,
-						to: '/$1',
-					},
-				},
-			})
-
-			serverLambda.addPermission({
-				actions: [
-					's3:ListBucket',
-					's3:ListBucketV2',
-					's3:HeadObject',
-					's3:GetObject',
-					's3:PutObject',
-					's3:DeleteObject',
-					's3:GetObjectAttributes',
-				],
+			bundle.addPermission({
+				actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
 				resources: [
 					//
 					cacheBucket.arn,
@@ -210,23 +189,36 @@ export const imageFeature = defineFeature({
 				],
 			})
 
-			serverLambda.setEnvironment(
-				'IMAGE_CONFIG',
+			bundle.addEnv(
+				formatRouteEnvName(serverRouteKey, 'IMAGE_CONFIG'),
 				JSON.stringify({
 					presets: props.presets,
 					extensions: props.extensions,
 				})
 			)
 
-			serverLambda.setEnvironment('IMAGE_CACHE_BUCKET', cacheBucket.bucket)
+			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_CACHE_BUCKET'), cacheBucket.bucket)
 
-			if (lambdaOrigin) {
-				serverLambda.setEnvironment('IMAGE_ORIGIN_LAMBDA', lambdaOrigin.name)
+			if (originRouteKey) {
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN'), originRouteKey)
 			}
 
 			if (s3Origin) {
-				serverLambda.setEnvironment('IMAGE_ORIGIN_S3', s3Origin.bucket)
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'IMAGE_ORIGIN_S3'), s3Origin.bucket)
 			}
+
+			addRoutes({
+				[routeKey]: {
+					type: 'lambda',
+					requestHeaders: {
+						'x-awsless-route': serverRouteKey,
+					},
+					rewrite: {
+						regex: `^${props.path}/(.*)$`,
+						to: '/$1',
+					},
+				},
+			})
 
 			// ------------------------------------------------------------
 			// Upload static images to S3
@@ -254,7 +246,6 @@ export const imageFeature = defineFeature({
 
 			ctx.shared.add('image', 'distribution-id', id, routerId)
 			ctx.shared.add('image', 'cache-bucket', id, cacheBucket.bucket)
-			ctx.shared.add('image', 'path', id, routeKey)
 		}
 	},
 })

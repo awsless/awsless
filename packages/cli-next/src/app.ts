@@ -46,6 +46,7 @@ export type CreateAppProps = {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
 	accountId: string
+	deploymentId?: number
 	import?: boolean
 }
 
@@ -99,6 +100,7 @@ export const createApp = (props: CreateAppProps) => {
 	const domainZones: aws.route53.Zone[] = []
 
 	const readyListeners: OnReadyListener[] = []
+	const readyLastListeners: OnReadyListener[] = []
 
 	const binds: BindEnv[] = []
 	const bindListeners: OnEnvListener[] = []
@@ -198,6 +200,9 @@ export const createApp = (props: CreateAppProps) => {
 			},
 			onReady(cb) {
 				readyListeners.push(cb)
+			},
+			onReadyLast(cb) {
+				readyLastListeners.push(cb)
 			},
 		})
 	}
@@ -331,6 +336,9 @@ export const createApp = (props: CreateAppProps) => {
 				onReady(cb) {
 					readyListeners.push(cb)
 				},
+				onReadyLast(cb) {
+					readyLastListeners.push(cb)
+				},
 			})
 		}
 
@@ -433,6 +441,10 @@ export const createApp = (props: CreateAppProps) => {
 
 	const ready = () => {
 		for (const listener of readyListeners) {
+			listener()
+		}
+
+		for (const listener of readyLastListeners) {
 			listener()
 		}
 	}

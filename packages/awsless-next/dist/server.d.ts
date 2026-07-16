@@ -53,7 +53,15 @@ interface TopicMockResponse {
 }
 declare const mockTopic: (cb: (mock: TopicMock) => void) => TopicMockResponse;
 
-declare const getJobName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--job--${N}`;
+type RouteInvoker = (routeKey: string, payload: unknown) => Promise<unknown>;
+declare const getCurrentRoute: () => string | undefined;
+declare const withRoute: <T>(routeKey: string, invoke: RouteInvoker, callback: () => T) => T;
+declare const isInsideBundle: () => boolean;
+declare const invokeRoute: (routeKey: string, payload: unknown) => Promise<unknown>;
+declare const formatRouteEnvName: (routeKey: string, name: string) => string;
+declare const getRouteEnv: (name: string) => string | undefined;
+
+declare const getJobName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--job--${N}`;
 interface JobResources {
 }
 declare const Job: JobResources;
@@ -86,17 +94,17 @@ interface ConfigResources {
 }
 declare const Config: ConfigResources;
 
-declare const getCronName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--cron--${N}`;
+declare const getCronName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--cron--${N}`;
 interface CronResources {
 }
 declare const Cron: CronResources;
 
-declare const getFunctionName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--function--${N}`;
+declare const getFunctionName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--function--${N}`;
 interface FunctionResources {
 }
 declare const Fn: FunctionResources;
 
-declare const getInstanceQueueName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--instance--${N}`;
+declare const getInstanceQueueName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--instance--${N}`;
 declare const getInstanceQueueUrl: (name: string, stack?: string) => string | undefined;
 interface InstanceResources {
 }
@@ -167,7 +175,7 @@ type RpcAuthorizerResponse = {
     ttl: Duration;
 };
 
-declare const getSearchName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--search--${N}`;
+declare const getSearchName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--search--${N}`;
 declare const getSearchProps: (name: string, stack?: string) => {
     readonly domain: string | undefined;
 };
@@ -175,19 +183,19 @@ interface SearchResources {
 }
 declare const Search: SearchResources;
 
-declare const getSiteBucketName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--site--${N}--app-id`;
+declare const getSiteBucketName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--site--${N}--app-id`;
 
-declare const getStoreName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--store--${N}--app-id`;
+declare const getStoreName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--store--${N}--app-id`;
 interface StoreResources {
 }
 declare const Store: StoreResources;
 
-declare const getTableName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--table--${N}`;
+declare const getTableName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--table--${N}`;
 interface TableResources {
 }
 declare const Table: TableResources;
 
-declare const getTaskName: <N extends string, S extends string = "stack">(resourceName: N, stackName?: S) => `app--${S}--task--${N}`;
+declare const getTaskName: <N extends string, S extends string = string>(resourceName: N, stackName?: S) => `app--${S}--task--${N}`;
 interface TaskResources {
 }
 declare const Task: TaskResources;
@@ -198,6 +206,6 @@ interface TopicResources {
 declare const Topic: TopicResources;
 
 declare const APP: "app";
-declare const STACK: "stack";
+declare const getStack: () => string;
 
-export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PublishOptions, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RpcAuthorizerResponse, STACK, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubTopic, getQueueName, getQueueUrl, getSearchName, getSearchProps, getSiteBucketName, getStoreName, getTableName, getTaskName, getTopicName, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, pubsubAuthorizerHandle, pubsubAuthorizerResponse, setConfigValue };
+export { APP, Alert, type AlertMock, type AlertMockResponse, type AlertResources, Auth, type AuthResources, Cache, type CacheResources, Config, type ConfigResources, Cron, type CronResources, Fn, type FunctionMock, type FunctionMockResponse, type FunctionResources, Instance, type InstanceMock, type InstanceMockResponse, type InstanceResources, Job, type JobMock, type JobMockResponse, type JobResources, Metric, type MetricResources, PubSub, type PublishOptions, Queue, type QueueMock, type QueueMockResponse, type QueueResources, type RouteInvoker, type RpcAuthorizerResponse, Search, type SearchResources, Store, type StoreResources, Table, type TableResources, Task, type TaskMock, type TaskMockResponse, type TaskResources, Topic, type TopicMock, type TopicMockResponse, type TopicResources, formatRouteEnvName, getAlertName, getAuthProps, getCacheProps, getConfigName, getConfigValue, getCronName, getCurrentRoute, getFunctionName, getInstanceQueueName, getInstanceQueueUrl, getJobName, getMetricName, getMetricNamespace, getPubSubTopic, getQueueName, getQueueUrl, getRouteEnv, getSearchName, getSearchProps, getSiteBucketName, getStack, getStoreName, getTableName, getTaskName, getTopicName, invokeRoute, isInsideBundle, mockAlert, mockCache, mockFunction, mockInstance, mockJob, mockMetric, mockPubSub, mockQueue, mockTask, mockTopic, onErrorLogSchema, onFailureBucketArn, onFailureBucketName, onFailureQueueArn, onFailureQueueName, pubsubAuthorizerHandle, pubsubAuthorizerResponse, setConfigValue, withRoute };

@@ -17,12 +17,14 @@ import { image } from './image/index.js'
 import { icon } from './icon/index.js'
 import { cron } from './cron/index.js'
 import { activity } from './activity/index.js'
+import { rollback } from './rollback.js'
 
 export const commands = [
 	bootstrap,
 	types,
 	build,
 	deploy,
+	rollback,
 	// diff,
 	del,
 	dev,

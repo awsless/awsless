@@ -14,9 +14,9 @@ import { dirname, join } from 'path'
 // import { fileURLToPath } from 'url'
 import { Region } from '../config/schema/region.js'
 import { createCloudFrontKvsProvider } from '../formation/cloudfront-kvs.js'
-import { createCloudFrontProvider } from '../formation/cloudfront.js'
 import { createLambdaProvider } from '../formation/lambda.js'
 import { createNameServersProvider } from '../formation/ns-check.js'
+import { createS3Provider } from '../formation/s3.js'
 import { Credentials } from './aws.js'
 import { directories, fileExist } from './path.js'
 
@@ -26,12 +26,17 @@ export const getStateBucketName = (region: Region, accountId: string) => {
 	return `awsless-state-${region}-${accountId}`
 }
 
-export const createWorkSpace = async (props: {
+export const getAppReleaseLockUrn = (appId: string) => {
+	return `urn:app-release:${appId}` as const
+}
+
+type BackendProps = {
 	credentials: Credentials
 	accountId: string
-	// profile: string
 	region: Region
-}) => {
+}
+
+export const createDeploymentBackends = (props: BackendProps) => {
 	const lock = new DynamoLockBackend({
 		...props,
 		tableName: 'awsless-locks',
@@ -47,6 +52,16 @@ export const createWorkSpace = async (props: {
 		tableName: 'awsless-logs',
 		user: userInfo().username,
 	})
+
+	return {
+		activityLog,
+		lock,
+		state,
+	}
+}
+
+export const createWorkSpace = async (props: BackendProps) => {
+	const { activityLog, lock, state } = createDeploymentBackends(props)
 
 	// const terraform = new Terraform({
 	// 	providerLocation: join(homedir(), `.awsless/providers`),
@@ -70,8 +85,8 @@ export const createWorkSpace = async (props: {
 	const workspace = new WorkSpace({
 		providers: [
 			createLambdaProvider(props),
-			createCloudFrontProvider(props),
 			createCloudFrontKvsProvider(props),
+			createS3Provider(props),
 			createNameServersProvider(props),
 			aws(
 				{

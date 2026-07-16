@@ -3,7 +3,8 @@ import { Command } from 'commander'
 import { createApp } from '../../../app.js'
 import { Cancelled } from '../../../error.js'
 import { getAccountId, getCredentials } from '../../../util/aws.js'
-import { createWorkSpace } from '../../../util/workspace.js'
+import { generateGlobalAppId } from '../../../util/name.js'
+import { createDeploymentBackends, getAppReleaseLockUrn } from '../../../util/workspace.js'
 import { layout } from '../../ui/complex/layout.js'
 
 export const unlock = (program: Command) => {
@@ -18,11 +19,14 @@ export const unlock = (program: Command) => {
 				const accountId = await getAccountId(credentials, region)
 
 				const { app } = createApp({ appConfig, stackConfigs, accountId })
-				const { lock } = await createWorkSpace({ credentials, region, accountId })
-				const isLocked = await lock.locked(app.urn)
+				const { lock } = createDeploymentBackends({ credentials, region, accountId })
+				const releaseUrn = getAppReleaseLockUrn(
+					generateGlobalAppId({ accountId, region, appName: appConfig.name })
+				)
+				const locked = await Promise.all([app.urn, releaseUrn].map(urn => lock.locked(urn)))
 
-				if (!isLocked) {
-					return 'No lock is exists.'
+				if (!locked.some(Boolean)) {
+					return 'No lock exists.'
 				}
 
 				const ok = await prompt.confirm({
@@ -35,9 +39,11 @@ export const unlock = (program: Command) => {
 					throw new Cancelled()
 				}
 
-				await lock.insecureReleaseLock(app.urn)
+				await Promise.all(
+					[app.urn, releaseUrn].filter((_, index) => locked[index]).map(urn => lock.insecureReleaseLock(urn))
+				)
 
-				return 'The state lock was been successfully released.'
+				return 'The deployment lock was successfully released.'
 			})
 		})
 }

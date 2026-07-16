@@ -2,20 +2,18 @@ import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature'
 import { formatLocalResourceName } from '../../util/name'
-import { createLambdaFunction } from '../function/util'
-import { join, dirname } from 'path'
-import { createPrebuildLambdaFunction } from '../function/prebuild'
-import { mebibytes } from '@awsless/size'
-import { seconds, toDays } from '@awsless/duration'
-import { fileURLToPath } from 'url'
+import { formatRouteEnvName } from 'awsless'
+import { formatRouteKey, internalHandler, parseExportName } from '../bundle/util.js'
+import { join } from 'path'
+import { toDays } from '@awsless/duration'
 import { glob } from 'glob'
 import { shortId } from '../../util/id'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export const iconFeature = defineFeature({
 	name: 'icon',
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.icons ?? {})) {
 			const group = new Group(ctx.stack, 'icon', id)
 
@@ -33,10 +31,27 @@ export const iconFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Create the icon origins
 
-			let lambdaOrigin: ReturnType<typeof createLambdaFunction> | undefined = undefined
+			let originRouteKey: string | undefined
 
 			if (props.origin.function) {
-				lambdaOrigin = createLambdaFunction(group, ctx, 'origin', id, props.origin.function)
+				const origin = props.origin.function
+				originRouteKey = formatRouteKey(ctx.stack.name, 'icon', `${id}-origin`)
+
+				bundle.addHandler({
+					routeKey: originRouteKey,
+					file: origin.code.file,
+					exportName: parseExportName(origin.handler ?? ctx.appConfig.defaults.function.handler!),
+					external: origin.code.external,
+					importAsString: origin.code.importAsString,
+				})
+
+				for (const [name, value] of Object.entries(origin.environment ?? {})) {
+					bundle.addEnv(name, value)
+				}
+
+				for (const permission of origin.permissions ?? []) {
+					bundle.addPermission(permission)
+				}
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined
@@ -84,59 +99,18 @@ export const iconFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
-			// Create the icon server function
+			// Add the icon server to the bundle
 
-			const serverLambda = createPrebuildLambdaFunction(group, ctx, 'icon', id, {
-				bundleFile: join(__dirname, '/prebuild/icon/bundle.zip'),
-				bundleHash: join(__dirname, '/prebuild/icon/HASH'),
-				memorySize: mebibytes(512),
-				timeout: seconds(10),
-				handler: 'index.default',
-				runtime: 'nodejs24.x',
-				log: props.log,
+			const serverRouteKey = formatRouteKey(ctx.stack.name, 'icon', id)
+
+			bundle.addHandler({
+				routeKey: serverRouteKey,
+				file: internalHandler('icon'),
+				exportName: 'default',
 			})
 
-			const permission = new aws.lambda.Permission(group, 'permission', {
-				principal: 'cloudfront.amazonaws.com',
-				action: 'lambda:InvokeFunctionUrl',
-				functionName: serverLambda.lambda.functionName,
-				functionUrlAuthType: 'AWS_IAM',
-				sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
-			})
-
-			// ------------------------------------------------------------
-
-			const serverLambdaUrl = new aws.lambda.FunctionUrl(
-				group,
-				'url',
-				{
-					functionName: serverLambda.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				},
-				{ dependsOn: [permission] }
-			)
-
-			addRoutes(group, 'routes', {
-				[routeKey]: {
-					type: 'lambda',
-					domainName: serverLambdaUrl.functionUrl.pipe(url => url.split('/')[2]!),
-					rewrite: {
-						regex: `^${props.path}/(.*)$`,
-						to: '/$1',
-					},
-				},
-			})
-
-			serverLambda.addPermission({
-				actions: [
-					's3:ListBucket',
-					's3:ListBucketV2',
-					's3:HeadObject',
-					's3:GetObject',
-					's3:PutObject',
-					's3:DeleteObject',
-					's3:GetObjectAttributes',
-				],
+			bundle.addPermission({
+				actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:GetObjectAttributes'],
 				resources: [
 					//
 					cacheBucket.arn,
@@ -145,23 +119,36 @@ export const iconFeature = defineFeature({
 				],
 			})
 
-			serverLambda.setEnvironment(
-				'ICON_CONFIG',
+			bundle.addEnv(
+				formatRouteEnvName(serverRouteKey, 'ICON_CONFIG'),
 				JSON.stringify({
 					preserveIds: props.preserveIds,
 					symbols: props.symbols,
 				})
 			)
 
-			serverLambda.setEnvironment('ICON_CACHE_BUCKET', cacheBucket.bucket)
+			bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_CACHE_BUCKET'), cacheBucket.bucket)
 
-			if (lambdaOrigin) {
-				serverLambda.setEnvironment('ICON_ORIGIN_LAMBDA', lambdaOrigin.name)
+			if (originRouteKey) {
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_ORIGIN'), originRouteKey)
 			}
 
 			if (s3Origin) {
-				serverLambda.setEnvironment('ICON_ORIGIN_S3', s3Origin.bucket)
+				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'ICON_ORIGIN_S3'), s3Origin.bucket)
 			}
+
+			addRoutes({
+				[routeKey]: {
+					type: 'lambda',
+					requestHeaders: {
+						'x-awsless-route': serverRouteKey,
+					},
+					rewrite: {
+						regex: `^${props.path}/(.*)$`,
+						to: '/$1',
+					},
+				},
+			})
 
 			// ------------------------------------------------------------
 			// Upload static icons to S3
@@ -193,7 +180,6 @@ export const iconFeature = defineFeature({
 
 			ctx.shared.add('icon', 'distribution-id', id, routerId)
 			ctx.shared.add('icon', 'cache-bucket', id, cacheBucket.bucket)
-			ctx.shared.add('icon', 'path', id, routeKey)
 		}
 	},
 })

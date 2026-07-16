@@ -1,21 +1,50 @@
-import { days, seconds, toSeconds, years } from '@awsless/duration'
-import { Future, Group, Resource } from '@terraforge/core'
+import { days, minutes, seconds, toSeconds, years } from '@awsless/duration'
+import { DataSource, Group, Input, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
+import { NsCheck } from '../../formation/ns-check.js'
 import { camelCase, constantCase } from 'change-case'
-import { ImportKeys } from '../../formation/cloudfront-kvs.js'
+import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
 import { getViewerRequestFunctionCode } from './router-code.js'
-import { Invalidation } from '../../formation/cloudfront.js'
-import { createHash } from 'node:crypto'
 import { ExpectedError } from '../../error.js'
+import { FunctionDeployment } from '../../formation/lambda.js'
+import { Route } from './route.js'
 
 export const routerFeature = defineFeature({
 	name: 'router',
 	onApp(ctx) {
-		for (const [id, props] of Object.entries(ctx.appConfig.defaults.router ?? {})) {
+		const deploymentDomain = ctx.appConfig.defaults.deploymentDomain
+		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
+
+		if (deploymentDomain) {
+			// the deployment url wildcard can only point at one distribution
+			if (routers.length > 1) {
+				throw new ExpectedError(`A deploymentDomain currently only supports apps with a single router.`)
+			}
+
+			// deployment urls must never live on a user facing domain
+			for (const domainProps of Object.values(ctx.appConfig.defaults.domains ?? {})) {
+				const domain = domainProps.domain
+
+				if (
+					deploymentDomain === domain ||
+					deploymentDomain.endsWith(`.${domain}`) ||
+					domain.endsWith(`.${deploymentDomain}`)
+				) {
+					throw new ExpectedError(
+						`The "${deploymentDomain}" deploymentDomain can't overlap with the configured "${domain}" domain.`
+					)
+				}
+			}
+		}
+
+		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
+			const placeholderOrigin = ctx.shared
+				.get('bundle', 'bucket-name')
+				.pipe(bucket => `${bucket}.s3.${ctx.appConfig.region}.amazonaws.com`)
 
 			const name = formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -24,45 +53,148 @@ export const routerFeature = defineFeature({
 			})
 
 			// ------------------------------------------------------------
+			// Deployment URL Domain
+
+			let deploymentCertificateArn: Input<string> | undefined
+			let deploymentZone: aws.route53.Zone | undefined
+
+			if (deploymentDomain) {
+				const zone = new aws.route53.Zone(ctx.zones, 'deployment-zone', {
+					name: deploymentDomain,
+					forceDestroy: true,
+				})
+				const nsCheck = new NsCheck(group, 'deployment-check', {
+					zoneId: zone.id,
+				})
+
+				ctx.registerDomainZone(zone)
+				deploymentZone = zone
+
+				const provider = ctx.appConfig.region !== 'us-east-1' ? ('global-aws' as const) : undefined
+				const certificate = new aws.acm.Certificate(
+					group,
+					'deployment-cert',
+					{
+						domainName: deploymentDomain,
+						validationMethod: 'DNS',
+						keyAlgorithm: 'RSA_2048',
+						subjectAlternativeNames: [`*.${deploymentDomain}`],
+					},
+					provider ? { provider } : undefined
+				)
+
+				const option = (index: number) => {
+					return certificate.domainValidationOptions.pipe(options => {
+						return options[index]!
+					})
+				}
+
+				const record1 = new aws.route53.Record(group, 'deployment-cert-1', {
+					zoneId: zone.id,
+					name: option(0).pipe(r => r.resourceRecordName),
+					type: option(0).pipe(r => r.resourceRecordType),
+					ttl: toSeconds(minutes(5)),
+					records: [option(0).pipe(r => r.resourceRecordValue)],
+					allowOverwrite: true,
+				})
+
+				const record2 = new aws.route53.Record(group, 'deployment-cert-2', {
+					zoneId: zone.id,
+					name: option(1).pipe(r => r.resourceRecordName),
+					type: option(1).pipe(r => r.resourceRecordType),
+					ttl: toSeconds(minutes(5)),
+					records: [option(1).pipe(r => r.resourceRecordValue)],
+					allowOverwrite: true,
+				})
+
+				const validation = new aws.acm.CertificateValidation(
+					group,
+					'deployment-cert',
+					{
+						certificateArn: certificate.arn,
+						validationRecordFqdns: [record1.fqdn, record2.fqdn],
+					},
+					{
+						dependsOn: [nsCheck],
+						...(provider ? { provider } : {}),
+					}
+				)
+
+				deploymentCertificateArn = validation.certificateArn
+			}
+
+			// ------------------------------------------------------------
 			// Route Store
 
 			const routeStore = new aws.cloudfront.KeyValueStore(group, 'routes', {
 				name,
 				comment: 'Store for routes',
 			})
+			const productionCode = getViewerRequestFunctionCode({
+				basicAuth: props.basicAuth,
+				passwordAuth: props.passwordAuth,
+			})
+			const previewCode = getViewerRequestFunctionCode({
+				basicAuth: props.basicAuth,
+				passwordAuth: props.passwordAuth,
+				deployUrls: !!deploymentDomain,
+			})
+			// the function names are capped at 64 characters
+			const productionFunction = new aws.cloudfront.Function(group, 'production-function', {
+				name: `${name.slice(0, 52)}--production`,
+				runtime: 'cloudfront-js-2.0',
+				code: productionCode,
+				publish: true,
+				keyValueStoreAssociations: [routeStore.arn],
+			})
+			const previewFunction = new aws.cloudfront.Function(group, 'preview-function', {
+				name: `${name.slice(0, 55)}--preview`,
+				runtime: 'cloudfront-js-2.0',
+				code: previewCode,
+				publish: true,
+				keyValueStoreAssociations: [routeStore.arn],
+			})
 
 			// ------------------------------------------------------------
 			// Add routes API
 
-			const routeKeys: string[] = []
-			const importedRoutes: Resource[] = []
+			const routeKeys = new Set<string>()
+			const routes: Record<string, Route> = {}
+			const routeDependencies = new Set<Resource | DataSource>()
+			let lambdaUrlHost: Input<string> | undefined
 
-			ctx.shared.add('router', 'addRoutes', id, (group, name, routes, options) => {
-				for (const key of Object.keys(routes)) {
-					if (routeKeys.includes(key)) {
+			ctx.shared.add('router', 'addRoutes', id, (newRoutes, options) => {
+				for (const [key, route] of Object.entries(newRoutes)) {
+					if (routeKeys.has(key)) {
 						throw new ExpectedError(`Duplicate route key: ${key} in the "${id}" router`)
 					}
 
-					routeKeys.push(key)
+					routeKeys.add(key)
+					routes[key] = route
 				}
 
-				const importKeys = new ImportKeys(
-					group,
-					[id, name].join('-'),
-					{
-						kvsArn: routeStore.arn,
-						keys: $resolve([routes], routes => {
-							return Object.entries(routes).map(([key, value]) => {
-								return { key, value: JSON.stringify(value) }
-							}) as any
-						}),
-					},
-					{
-						dependsOn: options?.dependsOn,
-					}
-				)
+				for (const dependency of options?.dependsOn ?? []) {
+					routeDependencies.add(dependency)
+				}
 
-				importedRoutes.push(importKeys)
+				if (Object.values(newRoutes).some(route => route.type === 'lambda')) {
+					if (!lambdaUrlHost) {
+						const bundle = ctx.shared.get('bundle', 'main')
+						const deployment = new FunctionDeployment(group, 'function-deployment', {
+							functionName: bundle.lambda.functionName,
+							functionVersion: bundle.lambda.version,
+							id,
+							sourceArns: [distribution.id, previewDistribution.id].map(distributionId =>
+								distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
+							),
+						})
+
+						lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
+						routeDependencies.add(bundle.policy)
+						routeDependencies.add(bundle.alias)
+						routeDependencies.add(deployment)
+					}
+				}
 			})
 
 			// ------------------------------------------------------------
@@ -89,6 +221,9 @@ export const routerFeature = defineFeature({
 								//
 								...(props.cache?.headers ?? []),
 								'x-origin',
+								// host dependent SSR responses must be cached
+								// per deployment url host
+								'x-forwarded-host',
 							],
 						},
 					},
@@ -165,22 +300,6 @@ export const routerFeature = defineFeature({
 						protection: true,
 					},
 				},
-			})
-
-			// ------------------------------------------------------------
-			// Viewer Request CloudFront Function
-
-			const viewerRequest = new aws.cloudfront.Function(group, 'viewer-request', {
-				name,
-				runtime: `cloudfront-js-2.0`,
-				comment: `Viewer Request - ${name}`,
-				publish: true,
-				keyValueStoreAssociations: [routeStore.arn],
-				code: getViewerRequestFunctionCode({
-					blockDirectAccess: !!props.domain,
-					basicAuth: props.basicAuth,
-					passwordAuth: props.passwordAuth,
-				}),
 			})
 
 			const wafSettingsConfig = props.waf
@@ -341,12 +460,12 @@ export const routerFeature = defineFeature({
 				origin: [
 					{
 						id: 'default',
-						domainName: 'placeholder.awsless.dev',
+						domainName: placeholderOrigin,
 						customOriginConfig: [
 							{
 								httpPort: 80,
 								httpsPort: 443,
-								originProtocolPolicy: 'http-only',
+								originProtocolPolicy: 'https-only',
 								originReadTimeout: 20,
 								originSslProtocols: ['TLSv1.2'],
 								// originKeepaliveTimeout: 30,
@@ -388,7 +507,7 @@ export const routerFeature = defineFeature({
 						functionAssociation: [
 							{
 								eventType: 'viewer-request',
-								functionArn: viewerRequest.arn,
+								functionArn: productionFunction.arn,
 							},
 						],
 						originRequestPolicyId: originRequest.id,
@@ -406,7 +525,92 @@ export const routerFeature = defineFeature({
 				webAclId: waf?.arn,
 			})
 
+			const previewDistribution = new aws.cloudfront.Distribution(group, 'preview', {
+				tags: {
+					name: `${name}-preview`,
+				},
+				comment: `${name} preview`,
+				enabled: true,
+				waitForDeployment: true,
+				aliases: deploymentDomain ? [`*.${deploymentDomain}`] : undefined,
+				origin: [
+					{
+						originId: 'default',
+						domainName: placeholderOrigin,
+						customOriginConfig: {
+							httpPort: 80,
+							httpsPort: 443,
+							originProtocolPolicy: 'https-only',
+							originReadTimeout: 20,
+							originSslProtocols: ['TLSv1.2'],
+						},
+					},
+				],
+				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
+					if (typeof item === 'string') {
+						return {
+							errorCode: Number(errorCode),
+							responseCode: Number(errorCode),
+							responsePagePath: item,
+						}
+					}
+
+					return {
+						errorCode: Number(errorCode),
+						errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
+						responseCode: item.statusCode ?? Number(errorCode),
+						responsePagePath: item.path,
+					}
+				}),
+				restrictions: {
+					geoRestriction: {
+						restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
+						locations: props.geoRestrictions,
+					},
+				},
+				viewerCertificate: deploymentCertificateArn
+					? {
+							acmCertificateArn: deploymentCertificateArn,
+							sslSupportMethod: 'sni-only',
+							minimumProtocolVersion: 'TLSv1.2_2021',
+						}
+					: {
+							cloudfrontDefaultCertificate: true,
+						},
+				defaultCacheBehavior: {
+					compress: true,
+					targetOriginId: 'default',
+					functionAssociation: [
+						{
+							eventType: 'viewer-request',
+							functionArn: previewFunction.arn,
+						},
+					],
+					originRequestPolicyId: originRequest.id,
+					cachePolicyId: cache.id,
+					responseHeadersPolicyId: responseHeaders.id,
+					viewerProtocolPolicy: 'redirect-to-https',
+					allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+					cachedMethods: ['GET', 'HEAD'],
+				},
+				webAclId: waf?.arn,
+			})
+
 			ctx.shared.add('router', 'id', id, distribution.id)
+			ctx.shared.add('router', 'preview-id', id, previewDistribution.id)
+
+			if (deploymentDomain && deploymentZone) {
+				new aws.route53.Record(group, `deploy-url-record`, {
+					zoneId: deploymentZone.id,
+					type: 'A',
+					name: `*.${deploymentDomain}`,
+					alias: {
+						name: previewDistribution.domainName,
+						zoneId: 'Z2FDTNDATAQYW2',
+						evaluateTargetHealth: false,
+					},
+				})
+			}
 
 			// if (waf) {
 			// 	new aws.wafv2.WebAclAssociation(group, 'association', {
@@ -415,35 +619,30 @@ export const routerFeature = defineFeature({
 			// 	})
 			// }
 
-			// ------------------------------------------------------------
-			// Add Invalidation API
+			ctx.onReadyLast(() => {
+				const bundle = ctx.shared.get('bundle', 'main')
 
-			ctx.shared.add('router', 'addInvalidation', id, (group, name, paths, versions, options) => {
-				ctx.onReady(() => {
-					new Invalidation(
-						group,
-						[id, name].join('-'),
-						{
-							distributionId: distribution.id,
-							paths,
-							version: new Future(resolve => {
-								$combine(...versions).then(versions => {
-									const combined = versions
-										.filter(v => !!v)
-										.sort()
-										.join(',')
-
-									const version = createHash('sha1').update(combined).digest('hex')
-
-									resolve(version)
-								})
-							}),
-						},
-						{
-							dependsOn: [...(options?.dependsOn ?? []), ...importedRoutes],
-						}
-					)
-				})
+				new RouteDeployment(
+					group,
+					'deployment',
+					{
+						// non-deploy commands build the graph but never apply it
+						deploymentId: ctx.deploymentId ?? 0,
+						storeArn: routeStore.arn,
+						functionVersion: bundle.lambda.version,
+						routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
+							return Object.entries(routes).map(([key, route]) => ({
+								key,
+								value: JSON.stringify(
+									route.type === 'lambda' ? { ...route, domainName: lambdaUrlHost } : route
+								),
+							}))
+						}),
+					},
+					{
+						dependsOn: Array.from(routeDependencies),
+					}
+				)
 			})
 
 			// ------------------------------------------------------------

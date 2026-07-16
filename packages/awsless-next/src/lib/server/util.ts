@@ -1,8 +1,12 @@
 import { kebabCase } from 'change-case'
+import { getCurrentRoute } from './bundle.js'
 
 export const APP = (process.env.APP ?? 'app') as 'app'
 export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
-export const STACK = (process.env.STACK ?? 'stack') as 'stack'
+
+// Inside the bundle the stack is scoped to the running route,
+// so we need to read it live instead of at module load.
+export const getStack = (): string => getCurrentRoute()?.split(':')[0] ?? process.env.STACK ?? 'stack'
 export const IS_TEST = process.env.NODE_ENV === 'test'
 export const REGION = process.env.AWS_REGION
 export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
@@ -49,7 +53,10 @@ export const build = (opt: {
 }
 
 export const bindPostfixedLocalResourceName = <T extends string, P extends string>(resourceType: T, postfix: P) => {
-	return <N extends string, S extends string = typeof STACK>(resourceName: N, stackName: S = STACK as S) => {
+	return <N extends string, S extends string = ReturnType<typeof getStack>>(
+		resourceName: N,
+		stackName: S = getStack() as S
+	) => {
 		return build({
 			stackName,
 			resourceName,
@@ -60,7 +67,10 @@ export const bindPostfixedLocalResourceName = <T extends string, P extends strin
 }
 
 export const bindLocalResourceName = <T extends string>(resourceType: T) => {
-	return <N extends string, S extends string = typeof STACK>(resourceName: N, stackName: S = STACK as S) => {
+	return <N extends string, S extends string = ReturnType<typeof getStack>>(
+		resourceName: N,
+		stackName: S = getStack() as S
+	) => {
 		return build({
 			stackName,
 			resourceType,
@@ -76,6 +86,27 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 			resourceName,
 		}) as `${typeof APP}--${T}--${N}`
 	}
+}
+
+// All handlers are bundled inside a single app bundle lambda,
+// where the live alias points to the active deployment version.
+export const BUNDLE_NAME = /*@__PURE__*/ bindGlobalResourceName('function')('bundle')
+export const BUNDLE_QUALIFIER = 'live'
+
+export const getBundleQualifier = (qualifier?: string) => {
+	if (qualifier !== undefined) {
+		return qualifier
+	}
+
+	if (process.env.AWS_LAMBDA_FUNCTION_NAME === BUNDLE_NAME) {
+		return process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER
+	}
+
+	return BUNDLE_QUALIFIER
+}
+
+export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
+	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
 }
 
 // export const getEnv = (name: string) => {

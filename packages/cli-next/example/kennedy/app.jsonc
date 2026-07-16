@@ -4,6 +4,17 @@
 	"region": "us-east-1",
 	"profile": "jacksclub",
 	"defaults": {
+		"topics": ["events"],
+		"deploymentDomain": "spadesltd.com",
+		"router": {
+			"main": {}
+		},
+		"rpc": {
+			"api": {
+				"router": "main",
+				"path": "/rpc"
+			}
+		},
 		// "pubsub": {
 		// 	"test": {
 		// 		"auth": "./pubsub/auth.ts"
@@ -13,7 +24,7 @@
 		"function": {
 			"log": {
 				"retention": "7 days",
-				"level": "error",
+				"level": "info",
 				"system": "warn"
 			}
 		},

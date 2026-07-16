@@ -1,7 +1,8 @@
 import { parse, patch } from '@awsless/json'
 import { invoke } from '@awsless/lambda'
 import { deleteObject, getObject } from '@awsless/s3'
-import { S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
+import { Context, S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
+import { getRouteEnv } from 'awsless'
 import {
 	AsyncLambdaFailureEvent,
 	DynamoDBStreamFailureEvent,
@@ -10,33 +11,40 @@ import {
 	UnknownFailureEvent,
 } from './types'
 
-export default async (event: S3CreateEvent | SQSEvent) => {
+export default async (event: S3CreateEvent | SQSEvent, context: Context) => {
 	if (!Array.isArray(event.Records)) {
 		throw new TypeError(`Unknown Event Type: ${JSON.stringify(event)}`)
 	}
 
 	await Promise.all(
 		event.Records.map(record => {
-			return unknownRecord(record)
+			return unknownRecord(record, context)
 		})
 	)
 }
 
-const unknownRecord = (record: S3EventRecord | SQSRecord) => {
+const unknownRecord = (record: S3EventRecord | SQSRecord, context: Context) => {
 	if (typeof record.eventSource === 'string') {
 		if (record.eventSource.startsWith('aws:sqs')) {
-			return sqsRecord(record as SQSRecord)
+			return sqsRecord(record as SQSRecord, context)
 		}
 
 		if (record.eventSource.startsWith('aws:s3')) {
-			return s3Record(record as S3EventRecord)
+			return s3Record(record as S3EventRecord, context)
 		}
 	}
 
 	throw new TypeError(`Unknown Record Type: ${JSON.stringify(record)}`)
 }
 
-const sqsRecord = async (record: SQSRecord) => {
+const sqsRecord = async (record: SQSRecord, context: Context) => {
+	const s3Records = parseS3Records(record.body)
+
+	if (s3Records) {
+		await Promise.all(s3Records.map(record => s3Record(record, context)))
+		return
+	}
+
 	const payload: QueueFailureEvent = {
 		type: 'queue',
 		id: record.messageId,
@@ -48,13 +56,30 @@ const sqsRecord = async (record: SQSRecord) => {
 		},
 	}
 
-	await invokeConsumer(payload)
+	await invokeConsumer(payload, context)
 }
 
-const s3Record = async (record: S3EventRecord) => {
+const parseS3Records = (body: string): S3EventRecord[] | undefined => {
+	try {
+		const event = JSON.parse(body)
+
+		if (event?.Event === 's3:TestEvent') {
+			return []
+		}
+
+		if (Array.isArray(event?.Records) && event.Records[0]?.eventSource === 'aws:s3') {
+			return event.Records
+		}
+	} catch {}
+
+	return
+}
+
+const s3Record = async (record: S3EventRecord, context: Context) => {
+	const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '))
 	const object = await getObject({
 		bucket: record.s3.bucket.name,
-		key: record.s3.object.key,
+		key,
 	})
 
 	if (!object) {
@@ -65,11 +90,11 @@ const s3Record = async (record: S3EventRecord) => {
 	const unknownEvent = JSON.parse(json) as UnknownFailureEvent
 	const payload = formatUnknownFailureEvent(unknownEvent)
 
-	await invokeConsumer(payload)
+	await invokeConsumer(payload, context)
 
 	await deleteObject({
 		bucket: record.s3.bucket.name,
-		key: record.s3.object.key,
+		key,
 	})
 }
 
@@ -86,14 +111,17 @@ const formatUnknownFailureEvent = (event: UnknownFailureEvent): FunctionFailureE
 }
 
 const formatAsyncLambdaFailureEvent = (event: AsyncLambdaFailureEvent): FunctionFailureEvent => {
+	const payload = patchPayload(event.requestPayload) as { '$awsless-route'?: unknown; event?: unknown } | null
+	const route = payload && typeof payload === 'object' ? payload['$awsless-route'] : undefined
+
 	return {
 		type: 'async-lambda',
 		date: new Date(event.timestamp),
 		id: event.requestContext.requestId,
 		function: {
-			name: event.requestContext.functionArn.split(':')[6]!,
+			name: typeof route === 'string' ? route : event.requestContext.functionArn.split(':')[6]!,
 		},
-		payload: patchPayload(event.requestPayload),
+		payload: typeof route === 'string' ? (payload!.event ?? {}) : payload,
 		error: {
 			type: event.responsePayload.errorType,
 			message: event.responsePayload.errorMessage,
@@ -130,16 +158,13 @@ const patchPayload = (payload: unknown) => {
 	}
 }
 
-const invokeConsumer = async (payload: unknown) => {
-	const name = process.env.CONSUMER
-
-	if (!name) {
-		throw new Error('CONSUMER environment variable is not set')
-	}
-
+const invokeConsumer = async (payload: unknown, context: Context) => {
 	await invoke({
-		name,
+		name: context.invokedFunctionArn,
 		type: 'RequestResponse',
-		payload,
+		payload: {
+			'$awsless-route': getRouteEnv('CONSUMER')!,
+			event: payload,
+		},
 	})
 }

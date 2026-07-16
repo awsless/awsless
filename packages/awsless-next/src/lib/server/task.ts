@@ -3,7 +3,15 @@ import { invoke, InvokeOptions } from '@awsless/lambda'
 import { schedule } from '@awsless/scheduler'
 import { createProxy } from '../proxy.js'
 import { onFailureQueueArn } from './on-failure.js'
-import { bindGlobalResourceName, bindLocalResourceName } from './util.js'
+import {
+	bindGlobalResourceName,
+	bindLocalResourceName,
+	BUNDLE_NAME,
+	BUNDLE_QUALIFIER,
+	formatRouteKey,
+	getBundleQualifier,
+	IS_TEST,
+} from './util.js'
 
 export const getTaskName = bindLocalResourceName('task')
 
@@ -16,14 +24,28 @@ type Options = Omit<InvokeOptions, 'payload' | 'name' | 'type' | 'reflectViewabl
 export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 	return createProxy(taskName => {
 		const name = getTaskName(taskName, stackName)
+		const routeKey = formatRouteKey(stackName, 'task', taskName)
+
 		const ctx: Record<string, any> = {
 			[name]: async (payload: unknown, options: Options = {}) => {
-				if (options.schedule) {
+				// In tests we keep invoking the per-task name
+				// so that the task mocks keep working.
+				if (IS_TEST) {
+					await invoke({
+						...options,
+						type: 'Event',
+						name,
+						payload,
+					})
+				} else if (options.schedule) {
 					const resourceTaskName = bindGlobalResourceName('task')
 
 					await schedule({
-						name,
-						payload,
+						name: `${BUNDLE_NAME}:${options.qualifier ?? BUNDLE_QUALIFIER}`,
+						payload: {
+							'$awsless-route': routeKey,
+							event: payload,
+						},
 						schedule: options.schedule,
 						group: resourceTaskName('group'),
 						roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName('schedule')}`,
@@ -33,8 +55,12 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 					await invoke({
 						...options,
 						type: 'Event',
-						name,
-						payload,
+						name: BUNDLE_NAME,
+						qualifier: getBundleQualifier(options.qualifier),
+						payload: {
+							'$awsless-route': routeKey,
+							event: payload,
+						},
 					})
 				}
 			},

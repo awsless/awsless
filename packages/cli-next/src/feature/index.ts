@@ -1,4 +1,5 @@
 import { authFeature } from './auth/index.js'
+import { bundleFeature } from './bundle/index.js'
 import { cacheFeature } from './cache/index.js'
 import { commandFeature } from './command/index.js'
 import { configFeature } from './config/index.js'
@@ -7,7 +8,7 @@ import { domainFeature } from './domain/index.js'
 import { functionFeature } from './function/index.js'
 import { onErrorLogFeature } from './on-error-log/index.js'
 import { onFailureFeature } from './on-failure/index.js'
-import { pubsubFeature } from './pubsub/index.js'
+// import { pubsubFeature } from './pubsub/index.js'
 import { queueFeature } from './queue/index.js'
 import { restFeature } from './rest/index.js'
 import { rpcFeature } from './rpc/index.js'
@@ -36,23 +37,20 @@ export const features = [
 	commandFeature,
 	layerFeature,
 
-	// 2
-	onFailureFeature,
-
-	// 3
-	onErrorLogFeature,
-
 	// 4
 	authFeature,
 
 	// 5
 	functionFeature,
+	bundleFeature,
+	onErrorLogFeature,
+	onFailureFeature,
 	instanceFeature,
 	jobFeature,
 	// graphqlFeature,
 	configFeature,
 	searchFeature,
-	pubsubFeature,
+	// pubsubFeature,
 	metricFeature,
 	// streamFeature,
 	tableFeature,

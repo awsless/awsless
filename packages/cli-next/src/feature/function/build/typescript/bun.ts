@@ -5,7 +5,7 @@ import { createHash } from 'crypto'
 // import { copyFileSync, mkdirSync } from 'node:fs'
 // import { basename, join } from 'node:path'
 
-import { File } from '../zip.js'
+import { File } from '../../../bundle/build/zip.js'
 
 export type BundleTypeScriptProps = {
 	format?: 'esm' | 'cjs'

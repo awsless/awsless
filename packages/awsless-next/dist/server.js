@@ -14,9 +14,34 @@ import { randomUUID } from "crypto";
 
 // src/lib/server/util.ts
 import { kebabCase } from "change-case";
+
+// src/lib/server/bundle.ts
+import { AsyncLocalStorage } from "async_hooks";
+var routeContext = new AsyncLocalStorage();
+var getCurrentRoute = () => routeContext.getStore()?.routeKey;
+var withRoute = (routeKey, invoke4, callback) => {
+  return routeContext.run({ routeKey, invoke: invoke4 }, callback);
+};
+var isInsideBundle = () => routeContext.getStore() !== void 0;
+var invokeRoute = (routeKey, payload) => {
+  const invoke4 = routeContext.getStore()?.invoke;
+  if (!invoke4) {
+    throw new Error("Route invocations are only available inside the bundle");
+  }
+  return invoke4(routeKey, payload);
+};
+var formatRouteEnvName = (routeKey, name) => {
+  return `${routeKey}:${name}`;
+};
+var getRouteEnv = (name) => {
+  const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
+  return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
+};
+
+// src/lib/server/util.ts
 var APP = process.env.APP ?? "app";
 var APP_ID = process.env.APP_ID ?? "app-id";
-var STACK = process.env.STACK ?? "stack";
+var getStack = () => getCurrentRoute()?.split(":")[0] ?? process.env.STACK ?? "stack";
 var IS_TEST = process.env.NODE_ENV === "test";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
@@ -32,7 +57,7 @@ var build = (opt) => {
   ].filter((v) => typeof v === "string").map((v) => kebabCase(v)).join(opt.seperator ?? "--");
 };
 var bindPostfixedLocalResourceName = (resourceType, postfix) => {
-  return (resourceName, stackName = STACK) => {
+  return (resourceName, stackName = getStack()) => {
     return build({
       stackName,
       resourceName,
@@ -42,7 +67,7 @@ var bindPostfixedLocalResourceName = (resourceType, postfix) => {
   };
 };
 var bindLocalResourceName = (resourceType) => {
-  return (resourceName, stackName = STACK) => {
+  return (resourceName, stackName = getStack()) => {
     return build({
       stackName,
       resourceType,
@@ -57,6 +82,20 @@ var bindGlobalResourceName = (resourceType) => {
       resourceName
     });
   };
+};
+var BUNDLE_NAME = /* @__PURE__ */ bindGlobalResourceName("function")("bundle");
+var BUNDLE_QUALIFIER = "live";
+var getBundleQualifier = (qualifier) => {
+  if (qualifier !== void 0) {
+    return qualifier;
+  }
+  if (process.env.AWS_LAMBDA_FUNCTION_NAME === BUNDLE_NAME) {
+    return process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER;
+  }
+  return BUNDLE_QUALIFIER;
+};
+var formatRouteKey = (stackName, resourceType, resourceName) => {
+  return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
 };
 
 // src/lib/server/job.ts
@@ -171,39 +210,41 @@ var getFunctionName = bindLocalResourceName("function");
 var Fn = /* @__PURE__ */ createProxy((stackName) => {
   return createProxy((funcName) => {
     const name = getFunctionName(funcName, stackName);
-    const ctx = {
-      [name]: (payload, options = {}) => {
-        if (!options.cache) {
-          return invoke({
-            ...options,
-            name,
-            payload
-          });
-        }
-        const cacheKey = stringify3([name, payload, options.qualifier]);
-        if (!cache.has(cacheKey)) {
-          const promise = invoke({
-            ...options,
-            name,
-            payload
-          });
-          cache.set(cacheKey, promise);
-        }
-        return cache.get(cacheKey);
-      }
-    };
-    const call = ctx[name];
-    call.cached = (payload, options = {}) => {
-      const cacheKey = JSON.stringify({ name, payload, options });
-      if (!cache.has(cacheKey)) {
-        const promise = invoke({
+    const routeKey = formatRouteKey(stackName, "function", funcName);
+    const send = async (payload, options = {}) => {
+      if (IS_TEST) {
+        return invoke({
           ...options,
           name,
           payload
         });
-        cache.set(cacheKey, promise);
+      }
+      if (isInsideBundle() && !options.qualifier && !options.client) {
+        return invokeRoute(routeKey, payload);
+      }
+      return invoke({
+        ...options,
+        name: BUNDLE_NAME,
+        qualifier: getBundleQualifier(options.qualifier),
+        payload: {
+          "$awsless-route": routeKey,
+          event: payload
+        }
+      });
+    };
+    const call = (payload, options = {}) => {
+      const { cache: shouldCache, ...invokeOptions } = options;
+      if (!shouldCache) {
+        return send(payload, invokeOptions);
+      }
+      const cacheKey = stringify3([routeKey, payload, invokeOptions.qualifier]);
+      if (!cache.has(cacheKey)) {
+        cache.set(cacheKey, send(payload, invokeOptions));
       }
       return cache.get(cacheKey);
+    };
+    call.cached = (payload, options = {}) => {
+      return call(payload, { ...options, cache: true });
     };
     return call;
   });
@@ -242,7 +283,7 @@ import { mockSQS } from "@awsless/sqs";
 import { getCachedQueueUrl, sendMessage } from "@awsless/sqs";
 import { constantCase } from "change-case";
 var getInstanceQueueName = bindLocalResourceName("instance");
-var getInstanceQueueUrl = (name, stack = STACK) => {
+var getInstanceQueueUrl = (name, stack = getStack()) => {
   return process.env[`INSTANCE_${constantCase(stack)}_${constantCase(name)}_URL`];
 };
 var Instance = /* @__PURE__ */ createProxy((stack) => {
@@ -306,10 +347,10 @@ import {
 } from "@awsless/sqs";
 import { constantCase as constantCase2 } from "change-case";
 var bindQueueBaseName = bindLocalResourceName("queue");
-var getQueueName = (name, stack = STACK) => {
+var getQueueName = (name, stack = getStack()) => {
   return `${bindQueueBaseName(name, stack)}.fifo`;
 };
-var getQueueUrl = (name, stack = STACK) => {
+var getQueueUrl = (name, stack = getStack()) => {
   return process.env[`QUEUE_${constantCase2(stack)}_${constantCase2(name)}_URL`];
 };
 var Queue = /* @__PURE__ */ createProxy((stack) => {
@@ -396,13 +437,24 @@ var getTaskName = bindLocalResourceName("task");
 var Task = /* @__PURE__ */ createProxy((stackName) => {
   return createProxy((taskName) => {
     const name = getTaskName(taskName, stackName);
+    const routeKey = formatRouteKey(stackName, "task", taskName);
     const ctx = {
       [name]: async (payload, options = {}) => {
-        if (options.schedule) {
+        if (IS_TEST) {
+          await invoke2({
+            ...options,
+            type: "Event",
+            name,
+            payload
+          });
+        } else if (options.schedule) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
-            name,
-            payload,
+            name: `${BUNDLE_NAME}:${options.qualifier ?? BUNDLE_QUALIFIER}`,
+            payload: {
+              "$awsless-route": routeKey,
+              event: payload
+            },
             schedule: options.schedule,
             group: resourceTaskName("group"),
             roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName("schedule")}`,
@@ -412,8 +464,12 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
           await invoke2({
             ...options,
             type: "Event",
-            name,
-            payload
+            name: BUNDLE_NAME,
+            qualifier: getBundleQualifier(options.qualifier),
+            payload: {
+              "$awsless-route": routeKey,
+              event: payload
+            }
           });
         }
       }
@@ -514,7 +570,7 @@ var Auth = /* @__PURE__ */ createProxy((name) => {
 import { getContext } from "@awsless/lambda";
 import { createIoRedisClient, createLazyClient } from "@awsless/redis";
 import { constantCase as constantCase4 } from "change-case";
-var getCacheProps = (name, stack = STACK) => {
+var getCacheProps = (name, stack = getStack()) => {
   const prefix = `CACHE_${constantCase4(stack)}_${constantCase4(name)}`;
   return {
     host: process.env[`${prefix}_HOST`],
@@ -600,15 +656,29 @@ var Config = /* @__PURE__ */ new Proxy(
 import { invoke as invoke3 } from "@awsless/lambda";
 var getCronName = bindLocalResourceName("cron");
 var Cron = /* @__PURE__ */ createProxy((stackName) => {
-  return createProxy((taskName) => {
-    const name = getCronName(taskName, stackName);
+  return createProxy((cronName) => {
+    const name = getCronName(cronName, stackName);
+    const routeKey = formatRouteKey(stackName, "cron", cronName);
     const ctx = {
       [name]: async (payload, options = {}) => {
+        if (IS_TEST) {
+          await invoke3({
+            ...options,
+            type: "Event",
+            name,
+            payload
+          });
+          return;
+        }
         await invoke3({
           ...options,
           type: "Event",
-          name,
-          payload
+          name: BUNDLE_NAME,
+          qualifier: getBundleQualifier(options.qualifier),
+          payload: {
+            "$awsless-route": routeKey,
+            event: payload
+          }
         });
       }
     };
@@ -628,7 +698,7 @@ import { constantCase as constantCase5, kebabCase as kebabCase4 } from "change-c
 var getMetricName = (name) => {
   return kebabCase4(name);
 };
-var getMetricNamespace = (stack = STACK, app = APP) => {
+var getMetricNamespace = (stack = getStack(), app = APP) => {
   return `awsless/${kebabCase4(app)}/${kebabCase4(stack)}`;
 };
 var Metric = /* @__PURE__ */ createProxy((stack) => {
@@ -638,7 +708,7 @@ var Metric = /* @__PURE__ */ createProxy((stack) => {
   return createProxy((metricName) => {
     const name = getMetricName(metricName);
     const namespace = getMetricNamespace(stack);
-    const unit = process.env[`METRIC_${constantCase5(metricName)}`];
+    const unit = process.env[`METRIC_${constantCase5(stack)}_${constantCase5(metricName)}`];
     let metric;
     if (!unit && !IS_TEST) {
       throw new TypeError(`Metric "${name}" isn't defined in your stack.`);
@@ -791,7 +861,7 @@ var pubsubAuthorizerResponse = (props) => {
 import { define, searchClient } from "@awsless/open-search";
 import { constantCase as constantCase6 } from "change-case";
 var getSearchName = bindLocalResourceName("search");
-var getSearchProps = (name, stack = STACK) => {
+var getSearchProps = (name, stack = getStack()) => {
   return {
     domain: process.env[`SEARCH_${constantCase6(stack)}_${constantCase6(name)}_DOMAIN`]
   };
@@ -870,18 +940,19 @@ export {
   PubSub,
   QoS,
   Queue,
-  STACK,
   Search,
   Store,
   Table,
   Task,
   Topic,
+  formatRouteEnvName,
   getAlertName,
   getAuthProps,
   getCacheProps,
   getConfigName,
   getConfigValue,
   getCronName,
+  getCurrentRoute,
   getFunctionName,
   getInstanceQueueName,
   getInstanceQueueUrl,
@@ -891,13 +962,17 @@ export {
   getPubSubTopic,
   getQueueName,
   getQueueUrl,
+  getRouteEnv,
   getSearchName,
   getSearchProps,
   getSiteBucketName,
+  getStack,
   getStoreName,
   getTableName,
   getTaskName,
   getTopicName,
+  invokeRoute,
+  isInsideBundle,
   mockAlert,
   mockCache,
   mockFunction,
@@ -915,5 +990,6 @@ export {
   onFailureQueueName,
   pubsubAuthorizerHandle,
   pubsubAuthorizerResponse,
-  setConfigValue
+  setConfigValue,
+  withRoute
 };

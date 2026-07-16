@@ -223,9 +223,7 @@ export const authFeature = defineFeature({
 			ctx.bind(`AUTH_${constantCase(id)}_USER_POOL_ID`, userPool.id)
 			ctx.bind(`AUTH_${constantCase(id)}_CLIENT_ID`, client.id)
 
-			ctx.shared.add('auth', 'user-pool-arn', id, userPool.arn)
 			ctx.shared.add('auth', 'user-pool-id', id, userPool.id)
-			ctx.shared.add('auth', 'client-id', id, client.id)
 		}
 	},
 })

@@ -183,12 +183,20 @@ export const createFargateTask = (
 		// Add log subscription
 
 		if (ctx.shared.has('on-error-log', 'subscriber-arn')) {
-			new aws.cloudwatch.LogSubscriptionFilter(group, 'on-error-log', {
-				name: 'error-log-subscription',
-				destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
-				logGroupName: logGroup.name,
-				filterPattern,
-			})
+			new aws.cloudwatch.LogSubscriptionFilter(
+				group,
+				'on-error-log',
+				{
+					name: 'error-log-subscription',
+					destinationArn: ctx.shared.get('on-error-log', 'subscriber-arn'),
+					logGroupName: logGroup.name,
+					filterPattern,
+				},
+				{
+					replaceOnChanges: ['destinationArn'],
+					dependsOn: [ctx.shared.get('on-error-log', 'permission')],
+				}
+			)
 		}
 	}
 

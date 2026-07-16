@@ -1,6 +1,6 @@
-import { invoke } from '@awsless/lambda'
 import { getObject, putObject } from '@awsless/s3'
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda'
+import { getRouteEnv, invokeRoute } from 'awsless'
 // @ts-ignore
 import { optimize } from 'svgo/browser'
 // @ts-ignore
@@ -9,35 +9,34 @@ import svgstore from 'svgstore'
 export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
 	try {
 		const path = event.rawPath.startsWith('/') ? event.rawPath.slice(1) : event.rawPath
+		const cacheBucket = getRouteEnv('ICON_CACHE_BUCKET')!
 
 		// ----------------------------------------
 		// Get cached svg from s3
 
-		if (process.env.ICON_CACHE_BUCKET) {
-			const cachedIcon = await getObject({
-				bucket: process.env.ICON_CACHE_BUCKET,
-				key: path,
-			})
+		const cachedIcon = await getObject({
+			bucket: cacheBucket,
+			key: path,
+		})
 
-			if (cachedIcon) {
-				const cachedIconData = await cachedIcon.body.transformToByteArray()
+		if (cachedIcon) {
+			const cachedIconData = await cachedIcon.body.transformToByteArray()
 
-				return {
-					statusCode: 200,
-					body: Buffer.from(cachedIconData).toString('base64'),
-					isBase64Encoded: true,
-					headers: {
-						'Content-Type': 'image/svg+xml',
-						'Cache-Control': 'public, max-age=31536000, immutable',
-					},
-				}
+			return {
+				statusCode: 200,
+				body: Buffer.from(cachedIconData).toString('base64'),
+				isBase64Encoded: true,
+				headers: {
+					'Content-Type': 'image/svg+xml',
+					'Cache-Control': 'public, max-age=31536000, immutable',
+				},
 			}
 		}
 
 		// ----------------------------------------
 		// Get the icon configuration
 
-		const configsEnv = process.env.ICON_CONFIG
+		const configsEnv = getRouteEnv('ICON_CONFIG')
 
 		if (!configsEnv) {
 			throw new Error('Icon config not found in environment variables')
@@ -53,9 +52,11 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 
 		let baseIcon: Buffer | undefined
 
-		if (process.env.ICON_ORIGIN_S3) {
+		const originBucket = getRouteEnv('ICON_ORIGIN_S3')
+
+		if (originBucket) {
 			const result = await getObject({
-				bucket: process.env.ICON_ORIGIN_S3,
+				bucket: originBucket,
 				key: path,
 			})
 
@@ -68,11 +69,10 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// ----------------------------------------
 		// Call the lamba origin function
 
-		if (!baseIcon && process.env.ICON_ORIGIN_LAMBDA) {
-			const result = (await invoke({
-				name: process.env.ICON_ORIGIN_LAMBDA,
-				payload: { path },
-			})) as string | undefined
+		const originRoute = getRouteEnv('ICON_ORIGIN')
+
+		if (!baseIcon && originRoute) {
+			const result = (await invokeRoute(originRoute, { path })) as string | undefined
 
 			if (typeof result === 'string') {
 				baseIcon = Buffer.from(result)
@@ -120,7 +120,7 @@ export default async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyRes
 		// Cache the image in S3
 
 		await putObject({
-			bucket: process.env.ICON_CACHE_BUCKET!,
+			bucket: cacheBucket,
 			key: path,
 			body: icon,
 			contentType: 'image/svg+xml',

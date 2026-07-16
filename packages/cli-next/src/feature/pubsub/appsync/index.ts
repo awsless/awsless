@@ -4,7 +4,7 @@ import { constantCase } from 'change-case'
 import { defineFeature } from '../../../feature.js'
 import { formatGlobalResourceName } from '../../../util/name.js'
 import { formatFullDomainName } from '../../domain/util.js'
-import { createLambdaFunction } from '../../function/util.js'
+import { createLambdaFunction } from '../util.js'
 import { shortId } from '../../../util/id.js'
 
 export const pubsubFeature = defineFeature({

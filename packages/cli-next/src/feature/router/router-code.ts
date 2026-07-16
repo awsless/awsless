@@ -1,29 +1,23 @@
 export const getViewerRequestFunctionCode = (props: {
-	blockDirectAccess?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
+	deployUrls?: boolean
 }): string => {
-	return CODE([
-		props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
-		(props.passwordAuth ?? props.basicAuth)
-			? AUTH_WRAPPER(
-					[
-						//
-						props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
-						props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
-					].join('\n')
-				)
-			: '',
-	])
+	return CODE(
+		[
+			(props.passwordAuth ?? props.basicAuth)
+				? AUTH_WRAPPER(
+						[
+							//
+							props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
+							props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
+						].join('\n')
+					)
+				: '',
+		],
+		props.deployUrls ? DEPLOY_URLS_PREFIX : ACTIVE_PREFIX
+	)
 }
-
-const BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT = `
-if (headers.host && headers.host.value.includes('cloudfront.net')) {
-	return {
-		statusCode: 403,
-		statusDescription: 'Forbidden'
-	};
-}`
 
 const BASIC_AUTH_CHECK = (username: string, password: string) => `
 authMethods.push('Basic realm="Protected"');
@@ -44,6 +38,47 @@ if(!isAuthorized) {
 	}
 }
 `
+
+// '$active' points at the route table of the live deployment.
+const ACTIVE_PREFIX = `
+let prefix;
+
+try {
+	prefix = (await cf.kvs().get('$active')).split(':')[0] + ':';
+} catch (e) {
+	return {
+		statusCode: 503,
+		statusDescription: 'Service Unavailable'
+	};
+}`
+
+// deployment url hosts like main-42.example.com resolve their deployment
+// number to a route table via '$deploy:42'; the distribution's own
+// cloudfront.net host serves the active deployment
+const DEPLOY_URLS_PREFIX = `
+let prefix;
+const host = (headers.host ? headers.host.value : '').split(':')[0].toLowerCase();
+
+if (host.endsWith('.cloudfront.net')) {
+	try {
+		prefix = (await cf.kvs().get('$active')).split(':')[0] + ':';
+	} catch (e) {
+		return {
+			statusCode: 503,
+			statusDescription: 'Service Unavailable'
+		};
+	}
+} else {
+	try {
+		const deploy = await cf.kvs().get('$deploy:' + host.split('.')[0].split('-').pop());
+		prefix = deploy.split(':')[0] + ':';
+	} catch (e) {
+		return {
+			statusCode: 404,
+			statusDescription: 'Not Found'
+		};
+	}
+}`
 
 const AUTH_WRAPPER = (code: string) => `
 const authHeader = headers.authorization && headers.authorization.value;
@@ -66,7 +101,7 @@ if (!isAuthorized) {
 	};
 }`
 
-const CODE = (injection: string[]) => `
+const CODE = (injection: string[], prefixCode: string) => `
 import cf from "cloudfront";
 
 function getPossibleRouteKeys(path) {
@@ -76,9 +111,14 @@ function getPossibleRouteKeys(path) {
 
 	const parts = path.split('/');
 	const root = path.startsWith('/') ? parts[1] : parts[0];
+	const file = parts[parts.length - 1].includes('.');
 
 	if(root.includes('.')) {
-		return [path, '/*'];
+		return [path, '/*.', '/*'];
+	}
+
+	if(file) {
+		return [path, '/'+root+'/*.', '/'+root+'/*', '/*.', '/*'];
 	}
 
 	return [path, '/'+root+'/*', '/*'];
@@ -96,7 +136,7 @@ function isValidRoute(route, method) {
 	return true;
 }
 
-async function findRoute(path, method) {
+async function findRoute(path, method, prefix) {
 	const store = cf.kvs();
 	const keys = getPossibleRouteKeys(path);
 
@@ -104,7 +144,7 @@ async function findRoute(path, method) {
 		const key = keys[i];
 
 		try {
-			const route = await store.get(key, { format: 'json' });
+			const route = await store.get(prefix + key, { format: 'json' });
 
 			if(isValidRoute(route, method)) {
 				return route;
@@ -118,65 +158,31 @@ function setRouteOrigin(route) {
 		setS3Origin(route);
 	} else if(route.type === 'lambda') {
 		setLambdaOrigin(route);
-	} else if(route.type === 'url') {
-		setUrlOrigin(route);
 	} else {
 		throw new Error('Unsupported route type');
 	}
 }
 
-function getRequestOriginConfig(route) {
-	const timeouts = {};
-	const config = { domainName: route.domainName, timeouts }
-
-	if(typeof route.readTimeout === 'number') {
-		timeouts.readTimeout = route.readTimeout;
-	}
-
-	if(typeof route.keepAliveTimeout === 'number') {
-		timeouts.keepAliveTimeout = route.keepAliveTimeout;
-	}
-
-	if(typeof route.responseCompletionTimeout === 'number') {
-		timeouts.responseCompletionTimeout = route.responseCompletionTimeout;
-	}
-
-	if(typeof route.connectionTimeout === 'number') {
-		timeouts.connectionTimeout = route.connectionTimeout;
-	}
-
-	if(typeof route.connectionAttempts === 'number') {
-		config.connectionAttempts = route.connectionAttempts;
-	}
-
-	if(typeof route.customHeaders === 'object') {
-		config.customHeaders = route.customHeaders;
-	}
-
-	if(typeof route.hostHeader === 'string') {
-		config.hostHeader = route.hostHeader;
-	}
-
-	if(typeof route.originPath === 'string') {
-		config.originPath = route.originPath;
-	}
-
-	return config
-}
 
 function setS3Origin(route) {
-	cf.updateRequestOrigin(Object.assign(getRequestOriginConfig(route), {
+	cf.updateRequestOrigin({
+		domainName: route.domainName,
 		originAccessControlConfig: {
 			enabled: true,
 			signingBehavior: 'always',
 			signingProtocol: 'sigv4',
 			originType: 's3',
 		}
-	}));
+	});
 }
 
 function setLambdaOrigin(route) {
-	cf.updateRequestOrigin(Object.assign(getRequestOriginConfig(route), {
+	cf.updateRequestOrigin({
+		domainName: route.domainName,
+		timeouts: {
+			readTimeout: 120,
+			connectionTimeout: 10,
+		},
 		customOriginConfig: {
 			port: 443,
 			protocol: 'https',
@@ -188,17 +194,19 @@ function setLambdaOrigin(route) {
 			signingProtocol: 'sigv4',
 			originType: 'lambda',
 		}
-	}));
-}
-
-function setUrlOrigin(route) {
-	cf.updateRequestOrigin(getRequestOriginConfig(route));
+	});
 }
 
 async function handler(event) {
 	const request = event.request;
 	const headers = request.headers;
-	const path = decodeURIComponent(request.uri);
+	let path;
+
+	try {
+		path = decodeURIComponent(request.uri);
+	} catch (e) {
+		path = request.uri;
+	}
 
 	if (request.method === 'OPTIONS') {
 		return {
@@ -214,38 +222,59 @@ async function handler(event) {
 
 	${injection.join('\n')}
 
-	const route = await findRoute(path, request.method);
+	${prefixCode}
 
-	if(route) {
-		setRouteOrigin(route);
+	const route = await findRoute(path, request.method, prefix);
 
-		if(route.forwardHost && headers.host && headers.host.value) {
-			headers['x-forwarded-host'] = { value: headers.host.value };
+	if(!route) {
+		return {
+			statusCode: 404,
+			statusDescription: 'Not Found'
+		};
+	}
+
+	if(route.requestHeaders) {
+		for(const name in route.requestHeaders) {
+			headers[name] = { value: route.requestHeaders[name] };
 		}
+	}
 
-		headers['x-origin'] = { value: route.domainName };
+	if(route.type === 'lambda') {
+		if(headers.authorization) {
+			headers['x-awsless-authorization'] = headers.authorization;
+		} else {
+			delete headers['x-awsless-authorization'];
+		}
+	}
 
-		if(route.urlEncodedQueryString) {
-			for (var key in request.querystring) {
-				if (key.includes('/')) {
-					request.querystring[encodeURIComponent(key)] = request.querystring[key];
-					delete request.querystring[key];
-				}
+	setRouteOrigin(route);
+
+	if(route.forwardHost && headers.host && headers.host.value) {
+		headers['x-forwarded-host'] = { value: headers.host.value };
+	}
+
+	headers['x-origin'] = { value: route.domainName };
+
+	if(route.urlEncodedQueryString) {
+		for (var key in request.querystring) {
+			if (key.includes('/')) {
+				request.querystring[encodeURIComponent(key)] = request.querystring[key];
+				delete request.querystring[key];
 			}
 		}
+	}
 
-		if(route.type === 's3' || route.removeCookies) {
-			delete headers["Cookies"];
-			delete headers["cookies"];
-			delete request.cookies;
-		}
+	if(route.type === 's3') {
+		delete headers["Cookies"];
+		delete headers["cookies"];
+		delete request.cookies;
+	}
 
-		if (route.rewrite) {
-			if(route.rewrite.regex) {
-				request.uri = request.uri.replace(new RegExp(route.rewrite.regex), route.rewrite.to);
-			} else {
-				request.uri = route.rewrite.to;
-			}
+	if (route.rewrite) {
+		if(route.rewrite.regex) {
+			request.uri = request.uri.replace(new RegExp(route.rewrite.regex), route.rewrite.to);
+		} else {
+			request.uri = route.rewrite.to;
 		}
 	}
 

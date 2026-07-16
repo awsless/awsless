@@ -247,14 +247,13 @@ export const domainFeature = defineFeature({
 			// 	return `arn:aws:ses:${ctx.appConfig.region}:${ctx.accountId}:identity/${props.domain}`
 			// })
 
-			const verification = new aws.ses.DomainIdentityVerification(
+			new aws.ses.DomainIdentityVerification(
 				group,
 				'mail',
 				{ domain: props.domain },
 				{ dependsOn: [identity, verificationRecord, nsCheck] }
 			)
 
-			ctx.shared.add(`domain`, 'mail-arn', id, verification.arn)
 
 			for (const record of props.dns ?? []) {
 				const name = record.name ?? props.domain

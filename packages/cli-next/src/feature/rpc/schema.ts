@@ -12,11 +12,11 @@ import { RouteSchema } from '../router/schema.js'
 const TimeoutSchema = DurationSchema
 	//
 	.refine(durationMin(seconds(10)), 'Minimum timeout duration is 10 seconds')
-	.refine(durationMax(minutes(5)), 'Maximum timeout duration is 5 minutes')
+	.refine(durationMax(minutes(2)), 'Maximum timeout duration is 2 minutes')
 	.describe(
 		[
 			'The amount of time that the RPC lambda is allowed run before stopping it.',
-			'You can specify a timeout from 10 second to 5 minutes.',
+			'You can specify a timeout from 10 seconds to 2 minutes.',
 			'The timeouts of all inner RPC functions will be capped at 80% of this timeout.',
 		].join(' ')
 	)

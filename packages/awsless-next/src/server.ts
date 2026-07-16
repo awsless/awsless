@@ -11,6 +11,7 @@ export * from './lib/mock/task.js'
 export * from './lib/mock/topic.js'
 
 // Server
+export * from './lib/server/bundle.js'
 export * from './lib/server/job.js'
 export * from './lib/server/alert.js'
 export * from './lib/server/auth.js'
@@ -32,4 +33,4 @@ export * from './lib/server/table.js'
 export * from './lib/server/task.js'
 export * from './lib/server/topic.js'
 
-export { APP, STACK } from './lib/server/util.js'
+export { APP, getStack } from './lib/server/util.js'

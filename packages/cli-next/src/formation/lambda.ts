@@ -1,31 +1,52 @@
-import { LambdaClient, UpdateFunctionCodeCommand } from '@aws-sdk/client-lambda'
-import { createCustomProvider, createCustomResourceClass, Input, OptionalInput, Output } from '@terraforge/core'
+import {
+	AddPermissionCommand,
+	CreateAliasCommand,
+	CreateFunctionUrlConfigCommand,
+	DeleteAliasCommand,
+	DeleteFunctionUrlConfigCommand,
+	GetAliasCommand,
+	GetFunctionUrlConfigCommand,
+	LambdaClient,
+	PutFunctionEventInvokeConfigCommand,
+	UpdateAliasCommand,
+} from '@aws-sdk/client-lambda'
+import { createCustomProvider, createCustomResourceClass, Input, OptionalOutput, Output } from '@terraforge/core'
+import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials } from '../util/aws'
 
-type UpdateFunctionCodeInput = {
-	version?: OptionalInput<string>
-	architectures: Input<Input<string>[]>
+type FunctionDeploymentInput = {
 	functionName: Input<string>
-} & (
-	| {
-			s3Bucket: OptionalInput<string>
-			s3Key: OptionalInput<string>
-			s3ObjectVersion?: OptionalInput<string>
-	  }
-	| {
-			imageUri: OptionalInput<string>
-	  }
-)
-
-type UpdateFunctionCodeOutput = {
-	id: Output<string>
+	functionVersion: Input<string>
+	id: Input<string>
+	sourceArns: Input<Input<string>[]>
 }
 
-export const UpdateFunctionCode = createCustomResourceClass<UpdateFunctionCodeInput, UpdateFunctionCodeOutput>(
+type FunctionDeploymentOutput = {
+	url: Output<string>
+}
+
+export const FunctionDeployment = createCustomResourceClass<FunctionDeploymentInput, FunctionDeploymentOutput>(
 	'lambda',
-	'update-function-code'
+	'function-deployment'
+)
+
+type BundleDeploymentInput = {
+	deploymentId: Input<number>
+	functionName: Input<string>
+	functionVersion: Input<string>
+	onFailureArn: Input<string>
+}
+
+type BundleDeploymentOutput = {
+	liveDescription: OptionalOutput<string>
+	liveVersion: Output<string>
+}
+
+export const BundleDeployment = createCustomResourceClass<BundleDeploymentInput, BundleDeploymentOutput>(
+	'lambda',
+	'bundle-deployment'
 )
 
 type ProviderProps = {
@@ -35,45 +56,318 @@ type ProviderProps = {
 
 export const createLambdaProvider = ({ credentials, region }: ProviderProps) => {
 	const lambda = new LambdaClient({ credentials, region })
+	const functionDeploymentInputSchema = z.object({
+		functionName: z.string(),
+		functionVersion: z.string(),
+		id: z.string(),
+		sourceArns: z.array(z.string()),
+	})
+	const functionDeploymentStateSchema = functionDeploymentInputSchema.extend({
+		alias: z.string(),
+		url: z.string(),
+		oldDeployments: z.array(z.string()),
+	})
+	const bundleDeploymentInputSchema = z.object({
+		deploymentId: z.number(),
+		functionName: z.string(),
+		functionVersion: z.string(),
+		onFailureArn: z.string(),
+	})
+	const bundleDeploymentStateSchema = bundleDeploymentInputSchema.extend({
+		deploymentAlias: z.string(),
+		deploymentAliases: z.array(z.string()),
+		liveDescription: z.string().optional(),
+		liveVersion: z.string(),
+	})
+	const getFunctionDeploymentAlias = (state: z.output<typeof functionDeploymentInputSchema>) => {
+		const hash = createHash('sha1')
+			.update(state.functionName)
+			.update(state.functionVersion)
+			.update([...state.sourceArns].sort().join(','))
+			.digest('hex')
+			.slice(0, 10)
 
-	return createCustomProvider('lambda', {
-		'update-function-code': {
-			async updateResource(props) {
-				const state = z
-					.object({
-						functionName: z.string(),
-						architectures: z.string().array(),
-						s3Bucket: z
-							.string()
-							.optional()
-							.transform(v => (v ? v : undefined)),
-						s3Key: z
-							.string()
-							.optional()
-							.transform(v => (v ? v : undefined)),
-						s3ObjectVersion: z
-							.string()
-							.optional()
-							.transform(v => (v ? v : undefined)),
-						imageUri: z
-							.string()
-							.optional()
-							.transform(v => (v ? v : undefined)),
-					})
-					.parse(props.proposedState)
+		return `${state.id}-${hash}`
+	}
+	const isError = (error: unknown, name: string) => {
+		return error instanceof Error && error.name === name
+	}
+	const createAlias = async (functionName: string, functionVersion: string, name: string) => {
+		try {
+			await lambda.send(
+				new CreateAliasCommand({
+					FunctionName: functionName,
+					FunctionVersion: functionVersion,
+					Name: name,
+				})
+			)
+		} catch (error) {
+			if (!isError(error, 'ResourceConflictException')) {
+				throw error
+			}
 
+			await lambda.send(
+				new UpdateAliasCommand({
+					FunctionName: functionName,
+					FunctionVersion: functionVersion,
+					Name: name,
+				})
+			)
+		}
+	}
+	const getLiveAlias = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
+		try {
+			const result = await lambda.send(
+				new GetAliasCommand({
+					FunctionName: state.functionName,
+					Name: 'live',
+				})
+			)
+
+			return {
+				liveDescription: result.Description,
+				liveVersion: result.FunctionVersion!,
+			}
+		} catch (error) {
+			if (!isError(error, 'ResourceNotFoundException')) {
+				throw error
+			}
+
+			return {
+				liveDescription: undefined,
+				liveVersion: state.functionVersion,
+			}
+		}
+	}
+	const configureVersion = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
+		await lambda.send(
+			new PutFunctionEventInvokeConfigCommand({
+				FunctionName: state.functionName,
+				Qualifier: state.functionVersion,
+				MaximumRetryAttempts: 2,
+				DestinationConfig: {
+					OnFailure: {
+						Destination: state.onFailureArn,
+					},
+				},
+			})
+		)
+	}
+	const createBundleDeployment = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
+		const deploymentAlias = `deployment-${state.deploymentId}`
+		const live = await getLiveAlias(state)
+
+		await createAlias(state.functionName, state.functionVersion, deploymentAlias)
+		await configureVersion(state)
+
+		return {
+			...state,
+			deploymentAlias,
+			deploymentAliases: [deploymentAlias],
+			...live,
+		}
+	}
+	const deleteAlias = async (functionName: string, name: string) => {
+		try {
+			await lambda.send(
+				new DeleteAliasCommand({
+					FunctionName: functionName,
+					Name: name,
+				})
+			)
+		} catch (error) {
+			if (!isError(error, 'ResourceNotFoundException')) {
+				throw error
+			}
+		}
+	}
+	const createFunctionDeployment = async (state: z.output<typeof functionDeploymentInputSchema>, alias: string) => {
+		try {
+			await lambda.send(
+				new CreateAliasCommand({
+					FunctionName: state.functionName,
+					FunctionVersion: state.functionVersion,
+					Name: alias,
+				})
+			)
+		} catch (error) {
+			if (!isError(error, 'ResourceConflictException')) {
+				throw error
+			}
+		}
+
+		let url: string
+
+		try {
+			const result = await lambda.send(
+				new CreateFunctionUrlConfigCommand({
+					FunctionName: state.functionName,
+					Qualifier: alias,
+					AuthType: 'AWS_IAM',
+				})
+			)
+
+			url = result.FunctionUrl!
+		} catch (error) {
+			if (!isError(error, 'ResourceConflictException')) {
+				throw error
+			}
+
+			const result = await lambda.send(
+				new GetFunctionUrlConfigCommand({
+					FunctionName: state.functionName,
+					Qualifier: alias,
+				})
+			)
+
+			url = result.FunctionUrl!
+		}
+
+		const addPermission = async (props: {
+			statementId: string
+			action: string
+			sourceArn: string
+			functionUrlAuthType?: 'AWS_IAM'
+			invokedViaFunctionUrl?: boolean
+		}) => {
+			try {
 				await lambda.send(
-					new UpdateFunctionCodeCommand({
+					new AddPermissionCommand({
 						FunctionName: state.functionName,
-						Architectures: state.architectures,
-						ImageUri: state.imageUri,
-						S3Bucket: state.s3Bucket,
-						S3Key: state.s3Key,
-						S3ObjectVersion: state.s3ObjectVersion,
+						Qualifier: alias,
+						StatementId: props.statementId,
+						Action: props.action,
+						Principal: 'cloudfront.amazonaws.com',
+						SourceArn: props.sourceArn,
+						FunctionUrlAuthType: props.functionUrlAuthType,
+						InvokedViaFunctionUrl: props.invokedViaFunctionUrl,
 					})
 				)
+			} catch (error) {
+				if (!isError(error, 'ResourceConflictException')) {
+					throw error
+				}
+			}
+		}
 
-				return state
+		await Promise.all(
+			state.sourceArns.flatMap((sourceArn, index) => [
+				addPermission({
+					statementId: `cloudfront-url-${index}`,
+					action: 'lambda:InvokeFunctionUrl',
+					functionUrlAuthType: 'AWS_IAM',
+					sourceArn,
+				}),
+				addPermission({
+					statementId: `cloudfront-invoke-${index}`,
+					action: 'lambda:InvokeFunction',
+					invokedViaFunctionUrl: true,
+					sourceArn,
+				}),
+			])
+		)
+
+		return url
+	}
+	const deleteFunctionDeployment = async (functionName: string, alias: string) => {
+		try {
+			await lambda.send(
+				new DeleteFunctionUrlConfigCommand({
+					FunctionName: functionName,
+					Qualifier: alias,
+				})
+			)
+		} catch (error) {
+			if (!isError(error, 'ResourceNotFoundException')) {
+				throw error
+			}
+		}
+
+		await deleteAlias(functionName, alias)
+	}
+
+	return createCustomProvider('lambda', {
+		'bundle-deployment': {
+			async createResource(props) {
+				const state = bundleDeploymentInputSchema.parse(props.state)
+
+				return createBundleDeployment(state)
+			},
+			async updateResource(props) {
+				const prior = bundleDeploymentStateSchema.parse(props.priorState)
+				const proposed = bundleDeploymentInputSchema.parse(props.proposedState)
+
+				if (prior.functionName !== proposed.functionName) {
+					const next = await createBundleDeployment(proposed)
+
+					await Promise.all(
+						prior.deploymentAliases.map(name => deleteAlias(prior.functionName, name))
+					)
+
+					return next
+				}
+
+				const deploymentAlias = `deployment-${proposed.deploymentId}`
+				const deploymentAliases = [...prior.deploymentAliases]
+				const live = await getLiveAlias(proposed)
+
+				if (!deploymentAliases.includes(deploymentAlias)) {
+					await createAlias(proposed.functionName, proposed.functionVersion, deploymentAlias)
+					deploymentAliases.push(deploymentAlias)
+				}
+
+				await configureVersion(proposed)
+
+				return {
+					...proposed,
+					deploymentAlias,
+					deploymentAliases,
+					...live,
+				}
+			},
+			async deleteResource(props) {
+				const state = bundleDeploymentStateSchema.parse(props.state)
+
+				await Promise.all(state.deploymentAliases.map(name => deleteAlias(state.functionName, name)))
+			},
+		},
+		'function-deployment': {
+			async createResource(props) {
+				const state = functionDeploymentInputSchema.parse(props.state)
+				const alias = getFunctionDeploymentAlias(state)
+				const url = await createFunctionDeployment(state, alias)
+
+				return {
+					...state,
+					alias,
+					url,
+					oldDeployments: [],
+				}
+			},
+			async updateResource(props) {
+				const prior = functionDeploymentStateSchema.parse(props.priorState)
+				const proposed = functionDeploymentInputSchema.parse(props.proposedState)
+				const alias = getFunctionDeploymentAlias(proposed)
+				const changed = alias !== prior.alias
+				const url = changed ? await createFunctionDeployment(proposed, alias) : prior.url
+				const oldDeployments = prior.oldDeployments.filter(item => item !== alias)
+
+				if (changed) {
+					oldDeployments.push(prior.alias)
+				}
+
+				return {
+					...proposed,
+					alias,
+					url,
+					oldDeployments,
+				}
+			},
+			async deleteResource(props) {
+				const state = functionDeploymentStateSchema.parse(props.state)
+				const aliases = new Set([state.alias, ...state.oldDeployments])
+
+				await Promise.all([...aliases].map(alias => deleteFunctionDeployment(state.functionName, alias)))
 			},
 		},
 	})

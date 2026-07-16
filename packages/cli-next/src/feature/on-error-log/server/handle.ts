@@ -1,4 +1,3 @@
-import { invoke } from '@awsless/lambda'
 import {
 	array,
 	literal,
@@ -14,9 +13,10 @@ import {
 	transform,
 	uuid,
 } from '@awsless/validate'
-import { CloudWatchLogsEvent } from 'aws-lambda'
-import { createHash, UUID } from 'crypto'
-import * as zlib from 'zlib'
+import { getRouteEnv, invokeRoute } from 'awsless'
+import type { CloudWatchLogsEvent } from 'aws-lambda'
+import { createHash, UUID } from 'node:crypto'
+import * as zlib from 'node:zlib'
 
 // Runtime error log (thrown by function code)
 const RuntimeErrorSchema = object({
@@ -63,7 +63,7 @@ const EventSchema = object({
 	),
 })
 
-type Error = {
+type ErrorLog = {
 	hash: string
 	requestId: UUID
 	level: 'warn' | 'error' | 'fatal'
@@ -73,44 +73,50 @@ type Error = {
 	data?: unknown
 }
 
-const consumer = process.env.CONSUMER
-
-if (!consumer) {
-	throw new Error('CONSUMER environment variable is not set')
-}
+// The bundles own log group subscribes to the bundle, so consuming
+// an error log must never produce one, or errors would loop forever.
 
 export default async (event: CloudWatchLogsEvent) => {
-	const payload = Buffer.from(event.awslogs.data, 'base64')
-	const unzipped = zlib.gunzipSync(new Uint8Array(payload))
-	const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
+	const consumerRoute = getRouteEnv('CONSUMER')!
 
-	if (!result.success) {
-		console.log('Failed to parse log data', result.issues)
-		return
-	}
+	const quiet = { error: console.error, warn: console.warn }
+	console.error = console.info
+	console.warn = console.info
 
-	const origin = result.output.logGroup.split('/').pop()!
+	try {
+		const payload = Buffer.from(event.awslogs.data, 'base64')
+		const unzipped = zlib.gunzipSync(new Uint8Array(payload))
+		const result = safeParse(EventSchema, JSON.parse(unzipped.toString('utf-8')))
 
-	for (const logEvent of result.output.logEvents) {
-		const error = parseError(logEvent.message, origin)
-
-		if (!error) {
-			continue
+		if (!result.success) {
+			console.info('Failed to parse log data', result.issues)
+			return
 		}
 
-		await invoke({
-			name: consumer,
-			type: 'Event',
-			payload: {
+		const origin = result.output.logGroup.split('/').pop()!
+
+		for (const logEvent of result.output.logEvents) {
+			const error = parseError(logEvent.message, origin)
+
+			if (!error) {
+				continue
+			}
+
+			await invokeRoute(consumerRoute, {
 				...error,
 				origin,
 				date: logEvent.timestamp,
-			},
-		})
+			})
+		}
+	} catch (error) {
+		console.info('Failed to consume the error logs', error)
+	} finally {
+		console.error = quiet.error
+		console.warn = quiet.warn
 	}
 }
 
-const parseError = (message: string, origin: string): Error | undefined => {
+const parseError = (message: string, origin: string): ErrorLog | undefined => {
 	let parsed
 	try {
 		parsed = JSON.parse(message)

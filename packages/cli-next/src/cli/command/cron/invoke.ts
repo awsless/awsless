@@ -2,8 +2,9 @@ import { log, prompt } from '@awsless/clui'
 import { invoke as invokeLambda, LambdaClient } from '@awsless/lambda'
 import { Command } from 'commander'
 import { ExpectedError } from '../../../error.js'
+import { formatRouteKey } from '../../../feature/bundle/util.js'
 import { getCredentials } from '../../../util/aws.js'
-import { formatLocalResourceName } from '../../../util/name.js'
+import { formatGlobalResourceName } from '../../../util/name.js'
 import { layout } from '../../ui/complex/layout.js'
 
 export const invoke = (program: Command) => {
@@ -65,14 +66,14 @@ export const invoke = (program: Command) => {
 				// ------------------------------------------------
 				// Get the cron
 
-				const functionName = formatLocalResourceName({
+				const functionName = formatGlobalResourceName({
 					appName: appConfig.name,
-					stackName: stackConfig.name,
-					resourceType: 'cron',
-					resourceName: name,
+					resourceType: 'function',
+					resourceName: 'bundle',
 				})
 
 				const payload = stackConfig.crons?.[name]?.payload ?? {}
+				const routeKey = formatRouteKey(stackConfig.name, 'cron', name)
 
 				const response = await log.task({
 					initialMessage: 'Invoking cron...',
@@ -81,7 +82,11 @@ export const invoke = (program: Command) => {
 					task() {
 						return invokeLambda({
 							name: functionName,
-							payload,
+							qualifier: 'live',
+							payload: {
+								'$awsless-route': routeKey,
+								event: payload,
+							},
 							client: new LambdaClient({
 								credentials,
 								region,

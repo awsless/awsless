@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 import { kebabCase, constantCase } from 'change-case'
 import { toSeconds } from '@awsless/duration'
 
@@ -69,6 +69,7 @@ export const metricFeature = defineFeature({
 		await ctx.write('metric.d.ts', gen, true)
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
 		const namespace = `awsless/${kebabCase(ctx.app.name)}/${kebabCase(ctx.stack.name)}`
 
 		// --------------------------------------------
@@ -90,7 +91,7 @@ export const metricFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.metrics ?? {})) {
 			const group = new Group(ctx.stack, 'metric', id)
 
-			ctx.addEnv(`METRIC_${constantCase(id)}`, props.type)
+			ctx.addEnv(`METRIC_${constantCase(ctx.stack.name)}_${constantCase(id)}`, props.type)
 
 			for (const alarmId in props.alarms ?? []) {
 				const alarmGroup = new Group(group, 'alarm', alarmId)
@@ -98,7 +99,7 @@ export const metricFeature = defineFeature({
 				const alarmProps = props.alarms![alarmId]!
 
 				let alarmAction: Output<string>
-				let alarmLambda: aws.lambda.Function | undefined
+				let invokesBundle = false
 
 				if (Array.isArray(alarmProps.trigger)) {
 					// ----------------------------------------
@@ -124,12 +125,29 @@ export const metricFeature = defineFeature({
 					}
 				} else {
 					// ----------------------------------------
-					// create lambda function trigger
+					// add lambda function trigger to the bundle
 
-					const { lambda } = createLambdaFunction(alarmGroup, ctx, 'metric', alarmName, alarmProps.trigger)
+					const trigger = alarmProps.trigger
+					const routeKey = formatRouteKey(ctx.stack.name, 'metric', alarmName)
 
-					alarmLambda = lambda
-					alarmAction = lambda.arn
+					bundle.addHandler({
+						routeKey,
+						file: trigger.code.file,
+						exportName: parseExportName(trigger.handler ?? ctx.appConfig.defaults.function.handler!),
+						external: trigger.code.external,
+						importAsString: trigger.code.importAsString,
+					})
+
+					for (const [name, value] of Object.entries(trigger.environment ?? {})) {
+						bundle.addEnv(name, value)
+					}
+
+					for (const permission of trigger.permissions ?? []) {
+						bundle.addPermission(permission)
+					}
+
+					invokesBundle = true
+					alarmAction = bundle.alias.arn
 				}
 
 				// ----------------------------------------
@@ -152,11 +170,13 @@ export const metricFeature = defineFeature({
 					alarmActions: [alarmAction],
 				})
 
-				if (alarmLambda) {
+				if (invokesBundle) {
 					new aws.lambda.Permission(alarmGroup, 'permission', {
 						action: 'lambda:InvokeFunction',
 						principal: 'lambda.alarms.cloudwatch.amazonaws.com',
-						functionName: alarmLambda.functionName,
+						functionName: bundle.lambda.functionName,
+						qualifier: bundle.alias.name,
+						sourceAccount: ctx.accountId,
 						sourceArn: alarm.arn,
 					})
 				}

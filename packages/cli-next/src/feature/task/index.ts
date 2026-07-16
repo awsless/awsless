@@ -7,7 +7,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { createAsyncLambdaFunction } from '../function/util.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -59,14 +59,12 @@ export const taskFeature = defineFeature({
 					resourceName: name,
 				})
 
-				if ('file' in props.consumer.code) {
-					const relFile = relative(directories.types, props.consumer.code.file)
+				const relFile = relative(directories.types, props.consumer.code.file)
 
-					types.addImport(varName, relFile)
-					resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
-					mock.addType(name, `MockBuilder<typeof ${varName}>`)
-					mockResponse.addType(name, `MockObject<typeof ${varName}>`)
-				}
+				types.addImport(varName, relFile)
+				resource.addType(name, `Invoke<'${funcName}', typeof ${varName}>`)
+				mock.addType(name, `MockBuilder<typeof ${varName}>`)
+				mockResponse.addType(name, `MockObject<typeof ${varName}>`)
 			}
 
 			mocks.addType(stack.name, mock)
@@ -88,6 +86,11 @@ export const taskFeature = defineFeature({
 			appName: ctx.app.name,
 			resourceType: 'task',
 			resourceName: 'group',
+		})
+		const failureQueueName = formatGlobalResourceName({
+			appName: ctx.app.name,
+			resourceType: 'on-failure',
+			resourceName: 'failure',
 		})
 
 		new aws.scheduler.ScheduleGroup(group, 'group', {
@@ -118,14 +121,19 @@ export const taskFeature = defineFeature({
 			}),
 			inlinePolicy: [
 				{
-					name: 'InvokeFunction',
+					name: 'ScheduleTarget',
 					policy: JSON.stringify({
 						Version: '2012-10-17',
 						Statement: [
 							{
 								Action: ['lambda:InvokeFunction'],
 								Effect: 'Allow',
-								Resource: [`arn:aws:lambda:*:*:function:${ctx.appConfig.name}--*--task--*`],
+								Resource: `arn:aws:lambda:*:*:function:${ctx.appConfig.name}--function--bundle:*`,
+							},
+							{
+								Action: ['sqs:SendMessage'],
+								Effect: 'Allow',
+								Resource: `arn:aws:sqs:*:*:${failureQueueName}`,
 							},
 						],
 					}),
@@ -154,9 +162,26 @@ export const taskFeature = defineFeature({
 		// ctx.addEnv('TASK_SCHEDULE_ROLE', scheduleRole.arn)
 	},
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
-			const group = new Group(ctx.stack, 'task', id)
-			createAsyncLambdaFunction(group, ctx, 'task', id, props)
+			const consumer = props.consumer
+
+			bundle.addHandler({
+				routeKey: formatRouteKey(ctx.stack.name, 'task', id),
+				file: consumer.code.file,
+				exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
+				external: consumer.code.external,
+				importAsString: consumer.code.importAsString,
+			})
+
+			for (const [name, value] of Object.entries(consumer.environment ?? {})) {
+				bundle.addEnv(name, value)
+			}
+
+			for (const permission of consumer.permissions ?? []) {
+				bundle.addPermission(permission)
+			}
 		}
 	},
 })

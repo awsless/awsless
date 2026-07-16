@@ -1,11 +1,12 @@
-import { Input, Group } from '@terraforge/core'
+import { Future, Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
+import { createHash } from 'node:crypto'
 import { glob } from 'glob'
-import { dirname, join } from 'path'
+import { basename, dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { createLambdaFunction } from '../function/util.js'
-import { getCacheControl, getContentType } from './util.js'
+import { SiteDeployment } from '../../formation/s3.js'
+import { formatRouteKey, parseExportName } from '../bundle/util.js'
 import { constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
@@ -15,6 +16,8 @@ import { Route } from '../router/route.js'
 export const siteFeature = defineFeature({
 	name: 'site',
 	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
 			const group = new Group(ctx.stack, 'site', id)
 
@@ -26,7 +29,7 @@ export const siteFeature = defineFeature({
 			})
 
 			const routerId = ctx.shared.entry('router', 'id', props.router)
-			const addInvalidation = ctx.shared.entry('router', 'addInvalidation', props.router)
+			const previewRouterId = ctx.shared.entry('router', 'preview-id', props.router)
 			const addRoutes = ctx.shared.entry('router', 'addRoutes', props.router)
 			const routeKey = props.path.endsWith('/') ? `${props.path}*` : `${props.path}/*`
 
@@ -110,51 +113,42 @@ export const siteFeature = defineFeature({
 			}
 
 			// ------------------------------------------------------------
-
-			const versions: Array<Input<string> | Input<string | undefined>> = []
-
-			// ------------------------------------------------------------
 			// Server Side Rendering
 
 			// let functionUrl: aws.lambda.FunctionUrl | undefined
 
 			if (props.ssr) {
-				const result = createLambdaFunction(group, ctx, `site`, id, props.ssr)
+				const ssr = props.ssr
+				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
-				versions.push(result.code.sourceHash)
-
-				ctx.onBind((name, value) => {
-					result.setEnvironment(name, value)
+				bundle.addHandler({
+					routeKey: bundleRouteKey,
+					file: ssr.code.file,
+					exportName: parseExportName(ssr.handler ?? ctx.appConfig.defaults.function.handler!),
+					external: ssr.code.external,
+					importAsString: ssr.code.importAsString,
 				})
 
-				new aws.lambda.Permission(group, 'ssr-permission', {
-					principal: 'cloudfront.amazonaws.com',
-					action: 'lambda:InvokeFunctionUrl',
-					functionName: result.lambda.functionName,
-					functionUrlAuthType: 'AWS_IAM',
-					sourceArn: `arn:aws:cloudfront::${ctx.accountId}:distribution/*`,
-				})
+				for (const [name, value] of Object.entries(ssr.environment ?? {})) {
+					bundle.addEnv(name, value)
+				}
 
-				const functionUrl = new aws.lambda.FunctionUrl(group, 'url', {
-					functionName: result.lambda.functionName,
-					authorizationType: 'AWS_IAM',
-				})
+				for (const permission of ssr.permissions ?? []) {
+					bundle.addPermission(permission)
+				}
 
-				addRoutes(group, 'ssr', {
+				addRoutes({
 					[routeKey]: {
 						type: 'lambda',
-						domainName: functionUrl.functionUrl.pipe(url => url.split('/')[2]!),
 						forwardHost: true,
 						urlEncodedQueryString: true,
+
+						// The custom route header tells the bundle which site to render.
+						requestHeaders: {
+							'x-awsless-route': bundleRouteKey,
+						},
 					},
 				})
-
-				// routes[routeKey] = {
-				// 	type: 'lambda',
-				// 	domainName: functionUrl.functionUrl.pipe(url => url.split('/')[2]!),
-				// 	forwardHost: true,
-				// 	urlEncodedQueryString: true,
-				// }
 			}
 
 			// ------------------------------------------------------------
@@ -184,12 +178,12 @@ export const siteFeature = defineFeature({
 					],
 				})
 
-				new aws.s3.BucketPolicy(
+				const bucketPolicy = new aws.s3.BucketPolicy(
 					group,
 					`policy`,
 					{
 						bucket: bucket.bucket,
-						policy: $resolve([bucket.arn, routerId], (arn, id) => {
+						policy: $resolve([bucket.arn, routerId, previewRouterId], (arn, ...ids) => {
 							return JSON.stringify({
 								Version: '2012-10-17',
 								Statement: [
@@ -202,7 +196,9 @@ export const siteFeature = defineFeature({
 										},
 										Condition: {
 											StringEquals: {
-												'AWS:SourceArn': `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`,
+												'AWS:SourceArn': ids.map(
+													id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`
+												),
 											},
 										},
 									},
@@ -218,12 +214,9 @@ export const siteFeature = defineFeature({
 				ctx.addStackPermission({
 					actions: [
 						's3:ListBucket',
-						's3:ListBucketV2',
-						's3:HeadObject',
 						's3:GetObject',
 						's3:PutObject',
 						's3:DeleteObject',
-						's3:CopyObject',
 						's3:GetObjectAttributes',
 					],
 					resources: [
@@ -238,53 +231,82 @@ export const siteFeature = defineFeature({
 
 				ctx.onReady(() => {
 					if (typeof props.static === 'string' && bucket) {
-						const files = glob.sync('**', {
-							cwd: props.static,
-							nodir: true,
+						const staticDir = props.static
+						const files = glob
+							.sync('**', {
+								cwd: staticDir,
+								nodir: true,
+							})
+							.sort()
+						const hashes = files.map(file => $hash(join(staticDir, file)))
+						const version = new Future<string>(resolve => {
+							if (hashes.length === 0) {
+								resolve(createHash('sha1').digest('hex'))
+								return
+							}
+
+							$combine(...hashes).then(hashes => {
+								const hash = createHash('sha1')
+
+								for (const [index, file] of files.entries()) {
+									hash.update(file)
+									hash.update(hashes[index]!)
+								}
+
+								resolve(hash.digest('hex'))
+							})
+						})
+						const deployment = new SiteDeployment(group, 'deployment', {
+							bucket: bucket.bucket,
+							source: staticDir,
+							version,
 						})
 
 						const staticRoutes: Record<string, Route> = {}
 
+						// html pages and extensionless files get their own exact route;
+						// every other file is covered by the single asset route below
 						for (const file of files) {
-							const prefixedFile = join('/', file)
-							const object = new aws.s3.BucketObject(group, prefixedFile, {
-								bucket: bucket.bucket,
-								key: prefixedFile,
-								cacheControl: getCacheControl(file),
-								contentType: getContentType(file),
-								source: join(props.static, file),
-								sourceHash: $hash(join(props.static, file)),
-							})
+							if (file.endsWith('.html')) {
+								const strippedHtmlFile = file.endsWith('index.html')
+									? file.slice(0, -11)
+									: file.slice(0, -5)
 
-							versions.push(object.key)
-							versions.push(object.sourceHash)
+								const urlFriendlyFile = strippedHtmlFile.endsWith('/')
+									? strippedHtmlFile.slice(0, -1)
+									: strippedHtmlFile
 
-							const strippedHtmlFile = file.endsWith('index.html')
-								? file.slice(0, -11)
-								: file.endsWith('.html')
-									? file.slice(0, -5)
-									: file
+								const routeFileKey = join(props.path, urlFriendlyFile)
 
-							const urlFriendlyFile = strippedHtmlFile.endsWith('/')
-								? strippedHtmlFile.slice(0, -1)
-								: strippedHtmlFile
-
-							const routeFileKey = join(props.path, urlFriendlyFile)
-
-							staticRoutes[routeFileKey] = {
-								type: 's3',
-								domainName: bucket.bucketRegionalDomainName,
-								rewrite: prefixedFile !== routeFileKey ? { to: prefixedFile } : undefined,
+								staticRoutes[routeFileKey] = {
+									type: 's3',
+									domainName: bucket.bucketRegionalDomainName,
+									rewrite: { to: $interpolate`/v-${deployment.version}/${file}` },
+								}
+							} else if (!basename(file).includes('.')) {
+								staticRoutes[join(props.path, file)] = {
+									type: 's3',
+									domainName: bucket.bucketRegionalDomainName,
+									rewrite: { to: $interpolate`/v-${deployment.version}/${file}` },
+								}
 							}
 						}
 
-						addRoutes(group, 'static', staticRoutes)
+						// one route serves every asset of this site version
+						staticRoutes[join(props.path, '*.')] = {
+							type: 's3',
+							domainName: bucket.bucketRegionalDomainName,
+							rewrite: {
+								regex: `^${props.path === '/' ? '' : props.path}/?(.*)$`,
+								to: $interpolate`/v-${deployment.version}/$1`,
+							},
+						}
+
+						addRoutes(staticRoutes, { dependsOn: [deployment, bucketPolicy] })
 					}
 				})
 			}
 
-			addInvalidation(group, 'invalidate', [routeKey], versions)
-			// addRoutes(group, routes)
 		}
 	},
 })
