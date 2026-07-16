@@ -24,9 +24,8 @@ import {
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
-type RouterTarget = {
-	id: string
-	storeArn: string
+type RouteStoreTarget = {
+	arn: string
 	deployment: RouteDeployment
 }
 
@@ -53,7 +52,7 @@ export const formatDeploymentSummary = (props: {
 	appConfig: AppConfig
 	deploymentId: number
 }): string[] => {
-	const previewUrls = new Map<string, string>()
+	let previewUrl: string | undefined
 	const stacks = Object.values(props.state?.stacks ?? {}) as Array<{
 		nodes: Record<string, { type: string; output: { domainName?: string } }>
 	}>
@@ -61,21 +60,19 @@ export const formatDeploymentSummary = (props: {
 	for (const stack of stacks) {
 		for (const [urn, node] of Object.entries(stack.nodes)) {
 			if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
-				const routerId = urn.match(/:router:\{([^}]+)\}/)?.[1]
-				if (routerId) {
-					previewUrls.set(routerId, `https://${node.output.domainName}`)
-				}
+				previewUrl = `https://${node.output.domainName}`
 			}
 		}
 	}
 
 	const deploymentDomain = props.appConfig.defaults.deploymentDomain
 
-	return Object.keys(props.appConfig.defaults.router ?? {}).map(routerId => {
+	// The preview distribution's own host serves the first router.
+	return Object.keys(props.appConfig.defaults.router ?? {}).map((routerId, index) => {
 		return [
 			`${routerId}: deployment #${props.deploymentId}`,
 			deploymentDomain && `https://${routerId}-${props.deploymentId}.${deploymentDomain}`,
-			previewUrls.get(routerId),
+			index === 0 ? previewUrl : undefined,
 		]
 			.filter(Boolean)
 			.join('\n')
@@ -190,36 +187,24 @@ export const promoteDeployment = async (props: {
 	functionName: string
 	deploymentId: number
 	functionVersion: string
-	routers: RouterTarget[]
+	store?: RouteStoreTarget
 	rejectStale?: boolean
 }) => {
-	if (props.routers.some(router => router.deployment.functionVersion !== props.functionVersion)) {
-		throw new ExpectedError(`The routers don't share the deployed function version.`)
+	if (props.store && props.store.deployment.functionVersion !== props.functionVersion) {
+		throw new ExpectedError(`The routes don't share the deployed function version.`)
 	}
 
 	const alias = await getAlias(props.lambda, props.functionName, LIVE_ALIAS)
 	const aliasDeployment = parseDeploymentDescription(alias?.Description)
-	const active = await Promise.all(
-		props.routers.map(async router => {
-			const activeId = await readActiveDeploymentId(props.kvs, router.storeArn)
-
-			return {
-				...router,
-				active:
-					activeId === undefined
-						? undefined
-						: await readRouteDeployment(props.kvs, router.storeArn, activeId),
-			}
-		})
-	)
-	const activeIds = new Set(active.map(router => router.active?.id).filter(id => id !== undefined))
-	const activeVersions = new Set(
-		active.map(router => router.active?.functionVersion).filter(version => version !== undefined)
-	)
+	const activeId = props.store ? await readActiveDeploymentId(props.kvs, props.store.arn) : undefined
+	const active =
+		props.store && activeId !== undefined
+			? await readRouteDeployment(props.kvs, props.store.arn, activeId)
+			: undefined
 
 	if (
 		props.rejectStale &&
-		Math.max(aliasDeployment?.latest ?? 0, ...active.map(router => router.active?.id ?? 0)) > props.deploymentId
+		Math.max(aliasDeployment?.latest ?? 0, active?.id ?? 0) > props.deploymentId
 	) {
 		throw new ExpectedError(`A newer deployment is already live.`)
 	}
@@ -239,15 +224,15 @@ export const promoteDeployment = async (props: {
 		throw error
 	}
 
-	const changed: typeof active = []
+	let routesUpdateStarted = false
 	let aliasUpdateStarted = false
 	let deploymentUpdateStarted = false
 	const description = formatDeploymentDescription(
 		props.deploymentId,
-		Math.max(props.deploymentId, aliasDeployment?.latest ?? 0, ...active.map(router => router.active?.id ?? 0))
+		Math.max(props.deploymentId, aliasDeployment?.latest ?? 0, active?.id ?? 0)
 	)
-	const priorId = activeIds.size === 1 ? [...activeIds][0] : undefined
-	const priorVersion = activeVersions.size === 1 ? [...activeVersions][0] : undefined
+	const priorId = active?.id
+	const priorVersion = active?.functionVersion
 
 	if (priorId !== undefined && priorVersion !== undefined && priorVersion === alias?.FunctionVersion) {
 		const priorAlias = await getAlias(props.lambda, props.functionName, getDeploymentAliasName(priorId))
@@ -269,11 +254,9 @@ export const promoteDeployment = async (props: {
 	)
 
 	try {
-		for (const router of active) {
-			if (router.active?.id !== router.deployment.id) {
-				changed.push(router)
-				await setActiveRouteDeployment(props.kvs, router.storeArn, router.deployment)
-			}
+		if (props.store && active?.id !== props.store.deployment.id) {
+			routesUpdateStarted = true
+			await setActiveRouteDeployment(props.kvs, props.store.arn, props.store.deployment)
 		}
 
 		if (alias?.FunctionVersion !== props.functionVersion || alias?.Description !== description) {
@@ -300,7 +283,9 @@ export const promoteDeployment = async (props: {
 		}
 	} catch (error) {
 		const rollback = [
-			...changed.reverse().map(router => setActiveRouteDeployment(props.kvs, router.storeArn, router.active)),
+			...(routesUpdateStarted && props.store
+				? [setActiveRouteDeployment(props.kvs, props.store.arn, active)]
+				: []),
 			...(deploymentUpdateStarted && deploymentAlias?.FunctionVersion
 				? [
 						upsertAlias(props.lambda, {
@@ -355,12 +340,12 @@ const activateDeployment = async (props: {
 	const release = await lock.lock(app.urn)
 
 	try {
-		const routers: RouterTarget[] = []
 		let deploymentId = props.deploymentId
 		let functionVersion: string | undefined
-		const routerIds = Object.keys(props.appConfig.defaults.router ?? {})
+		let store: RouteStoreTarget | undefined
+		const hasRouter = Object.keys(props.appConfig.defaults.router ?? {}).length > 0
 
-		if (props.rejectStale || deploymentId === undefined || routerIds.length === 0) {
+		if (props.rejectStale || deploymentId === undefined || !hasRouter) {
 			const deployment = await readFunctionDeployment({
 				lambda,
 				functionName,
@@ -370,54 +355,41 @@ const activateDeployment = async (props: {
 			functionVersion = deployment.functionVersion
 		}
 
-		for (const id of routerIds) {
+		if (hasRouter) {
 			const storeArn = await getRouteStoreArn(
 				cloudfront,
 				formatGlobalResourceName({
 					appName: props.appConfig.name,
 					resourceType: 'router',
-					resourceName: id,
+					resourceName: 'store',
 				})
 			)
 
 			if (!storeArn) {
-				throw new ExpectedError(`The "${id}" router hasn't been deployed yet. Run "awsless deploy" first.`)
+				throw new ExpectedError(`The router hasn't been deployed yet. Run "awsless deploy" first.`)
 			}
 
 			const deployment = await readRouteDeployment(kvs, storeArn, deploymentId!)
 
 			if (!deployment) {
-				throw new ExpectedError(`Deployment "${deploymentId}" doesn't exist for every router.`)
+				throw new ExpectedError(`Deployment "${deploymentId}" doesn't exist.`)
 			}
 
-			routers.push({ id, storeArn, deployment })
+			store = { arn: storeArn, deployment }
+			functionVersion ??= deployment.functionVersion
 		}
-
-		const deploymentIds = new Set(routers.map(router => router.deployment.id))
-		const functionVersions = new Set(routers.map(router => router.deployment.functionVersion))
-
-		if (deploymentIds.size > 1) {
-			throw new ExpectedError(`The routers don't share one deployment.`)
-		}
-
-		if (functionVersions.size > 1) {
-			throw new ExpectedError(`The routers don't share one function version.`)
-		}
-
-		deploymentId ??= routers[0]!.deployment.id
-		functionVersion ??= routers[0]!.deployment.functionVersion
 
 		await promoteDeployment({
 			kvs,
 			lambda,
 			functionName,
-			deploymentId,
-			functionVersion,
-			routers,
+			deploymentId: deploymentId!,
+			functionVersion: functionVersion!,
+			store,
 			rejectStale: props.rejectStale,
 		})
 
-		return deploymentId
+		return deploymentId!
 	} finally {
 		await release()
 	}

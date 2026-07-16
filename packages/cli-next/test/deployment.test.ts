@@ -206,10 +206,10 @@ const clients = () => ({
 	kvs: new CloudFrontKeyValueStoreClient({ region: 'us-east-1' }),
 	lambda: new LambdaClient({ region: 'us-east-1' }),
 })
-const seedRouter = (stores: Map<string, Map<string, string>>, id: string) => {
-	const storeArn = `arn:aws:cloudfront::123456789012:key-value-store/${id}`
+const seedStore = (stores: Map<string, Map<string, string>>) => {
+	const arn = `arn:aws:cloudfront::123456789012:key-value-store/store`
 	stores.set(
-		storeArn,
+		arn,
 		new Map([
 			['$active', 'aaaaaaaa:1'],
 			['$deploy:1', 'aaaaaaaa:1'],
@@ -218,8 +218,7 @@ const seedRouter = (stores: Map<string, Map<string, string>>, id: string) => {
 	)
 
 	return {
-		id,
-		storeArn,
+		arn,
 		deployment: { id: 2, table: 'bbbbbbbb', functionVersion: '2' },
 	}
 }
@@ -229,21 +228,20 @@ describe('deployment promotion', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('should switch every router before updating the live alias once', async () => {
+	it('should switch the routes before updating the live alias once', async () => {
 		const aws = mockAws()
-		const routers = [seedRouter(aws.stores, 'main'), seedRouter(aws.stores, 'admin')]
+		const store = seedStore(aws.stores)
 
 		await promoteDeployment({
 			...clients(),
 			functionName,
 			deploymentId: 2,
 			functionVersion: '2',
-			routers,
+			store,
 			rejectStale: true,
 		})
 
-		expect(aws.stores.get(routers[0]!.storeArn)?.get('$active')).toBe('bbbbbbbb:2')
-		expect(aws.stores.get(routers[1]!.storeArn)?.get('$active')).toBe('bbbbbbbb:2')
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('bbbbbbbb:2')
 		expect(aws.alias).toEqual({
 			FunctionVersion: '2',
 			Description: '$awsless:deployment:2:2',
@@ -251,10 +249,10 @@ describe('deployment promotion', () => {
 		expect(aws.aliasUpdates).toBe(1)
 	})
 
-	it('should restore changed routers when a later router fails', async () => {
+	it('should leave everything untouched when the route switch fails', async () => {
 		const aws = mockAws()
-		const routers = [seedRouter(aws.stores, 'main'), seedRouter(aws.stores, 'admin')]
-		aws.setFailStore(routers[1]!.storeArn)
+		const store = seedStore(aws.stores)
+		aws.setFailStore(store.arn)
 
 		await expect(
 			promoteDeployment({
@@ -262,19 +260,18 @@ describe('deployment promotion', () => {
 				functionName,
 				deploymentId: 2,
 				functionVersion: '2',
-				routers,
+				store,
 			})
 		).rejects.toThrow('KVS update failed')
 
-		expect(aws.stores.get(routers[0]!.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
-		expect(aws.stores.get(routers[1]!.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:1')
 		expect(aws.alias?.FunctionVersion).toBe('1')
 		expect(aws.aliasUpdates).toBe(0)
 	})
 
-	it('should preflight the function version before changing a router', async () => {
+	it('should preflight the function version before changing the routes', async () => {
 		const aws = mockAws()
-		const router = seedRouter(aws.stores, 'main')
+		const store = seedStore(aws.stores)
 		aws.setMissingVersion()
 
 		await expect(
@@ -283,17 +280,17 @@ describe('deployment promotion', () => {
 				functionName,
 				deploymentId: 2,
 				functionVersion: '2',
-				routers: [router],
+				store,
 			})
 		).rejects.toThrow('function version "2"')
 
-		expect(aws.stores.get(router.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:1')
 		expect(aws.aliasUpdates).toBe(0)
 	})
 
-	it('should restore every router and the prior alias after an alias failure', async () => {
+	it('should restore the routes and the prior alias after an alias failure', async () => {
 		const aws = mockAws()
-		const routers = [seedRouter(aws.stores, 'main'), seedRouter(aws.stores, 'admin')]
+		const store = seedStore(aws.stores)
 		aws.setFailAlias()
 
 		await expect(
@@ -302,12 +299,11 @@ describe('deployment promotion', () => {
 				functionName,
 				deploymentId: 2,
 				functionVersion: '2',
-				routers,
+				store,
 			})
 		).rejects.toThrow('Alias update failed')
 
-		expect(aws.stores.get(routers[0]!.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
-		expect(aws.stores.get(routers[1]!.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:1')
 		expect(aws.alias).toEqual({
 			FunctionVersion: '1',
 			Description: '$awsless:deployment:1:1',
@@ -317,7 +313,7 @@ describe('deployment promotion', () => {
 
 	it('should restore traffic and leave the target unpromoted when its marker fails', async () => {
 		const aws = mockAws()
-		const routers = [seedRouter(aws.stores, 'main'), seedRouter(aws.stores, 'admin')]
+		const store = seedStore(aws.stores)
 		aws.setFailDeploymentAlias()
 
 		await expect(
@@ -326,19 +322,18 @@ describe('deployment promotion', () => {
 				functionName,
 				deploymentId: 2,
 				functionVersion: '2',
-				routers,
+				store,
 			})
 		).rejects.toThrow('Deployment marker failed')
 
-		expect(aws.stores.get(routers[0]!.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
-		expect(aws.stores.get(routers[1]!.storeArn)?.get('$active')).toBe('aaaaaaaa:1')
+		expect(aws.stores.get(store.arn)?.get('$active')).toBe('aaaaaaaa:1')
 		expect(aws.alias?.FunctionVersion).toBe('1')
 		expect(aws.getDeploymentAlias(2)?.Description).not.toBe('$awsless:promoted')
 	})
 
-	it('should seed the current router deployment as promoted during migration', async () => {
+	it('should seed the current route deployment as promoted during migration', async () => {
 		const aws = mockAws()
-		const router = seedRouter(aws.stores, 'main')
+		const store = seedStore(aws.stores)
 		aws.removeDeploymentAlias(1)
 
 		await promoteDeployment({
@@ -346,7 +341,7 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 2,
 			functionVersion: '2',
-			routers: [router],
+			store,
 		})
 
 		expect(aws.getDeploymentAlias(1)?.Description).toBe('$awsless:promoted')
@@ -360,7 +355,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 3,
 			functionVersion: '3',
-			routers: [],
 		})
 
 		await expect(
@@ -369,7 +363,6 @@ describe('deployment promotion', () => {
 				functionName,
 				deploymentId: 2,
 				functionVersion: '2',
-				routers: [],
 				rejectStale: true,
 			})
 		).rejects.toThrow('A newer deployment is already live')
@@ -386,7 +379,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 3,
 			functionVersion: '3',
-			routers: [],
 		})
 
 		await expect(preflightDeployment({ ...clients(), functionName, deploymentId: 2 })).rejects.toThrow(
@@ -405,7 +397,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 3,
 			functionVersion: '3',
-			routers: [],
 		})
 
 		await expect(readFunctionDeployment({ lambda: clients().lambda, functionName })).resolves.toEqual({
@@ -451,7 +442,6 @@ describe('deployment promotion', () => {
 			functionName,
 			deploymentId: 3,
 			functionVersion: '3',
-			routers: [],
 		})
 
 		const previous = await readFunctionDeployment({ lambda, functionName })

@@ -1,24 +1,49 @@
-export const getViewerRequestFunctionCode = (props: {
-	blockDirectAccess?: boolean
+type AuthProps = {
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
-	deployUrls?: boolean
-}): string => {
+}
+
+export const getViewerRequestFunctionCode = (
+	props: {
+		router: string
+		blockDirectAccess?: boolean
+	} & AuthProps
+): string => {
 	return CODE(
 		[
 			props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
-			(props.passwordAuth ?? props.basicAuth)
-				? AUTH_WRAPPER(
-						[
-							//
-							props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
-							props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
-						].join('\n')
-					)
-				: '',
+			(props.passwordAuth ?? props.basicAuth) ? AUTH_WRAPPER(AUTH_CHECKS(props)) : '',
 		],
-		props.deployUrls ? DEPLOY_URLS_PREFIX : ACTIVE_PREFIX
+		ACTIVE_PREFIX(props.router)
 	)
+}
+
+// The preview function serves every router, so the auth checks
+// switch on the router resolved from the request host.
+export const getPreviewRequestFunctionCode = (props: {
+	defaultRouter: string
+	deployUrls?: boolean
+	routers: ({ id: string } & AuthProps)[]
+}): string => {
+	return CODE(
+		[],
+		props.deployUrls ? DEPLOY_URLS_PREFIX(props.defaultRouter) : ACTIVE_PREFIX(props.defaultRouter),
+		props.routers
+			.filter(router => router.passwordAuth ?? router.basicAuth)
+			.map(
+				router => `
+	if (router === ${JSON.stringify(router.id)}) {${AUTH_WRAPPER(AUTH_CHECKS(router))}
+	}`
+			)
+	)
+}
+
+const AUTH_CHECKS = (props: AuthProps) => {
+	return [
+		//
+		props.basicAuth ? BASIC_AUTH_CHECK(props.basicAuth.username, props.basicAuth.password) : '',
+		props.passwordAuth ? PASSWORD_AUTH_CHECK(props.passwordAuth.password) : '',
+	].join('\n')
 }
 
 const BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT = `
@@ -50,68 +75,75 @@ if(!isAuthorized) {
 `
 
 // '$active' points at the route table of the live deployment.
-const ACTIVE_PREFIX = `
-let prefix;
+const ACTIVE_PREFIX = (router: string) => `
+	const router = ${JSON.stringify(router)};
+	let prefix;
 
-try {
-	prefix = (await cf.kvs().get('$active')).split(':')[0] + ':';
-} catch (e) {
-	return {
-		statusCode: 503,
-		statusDescription: 'Service Unavailable'
-	};
-}`
-
-// deployment url hosts like main-42.example.com resolve their deployment
-// number to a route table via '$deploy:42'; the distribution's own
-// cloudfront.net host serves the active deployment
-const DEPLOY_URLS_PREFIX = `
-let prefix;
-const host = (headers.host ? headers.host.value : '').split(':')[0].toLowerCase();
-
-if (host.endsWith('.cloudfront.net')) {
 	try {
-		prefix = (await cf.kvs().get('$active')).split(':')[0] + ':';
+		prefix = (await cf.kvs().get('$active')).split(':')[0] + ':' + router + ':';
 	} catch (e) {
 		return {
 			statusCode: 503,
 			statusDescription: 'Service Unavailable'
 		};
-	}
-} else {
-	try {
-		const deploy = await cf.kvs().get('$deploy:' + host.split('.')[0].split('-').pop());
-		prefix = deploy.split(':')[0] + ':';
-	} catch (e) {
-		return {
-			statusCode: 404,
-			statusDescription: 'Not Found'
-		};
-	}
-}`
+	}`
+
+// deployment url hosts like main-42.example.com resolve their router and
+// deployment number to a route table via '$deploy:42'; the distribution's
+// own cloudfront.net host serves the default router's active deployment
+const DEPLOY_URLS_PREFIX = (defaultRouter: string) => `
+	let router;
+	let prefix;
+	const host = (headers.host ? headers.host.value : '').split(':')[0].toLowerCase();
+
+	if (host.endsWith('.cloudfront.net')) {
+		router = ${JSON.stringify(defaultRouter)};
+
+		try {
+			prefix = (await cf.kvs().get('$active')).split(':')[0] + ':' + router + ':';
+		} catch (e) {
+			return {
+				statusCode: 503,
+				statusDescription: 'Service Unavailable'
+			};
+		}
+	} else {
+		const sub = host.split('.')[0];
+		router = sub.slice(0, sub.lastIndexOf('-'));
+
+		try {
+			const deploy = await cf.kvs().get('$deploy:' + sub.split('-').pop());
+			prefix = deploy.split(':')[0] + ':' + router + ':';
+		} catch (e) {
+			return {
+				statusCode: 404,
+				statusDescription: 'Not Found'
+			};
+		}
+	}`
 
 const AUTH_WRAPPER = (code: string) => `
-const authHeader = headers.authorization && headers.authorization.value;
-const authMethods = [];
-let isAuthorized = false;
+	const authHeader = headers.authorization && headers.authorization.value;
+	const authMethods = [];
+	let isAuthorized = false;
 
-${code}
+	${code}
 
-if (!isAuthorized) {
-	return {
-		statusCode: 401,
-		headers: {
-			'access-control-allow-origin': {
-				value: '*'
-			},
-			'www-authenticate': {
-				value: authMethods.join(', ')
+	if (!isAuthorized) {
+		return {
+			statusCode: 401,
+			headers: {
+				'access-control-allow-origin': {
+					value: '*'
+				},
+				'www-authenticate': {
+					value: authMethods.join(', ')
+				}
 			}
-		}
-	};
-}`
+		};
+	}`
 
-const CODE = (injection: string[], prefixCode: string) => `
+const CODE = (beforePrefix: string[], prefixCode: string, afterPrefix: string[] = []) => `
 import cf from "cloudfront";
 
 function getPossibleRouteKeys(path) {
@@ -230,9 +262,11 @@ async function handler(event) {
 		};
 	}
 
-	${injection.join('\n')}
+	${beforePrefix.join('\n')}
 
 	${prefixCode}
+
+	${afterPrefix.join('\n')}
 
 	const route = await findRoute(path, request.method, prefix);
 

@@ -7,7 +7,7 @@ import { createDnsValidatedCertificate, formatFullDomainName } from '../domain/u
 import { NsCheck } from '../../formation/ns-check.js'
 import { camelCase, constantCase } from 'change-case'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
-import { getViewerRequestFunctionCode } from './router-code.js'
+import { getPreviewRequestFunctionCode, getViewerRequestFunctionCode } from './router-code.js'
 import { ExpectedError } from '../../error.js'
 import { FunctionDeployment } from '../../formation/lambda.js'
 import { Route } from './route.js'
@@ -18,12 +18,15 @@ export const routerFeature = defineFeature({
 		const deploymentDomain = ctx.appConfig.defaults.deploymentDomain
 		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
 
-		if (deploymentDomain) {
-			// the deployment url wildcard can only point at one distribution
-			if (routers.length > 1) {
-				throw new ExpectedError(`A deploymentDomain currently only supports apps with a single router.`)
-			}
+		if (routers.length === 0) {
+			return
+		}
 
+		if (Object.hasOwn(ctx.appConfig.defaults.router ?? {}, 'app')) {
+			throw new ExpectedError(`The router id "app" is reserved.`)
+		}
+
+		if (deploymentDomain) {
 			// deployment urls must never live on a user facing domain
 			for (const domainProps of Object.values(ctx.appConfig.defaults.domains ?? {})) {
 				const domain = domainProps.domain
@@ -40,6 +43,68 @@ export const routerFeature = defineFeature({
 			}
 		}
 
+		const appGroup = new Group(ctx.base, 'router', 'app')
+		const defaultRouter = routers[0]![0]
+
+		// ------------------------------------------------------------
+		// Deployment URL Domain
+
+		let deploymentCertificateArn: Input<string> | undefined
+		let deploymentZone: aws.route53.Zone | undefined
+
+		if (deploymentDomain) {
+			const zone = new aws.route53.Zone(ctx.zones, 'deployment-zone', {
+				name: deploymentDomain,
+				forceDestroy: true,
+			})
+			const nsCheck = new NsCheck(appGroup, 'deployment-check', {
+				zoneId: zone.id,
+			})
+
+			ctx.registerDomainZone(zone)
+			deploymentZone = zone
+
+			const provider = ctx.appConfig.region !== 'us-east-1' ? ('global-aws' as const) : undefined
+			const validation = createDnsValidatedCertificate(appGroup, 'deployment-cert', {
+				recordIdPrefix: 'deployment-cert',
+				zoneId: zone.id,
+				domainName: deploymentDomain,
+				subjectAlternativeNames: [`*.${deploymentDomain}`],
+				provider,
+				dependsOn: [nsCheck],
+			})
+
+			deploymentCertificateArn = validation.certificateArn
+		}
+
+		// ------------------------------------------------------------
+		// Route Store
+
+		// All routers share one store; route keys are scoped as
+		// '<table>:<router>:<key>' so activation is one '$active' write.
+		const routeStore = new aws.cloudfront.KeyValueStore(appGroup, 'routes', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'router',
+				resourceName: 'store',
+			}),
+			comment: 'Store for routes',
+		})
+
+		const routes: Record<string, Route> = {}
+		const routeDependencies = new Set<Resource | DataSource>()
+		const distributionIds: Input<string>[] = []
+		let hasLambdaRoutes = false
+		let previewSettings:
+			| {
+					cache: aws.cloudfront.CachePolicy
+					originRequest: aws.cloudfront.OriginRequestPolicy
+					responseHeaders: aws.cloudfront.ResponseHeadersPolicy
+					waf: aws.wafv2.WebAcl | undefined
+					props: (typeof routers)[number][1]
+			  }
+			| undefined
+
 		for (const [id, props] of routers) {
 			const group = new Group(ctx.base, 'router', id)
 
@@ -49,66 +114,16 @@ export const routerFeature = defineFeature({
 				resourceName: id,
 			})
 
-			// ------------------------------------------------------------
-			// Deployment URL Domain
-
-			let deploymentCertificateArn: Input<string> | undefined
-			let deploymentZone: aws.route53.Zone | undefined
-
-			if (deploymentDomain) {
-				const zone = new aws.route53.Zone(ctx.zones, 'deployment-zone', {
-					name: deploymentDomain,
-					forceDestroy: true,
-				})
-				const nsCheck = new NsCheck(group, 'deployment-check', {
-					zoneId: zone.id,
-				})
-
-				ctx.registerDomainZone(zone)
-				deploymentZone = zone
-
-				const provider = ctx.appConfig.region !== 'us-east-1' ? ('global-aws' as const) : undefined
-				const validation = createDnsValidatedCertificate(group, 'deployment-cert', {
-					recordIdPrefix: 'deployment-cert',
-					zoneId: zone.id,
-					domainName: deploymentDomain,
-					subjectAlternativeNames: [`*.${deploymentDomain}`],
-					provider,
-					dependsOn: [nsCheck],
-				})
-
-				deploymentCertificateArn = validation.certificateArn
-			}
-
-			// ------------------------------------------------------------
-			// Route Store
-
-			const routeStore = new aws.cloudfront.KeyValueStore(group, 'routes', {
-				name,
-				comment: 'Store for routes',
-			})
-			const productionCode = getViewerRequestFunctionCode({
-				blockDirectAccess: !!props.domain,
-				basicAuth: props.basicAuth,
-				passwordAuth: props.passwordAuth,
-			})
-			const previewCode = getViewerRequestFunctionCode({
-				basicAuth: props.basicAuth,
-				passwordAuth: props.passwordAuth,
-				deployUrls: !!deploymentDomain,
-			})
 			// the function names are capped at 64 characters
 			const productionFunction = new aws.cloudfront.Function(group, 'production-function', {
 				name: `${name.slice(0, 52)}--production`,
 				runtime: 'cloudfront-js-2.0',
-				code: productionCode,
-				publish: true,
-				keyValueStoreAssociations: [routeStore.arn],
-			})
-			const previewFunction = new aws.cloudfront.Function(group, 'preview-function', {
-				name: `${name.slice(0, 55)}--preview`,
-				runtime: 'cloudfront-js-2.0',
-				code: previewCode,
+				code: getViewerRequestFunctionCode({
+					router: id,
+					blockDirectAccess: !!props.domain,
+					basicAuth: props.basicAuth,
+					passwordAuth: props.passwordAuth,
+				}),
 				publish: true,
 				keyValueStoreAssociations: [routeStore.arn],
 			})
@@ -116,17 +131,15 @@ export const routerFeature = defineFeature({
 			// ------------------------------------------------------------
 			// Add routes API
 
-			const routes: Record<string, Route> = {}
-			const routeDependencies = new Set<Resource | DataSource>()
-			let lambdaUrlHost: Input<string> | undefined
-
 			ctx.shared.add('router', 'addRoutes', id, (newRoutes, options) => {
 				for (const [key, route] of Object.entries(newRoutes)) {
-					if (Object.hasOwn(routes, key)) {
+					const scopedKey = `${id}:${key}`
+
+					if (Object.hasOwn(routes, scopedKey)) {
 						throw new ExpectedError(`Duplicate route key: ${key} in the "${id}" router`)
 					}
 
-					routes[key] = route
+					routes[scopedKey] = route
 				}
 
 				for (const dependency of options?.dependsOn ?? []) {
@@ -134,22 +147,7 @@ export const routerFeature = defineFeature({
 				}
 
 				if (Object.values(newRoutes).some(route => route.type === 'lambda')) {
-					if (!lambdaUrlHost) {
-						const bundle = ctx.shared.get('bundle', 'main')
-						const deployment = new FunctionDeployment(group, 'function-deployment', {
-							functionName: bundle.lambda.functionName,
-							functionVersion: bundle.lambda.version,
-							id,
-							sourceArns: [distribution.id, previewDistribution.id].map(distributionId =>
-								distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
-							),
-						})
-
-						lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
-						routeDependencies.add(bundle.policy)
-						routeDependencies.add(bundle.alias)
-						routeDependencies.add(deployment)
-					}
+					hasLambdaRoutes = true
 				}
 			})
 
@@ -384,6 +382,9 @@ export const routerFeature = defineFeature({
 			// 	aws.wafv2.WebAcl
 			// })
 
+			// The shared preview distribution uses the first router's settings.
+			previewSettings ??= { cache, originRequest, responseHeaders, waf, props }
+
 			// ------------------------------------------------------------
 			// CDN Distribution
 
@@ -481,92 +482,8 @@ export const routerFeature = defineFeature({
 				webAclId: waf?.arn,
 			})
 
-			const previewDistribution = new aws.cloudfront.Distribution(group, 'preview', {
-				tags: {
-					name: `${name}-preview`,
-				},
-				comment: `${name} preview`,
-				enabled: true,
-				waitForDeployment: true,
-				aliases: deploymentDomain ? [`*.${deploymentDomain}`] : undefined,
-				origin: [
-					{
-						originId: 'default',
-						domainName: 'placeholder.awsless.dev',
-						customOriginConfig: {
-							httpPort: 80,
-							httpsPort: 443,
-							originProtocolPolicy: 'http-only',
-							originReadTimeout: 20,
-							originSslProtocols: ['TLSv1.2'],
-						},
-					},
-				],
-				customErrorResponse: Object.entries(props.errors ?? {}).map(([errorCode, item]) => {
-					if (typeof item === 'string') {
-						return {
-							errorCode: Number(errorCode),
-							responseCode: Number(errorCode),
-							responsePagePath: item,
-						}
-					}
-
-					return {
-						errorCode: Number(errorCode),
-						errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
-						responseCode: item.statusCode ?? Number(errorCode),
-						responsePagePath: item.path,
-					}
-				}),
-				restrictions: {
-					geoRestriction: {
-						restrictionType: props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
-						locations: props.geoRestrictions,
-					},
-				},
-				viewerCertificate: deploymentCertificateArn
-					? {
-							acmCertificateArn: deploymentCertificateArn,
-							sslSupportMethod: 'sni-only',
-							minimumProtocolVersion: 'TLSv1.2_2021',
-						}
-					: {
-							cloudfrontDefaultCertificate: true,
-						},
-				defaultCacheBehavior: {
-					compress: true,
-					targetOriginId: 'default',
-					functionAssociation: [
-						{
-							eventType: 'viewer-request',
-							functionArn: previewFunction.arn,
-						},
-					],
-					originRequestPolicyId: originRequest.id,
-					cachePolicyId: cache.id,
-					responseHeadersPolicyId: responseHeaders.id,
-					viewerProtocolPolicy: 'redirect-to-https',
-					allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
-					cachedMethods: ['GET', 'HEAD'],
-				},
-				webAclId: waf?.arn,
-			})
-
 			ctx.shared.add('router', 'id', id, distribution.id)
-			ctx.shared.add('router', 'preview-id', id, previewDistribution.id)
-
-			if (deploymentDomain && deploymentZone) {
-				new aws.route53.Record(group, `deploy-url-record`, {
-					zoneId: deploymentZone.id,
-					type: 'A',
-					name: `*.${deploymentDomain}`,
-					alias: {
-						name: previewDistribution.domainName,
-						zoneId: 'Z2FDTNDATAQYW2',
-						evaluateTargetHealth: false,
-					},
-				})
-			}
+			distributionIds.push(distribution.id)
 
 			// if (waf) {
 			// 	new aws.wafv2.WebAclAssociation(group, 'association', {
@@ -574,32 +491,6 @@ export const routerFeature = defineFeature({
 			// 		'resourceArn':
 			// 	})
 			// }
-
-			ctx.onReadyLast(() => {
-				const bundle = ctx.shared.get('bundle', 'main')
-
-				new RouteDeployment(
-					group,
-					'deployment',
-					{
-						// non-deploy commands build the graph but never apply it
-						deploymentId: ctx.deploymentId ?? 0,
-						storeArn: routeStore.arn,
-						functionVersion: bundle.lambda.version,
-						routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
-							return Object.entries(routes).map(([key, route]) => ({
-								key,
-								value: JSON.stringify(
-									route.type === 'lambda' ? { ...route, domainName: lambdaUrlHost } : route
-								),
-							}))
-						}),
-					},
-					{
-						dependsOn: Array.from(routeDependencies),
-					}
-				)
-			})
 
 			// ------------------------------------------------------------
 			// Link to Route53
@@ -636,5 +527,168 @@ export const routerFeature = defineFeature({
 				ctx.bind(`ROUTER_${constantCase(id)}_ENDPOINT`, domainName)
 			}
 		}
+
+		// ------------------------------------------------------------
+		// Preview Distribution
+
+		// One preview distribution serves the deployment urls of every
+		// router; its own cloudfront.net host serves the default router.
+		const preview = previewSettings!
+
+		const previewFunction = new aws.cloudfront.Function(appGroup, 'preview-function', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'router',
+				resourceName: 'preview',
+			}).slice(0, 64),
+			runtime: 'cloudfront-js-2.0',
+			code: getPreviewRequestFunctionCode({
+				defaultRouter,
+				deployUrls: !!deploymentDomain,
+				routers: routers.map(([id, props]) => ({
+					id,
+					basicAuth: props.basicAuth,
+					passwordAuth: props.passwordAuth,
+				})),
+			}),
+			publish: true,
+			keyValueStoreAssociations: [routeStore.arn],
+		})
+
+		const previewDistribution = new aws.cloudfront.Distribution(appGroup, 'preview', {
+			tags: {
+				name: `${ctx.app.name}-preview`,
+			},
+			comment: `${ctx.app.name} preview`,
+			enabled: true,
+			waitForDeployment: true,
+			aliases: deploymentDomain ? [`*.${deploymentDomain}`] : undefined,
+			origin: [
+				{
+					originId: 'default',
+					domainName: 'placeholder.awsless.dev',
+					customOriginConfig: {
+						httpPort: 80,
+						httpsPort: 443,
+						originProtocolPolicy: 'http-only',
+						originReadTimeout: 20,
+						originSslProtocols: ['TLSv1.2'],
+					},
+				},
+			],
+			customErrorResponse: Object.entries(preview.props.errors ?? {}).map(([errorCode, item]) => {
+				if (typeof item === 'string') {
+					return {
+						errorCode: Number(errorCode),
+						responseCode: Number(errorCode),
+						responsePagePath: item,
+					}
+				}
+
+				return {
+					errorCode: Number(errorCode),
+					errorCachingMinTtl: item.minTTL ? toSeconds(item.minTTL) : undefined,
+					responseCode: item.statusCode ?? Number(errorCode),
+					responsePagePath: item.path,
+				}
+			}),
+			restrictions: {
+				geoRestriction: {
+					restrictionType: preview.props.geoRestrictions.length > 0 ? 'blacklist' : 'none',
+					locations: preview.props.geoRestrictions,
+				},
+			},
+			viewerCertificate: deploymentCertificateArn
+				? {
+						acmCertificateArn: deploymentCertificateArn,
+						sslSupportMethod: 'sni-only',
+						minimumProtocolVersion: 'TLSv1.2_2021',
+					}
+				: {
+						cloudfrontDefaultCertificate: true,
+					},
+			defaultCacheBehavior: {
+				compress: true,
+				targetOriginId: 'default',
+				functionAssociation: [
+					{
+						eventType: 'viewer-request',
+						functionArn: previewFunction.arn,
+					},
+				],
+				originRequestPolicyId: preview.originRequest.id,
+				cachePolicyId: preview.cache.id,
+				responseHeadersPolicyId: preview.responseHeaders.id,
+				viewerProtocolPolicy: 'redirect-to-https',
+				allowedMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS', 'DELETE'],
+				cachedMethods: ['GET', 'HEAD'],
+			},
+			webAclId: preview.waf?.arn,
+		})
+
+		distributionIds.push(previewDistribution.id)
+
+		for (const [id] of routers) {
+			ctx.shared.add('router', 'preview-id', id, previewDistribution.id)
+		}
+
+		if (deploymentDomain && deploymentZone) {
+			new aws.route53.Record(appGroup, `deploy-url-record`, {
+				zoneId: deploymentZone.id,
+				type: 'A',
+				name: `*.${deploymentDomain}`,
+				alias: {
+					name: previewDistribution.domainName,
+					zoneId: 'Z2FDTNDATAQYW2',
+					evaluateTargetHealth: false,
+				},
+			})
+		}
+
+		// ------------------------------------------------------------
+		// Stage the routes of every router as one deployment.
+
+		ctx.onReadyLast(() => {
+			const bundle = ctx.shared.get('bundle', 'main')
+			let lambdaUrlHost: Input<string> | undefined
+
+			if (hasLambdaRoutes) {
+				const deployment = new FunctionDeployment(appGroup, 'function-deployment', {
+					functionName: bundle.lambda.functionName,
+					functionVersion: bundle.lambda.version,
+					id: 'app',
+					sourceArns: distributionIds.map(distributionId =>
+						distributionId.pipe(id => `arn:aws:cloudfront::${ctx.accountId}:distribution/${id}`)
+					),
+				})
+
+				lambdaUrlHost = deployment.url.pipe(url => url.split('/')[2]!)
+				routeDependencies.add(bundle.policy)
+				routeDependencies.add(bundle.alias)
+				routeDependencies.add(deployment)
+			}
+
+			new RouteDeployment(
+				appGroup,
+				'deployment',
+				{
+					// non-deploy commands build the graph but never apply it
+					deploymentId: ctx.deploymentId ?? 0,
+					storeArn: routeStore.arn,
+					functionVersion: bundle.lambda.version,
+					routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
+						return Object.entries(routes).map(([key, route]) => ({
+							key,
+							value: JSON.stringify(
+								route.type === 'lambda' ? { ...route, domainName: lambdaUrlHost } : route
+							),
+						}))
+					}),
+				},
+				{
+					dependsOn: Array.from(routeDependencies),
+				}
+			)
+		})
 	},
 })

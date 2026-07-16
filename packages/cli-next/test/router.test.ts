@@ -1,6 +1,6 @@
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
 import { describe, expect, it, vi } from 'vitest'
-import { getViewerRequestFunctionCode } from '../src/feature/router/router-code'
+import { getPreviewRequestFunctionCode, getViewerRequestFunctionCode } from '../src/feature/router/router-code'
 import { createTestApp } from './_kit'
 
 type Request = {
@@ -21,7 +21,7 @@ const createRequest = (uri: string, host?: string): Request => ({
 	querystring: {},
 })
 
-const createRouter = (values: Map<string, string>, props: Parameters<typeof getViewerRequestFunctionCode>[0] = {}) => {
+const evaluate = (code: string, values: Map<string, string>) => {
 	const get = vi.fn(async (key: string, options?: { format?: string }) => {
 		const value = values.get(key)
 
@@ -35,12 +35,29 @@ const createRouter = (values: Map<string, string>, props: Parameters<typeof getV
 		kvs: () => ({ get }),
 		updateRequestOrigin: vi.fn(),
 	}
-	const code = getViewerRequestFunctionCode(props).replace('import cf from "cloudfront";', '')
-	const handler = new Function('cf', `${code}\nreturn handler;`)(cf) as (event: {
-		request: Request
-	}) => Promise<Request | Response>
+	const handler = new Function('cf', `${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`)(
+		cf
+	) as (event: { request: Request }) => Promise<Request | Response>
 
 	return { get, handler, updateRequestOrigin: cf.updateRequestOrigin }
+}
+
+const createRouter = (
+	values: Map<string, string>,
+	props: Omit<Parameters<typeof getViewerRequestFunctionCode>[0], 'router'> = {}
+) => {
+	return evaluate(getViewerRequestFunctionCode({ router: 'main', ...props }), values)
+}
+
+const createPreviewRouter = (values: Map<string, string>, routers: string[] = ['main']) => {
+	return evaluate(
+		getPreviewRequestFunctionCode({
+			defaultRouter: routers[0]!,
+			deployUrls: true,
+			routers: routers.map(id => ({ id })),
+		}),
+		values
+	)
 }
 
 const route = (domainName: string) => JSON.stringify({ type: 's3', domainName })
@@ -62,11 +79,11 @@ describe('router routes', () => {
 		expect(deployments).toHaveLength(1)
 		await expect(resolveInputs(deployments[0]!.input.routes)).resolves.toEqual([
 			{
-				key: '/api/*',
+				key: 'main:/api/*',
 				value: JSON.stringify({ type: 's3', domainName: 'api.example.com' }),
 			},
 			{
-				key: '/assets/*',
+				key: 'main:/assets/*',
 				value: JSON.stringify({ type: 's3', domainName: 'assets.example.com' }),
 			},
 		])
@@ -121,13 +138,18 @@ describe('router routes', () => {
 		expect(origin.customOriginConfig[0].originProtocolPolicy).toBe('http-only')
 	})
 
-	it('should stage one deployment per router', () => {
+	it('should stage every router into one deployment', () => {
 		const result = createRouterApp({ main: {}, admin: {} })
 		result.ready()
 
 		const resources = result.app.resources.map(getMeta)
 
-		expect(resources.filter(resource => resource.type === 'route-deployment')).toHaveLength(2)
+		expect(resources.filter(resource => resource.type === 'route-deployment')).toHaveLength(1)
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_key_value_store')).toHaveLength(1)
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_distribution')).toHaveLength(1)
+		expect(resources.filter(resource => resource.type === 'aws_cloudfront_multitenant_distribution')).toHaveLength(
+			2
+		)
 	})
 
 	it('should not create deployment url resources without a deployment domain', async () => {
@@ -147,9 +169,6 @@ describe('router routes', () => {
 	})
 
 	it('should reject invalid deployment domain configurations', () => {
-		expect(() => createRouterApp({ main: {}, admin: {} }, { deploymentDomain: 'example-deploys.com' })).toThrow(
-			`A deploymentDomain currently only supports apps with a single router.`
-		)
 		const domains = { primary: { domain: 'example.com' } }
 
 		expect(() => createRouterApp({ main: {} }, { domains, deploymentDomain: 'example.com' })).toThrow(
@@ -196,8 +215,8 @@ describe('router routes', () => {
 	it('should read every route from the active route table', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
-			['v1:/api/*', route('api.example.com')],
-			['v1:/assets/*', route('assets.example.com')],
+			['v1:main:/api/*', route('api.example.com')],
+			['v1:main:/assets/*', route('assets.example.com')],
 		])
 		const { handler } = createRouter(values)
 		const invoke = async (path: string) => {
@@ -226,13 +245,13 @@ describe('router routes', () => {
 		const response = (await handler({ request: createRequest('/removed') })) as Response
 
 		expect(response.statusCode).toBe(404)
-		expect(get.mock.calls.map(([key]) => key)).toEqual(['$active', 'v1:/removed', 'v1:/removed/*', 'v1:/*'])
+		expect(get.mock.calls.map(([key]) => key)).toEqual(['$active', 'v1:main:/removed', 'v1:main:/removed/*', 'v1:main:/*'])
 	})
 
 	it('should preserve viewer authorization for Lambda routes', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
-			['v1:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
 		])
 		const { handler, updateRequestOrigin } = createRouter(values)
 		const request = createRequest('/api')
@@ -255,7 +274,7 @@ describe('router routes', () => {
 	it('should discard a spoofed forwarded authorization header', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
-			['v1:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
+			['v1:main:/api', JSON.stringify({ type: 'lambda', domainName: 'bundle.lambda-url.us-east-1.on.aws' })],
 		])
 		const { handler } = createRouter(values)
 		const request = createRequest('/api')
@@ -271,10 +290,10 @@ describe('router routes', () => {
 		const values = new Map([
 			['$active', 'v2:43'],
 			['$deploy:42', 'v1:19'],
-			['v1:/api/*', route('api-old.example.com')],
-			['v2:/api/*', route('api.example.com')],
+			['v1:main:/api/*', route('api-old.example.com')],
+			['v2:main:/api/*', route('api.example.com')],
 		])
-		const { handler } = createRouter(values, { deployUrls: true })
+		const { handler } = createPreviewRouter(values)
 		const invoke = async (path: string, host: string) => {
 			const request = (await handler({ request: createRequest(path, host) })) as Request
 			return request.headers['x-origin']?.value
@@ -288,7 +307,7 @@ describe('router routes', () => {
 		const values = new Map([
 			['$active', 'v1:1'],
 			[
-				'v1:/*.',
+				'v1:main:/*.',
 				JSON.stringify({
 					type: 's3',
 					domainName: 'site.s3.amazonaws.com',
@@ -296,14 +315,14 @@ describe('router routes', () => {
 				}),
 			],
 			[
-				'v1:/about',
+				'v1:main:/about',
 				JSON.stringify({
 					type: 's3',
 					domainName: 'site.s3.amazonaws.com',
 					rewrite: { to: '/v-abc/about.html' },
 				}),
 			],
-			['v1:/api/*', route('api.example.com')],
+			['v1:main:/api/*', route('api.example.com')],
 		])
 		const { handler } = createRouter(values)
 		const invoke = async (path: string) => (await handler({ request: createRequest(path) })) as Request
@@ -330,9 +349,9 @@ describe('router routes', () => {
 	it('should serve subpath site assets from s3 instead of the ssr lambda', async () => {
 		const values = new Map([
 			['$active', 'v1:1'],
-			['v1:/docs/*', JSON.stringify({ type: 'lambda', domainName: 'ssr.example.com' })],
+			['v1:main:/docs/*', JSON.stringify({ type: 'lambda', domainName: 'ssr.example.com' })],
 			[
-				'v1:/docs/*.',
+				'v1:main:/docs/*.',
 				JSON.stringify({
 					type: 's3',
 					domainName: 'site.s3.amazonaws.com',
@@ -340,7 +359,7 @@ describe('router routes', () => {
 				}),
 			],
 			[
-				'v1:/docs/fonts/logo',
+				'v1:main:/docs/fonts/logo',
 				JSON.stringify({
 					type: 's3',
 					domainName: 'site.s3.amazonaws.com',
@@ -367,9 +386,30 @@ describe('router routes', () => {
 		expect(page.uri).toBe('/docs/getting-started')
 	})
 
+	it('should resolve every router through the shared preview distribution', async () => {
+		const values = new Map([
+			['$active', 'v2:43'],
+			['$deploy:42', 'v1:19'],
+			['v1:casino:/api/*', route('casino.example.com')],
+			['v1:admin:/api/*', route('admin.example.com')],
+			['v2:casino:/api/*', route('casino-new.example.com')],
+		])
+		const { handler } = createPreviewRouter(values, ['casino', 'admin'])
+		const invoke = async (path: string, host: string) => {
+			const request = (await handler({ request: createRequest(path, host) })) as Request
+			return request.headers['x-origin']?.value
+		}
+
+		await expect(invoke('/api/users', 'casino-42.example.com')).resolves.toBe('casino.example.com')
+		await expect(invoke('/api/users', 'admin-42.example.com')).resolves.toBe('admin.example.com')
+
+		// the bare cloudfront host serves the first router's active deployment
+		await expect(invoke('/api/users', 'd111111abcdef8.cloudfront.net')).resolves.toBe('casino-new.example.com')
+	})
+
 	it('should return 404 for unknown deployment url hosts', async () => {
 		const values = new Map([['$active', 'v2:43']])
-		const { handler } = createRouter(values, { deployUrls: true })
+		const { handler } = createPreviewRouter(values)
 		const response = (await handler({
 			request: createRequest('/api/users', 'main-43.example.com'),
 		})) as Response
