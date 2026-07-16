@@ -70,7 +70,7 @@ const routeDeploymentInputSchema = z.object({
 const parseValue = (value: string | undefined): [string, string] | undefined => {
 	const parts = value?.split(':')
 
-	return parts?.length === 2 && /^[0-9a-f]{8}$/.test(parts[0]!) && parts[1] ? (parts as [string, string]) : undefined
+	return parts?.length === 2 && parts[0] && parts[1] ? (parts as [string, string]) : undefined
 }
 
 // ------------------------------------------------------------

@@ -14,7 +14,6 @@ import {
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
 import {
-	deleteAlias,
 	getAlias,
 	getDeploymentAliasName,
 	LIVE_ALIAS,
@@ -279,9 +278,7 @@ export const promoteDeployment = async (props: {
 							description: deploymentAlias.Description ?? '',
 						}),
 					]
-				: deploymentUpdateStarted
-					? [deleteAlias(props.lambda, props.functionName, getDeploymentAliasName(props.deploymentId))]
-					: []),
+				: []),
 			...(aliasUpdateStarted && alias?.FunctionVersion
 				? [
 						upsertAlias(props.lambda, {
@@ -291,9 +288,7 @@ export const promoteDeployment = async (props: {
 							description: alias.Description ?? '',
 						}),
 					]
-				: aliasUpdateStarted
-					? [deleteAlias(props.lambda, props.functionName, LIVE_ALIAS)]
-					: []),
+				: []),
 		]
 		const failures = (await Promise.allSettled(rollback))
 			.filter(result => result.status === 'rejected')

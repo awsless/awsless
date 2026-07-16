@@ -158,6 +158,25 @@ describe('CloudFront route deployments', () => {
 		expect(store.has('$active')).toBe(false)
 	})
 
+	it('should stage the full route table into a replaced store', async () => {
+		const { getStore, kvs } = mockAws()
+		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })
+		const created = await provider.createResource({ type: 'route-deployment', state })
+		const replacedArn = `${storeArn}-replaced`
+		kvs.mockClear()
+
+		await provider.updateResource({
+			type: 'route-deployment',
+			priorState: created.state,
+			proposedState: { ...state, deploymentId: 2, storeArn: replacedArn },
+		})
+
+		const store = getStore(replacedArn)
+		const entry = deployEntry(store, '2')
+
+		expect(store.get(`${entry.table}:/api/*`)).toBe(state.routes[0]!.value)
+	})
+
 	it('should finish a partially written route table before staging its mapping', async () => {
 		const { getStore, kvs } = mockAws()
 		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })
