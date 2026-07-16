@@ -42,6 +42,7 @@ type SharedState = {
 
 	cron: {
 		'group-name': Output<string>
+		'role-arn': Output<string>
 	}
 
 	layer: {

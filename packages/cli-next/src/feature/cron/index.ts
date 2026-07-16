@@ -66,6 +66,7 @@ export const cronFeature = defineFeature({
 	onApp(ctx) {
 		const found = ctx.stackConfigs.find(stackConfig => Object.keys(stackConfig.crons ?? {}).length > 0)
 		if (found) {
+			const bundle = ctx.shared.get('bundle', 'main')
 			const group = new aws.scheduler.ScheduleGroup(ctx.base, 'cron', {
 				name: formatGlobalResourceName({
 					appName: ctx.app.name,
@@ -77,28 +78,14 @@ export const cronFeature = defineFeature({
 				},
 			})
 
-			ctx.shared.set('cron', 'group-name', group.name)
-		}
-	},
-	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-
-		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
-			const group = new Group(ctx.stack, 'cron', id)
-			const routeKey = formatRouteKey(ctx.stack.name, 'cron', id)
-
-			addBundleFunction(ctx, routeKey, props.consumer)
-
-			const name = formatLocalResourceName({
-				appName: ctx.app.name,
-				stackName: ctx.stack.name,
-				resourceType: 'cron',
-				resourceName: shortId(id),
-			})
-
-			const scheduleRole = new aws.iam.Role(group, 'warm', {
-				name,
-				description: `Cron ${ctx.stack.name} ${id}`,
+			// All cron schedules share one role to invoke the bundle.
+			const role = new aws.iam.Role(ctx.base, 'cron-role', {
+				name: formatGlobalResourceName({
+					appName: ctx.app.name,
+					resourceType: 'cron',
+					resourceName: 'schedule',
+				}),
+				description: `${ctx.app.name} cron scheduler`,
 				assumeRolePolicy: JSON.stringify({
 					Version: '2012-10-17',
 					Statement: [
@@ -130,6 +117,26 @@ export const cronFeature = defineFeature({
 				],
 			})
 
+			ctx.shared.set('cron', 'group-name', group.name)
+			ctx.shared.set('cron', 'role-arn', role.arn)
+		}
+	},
+	onStack(ctx) {
+		const bundle = ctx.shared.get('bundle', 'main')
+
+		for (const [id, props] of Object.entries(ctx.stackConfig.crons ?? {})) {
+			const group = new Group(ctx.stack, 'cron', id)
+			const routeKey = formatRouteKey(ctx.stack.name, 'cron', id)
+
+			addBundleFunction(ctx, routeKey, props.consumer)
+
+			const name = formatLocalResourceName({
+				appName: ctx.app.name,
+				stackName: ctx.stack.name,
+				resourceType: 'cron',
+				resourceName: shortId(id),
+			})
+
 			new aws.scheduler.Schedule(group, 'warm', {
 				name,
 				state: props.enabled ? 'ENABLED' : 'DISABLED',
@@ -139,7 +146,7 @@ export const cronFeature = defineFeature({
 				flexibleTimeWindow: { mode: 'OFF' },
 				target: {
 					arn: bundle.alias.arn,
-					roleArn: scheduleRole.arn,
+					roleArn: ctx.shared.get('cron', 'role-arn'),
 					input: JSON.stringify({
 						'$awsless-route': routeKey,
 						event: props.payload,
