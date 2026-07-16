@@ -5,7 +5,7 @@ import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteEnvName } from 'awsless'
 import { internalHandler } from '../bundle/build/bundle.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey, getBundleTimeout } from '../bundle/util.js'
 
 export const onFailureFeature = defineFeature({
 	name: 'on-failure',
@@ -21,10 +21,7 @@ export const onFailureFeature = defineFeature({
 			messageRetentionSeconds: toSeconds(days(14)),
 		})
 
-		const bundleTimeout = Math.max(
-			toSeconds(ctx.appConfig.defaults.function.timeout),
-			...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
-		)
+		const bundleTimeout = getBundleTimeout(ctx)
 		const queue = new aws.sqs.Queue(group, 'on-failure', {
 			name: formatGlobalResourceName({
 				appName: ctx.app.name,
@@ -179,23 +176,9 @@ Body:
 			file: internalHandler('on-failure'),
 			exportName: 'default',
 		})
-		bundle.addHandler({
-			routeKey: consumerRoute,
-			file: consumer.code.file,
-			exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
-			external: consumer.code.external,
-			importAsString: consumer.code.importAsString,
-		})
+		addBundleFunction(ctx, consumerRoute, consumer)
 
 		bundle.addEnv(formatRouteEnvName(normalizerRoute, 'CONSUMER'), consumerRoute)
-
-		for (const [name, value] of Object.entries(consumer.environment ?? {})) {
-			bundle.addEnv(name, value)
-		}
-
-		for (const permission of consumer.permissions ?? []) {
-			bundle.addPermission(permission)
-		}
 
 		bundle.addPermission({
 			actions: ['s3:GetObject', 's3:DeleteObject'],

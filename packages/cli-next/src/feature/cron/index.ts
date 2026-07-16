@@ -1,7 +1,7 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { shortId } from '../../util/id.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -87,21 +87,7 @@ export const cronFeature = defineFeature({
 			const group = new Group(ctx.stack, 'cron', id)
 			const routeKey = formatRouteKey(ctx.stack.name, 'cron', id)
 
-			bundle.addHandler({
-				routeKey,
-				file: props.consumer.code.file,
-				exportName: parseExportName(props.consumer.handler ?? ctx.appConfig.defaults.function.handler!),
-				external: props.consumer.code.external,
-				importAsString: props.consumer.code.importAsString,
-			})
-
-			for (const [name, value] of Object.entries(props.consumer.environment ?? {})) {
-				bundle.addEnv(name, value)
-			}
-
-			for (const permission of props.consumer.permissions ?? []) {
-				bundle.addPermission(permission)
-			}
+			addBundleFunction(ctx, routeKey, props.consumer)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,

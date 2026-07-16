@@ -5,7 +5,7 @@ import { defineFeature } from '../../feature'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
 import { formatRouteEnvName } from 'awsless'
 import { internalHandler } from '../bundle/build/bundle.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { join, dirname } from 'path'
 import { toDays } from '@awsless/duration'
 import { fileURLToPath } from 'url'
@@ -107,21 +107,7 @@ export const imageFeature = defineFeature({
 				const origin = props.origin.function
 				originRouteKey = formatRouteKey(ctx.stack.name, 'image', `${id}-origin`)
 
-				bundle.addHandler({
-					routeKey: originRouteKey,
-					file: origin.code.file,
-					exportName: parseExportName(origin.handler ?? ctx.appConfig.defaults.function.handler!),
-					external: origin.code.external,
-					importAsString: origin.code.importAsString,
-				})
-
-				for (const [name, value] of Object.entries(origin.environment ?? {})) {
-					bundle.addEnv(name, value)
-				}
-
-				for (const permission of origin.permissions ?? []) {
-					bundle.addPermission(permission)
-				}
+				addBundleFunction(ctx, originRouteKey, origin)
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined
@@ -212,7 +198,7 @@ export const imageFeature = defineFeature({
 				[routeKey]: {
 					type: 'lambda',
 					requestHeaders: {
-						'x-awsless-route': serverRouteKey,
+						[ROUTE_HEADER]: serverRouteKey,
 					},
 					rewrite: {
 						regex: `^${props.path}/(.*)$`,

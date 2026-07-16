@@ -6,7 +6,7 @@ import { basename, dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { SiteDeployment } from '../../formation/s3.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
@@ -16,8 +16,6 @@ import { Route } from '../router/route.js'
 export const siteFeature = defineFeature({
 	name: 'site',
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-
 		for (const [id, props] of Object.entries(ctx.stackConfig.sites ?? {})) {
 			const group = new Group(ctx.stack, 'site', id)
 
@@ -121,21 +119,7 @@ export const siteFeature = defineFeature({
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
-				bundle.addHandler({
-					routeKey: bundleRouteKey,
-					file: ssr.code.file,
-					exportName: parseExportName(ssr.handler ?? ctx.appConfig.defaults.function.handler!),
-					external: ssr.code.external,
-					importAsString: ssr.code.importAsString,
-				})
-
-				for (const [name, value] of Object.entries(ssr.environment ?? {})) {
-					bundle.addEnv(name, value)
-				}
-
-				for (const permission of ssr.permissions ?? []) {
-					bundle.addPermission(permission)
-				}
+				addBundleFunction(ctx, bundleRouteKey, ssr)
 
 				addRoutes({
 					[routeKey]: {
@@ -145,7 +129,7 @@ export const siteFeature = defineFeature({
 
 						// The custom route header tells the bundle which site to render.
 						requestHeaders: {
-							'x-awsless-route': bundleRouteKey,
+							[ROUTE_HEADER]: bundleRouteKey,
 						},
 					},
 				})

@@ -5,7 +5,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import deepmerge from 'deepmerge'
 
 const typeGenCode = `
@@ -104,24 +104,8 @@ export const functionFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-
 		for (const [id, local] of Object.entries(ctx.stackConfig.functions ?? {})) {
-			bundle.addHandler({
-				routeKey: formatRouteKey(ctx.stack.name, 'function', id),
-				file: local.code.file,
-				exportName: parseExportName(local.handler ?? ctx.appConfig.defaults.function.handler!),
-				external: local.code.external,
-				importAsString: local.code.importAsString,
-			})
-
-			for (const [name, value] of Object.entries(local.environment ?? {})) {
-				bundle.addEnv(name, value)
-			}
-
-			for (const permission of local.permissions ?? []) {
-				bundle.addPermission(permission)
-			}
+			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'function', id), local)
 		}
 	},
 })

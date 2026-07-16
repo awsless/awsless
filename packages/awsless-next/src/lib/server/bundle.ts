@@ -27,6 +27,16 @@ export const invokeRoute = (routeKey: string, payload: unknown) => {
 	return invoke(routeKey, payload)
 }
 
+// The payload property used to route lambda invokes to the right bundle handler.
+export const ROUTE_PROPERTY = '$awsless-route'
+
+export const formatRoutePayload = (routeKey: string, event: unknown) => {
+	return {
+		[ROUTE_PROPERTY]: routeKey,
+		event,
+	}
+}
+
 // Env vars are scoped per route key inside the shared bundle env.
 export const formatRouteEnvName = (routeKey: string, name: string) => {
 	return `${routeKey}:${name}`

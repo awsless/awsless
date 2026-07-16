@@ -6,7 +6,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { aws } from '@terraforge/aws'
 import { glob } from 'glob'
 import { getCacheControl, getContentType } from './util.js'
@@ -177,21 +177,7 @@ export const storeFeature = defineFeature({
 				const routeKey = formatRouteKey(ctx.stack.name, 'store', eventId)
 				const consumer = taskProps.consumer
 
-				bundle.addHandler({
-					routeKey,
-					file: consumer.code.file,
-					exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
-					external: consumer.code.external,
-					importAsString: consumer.code.importAsString,
-				})
-
-				for (const [name, value] of Object.entries(consumer.environment ?? {})) {
-					bundle.addEnv(name, value)
-				}
-
-				for (const permission of consumer.permissions ?? []) {
-					bundle.addPermission(permission)
-				}
+				addBundleFunction(ctx, routeKey, consumer)
 
 				notifications.push({
 					id: routeKey,

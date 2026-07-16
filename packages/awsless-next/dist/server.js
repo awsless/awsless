@@ -30,6 +30,13 @@ var invokeRoute = (routeKey, payload) => {
   }
   return invoke4(routeKey, payload);
 };
+var ROUTE_PROPERTY = "$awsless-route";
+var formatRoutePayload = (routeKey, event) => {
+  return {
+    [ROUTE_PROPERTY]: routeKey,
+    event
+  };
+};
 var formatRouteEnvName = (routeKey, name) => {
   return `${routeKey}:${name}`;
 };
@@ -226,10 +233,7 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
         ...options,
         name: BUNDLE_NAME,
         qualifier: getBundleQualifier(options.qualifier),
-        payload: {
-          "$awsless-route": routeKey,
-          event: payload
-        }
+        payload: formatRoutePayload(routeKey, payload)
       });
     };
     const call = (payload, options = {}) => {
@@ -451,10 +455,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
             name: `${BUNDLE_NAME}:${options.qualifier ?? BUNDLE_QUALIFIER}`,
-            payload: {
-              "$awsless-route": routeKey,
-              event: payload
-            },
+            payload: formatRoutePayload(routeKey, payload),
             schedule: options.schedule,
             group: resourceTaskName("group"),
             roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName("schedule")}`,
@@ -466,10 +467,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
             type: "Event",
             name: BUNDLE_NAME,
             qualifier: getBundleQualifier(options.qualifier),
-            payload: {
-              "$awsless-route": routeKey,
-              event: payload
-            }
+            payload: formatRoutePayload(routeKey, payload)
           });
         }
       }
@@ -675,10 +673,7 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
           type: "Event",
           name: BUNDLE_NAME,
           qualifier: getBundleQualifier(options.qualifier),
-          payload: {
-            "$awsless-route": routeKey,
-            event: payload
-          }
+          payload: formatRoutePayload(routeKey, payload)
         });
       }
     };
@@ -940,12 +935,14 @@ export {
   PubSub,
   QoS,
   Queue,
+  ROUTE_PROPERTY,
   Search,
   Store,
   Table,
   Task,
   Topic,
   formatRouteEnvName,
+  formatRoutePayload,
   getAlertName,
   getAuthProps,
   getCacheProps,

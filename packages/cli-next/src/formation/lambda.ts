@@ -2,19 +2,17 @@ import {
 	AddPermissionCommand,
 	CreateAliasCommand,
 	CreateFunctionUrlConfigCommand,
-	DeleteAliasCommand,
 	DeleteFunctionUrlConfigCommand,
-	GetAliasCommand,
 	GetFunctionUrlConfigCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
-	UpdateAliasCommand,
 } from '@aws-sdk/client-lambda'
 import { createCustomProvider, createCustomResourceClass, Input, OptionalOutput, Output } from '@terraforge/core'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
-import { Credentials } from '../util/aws'
+import { Credentials, isError } from '../util/aws'
+import { createAlias, deleteAlias, getAlias, getDeploymentAliasName, LIVE_ALIAS } from '../util/lambda'
 
 type FunctionDeploymentInput = {
 	functionName: Input<string>
@@ -89,55 +87,18 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 
 		return `${state.id}-${hash}`
 	}
-	const isError = (error: unknown, name: string) => {
-		return error instanceof Error && error.name === name
-	}
-	const createAlias = async (functionName: string, functionVersion: string, name: string) => {
-		try {
-			await lambda.send(
-				new CreateAliasCommand({
-					FunctionName: functionName,
-					FunctionVersion: functionVersion,
-					Name: name,
-				})
-			)
-		} catch (error) {
-			if (!isError(error, 'ResourceConflictException')) {
-				throw error
-			}
-
-			await lambda.send(
-				new UpdateAliasCommand({
-					FunctionName: functionName,
-					FunctionVersion: functionVersion,
-					Name: name,
-				})
-			)
-		}
-	}
 	const getLiveAlias = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		try {
-			const result = await lambda.send(
-				new GetAliasCommand({
-					FunctionName: state.functionName,
-					Name: 'live',
-				})
-			)
+		const result = await getAlias(lambda, state.functionName, LIVE_ALIAS)
 
-			return {
-				liveDescription: result.Description,
-				liveVersion: result.FunctionVersion!,
-			}
-		} catch (error) {
-			if (!isError(error, 'ResourceNotFoundException')) {
-				throw error
-			}
-
-			return {
-				liveDescription: undefined,
-				liveVersion: state.functionVersion,
-			}
-		}
+		return result
+			? {
+					liveDescription: result.Description,
+					liveVersion: result.FunctionVersion!,
+				}
+			: {
+					liveDescription: undefined,
+					liveVersion: state.functionVersion,
+				}
 	}
 	const configureVersion = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
 		await lambda.send(
@@ -154,10 +115,14 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		)
 	}
 	const createBundleDeployment = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		const deploymentAlias = `deployment-${state.deploymentId}`
+		const deploymentAlias = getDeploymentAliasName(state.deploymentId)
 		const live = await getLiveAlias(state)
 
-		await createAlias(state.functionName, state.functionVersion, deploymentAlias)
+		await createAlias(lambda, {
+			functionName: state.functionName,
+			functionVersion: state.functionVersion,
+			name: deploymentAlias,
+		})
 		await configureVersion(state)
 
 		return {
@@ -165,20 +130,6 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			deploymentAlias,
 			deploymentAliases: [deploymentAlias],
 			...live,
-		}
-	}
-	const deleteAlias = async (functionName: string, name: string) => {
-		try {
-			await lambda.send(
-				new DeleteAliasCommand({
-					FunctionName: functionName,
-					Name: name,
-				})
-			)
-		} catch (error) {
-			if (!isError(error, 'ResourceNotFoundException')) {
-				throw error
-			}
 		}
 	}
 	const createFunctionDeployment = async (state: z.output<typeof functionDeploymentInputSchema>, alias: string) => {
@@ -283,7 +234,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			}
 		}
 
-		await deleteAlias(functionName, alias)
+		await deleteAlias(lambda, functionName, alias)
 	}
 
 	return createCustomProvider('lambda', {
@@ -301,18 +252,22 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 					const next = await createBundleDeployment(proposed)
 
 					await Promise.all(
-						prior.deploymentAliases.map(name => deleteAlias(prior.functionName, name))
+						prior.deploymentAliases.map(name => deleteAlias(lambda, prior.functionName, name))
 					)
 
 					return next
 				}
 
-				const deploymentAlias = `deployment-${proposed.deploymentId}`
+				const deploymentAlias = getDeploymentAliasName(proposed.deploymentId)
 				const deploymentAliases = [...prior.deploymentAliases]
 				const live = await getLiveAlias(proposed)
 
 				if (!deploymentAliases.includes(deploymentAlias)) {
-					await createAlias(proposed.functionName, proposed.functionVersion, deploymentAlias)
+					await createAlias(lambda, {
+						functionName: proposed.functionName,
+						functionVersion: proposed.functionVersion,
+						name: deploymentAlias,
+					})
 					deploymentAliases.push(deploymentAlias)
 				}
 
@@ -328,7 +283,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			async deleteResource(props) {
 				const state = bundleDeploymentStateSchema.parse(props.state)
 
-				await Promise.all(state.deploymentAliases.map(name => deleteAlias(state.functionName, name)))
+				await Promise.all(state.deploymentAliases.map(name => deleteAlias(lambda, state.functionName, name)))
 			},
 		},
 		'function-deployment': {

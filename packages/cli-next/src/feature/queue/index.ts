@@ -8,7 +8,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey, getBundleTimeout } from '../bundle/util.js'
 import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
 
@@ -86,10 +86,7 @@ export const queueFeature = defineFeature({
 		await ctx.write('queue.d.ts', gen, true)
 	},
 	onStack(ctx) {
-		const bundleTimeout = Math.max(
-			toSeconds(ctx.appConfig.defaults.function.timeout),
-			...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
-		)
+		const bundleTimeout = getBundleTimeout(ctx)
 
 		for (const [id, local] of Object.entries(ctx.stackConfig.queues || {})) {
 			const props = deepmerge(ctx.appConfig.defaults.queue, typeof local === 'object' ? local : {})
@@ -123,24 +120,9 @@ export const queueFeature = defineFeature({
 
 			if (local.consumer) {
 				const consumer = local.consumer
-				const bundle = ctx.shared.get('bundle', 'main')
 
 				// The bundle routes the queue event to the right consumer based on the event source arn.
-				bundle.addHandler({
-					routeKey: formatRouteKey(ctx.stack.name, 'queue', id),
-					file: consumer.code.file,
-					exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
-					external: consumer.code.external,
-					importAsString: consumer.code.importAsString,
-				})
-
-				for (const [name, value] of Object.entries(consumer.environment ?? {})) {
-					bundle.addEnv(name, value)
-				}
-
-				for (const permission of consumer.permissions ?? []) {
-					bundle.addPermission(permission)
-				}
+				const bundle = addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
 
 				new aws.lambda.EventSourceMapping(group, 'event', {
 					functionName: bundle.alias.arn,

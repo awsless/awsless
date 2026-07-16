@@ -1,9 +1,9 @@
-import { days, minutes, seconds, toSeconds, years } from '@awsless/duration'
+import { days, seconds, toSeconds, years } from '@awsless/duration'
 import { DataSource, Group, Input, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatFullDomainName } from '../domain/util.js'
+import { createDnsValidatedCertificate, formatFullDomainName } from '../domain/util.js'
 import { NsCheck } from '../../formation/ns-check.js'
 import { camelCase, constantCase } from 'change-case'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
@@ -71,54 +71,14 @@ export const routerFeature = defineFeature({
 				deploymentZone = zone
 
 				const provider = ctx.appConfig.region !== 'us-east-1' ? ('global-aws' as const) : undefined
-				const certificate = new aws.acm.Certificate(
-					group,
-					'deployment-cert',
-					{
-						domainName: deploymentDomain,
-						validationMethod: 'DNS',
-						keyAlgorithm: 'RSA_2048',
-						subjectAlternativeNames: [`*.${deploymentDomain}`],
-					},
-					provider ? { provider } : undefined
-				)
-
-				const option = (index: number) => {
-					return certificate.domainValidationOptions.pipe(options => {
-						return options[index]!
-					})
-				}
-
-				const record1 = new aws.route53.Record(group, 'deployment-cert-1', {
+				const validation = createDnsValidatedCertificate(group, 'deployment-cert', {
+					recordIdPrefix: 'deployment-cert',
 					zoneId: zone.id,
-					name: option(0).pipe(r => r.resourceRecordName),
-					type: option(0).pipe(r => r.resourceRecordType),
-					ttl: toSeconds(minutes(5)),
-					records: [option(0).pipe(r => r.resourceRecordValue)],
-					allowOverwrite: true,
+					domainName: deploymentDomain,
+					subjectAlternativeNames: [`*.${deploymentDomain}`],
+					provider,
+					dependsOn: [nsCheck],
 				})
-
-				const record2 = new aws.route53.Record(group, 'deployment-cert-2', {
-					zoneId: zone.id,
-					name: option(1).pipe(r => r.resourceRecordName),
-					type: option(1).pipe(r => r.resourceRecordType),
-					ttl: toSeconds(minutes(5)),
-					records: [option(1).pipe(r => r.resourceRecordValue)],
-					allowOverwrite: true,
-				})
-
-				const validation = new aws.acm.CertificateValidation(
-					group,
-					'deployment-cert',
-					{
-						certificateArn: certificate.arn,
-						validationRecordFqdns: [record1.fqdn, record2.fqdn],
-					},
-					{
-						dependsOn: [nsCheck],
-						...(provider ? { provider } : {}),
-					}
-				)
 
 				deploymentCertificateArn = validation.certificateArn
 			}

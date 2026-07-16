@@ -1,14 +1,6 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import {
-	CreateAliasCommand,
-	DeleteAliasCommand,
-	GetAliasCommand,
-	GetFunctionCommand,
-	LambdaClient,
-	ListAliasesCommand,
-	UpdateAliasCommand,
-} from '@aws-sdk/client-lambda'
+import { GetAliasCommand, GetFunctionCommand, LambdaClient, ListAliasesCommand } from '@aws-sdk/client-lambda'
 import { define, DynamoDBClient, number, object, string, updateItem } from '@awsless/dynamodb'
 import { App } from '@terraforge/core'
 import { AppConfig } from '../config/app.js'
@@ -20,8 +12,16 @@ import {
 	RouteDeployment,
 	setActiveRouteDeployment,
 } from '../formation/cloudfront-kvs.js'
-import { getAccountId, getCredentials } from './aws.js'
-import { formatGlobalResourceName, generateGlobalAppId } from './name.js'
+import { getAccountId, getCredentials, isError } from './aws.js'
+import {
+	deleteAlias,
+	getAlias,
+	getDeploymentAliasName,
+	LIVE_ALIAS,
+	parseDeploymentAliasName,
+	upsertAlias,
+} from './lambda.js'
+import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
 type RouterDeployment = {
@@ -48,70 +48,6 @@ const formatDeploymentDescription = (active: number, latest: number) => {
 	return `$awsless:deployment:${active}:${latest}`
 }
 
-const isError = (error: unknown, name: string) => {
-	return error instanceof Error && error.name === name
-}
-
-const getAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
-	try {
-		return await lambda.send(
-			new GetAliasCommand({
-				FunctionName: functionName,
-				Name: name,
-			})
-		)
-	} catch (error) {
-		if (!isError(error, 'ResourceNotFoundException')) {
-			throw error
-		}
-	}
-}
-
-const upsertAlias = async (
-	lambda: LambdaClient,
-	props: {
-		functionName: string
-		functionVersion: string
-		name: string
-		description: string
-	}
-) => {
-	const input = {
-		FunctionName: props.functionName,
-		Name: props.name,
-		FunctionVersion: props.functionVersion,
-		Description: props.description,
-	}
-
-	try {
-		await lambda.send(new UpdateAliasCommand(input))
-	} catch (error) {
-		if (!isError(error, 'ResourceNotFoundException')) {
-			throw error
-		}
-
-		try {
-			await lambda.send(new CreateAliasCommand(input))
-		} catch (error) {
-			if (!isError(error, 'ResourceConflictException')) {
-				throw error
-			}
-
-			await lambda.send(new UpdateAliasCommand(input))
-		}
-	}
-}
-
-const deleteAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
-	try {
-		await lambda.send(new DeleteAliasCommand({ FunctionName: functionName, Name: name }))
-	} catch (error) {
-		if (!isError(error, 'ResourceNotFoundException')) {
-			throw error
-		}
-	}
-}
-
 export const readFunctionDeployment = async (props: {
 	lambda: LambdaClient
 	functionName: string
@@ -122,7 +58,7 @@ export const readFunctionDeployment = async (props: {
 			const alias = await props.lambda.send(
 				new GetAliasCommand({
 					FunctionName: props.functionName,
-					Name: `deployment-${props.deploymentId}`,
+					Name: getDeploymentAliasName(props.deploymentId),
 				})
 			)
 
@@ -145,7 +81,7 @@ export const readFunctionDeployment = async (props: {
 		live = await props.lambda.send(
 			new GetAliasCommand({
 				FunctionName: props.functionName,
-				Name: 'live',
+				Name: LIVE_ALIAS,
 			})
 		)
 	} catch (error) {
@@ -176,10 +112,10 @@ export const readFunctionDeployment = async (props: {
 			nextToken = page.NextMarker
 
 			for (const alias of page.Aliases ?? []) {
-				const id = Number(alias.Name?.match(/^deployment-(\d+)$/)?.[1])
+				const id = alias.Name ? parseDeploymentAliasName(alias.Name) : undefined
 
 				if (
-					Number.isFinite(id) &&
+					id !== undefined &&
 					id < active &&
 					(!previous || id > previous.id) &&
 					alias.FunctionVersion &&
@@ -206,7 +142,7 @@ export const preflightDeployment = async (props: {
 	functionName: string
 	deploymentId: number
 }) => {
-	const live = await getAlias(props.lambda, props.functionName, 'live')
+	const live = await getAlias(props.lambda, props.functionName, LIVE_ALIAS)
 	const latest = parseDeploymentDescription(live?.Description)?.latest
 
 	if (latest !== undefined && latest > props.deploymentId) {
@@ -227,7 +163,7 @@ export const promoteDeployment = async (props: {
 		throw new ExpectedError(`The routers don't share the deployed function version.`)
 	}
 
-	const alias = await getAlias(props.lambda, props.functionName, 'live')
+	const alias = await getAlias(props.lambda, props.functionName, LIVE_ALIAS)
 	const aliasDeployment = parseDeploymentDescription(alias?.Description)
 	const active = await Promise.all(
 		props.routers.map(async router => {
@@ -280,13 +216,13 @@ export const promoteDeployment = async (props: {
 	const priorVersion = activeVersions.size === 1 ? [...activeVersions][0] : undefined
 
 	if (priorId !== undefined && priorVersion === alias?.FunctionVersion) {
-		const priorAlias = await getAlias(props.lambda, props.functionName, `deployment-${priorId}`)
+		const priorAlias = await getAlias(props.lambda, props.functionName, getDeploymentAliasName(priorId))
 
 		if (priorAlias?.FunctionVersion !== priorVersion || priorAlias.Description !== promotedDescription) {
 			await upsertAlias(props.lambda, {
 				functionName: props.functionName,
 				functionVersion: priorVersion,
-				name: `deployment-${priorId}`,
+				name: getDeploymentAliasName(priorId),
 				description: promotedDescription,
 			})
 		}
@@ -295,7 +231,7 @@ export const promoteDeployment = async (props: {
 	const deploymentAlias = await getAlias(
 		props.lambda,
 		props.functionName,
-		`deployment-${props.deploymentId}`
+		getDeploymentAliasName(props.deploymentId)
 	)
 
 	try {
@@ -311,7 +247,7 @@ export const promoteDeployment = async (props: {
 			await upsertAlias(props.lambda, {
 				functionName: props.functionName,
 				functionVersion: props.functionVersion,
-				name: 'live',
+				name: LIVE_ALIAS,
 				description,
 			})
 		}
@@ -324,7 +260,7 @@ export const promoteDeployment = async (props: {
 			await upsertAlias(props.lambda, {
 				functionName: props.functionName,
 				functionVersion: props.functionVersion,
-				name: `deployment-${props.deploymentId}`,
+				name: getDeploymentAliasName(props.deploymentId),
 				description: promotedDescription,
 			})
 		}
@@ -336,7 +272,7 @@ export const promoteDeployment = async (props: {
 						upsertAlias(props.lambda, {
 							functionName: props.functionName,
 							functionVersion: props.functionVersion,
-							name: `deployment-${props.deploymentId}`,
+							name: getDeploymentAliasName(props.deploymentId),
 							description: deploymentAlias?.Description ?? '',
 						}),
 					]
@@ -346,12 +282,12 @@ export const promoteDeployment = async (props: {
 						upsertAlias(props.lambda, {
 							functionName: props.functionName,
 							functionVersion: alias.FunctionVersion,
-							name: 'live',
+							name: LIVE_ALIAS,
 							description: alias.Description ?? '',
 						}),
 					]
 				: aliasUpdateStarted
-					? [deleteAlias(props.lambda, props.functionName, 'live')]
+					? [deleteAlias(props.lambda, props.functionName, LIVE_ALIAS)]
 					: []),
 		]
 		const failures = (await Promise.allSettled(rollback))
@@ -378,11 +314,7 @@ const updateDeployment = async (props: {
 	const cloudfront = new CloudFrontClient({ credentials, region: 'us-east-1' })
 	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
 	const lambda = new LambdaClient({ credentials, region })
-	const functionName = formatGlobalResourceName({
-		appName: props.appConfig.name,
-		resourceType: 'function',
-		resourceName: 'bundle',
-	})
+	const functionName = getBundleFunctionName(props.appConfig.name)
 	const { lock } = createDeploymentBackends({ credentials, accountId, region })
 	const release = await lock.lock(app.urn)
 

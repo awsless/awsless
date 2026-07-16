@@ -7,7 +7,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -162,26 +162,10 @@ export const taskFeature = defineFeature({
 		// ctx.addEnv('TASK_SCHEDULE_ROLE', scheduleRole.arn)
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
 			const consumer = props.consumer
 
-			bundle.addHandler({
-				routeKey: formatRouteKey(ctx.stack.name, 'task', id),
-				file: consumer.code.file,
-				exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
-				external: consumer.code.external,
-				importAsString: consumer.code.importAsString,
-			})
-
-			for (const [name, value] of Object.entries(consumer.environment ?? {})) {
-				bundle.addEnv(name, value)
-			}
-
-			for (const permission of consumer.permissions ?? []) {
-				bundle.addPermission(permission)
-			}
+			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), consumer)
 		}
 	},
 })

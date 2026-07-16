@@ -6,7 +6,7 @@ import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
 import { nextDeploymentId, preflightDeployment, promoteAppDeployment } from '../../util/deployment.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
-import { formatGlobalResourceName, generateGlobalAppId } from '../../util/name.js'
+import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
 import {
 	createDeploymentBackends,
@@ -103,11 +103,7 @@ export const deploy = (program: Command) => {
 				const { lock: releaseLock } = createDeploymentBackends({ credentials, accountId, region })
 				const releaseUrn = getAppReleaseLockUrn(globalAppId)
 				const lambda = new LambdaClient({ credentials, region })
-				const functionName = formatGlobalResourceName({
-					appName: appConfig.name,
-					resourceType: 'function',
-					resourceName: 'bundle',
-				})
+				const functionName = getBundleFunctionName(appConfig.name)
 				let deployments: string[] = []
 
 				await log.task({

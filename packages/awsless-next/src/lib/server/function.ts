@@ -2,7 +2,7 @@
 import { stringify } from '@awsless/json'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
-import { invokeRoute, isInsideBundle } from './bundle.js'
+import { formatRoutePayload, invokeRoute, isInsideBundle } from './bundle.js'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName, BUNDLE_NAME, formatRouteKey, getBundleQualifier, IS_TEST } from './util.js'
 
@@ -43,10 +43,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 				...options,
 				name: BUNDLE_NAME,
 				qualifier: getBundleQualifier(options.qualifier),
-				payload: {
-					'$awsless-route': routeKey,
-					event: payload,
-				},
+				payload: formatRoutePayload(routeKey, payload),
 			})
 		}
 

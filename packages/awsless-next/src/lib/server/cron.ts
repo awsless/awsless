@@ -1,4 +1,5 @@
 import { invoke, InvokeOptions } from '@awsless/lambda'
+import { formatRoutePayload } from './bundle.js'
 import { createProxy } from '../proxy.js'
 import { bindLocalResourceName, BUNDLE_NAME, formatRouteKey, getBundleQualifier, IS_TEST } from './util.js'
 
@@ -29,10 +30,7 @@ export const Cron: CronResources = /*@__PURE__*/ createProxy(stackName => {
 					type: 'Event',
 					name: BUNDLE_NAME,
 					qualifier: getBundleQualifier(options.qualifier),
-					payload: {
-						'$awsless-route': routeKey,
-						event: payload,
-					},
+					payload: formatRoutePayload(routeKey, payload),
 				})
 			},
 		}

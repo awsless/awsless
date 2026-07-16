@@ -2,7 +2,7 @@ import { parse, patch } from '@awsless/json'
 import { invoke } from '@awsless/lambda'
 import { deleteObject, getObject } from '@awsless/s3'
 import { Context, S3CreateEvent, S3EventRecord, SQSEvent, SQSRecord } from 'aws-lambda'
-import { getRouteEnv } from 'awsless'
+import { formatRoutePayload, getRouteEnv } from 'awsless'
 import {
 	AsyncLambdaFailureEvent,
 	DynamoDBStreamFailureEvent,
@@ -162,9 +162,6 @@ const invokeConsumer = async (payload: unknown, context: Context) => {
 	await invoke({
 		name: context.invokedFunctionArn,
 		type: 'RequestResponse',
-		payload: {
-			'$awsless-route': getRouteEnv('CONSUMER')!,
-			event: payload,
-		},
+		payload: formatRoutePayload(getRouteEnv('CONSUMER')!, payload),
 	})
 }

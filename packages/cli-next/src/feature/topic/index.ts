@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { FileError } from '../../error.js'
 
 const typeGenCode = `
@@ -105,26 +105,10 @@ export const topicFeature = defineFeature({
 		})
 	},
 	onStack(ctx) {
-		const bundle = ctx.shared.get('bundle', 'main')
-
 		for (const [id, props] of Object.entries(ctx.stackConfig.subscribers ?? {})) {
 			const consumer = props.consumer
 
-			bundle.addHandler({
-				routeKey: formatRouteKey(ctx.stack.name, 'topic', id),
-				file: consumer.code.file,
-				exportName: parseExportName(consumer.handler ?? ctx.appConfig.defaults.function.handler!),
-				external: consumer.code.external,
-				importAsString: consumer.code.importAsString,
-			})
-
-			for (const [name, value] of Object.entries(consumer.environment ?? {})) {
-				bundle.addEnv(name, value)
-			}
-
-			for (const permission of consumer.permissions ?? []) {
-				bundle.addPermission(permission)
-			}
+			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), consumer)
 		}
 	},
 })

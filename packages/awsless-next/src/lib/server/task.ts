@@ -1,6 +1,7 @@
 import { Duration } from '@awsless/duration'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { schedule } from '@awsless/scheduler'
+import { formatRoutePayload } from './bundle.js'
 import { createProxy } from '../proxy.js'
 import { onFailureQueueArn } from './on-failure.js'
 import {
@@ -42,10 +43,7 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 
 					await schedule({
 						name: `${BUNDLE_NAME}:${options.qualifier ?? BUNDLE_QUALIFIER}`,
-						payload: {
-							'$awsless-route': routeKey,
-							event: payload,
-						},
+						payload: formatRoutePayload(routeKey, payload),
 						schedule: options.schedule,
 						group: resourceTaskName('group'),
 						roleArn: `arn:aws:iam::${process.env.AWS_ACCOUNT_ID}:role/${resourceTaskName('schedule')}`,
@@ -57,10 +55,7 @@ export const Task: TaskResources = /*@__PURE__*/ createProxy(stackName => {
 						type: 'Event',
 						name: BUNDLE_NAME,
 						qualifier: getBundleQualifier(options.qualifier),
-						payload: {
-							'$awsless-route': routeKey,
-							event: payload,
-						},
+						payload: formatRoutePayload(routeKey, payload),
 					})
 				}
 			},

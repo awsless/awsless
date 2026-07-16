@@ -7,15 +7,18 @@ import { createHash } from 'crypto'
 import { readdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { getBuildPath } from '../../build/index.js'
-import { AppContext, Permission } from '../../feature.js'
+import { AppContext, BeforeContext, Permission, StackContext } from '../../feature.js'
 import { BundleDeployment } from '../../formation/lambda.js'
 import { shortId } from '../../util/id.js'
-import { formatGlobalResourceName } from '../../util/name.js'
+import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { relativePath } from '../../util/path.js'
 import { FunctionDefaultProps } from '../function/schema.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { buildBundle } from './build/bundle.js'
 import { zipFiles } from './build/zip.js'
+
+// The request header used to route web requests to the right bundle handler.
+export const ROUTE_HEADER = 'x-awsless-route'
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
 	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
@@ -36,6 +39,52 @@ export type BundleHandler = {
 
 	external?: string[]
 	importAsString?: string[]
+}
+
+type BundleFunctionProps = {
+	code: {
+		file: string
+		external?: string[]
+		importAsString?: string[]
+	}
+	handler?: string
+	environment?: Record<string, string>
+	permissions?: Permission[]
+}
+
+// Register a feature function into the shared app bundle,
+// mirroring the old per-feature createLambdaFunction call shape.
+
+export const addBundleFunction = (ctx: StackContext | AppContext, routeKey: string, props: BundleFunctionProps) => {
+	const bundle = ctx.shared.get('bundle', 'main')
+
+	bundle.addHandler({
+		routeKey,
+		file: props.code.file,
+		exportName: parseExportName(props.handler ?? ctx.appConfig.defaults.function.handler!),
+		external: props.code.external,
+		importAsString: props.code.importAsString,
+	})
+
+	for (const [name, value] of Object.entries(props.environment ?? {})) {
+		bundle.addEnv(name, value)
+	}
+
+	for (const permission of props.permissions ?? []) {
+		bundle.addPermission(permission)
+	}
+
+	return bundle
+}
+
+// The bundle lambda timeout is the max of the function default
+// timeout and the timeout of every rpc server.
+
+export const getBundleTimeout = (ctx: BeforeContext) => {
+	return Math.max(
+		toSeconds(ctx.appConfig.defaults.function.timeout),
+		...Object.values(ctx.appConfig.defaults.rpc ?? {}).map(props => toSeconds(props.timeout))
+	)
 }
 
 export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps) => {
@@ -83,11 +132,7 @@ export const createBundleLambda = (ctx: AppContext, props: FunctionDefaultProps)
 		lambdaProps.timeout = timeout
 	}
 
-	const name = formatGlobalResourceName({
-		appName: ctx.app.name,
-		resourceType: 'function',
-		resourceName: 'bundle',
-	})
+	const name = getBundleFunctionName(ctx.app.name)
 
 	const shortName = formatGlobalResourceName({
 		appName: ctx.app.name,

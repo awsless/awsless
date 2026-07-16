@@ -10,7 +10,7 @@ import chunk from 'chunk'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
-import { Credentials } from '../util/aws'
+import { Credentials, isError } from '../util/aws'
 
 import '@aws-sdk/signature-v4-crt'
 
@@ -65,10 +65,6 @@ const routeDeploymentInputSchema = z.object({
 	routes: z.array(routeSchema),
 	functionVersion: z.string(),
 })
-
-const isError = (error: unknown, name: string) => {
-	return error instanceof Error && error.name === name
-}
 
 // store values are plain '<table>:<id or version>' pairs; anything else
 // is garbage written by an older version of awsless

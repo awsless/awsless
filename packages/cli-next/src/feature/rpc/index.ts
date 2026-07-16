@@ -9,7 +9,7 @@ import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteEnvName } from 'awsless'
 import { internalHandler } from '../bundle/build/bundle.js'
-import { formatRouteKey, parseExportName } from '../bundle/util.js'
+import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { directories } from '../../util/path.js'
 import { relative } from 'path'
 import { toSeconds } from '@awsless/duration'
@@ -128,23 +128,9 @@ export const rpcFeature = defineFeature({
 			if (props.auth) {
 				const authRouteKey = formatRouteKey(ctx.app.name, 'rpc', `${id}-auth`)
 
-				bundle.addHandler({
-					routeKey: authRouteKey,
-					file: props.auth.code.file,
-					exportName: parseExportName(props.auth.handler ?? ctx.appConfig.defaults.function.handler!),
-					external: props.auth.code.external,
-					importAsString: props.auth.code.importAsString,
-				})
+				addBundleFunction(ctx, authRouteKey, props.auth)
 
 				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'AUTH'), authRouteKey)
-
-				for (const [name, value] of Object.entries(props.auth.environment ?? {})) {
-					bundle.addEnv(name, value)
-				}
-
-				for (const permission of props.auth.permissions ?? []) {
-					bundle.addPermission(permission)
-				}
 			}
 
 			// ------------------------------------------------------
@@ -155,7 +141,7 @@ export const rpcFeature = defineFeature({
 				[props.path]: {
 					type: 'lambda',
 					requestHeaders: {
-						'x-awsless-route': serverRouteKey,
+						[ROUTE_HEADER]: serverRouteKey,
 					},
 				},
 			})
@@ -177,21 +163,7 @@ export const rpcFeature = defineFeature({
 				const entryId = kebabCase(`${id}-${shortId(name)}`)
 				const routeKey = formatRouteKey(ctx.stack.name, 'rpc', entryId)
 
-				bundle.addHandler({
-					routeKey,
-					file: props.function.code.file,
-					exportName: parseExportName(props.function.handler ?? ctx.appConfig.defaults.function.handler!),
-					external: props.function.code.external,
-					importAsString: props.function.code.importAsString,
-				})
-
-				for (const [envName, value] of Object.entries(props.function.environment ?? {})) {
-					bundle.addEnv(envName, value)
-				}
-
-				for (const permission of props.function.permissions ?? []) {
-					bundle.addPermission(permission)
-				}
+				addBundleFunction(ctx, routeKey, props.function)
 
 				// Whitelist the query so the rpc server can only
 				// dispatch handlers that are registered here.

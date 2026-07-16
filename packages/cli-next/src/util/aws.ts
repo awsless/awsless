@@ -6,6 +6,10 @@ import { Region } from '../config/schema/region.js'
 
 export type Credentials = AwsCredentialIdentityProvider
 
+export const isError = (error: unknown, name: string) => {
+	return error instanceof Error && error.name === name
+}
+
 const hasRuntimeAwsCredentials = () =>
 	!!(
 		process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI ||
