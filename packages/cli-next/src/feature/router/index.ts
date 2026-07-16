@@ -88,6 +88,9 @@ export const routerFeature = defineFeature({
 				comment: 'Store for routes',
 			})
 			const productionCode = getViewerRequestFunctionCode({
+				// The production distribution should only serve custom domains,
+				// the preview distribution covers the cloudfront.net host.
+				blockDirectAccess: !!props.domain,
 				basicAuth: props.basicAuth,
 				passwordAuth: props.passwordAuth,
 			})

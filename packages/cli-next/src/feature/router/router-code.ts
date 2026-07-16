@@ -1,10 +1,12 @@
 export const getViewerRequestFunctionCode = (props: {
+	blockDirectAccess?: boolean
 	basicAuth?: { username: string; password: string }
 	passwordAuth?: { password: string }
 	deployUrls?: boolean
 }): string => {
 	return CODE(
 		[
+			props.blockDirectAccess ? BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT : '',
 			(props.passwordAuth ?? props.basicAuth)
 				? AUTH_WRAPPER(
 						[
@@ -18,6 +20,14 @@ export const getViewerRequestFunctionCode = (props: {
 		props.deployUrls ? DEPLOY_URLS_PREFIX : ACTIVE_PREFIX
 	)
 }
+
+const BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT = `
+if (headers.host && headers.host.value.includes('cloudfront.net')) {
+	return {
+		statusCode: 403,
+		statusDescription: 'Forbidden'
+	};
+}`
 
 const BASIC_AUTH_CHECK = (username: string, password: string) => `
 authMethods.push('Basic realm="Protected"');
