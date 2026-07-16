@@ -216,6 +216,9 @@ export const onFailureFeature = defineFeature({
 			functionName: bundle.alias.arn,
 			eventSourceArn: queue.arn,
 			batchSize: 10,
+		}, {
+			// AWS validates the queue permissions when the mapping is created.
+			dependsOn: [bundle.policy],
 		})
 
 		const queuePolicy = new aws.sqs.QueuePolicy(group, 'bucket-notification', {

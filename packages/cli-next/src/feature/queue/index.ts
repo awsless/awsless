@@ -120,6 +120,9 @@ export const queueFeature = defineFeature({
 					functionName: bundle.alias.arn,
 					eventSourceArn: queue.arn,
 					batchSize: props.batchSize,
+				}, {
+					// AWS validates the queue permissions when the mapping is created.
+					dependsOn: [bundle.policy],
 				})
 			}
 
