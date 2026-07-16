@@ -75,11 +75,18 @@ type ErrorLog = {
 
 // The bundles own log group subscribes to the bundle, so consuming
 // an error log must never produce one, or errors would loop forever.
+// That costs us: consumer failures are swallowed into an info log
+// instead of retried, and any console.error the consumer legitimately
+// emits while running in-process is demoted to info.
 
 export default async (event: CloudWatchLogsEvent) => {
-	const consumerRoute = getRouteEnv('CONSUMER')!
+	const consumerRoute = getRouteEnv('CONSUMER')
 
-	const quiet = { error: console.error, warn: console.warn }
+	if (!consumerRoute) {
+		throw new Error('The CONSUMER route env is not set')
+	}
+
+	const original = { error: console.error, warn: console.warn }
 	console.error = console.info
 	console.warn = console.info
 
@@ -111,8 +118,8 @@ export default async (event: CloudWatchLogsEvent) => {
 	} catch (error) {
 		console.info('Failed to consume the error logs', error)
 	} finally {
-		console.error = quiet.error
-		console.warn = quiet.warn
+		console.error = original.error
+		console.warn = original.warn
 	}
 }
 

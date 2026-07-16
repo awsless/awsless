@@ -159,9 +159,17 @@ const patchPayload = (payload: unknown) => {
 }
 
 const invokeConsumer = async (payload: unknown, context: Context) => {
+	const consumerRoute = getRouteEnv('CONSUMER')
+
+	if (!consumerRoute) {
+		throw new Error('The CONSUMER route env is not set')
+	}
+
+	// A fresh self-invoke gives the consumer its own log stream & timeout,
+	// isolated from the normalizer.
 	await invoke({
 		name: context.invokedFunctionArn,
 		type: 'RequestResponse',
-		payload: formatRoutePayload(getRouteEnv('CONSUMER')!, payload),
+		payload: formatRoutePayload(consumerRoute, payload),
 	})
 }
