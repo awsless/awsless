@@ -1,12 +1,12 @@
 import { kebabCase } from 'change-case'
-import { getCurrentRoute } from './bundle.js'
+import { getCurrentRoute } from './context.js'
 
 export const APP = (process.env.APP ?? 'app') as 'app'
 export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'
 
 // Inside the bundle the stack is scoped to the running route,
 // so we need to read it live instead of at module load.
-export const getStack = () => (getCurrentRoute()?.split(':')[0] ?? process.env.STACK ?? 'stack') as 'stack'
+export const getStack = () => ((getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(':')[0] ?? 'stack') as 'stack'
 export const IS_TEST = process.env.NODE_ENV === 'test'
 export const REGION = process.env.AWS_REGION
 export const ACCOUNT_ID = process.env.AWS_ACCOUNT_ID
@@ -87,32 +87,3 @@ export const bindGlobalResourceName = <T extends string>(resourceType: T) => {
 		}) as `${typeof APP}--${T}--${N}`
 	}
 }
-
-// All handlers are bundled inside a single app bundle lambda,
-// where the live alias points to the active deployment version.
-export const BUNDLE_NAME = /*@__PURE__*/ bindGlobalResourceName('function')('bundle')
-export const BUNDLE_QUALIFIER = 'live'
-
-export const getBundleQualifier = (qualifier?: string) => {
-	if (qualifier !== undefined) {
-		return qualifier
-	}
-
-	if (process.env.AWS_LAMBDA_FUNCTION_NAME === BUNDLE_NAME) {
-		return process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER
-	}
-
-	return BUNDLE_QUALIFIER
-}
-
-export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
-	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
-}
-
-// export const getEnv = (name: string) => {
-// 	if (name in process.env) {
-// 		return process.env[name]
-// 	}
-
-// 	throw new TypeError(`Env var not defined: ${name}`)
-// }

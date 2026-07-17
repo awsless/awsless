@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 // src/lib/server/util.ts
 import { kebabCase } from "change-case";
 
-// src/lib/server/bundle.ts
+// src/lib/server/context.ts
 import { AsyncLocalStorage } from "async_hooks";
 var routeContext = new AsyncLocalStorage();
 var getCurrentRoute = () => routeContext.getStore()?.routeKey;
@@ -30,25 +30,11 @@ var invokeRoute = (routeKey, payload) => {
   }
   return invoke4(routeKey, payload);
 };
-var ROUTE_PROPERTY = "$awsless-route";
-var formatRoutePayload = (routeKey, event) => {
-  return {
-    [ROUTE_PROPERTY]: routeKey,
-    event
-  };
-};
-var formatRouteEnvName = (routeKey, name) => {
-  return `${routeKey}:${name}`;
-};
-var getRouteEnv = (name) => {
-  const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
-  return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
-};
 
 // src/lib/server/util.ts
 var APP = process.env.APP ?? "app";
 var APP_ID = process.env.APP_ID ?? "app-id";
-var getStack = () => getCurrentRoute()?.split(":")[0] ?? process.env.STACK ?? "stack";
+var getStack = () => (getCurrentRoute() ?? process.env.AWSLESS_ROUTE)?.split(":")[0] ?? "stack";
 var IS_TEST = process.env.NODE_ENV === "test";
 var REGION = process.env.AWS_REGION;
 var ACCOUNT_ID = process.env.AWS_ACCOUNT_ID;
@@ -89,20 +75,6 @@ var bindGlobalResourceName = (resourceType) => {
       resourceName
     });
   };
-};
-var BUNDLE_NAME = /* @__PURE__ */ bindGlobalResourceName("function")("bundle");
-var BUNDLE_QUALIFIER = "live";
-var getBundleQualifier = (qualifier) => {
-  if (qualifier !== void 0) {
-    return qualifier;
-  }
-  if (process.env.AWS_LAMBDA_FUNCTION_NAME === BUNDLE_NAME) {
-    return process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER;
-  }
-  return BUNDLE_QUALIFIER;
-};
-var formatRouteKey = (stackName, resourceType, resourceName) => {
-  return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
 };
 
 // src/lib/server/job.ts
@@ -212,6 +184,30 @@ import { mockLambda } from "@awsless/lambda";
 import { stringify as stringify3 } from "@awsless/json";
 import { invoke } from "@awsless/lambda";
 import { WeakCache } from "@awsless/weak-cache";
+
+// src/lib/server/bundle.ts
+import { kebabCase as kebabCase3 } from "change-case";
+var ROUTE_PROPERTY = "$awsless-route";
+var BUNDLE_NAME = /* @__PURE__ */ bindGlobalResourceName("function")("bundle");
+var BUNDLE_QUALIFIER = "live";
+var formatRouteKey = (stackName, resourceType, resourceName) => {
+  return [stackName, resourceType, resourceName].map((v) => kebabCase3(v)).join(":");
+};
+var formatRoutePayload = (routeKey, event) => {
+  return {
+    [ROUTE_PROPERTY]: routeKey,
+    event
+  };
+};
+var formatRouteEnvName = (routeKey, name) => {
+  return `${routeKey}:${name}`;
+};
+var getRouteEnv = (name) => {
+  const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
+  return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
+};
+
+// src/lib/server/function.ts
 var cache = new WeakCache();
 var getFunctionName = bindLocalResourceName("function");
 var Fn = /* @__PURE__ */ createProxy((stackName) => {
@@ -232,7 +228,7 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
       return invoke({
         ...options,
         name: BUNDLE_NAME,
-        qualifier: getBundleQualifier(options.qualifier),
+        qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
         payload: formatRoutePayload(routeKey, payload)
       });
     };
@@ -457,7 +453,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
         } else if (options.schedule) {
           const resourceTaskName = bindGlobalResourceName("task");
           await schedule({
-            name: `${BUNDLE_NAME}:${options.qualifier ?? BUNDLE_QUALIFIER}`,
+            name: `${BUNDLE_NAME}:${BUNDLE_QUALIFIER}`,
             payload: formatRoutePayload(routeKey, payload),
             schedule: options.schedule,
             group: resourceTaskName("group"),
@@ -469,7 +465,7 @@ var Task = /* @__PURE__ */ createProxy((stackName) => {
             ...options,
             type: "Event",
             name: BUNDLE_NAME,
-            qualifier: getBundleQualifier(options.qualifier),
+            qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
             payload: formatRoutePayload(routeKey, payload)
           });
         }
@@ -603,7 +599,7 @@ var Cache = /* @__PURE__ */ createProxy((stack) => {
 
 // src/lib/server/config.ts
 import { ssm } from "@awsless/ssm";
-import { kebabCase as kebabCase3 } from "change-case";
+import { kebabCase as kebabCase4 } from "change-case";
 var getConfigName = (name) => {
   return `/.awsless/${APP}/${name}`;
 };
@@ -618,7 +614,7 @@ var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
     if (keys.length > 0) {
       const paths = {};
       for (const key of keys) {
-        paths[kebabCase3(key)] = getConfigName(key);
+        paths[kebabCase4(key)] = getConfigName(key);
       }
       return ssm(paths);
     }
@@ -627,7 +623,7 @@ var loadConfigData = /* @__NO_SIDE_EFFECTS__ */ async () => {
 };
 var data = await /* @__PURE__ */ loadConfigData();
 var getConfigValue = (name) => {
-  const key = kebabCase3(name);
+  const key = kebabCase4(name);
   const value = data[key];
   if (typeof value === "undefined") {
     throw new Error(
@@ -637,7 +633,7 @@ var getConfigValue = (name) => {
   return value;
 };
 var setConfigValue = (name, value) => {
-  const key = kebabCase3(name);
+  const key = kebabCase4(name);
   data[key] = value;
 };
 var Config = /* @__PURE__ */ new Proxy(
@@ -675,7 +671,7 @@ var Cron = /* @__PURE__ */ createProxy((stackName) => {
           ...options,
           type: "Event",
           name: BUNDLE_NAME,
-          qualifier: getBundleQualifier(options.qualifier),
+          qualifier: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
           payload: formatRoutePayload(routeKey, payload)
         });
       }
@@ -692,12 +688,12 @@ import {
   createSizeMetric,
   putData
 } from "@awsless/cloudwatch";
-import { constantCase as constantCase5, kebabCase as kebabCase4 } from "change-case";
+import { constantCase as constantCase5, kebabCase as kebabCase5 } from "change-case";
 var getMetricName = (name) => {
-  return kebabCase4(name);
+  return kebabCase5(name);
 };
 var getMetricNamespace = (stack = getStack(), app = APP) => {
-  return `awsless/${kebabCase4(app)}/${kebabCase4(stack)}`;
+  return `awsless/${kebabCase5(app)}/${kebabCase5(stack)}`;
 };
 var Metric = /* @__PURE__ */ createProxy((stack) => {
   if (stack === "batch") {
@@ -928,6 +924,8 @@ export {
   APP,
   Alert,
   Auth,
+  BUNDLE_NAME,
+  BUNDLE_QUALIFIER,
   Cache,
   Config,
   Cron,
@@ -945,6 +943,7 @@ export {
   Task,
   Topic,
   formatRouteEnvName,
+  formatRouteKey,
   formatRoutePayload,
   getAlertName,
   getAuthProps,

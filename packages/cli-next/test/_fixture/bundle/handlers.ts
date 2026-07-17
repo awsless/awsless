@@ -1,14 +1,14 @@
 import { APP, getCurrentRoute, getStack, invokeRoute } from 'awsless'
 import { getValue } from './shared'
 
-export const echo = (event: unknown) => ({ stack: process.env.STACK, event })
+export const echo = (event: unknown) => ({ stack: getStack(), event })
 
 export const app = () => APP
 
 export const nested = async () => {
 	const inner = await invokeRoute('stack-1:function:echo', { from: 'nested' })
 
-	return { stack: process.env.STACK, inner }
+	return { stack: getStack(), inner }
 }
 
 export const parallel = async () => {
@@ -37,7 +37,7 @@ export const nestedError = () => invokeRoute('stack-1:function:error', {})
 export const site = (event: unknown) => event
 
 export const queue = (event: unknown) => ({
-	stack: process.env.STACK,
+	stack: getStack(),
 	throwExpectedErrors: process.env.THROW_EXPECTED_ERRORS,
 	event,
 })

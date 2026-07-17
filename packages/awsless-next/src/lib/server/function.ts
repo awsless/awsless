@@ -3,8 +3,15 @@ import { stringify } from '@awsless/json'
 import { invoke, InvokeOptions } from '@awsless/lambda'
 import { WeakCache } from '@awsless/weak-cache'
 import { createProxy } from '../proxy.js'
-import { formatRoutePayload, invokeRoute, isInsideBundle } from './bundle.js'
-import { bindLocalResourceName, BUNDLE_NAME, formatRouteKey, getBundleQualifier, IS_TEST } from './util.js'
+import {
+	BUNDLE_NAME,
+	BUNDLE_QUALIFIER,
+	formatRouteKey,
+	formatRoutePayload,
+	invokeRoute,
+	isInsideBundle,
+} from './bundle.js'
+import { bindLocalResourceName, IS_TEST } from './util.js'
 
 const cache = new WeakCache<string, Promise<unknown>>()
 
@@ -42,7 +49,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 			return invoke({
 				...options,
 				name: BUNDLE_NAME,
-				qualifier: getBundleQualifier(options.qualifier),
+				qualifier: options.qualifier ?? process.env.AWS_LAMBDA_FUNCTION_VERSION ?? BUNDLE_QUALIFIER,
 				payload: formatRoutePayload(routeKey, payload),
 			})
 		}

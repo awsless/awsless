@@ -40,15 +40,13 @@ describe('bundle', () => {
 		expect(parseExportName('index')).toBe('default')
 	})
 
-	it('should allow recursive bundle invocations', () => {
+	it('should keep the default lambda recursion protection', () => {
 		const { app } = createTestApp()
 		const recursion = app.resources
 			.map(getMeta)
-			.find(
-				meta => meta.type === 'aws_lambda_function_recursion_config' && meta.urn.includes(':function:{bundle}:')
-			)
+			.find(meta => meta.type === 'aws_lambda_function_recursion_config')
 
-		expect(recursion?.input.recursiveLoop).toBe('Allow')
+		expect(recursion).toBeUndefined()
 	})
 
 	it('should preserve the Terraform-owned live alias while staging', () => {

@@ -69,8 +69,6 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
-			const [stack] = match.key.split(':')
-			process.env.STACK = stack
 			process.env.AWSLESS_ROUTE = match.key
 
 			return withRoute(match.key, invokeRoute, async () => {
@@ -96,7 +94,6 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			} finally {
 				// Restore the caller's route env, since the caller keeps running after the nested call.
 				if (caller) {
-					process.env.STACK = caller.split(':')[0]
 					process.env.AWSLESS_ROUTE = caller
 
 					if (throwExpectedErrors) {
