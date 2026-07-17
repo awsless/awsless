@@ -15,6 +15,13 @@
 			"main": {
 				"domain": "main",
 				"subDomain": "www"
+			},
+			"apex": {
+				"domain": "main"
+			},
+			"sub": {
+				"domain": "main",
+				"subDomain": "subdomain"
 			}
 		},
 		"rpc": {

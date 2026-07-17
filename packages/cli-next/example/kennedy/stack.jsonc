@@ -40,6 +40,16 @@
 			"path": "/",
 			"static": "./site",
 			"ssr": "./function/site.ts"
+		},
+		"apex": {
+			"router": "apex",
+			"path": "/",
+			"static": "./site-apex"
+		},
+		"sub": {
+			"router": "sub",
+			"path": "/",
+			"static": "./site-sub"
 		}
 	},
 	"tables": {
