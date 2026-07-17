@@ -116,11 +116,20 @@ export default async (event: CloudWatchLogsEvent, context: Context) => {
 				continue
 			}
 
-			await invokeRoute(consumerRoute, {
+			// A hung consumer is abandoned right before the invocation
+			// deadline, so the log handling always finishes cleanly
+			// instead of timing out the whole invocation.
+			const invoke = invokeRoute(consumerRoute, {
 				...error,
 				origin,
 				date: logEvent.timestamp,
 			})
+
+			invoke.catch(() => {})
+
+			const deadline = Math.max(0, context.getRemainingTimeInMillis() - 3_000)
+
+			await Promise.race([invoke, new Promise(resolve => setTimeout(resolve, deadline))])
 		}
 	} catch (error) {
 		console.info('Failed to consume the error logs', error)
