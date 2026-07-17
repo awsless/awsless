@@ -1,5 +1,5 @@
 import { kebabCase } from 'change-case'
-import { getCurrentRoute } from './context.js'
+import { getCurrentRoute } from './bundle.js'
 
 export const APP = (process.env.APP ?? 'app') as 'app'
 export const APP_ID = (process.env.APP_ID ?? 'app-id') as 'app-id'

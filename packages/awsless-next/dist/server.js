@@ -9,26 +9,45 @@ import { mockEcs } from "@awsless/ecs";
 import { runTask } from "@awsless/ecs";
 import { stringify } from "@awsless/json";
 import { putObject } from "@awsless/s3";
-import { kebabCase as kebabCase2 } from "change-case";
+import { kebabCase as kebabCase3 } from "change-case";
 import { randomUUID } from "crypto";
 
 // src/lib/server/util.ts
-import { kebabCase } from "change-case";
+import { kebabCase as kebabCase2 } from "change-case";
 
-// src/lib/server/context.ts
+// src/lib/server/bundle.ts
+import { kebabCase } from "change-case";
 import { AsyncLocalStorage } from "async_hooks";
+var ROUTE_PROPERTY = "$awsless-route";
+var BUNDLE_NAME = `${process.env.APP ?? "app"}--function--bundle`;
+var BUNDLE_QUALIFIER = "live";
 var routeContext = new AsyncLocalStorage();
 var getCurrentRoute = () => routeContext.getStore()?.routeKey;
 var withRoute = (routeKey, invoke4, callback) => {
   return routeContext.run({ routeKey, invoke: invoke4 }, callback);
 };
-var isInsideBundle = () => routeContext.getStore() !== void 0;
 var invokeRoute = (routeKey, payload) => {
   const invoke4 = routeContext.getStore()?.invoke;
   if (!invoke4) {
     throw new Error("Route invocations are only available inside the bundle");
   }
   return invoke4(routeKey, payload);
+};
+var formatRouteKey = (stackName, resourceType, resourceName) => {
+  return [stackName, resourceType, resourceName].map((v) => kebabCase(v)).join(":");
+};
+var formatRoutePayload = (routeKey, event) => {
+  return {
+    [ROUTE_PROPERTY]: routeKey,
+    event
+  };
+};
+var formatRouteEnvName = (routeKey, name) => {
+  return `${routeKey}:${name}`;
+};
+var getRouteEnv = (name) => {
+  const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
+  return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
 };
 
 // src/lib/server/util.ts
@@ -47,7 +66,7 @@ var build = (opt) => {
     opt.resourceType,
     opt.resourceName,
     opt?.postfix
-  ].filter((v) => typeof v === "string").map((v) => kebabCase(v)).join(opt.seperator ?? "--");
+  ].filter((v) => typeof v === "string").map((v) => kebabCase2(v)).join(opt.seperator ?? "--");
 };
 var bindPostfixedLocalResourceName = (resourceType, postfix) => {
   return (resourceName, stackName = getStack()) => {
@@ -101,7 +120,7 @@ var Job = /* @__PURE__ */ createProxy((stackName) => {
           taskDefinition: name,
           subnets,
           securityGroups: [securityGroup],
-          container: `container-${kebabCase2(jobName)}`,
+          container: `container-${kebabCase3(jobName)}`,
           payload: storedPayload
         });
       }
@@ -184,30 +203,6 @@ import { mockLambda } from "@awsless/lambda";
 import { stringify as stringify3 } from "@awsless/json";
 import { invoke } from "@awsless/lambda";
 import { WeakCache } from "@awsless/weak-cache";
-
-// src/lib/server/bundle.ts
-import { kebabCase as kebabCase3 } from "change-case";
-var ROUTE_PROPERTY = "$awsless-route";
-var BUNDLE_NAME = /* @__PURE__ */ bindGlobalResourceName("function")("bundle");
-var BUNDLE_QUALIFIER = "live";
-var formatRouteKey = (stackName, resourceType, resourceName) => {
-  return [stackName, resourceType, resourceName].map((v) => kebabCase3(v)).join(":");
-};
-var formatRoutePayload = (routeKey, event) => {
-  return {
-    [ROUTE_PROPERTY]: routeKey,
-    event
-  };
-};
-var formatRouteEnvName = (routeKey, name) => {
-  return `${routeKey}:${name}`;
-};
-var getRouteEnv = (name) => {
-  const routeKey = getCurrentRoute() ?? process.env.AWSLESS_ROUTE;
-  return process.env[routeKey ? formatRouteEnvName(routeKey, name) : name];
-};
-
-// src/lib/server/function.ts
 var cache = new WeakCache();
 var getFunctionName = bindLocalResourceName("function");
 var Fn = /* @__PURE__ */ createProxy((stackName) => {
@@ -222,7 +217,7 @@ var Fn = /* @__PURE__ */ createProxy((stackName) => {
           payload
         });
       }
-      if (isInsideBundle() && !options.qualifier && !options.client) {
+      if (getCurrentRoute() && !options.qualifier && !options.client) {
         return invokeRoute(routeKey, payload);
       }
       return invoke({
@@ -971,7 +966,6 @@ export {
   getTaskName,
   getTopicName,
   invokeRoute,
-  isInsideBundle,
   mockAlert,
   mockCache,
   mockFunction,

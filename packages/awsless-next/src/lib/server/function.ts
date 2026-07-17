@@ -8,8 +8,8 @@ import {
 	BUNDLE_QUALIFIER,
 	formatRouteKey,
 	formatRoutePayload,
+	getCurrentRoute,
 	invokeRoute,
-	isInsideBundle,
 } from './bundle.js'
 import { bindLocalResourceName, IS_TEST } from './util.js'
 
@@ -42,7 +42,7 @@ export const Fn: FunctionResources = /*@__PURE__*/ createProxy(stackName => {
 			}
 
 			// Inside the bundle we dispatch in-process instead of self-invoking.
-			if (isInsideBundle() && !options.qualifier && !options.client) {
+			if (getCurrentRoute() && !options.qualifier && !options.client) {
 				return invokeRoute(routeKey, payload)
 			}
 

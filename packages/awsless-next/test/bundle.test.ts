@@ -1,33 +1,32 @@
-import { BUNDLE_NAME, getBundleQualifier } from '../src/lib/server/util'
+import { formatRouteKey, getRouteEnv, invokeRoute, withRoute } from '../src/lib/server/bundle'
 
-const restoreEnv = (name: string, value: string | undefined) => {
-	if (value === undefined) {
-		delete process.env[name]
-	} else {
-		process.env[name] = value
-	}
-}
-
-describe('bundle qualifier', () => {
-	const functionName = process.env.AWS_LAMBDA_FUNCTION_NAME
-	const functionVersion = process.env.AWS_LAMBDA_FUNCTION_VERSION
-
+describe('bundle routes', () => {
 	afterEach(() => {
-		restoreEnv('AWS_LAMBDA_FUNCTION_NAME', functionName)
-		restoreEnv('AWS_LAMBDA_FUNCTION_VERSION', functionVersion)
+		delete process.env['stack:function:echo:TABLE']
+		delete process.env.TABLE
 	})
 
-	it('keeps nested calls on the executing bundle version', () => {
-		process.env.AWS_LAMBDA_FUNCTION_NAME = BUNDLE_NAME
-		process.env.AWS_LAMBDA_FUNCTION_VERSION = '42'
-
-		expect(getBundleQualifier()).toBe('42')
+	it('should format route keys as kebab-case', () => {
+		expect(formatRouteKey('MyStack', 'function', 'HelloWorld')).toBe('my-stack:function:hello-world')
 	})
 
-	it('uses live outside the bundle', () => {
-		process.env.AWS_LAMBDA_FUNCTION_NAME = 'app--stack--function--standalone'
-		process.env.AWS_LAMBDA_FUNCTION_VERSION = '42'
+	it('should scope env lookups to the running route', () => {
+		process.env['stack:function:echo:TABLE'] = 'scoped'
+		process.env.TABLE = 'plain'
 
-		expect(getBundleQualifier()).toBe('live')
+		expect(getRouteEnv('TABLE')).toBe('plain')
+		expect(withRoute('stack:function:echo', async () => undefined, () => getRouteEnv('TABLE'))).toBe('scoped')
+	})
+
+	it('should only invoke routes inside the bundle', async () => {
+		expect(() => invokeRoute('stack:function:echo', {})).toThrow('inside the bundle')
+
+		const result = await withRoute(
+			'caller',
+			async (routeKey, payload) => ({ routeKey, payload }),
+			() => invokeRoute('stack:function:echo', { n: 1 })
+		)
+
+		expect(result).toEqual({ routeKey: 'stack:function:echo', payload: { n: 1 } })
 	})
 })

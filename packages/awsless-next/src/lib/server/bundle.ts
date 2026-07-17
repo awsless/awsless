@@ -1,14 +1,40 @@
 import { kebabCase } from 'change-case'
-import { getCurrentRoute } from './context.js'
-import { bindGlobalResourceName } from './util.js'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 // The payload property used to route lambda invokes to the right bundle handler.
 export const ROUTE_PROPERTY = '$awsless-route'
-export const BUNDLE_NAME = /*@__PURE__*/ bindGlobalResourceName('function')('bundle')
+export const BUNDLE_NAME = `${process.env.APP ?? 'app'}--function--bundle`
 export const BUNDLE_QUALIFIER = 'live'
 
-export { getCurrentRoute, invokeRoute, isInsideBundle, withRoute } from './context.js'
-export type { RouteInvoker } from './context.js'
+// ------------------------------------------------------------
+// The route context of the currently running bundle handler.
+
+export type RouteInvoker = (routeKey: string, payload: unknown) => Promise<unknown>
+
+type RouteContext = {
+	routeKey: string
+	invoke: RouteInvoker
+}
+
+const routeContext = new AsyncLocalStorage<RouteContext>()
+
+export const getCurrentRoute = () => routeContext.getStore()?.routeKey
+
+export const withRoute = <T>(routeKey: string, invoke: RouteInvoker, callback: () => T) => {
+	return routeContext.run({ routeKey, invoke }, callback)
+}
+
+export const invokeRoute = (routeKey: string, payload: unknown) => {
+	const invoke = routeContext.getStore()?.invoke
+
+	if (!invoke) {
+		throw new Error('Route invocations are only available inside the bundle')
+	}
+
+	return invoke(routeKey, payload)
+}
+
+// ------------------------------------------------------------
 
 export const formatRouteKey = (stackName: string, resourceType: string, resourceName: string) => {
 	return [stackName, resourceType, resourceName].map(v => kebabCase(v)).join(':')
