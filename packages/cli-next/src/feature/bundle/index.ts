@@ -14,7 +14,7 @@ import { formatGlobalResourceName, getBundleFunctionName } from '../../util/name
 import { relativePath } from '../../util/path.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { zipFiles } from './build/zip.js'
-import { BundleHandler, buildBundle } from './util.js'
+import { buildBundle } from './util.js'
 
 export const bundleFeature = defineFeature({
 	name: 'bundle',
@@ -47,14 +47,20 @@ export const bundleFeature = defineFeature({
 		// ------------------------------------------------------
 		// Collect the handlers & env vars from every feature.
 
-		const handlers: BundleHandler[] = []
+		const handlers: {
+			routeKey: string
+			file: string // The file path of the handler code.
+			exportName: string // The name of the exported method within the handler code.
+			external?: string[]
+			importAsString?: string[]
+		}[] = []
 		const env: Record<string, Input<string>> = {}
 		const envDeps = new Set<any>()
 		const layers: Input<string>[] = []
 		const timeout = toSeconds(defaults.timeout)
 		const memorySize = toMebibytes(defaults.memorySize)
 
-		const addHandler = (handler: BundleHandler) => {
+		const addHandler = (handler: (typeof handlers)[number]) => {
 			if (handlers.some(entry => entry.routeKey === handler.routeKey)) {
 				throw new Error(`Duplicate bundle route: ${handler.routeKey}`)
 			}

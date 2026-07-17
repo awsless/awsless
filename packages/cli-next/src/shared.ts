@@ -1,7 +1,6 @@
 import { aws } from '@terraforge/aws'
 import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { Permission } from './feature'
-import { BundleHandler } from './feature/bundle/util.js'
 import { Route } from './feature/router/route'
 
 type SharedState = {
@@ -33,7 +32,13 @@ type SharedState = {
 			alias: aws.lambda.Alias
 			logGroup: aws.cloudwatch.LogGroup | undefined
 			policy: aws.iam.RolePolicy
-			addHandler: (handler: BundleHandler) => void
+			addHandler: (handler: {
+				routeKey: string
+				file: string // The file path of the handler code.
+				exportName: string // The name of the exported method within the handler code.
+				external?: string[]
+				importAsString?: string[]
+			}) => void
 			addEnv: (name: string, value: Input<string>) => void
 			addLayer: (layer: Input<string>) => void
 			addPermission: (statement: Permission) => void

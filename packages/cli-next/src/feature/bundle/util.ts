@@ -21,8 +21,6 @@ export const parseExportName = (handler: string) => {
 	return handler.split('.').slice(1).join('.') || 'default'
 }
 
-// Register a feature function into the shared app bundle.
-
 export const registerBundleFunction = (
 	ctx: StackContext | AppContext,
 	routeKey: string,
@@ -58,8 +56,6 @@ export const registerBundleFunction = (
 	return bundle
 }
 
-// Build all handlers into a single code bundle behind a generated entry file.
-
 export const buildBundle = (props: {
 	name: string
 	minify?: boolean
@@ -79,13 +75,19 @@ export const buildBundle = (props: {
 		const runtime = props.runtime ?? join(dirname(fileURLToPath(import.meta.url)), '/handlers/bundle.mjs')
 		const handlers = [...props.handlers].sort((a, b) => a.routeKey.localeCompare(b.routeKey))
 
-		// The entry file lazily imports every handler behind its route key.
-		// The route query virtualizes the handler file per route, so module
-		// level state is never shared between routes using the same file.
+		// The entry file maps every route key to a lazy import, so a cold
+		// start only loads the one handler being dispatched.
+		//
+		// The import query makes rolldown treat "file.ts?awsless-route=a" &
+		// "file.ts?awsless-route=b" as two separate modules, giving every
+		// route a private copy of its handler module. Module level state can
+		// never leak between routes that share the same file, while only that
+		// top module is copied & everything the handler imports is still
+		// deduplicated into shared chunks.
 		const entries = handlers.map(({ routeKey, file, exportName }) => {
-			const load = `() => import(${JSON.stringify(`${file}?awsless-route=${encodeURIComponent(routeKey)}`)}).then(module => module[${JSON.stringify(exportName)}])`
+			const virtualFile = JSON.stringify(`${file}?awsless-route=${encodeURIComponent(routeKey)}`)
 
-			return `\t${JSON.stringify(routeKey)}: ${load},`
+			return `\t${JSON.stringify(routeKey)}: () => import(${virtualFile}).then(module => module[${JSON.stringify(exportName)}]),`
 		})
 
 		const entry = `import env from './awsless-env.mjs'
