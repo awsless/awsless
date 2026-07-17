@@ -137,7 +137,7 @@ export const cronFeature = defineFeature({
 				resourceName: shortId(id),
 			})
 
-			new aws.scheduler.Schedule(group, 'warm', {
+			new aws.scheduler.Schedule(group, 'cron', {
 				name,
 				state: props.enabled ? 'ENABLED' : 'DISABLED',
 				groupName: ctx.shared.get('cron', 'group-name'),
