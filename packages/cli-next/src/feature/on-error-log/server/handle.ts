@@ -13,6 +13,14 @@ import {
 	transform,
 	uuid,
 } from '@awsless/validate'
+import {
+	define,
+	getItem,
+	number as dbNumber,
+	object as dbObject,
+	putItem,
+	string as dbString,
+} from '@awsless/dynamodb'
 import { getRouteEnv, invokeRoute } from 'awsless'
 import type { CloudWatchLogsEvent, Context } from 'aws-lambda'
 import { createHash, UUID } from 'crypto'
@@ -75,10 +83,42 @@ type ErrorLog = {
 
 // The bundles own log group subscribes to the bundle, so consuming
 // an error log must never produce one, or errors would loop forever.
-// Errors produced by our own runs (a consumer timeout / OOM) are
-// skipped, so a failing consumer can't feed itself.
+// Every run durably registers its request id before dispatching, so
+// an error produced by our own run (a consumer OOM) is recognized &
+// skipped even when the crash killed this execution environment.
 
-const ownRequests = new Set<string>()
+// The route env is always applied before the handler modules are loaded.
+const requestTable = define(getRouteEnv('TABLE')!, {
+	hash: 'id',
+	schema: dbObject({
+		id: dbString(),
+		ttl: dbNumber(),
+	}),
+})
+
+const registerOwnRequest = async (requestId: string) => {
+	try {
+		await putItem(requestTable, {
+			id: requestId,
+			ttl: Math.floor(Date.now() / 1000) + 3600,
+		})
+	} catch (error) {
+		console.info('Failed to register the request marker', error)
+	}
+}
+
+const isOwnRequest = async (requestId: string) => {
+	try {
+		// The marker was possibly written moments before the crash,
+		// so an eventually consistent read could miss it.
+		const item = await getItem(requestTable, { id: requestId }, { consistentRead: true })
+
+		return !!item
+	} catch (error) {
+		console.info('Failed to check the request marker', error)
+		return false
+	}
+}
 
 export default async (event: CloudWatchLogsEvent, context: Context) => {
 	const consumerRoute = getRouteEnv('CONSUMER')
@@ -87,11 +127,7 @@ export default async (event: CloudWatchLogsEvent, context: Context) => {
 		throw new Error('The CONSUMER route env is not set')
 	}
 
-	if (ownRequests.size > 10000) {
-		ownRequests.clear()
-	}
-
-	ownRequests.add(context.awsRequestId)
+	await registerOwnRequest(context.awsRequestId)
 
 	const original = { error: console.error, warn: console.warn }
 	console.error = console.info
@@ -112,7 +148,7 @@ export default async (event: CloudWatchLogsEvent, context: Context) => {
 		for (const logEvent of result.output.logEvents) {
 			const error = parseError(logEvent.message, origin)
 
-			if (!error || ownRequests.has(error.requestId)) {
+			if (!error || (await isOwnRequest(error.requestId))) {
 				continue
 			}
 

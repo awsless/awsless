@@ -2,6 +2,7 @@ import { aws } from '@terraforge/aws'
 import { Group } from '@terraforge/core'
 import { formatRouteEnvName } from 'awsless'
 import { defineFeature } from '../../feature.js'
+import { formatGlobalResourceName } from '../../util/name.js'
 import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { filterPattern } from './util.js'
 import { dirname, join } from 'path'
@@ -33,6 +34,37 @@ export const onErrorLogFeature = defineFeature({
 		})
 
 		bundle.addEnv(formatRouteEnvName(handlerRoute, 'CONSUMER'), consumerRoute)
+
+		// The handler registers its own request ids in this table, so a
+		// crashed run (a consumer OOM) can recognize & skip the errors
+		// it produced itself, instead of consuming them in a loop.
+		const requestTable = new aws.dynamodb.Table(group, 'requests', {
+			name: formatGlobalResourceName({
+				appName: ctx.app.name,
+				resourceType: 'on-error-log',
+				resourceName: 'requests',
+			}),
+			hashKey: 'id',
+			billingMode: 'PAY_PER_REQUEST',
+			ttl: {
+				enabled: true,
+				attributeName: 'ttl',
+			},
+			attribute: [
+				{
+					name: 'id',
+					type: 'S',
+				},
+			],
+		})
+
+		bundle.addEnv(formatRouteEnvName(handlerRoute, 'TABLE'), requestTable.name)
+
+		bundle.addPermission({
+			effect: 'allow',
+			actions: ['dynamodb:PutItem', 'dynamodb:GetItem'],
+			resources: [requestTable.arn],
+		})
 
 		registerBundleFunction(ctx, consumerRoute, consumer)
 
