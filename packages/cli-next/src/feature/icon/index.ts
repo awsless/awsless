@@ -3,7 +3,7 @@ import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature'
 import { formatLocalResourceName } from '../../util/name'
 import { formatRouteEnvName } from 'awsless'
-import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { toDays } from '@awsless/duration'
@@ -38,7 +38,7 @@ export const iconFeature = defineFeature({
 				const origin = props.origin.function
 				originRouteKey = formatRouteKey(ctx.stack.name, 'icon', `${id}-origin`)
 
-				addBundleFunction(ctx, originRouteKey, origin)
+				registerBundleFunction(ctx, originRouteKey, origin)
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined

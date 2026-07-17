@@ -1,7 +1,7 @@
 import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name.js'
 import { shortId } from '../../util/id.js'
 import { TypeFile } from '../../type-gen/file.js'
@@ -128,7 +128,7 @@ export const cronFeature = defineFeature({
 			const group = new Group(ctx.stack, 'cron', id)
 			const routeKey = formatRouteKey(ctx.stack.name, 'cron', id)
 
-			addBundleFunction(ctx, routeKey, props.consumer)
+			registerBundleFunction(ctx, routeKey, props.consumer)
 
 			const name = formatLocalResourceName({
 				appName: ctx.app.name,

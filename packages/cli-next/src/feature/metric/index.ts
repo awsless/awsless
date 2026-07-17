@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { kebabCase, constantCase } from 'change-case'
 import { toSeconds } from '@awsless/duration'
 
@@ -130,7 +130,7 @@ export const metricFeature = defineFeature({
 					const trigger = alarmProps.trigger
 					const routeKey = formatRouteKey(ctx.stack.name, 'metric', alarmName)
 
-					addBundleFunction(ctx, routeKey, trigger)
+					registerBundleFunction(ctx, routeKey, trigger)
 
 					invokesBundle = true
 					alarmAction = bundle.alias.arn

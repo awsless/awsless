@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { FileError } from '../../error.js'
 
 const typeGenCode = `
@@ -107,7 +107,7 @@ export const topicFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.subscribers ?? {})) {
 			const consumer = props.consumer
 
-			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), consumer)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'topic', id), consumer)
 		}
 	},
 })

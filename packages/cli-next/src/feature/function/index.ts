@@ -5,7 +5,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import deepmerge from 'deepmerge'
 
 const typeGenCode = `
@@ -105,7 +105,7 @@ export const functionFeature = defineFeature({
 	},
 	onStack(ctx) {
 		for (const [id, props] of Object.entries(ctx.stackConfig.functions ?? {})) {
-			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'function', id), props)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'function', id), props)
 		}
 	},
 })

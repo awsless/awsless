@@ -7,7 +7,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatGlobalResourceName, formatLocalResourceName, getBundleFunctionName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 
 const typeGenCode = `
 import { Duration } from '@awsless/duration'
@@ -165,7 +165,7 @@ export const taskFeature = defineFeature({
 		for (const [id, props] of Object.entries(ctx.stackConfig.tasks ?? {})) {
 			const consumer = props.consumer
 
-			addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), consumer)
+			registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'task', id), consumer)
 		}
 	},
 })

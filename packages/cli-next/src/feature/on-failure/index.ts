@@ -4,7 +4,7 @@ import { Group } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { days, toSeconds } from '@awsless/duration'
 import { formatRouteEnvName } from 'awsless'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -195,7 +195,7 @@ export const onFailureFeature = defineFeature({
 			file: join(dirname(fileURLToPath(import.meta.url)), '/handlers/on-failure.mjs'),
 			exportName: 'default',
 		})
-		addBundleFunction(ctx, consumerRoute, consumer)
+		registerBundleFunction(ctx, consumerRoute, consumer)
 
 		bundle.addEnv(formatRouteEnvName(normalizerRoute, 'CONSUMER'), consumerRoute)
 

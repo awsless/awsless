@@ -6,7 +6,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { aws } from '@terraforge/aws'
 import { glob } from 'glob'
 import { getCacheControl, getContentType } from './util.js'
@@ -179,7 +179,7 @@ export const storeFeature = defineFeature({
 				const routeKey = formatRouteKey(ctx.stack.name, 'store', eventId)
 				const consumer = taskProps.consumer
 
-				addBundleFunction(ctx, routeKey, consumer)
+				registerBundleFunction(ctx, routeKey, consumer)
 
 				notifications.push({
 					id: routeKey,

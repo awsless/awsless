@@ -4,7 +4,7 @@ import { FileError } from '../../error'
 import { defineFeature } from '../../feature'
 import { formatGlobalResourceName, formatLocalResourceName } from '../../util/name'
 import { formatRouteEnvName } from 'awsless'
-import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { join, dirname } from 'path'
 import { toDays } from '@awsless/duration'
 import { fileURLToPath } from 'url'
@@ -104,7 +104,7 @@ export const imageFeature = defineFeature({
 				const origin = props.origin.function
 				originRouteKey = formatRouteKey(ctx.stack.name, 'image', `${id}-origin`)
 
-				addBundleFunction(ctx, originRouteKey, origin)
+				registerBundleFunction(ctx, originRouteKey, origin)
 			}
 
 			let s3Origin: aws.s3.Bucket | undefined

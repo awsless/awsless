@@ -4,7 +4,7 @@ import { defineFeature } from '../../feature.js'
 import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { getGlobalOnFailure } from '../on-failure/util.js'
 import { constantCase } from 'change-case'
 import { toSeconds } from '@awsless/duration'
@@ -171,7 +171,7 @@ export const tableFeature = defineFeature({
 				const consumer = props.stream.consumer
 				const routeKey = formatRouteKey(ctx.stack.name, 'table', id)
 
-				addBundleFunction(ctx, routeKey, consumer)
+				registerBundleFunction(ctx, routeKey, consumer)
 
 				const onFailure = getGlobalOnFailure(ctx)
 

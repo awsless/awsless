@@ -8,7 +8,7 @@ import { TypeObject } from '../../type-gen/object.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatRouteEnvName } from 'awsless'
-import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { directories } from '../../util/path.js'
 import { dirname, join, relative } from 'path'
 import { fileURLToPath } from 'url'
@@ -130,7 +130,7 @@ export const rpcFeature = defineFeature({
 			if (props.auth) {
 				const authRouteKey = formatRouteKey(ctx.app.name, 'rpc', `${id}-auth`)
 
-				addBundleFunction(ctx, authRouteKey, props.auth)
+				registerBundleFunction(ctx, authRouteKey, props.auth)
 
 				bundle.addEnv(formatRouteEnvName(serverRouteKey, 'AUTH'), authRouteKey)
 			}
@@ -165,7 +165,7 @@ export const rpcFeature = defineFeature({
 				const entryId = kebabCase(`${id}-${shortId(name)}`)
 				const routeKey = formatRouteKey(ctx.stack.name, 'rpc', entryId)
 
-				addBundleFunction(ctx, routeKey, props.function)
+				registerBundleFunction(ctx, routeKey, props.function)
 
 				// Whitelist the query so the rpc server can only
 				// dispatch handlers that are registered here.

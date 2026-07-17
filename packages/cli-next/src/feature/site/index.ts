@@ -6,7 +6,7 @@ import { basename, dirname, join } from 'path'
 import { defineFeature } from '../../feature.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { SiteDeployment } from '../../formation/s3.js'
-import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 import { constantCase } from 'change-case'
 import { generateCacheKey } from '../../util/cache.js'
 import { directories } from '../../util/path.js'
@@ -117,7 +117,7 @@ export const siteFeature = defineFeature({
 				const ssr = props.ssr
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'site', id)
 
-				addBundleFunction(ctx, bundleRouteKey, ssr)
+				registerBundleFunction(ctx, bundleRouteKey, ssr)
 
 				addRoutes({
 					[routeKey]: {

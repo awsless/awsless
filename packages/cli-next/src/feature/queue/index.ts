@@ -8,7 +8,7 @@ import { TypeFile } from '../../type-gen/file.js'
 import { TypeObject } from '../../type-gen/object.js'
 import { formatLocalResourceName } from '../../util/name.js'
 import { directories } from '../../util/path.js'
-import { addBundleFunction, formatRouteKey } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey } from '../bundle/util.js'
 import { minutes, seconds, toSeconds } from '@awsless/duration'
 import { toBytes } from '@awsless/size'
 
@@ -114,7 +114,7 @@ export const queueFeature = defineFeature({
 				const consumer = local.consumer
 
 				// The bundle routes the queue event to the right consumer based on the event source arn.
-				const bundle = addBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
+				const bundle = registerBundleFunction(ctx, formatRouteKey(ctx.stack.name, 'queue', id), consumer)
 
 				new aws.lambda.EventSourceMapping(group, 'event', {
 					functionName: bundle.alias.arn,

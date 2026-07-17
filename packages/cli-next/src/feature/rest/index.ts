@@ -5,7 +5,7 @@ import { defineFeature } from '../../feature.js'
 import { shortId } from '../../util/id.js'
 import { formatGlobalResourceName } from '../../util/name.js'
 import { formatFullDomainName } from '../domain/util.js'
-import { addBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
+import { registerBundleFunction, formatRouteKey, ROUTE_HEADER } from '../bundle/util.js'
 
 export const restFeature = defineFeature({
 	name: 'rest',
@@ -104,7 +104,7 @@ export const restFeature = defineFeature({
 				const routeId = shortId(routeKey)
 				const bundleRouteKey = formatRouteKey(ctx.stack.name, 'rest', `${id}-${routeId}`)
 
-				addBundleFunction(ctx, bundleRouteKey, props)
+				registerBundleFunction(ctx, bundleRouteKey, props)
 
 				const integration = new aws.apigatewayv2.Integration(group, 'integration', {
 					apiId,
