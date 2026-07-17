@@ -1,92 +1,106 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
-import type { LambdaFunctionURLEvent } from 'aws-lambda'
-import { formatRoutePayload, getCurrentRoute, ROUTE_PROPERTY, withRoute } from 'awsless'
-import { matchEventSource } from './source.js'
+import { formatRoutePayload, getCurrentRoute, withRoute } from 'awsless'
+import { cronHandler } from './resource/cron.js'
+import { functionHandler } from './resource/function.js'
+import { iconHandler } from './resource/icon.js'
+import { imageHandler } from './resource/image.js'
+import { logHandler } from './resource/log.js'
+import { metricHandler } from './resource/metric.js'
+import { onFailureHandler } from './resource/on-failure.js'
+import { queueHandler } from './resource/queue.js'
+import { restHandler } from './resource/rest.js'
+import { rpcHandler } from './resource/rpc.js'
+import { siteHandler } from './resource/site.js'
+import { storeHandler } from './resource/store.js'
+import { tableHandler } from './resource/table.js'
+import { taskHandler } from './resource/task.js'
+import { topicHandler } from './resource/topic.js'
+import type { BundleEvent, RouteMatch, RouteMatcher } from './resource/types.js'
 
 type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unknown>
 
-type BundleEvent = {
-	'$awsless-route'?: string
-	event?: unknown
-	headers?: LambdaFunctionURLEvent['headers']
-}
-
-// Async event handlers run with expected-error responses enabled.
-const asyncRouteTypes = new Set([
-	'cron',
-	'task',
-	'queue',
-	'topic',
-	'store',
-	'table',
-	'metric',
-	'on-failure',
-	'on-error-log',
-])
-
-// Route types reachable through the router's request header.
-const webRouteTypes = new Set(['rest', 'site', 'icon', 'image', 'rpc'])
-
-const routeType = (routeKey: string) => routeKey.split(':')[1]!
-
-// Runtime for the single app bundle lambda that hosts every handler.
-// The generated entry file provides the env & lazy handler map.
-
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
-	const topicSubscribers = new Map<string, string[]>()
+	const routes = Object.keys(handlers)
 
-	for (const routeKey of Object.keys(handlers)) {
-		const [, type, id] = routeKey.split(':')
+	const matchers: RouteMatcher[] = [
+		functionHandler,
+		cronHandler,
+		iconHandler,
+		imageHandler,
+		metricHandler,
+		onFailureHandler,
+		logHandler,
+		queueHandler,
+		topicHandler,
+		taskHandler,
+		restHandler,
+		rpcHandler,
+		siteHandler,
+		storeHandler,
+		tableHandler,
+	]
 
-		if (type === 'topic') {
-			const subscribers = topicSubscribers.get(id!) ?? []
+	const matchRoute = (event: BundleEvent) => {
+		// The matched route decides if expected errors are enabled.
+		delete process.env.THROW_EXPECTED_ERRORS
 
-			subscribers.push(routeKey)
-			topicSubscribers.set(id!, subscribers)
+		for (const matcher of matchers) {
+			const match = matcher(event, routes)
+
+			if (match) {
+				return match
+			}
 		}
+
+		const route = event?.['$awsless-route'] ?? event?.headers?.['x-awsless-route']
+
+		throw new Error('Unknown bundle route: ' + route)
 	}
 
 	return async (event: BundleEvent, context: LambdaContext) => {
-		const applyExpectedErrors = (key: string) => {
-			if (asyncRouteTypes.has(routeType(key))) {
-				process.env.THROW_EXPECTED_ERRORS = '1'
-			} else {
-				delete process.env.THROW_EXPECTED_ERRORS
-			}
-		}
-
-		const handleRoute = (key: string, payload: unknown) => {
-			const load = handlers[key]
+		const handleRoute = (match: RouteMatch) => {
+			const load = handlers[match.key]
 
 			if (!load) {
-				throw new Error('Unknown bundle route: ' + key)
+				throw new Error('Unknown bundle route: ' + match.key)
 			}
 
-			applyExpectedErrors(key)
-
-			const [stack] = key.split(':')
+			const [stack] = match.key.split(':')
 			process.env.STACK = stack
-			process.env.AWSLESS_ROUTE = key
+			process.env.AWSLESS_ROUTE = match.key
 
-			return withRoute(key, invokeRoute, async () => {
+			return withRoute(match.key, invokeRoute, async () => {
 				const handle = await load()
 
-				return handle(payload ?? {}, context)
+				return handle(match.payload ?? {}, context)
 			})
 		}
 
 		const invokeRoute = async (key: string, payload: unknown) => {
 			const caller = getCurrentRoute()
+			const throwExpectedErrors = process.env.THROW_EXPECTED_ERRORS
 			let result
 
 			try {
-				result = await handleRoute(key, unpatch(payload ?? {}))
+				const match = matchRoute(formatRoutePayload(key, unpatch(payload ?? {})))
+
+				if (Array.isArray(match)) {
+					throw new Error('Unknown bundle route: ' + key)
+				}
+
+				result = await handleRoute(match)
 			} finally {
+				// Restore the caller's route env, since the caller keeps running after the nested call.
 				if (caller) {
 					process.env.STACK = caller.split(':')[0]
 					process.env.AWSLESS_ROUTE = caller
-					applyExpectedErrors(caller)
+
+					if (throwExpectedErrors) {
+						process.env.THROW_EXPECTED_ERRORS = throwExpectedErrors
+					} else {
+						delete process.env.THROW_EXPECTED_ERRORS
+					}
 				}
 			}
 
@@ -99,55 +113,24 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			return response
 		}
 
-		// Invoke envelopes address a bundle route directly.
-		const route = event?.[ROUTE_PROPERTY]
+		const match = matchRoute(event)
 
-		if (typeof route === 'string') {
-			return handleRoute(route, event.event)
-		}
-
-		// Web requests routed through CloudFront carry the route header.
-		const headerRoute = event?.headers?.['x-awsless-route']
-
-		if (typeof headerRoute === 'string') {
-			if (!webRouteTypes.has(routeType(headerRoute))) {
-				throw new Error('Unknown bundle route: ' + headerRoute)
-			}
-
-			// Restore the viewer authorization that the router tunneled around the OAC signing.
-			const authorization = event.headers?.['x-awsless-authorization']
-
-			if (typeof authorization === 'string') {
-				event.headers!.authorization = authorization
-				delete event.headers!['x-awsless-authorization']
-			}
-
-			return handleRoute(headerRoute, event)
-		}
-
-		// Raw AWS event source events map back onto routes.
-		const match = matchEventSource(event, topicSubscribers)
-
-		if (match) {
-			if ('fanout' in match) {
-				const name = `${process.env.AWS_LAMBDA_FUNCTION_NAME}:${process.env.AWS_LAMBDA_FUNCTION_VERSION}`
-
-				await Promise.all(
-					match.fanout.map(route =>
-						invoke({
-							name,
-							type: 'Event',
-							payload: formatRoutePayload(route.key, route.payload),
-						})
-					)
+		// Multiple matches always fan out as separate async invocations.
+		// Each route keeps its own retries & failure handling.
+		if (Array.isArray(match)) {
+			const name = `${process.env.AWS_LAMBDA_FUNCTION_NAME}:${process.env.AWS_LAMBDA_FUNCTION_VERSION}`
+			await Promise.all(
+				match.map(route =>
+					invoke({
+						name,
+						type: 'Event',
+						payload: formatRoutePayload(route.key, route.payload),
+					})
 				)
-
-				return
-			}
-
-			return handleRoute(match.key, match.payload)
+			)
+			return
 		}
 
-		throw new Error('Unknown bundle route: undefined')
+		return handleRoute(match)
 	}
 }
