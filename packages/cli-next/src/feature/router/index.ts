@@ -470,6 +470,7 @@ export const routerFeature = defineFeature({
 					runtime: 'cloudfront-js-2.0',
 					code: getPreviewRequestFunctionCode({
 						defaultRouter: id,
+						appId: ctx.appId,
 						deployUrls: !!deploymentDomain,
 						routers: routers.map(([id, props]) => ({
 							id,

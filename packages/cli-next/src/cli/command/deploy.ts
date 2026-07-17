@@ -121,6 +121,7 @@ export const deploy = (program: Command) => {
 							const deployments = formatDeploymentSummary({
 								state: await state.get(app.urn),
 								appConfig,
+								appId: globalAppId,
 								deploymentId,
 							})
 

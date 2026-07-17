@@ -1,6 +1,8 @@
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
+import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { getPreviewRequestFunctionCode, getViewerRequestFunctionCode } from '../src/feature/router/router-code'
+import { signDeployment } from '../src/util/deployment'
 import { createTestApp } from './_kit'
 
 type Request = {
@@ -35,9 +37,11 @@ const evaluate = (code: string, values: Map<string, string>) => {
 		kvs: () => ({ get }),
 		updateRequestOrigin: vi.fn(),
 	}
-	const handler = new Function('cf', `${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`)(
-		cf
-	) as (event: { request: Request }) => Promise<Request | Response>
+	const handler = new Function(
+		'cf',
+		'crypto',
+		`${code.replace('import cf from "cloudfront";', '').replace('import crypto from "crypto";', '')}\nreturn handler;`
+	)(cf, crypto) as (event: { request: Request }) => Promise<Request | Response>
 
 	return { get, handler, updateRequestOrigin: cf.updateRequestOrigin }
 }
@@ -49,10 +53,13 @@ const createRouter = (
 	return evaluate(getViewerRequestFunctionCode({ router: 'main', ...props }), values)
 }
 
+const appId = 'a1b2c3d4'
+
 const createPreviewRouter = (values: Map<string, string>, routers: string[] = ['main']) => {
 	return evaluate(
 		getPreviewRequestFunctionCode({
 			defaultRouter: routers[0]!,
+			appId,
 			deployUrls: true,
 			routers: routers.map(id => ({ id })),
 		}),
@@ -299,7 +306,9 @@ describe('router routes', () => {
 			return request.headers['x-origin']?.value
 		}
 
-		await expect(invoke('/api/users', 'main-42.example.com')).resolves.toBe('api-old.example.com')
+		await expect(invoke('/api/users', `main-42-${signDeployment(appId, 42)}.example.com`)).resolves.toBe(
+			'api-old.example.com'
+		)
 		await expect(invoke('/api/users', 'd111111abcdef8.cloudfront.net')).resolves.toBe('api.example.com')
 	})
 
@@ -395,25 +404,38 @@ describe('router routes', () => {
 			['v2:casino:/api/*', route('casino-new.example.com')],
 		])
 		const { handler } = createPreviewRouter(values, ['casino', 'admin'])
+		const token = signDeployment(appId, 42)
 		const invoke = async (path: string, host: string) => {
 			const request = (await handler({ request: createRequest(path, host) })) as Request
 			return request.headers['x-origin']?.value
 		}
 
-		await expect(invoke('/api/users', 'casino-42.example.com')).resolves.toBe('casino.example.com')
-		await expect(invoke('/api/users', 'admin-42.example.com')).resolves.toBe('admin.example.com')
+		await expect(invoke('/api/users', `casino-42-${token}.example.com`)).resolves.toBe('casino.example.com')
+		await expect(invoke('/api/users', `admin-42-${token}.example.com`)).resolves.toBe('admin.example.com')
 
 		// the bare cloudfront host serves the first router's active deployment
 		await expect(invoke('/api/users', 'd111111abcdef8.cloudfront.net')).resolves.toBe('casino-new.example.com')
 	})
 
 	it('should return 404 for unknown deployment url hosts', async () => {
-		const values = new Map([['$active', 'v2:43']])
+		const values = new Map([
+			['$active', 'v2:43'],
+			['$deploy:42', 'v1:19'],
+		])
 		const { handler } = createPreviewRouter(values)
-		const response = (await handler({
-			request: createRequest('/api/users', 'main-43.example.com'),
-		})) as Response
+		const invoke = async (host: string) => {
+			const response = (await handler({
+				request: createRequest('/api/users', host),
+			})) as Response
 
-		expect(response.statusCode).toBe(404)
+			return response.statusCode
+		}
+
+		// an unknown deployment number
+		await expect(invoke(`main-43-${signDeployment(appId, 43)}.example.com`)).resolves.toBe(404)
+
+		// a wrong or missing deployment token
+		await expect(invoke('main-42-0000000000.example.com')).resolves.toBe(404)
+		await expect(invoke('main-42.example.com')).resolves.toBe(404)
 	})
 })

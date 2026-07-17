@@ -2,6 +2,7 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { GetAliasCommand, GetFunctionCommand, LambdaClient, ListAliasesCommand } from '@aws-sdk/client-lambda'
 import { define, DynamoDBClient, number, object, string, updateItem } from '@awsless/dynamodb'
+import { createHash } from 'crypto'
 import { App, StateBackend } from '@terraforge/core'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
@@ -46,9 +47,16 @@ const formatDeploymentDescription = (active: number, latest: number) => {
 	return `$awsless:deployment:${active}:${latest}`
 }
 
+// The url token guards against guessing the sequential deployment numbers
+// & must match the signature check inside the preview router function.
+export const signDeployment = (appId: string, deploymentId: number) => {
+	return createHash('sha256').update(`${appId}:${deploymentId}`).digest('hex').slice(0, 10)
+}
+
 export const formatDeploymentSummary = (props: {
 	state: Awaited<ReturnType<StateBackend['get']>>
 	appConfig: AppConfig
+	appId: string
 	deploymentId: number
 }): string[] => {
 	let previewUrl: string | undefined
@@ -65,12 +73,13 @@ export const formatDeploymentSummary = (props: {
 	}
 
 	const deploymentDomain = props.appConfig.defaults.deploymentDomain
+	const token = signDeployment(props.appId, props.deploymentId)
 
 	// The preview distribution's own host serves the first router.
 	return Object.keys(props.appConfig.defaults.router ?? {}).map((routerId, index) => {
 		return [
 			`${routerId}: deployment #${props.deploymentId}`,
-			deploymentDomain && `https://${routerId}-${props.deploymentId}.${deploymentDomain}`,
+			deploymentDomain && `https://${routerId}-${props.deploymentId}-${token}.${deploymentDomain}`,
 			index === 0 ? previewUrl : undefined,
 		]
 			.filter(Boolean)
