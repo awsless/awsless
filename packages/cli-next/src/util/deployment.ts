@@ -60,14 +60,19 @@ export const formatDeploymentSummary = (props: {
 	deploymentId: number
 }): string[] => {
 	let previewUrl: string | undefined
+	let lambdaUrl: string | undefined
 	const stacks = Object.values(props.state?.stacks ?? {}) as Array<{
-		nodes: Record<string, { type: string; output: { domainName?: string } }>
+		nodes: Record<string, { type: string; output: { domainName?: string; url?: string } }>
 	}>
 
 	for (const stack of stacks) {
 		for (const [urn, node] of Object.entries(stack.nodes)) {
 			if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
 				previewUrl = `https://${node.output.domainName}`
+			}
+
+			if (node.type === 'bundle-deployment') {
+				lambdaUrl = node.output.url
 			}
 		}
 	}
@@ -81,6 +86,7 @@ export const formatDeploymentSummary = (props: {
 			`${routerId}: deployment #${props.deploymentId}`,
 			deploymentDomain && `https://${routerId}-${props.deploymentId}-${token}.${deploymentDomain}`,
 			index === 0 ? previewUrl : undefined,
+			index === 0 ? lambdaUrl : undefined,
 		]
 			.filter(Boolean)
 			.join('\n')

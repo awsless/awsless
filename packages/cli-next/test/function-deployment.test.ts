@@ -3,6 +3,7 @@ import {
 	CreateAliasCommand,
 	CreateFunctionUrlConfigCommand,
 	DeleteAliasCommand,
+	DeleteFunctionUrlConfigCommand,
 	GetAliasCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
@@ -46,6 +47,10 @@ const mockLambda = (liveVersion?: string, liveDescription?: string) => {
 			return {}
 		}
 
+		if (command instanceof DeleteFunctionUrlConfigCommand) {
+			return {}
+		}
+
 		if (command instanceof PutFunctionEventInvokeConfigCommand) {
 			return {}
 		}
@@ -81,13 +86,32 @@ describe('Lambda bundle deployment', () => {
 			deploymentAliases: ['deployment-1'],
 			liveDescription: undefined,
 			liveVersion: '1',
+			url: 'https://deployment-1.lambda-url.us-east-1.on.aws/',
 		})
 		expect(send.mock.calls.map(([command]) => command)).toEqual([
 			expect.any(GetAliasCommand),
 			expect.any(CreateAliasCommand),
 			expect.any(PutFunctionEventInvokeConfigCommand),
+			expect.any(CreateFunctionUrlConfigCommand),
+			expect.any(AddPermissionCommand),
+			expect.any(AddPermissionCommand),
 		])
 		expect(send.mock.calls[1]![0].input.Name).toBe('deployment-1')
+
+		// the deployment preview url is public & only invokable through the url
+		const permissions = sent(send, AddPermissionCommand).map(command => command.input)
+		expect(permissions).toEqual([
+			expect.objectContaining({
+				Principal: '*',
+				Action: 'lambda:InvokeFunctionUrl',
+				FunctionUrlAuthType: 'NONE',
+			}),
+			expect.objectContaining({
+				Principal: '*',
+				Action: 'lambda:InvokeFunction',
+				InvokedViaFunctionUrl: true,
+			}),
+		])
 	})
 
 	it('should preserve the existing live target while staging a new version', async () => {
@@ -143,9 +167,13 @@ describe('Lambda bundle deployment', () => {
 			expect.any(GetAliasCommand),
 			expect.any(CreateAliasCommand),
 			expect.any(PutFunctionEventInvokeConfigCommand),
+			expect.any(CreateFunctionUrlConfigCommand),
+			expect.any(AddPermissionCommand),
+			expect.any(AddPermissionCommand),
 		])
 		expect(result.state.deploymentAliases).toEqual(['deployment-1', 'deployment-2'])
 		expect(result.state.liveVersion).toBe('1')
+		expect(result.state.url).toBe('https://deployment-2.lambda-url.us-east-1.on.aws/')
 	})
 
 	it('should delete only deployment aliases', async () => {
@@ -166,11 +194,17 @@ describe('Lambda bundle deployment', () => {
 			},
 		})
 
-		expect(send.mock.calls.map(([command]) => command)).toEqual([
-			expect.any(DeleteAliasCommand),
-			expect.any(DeleteAliasCommand),
+		expect(send.mock.calls.map(([command]) => command.constructor)).toEqual(
+			expect.arrayContaining([DeleteAliasCommand, DeleteFunctionUrlConfigCommand])
+		)
+		expect(sent(send, DeleteAliasCommand).map(command => command.input.Name)).toEqual([
+			'deployment-1',
+			'deployment-2',
 		])
-		expect(send.mock.calls.map(([command]) => command.input.Name)).toEqual(['deployment-1', 'deployment-2'])
+		expect(sent(send, DeleteFunctionUrlConfigCommand).map(command => command.input.Qualifier)).toEqual([
+			'deployment-1',
+			'deployment-2',
+		])
 	})
 })
 

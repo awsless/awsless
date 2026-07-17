@@ -40,6 +40,7 @@ type BundleDeploymentInput = {
 type BundleDeploymentOutput = {
 	liveDescription: OptionalOutput<string>
 	liveVersion: Output<string>
+	url: Output<string>
 }
 
 export const BundleDeployment = createCustomResourceClass<BundleDeploymentInput, BundleDeploymentOutput>(
@@ -76,6 +77,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		deploymentAliases: z.array(z.string()),
 		liveDescription: z.string().optional(),
 		liveVersion: z.string(),
+		url: z.string().optional(),
 	})
 	const getFunctionDeploymentAlias = (state: z.output<typeof functionDeploymentInputSchema>) => {
 		const hash = createHash('sha1')
@@ -114,6 +116,68 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			})
 		)
 	}
+	// The public url of a deployment alias serves the deployment preview.
+	const createPublicUrl = async (functionName: string, alias: string) => {
+		let url: string
+
+		try {
+			const result = await lambda.send(
+				new CreateFunctionUrlConfigCommand({
+					FunctionName: functionName,
+					Qualifier: alias,
+					AuthType: 'NONE',
+				})
+			)
+
+			url = result.FunctionUrl!
+		} catch (error) {
+			if (!isError(error, 'ResourceConflictException')) {
+				throw error
+			}
+
+			const result = await lambda.send(
+				new GetFunctionUrlConfigCommand({
+					FunctionName: functionName,
+					Qualifier: alias,
+				})
+			)
+
+			url = result.FunctionUrl!
+		}
+
+		// Public urls require both invoke permissions since October 2025.
+		const permissions = [
+			{
+				StatementId: 'public-url',
+				Action: 'lambda:InvokeFunctionUrl',
+				FunctionUrlAuthType: 'NONE' as const,
+			},
+			{
+				StatementId: 'public-invoke',
+				Action: 'lambda:InvokeFunction',
+				InvokedViaFunctionUrl: true,
+			},
+		]
+
+		for (const permission of permissions) {
+			try {
+				await lambda.send(
+					new AddPermissionCommand({
+						FunctionName: functionName,
+						Qualifier: alias,
+						Principal: '*',
+						...permission,
+					})
+				)
+			} catch (error) {
+				if (!isError(error, 'ResourceConflictException')) {
+					throw error
+				}
+			}
+		}
+
+		return url
+	}
 	const createBundleDeployment = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
 		const deploymentAlias = getDeploymentAliasName(state.deploymentId)
 		const live = await getLiveAlias(state)
@@ -124,11 +188,13 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 			name: deploymentAlias,
 		})
 		await configureVersion(state)
+		const url = await createPublicUrl(state.functionName, deploymentAlias)
 
 		return {
 			...state,
 			deploymentAlias,
 			deploymentAliases: [deploymentAlias],
+			url,
 			...live,
 		}
 	}
@@ -252,7 +318,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 					const next = await createBundleDeployment(proposed)
 
 					await Promise.all(
-						prior.deploymentAliases.map(name => deleteAlias(lambda, prior.functionName, name))
+						prior.deploymentAliases.map(name => deleteFunctionDeployment(prior.functionName, name))
 					)
 
 					return next
@@ -273,18 +339,22 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				}
 
 				await configureVersion(proposed)
+				const url = await createPublicUrl(proposed.functionName, deploymentAlias)
 
 				return {
 					...proposed,
 					deploymentAlias,
 					deploymentAliases,
+					url,
 					...live,
 				}
 			},
 			async deleteResource(props) {
 				const state = bundleDeploymentStateSchema.parse(props.state)
 
-				await Promise.all(state.deploymentAliases.map(name => deleteAlias(lambda, state.functionName, name)))
+				await Promise.all(
+					state.deploymentAliases.map(name => deleteFunctionDeployment(state.functionName, name))
+				)
 			},
 		},
 		'function-deployment': {

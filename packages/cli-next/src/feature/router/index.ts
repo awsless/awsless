@@ -609,6 +609,29 @@ export const routerFeature = defineFeature({
 							dependsOn: Array.from(routeDependencies),
 						}
 					)
+
+					// The deployment alias lambda url serves the preview with these
+					// baked routes. Routers with viewer auth are excluded, since the
+					// preview url bypasses the router auth. Lambda routes dispatch
+					// in-process, so the deploy-time lambda url host isn't needed &
+					// would be circular through the bundle env.
+					const previewRouters = routers
+						.filter(([, props]) => !(props.basicAuth ?? props.passwordAuth))
+						.map(([id]) => id)
+
+					bundle.addEnv(
+						'AWSLESS_PREVIEW',
+						$resolve([routes], routes =>
+							JSON.stringify({
+								router: id,
+								routes: Object.fromEntries(
+									Object.entries(routes).filter(([key]) =>
+										previewRouters.includes(key.split(':')[0]!)
+									)
+								),
+							})
+						)
+					)
 				})
 			}
 

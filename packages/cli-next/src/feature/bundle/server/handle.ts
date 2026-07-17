@@ -1,6 +1,8 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
 import { formatRoutePayload, getCurrentRoute, withRoute } from 'awsless'
+import type { LambdaFunctionURLEvent } from 'aws-lambda'
+import { createPreviewHandler, PreviewRoute } from './preview.js'
 import { cronHandler } from './resource/cron.js'
 import { functionHandler } from './resource/function.js'
 import { iconHandler } from './resource/icon.js'
@@ -22,6 +24,7 @@ type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unk
 
 export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	const routes = Object.keys(handlers)
+	let previewConfig: { router: string; routes: Record<string, PreviewRoute> } | undefined
 
 	const matchers: RouteMatcher[] = [
 		functionHandler,
@@ -111,6 +114,27 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 			}
 
 			return response
+		}
+
+		// Raw web requests can only arrive over a deployment preview url,
+		// since the router always sets the route header.
+		const raw = event as { requestContext?: { http?: unknown } }
+
+		if (process.env.AWSLESS_PREVIEW && raw?.requestContext?.http && !event?.headers?.['x-awsless-route']) {
+			previewConfig ??= JSON.parse(process.env.AWSLESS_PREVIEW)
+
+			return createPreviewHandler({
+				...previewConfig!,
+				dispatch: async event => {
+					const match = matchRoute(event as BundleEvent)
+
+					if (Array.isArray(match)) {
+						throw new Error('Unknown bundle route')
+					}
+
+					return handleRoute(match)
+				},
+			})(event as LambdaFunctionURLEvent)
 		}
 
 		const match = matchRoute(event)
