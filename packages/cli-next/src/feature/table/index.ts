@@ -44,6 +44,7 @@ export const tableFeature = defineFeature({
 
 		ctx.addAppPermission({
 			actions: [
+				'dynamodb:DescribeTable',
 				'dynamodb:PutItem',
 				'dynamodb:UpdateItem',
 				'dynamodb:DeleteItem',
@@ -53,11 +54,20 @@ export const tableFeature = defineFeature({
 				'dynamodb:Scan',
 				'dynamodb:Query',
 				'dynamodb:ConditionCheckItem',
+				'dynamodb:DescribeStream',
+				'dynamodb:GetRecords',
+				'dynamodb:GetShardIterator',
 			],
 			resources: [
 				`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}`,
 				`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}/index/*`,
+				`arn:aws:dynamodb:${ctx.appConfig.region}:${ctx.accountId}:table/${name}/stream/*`,
 			],
+		})
+
+		ctx.addAppPermission({
+			actions: ['dynamodb:ListStreams'],
+			resources: ['*'],
 		})
 	},
 	onStack(ctx) {
@@ -201,49 +211,6 @@ export const tableFeature = defineFeature({
 					dependsOn: [bundle.policy],
 				})
 
-				bundle.addPermission({
-					actions: [
-						'dynamodb:DescribeStream',
-						'dynamodb:GetRecords',
-						'dynamodb:GetShardIterator',
-					],
-					resources: [table.streamArn],
-				})
-				bundle.addPermission({
-					actions: ['dynamodb:ListStreams'],
-					resources: ['*'],
-				})
-			}
-
-			ctx.addStackPermission({
-				actions: [
-					'dynamodb:DescribeTable',
-					'dynamodb:PutItem',
-					'dynamodb:GetItem',
-					'dynamodb:UpdateItem',
-					'dynamodb:DeleteItem',
-					'dynamodb:TransactWrite',
-					'dynamodb:BatchWriteItem',
-					'dynamodb:BatchGetItem',
-					'dynamodb:ConditionCheckItem',
-					'dynamodb:Query',
-					'dynamodb:Scan',
-				],
-				resources: [table.arn],
-			})
-
-			const indexNames = Object.keys(props.indexes ?? {})
-
-			if (indexNames.length > 0) {
-				ctx.addStackPermission({
-					actions: [
-						'dynamodb:Query',
-
-						// Scanning on an index doesn't make any sense.
-						// 'dynamodb:Scan'
-					],
-					resources: indexNames.map(indexName => table.arn.pipe(arn => `${arn}/index/${indexName}`)),
-				})
 			}
 		}
 	},
