@@ -42,7 +42,7 @@ export const createBundle = (handlers: Record<string, LoadHandler>) => {
 	]
 
 	const matchRoute = (event: BundleEvent) => {
-		// The matched route decides if expected errors are enabled.
+		// Expected errors start disabled on every dispatch & only the matched route can enable them.
 		delete process.env.THROW_EXPECTED_ERRORS
 
 		for (const matcher of matchers) {
