@@ -1,7 +1,7 @@
 import { patch, unpatch } from '@awsless/json'
 import { ExpectedError, invoke, isErrorResponse, LambdaContext } from '@awsless/lambda'
-import { formatRoutePayload, getCurrentRoute, ROUTE_PROPERTY, withRoute } from 'awsless'
 import type { LambdaFunctionURLEvent } from 'aws-lambda'
+import { formatRoutePayload, getCurrentRoute, ROUTE_PROPERTY, withRoute } from 'awsless'
 import { matchEventSource } from './source.js'
 
 type LoadHandler = () => Promise<(event: unknown, context: LambdaContext) => unknown>

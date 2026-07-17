@@ -6,10 +6,7 @@ import { createBundleLambda } from './util.js'
 
 export const bundleFeature = defineFeature({
 	name: 'bundle',
-	// We are putting the bucket in a onBefore hook because
-	// we will need it for the standalone lambda functions
-	// defined in the onApp hook of different features.
-	onBefore(ctx) {
+	onApp(ctx) {
 		const group = new Group(ctx.base, 'function', 'asset')
 
 		// ------------------------------------------------------
@@ -28,8 +25,7 @@ export const bundleFeature = defineFeature({
 		})
 
 		ctx.shared.set('bundle', 'bucket-name', bucket.bucket)
-	},
-	onApp(ctx) {
+
 		// ------------------------------------------------------
 		// Create the app bundle lambda that contains all handlers.
 
