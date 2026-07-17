@@ -50,6 +50,10 @@ export const invoke = (program: Command) => {
 
 				const names = Object.keys(stackConfig.crons ?? {})
 
+				if (names.length === 0) {
+					throw new ExpectedError(`No crons are defined in stack "${stack}".`)
+				}
+
 				if (!name) {
 					name = await prompt.select({
 						message: 'Select the cron:',
@@ -60,8 +64,8 @@ export const invoke = (program: Command) => {
 					})
 				}
 
-				if (!names) {
-					throw new ExpectedError(`No image resources are defined in stack "${stack}".`)
+				if (!names.includes(name)) {
+					throw new ExpectedError(`The cron "${name}" doesn't exist in stack "${stack}".`)
 				}
 
 				// ------------------------------------------------

@@ -48,7 +48,7 @@ export const clearCache = (program: Command) => {
 					}
 
 					const names = Object.keys(stackConfig.icons ?? {})
-					if (!names) {
+					if (names.length === 0) {
 						throw new ExpectedError(`No icon resources are defined in stack "${stack}".`)
 					}
 

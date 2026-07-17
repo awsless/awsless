@@ -1,7 +1,7 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { GetAliasCommand, GetFunctionCommand, LambdaClient, ListAliasesCommand } from '@aws-sdk/client-lambda'
-import { define, DynamoDBClient, number, object, string, updateItem } from '@awsless/dynamodb'
+import { define, DynamoDBClient, getItem, number, object, string, updateItem } from '@awsless/dynamodb'
 import { createHash } from 'crypto'
 import { App, StateBackend } from '@terraforge/core'
 import { AppConfig } from '../config/app.js'
@@ -395,15 +395,15 @@ export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentI
 	return withAppReleaseLock(props.appConfig, () => activateDeployment(props))
 }
 
-export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
-	const sequences = define('awsless-locks', {
-		hash: 'urn',
-		schema: object({
-			urn: string(),
-			version: number(),
-		}),
-	})
+const sequences = define('awsless-locks', {
+	hash: 'urn',
+	schema: object({
+		urn: string(),
+		version: number(),
+	}),
+})
 
+export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
 	const result = await updateItem(
 		sequences,
 		{ urn: `urn:deployment-seq:${appId}` },
@@ -415,6 +415,14 @@ export const nextDeploymentId = async (client: DynamoDBClient, appId: string) =>
 	)
 
 	return result.version
+}
+
+// Peek the current deployment id without claiming the next one, so
+// non-deploy commands can build the same graph as the last deploy.
+export const currentDeploymentId = async (client: DynamoDBClient, appId: string) => {
+	const item = await getItem(sequences, { urn: `urn:deployment-seq:${appId}` }, { client })
+
+	return item?.version
 }
 
 const withAppReleaseLock = async <T>(appConfig: AppConfig, callback: () => Promise<T>) => {
