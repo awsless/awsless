@@ -10,6 +10,16 @@ import { formatByteSize } from '../../util/byte-size.js'
 import { createTempFolder } from '../../util/temp.js'
 import { bundleTypeScriptWithRolldown } from './build/rolldown.js'
 
+export type BundleHandler = {
+	routeKey: string
+	file: string // The file path of the handler code.
+	exportName: string // The name of the exported method within the handler code.
+	external?: string[]
+	importAsString?: string[]
+}
+
+type BundleFunctionProps =
+
 // The request header used to route web requests to the right bundle handler.
 export const ROUTE_HEADER = 'x-awsless-route'
 
@@ -21,20 +31,9 @@ export const parseExportName = (handler: string) => {
 	return handler.split('.').slice(1).join('.') || 'default'
 }
 
-export type BundleHandler = {
-	routeKey: string
+// Register a feature function into the shared app bundle.
 
-	// The file path of the handler code.
-	file: string
-
-	// The name of the exported method within the handler code.
-	exportName: string
-
-	external?: string[]
-	importAsString?: string[]
-}
-
-type BundleFunctionProps = {
+export const addBundleFunction = (ctx: StackContext | AppContext, routeKey: string, props: {
 	code: {
 		file: string
 		external?: string[]
@@ -43,11 +42,7 @@ type BundleFunctionProps = {
 	handler?: string
 	environment?: Record<string, string>
 	permissions?: Permission[]
-}
-
-// Register a feature function into the shared app bundle.
-
-export const addBundleFunction = (ctx: StackContext | AppContext, routeKey: string, props: BundleFunctionProps) => {
+}) => {
 	const bundle = ctx.shared.get('bundle', 'main')
 
 	bundle.addHandler({
