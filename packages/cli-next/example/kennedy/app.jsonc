@@ -6,8 +6,16 @@
 	"defaults": {
 		"topics": ["events"],
 		"deploymentDomain": "spadesltd.com",
+		"domains": {
+			"main": {
+				"domain": "awsless.org"
+			}
+		},
 		"router": {
-			"main": {}
+			"main": {
+				"domain": "main",
+				"subDomain": "www"
+			}
 		},
 		"rpc": {
 			"api": {
