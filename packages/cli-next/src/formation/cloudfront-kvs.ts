@@ -3,6 +3,7 @@ import {
 	CloudFrontKeyValueStoreClient,
 	DescribeKeyValueStoreCommand as DescribeDataStoreCommand,
 	GetKeyCommand,
+	ListKeysCommand,
 	UpdateKeysCommand,
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
 import { createCustomProvider, createCustomResourceClass, Input } from '@terraforge/core'
@@ -20,8 +21,6 @@ import '@aws-sdk/signature-v4-crt'
 //   <table>:<route>   route table, stored once per content version
 //   $deploy:<id>      'table:functionVersion', one entry per deployment
 //   $active           'table:id', what production serves, the switch
-//
-// The Lambda deployment aliases record which staged deployments were promoted.
 
 const ACTIVE_KEY = '$active'
 const DEPLOY_KEY_PREFIX = '$deploy:'
@@ -45,13 +44,13 @@ type Mutation =
 	  }
 
 export type RouteDeployment = {
-	id: number
+	id: string
 	table: string
 	functionVersion: string
 }
 
 type RouteDeploymentInput = {
-	deploymentId: Input<number>
+	deploymentId: Input<string>
 	storeArn: Input<string>
 	routes: Input<RouteEntry[]>
 	functionVersion: Input<string>
@@ -60,7 +59,7 @@ type RouteDeploymentInput = {
 export const RouteDeployment = createCustomResourceClass<RouteDeploymentInput, {}>('cloudfront-kvs', 'route-deployment')
 
 const routeDeploymentInputSchema = z.object({
-	deploymentId: z.number(),
+	deploymentId: z.string(),
 	storeArn: z.string(),
 	routes: z.array(routeSchema),
 	functionVersion: z.string(),
@@ -147,7 +146,7 @@ const updateKeys = async (
 export const readRouteDeployment = async (
 	kvs: CloudFrontKeyValueStoreClient,
 	storeArn: string,
-	deploymentId: number
+	deploymentId: string
 ): Promise<RouteDeployment | undefined> => {
 	const value = parseValue(await getStoreValue(kvs, storeArn, `${DEPLOY_KEY_PREFIX}${deploymentId}`))
 
@@ -155,9 +154,7 @@ export const readRouteDeployment = async (
 }
 
 export const readActiveDeploymentId = async (kvs: CloudFrontKeyValueStoreClient, storeArn: string) => {
-	const id = Number(parseValue(await getStoreValue(kvs, storeArn, ACTIVE_KEY))?.[1])
-
-	return Number.isFinite(id) ? id : undefined
+	return parseValue(await getStoreValue(kvs, storeArn, ACTIVE_KEY))?.[1]
 }
 
 // resolve the store of a router by its deterministic name
@@ -250,6 +247,40 @@ export const setActiveRouteDeployment = async (
 	await updateKeys(kvs, {
 		storeArn,
 		mutations: deployment ? [getActivateMutation(deployment)] : [{ type: 'delete', key: ACTIVE_KEY }],
+	})
+}
+
+// Drop the pruned deployments & every route table that no remaining
+// deployment or the active pointer references.
+export const pruneStoreDeployments = async (
+	kvs: CloudFrontKeyValueStoreClient,
+	storeArn: string,
+	deploymentIds: string[]
+) => {
+	await updateKeys(kvs, {
+		storeArn,
+		mutations: deploymentIds.map(id => ({ type: 'delete', key: `${DEPLOY_KEY_PREFIX}${id}` })),
+	})
+
+	const keys: RouteEntry[] = []
+	let nextToken: string | undefined
+
+	do {
+		const page = await kvs.send(new ListKeysCommand({ KvsARN: storeArn, NextToken: nextToken }))
+		nextToken = page.NextToken
+		keys.push(...(page.Items ?? []).map(item => ({ key: item.Key!, value: item.Value! })))
+	} while (nextToken)
+
+	const referenced = new Set(
+		keys
+			.filter(entry => entry.key.startsWith(DEPLOY_KEY_PREFIX) || entry.key === ACTIVE_KEY)
+			.map(entry => entry.value.split(':')[0])
+	)
+	const orphans = keys.filter(entry => !entry.key.startsWith('$') && !referenced.has(entry.key.split(':')[0]))
+
+	await updateKeys(kvs, {
+		storeArn,
+		mutations: orphans.map(entry => ({ type: 'delete', key: entry.key })),
 	})
 }
 

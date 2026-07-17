@@ -1,9 +1,23 @@
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront'
 import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import { GetAliasCommand, GetFunctionCommand, LambdaClient, ListAliasesCommand } from '@aws-sdk/client-lambda'
-import { define, DynamoDBClient, getItem, number, object, string, updateItem } from '@awsless/dynamodb'
-import { createHash } from 'crypto'
-import { App, StateBackend } from '@terraforge/core'
+import { GetFunctionCommand, LambdaClient } from '@aws-sdk/client-lambda'
+import {
+	define,
+	deleteItem,
+	DynamoDBClient,
+	getItem,
+	Infer,
+	number,
+	object,
+	optional,
+	putItem,
+	query,
+	string,
+	updateItem,
+} from '@awsless/dynamodb'
+import { StateBackend } from '@terraforge/core'
+import { execSync } from 'node:child_process'
+import { userInfo } from 'node:os'
 import { AppConfig } from '../config/app.js'
 import { ExpectedError } from '../error.js'
 import {
@@ -14,77 +28,227 @@ import {
 	setActiveRouteDeployment,
 } from '../formation/cloudfront-kvs.js'
 import { getAccountId, getCredentials, isError } from './aws.js'
-import {
-	getAlias,
-	getDeploymentAliasName,
-	LIVE_ALIAS,
-	parseDeploymentAliasName,
-	upsertAlias,
-} from './lambda.js'
+import { getLambdaAlias, LIVE_LAMBDA_ALIAS, upsertLambdaAlias } from './lambda.js'
 import { formatGlobalResourceName, generateGlobalAppId, getBundleFunctionName } from './name.js'
 import { createDeploymentBackends, getAppReleaseLockUrn } from './workspace.js'
 
-type RouteStoreTarget = {
-	arn: string
-	deployment: RouteDeployment
+// ------------------------------------------------------------
+// A deployment id is a counter per git branch formatted as
+// '<branch>-<seq>' with a dashless branch slug. The one string is
+// the manifest sort key, the deployment alias suffix, the route
+// store key & the id users see.
+
+export const slugifyBranch = (branch?: string) => {
+	return (
+		(branch ?? '')
+			.toLowerCase()
+			.replace(/[^a-z0-9]/g, '')
+			.slice(0, 16) || 'local'
+	)
 }
 
-const descriptionPattern = /^\$awsless:deployment:(\d+):(\d+)$/
-const promotedDescription = '$awsless:promoted'
+// ------------------------------------------------------------
+// Git
 
-const parseDeploymentDescription = (description?: string) => {
-	const match = description?.match(descriptionPattern)
+const git = (command: string) => {
+	try {
+		return execSync(`git ${command}`, { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' }).trim()
+	} catch {
+		return
+	}
+}
 
-	return match
-		? {
-				active: Number(match[1]),
-				latest: Number(match[2]),
+export const isCommitMerged = (commit: string, branch: string) => {
+	return git(`merge-base --is-ancestor ${JSON.stringify(commit)} ${JSON.stringify(branch)}`) !== undefined
+}
+
+// ------------------------------------------------------------
+// The manifest table stores one record per deployment & is the source
+// of the per branch sequence numbers. State is inferred from the
+// fields: a deployed record has a functionVersion & a promoted
+// record has a promotedAt timestamp.
+
+export const deploymentsTable = define('awsless-deployments', {
+	hash: 'appId',
+	sort: 'id',
+	schema: object({
+		appId: string(),
+		id: string(),
+		branch: string(),
+		seq: number(),
+		createdAt: string(),
+		user: optional(string()),
+		commit: optional(string()),
+		message: optional(string()),
+		functionVersion: optional(string()),
+		promotedAt: optional(string()),
+	}),
+})
+
+export type Deployment = Infer<typeof deploymentsTable>
+
+const latestBranchDeployment = async (client: DynamoDBClient, appId: string, branch: string) => {
+	const items = await listDeployments(client, appId, branch)
+
+	return items.reduce<Deployment | undefined>((latest, item) => ((latest?.seq ?? 0) >= item.seq ? latest : item), undefined)
+}
+
+export const claimDeployment = async (props: { client: DynamoDBClient; appId: string }): Promise<Deployment> => {
+	const branch = slugifyBranch(git('rev-parse --abbrev-ref HEAD'))
+
+	// Retry when a concurrent deploy claims the same sequence number.
+	while (true) {
+		const latest = await latestBranchDeployment(props.client, props.appId, branch)
+		const seq = (latest?.seq ?? 0) + 1
+		const deployment: Deployment = {
+			appId: props.appId,
+			id: `${branch}-${seq}`,
+			branch,
+			seq,
+			createdAt: new Date().toISOString(),
+			user: userInfo().username,
+			commit: git('rev-parse HEAD'),
+			message: git('log -1 --pretty=%s'),
+		}
+
+		try {
+			await putItem(deploymentsTable, deployment, {
+				when: e => e.id.notExists(),
+				client: props.client,
+			})
+		} catch (error) {
+			if (isError(error, 'ConditionalCheckFailedException')) {
+				continue
 			}
-		: undefined
+
+			throw error
+		}
+
+		return deployment
+	}
 }
 
-const formatDeploymentDescription = (active: number, latest: number) => {
-	return `$awsless:deployment:${active}:${latest}`
+// Non-deploy commands build the same graph as the last deploy of the branch.
+export const currentDeployment = async (client: DynamoDBClient, appId: string) => {
+	return latestBranchDeployment(client, appId, slugifyBranch(git('rev-parse --abbrev-ref HEAD')))
 }
 
-// The url token guards against guessing the sequential deployment numbers
-// & must match the signature check inside the preview router function.
-export const signDeployment = (appId: string, deploymentId: number) => {
-	return createHash('sha256').update(`${appId}:${deploymentId}`).digest('hex').slice(0, 10)
+export const getDeployment = async (client: DynamoDBClient, appId: string, id: string) => {
+	return getItem(deploymentsTable, { appId, id }, { client })
 }
 
-export const formatDeploymentSummary = (props: {
-	state: Awaited<ReturnType<StateBackend['get']>>
-	appConfig: AppConfig
+export const listDeployments = async (client: DynamoDBClient, appId: string, branch?: string): Promise<Deployment[]> => {
+	const items: Deployment[] = []
+	let cursor: string | undefined
+
+	do {
+		const result = await query(
+			deploymentsTable,
+			{ appId },
+			{
+				where: branch ? e => e.id.startsWith(`${branch}-`) : undefined,
+				consistentRead: true,
+				limit: 100,
+				cursor,
+				client,
+			}
+		)
+		items.push(...result.items)
+		cursor = result.cursor
+	} while (cursor)
+
+	return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export const markDeployed = async (props: {
+	client: DynamoDBClient
 	appId: string
-	deploymentId: number
-}): string[] => {
-	let previewUrl: string | undefined
-	let lambdaUrl: string | undefined
-	const stacks = Object.values(props.state?.stacks ?? {}) as Array<{
-		nodes: Record<string, { type: string; output: { domainName?: string; url?: string } }>
+	id: string
+	functionVersion: string
+}) => {
+	await updateItem(
+		deploymentsTable,
+		{ appId: props.appId, id: props.id },
+		{
+			update: e => e.functionVersion.set(props.functionVersion),
+			when: e => e.id.exists(),
+			client: props.client,
+		}
+	)
+}
+
+const markPromoted = async (client: DynamoDBClient, appId: string, id: string) => {
+	await updateItem(
+		deploymentsTable,
+		{ appId, id },
+		{
+			update: e => e.promotedAt.set(new Date().toISOString()),
+			when: e => e.id.exists(),
+			client,
+		}
+	)
+}
+
+export const removeDeployment = async (client: DynamoDBClient, appId: string, id: string) => {
+	await deleteItem(deploymentsTable, { appId, id }, { client })
+}
+
+// ------------------------------------------------------------
+// The live lambda alias points production at one function version &
+// its description holds the deployment id that is live, since multiple
+// deployments can share one function version. A stale or foreign
+// description simply fails the manifest lookup.
+
+export const readLiveDeploymentId = async (lambda: LambdaClient, functionName: string) => {
+	return (await getLambdaAlias(lambda, functionName, LIVE_LAMBDA_ALIAS))?.Description || undefined
+}
+
+// ------------------------------------------------------------
+// Deployment summary
+
+type DeploymentState = Awaited<ReturnType<StateBackend['get']>>
+
+const readStateNodes = (state: DeploymentState) => {
+	const stacks = Object.values(state?.stacks ?? {}) as Array<{
+		nodes: Record<string, { type: string; output: Record<string, string | undefined> }>
 	}>
 
-	for (const stack of stacks) {
-		for (const [urn, node] of Object.entries(stack.nodes)) {
-			if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
-				previewUrl = `https://${node.output.domainName}`
-			}
+	return stacks.flatMap(stack => Object.entries(stack.nodes))
+}
 
-			if (node.type === 'bundle-deployment') {
-				lambdaUrl = node.output.url
-			}
+// The published function version of a deployment is part of the state.
+export const readDeployedFunctionVersion = (state: DeploymentState) => {
+	for (const [, node] of readStateNodes(state)) {
+		if (node.type === 'bundle-deployment') {
+			return node.output.functionVersion
 		}
 	}
 
-	const deploymentDomain = props.appConfig.defaults.deploymentDomain
-	const token = signDeployment(props.appId, props.deploymentId)
+	return
+}
+
+export const formatDeploymentSummary = (props: {
+	state: DeploymentState
+	appConfig: AppConfig
+	id: string
+}): string[] => {
+	let previewUrl: string | undefined
+	let lambdaUrl: string | undefined
+
+	for (const [urn, node] of readStateNodes(props.state)) {
+		if (node.type === 'aws_cloudfront_distribution' && urn.endsWith(':{preview}')) {
+			previewUrl = `https://${node.output.domainName}`
+		}
+
+		if (node.type === 'bundle-deployment') {
+			lambdaUrl = node.output.url
+		}
+	}
 
 	// The preview distribution's own host serves the first router.
 	return Object.keys(props.appConfig.defaults.router ?? {}).map((routerId, index) => {
 		return [
-			`${routerId}: deployment #${props.deploymentId}`,
-			deploymentDomain && `https://${routerId}-${props.deploymentId}-${token}.${deploymentDomain}`,
+			`${routerId}: deployment #${props.id}`,
 			index === 0 ? previewUrl : undefined,
 			index === 0 ? lambdaUrl : undefined,
 		]
@@ -93,104 +257,49 @@ export const formatDeploymentSummary = (props: {
 	})
 }
 
-export const readFunctionDeployment = async (props: {
+// ------------------------------------------------------------
+// Promotion
+
+type RouteStoreTarget = {
+	arn: string
+	deployment: RouteDeployment
+}
+
+// The deployment that went live before the current one.
+export const previousDeploymentId = async (props: {
 	lambda: LambdaClient
+	dynamo: DynamoDBClient
+	appId: string
 	functionName: string
-	deploymentId?: number
 }) => {
-	if (props.deploymentId !== undefined) {
-		try {
-			const alias = await props.lambda.send(
-				new GetAliasCommand({
-					FunctionName: props.functionName,
-					Name: getDeploymentAliasName(props.deploymentId),
-				})
-			)
-
-			return {
-				id: props.deploymentId,
-				functionVersion: alias.FunctionVersion!,
-			}
-		} catch (error) {
-			if (isError(error, 'ResourceNotFoundException')) {
-				throw new ExpectedError(`Deployment "${props.deploymentId}" doesn't exist.`)
-			}
-
-			throw error
-		}
-	}
-
-	let live
-
-	try {
-		live = await props.lambda.send(
-			new GetAliasCommand({
-				FunctionName: props.functionName,
-				Name: LIVE_ALIAS,
-			})
-		)
-	} catch (error) {
-		if (isError(error, 'ResourceNotFoundException')) {
-			throw new ExpectedError(`There is no previous deployment to rollback to.`)
-		}
-
-		throw error
-	}
-
-	const active = parseDeploymentDescription(live.Description)?.active
-	let nextToken: string | undefined
-	let previous:
-		| {
-				id: number
-				functionVersion: string
-		  }
-		| undefined
-
-	if (active !== undefined) {
-		do {
-			const page = await props.lambda.send(
-				new ListAliasesCommand({
-					FunctionName: props.functionName,
-					Marker: nextToken,
-				})
-			)
-			nextToken = page.NextMarker
-
-			for (const alias of page.Aliases ?? []) {
-				const id = alias.Name ? parseDeploymentAliasName(alias.Name) : undefined
-
-				if (
-					id !== undefined &&
-					id < active &&
-					(!previous || id > previous.id) &&
-					alias.FunctionVersion &&
-					alias.Description === promotedDescription
-				) {
-					previous = {
-						id,
-						functionVersion: alias.FunctionVersion,
-					}
-				}
-			}
-		} while (nextToken)
-	}
+	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
+	const previous =
+		liveId &&
+		(await listDeployments(props.dynamo, props.appId))
+			.filter(item => item.promotedAt && item.functionVersion)
+			.sort((a, b) => b.promotedAt!.localeCompare(a.promotedAt!))
+			.find(item => item.id !== liveId)
 
 	if (!previous) {
 		throw new ExpectedError(`There is no previous deployment to rollback to.`)
 	}
 
-	return previous
+	return previous.id
 }
 
+// Reject deploys that were claimed before the live deployment was
+// promoted, so a slow deploy can't stage itself over a newer release.
 export const preflightDeployment = async (props: {
 	lambda: LambdaClient
+	dynamo: DynamoDBClient
+	appId: string
 	functionName: string
-	deploymentId: number
+	deployment: Deployment
 }) => {
-	const live = await getAlias(props.lambda, props.functionName, LIVE_ALIAS)
-	const latest = parseDeploymentDescription(live?.Description)?.latest
+	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
+	const live = liveId ? await getDeployment(props.dynamo, props.appId, liveId) : undefined
 
-	if (latest !== undefined && latest > props.deploymentId) {
+	if (live?.promotedAt && live.promotedAt > props.deployment.createdAt) {
 		throw new ExpectedError(`A newer deployment is already live.`)
 	}
 }
@@ -198,41 +307,50 @@ export const preflightDeployment = async (props: {
 export const promoteDeployment = async (props: {
 	kvs: CloudFrontKeyValueStoreClient
 	lambda: LambdaClient
+	dynamo: DynamoDBClient
+	appId: string
 	functionName: string
-	deploymentId: number
-	functionVersion: string
+	id: string
 	store?: RouteStoreTarget
 	rejectStale?: boolean
 }) => {
-	if (props.store && props.store.deployment.functionVersion !== props.functionVersion) {
+	const deployment = await getDeployment(props.dynamo, props.appId, props.id)
+	const functionVersion = deployment?.functionVersion
+
+	if (!deployment || !functionVersion) {
+		throw new ExpectedError(`Deployment "${props.id}" doesn't exist.`)
+	}
+
+	if (props.store && props.store.deployment.functionVersion !== functionVersion) {
 		throw new ExpectedError(`The routes don't share the deployed function version.`)
 	}
 
-	const alias = await getAlias(props.lambda, props.functionName, LIVE_ALIAS)
-	const aliasDeployment = parseDeploymentDescription(alias?.Description)
+	const alias = await getLambdaAlias(props.lambda, props.functionName, LIVE_LAMBDA_ALIAS)
+	const liveId = await readLiveDeploymentId(props.lambda, props.functionName)
 	const activeId = props.store ? await readActiveDeploymentId(props.kvs, props.store.arn) : undefined
 	const active =
 		props.store && activeId !== undefined
 			? await readRouteDeployment(props.kvs, props.store.arn, activeId)
 			: undefined
 
-	if (
-		props.rejectStale &&
-		Math.max(aliasDeployment?.latest ?? 0, active?.id ?? 0) > props.deploymentId
-	) {
-		throw new ExpectedError(`A newer deployment is already live.`)
+	if (props.rejectStale && liveId && liveId !== props.id) {
+		const live = await getDeployment(props.dynamo, props.appId, liveId)
+
+		if (live?.promotedAt && live.promotedAt > deployment.createdAt) {
+			throw new ExpectedError(`A newer deployment is already live.`)
+		}
 	}
 
 	try {
 		await props.lambda.send(
 			new GetFunctionCommand({
 				FunctionName: props.functionName,
-				Qualifier: props.functionVersion,
+				Qualifier: functionVersion,
 			})
 		)
 	} catch (error) {
 		if (isError(error, 'ResourceNotFoundException')) {
-			throw new ExpectedError(`The function version "${props.functionVersion}" of this deployment no longer exists.`)
+			throw new ExpectedError(`The function version "${functionVersion}" of this deployment no longer exists.`)
 		}
 
 		throw error
@@ -240,16 +358,6 @@ export const promoteDeployment = async (props: {
 
 	let routesUpdateStarted = false
 	let aliasUpdateStarted = false
-	let deploymentUpdateStarted = false
-	const description = formatDeploymentDescription(
-		props.deploymentId,
-		Math.max(props.deploymentId, aliasDeployment?.latest ?? 0, active?.id ?? 0)
-	)
-	const deploymentAlias = await getAlias(
-		props.lambda,
-		props.functionName,
-		getDeploymentAliasName(props.deploymentId)
-	)
 
 	try {
 		if (props.store && active?.id !== props.store.deployment.id) {
@@ -257,49 +365,30 @@ export const promoteDeployment = async (props: {
 			await setActiveRouteDeployment(props.kvs, props.store.arn, props.store.deployment)
 		}
 
-		if (alias?.FunctionVersion !== props.functionVersion || alias?.Description !== description) {
+		if (alias?.FunctionVersion !== functionVersion || alias?.Description !== props.id) {
 			aliasUpdateStarted = true
-			await upsertAlias(props.lambda, {
+			await upsertLambdaAlias(props.lambda, {
 				functionName: props.functionName,
-				functionVersion: props.functionVersion,
-				name: LIVE_ALIAS,
-				description,
+				functionVersion,
+				name: LIVE_LAMBDA_ALIAS,
+				description: props.id,
 			})
 		}
 
-		if (
-			deploymentAlias?.FunctionVersion !== props.functionVersion ||
-			deploymentAlias.Description !== promotedDescription
-		) {
-			deploymentUpdateStarted = true
-			await upsertAlias(props.lambda, {
-				functionName: props.functionName,
-				functionVersion: props.functionVersion,
-				name: getDeploymentAliasName(props.deploymentId),
-				description: promotedDescription,
-			})
-		}
+		// Record the promotion in the manifest last, so a failed write
+		// rolls back the routes & alias with it.
+		await markPromoted(props.dynamo, props.appId, props.id)
 	} catch (error) {
 		const rollback = [
 			...(routesUpdateStarted && props.store
 				? [setActiveRouteDeployment(props.kvs, props.store.arn, active)]
 				: []),
-			...(deploymentUpdateStarted && deploymentAlias?.FunctionVersion
-				? [
-						upsertAlias(props.lambda, {
-							functionName: props.functionName,
-							functionVersion: deploymentAlias.FunctionVersion,
-							name: getDeploymentAliasName(props.deploymentId),
-							description: deploymentAlias.Description ?? '',
-						}),
-					]
-				: []),
 			...(aliasUpdateStarted && alias?.FunctionVersion
 				? [
-						upsertAlias(props.lambda, {
+						upsertLambdaAlias(props.lambda, {
 							functionName: props.functionName,
 							functionVersion: alias.FunctionVersion,
-							name: LIVE_ALIAS,
+							name: LIVE_LAMBDA_ALIAS,
 							description: alias.Description ?? '',
 						}),
 					]
@@ -319,119 +408,69 @@ export const promoteDeployment = async (props: {
 
 const activateDeployment = async (props: {
 	appConfig: AppConfig
-	deploymentId?: number
+	id?: string
 	rejectStale?: boolean
 }) => {
 	const region = props.appConfig.region
 	const credentials = await getCredentials(props.appConfig.profile)
 	const accountId = await getAccountId(credentials, region)
-	const app = new App(props.appConfig.name)
+	const appId = generateGlobalAppId({ accountId, region, appName: props.appConfig.name })
 	const cloudfront = new CloudFrontClient({ credentials, region: 'us-east-1' })
 	const kvs = new CloudFrontKeyValueStoreClient({ credentials, region })
 	const lambda = new LambdaClient({ credentials, region })
+	const dynamo = new DynamoDBClient({ credentials, region })
 	const functionName = getBundleFunctionName(props.appConfig.name)
-	const { lock } = createDeploymentBackends({ credentials, accountId, region })
-	const release = await lock.lock(app.urn)
 
-	try {
-		let deploymentId = props.deploymentId
-		let functionVersion: string | undefined
-		let store: RouteStoreTarget | undefined
-		const hasRouter = Object.keys(props.appConfig.defaults.router ?? {}).length > 0
+	const id = props.id ?? (await previousDeploymentId({ lambda, dynamo, appId, functionName }))
+	let store: RouteStoreTarget | undefined
 
-		if (props.rejectStale || deploymentId === undefined || !hasRouter) {
-			const deployment = await readFunctionDeployment({
-				lambda,
-				functionName,
-				deploymentId,
+	if (Object.keys(props.appConfig.defaults.router ?? {}).length > 0) {
+		const storeArn = await getRouteStoreArn(
+			cloudfront,
+			formatGlobalResourceName({
+				appName: props.appConfig.name,
+				resourceType: 'router',
+				resourceName: 'store',
 			})
-			deploymentId = deployment.id
-			functionVersion = deployment.functionVersion
+		)
+
+		if (!storeArn) {
+			throw new ExpectedError(`The router hasn't been deployed yet. Run "awsless deploy" first.`)
 		}
 
-		if (hasRouter) {
-			const storeArn = await getRouteStoreArn(
-				cloudfront,
-				formatGlobalResourceName({
-					appName: props.appConfig.name,
-					resourceType: 'router',
-					resourceName: 'store',
-				})
-			)
+		const routes = await readRouteDeployment(kvs, storeArn, id)
 
-			if (!storeArn) {
-				throw new ExpectedError(`The router hasn't been deployed yet. Run "awsless deploy" first.`)
-			}
-
-			const deployment = await readRouteDeployment(kvs, storeArn, deploymentId!)
-
-			if (!deployment) {
-				throw new ExpectedError(`Deployment "${deploymentId}" doesn't exist.`)
-			}
-
-			store = { arn: storeArn, deployment }
-			functionVersion ??= deployment.functionVersion
+		if (!routes) {
+			throw new ExpectedError(`Deployment "${id}" doesn't exist.`)
 		}
 
-		await promoteDeployment({
-			kvs,
-			lambda,
-			functionName,
-			deploymentId: deploymentId!,
-			functionVersion: functionVersion!,
-			store,
-			rejectStale: props.rejectStale,
-		})
-
-		return deploymentId!
-	} finally {
-		await release()
+		store = { arn: storeArn, deployment: routes }
 	}
+
+	await promoteDeployment({
+		kvs,
+		lambda,
+		dynamo,
+		appId,
+		functionName,
+		id,
+		store,
+		rejectStale: props.rejectStale,
+	})
+
+	return id
 }
 
 // The caller must hold the app release lock.
-export const promoteAppDeployment = (props: {
-	appConfig: AppConfig
-	deploymentId: number
-}) => {
+export const promoteAppDeployment = (props: { appConfig: AppConfig; id: string }) => {
 	return activateDeployment({ ...props, rejectStale: true })
 }
 
-export const rollbackAppDeployment = (props: { appConfig: AppConfig; deploymentId?: number }) => {
+export const rollbackAppDeployment = (props: { appConfig: AppConfig; id?: string }) => {
 	return withAppReleaseLock(props.appConfig, () => activateDeployment(props))
 }
 
-const sequences = define('awsless-locks', {
-	hash: 'urn',
-	schema: object({
-		urn: string(),
-		version: number(),
-	}),
-})
-
-export const nextDeploymentId = async (client: DynamoDBClient, appId: string) => {
-	const result = await updateItem(
-		sequences,
-		{ urn: `urn:deployment-seq:${appId}` },
-		{
-			update: e => e.version.incr(1),
-			return: 'ALL_NEW',
-			client,
-		}
-	)
-
-	return result.version
-}
-
-// Peek the current deployment id without claiming the next one, so
-// non-deploy commands can build the same graph as the last deploy.
-export const currentDeploymentId = async (client: DynamoDBClient, appId: string) => {
-	const item = await getItem(sequences, { urn: `urn:deployment-seq:${appId}` }, { client })
-
-	return item?.version
-}
-
-const withAppReleaseLock = async <T>(appConfig: AppConfig, callback: () => Promise<T>) => {
+export const withAppReleaseLock = async <T>(appConfig: AppConfig, callback: () => Promise<T>) => {
 	const credentials = await getCredentials(appConfig.profile)
 	const accountId = await getAccountId(credentials, appConfig.region)
 	const { lock } = createDeploymentBackends({ credentials, accountId, region: appConfig.region })

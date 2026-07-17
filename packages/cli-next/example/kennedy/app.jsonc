@@ -5,7 +5,6 @@
 	"profile": "jacksclub",
 	"defaults": {
 		"topics": ["events"],
-		"deploymentDomain": "spadesltd.com",
 		"domains": {
 			"main": {
 				"domain": "awsless.org"

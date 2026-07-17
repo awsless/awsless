@@ -21,37 +21,6 @@ export const getViewerRequestFunctionCode = (props: {
 	)
 }
 
-// The preview function serves every router, so the auth checks
-// switch on the router resolved from the request host.
-export const getPreviewRequestFunctionCode = (props: {
-	defaultRouter: string
-	appId: string
-	deployUrls?: boolean
-	routers: {
-		id: string
-		basicAuth?: { username: string; password: string }
-		passwordAuth?: { password: string }
-	}[]
-}): string => {
-	return CODE(
-		[],
-		props.deployUrls ? DEPLOY_URLS_PREFIX(props.defaultRouter, props.appId) : ACTIVE_PREFIX(props.defaultRouter),
-		props.routers.map(router =>
-			(router.passwordAuth ?? router.basicAuth)
-				? `if (router === ${JSON.stringify(router.id)}) {` +
-					AUTH_WRAPPER(
-						[
-							//
-							router.basicAuth ? BASIC_AUTH_CHECK(router.basicAuth.username, router.basicAuth.password) : '',
-							router.passwordAuth ? PASSWORD_AUTH_CHECK(router.passwordAuth.password) : '',
-						].join('\n')
-					) +
-					'\n}'
-				: ''
-		)
-	)
-}
-
 const BLOCK_DIRECT_ACCESS_TO_CLOUDFRONT = `
 if (headers.host && headers.host.value.includes('cloudfront.net')) {
 	return {
@@ -94,55 +63,6 @@ try {
 	};
 }`
 
-// deployment url hosts like main-42-a1b2c3d4e5.example.com resolve their
-// router and deployment number to a route table via '$deploy:42', where the
-// hashed token guards against guessing the sequential deployment numbers;
-// the distribution's own cloudfront.net host serves the default router's
-// active deployment
-const DEPLOY_URLS_PREFIX = (defaultRouter: string, appId: string) => `
-let router;
-let prefix;
-const host = (headers.host ? headers.host.value : '').split(':')[0].toLowerCase();
-
-if (host.endsWith('.cloudfront.net')) {
-	router = ${JSON.stringify(defaultRouter)};
-
-	try {
-		prefix = (await cf.kvs().get('$active')).split(':')[0] + ':' + router + ':';
-	} catch (e) {
-		return {
-			statusCode: 503,
-			statusDescription: 'Service Unavailable'
-		};
-	}
-} else {
-	const sub = host.split('.')[0];
-	const token = sub.slice(sub.lastIndexOf('-') + 1);
-	const rest = sub.slice(0, sub.lastIndexOf('-'));
-	const id = rest.split('-').pop();
-	router = rest.slice(0, rest.lastIndexOf('-'));
-
-	// must match signDeployment() & a wrong token is
-	// indistinguishable from a missing deployment
-	const expected = crypto.createHash('sha256').update(${JSON.stringify(appId)} + ':' + id).digest('hex').slice(0, 10);
-
-	if (!token || token !== expected) {
-		return {
-			statusCode: 404,
-			statusDescription: 'Not Found'
-		};
-	}
-
-	try {
-		prefix = (await cf.kvs().get('$deploy:' + id)).split(':')[0] + ':' + router + ':';
-	} catch (e) {
-		return {
-			statusCode: 404,
-			statusDescription: 'Not Found'
-		};
-	}
-}`
-
 const AUTH_WRAPPER = (code: string) => `
 const authHeader = headers.authorization && headers.authorization.value;
 const authMethods = [];
@@ -164,9 +84,8 @@ if (!isAuthorized) {
 	};
 }`
 
-const CODE = (injection: string[], prefixCode: string, postInjection: string[] = []) => `
+const CODE = (injection: string[], prefixCode: string) => `
 import cf from "cloudfront";
-import crypto from "crypto";
 
 function getPossibleRouteKeys(path) {
 	if (path === '' || path === '/') {
@@ -287,8 +206,6 @@ async function handler(event) {
 	${injection.join('\n')}
 
 	${prefixCode}
-
-	${postInjection.join('\n')}
 
 	const route = await findRoute(path, request.method, prefix);
 

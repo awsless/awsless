@@ -6,10 +6,11 @@ import { createApp } from '../../app.js'
 import { Cancelled } from '../../error.js'
 import { getAccountId, getCredentials } from '../../util/aws.js'
 import {
+	claimDeployment,
 	formatDeploymentSummary,
-	nextDeploymentId,
+	markDeployed,
 	preflightDeployment,
-	promoteAppDeployment,
+	readDeployedFunctionVersion,
 } from '../../util/deployment.js'
 import { generateGlobalAppId, getBundleFunctionName } from '../../util/name.js'
 import { playSuccessSound } from '../../util/sound.js'
@@ -39,8 +40,9 @@ export const deploy = (program: Command) => {
 				await bootstrapAwsless({ credentials, region, accountId })
 
 				// ---------------------------------------------------
-				// every deployment gets the next app-wide number; cancelled
-				// deploys leave a harmless gap in the sequence
+				// every deployment claims the next sequence number of its git
+				// branch in the manifest; abandoned deploys leave a record
+				// without a function version that the prune command sweeps up
 
 				const dynamo = new DynamoDBClient({ credentials, region })
 				const globalAppId = generateGlobalAppId({
@@ -48,7 +50,7 @@ export const deploy = (program: Command) => {
 					region,
 					appName: appConfig.name,
 				})
-				const deploymentId = await nextDeploymentId(dynamo, globalAppId)
+				const deployment = await claimDeployment({ client: dynamo, appId: globalAppId })
 
 				// ---------------------------------------------------
 
@@ -56,7 +58,7 @@ export const deploy = (program: Command) => {
 					appConfig,
 					stackConfigs,
 					accountId,
-					deploymentId,
+					deploymentId: deployment.id,
 					import: options.import,
 				})
 
@@ -114,22 +116,33 @@ export const deploy = (program: Command) => {
 						const release = await releaseLock.lock(releaseUrn)
 
 						try {
-							await preflightDeployment({ lambda, functionName, deploymentId })
-							await workspace.deploy(app, { filters: [] })
+							await preflightDeployment({ lambda, dynamo, appId: globalAppId, functionName, deployment })
+							await workspace.deploy(app)
 
 							await pullRemoteState(app, state)
+							const remoteState = await state.get(app.urn)
+							const functionVersion = readDeployedFunctionVersion(remoteState)
+
+							if (functionVersion) {
+								await markDeployed({
+									client: dynamo,
+									appId: globalAppId,
+									id: deployment.id,
+									functionVersion,
+								})
+							}
+
 							const deployments = formatDeploymentSummary({
-								state: await state.get(app.urn),
+								state: remoteState,
 								appConfig,
-								appId: globalAppId,
-								deploymentId,
+								id: deployment.id,
 							})
 
-							// Promotion goes live, so it must be the last fallible step.
-							await promoteAppDeployment({
-								appConfig,
-								deploymentId,
-							})
+							// // Promotion goes live, so it must be the last fallible step.
+							// await promoteAppDeployment({
+							// 	appConfig,
+							// 	id: deployment.id,
+							// })
 
 							return deployments
 						} finally {
@@ -142,7 +155,7 @@ export const deploy = (program: Command) => {
 
 				const details = deployments.length > 0 ? `\n${deployments.join('\n')}` : ''
 
-				return `Deployment #${deploymentId} is live.${details}`
+				return `Deployment #${deployment.id} is live.${details}`
 			})
 		})
 }

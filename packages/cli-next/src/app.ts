@@ -46,7 +46,7 @@ export type CreateAppProps = {
 	appConfig: AppConfig
 	stackConfigs: StackConfig[]
 	accountId: string
-	deploymentId?: number
+	deploymentId?: string
 	import?: boolean
 }
 

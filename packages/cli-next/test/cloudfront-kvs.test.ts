@@ -5,16 +5,14 @@ import {
 	GetKeyCommand,
 	UpdateKeysCommand,
 } from '@aws-sdk/client-cloudfront-keyvaluestore'
-import { DynamoDBClient } from '@awsless/dynamodb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createCloudFrontKvsProvider, setActiveRouteDeployment } from '../src/formation/cloudfront-kvs'
-import { nextDeploymentId } from '../src/util/deployment'
 import { credentials, notFound, sent } from './_kit'
 
 const storeArn = 'arn:aws:cloudfront::123456789012:key-value-store/test-router'
 
 const state = {
-	deploymentId: 1,
+	deploymentId: 'main-1',
 	storeArn,
 	routes: [{ key: '/api/*', value: JSON.stringify({ type: 's3', domainName: 'api.example.com' }) }],
 	functionVersion: '17',
@@ -83,22 +81,11 @@ const mockAws = () => {
 		throw new Error(`Unexpected KVS command: ${command.constructor.name}`)
 	})
 
-	let counter = 0
-	const dynamo = vi.spyOn(DynamoDBClient.prototype, 'send').mockImplementation(async (command: any) => {
-		if (command.constructor.name === 'UpdateItemCommand') {
-			counter += 1
-			return { Attributes: { urn: command.input.Key!.urn, version: { N: String(counter) } } }
-		}
-
-		throw new Error(`Unexpected DynamoDB command: ${command.constructor.name}`)
-	})
-
 	return {
 		stores,
 		getStore,
 		cloudfront,
 		kvs,
-		dynamo,
 	}
 }
 
@@ -123,7 +110,7 @@ describe('CloudFront route deployments', () => {
 		const provider = createCloudFrontKvsProvider({ credentials, region: 'us-east-1' })
 		const result = await provider.createResource({ type: 'route-deployment', state })
 		const store = getStore(storeArn)
-		const entry = deployEntry(store, '1')
+		const entry = deployEntry(store, 'main-1')
 
 		expect(entry.table).toMatch(/^[0-9a-f]{8}$/)
 		expect(entry.functionVersion).toBe('17')
@@ -134,7 +121,7 @@ describe('CloudFront route deployments', () => {
 		// the table comes before the mapping
 		const puts = sent(kvs, UpdateKeysCommand).flatMap(command => command.input.Puts ?? [])
 		expect(puts.findIndex(item => item.Key!.endsWith(':/api/*'))).toBeLessThan(
-			puts.findIndex(item => item.Key === '$deploy:1')
+			puts.findIndex(item => item.Key === '$deploy:main-1')
 		)
 	})
 
@@ -147,14 +134,14 @@ describe('CloudFront route deployments', () => {
 		await provider.updateResource({
 			type: 'route-deployment',
 			priorState: created.state,
-			proposedState: { ...state, deploymentId: 2 },
+			proposedState: { ...state, deploymentId: 'main-2' },
 		})
 
 		const store = getStore(storeArn)
 		const puts = sent(kvs, UpdateKeysCommand).flatMap(command => command.input.Puts ?? [])
 
-		expect(deployEntry(store, '2').table).toBe(deployEntry(store, '1').table)
-		expect(puts.map(item => item.Key)).toEqual(['$deploy:2'])
+		expect(deployEntry(store, 'main-2').table).toBe(deployEntry(store, 'main-1').table)
+		expect(puts.map(item => item.Key)).toEqual(['$deploy:main-2'])
 		expect(store.has('$active')).toBe(false)
 	})
 
@@ -168,11 +155,11 @@ describe('CloudFront route deployments', () => {
 		await provider.updateResource({
 			type: 'route-deployment',
 			priorState: created.state,
-			proposedState: { ...state, deploymentId: 2, storeArn: replacedArn },
+			proposedState: { ...state, deploymentId: 'main-2', storeArn: replacedArn },
 		})
 
 		const store = getStore(replacedArn)
-		const entry = deployEntry(store, '2')
+		const entry = deployEntry(store, 'main-2')
 
 		expect(store.get(`${entry.table}:/api/*`)).toBe(state.routes[0]!.value)
 	})
@@ -206,7 +193,7 @@ describe('CloudFront route deployments', () => {
 		kvs.mockImplementation(send)
 		await provider.createResource({ type: 'route-deployment', state: deployment })
 
-		const entry = deployEntry(store, '1')
+		const entry = deployEntry(store, 'main-1')
 		expect(routes.every(route => store.get(`${entry.table}:${route.key}`) === route.value)).toBe(true)
 		expect(store.has('$active')).toBe(false)
 	})
@@ -221,14 +208,14 @@ describe('CloudFront route deployments', () => {
 			priorState: created.state,
 			proposedState: {
 				...state,
-				deploymentId: 2,
+				deploymentId: 'main-2',
 				routes: [{ key: '/api/*', value: JSON.stringify({ type: 's3', domainName: 'api-v2.example.com' }) }],
 			},
 		})
 
 		const store = getStore(storeArn)
-		const table1 = deployEntry(store, '1').table
-		const table2 = deployEntry(store, '2').table
+		const table1 = deployEntry(store, 'main-1').table
+		const table2 = deployEntry(store, 'main-2').table
 
 		expect(table1).not.toBe(table2)
 		expect(store.get(`${table1}:/api/*`)).toContain('api.example.com')
@@ -245,19 +232,19 @@ describe('CloudFront route deployments', () => {
 			priorState: first.state,
 			proposedState: {
 				...state,
-				deploymentId: 2,
+				deploymentId: 'main-2',
 				functionVersion: '18',
 				routes: [{ key: '/api/*', value: JSON.stringify({ type: 's3', domainName: 'api-v2.example.com' }) }],
 			},
 		})
 
 		const store = getStore(storeArn)
-		await setActiveRouteDeployment(cliClients().kvs, storeArn, { id: 2, ...deployEntry(store, '2') })
-		expect(store.get('$active')!.split(':')[1]).toBe('2')
+		await setActiveRouteDeployment(cliClients().kvs, storeArn, { id: 'main-2', ...deployEntry(store, 'main-2') })
+		expect(store.get('$active')!.split(':')[1]).toBe('main-2')
 
-		await setActiveRouteDeployment(cliClients().kvs, storeArn, { id: 1, ...deployEntry(store, '1') })
+		await setActiveRouteDeployment(cliClients().kvs, storeArn, { id: 'main-1', ...deployEntry(store, 'main-1') })
 
-		expect(store.get('$active')).toBe(`${deployEntry(store, '1').table}:1`)
+		expect(store.get('$active')).toBe(`${deployEntry(store, 'main-1').table}:main-1`)
 	})
 
 	it('should restore an absent active pointer', async () => {
@@ -265,23 +252,14 @@ describe('CloudFront route deployments', () => {
 		const clients = cliClients()
 
 		await setActiveRouteDeployment(clients.kvs, storeArn, {
-			id: 1,
+			id: 'main-1',
 			table: 'aaaaaaaa',
 			functionVersion: '17',
 		})
-		expect(getStore(storeArn).get('$active')).toBe('aaaaaaaa:1')
+		expect(getStore(storeArn).get('$active')).toBe('aaaaaaaa:main-1')
 
 		await setActiveRouteDeployment(clients.kvs, storeArn)
 		expect(getStore(storeArn).has('$active')).toBe(false)
 	})
 
-	it('should assign sequential deployment numbers', async () => {
-		const { dynamo } = mockAws()
-		expect(dynamo).toBeDefined()
-		const client = new DynamoDBClient({ region: 'us-east-1' })
-
-		await expect(nextDeploymentId(client, 'app')).resolves.toBe(1)
-		await expect(nextDeploymentId(client, 'app')).resolves.toBe(2)
-		await expect(nextDeploymentId(client, 'app')).resolves.toBe(3)
-	})
 })

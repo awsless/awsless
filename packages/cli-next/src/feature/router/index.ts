@@ -3,11 +3,10 @@ import { DataSource, Group, Input, Output, Resource } from '@terraforge/core'
 import { aws } from '@terraforge/aws'
 import { defineFeature } from '../../feature.js'
 import { formatGlobalResourceName } from '../../util/name.js'
-import { createDnsValidatedCertificate, formatFullDomainName } from '../domain/util.js'
-import { NsCheck } from '../../formation/ns-check.js'
+import { formatFullDomainName } from '../domain/util.js'
 import { camelCase, constantCase } from 'change-case'
 import { RouteDeployment } from '../../formation/cloudfront-kvs.js'
-import { getPreviewRequestFunctionCode, getViewerRequestFunctionCode } from './router-code.js'
+import { getViewerRequestFunctionCode } from './router-code.js'
 import { ExpectedError } from '../../error.js'
 import { FunctionDeployment } from '../../formation/lambda.js'
 import { Route } from './route.js'
@@ -15,25 +14,7 @@ import { Route } from './route.js'
 export const routerFeature = defineFeature({
 	name: 'router',
 	onApp(ctx) {
-		const deploymentDomain = ctx.appConfig.defaults.deploymentDomain
 		const routers = Object.entries(ctx.appConfig.defaults.router ?? {})
-
-		if (deploymentDomain) {
-			// deployment urls must never live on a user facing domain
-			for (const domainProps of Object.values(ctx.appConfig.defaults.domains ?? {})) {
-				const domain = domainProps.domain
-
-				if (
-					deploymentDomain === domain ||
-					deploymentDomain.endsWith(`.${domain}`) ||
-					domain.endsWith(`.${deploymentDomain}`)
-				) {
-					throw new ExpectedError(
-						`The "${deploymentDomain}" deploymentDomain can't overlap with the configured "${domain}" domain.`
-					)
-				}
-			}
-		}
 
 		// All routers share one route store, one preview distribution and
 		// one deployment; the shared resources live in the first router.
@@ -53,37 +34,6 @@ export const routerFeature = defineFeature({
 				resourceType: 'router',
 				resourceName: id,
 			})
-
-			// ------------------------------------------------------------
-			// Deployment URL Domain
-
-			let deploymentCertificateArn: Input<string> | undefined
-			let deploymentZone: aws.route53.Zone | undefined
-
-			if (deploymentDomain && id === defaultRouter) {
-				const zone = new aws.route53.Zone(ctx.zones, 'deployment-zone', {
-					name: deploymentDomain,
-					forceDestroy: true,
-				})
-				const nsCheck = new NsCheck(group, 'deployment-check', {
-					zoneId: zone.id,
-				})
-
-				ctx.registerDomainZone(zone)
-				deploymentZone = zone
-
-				const provider = ctx.appConfig.region !== 'us-east-1' ? ('global-aws' as const) : undefined
-				const validation = createDnsValidatedCertificate(group, 'deployment-cert', {
-					recordIdPrefix: 'deployment-cert',
-					zoneId: zone.id,
-					domainName: deploymentDomain,
-					subjectAlternativeNames: [`*.${deploymentDomain}`],
-					provider,
-					dependsOn: [nsCheck],
-				})
-
-				deploymentCertificateArn = validation.certificateArn
-			}
 
 			// ------------------------------------------------------------
 			// Route Store
@@ -463,20 +413,15 @@ export const routerFeature = defineFeature({
 			})
 
 			if (id === defaultRouter) {
-				// The preview distribution serves the deployment urls of every
-				// router; its own cloudfront.net host serves the default router.
+				// The preview distribution's cloudfront.net host serves the
+				// default router's active deployment.
 				const previewFunction = new aws.cloudfront.Function(group, 'preview-function', {
 					name: `${name.slice(0, 55)}--preview`,
 					runtime: 'cloudfront-js-2.0',
-					code: getPreviewRequestFunctionCode({
-						defaultRouter: id,
-						appId: ctx.appId,
-						deployUrls: !!deploymentDomain,
-						routers: routers.map(([id, props]) => ({
-							id,
-							basicAuth: props.basicAuth,
-							passwordAuth: props.passwordAuth,
-						})),
+					code: getViewerRequestFunctionCode({
+						router: id,
+						basicAuth: props.basicAuth,
+						passwordAuth: props.passwordAuth,
 					}),
 					publish: true,
 					keyValueStoreAssociations: [routeStore!.arn],
@@ -489,7 +434,6 @@ export const routerFeature = defineFeature({
 					comment: `${name} preview`,
 					enabled: true,
 					waitForDeployment: true,
-					aliases: deploymentDomain ? [`*.${deploymentDomain}`] : undefined,
 					origin: [
 						{
 							originId: 'default',
@@ -525,15 +469,9 @@ export const routerFeature = defineFeature({
 							locations: props.geoRestrictions,
 						},
 					},
-					viewerCertificate: deploymentCertificateArn
-						? {
-								acmCertificateArn: deploymentCertificateArn,
-								sslSupportMethod: 'sni-only',
-								minimumProtocolVersion: 'TLSv1.2_2021',
-							}
-						: {
-								cloudfrontDefaultCertificate: true,
-							},
+					viewerCertificate: {
+						cloudfrontDefaultCertificate: true,
+					},
 					defaultCacheBehavior: {
 						compress: true,
 						targetOriginId: 'default',
@@ -554,19 +492,6 @@ export const routerFeature = defineFeature({
 				})
 
 				distributionIds.push(previewDistribution.id)
-
-				if (deploymentDomain && deploymentZone) {
-					new aws.route53.Record(group, `deploy-url-record`, {
-						zoneId: deploymentZone.id,
-						type: 'A',
-						name: `*.${deploymentDomain}`,
-						alias: {
-							name: previewDistribution.domainName,
-							zoneId: 'Z2FDTNDATAQYW2',
-							evaluateTargetHealth: false,
-						},
-					})
-				}
 
 				ctx.onReadyLast(() => {
 					const bundle = ctx.shared.get('bundle', 'main')
@@ -593,7 +518,7 @@ export const routerFeature = defineFeature({
 						'deployment',
 						{
 							// non-deploy commands build the graph but never apply it
-							deploymentId: ctx.deploymentId ?? 0,
+							deploymentId: ctx.deploymentId ?? 'local-0',
 							storeArn: routeStore!.arn,
 							functionVersion: bundle.lambda.version,
 							routes: $resolve([routes, lambdaUrlHost], (routes, lambdaUrlHost) => {
@@ -610,28 +535,25 @@ export const routerFeature = defineFeature({
 						}
 					)
 
-					// The deployment alias lambda url serves the preview with these
-					// baked routes. Routers with viewer auth are excluded, since the
-					// preview url bypasses the router auth. Lambda routes dispatch
-					// in-process, so the deploy-time lambda url host isn't needed &
-					// would be circular through the bundle env.
-					const previewRouters = routers
-						.filter(([, props]) => !(props.basicAuth ?? props.passwordAuth))
-						.map(([id]) => id)
-
-					bundle.addEnv(
-						'AWSLESS_PREVIEW',
-						$resolve([routes], routes =>
-							JSON.stringify({
-								router: id,
-								routes: Object.fromEntries(
-									Object.entries(routes).filter(([key]) =>
-										previewRouters.includes(key.split(':')[0]!)
-									)
-								),
-							})
+					// The deployment alias lambda url serves a preview of the
+					// default router with these baked routes, unless viewer auth
+					// is configured, since the url bypasses the router auth.
+					// Lambda routes dispatch in-process, so the deploy-time
+					// lambda url host isn't needed & would be circular through
+					// the bundle env.
+					if (!(props.basicAuth ?? props.passwordAuth)) {
+						bundle.addEnv(
+							'AWSLESS_PREVIEW',
+							$resolve([routes], routes =>
+								JSON.stringify({
+									router: id,
+									routes: Object.fromEntries(
+										Object.entries(routes).filter(([key]) => key.startsWith(`${id}:`))
+									),
+								})
+							)
 						)
-					)
+					}
 				})
 			}
 

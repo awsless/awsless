@@ -72,18 +72,6 @@ export const AppSchema = z.object({
 			topics: TopicsDefaultSchema,
 			layers: LayerSchema,
 			router: RouterDefaultSchema,
-			deploymentDomain: z
-				.string()
-				.regex(/^[a-z0-9.\-]+$/i, 'Invalid domain name')
-				.optional()
-				.describe(
-					[
-						'A dedicated domain that serves the unique deployment URLs, like https://main-42.example-deploys.com',
-						'This must be a separately registered domain and can never be one of your configured "domains".',
-						"You need to delegate the domain's name servers to the created Route53 zone.",
-						'Deployment URLs are public and enumerable.',
-					].join('\n')
-				),
 			// dataRetention: z.boolean().describe('Configure how your resources are handled on delete.').default(false),
 		})
 		.default({})

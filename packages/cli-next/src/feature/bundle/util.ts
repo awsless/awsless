@@ -145,7 +145,7 @@ ${entries.join('\n')}
 			await temp.delete()
 
 			// Clear out the stale chunks from the previous build.
-			await rm(getBuildPath('function', props.name, 'files'), { recursive: true, force: true })
+			await rm(getBuildPath('bundle', props.name, 'files'), { recursive: true, force: true })
 
 			await Promise.all([
 				write('HASH', bundle.hash),

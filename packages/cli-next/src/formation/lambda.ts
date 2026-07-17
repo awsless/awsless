@@ -2,7 +2,6 @@ import {
 	AddPermissionCommand,
 	CreateAliasCommand,
 	CreateFunctionUrlConfigCommand,
-	DeleteFunctionUrlConfigCommand,
 	GetFunctionUrlConfigCommand,
 	LambdaClient,
 	PutFunctionEventInvokeConfigCommand,
@@ -12,7 +11,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { Region } from '../config/schema/region'
 import { Credentials, isError } from '../util/aws'
-import { createAlias, deleteAlias, getAlias, getDeploymentAliasName, LIVE_ALIAS } from '../util/lambda'
+import { createLambdaAlias, deleteLambdaAlias, getLambdaAlias, getDeploymentLambdaAliasName, LIVE_LAMBDA_ALIAS } from '../util/lambda'
 
 type FunctionDeploymentInput = {
 	functionName: Input<string>
@@ -31,7 +30,7 @@ export const FunctionDeployment = createCustomResourceClass<FunctionDeploymentIn
 )
 
 type BundleDeploymentInput = {
-	deploymentId: Input<number>
+	deploymentId: Input<string>
 	functionName: Input<string>
 	functionVersion: Input<string>
 	onFailureArn: Input<string>
@@ -67,7 +66,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		oldDeployments: z.array(z.string()),
 	})
 	const bundleDeploymentInputSchema = z.object({
-		deploymentId: z.number(),
+		deploymentId: z.string(),
 		functionName: z.string(),
 		functionVersion: z.string(),
 		onFailureArn: z.string(),
@@ -90,7 +89,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		return `${state.id}-${hash}`
 	}
 	const getLiveAlias = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		const result = await getAlias(lambda, state.functionName, LIVE_ALIAS)
+		const result = await getLambdaAlias(lambda, state.functionName, LIVE_LAMBDA_ALIAS)
 
 		return result
 			? {
@@ -179,10 +178,10 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 		return url
 	}
 	const createBundleDeployment = async (state: z.output<typeof bundleDeploymentInputSchema>) => {
-		const deploymentAlias = getDeploymentAliasName(state.deploymentId)
+		const deploymentAlias = getDeploymentLambdaAliasName(state.deploymentId)
 		const live = await getLiveAlias(state)
 
-		await createAlias(lambda, {
+		await createLambdaAlias(lambda, {
 			functionName: state.functionName,
 			functionVersion: state.functionVersion,
 			name: deploymentAlias,
@@ -286,23 +285,6 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 
 		return url
 	}
-	const deleteFunctionDeployment = async (functionName: string, alias: string) => {
-		try {
-			await lambda.send(
-				new DeleteFunctionUrlConfigCommand({
-					FunctionName: functionName,
-					Qualifier: alias,
-				})
-			)
-		} catch (error) {
-			if (!isError(error, 'ResourceNotFoundException')) {
-				throw error
-			}
-		}
-
-		await deleteAlias(lambda, functionName, alias)
-	}
-
 	return createCustomProvider('lambda', {
 		'bundle-deployment': {
 			async createResource(props) {
@@ -318,17 +300,17 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 					const next = await createBundleDeployment(proposed)
 
 					await Promise.all(
-						prior.deploymentAliases.map(name => deleteFunctionDeployment(prior.functionName, name))
+						prior.deploymentAliases.map(name => deleteLambdaAlias(lambda, prior.functionName, name))
 					)
 
 					return next
 				}
 
-				const deploymentAlias = getDeploymentAliasName(proposed.deploymentId)
+				const deploymentAlias = getDeploymentLambdaAliasName(proposed.deploymentId)
 				const deploymentAliases = [...prior.deploymentAliases]
 				const live = await getLiveAlias(proposed)
 
-				await createAlias(lambda, {
+				await createLambdaAlias(lambda, {
 					functionName: proposed.functionName,
 					functionVersion: proposed.functionVersion,
 					name: deploymentAlias,
@@ -353,7 +335,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				const state = bundleDeploymentStateSchema.parse(props.state)
 
 				await Promise.all(
-					state.deploymentAliases.map(name => deleteFunctionDeployment(state.functionName, name))
+					state.deploymentAliases.map(name => deleteLambdaAlias(lambda, state.functionName, name))
 				)
 			},
 		},
@@ -393,7 +375,7 @@ export const createLambdaProvider = ({ credentials, region }: ProviderProps) => 
 				const state = functionDeploymentStateSchema.parse(props.state)
 				const aliases = new Set([state.alias, ...state.oldDeployments])
 
-				await Promise.all([...aliases].map(alias => deleteFunctionDeployment(state.functionName, alias)))
+				await Promise.all([...aliases].map(alias => deleteLambdaAlias(lambda, state.functionName, alias)))
 			},
 		},
 	})

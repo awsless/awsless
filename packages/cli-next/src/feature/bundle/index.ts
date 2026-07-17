@@ -99,7 +99,7 @@ export const bundleFeature = defineFeature({
 		// Build all handlers into a single code bundle.
 
 		ctx.registerBuild(
-			'function',
+			'bundle',
 			name,
 			buildBundle({
 				name,
@@ -113,20 +113,20 @@ export const bundleFeature = defineFeature({
 		// Resolve the env at deploy time & zip it into the bundle as an awsless-env.mjs file.
 
 		const sourceHash = new Output<string>(envDeps, async (resolve: (value: string) => void) => {
-			const buildHash = await readFile(getBuildPath('function', name, 'HASH'), 'utf8')
+			const buildHash = await readFile(getBuildPath('bundle', name, 'HASH'), 'utf8')
 			const vars = await resolveInputs(env)
 			const sorted = Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b)))
 			const envFile = `export default ${JSON.stringify(sorted, undefined, '\t')}
 `
 
-			const dir = getBuildPath('function', name, 'files')
+			const dir = getBuildPath('bundle', name, 'files')
 			const files = await readdir(dir)
 			const archive = await zipFiles([
 				...files.filter(file => !file.endsWith('.map')).map(file => ({ name: file, path: join(dir, file) })),
 				{ name: 'awsless-env.mjs', code: Buffer.from(envFile, 'utf8') },
 			])
 
-			await writeFile(getBuildPath('function', name, 'bundle.zip'), archive)
+			await writeFile(getBuildPath('bundle', name, 'bundle.zip'), archive)
 
 			resolve(createHash('sha1').update(buildHash).update(envFile).digest('hex'))
 		})
@@ -134,7 +134,7 @@ export const bundleFeature = defineFeature({
 		const code = new aws.s3.BucketObject(group, 'code', {
 			bucket: ctx.shared.get('bundle', 'bucket-name'),
 			key: `/lambda/${name}.zip`,
-			source: relativePath(getBuildPath('function', name, 'bundle.zip')),
+			source: relativePath(getBuildPath('bundle', name, 'bundle.zip')),
 			sourceHash,
 		})
 
@@ -291,7 +291,7 @@ export const bundleFeature = defineFeature({
 			group,
 			'deployment',
 			{
-				deploymentId: ctx.deploymentId ?? 0,
+				deploymentId: ctx.deploymentId ?? 'local-0',
 				functionName: lambda.functionName,
 				functionVersion: lambda.version,
 				onFailureArn: onFailure,

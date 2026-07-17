@@ -17,6 +17,7 @@ import { image } from './image/index.js'
 import { icon } from './icon/index.js'
 import { cron } from './cron/index.js'
 import { activity } from './activity/index.js'
+import { deployments, prune } from './deployment.js'
 import { rollback } from './rollback.js'
 
 export const commands = [
@@ -24,7 +25,9 @@ export const commands = [
 	types,
 	build,
 	deploy,
+	deployments,
 	rollback,
+	prune,
 	// diff,
 	del,
 	dev,

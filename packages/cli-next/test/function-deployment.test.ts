@@ -70,7 +70,7 @@ describe('Lambda bundle deployment', () => {
 		const result = await provider.createResource({
 			type: 'bundle-deployment',
 			state: {
-				deploymentId: 1,
+				deploymentId: 'main-1',
 				functionName: 'test-function',
 				functionVersion: '1',
 				onFailureArn,
@@ -78,15 +78,15 @@ describe('Lambda bundle deployment', () => {
 		})
 
 		expect(result.state).toEqual({
-			deploymentId: 1,
+			deploymentId: 'main-1',
 			functionName: 'test-function',
 			functionVersion: '1',
 			onFailureArn,
-			deploymentAlias: 'deployment-1',
-			deploymentAliases: ['deployment-1'],
+			deploymentAlias: 'deployment-main-1',
+			deploymentAliases: ['deployment-main-1'],
 			liveDescription: undefined,
 			liveVersion: '1',
-			url: 'https://deployment-1.lambda-url.us-east-1.on.aws/',
+			url: 'https://deployment-main-1.lambda-url.us-east-1.on.aws/',
 		})
 		expect(send.mock.calls.map(([command]) => command)).toEqual([
 			expect.any(GetAliasCommand),
@@ -96,7 +96,7 @@ describe('Lambda bundle deployment', () => {
 			expect.any(AddPermissionCommand),
 			expect.any(AddPermissionCommand),
 		])
-		expect(send.mock.calls[1]![0].input.Name).toBe('deployment-1')
+		expect(send.mock.calls[1]![0].input.Name).toBe('deployment-main-1')
 
 		// the deployment preview url is public & only invokable through the url
 		const permissions = sent(send, AddPermissionCommand).map(command => command.input)
@@ -121,7 +121,7 @@ describe('Lambda bundle deployment', () => {
 		const result = await provider.createResource({
 			type: 'bundle-deployment',
 			state: {
-				deploymentId: 8,
+				deploymentId: 'main-8',
 				functionName: 'test-function',
 				functionVersion: '8',
 				onFailureArn,
@@ -133,7 +133,7 @@ describe('Lambda bundle deployment', () => {
 		expect(send.mock.calls.map(([command]) => command.input)).toContainEqual({
 			FunctionName: 'test-function',
 			FunctionVersion: '8',
-			Name: 'deployment-8',
+			Name: 'deployment-main-8',
 		})
 		expect(
 			send.mock.calls.some(([command]) => command instanceof CreateAliasCommand && command.input.Name === 'live')
@@ -146,17 +146,17 @@ describe('Lambda bundle deployment', () => {
 		const result = await provider.updateResource({
 			type: 'bundle-deployment',
 			priorState: {
-				deploymentId: 1,
+				deploymentId: 'main-1',
 				functionName: 'test-function',
 				functionVersion: '1',
 				onFailureArn,
-				deploymentAlias: 'deployment-1',
-				deploymentAliases: ['deployment-1'],
+				deploymentAlias: 'deployment-main-1',
+				deploymentAliases: ['deployment-main-1'],
 				liveDescription: '$awsless:deployment:1:1',
 				liveVersion: '1',
 			},
 			proposedState: {
-				deploymentId: 2,
+				deploymentId: 'main-2',
 				functionName: 'test-function',
 				functionVersion: '2',
 				onFailureArn,
@@ -171,9 +171,9 @@ describe('Lambda bundle deployment', () => {
 			expect.any(AddPermissionCommand),
 			expect.any(AddPermissionCommand),
 		])
-		expect(result.state.deploymentAliases).toEqual(['deployment-1', 'deployment-2'])
+		expect(result.state.deploymentAliases).toEqual(['deployment-main-1', 'deployment-main-2'])
 		expect(result.state.liveVersion).toBe('1')
-		expect(result.state.url).toBe('https://deployment-2.lambda-url.us-east-1.on.aws/')
+		expect(result.state.url).toBe('https://deployment-main-2.lambda-url.us-east-1.on.aws/')
 	})
 
 	it('should delete only deployment aliases', async () => {
@@ -183,12 +183,12 @@ describe('Lambda bundle deployment', () => {
 		await provider.deleteResource({
 			type: 'bundle-deployment',
 			state: {
-				deploymentId: 2,
+				deploymentId: 'main-2',
 				functionName: 'test-function',
 				functionVersion: '2',
 				onFailureArn,
-				deploymentAlias: 'deployment-2',
-				deploymentAliases: ['deployment-1', 'deployment-2'],
+				deploymentAlias: 'deployment-main-2',
+				deploymentAliases: ['deployment-main-1', 'deployment-main-2'],
 				liveDescription: '$awsless:deployment:1:1',
 				liveVersion: '1',
 			},
@@ -198,12 +198,12 @@ describe('Lambda bundle deployment', () => {
 			expect.arrayContaining([DeleteAliasCommand, DeleteFunctionUrlConfigCommand])
 		)
 		expect(sent(send, DeleteAliasCommand).map(command => command.input.Name)).toEqual([
-			'deployment-1',
-			'deployment-2',
+			'deployment-main-1',
+			'deployment-main-2',
 		])
 		expect(sent(send, DeleteFunctionUrlConfigCommand).map(command => command.input.Qualifier)).toEqual([
-			'deployment-1',
-			'deployment-2',
+			'deployment-main-1',
+			'deployment-main-2',
 		])
 	})
 })

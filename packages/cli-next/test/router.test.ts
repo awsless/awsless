@@ -1,8 +1,6 @@
 import { findInputDeps, getMeta, resolveInputs } from '@terraforge/core'
-import crypto from 'crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { getPreviewRequestFunctionCode, getViewerRequestFunctionCode } from '../src/feature/router/router-code'
-import { signDeployment } from '../src/util/deployment'
+import { getViewerRequestFunctionCode } from '../src/feature/router/router-code'
 import { createTestApp } from './_kit'
 
 type Request = {
@@ -39,9 +37,8 @@ const evaluate = (code: string, values: Map<string, string>) => {
 	}
 	const handler = new Function(
 		'cf',
-		'crypto',
-		`${code.replace('import cf from "cloudfront";', '').replace('import crypto from "crypto";', '')}\nreturn handler;`
-	)(cf, crypto) as (event: { request: Request }) => Promise<Request | Response>
+		`${code.replace('import cf from "cloudfront";', '')}\nreturn handler;`
+	)(cf) as (event: { request: Request }) => Promise<Request | Response>
 
 	return { get, handler, updateRequestOrigin: cf.updateRequestOrigin }
 }
@@ -51,20 +48,6 @@ const createRouter = (
 	props: Omit<Parameters<typeof getViewerRequestFunctionCode>[0], 'router'> = {}
 ) => {
 	return evaluate(getViewerRequestFunctionCode({ router: 'main', ...props }), values)
-}
-
-const appId = 'a1b2c3d4'
-
-const createPreviewRouter = (values: Map<string, string>, routers: string[] = ['main']) => {
-	return evaluate(
-		getPreviewRequestFunctionCode({
-			defaultRouter: routers[0]!,
-			appId,
-			deployUrls: true,
-			routers: routers.map(id => ({ id })),
-		}),
-		values
-	)
 }
 
 const route = (domainName: string) => JSON.stringify({ type: 's3', domainName })
@@ -159,64 +142,20 @@ describe('router routes', () => {
 		)
 	})
 
-	it('should not create deployment url resources without a deployment domain', async () => {
+	it('should keep the preview distribution on its own cloudfront host', async () => {
 		const result = createRouterApp({ main: {} })
 		result.ready()
 
 		const resources = result.app.resources.map(getMeta)
 		const preview = resources.find(resource => resource.type === 'aws_cloudfront_distribution')!
-		const deployment = resources.find(resource => resource.type === 'route-deployment')!
-
-		await expect(resolveInputs(preview.input.aliases)).resolves.toBeUndefined()
-		const preview2 = resources.find(
-			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('preview-function')
-		)!
-		expect(String(preview2.input.code)).not.toContain('$deploy:')
-		expect(resources.find(resource => resource.type === 'aws_acm_certificate')).toBeUndefined()
-	})
-
-	it('should reject invalid deployment domain configurations', () => {
-		const domains = { primary: { domain: 'example.com' } }
-
-		expect(() => createRouterApp({ main: {} }, { domains, deploymentDomain: 'example.com' })).toThrow(
-			`can't overlap`
-		)
-		expect(() => createRouterApp({ main: {} }, { domains, deploymentDomain: 'deploys.example.com' })).toThrow(
-			`can't overlap`
-		)
-		expect(() =>
-			createRouterApp(
-				{ main: {} },
-				{ domains: { primary: { domain: 'app.example-deploys.com' } }, deploymentDomain: 'example-deploys.com' }
-			)
-		).toThrow(`can't overlap`)
-	})
-
-
-	it('should serve deployment urls from a wildcard on the dedicated deployment domain', async () => {
-		const result = createRouterApp({ main: {} }, { deploymentDomain: 'example-deploys.com' })
-		result.ready()
-
-		const resources = result.app.resources.map(getMeta)
-		const preview = resources.find(resource => resource.type === 'aws_cloudfront_distribution')!
-		const deployment = resources.find(resource => resource.type === 'route-deployment')!
-		const zone = resources.find(resource => resource.type === 'aws_route53_zone')!
-		const certificate = resources.find(resource => resource.type === 'aws_acm_certificate')!
-		const record = resources.find(
-			resource => resource.type === 'aws_route53_record' && resource.urn.includes('deploy-url-record')
-		)!
-
-		await expect(resolveInputs(zone.input.name)).resolves.toBe('example-deploys.com')
-		await expect(resolveInputs(certificate.input.domainName)).resolves.toBe('example-deploys.com')
-		await expect(resolveInputs(certificate.input.subjectAlternativeNames)).resolves.toEqual([
-			'*.example-deploys.com',
-		])
-		await expect(resolveInputs(preview.input.aliases)).resolves.toEqual(['*.example-deploys.com'])
 		const previewFn = resources.find(
 			resource => resource.type === 'aws_cloudfront_function' && resource.urn.includes('preview-function')
 		)!
-		expect(String(previewFn.input.code)).toContain('$deploy:')
-		await expect(resolveInputs(record.input.name)).resolves.toBe('*.example-deploys.com')
+
+		await expect(resolveInputs(preview.input.aliases)).resolves.toBeUndefined()
+		expect(String(previewFn.input.code)).not.toContain('$deploy:')
+		expect(resources.find(resource => resource.type === 'aws_acm_certificate')).toBeUndefined()
+		expect(resources.find(resource => resource.type === 'aws_route53_zone')).toBeUndefined()
 	})
 
 	it('should read every route from the active route table', async () => {
@@ -291,25 +230,6 @@ describe('router routes', () => {
 		const result = (await handler({ request })) as Request
 
 		expect(result.headers['x-awsless-authorization']).toBeUndefined()
-	})
-
-	it('should resolve deployment url hosts to their pinned route table', async () => {
-		const values = new Map([
-			['$active', 'v2:43'],
-			['$deploy:42', 'v1:19'],
-			['v1:main:/api/*', route('api-old.example.com')],
-			['v2:main:/api/*', route('api.example.com')],
-		])
-		const { handler } = createPreviewRouter(values)
-		const invoke = async (path: string, host: string) => {
-			const request = (await handler({ request: createRequest(path, host) })) as Request
-			return request.headers['x-origin']?.value
-		}
-
-		await expect(invoke('/api/users', `main-42-${signDeployment(appId, 42)}.example.com`)).resolves.toBe(
-			'api-old.example.com'
-		)
-		await expect(invoke('/api/users', 'd111111abcdef8.cloudfront.net')).resolves.toBe('api.example.com')
 	})
 
 	it('should serve assets through the single dotted-catchall route', async () => {
@@ -395,47 +315,4 @@ describe('router routes', () => {
 		expect(page.uri).toBe('/docs/getting-started')
 	})
 
-	it('should resolve every router through the shared preview distribution', async () => {
-		const values = new Map([
-			['$active', 'v2:43'],
-			['$deploy:42', 'v1:19'],
-			['v1:casino:/api/*', route('casino.example.com')],
-			['v1:admin:/api/*', route('admin.example.com')],
-			['v2:casino:/api/*', route('casino-new.example.com')],
-		])
-		const { handler } = createPreviewRouter(values, ['casino', 'admin'])
-		const token = signDeployment(appId, 42)
-		const invoke = async (path: string, host: string) => {
-			const request = (await handler({ request: createRequest(path, host) })) as Request
-			return request.headers['x-origin']?.value
-		}
-
-		await expect(invoke('/api/users', `casino-42-${token}.example.com`)).resolves.toBe('casino.example.com')
-		await expect(invoke('/api/users', `admin-42-${token}.example.com`)).resolves.toBe('admin.example.com')
-
-		// the bare cloudfront host serves the first router's active deployment
-		await expect(invoke('/api/users', 'd111111abcdef8.cloudfront.net')).resolves.toBe('casino-new.example.com')
-	})
-
-	it('should return 404 for unknown deployment url hosts', async () => {
-		const values = new Map([
-			['$active', 'v2:43'],
-			['$deploy:42', 'v1:19'],
-		])
-		const { handler } = createPreviewRouter(values)
-		const invoke = async (host: string) => {
-			const response = (await handler({
-				request: createRequest('/api/users', host),
-			})) as Response
-
-			return response.statusCode
-		}
-
-		// an unknown deployment number
-		await expect(invoke(`main-43-${signDeployment(appId, 43)}.example.com`)).resolves.toBe(404)
-
-		// a wrong or missing deployment token
-		await expect(invoke('main-42-0000000000.example.com')).resolves.toBe(404)
-		await expect(invoke('main-42.example.com')).resolves.toBe(404)
-	})
 })

@@ -1,6 +1,7 @@
 import {
 	CreateAliasCommand,
 	DeleteAliasCommand,
+	DeleteFunctionUrlConfigCommand,
 	GetAliasCommand,
 	LambdaClient,
 	UpdateAliasCommand,
@@ -11,20 +12,14 @@ import { Credentials, isError } from './aws'
 // ------------------------------------------------------------
 // Alias naming contract
 
-export const LIVE_ALIAS = 'live'
+export const LIVE_LAMBDA_ALIAS = 'live'
 
-export const getDeploymentAliasName = (id: number) => `deployment-${id}`
-
-export const parseDeploymentAliasName = (name: string) => {
-	const match = name.match(/^deployment-(\d+)$/)
-
-	return match ? Number(match[1]) : undefined
-}
+export const getDeploymentLambdaAliasName = (id: string) => `deployment-${id}`
 
 // ------------------------------------------------------------
 // Alias plumbing
 
-export const getAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
+export const getLambdaAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
 	try {
 		return await lambda.send(
 			new GetAliasCommand({
@@ -42,7 +37,7 @@ export const getAlias = async (lambda: LambdaClient, functionName: string, name:
 }
 
 // Update-first upsert for aliases that almost always exist (the live alias).
-export const upsertAlias = async (
+export const upsertLambdaAlias = async (
 	lambda: LambdaClient,
 	props: {
 		functionName: string
@@ -78,7 +73,7 @@ export const upsertAlias = async (
 }
 
 // Create-first upsert for aliases that are usually new (deployment markers).
-export const createAlias = async (
+export const createLambdaAlias = async (
 	lambda: LambdaClient,
 	props: {
 		functionName: string
@@ -103,7 +98,21 @@ export const createAlias = async (
 	}
 }
 
-export const deleteAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
+// An alias url must be deleted before the alias itself can go.
+export const deleteLambdaAlias = async (lambda: LambdaClient, functionName: string, name: string) => {
+	try {
+		await lambda.send(
+			new DeleteFunctionUrlConfigCommand({
+				FunctionName: functionName,
+				Qualifier: name,
+			})
+		)
+	} catch (error) {
+		if (!isError(error, 'ResourceNotFoundException')) {
+			throw error
+		}
+	}
+
 	try {
 		await lambda.send(
 			new DeleteAliasCommand({
